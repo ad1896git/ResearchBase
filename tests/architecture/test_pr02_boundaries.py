@@ -22,6 +22,21 @@ def _imports(path: Path, package: str) -> set[str]:
                 modules.update(f"researchbase.{alias.name}" for alias in node.names)
             elif node.module is None:
                 modules.update(f"{resolved}.{alias.name}" for alias in node.names)
+        elif isinstance(node, ast.Call):
+            function_name = (
+                node.func.attr
+                if isinstance(node.func, ast.Attribute)
+                else node.func.id
+                if isinstance(node.func, ast.Name)
+                else None
+            )
+            if (
+                function_name in {"import_module", "__import__"}
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                modules.add(node.args[0].value)
     return modules
 
 
@@ -92,3 +107,28 @@ def test_boundary_checker_catches_adversarial_application_imports(
     assert _violations(tmp_path, ("sqlalchemy", "researchbase.persistence"), package) == [
         (path, expected)
     ]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'import importlib\nimportlib.import_module("researchbase.persistence")\n',
+            "researchbase.persistence",
+        ),
+        ('import importlib\nimportlib.import_module("sqlalchemy")\n', "sqlalchemy"),
+        ('__import__("fastapi")\n', "fastapi"),
+        ('__import__("typer")\n', "typer"),
+    ],
+)
+def test_boundary_checker_catches_literal_dynamic_forbidden_imports(
+    tmp_path: Path, source: str, expected: str
+) -> None:
+    path = tmp_path / "unsafe.py"
+    path.write_text(source)
+
+    assert _violations(
+        tmp_path,
+        ("sqlalchemy", "fastapi", "typer", "researchbase.persistence"),
+        package="researchbase.application",
+    ) == [(path, expected)]

@@ -91,13 +91,16 @@ def test_explicit_rollback_discards_records(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork],
 ) -> None:
     created_actor = actor()
+    created_project = project(created_actor.id)
 
     with uow_factory() as uow:
         uow.actors.add(created_actor)
+        uow.projects.add(created_project)
         uow.rollback()
 
     with uow_factory() as uow:
         assert uow.actors.get(created_actor.id) is None
+        assert uow.projects.get(created_project.id) is None
 
 
 def test_exception_rolls_back_all_repositories(
@@ -141,6 +144,10 @@ def test_workspace_foreign_keys_are_enforced_by_postgresql(
     created_actor = actor()
     project_id = ProjectId(uuid4())
     if missing == "actor":
+        with uow_factory() as uow:
+            uow.actors.add(created_actor)
+            uow.projects.add(project(created_actor.id, project_id))
+            uow.commit()
         created_by = ActorId(uuid4())
         with pytest.raises(IntegrityError):
             with uow_factory() as uow:
