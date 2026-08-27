@@ -1,0 +1,13 @@
+{
+  "pr": "PR-05",
+  "execution_date": "2026-08-27",
+  "baseline_head": "eda94d650a66bc693a21a2948200aae60ee357d7",
+  "implementation_commit": "f11f3eec619daaff0761bd1911e3f29aab838330",
+  "plan_commit": "32b5cbf86dcf0b1a142610de6a8676d450c726ed",
+  "database": "PostgreSQL",
+  "migration_head": "0004_experiment_spec",
+  "tests": 171,
+  "integration_tests": 43,
+  "architecture_tests": 27,
+  "unauthorized_scope_detected": false
+}

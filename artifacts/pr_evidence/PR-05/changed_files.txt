@@ -1,0 +1,14 @@
+docs/superpowers/plans/2026-08-27-pr05-experiment-spec.md
+migrations/versions/0004_experiment_spec.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/experiment.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/integration/test_pr05_application.py
+tests/integration/test_pr05_schema.py
+tests/test_architecture.py
+tests/unit/domain/test_pr05_experiment.py
