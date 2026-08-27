@@ -1,0 +1,33 @@
+# PR-02 implementation commit: dd69bbf
+# Parent accepted PR-01R evidence: 99e0888
+
+migrations/versions/0002_actor_project_workspace.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/__init__.py
+src/researchbase/domain/identity.py
+src/researchbase/domain/organization.py
+src/researchbase/persistence/database.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/architecture/test_pr02_boundaries.py
+tests/integration/test_pr02_application.py
+tests/integration/test_pr02_schema.py
+tests/integration/test_pr02_transactions.py
+tests/test_architecture.py
+tests/unit/domain/test_pr02_models.py
+
+# PR-02 evidence files:
+artifacts/pr_evidence/PR-02/implementation_summary.md
+artifacts/pr_evidence/PR-02/changed_files.txt
+artifacts/pr_evidence/PR-02/commands_and_results.md
+artifacts/pr_evidence/PR-02/test_report.md
+artifacts/pr_evidence/PR-02/architecture_review.md
+artifacts/pr_evidence/PR-02/code_review.md
+artifacts/pr_evidence/PR-02/unresolved_findings.md
+artifacts/pr_evidence/PR-02/harness_fingerprint.json
+
+# User-provided execution packs and existing .DS_Store files were intentionally not staged.
