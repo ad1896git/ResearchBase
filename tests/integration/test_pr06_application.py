@@ -443,7 +443,21 @@ def test_snapshot_late_failure_rolls_back_and_retry_is_single_row(
     retried = service.create_dataset_snapshot(
         snapshot_command(DatasetId(dataset.id), actor_context)
     )
-    assert retried.id
+    verification_engine = create_database_engine()
+    try:
+        with verification_engine.connect() as connection:
+            persisted = connection.execute(
+                text(
+                    "SELECT id FROM dataset_snapshots "
+                    "WHERE dataset_id = :dataset_id"
+                ),
+                {"dataset_id": dataset.id},
+            ).all()
+    finally:
+        verification_engine.dispose()
+
+    assert len(persisted) == 1
+    assert persisted[0].id == retried.id
 
 
 def test_pr06_restrict_foreign_keys_block_referenced_deletes(
