@@ -1,0 +1,9 @@
+{
+  "researchbase_git_commit": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+  "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+  "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+  "target_pr_pack_sha256": "3829fd504e4bfcad3cfa5c8d47cf31616c246d3e0b2579ab48d7f483ceec96a5",
+  "codex_runtime_version": "unknown",
+  "model_identifier": "unknown",
+  "external_harness_used": []
+}

@@ -1,0 +1,28 @@
+# PR-01 code commit: a517b3174f14ac2f1fb9dd3ead1852404585aa75
+# PR-00 baseline was preserved. The PR-01 execution pack and .DS_Store files were user/input
+# files and were intentionally not added to the PR-01 commit.
+
+src/researchbase/foundation/canonical_json.py
+src/researchbase/foundation/enums.py
+src/researchbase/foundation/errors.py
+src/researchbase/foundation/execution_context.py
+src/researchbase/foundation/hashing.py
+src/researchbase/foundation/ids.py
+src/researchbase/foundation/time.py
+tests/architecture/test_import_boundaries.py
+tests/unit/foundation/test_canonical_json.py
+tests/unit/foundation/test_errors.py
+tests/unit/foundation/test_execution_context.py
+tests/unit/foundation/test_hashing.py
+tests/unit/foundation/test_ids.py
+tests/unit/foundation/test_time.py
+
+# PR-01 evidence files:
+artifacts/pr_evidence/PR-01/implementation_summary.md
+artifacts/pr_evidence/PR-01/changed_files.txt
+artifacts/pr_evidence/PR-01/commands_and_results.md
+artifacts/pr_evidence/PR-01/test_report.md
+artifacts/pr_evidence/PR-01/architecture_review.md
+artifacts/pr_evidence/PR-01/code_review.md
+artifacts/pr_evidence/PR-01/unresolved_findings.md
+artifacts/pr_evidence/PR-01/harness_fingerprint.json
