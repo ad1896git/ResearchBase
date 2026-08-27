@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from researchbase.domain.artifact import ArtifactId, ArtifactVersionId
 from researchbase.domain.evidence import DatasetId, DatasetSnapshotId
 from researchbase.domain.experiment import ExperimentSpecId, ExperimentSpecVersionId
 from researchbase.domain.identity import ActorType
@@ -164,3 +165,33 @@ class DatasetSnapshotReadModel:
     content_hash: ContentHash
     created_by: ActorId
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactReadModel:
+    id: ArtifactId
+    project_id: ProjectId | None
+    artifact_type: str
+    name: str
+    description: str | None
+    current_version_id: ArtifactVersionId | None
+    created_by: ActorId
+    created_at: datetime
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactVersionReadModel:
+    id: ArtifactVersionId
+    artifact_id: ArtifactId
+    version_number: int
+    status: VersionStatus
+    locator: str | None
+    media_type: str | None
+    byte_size: int | None
+    content_hash: ContentHash
+    metadata: object | None
+    created_by: ActorId
+    created_at: datetime
+    frozen_at: datetime | None
+    row_version: int

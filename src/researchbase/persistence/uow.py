@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from researchbase.application.ports import (
     ActorRepository,
+    ArtifactRepository,
+    ArtifactVersionRepository,
     DatasetRepository,
     DatasetSnapshotRepository,
     ExperimentSpecRepository,
@@ -21,6 +23,8 @@ from researchbase.application.ports import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
+    SqlAlchemyArtifactRepository,
+    SqlAlchemyArtifactVersionRepository,
     SqlAlchemyDatasetRepository,
     SqlAlchemyDatasetSnapshotRepository,
     SqlAlchemyExperimentSpecRepository,
@@ -40,6 +44,8 @@ class SqlAlchemyUnitOfWork:
     experiment_specs: ExperimentSpecRepository
     datasets: DatasetRepository
     dataset_snapshots: DatasetSnapshotRepository
+    artifacts: ArtifactRepository
+    artifact_versions: ArtifactVersionRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -58,6 +64,8 @@ class SqlAlchemyUnitOfWork:
         self.experiment_specs = SqlAlchemyExperimentSpecRepository(self._session)
         self.datasets = SqlAlchemyDatasetRepository(self._session)
         self.dataset_snapshots = SqlAlchemyDatasetSnapshotRepository(self._session)
+        self.artifacts = SqlAlchemyArtifactRepository(self._session)
+        self.artifact_versions = SqlAlchemyArtifactVersionRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -84,6 +92,17 @@ class SqlAlchemyUnitOfWork:
                 raise ResearchBaseError(
                     ErrorCode.DUPLICATE_CONTENT,
                     "dataset snapshot content already exists for this dataset",
+                ) from exc
+            if "uq_artifact_versions_artifact_content_hash" in str(exc.orig):
+                raise ResearchBaseError(
+                    ErrorCode.DUPLICATE_CONTENT,
+                    "artifact version content already exists for this artifact",
+                ) from exc
+            if "uq_artifact_versions_artifact_version" in str(exc.orig):
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "version number is already in use for this artifact",
+                    {"field": "version_number"},
                 ) from exc
             raise
         self._committed = True

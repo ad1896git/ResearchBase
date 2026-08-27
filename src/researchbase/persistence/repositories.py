@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
 from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
@@ -38,6 +39,8 @@ from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.models import (
     ActorModel,
+    ArtifactModel,
+    ArtifactVersionModel,
     DatasetModel,
     DatasetSnapshotModel,
     ExperimentSpecModel,
@@ -596,6 +599,148 @@ class SqlAlchemyDatasetSnapshotRepository:
         return _dataset_snapshot_from_model(model) if model is not None else None
 
 
+class SqlAlchemyArtifactRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, artifact: Artifact) -> None:
+        self._session.add(
+            ArtifactModel(
+                id=artifact.id,
+                project_id=artifact.project_id,
+                artifact_type=artifact.artifact_type,
+                name=artifact.name,
+                description=artifact.description,
+                current_version_id=artifact.current_version_id,
+                created_by=artifact.created_by,
+                created_at=artifact.created_at,
+                row_version=artifact.row_version,
+            )
+        )
+
+    def get(self, artifact_id: ArtifactId) -> Artifact | None:
+        model = self._session.get(ArtifactModel, artifact_id)
+        return _artifact_from_model(model) if model is not None else None
+
+    def get_for_update(self, artifact_id: ArtifactId) -> Artifact | None:
+        model = self._session.scalar(
+            select(ArtifactModel).where(ArtifactModel.id == artifact_id).with_for_update()
+        )
+        return _artifact_from_model(model) if model is not None else None
+
+    def update_current_version(
+        self,
+        artifact_id: ArtifactId,
+        version_id: ArtifactVersionId,
+        expected_row_version: int,
+    ) -> None:
+        self._session.flush()
+        version = self._session.get(ArtifactVersionModel, version_id)
+        if version is None:
+            raise _not_found("artifact version", version_id)
+        if version.artifact_id != artifact_id:
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "current version must belong to the artifact",
+            )
+        result = self._session.execute(
+            update(ArtifactModel)
+            .where(
+                ArtifactModel.id == artifact_id,
+                ArtifactModel.row_version == expected_row_version,
+            )
+            .values(
+                current_version_id=version_id,
+                row_version=ArtifactModel.row_version + 1,
+            )
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "artifact", artifact_id)
+
+
+class SqlAlchemyArtifactVersionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, version: ArtifactVersion) -> None:
+        self._session.add(
+            ArtifactVersionModel(
+                id=version.id,
+                artifact_id=version.artifact_id,
+                version_number=version.version_number,
+                status=version.status.value,
+                locator=version.locator,
+                media_type=version.media_type,
+                byte_size=version.byte_size,
+                content_hash=str(version.content_hash),
+                metadata_json=version.metadata,
+                created_by=version.created_by,
+                created_at=version.created_at,
+                frozen_at=version.frozen_at,
+                row_version=version.row_version,
+            )
+        )
+
+    def get(self, version_id: ArtifactVersionId) -> ArtifactVersion | None:
+        model = self._session.get(ArtifactVersionModel, version_id)
+        return _artifact_version_from_model(model) if model is not None else None
+
+    def get_for_update(self, version_id: ArtifactVersionId) -> ArtifactVersion | None:
+        model = self._session.scalar(
+            select(ArtifactVersionModel)
+            .where(ArtifactVersionModel.id == version_id)
+            .with_for_update()
+        )
+        return _artifact_version_from_model(model) if model is not None else None
+
+    def find_by_artifact_and_content_hash(
+        self, artifact_id: ArtifactId, content_hash: str
+    ) -> ArtifactVersion | None:
+        model = self._session.scalar(
+            select(ArtifactVersionModel).where(
+                ArtifactVersionModel.artifact_id == artifact_id,
+                ArtifactVersionModel.content_hash == content_hash,
+            )
+        )
+        return _artifact_version_from_model(model) if model is not None else None
+
+    def max_version_number(self, artifact_id: ArtifactId) -> int:
+        value = self._session.scalar(
+            select(func.coalesce(func.max(ArtifactVersionModel.version_number), 0)).where(
+                ArtifactVersionModel.artifact_id == artifact_id
+            )
+        )
+        return int(value or 0)
+
+    def list_history(self, artifact_id: ArtifactId) -> list[ArtifactVersion]:
+        models = self._session.scalars(
+            select(ArtifactVersionModel)
+            .where(ArtifactVersionModel.artifact_id == artifact_id)
+            .order_by(ArtifactVersionModel.version_number)
+        ).all()
+        return [_artifact_version_from_model(model) for model in models]
+
+    def update(self, version: ArtifactVersion, expected_row_version: int) -> None:
+        result = self._session.execute(
+            update(ArtifactVersionModel)
+            .where(
+                ArtifactVersionModel.id == version.id,
+                ArtifactVersionModel.row_version == expected_row_version,
+            )
+            .values(
+                status=version.status.value,
+                locator=version.locator,
+                media_type=version.media_type,
+                byte_size=version.byte_size,
+                content_hash=str(version.content_hash),
+                metadata_json=version.metadata,
+                frozen_at=version.frozen_at,
+                row_version=ArtifactVersionModel.row_version + 1,
+            )
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "artifact version", version.id)
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -604,6 +749,42 @@ def _actor_from_model(model: ActorModel) -> Actor:
         external_key=model.external_key,
         created_at=model.created_at,
         retired_at=model.retired_at,
+        row_version=model.row_version,
+    )
+
+
+def _artifact_from_model(model: ArtifactModel) -> Artifact:
+    return Artifact(
+        id=ArtifactId(model.id),
+        project_id=ProjectId(model.project_id) if model.project_id is not None else None,
+        artifact_type=model.artifact_type,
+        name=model.name,
+        description=model.description,
+        current_version_id=(
+            ArtifactVersionId(model.current_version_id)
+            if model.current_version_id is not None
+            else None
+        ),
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        row_version=model.row_version,
+    )
+
+
+def _artifact_version_from_model(model: ArtifactVersionModel) -> ArtifactVersion:
+    return ArtifactVersion(
+        id=ArtifactVersionId(model.id),
+        artifact_id=ArtifactId(model.artifact_id),
+        version_number=model.version_number,
+        status=VersionStatus(model.status),
+        locator=model.locator,
+        media_type=model.media_type,
+        byte_size=model.byte_size,
+        content_hash=ContentHash(model.content_hash),
+        metadata=model.metadata_json,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        frozen_at=model.frozen_at,
         row_version=model.row_version,
     )
 

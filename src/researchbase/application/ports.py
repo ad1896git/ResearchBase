@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol
 
+from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
 from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
@@ -168,6 +169,39 @@ class DatasetSnapshotRepository(Protocol):
     ) -> DatasetSnapshot | None: ...
 
 
+class ArtifactRepository(Protocol):
+    def add(self, artifact: Artifact) -> None: ...
+
+    def get(self, artifact_id: ArtifactId) -> Artifact | None: ...
+
+    def get_for_update(self, artifact_id: ArtifactId) -> Artifact | None: ...
+
+    def update_current_version(
+        self,
+        artifact_id: ArtifactId,
+        version_id: ArtifactVersionId,
+        expected_row_version: int,
+    ) -> None: ...
+
+
+class ArtifactVersionRepository(Protocol):
+    def add(self, version: ArtifactVersion) -> None: ...
+
+    def get(self, version_id: ArtifactVersionId) -> ArtifactVersion | None: ...
+
+    def get_for_update(self, version_id: ArtifactVersionId) -> ArtifactVersion | None: ...
+
+    def find_by_artifact_and_content_hash(
+        self, artifact_id: ArtifactId, content_hash: str
+    ) -> ArtifactVersion | None: ...
+
+    def max_version_number(self, artifact_id: ArtifactId) -> int: ...
+
+    def list_history(self, artifact_id: ArtifactId) -> list[ArtifactVersion]: ...
+
+    def update(self, version: ArtifactVersion, expected_row_version: int) -> None: ...
+
+
 class UnitOfWork(Protocol):
     actors: ActorRepository
     projects: ProjectRepository
@@ -177,6 +211,8 @@ class UnitOfWork(Protocol):
     experiment_specs: ExperimentSpecRepository
     datasets: DatasetRepository
     dataset_snapshots: DatasetSnapshotRepository
+    artifacts: ArtifactRepository
+    artifact_versions: ArtifactVersionRepository
 
     def __enter__(self) -> UnitOfWork: ...
 

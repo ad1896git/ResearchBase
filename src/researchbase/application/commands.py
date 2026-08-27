@@ -7,6 +7,8 @@ from dataclasses import dataclass, replace
 
 from researchbase.application.dto import (
     ActorReadModel,
+    ArtifactReadModel,
+    ArtifactVersionReadModel,
     DatasetReadModel,
     DatasetSnapshotReadModel,
     ExperimentSpecReadModel,
@@ -19,6 +21,7 @@ from researchbase.application.dto import (
     WorkspaceReadModel,
 )
 from researchbase.application.ports import UnitOfWork
+from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
 from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
@@ -44,6 +47,7 @@ from researchbase.domain.research import (
     ResearchQuestionVersion,
     ResearchQuestionVersionId,
 )
+from researchbase.foundation.artifact_store import ArtifactStore
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
@@ -225,13 +229,65 @@ class CreateDatasetSnapshotCommand:
     context: ExecutionContext
 
 
+@dataclass(frozen=True, slots=True)
+class CreateArtifactCommand:
+    project_id: ProjectId | None
+    artifact_type: str
+    name: str
+    description: str | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class CreateArtifactVersionCommand:
+    artifact_id: ArtifactId
+    data: bytes | None
+    content_hash: str | ContentHash | None
+    locator: str | None
+    media_type: str | None
+    byte_size: int | None
+    metadata: object | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateArtifactVersionDraftCommand:
+    artifact_id: ArtifactId
+    version_id: ArtifactVersionId
+    locator: str | None
+    media_type: str | None
+    byte_size: int | None
+    metadata: object | None
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class FreezeArtifactVersionCommand:
+    artifact_id: ArtifactId
+    version_id: ArtifactVersionId
+    context: ExecutionContext
+    expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SetArtifactCurrentVersionCommand:
+    artifact_id: ArtifactId
+    version_id: ArtifactVersionId
+    expected_row_version: int
+    context: ExecutionContext
+
+
 UowFactory = Callable[[], UnitOfWork]
 
 
 class ApplicationService:
-    def __init__(self, uow_factory: UowFactory, clock: Clock) -> None:
+    def __init__(
+        self, uow_factory: UowFactory, clock: Clock, artifact_store: ArtifactStore | None = None
+    ) -> None:
         self._uow_factory = uow_factory
         self._clock = clock
+        self._artifact_store = artifact_store
 
     def create_actor(self, command: CreateActorCommand) -> ActorReadModel:
         with self._uow_factory() as uow:
@@ -851,6 +907,217 @@ class ApplicationService:
                 raise _not_found("dataset snapshot", snapshot_id)
             return _dataset_snapshot_read_model(snapshot)
 
+    def create_artifact(self, command: CreateArtifactCommand) -> ArtifactReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            if command.project_id is not None:
+                _require_project(uow, ProjectId(command.project_id))
+            try:
+                artifact = Artifact(
+                    id=new_typed_id(ArtifactId),
+                    project_id=(
+                        ProjectId(command.project_id) if command.project_id is not None else None
+                    ),
+                    artifact_type=command.artifact_type,
+                    name=command.name,
+                    description=command.description,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+            except (TypeError, ValueError) as exc:
+                raise _validation_error(str(exc), "artifact") from exc
+            uow.artifacts.add(artifact)
+            uow.commit()
+            return _artifact_read_model(artifact)
+
+    def get_artifact(self, artifact_id: ArtifactId) -> ArtifactReadModel:
+        with self._uow_factory() as uow:
+            artifact = uow.artifacts.get(ArtifactId(artifact_id))
+            if artifact is None:
+                raise _not_found("artifact", artifact_id)
+            return _artifact_read_model(artifact)
+
+    def create_artifact_version(
+        self, command: CreateArtifactVersionCommand
+    ) -> ArtifactVersionReadModel:
+        store = _require_artifact_store(self._artifact_store)
+        content_hash, locator, byte_size = _verify_or_store_artifact(
+            store,
+            command.data,
+            command.content_hash,
+            command.locator,
+            command.byte_size,
+        )
+        actor_id = ActorId(command.context.actor_id)
+        artifact_id = ArtifactId(command.artifact_id)
+        try:
+            with self._uow_factory() as uow:
+                _require_actor(uow, actor_id)
+                artifact = uow.artifacts.get_for_update(artifact_id)
+                if artifact is None:
+                    raise _not_found("artifact", artifact_id)
+                existing = uow.artifact_versions.find_by_artifact_and_content_hash(
+                    artifact_id, str(content_hash)
+                )
+                if existing is not None:
+                    return _artifact_version_read_model(existing)
+                current = None
+                if artifact.current_version_id is not None:
+                    current = uow.artifact_versions.get_for_update(artifact.current_version_id)
+                    if current is None:
+                        raise _not_found("artifact version", artifact.current_version_id)
+                    if current.artifact_id != artifact.id:
+                        raise ResearchBaseError(
+                            ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                            "current version must belong to the artifact",
+                        )
+                try:
+                    version = ArtifactVersion(
+                        id=new_typed_id(ArtifactVersionId),
+                        artifact_id=artifact.id,
+                        version_number=uow.artifact_versions.max_version_number(artifact.id) + 1,
+                        status=VersionStatus.DRAFT,
+                        locator=locator,
+                        media_type=command.media_type,
+                        byte_size=byte_size,
+                        content_hash=content_hash,
+                        metadata=command.metadata,
+                        created_by=actor_id,
+                        created_at=self._clock.now(),
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise _validation_error(str(exc), "artifact version") from exc
+                if current is not None and current.status is VersionStatus.FROZEN:
+                    uow.artifact_versions.update(
+                        current.transition_to(VersionStatus.SUPERSEDED), current.row_version
+                    )
+                uow.artifact_versions.add(version)
+                uow.artifacts.update_current_version(
+                    artifact.id, version.id, artifact.row_version
+                )
+                uow.commit()
+                return _artifact_version_read_model(version)
+        except ResearchBaseError as exc:
+            if exc.code is not ErrorCode.DUPLICATE_CONTENT:
+                raise
+
+        with self._uow_factory() as uow:
+            existing = uow.artifact_versions.find_by_artifact_and_content_hash(
+                artifact_id, str(content_hash)
+            )
+            if existing is None:
+                raise ResearchBaseError(
+                    ErrorCode.DUPLICATE_CONTENT,
+                    "artifact version creation raced without a visible winner",
+                )
+            return _artifact_version_read_model(existing)
+
+    def get_artifact_version(self, version_id: ArtifactVersionId) -> ArtifactVersionReadModel:
+        with self._uow_factory() as uow:
+            version = uow.artifact_versions.get(ArtifactVersionId(version_id))
+            if version is None:
+                raise _not_found("artifact version", version_id)
+            return _artifact_version_read_model(version)
+
+    def get_artifact_history(self, artifact_id: ArtifactId) -> list[ArtifactVersionReadModel]:
+        with self._uow_factory() as uow:
+            if uow.artifacts.get(ArtifactId(artifact_id)) is None:
+                raise _not_found("artifact", artifact_id)
+            return [
+                _artifact_version_read_model(version)
+                for version in uow.artifact_versions.list_history(ArtifactId(artifact_id))
+            ]
+
+    def update_artifact_version_draft(
+        self, command: UpdateArtifactVersionDraftCommand
+    ) -> ArtifactVersionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        artifact_id = ArtifactId(command.artifact_id)
+        version_id = ArtifactVersionId(command.version_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            artifact = uow.artifacts.get_for_update(artifact_id)
+            if artifact is None:
+                raise _not_found("artifact", artifact_id)
+            version = uow.artifact_versions.get_for_update(version_id)
+            if version is None:
+                raise _not_found("artifact version", version_id)
+            if version.artifact_id != artifact.id:
+                raise ResearchBaseError(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                    "artifact version must belong to the artifact",
+                )
+            _require_expected_row_version(version.row_version, command.expected_row_version)
+            try:
+                updated = version.edit_metadata(
+                    locator=command.locator,
+                    media_type=command.media_type,
+                    byte_size=command.byte_size,
+                    metadata=command.metadata,
+                )
+            except (TypeError, ValueError) as exc:
+                raise _validation_error(str(exc), "artifact version") from exc
+            uow.artifact_versions.update(updated, version.row_version)
+            uow.commit()
+            return _artifact_version_read_model(
+                replace(updated, row_version=version.row_version + 1)
+            )
+
+    def freeze_artifact_version(
+        self, command: FreezeArtifactVersionCommand
+    ) -> ArtifactVersionReadModel:
+        store = _require_artifact_store(self._artifact_store)
+        actor_id = ActorId(command.context.actor_id)
+        artifact_id = ArtifactId(command.artifact_id)
+        version_id = ArtifactVersionId(command.version_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            artifact = uow.artifacts.get_for_update(artifact_id)
+            if artifact is None:
+                raise _not_found("artifact", artifact_id)
+            version = uow.artifact_versions.get_for_update(version_id)
+            if version is None:
+                raise _not_found("artifact version", version_id)
+            if version.artifact_id != artifact.id:
+                raise ResearchBaseError(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                    "artifact version must belong to the artifact",
+                )
+            if command.expected_row_version is not None:
+                _require_expected_row_version(version.row_version, command.expected_row_version)
+            _verify_stored_artifact(store, version.content_hash, version.byte_size)
+            frozen = version.freeze(self._clock)
+            uow.artifact_versions.update(frozen, version.row_version)
+            uow.artifacts.update_current_version(artifact.id, version.id, artifact.row_version)
+            uow.commit()
+            return _artifact_version_read_model(
+                replace(frozen, row_version=version.row_version + 1)
+            )
+
+    def set_artifact_current_version(
+        self, command: SetArtifactCurrentVersionCommand
+    ) -> ArtifactReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        artifact_id = ArtifactId(command.artifact_id)
+        version_id = ArtifactVersionId(command.version_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            artifact = uow.artifacts.get_for_update(artifact_id)
+            if artifact is None:
+                raise _not_found("artifact", artifact_id)
+            uow.artifacts.update_current_version(
+                artifact.id, version_id, command.expected_row_version
+            )
+            uow.commit()
+            return _artifact_read_model(
+                replace(
+                    artifact,
+                    current_version_id=version_id,
+                    row_version=artifact.row_version + 1,
+                )
+            )
+
 
 def _require_actor(uow: UnitOfWork, actor_id: ActorId) -> Actor:
     actor = uow.actors.get(actor_id)
@@ -1233,3 +1500,101 @@ def _dataset_snapshot_read_model(
         created_by=snapshot.created_by,
         created_at=snapshot.created_at,
     )
+
+
+def _artifact_read_model(artifact: Artifact) -> ArtifactReadModel:
+    return ArtifactReadModel(
+        id=artifact.id,
+        project_id=artifact.project_id,
+        artifact_type=artifact.artifact_type,
+        name=artifact.name,
+        description=artifact.description,
+        current_version_id=artifact.current_version_id,
+        created_by=artifact.created_by,
+        created_at=artifact.created_at,
+        row_version=artifact.row_version,
+    )
+
+
+def _artifact_version_read_model(version: ArtifactVersion) -> ArtifactVersionReadModel:
+    return ArtifactVersionReadModel(
+        id=version.id,
+        artifact_id=version.artifact_id,
+        version_number=version.version_number,
+        status=version.status,
+        locator=version.locator,
+        media_type=version.media_type,
+        byte_size=version.byte_size,
+        content_hash=version.content_hash,
+        metadata=version.metadata,
+        created_by=version.created_by,
+        created_at=version.created_at,
+        frozen_at=version.frozen_at,
+        row_version=version.row_version,
+    )
+
+
+def _require_artifact_store(store: ArtifactStore | None) -> ArtifactStore:
+    if store is None:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "ArtifactStore is required for ArtifactVersion commands",
+        )
+    return store
+
+
+def _verify_or_store_artifact(
+    store: ArtifactStore,
+    data: bytes | None,
+    supplied_hash: str | ContentHash | None,
+    locator: str | None,
+    declared_size: int | None,
+) -> tuple[ContentHash, str, int]:
+    try:
+        if data is not None:
+            if not isinstance(data, bytes):
+                raise TypeError("artifact data must be bytes")
+            expected = (
+                f"sha256:{ContentHash(supplied_hash)}" if supplied_hash is not None else None
+            )
+            identity = store.put_verified(data, expected)
+            content_hash = _content_hash_from_store_identity(identity)
+            if not store.verify(identity):
+                raise ValueError("stored artifact failed verification")
+            actual_size = len(data)
+        else:
+            if supplied_hash is None:
+                raise ValueError("content_hash is required when data is absent")
+            content_hash = ContentHash(supplied_hash)
+            identity = _store_identity(content_hash)
+            actual_size = _verify_stored_artifact(store, content_hash, declared_size)
+        if declared_size is not None and declared_size != actual_size:
+            raise ValueError("byte_size does not match verified artifact bytes")
+        return content_hash, locator or identity, actual_size
+    except (OSError, TypeError, ValueError) as exc:
+        raise _validation_error(str(exc), "artifact content") from exc
+
+
+def _verify_stored_artifact(
+    store: ArtifactStore, content_hash: ContentHash, declared_size: int | None
+) -> int:
+    identity = _store_identity(content_hash)
+    try:
+        if not store.verify(identity):
+            raise ValueError("artifact store object is missing or failed verification")
+        actual_size = len(store.open(identity))
+    except (OSError, TypeError, ValueError) as exc:
+        raise _validation_error(str(exc), "artifact content") from exc
+    if declared_size is not None and declared_size != actual_size:
+        raise _validation_error("byte_size does not match verified artifact bytes", "byte_size")
+    return actual_size
+
+
+def _store_identity(content_hash: ContentHash) -> str:
+    return f"sha256:{content_hash}"
+
+
+def _content_hash_from_store_identity(identity: str) -> ContentHash:
+    if not isinstance(identity, str) or not identity.startswith("sha256:"):
+        raise ValueError("ArtifactStore returned an invalid content identity")
+    return ContentHash(identity.removeprefix("sha256:"))

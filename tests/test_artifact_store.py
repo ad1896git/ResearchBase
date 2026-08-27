@@ -33,6 +33,7 @@ def test_content_addressed_store_does_not_overwrite_existing_identity(tmp_path) 
 
     target = store._path_for(identity)
     target.write_bytes(b"tampered")
+    assert not store.verify(identity)
 
     with pytest.raises(OSError, match="failed verification"):
         store.put(b"first")

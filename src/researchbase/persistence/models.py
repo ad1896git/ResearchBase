@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     CHAR,
+    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -335,3 +336,69 @@ class DatasetSnapshotModel(Base):
         PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ArtifactModel(Base):
+    __tablename__ = "artifacts"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True
+    )
+    artifact_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class ArtifactVersionModel(Base):
+    __tablename__ = "artifact_versions"
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_artifact_versions_version_number"),
+        CheckConstraint(
+            "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
+            name="ck_artifact_versions_status",
+        ),
+        CheckConstraint(
+            "byte_size IS NULL OR byte_size >= 0", name="ck_artifact_versions_byte_size"
+        ),
+        UniqueConstraint(
+            "artifact_id", "version_number", name="uq_artifact_versions_artifact_version"
+        ),
+        UniqueConstraint(
+            "artifact_id", "content_hash", name="uq_artifact_versions_artifact_content_hash"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    artifact_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifacts.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    locator: Mapped[str | None] = mapped_column(Text, nullable=True)
+    media_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    byte_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    metadata_json: Mapped[object | None] = mapped_column("metadata", JSONB, nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
