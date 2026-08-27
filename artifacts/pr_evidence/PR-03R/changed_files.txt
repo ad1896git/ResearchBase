@@ -1,0 +1,20 @@
+# PR-03R remediation commit: 49fcf2f
+# Preserved PR-03 baseline: 4ab6af7
+
+src/researchbase/foundation/versioning.py
+tests/contracts/version_contract.py
+tests/unit/foundation/test_versioning.py
+
+# PR-03R evidence files:
+artifacts/pr_evidence/PR-03R/remediation_summary.md
+artifacts/pr_evidence/PR-03R/finding_disposition.md
+artifacts/pr_evidence/PR-03R/changed_files.txt
+artifacts/pr_evidence/PR-03R/commands_and_results.md
+artifacts/pr_evidence/PR-03R/test_report.md
+artifacts/pr_evidence/PR-03R/contract_harness_report.md
+artifacts/pr_evidence/PR-03R/architecture_review.md
+artifacts/pr_evidence/PR-03R/code_review.md
+artifacts/pr_evidence/PR-03R/unresolved_findings.md
+artifacts/pr_evidence/PR-03R/harness_fingerprint.json
+
+# User-provided execution packs and existing .DS_Store files were intentionally not staged.
