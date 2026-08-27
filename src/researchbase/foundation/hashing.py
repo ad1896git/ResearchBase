@@ -7,6 +7,9 @@ import re
 
 from researchbase.foundation.canonical_json import canonical_json_bytes
 
+RAW_BYTES_HASH_SCHEME = "sha256-bytes-v1"
+CANONICAL_JSON_HASH_SCHEME = "sha256-cjson-v1"
+
 
 class ContentHash(str):
     """Validated lower-case SHA-256 digest text."""
@@ -21,12 +24,12 @@ class ContentHash(str):
 
 
 def sha256_bytes(data: bytes) -> ContentHash:
-    """Hash raw bytes with SHA-256."""
+    """Hash raw bytes with the sha256-bytes-v1 scheme."""
     if not isinstance(data, bytes):
         raise TypeError("sha256_bytes requires bytes")
     return ContentHash(hashlib.sha256(data).hexdigest())
 
 
 def sha256_canonical_json(value: object) -> ContentHash:
-    """Canonicalize a supported structured value, then hash its UTF-8 bytes."""
+    """Hash canonical-json-v1 UTF-8 bytes with the sha256-cjson-v1 scheme."""
     return sha256_bytes(canonical_json_bytes(value))

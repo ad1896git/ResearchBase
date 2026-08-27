@@ -1,3 +1,5 @@
+import pytest
+
 from researchbase.foundation.hashing import ContentHash, sha256_bytes, sha256_canonical_json
 
 
@@ -20,3 +22,17 @@ def test_content_hash_validates_and_normalizes_hex() -> None:
     value = ContentHash("AB" * 32)
 
     assert value == "ab" * 32
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "a" * 63, "a" * 65, "g" * 64, " " * 64, "a" * 63 + "!"],
+)
+def test_content_hash_rejects_malformed_digest_text(value: str) -> None:
+    with pytest.raises(ValueError, match="64-character SHA-256"):
+        ContentHash(value)
+
+
+def test_content_hash_rejects_non_string_input() -> None:
+    with pytest.raises(TypeError, match="must be text"):
+        ContentHash(123)  # type: ignore[arg-type]

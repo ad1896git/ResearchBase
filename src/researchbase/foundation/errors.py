@@ -23,7 +23,10 @@ class ErrorCode(StrEnum):
 
 
 class ResearchBaseError(Exception):
-    """Base error with a stable machine code and bounded JSON-compatible details."""
+    """Base error with stable code and bounded diagnostic JSON details.
+
+    Details are transport diagnostics, not canonical scientific state.
+    """
 
     _MAX_DETAILS_BYTES = 64 * 1024
 

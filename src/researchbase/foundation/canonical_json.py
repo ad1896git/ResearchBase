@@ -5,13 +5,16 @@ from __future__ import annotations
 import json
 import math
 
+CANONICAL_JSON_SCHEME = "canonical-json-v1"
+
 
 def canonical_json_bytes(value: object) -> bytes:
-    """Serialize the supported JSON subset as compact, sorted-key UTF-8 bytes.
+    """Serialize the canonical-json-v1 supported subset as compact UTF-8 bytes.
 
     Unicode code points are preserved (no normalization is performed); UTF-8 encoding and
     sorted object keys make repeated serialization deterministic. Callers must normalize
-    non-JSON-native values before invoking this function.
+    non-JSON-native values before invoking this function. Integer and floating-point values
+    remain distinct, including signed zero; this is not an RFC 8785/JCS implementation.
     """
     _validate_supported_value(value)
     return json.dumps(
