@@ -1,0 +1,25 @@
+{
+  "harness": "external engineering Harness",
+  "phase": "Phase 1",
+  "pr": "PR-09R2",
+  "baseline": "9a35f9f",
+  "implementation_test_commit": "89c0330",
+  "evidence_commit": "pending evidence commit",
+  "migration_head": "0009_run_input_seal_fix",
+  "postgresql": "18.6",
+  "verification": {
+    "pytest": "312 passed",
+    "targeted_pr09_pr09r2": "23 passed",
+    "architecture_contracts": "29 passed",
+    "ruff_check": "pass",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "scoped_format": "pass",
+    "repository_format": "8 inherited baseline failures"
+  },
+  "unauthorized_scope": {
+    "pr10_measurement": false,
+    "run_version": false,
+    "new_migration": false,
+    "phase2_plus": false
+  }
+}

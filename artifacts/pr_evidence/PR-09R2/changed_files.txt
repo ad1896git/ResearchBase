@@ -1,0 +1,24 @@
+# Git-derived PR-09R2 inventory
+
+Baseline: `9a35f9f`
+Test/remediation commit: `89c0330`
+
+Command used:
+
+```text
+git diff --name-status 9a35f9f..89c0330
+```
+
+Result:
+
+```text
+M	artifacts/pr_evidence/PR-09R/atomicity_completion_report.md
+M	artifacts/pr_evidence/PR-09R/attach_start_race_report.md
+M	artifacts/pr_evidence/PR-09R/evidence_reconciliation.md
+M	tests/integration/test_pr09_application.py
+A	tests/integration/test_pr09r2_proof.py
+```
+
+The subsequent evidence-only commit adds exactly the 15 files in
+`artifacts/pr_evidence/PR-09R2/`. No `src/` or `migrations/` file is in the
+PR-09R2 implementation/test diff.
