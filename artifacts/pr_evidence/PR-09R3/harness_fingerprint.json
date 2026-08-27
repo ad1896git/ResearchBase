@@ -1,0 +1,28 @@
+{
+  "harness": "external engineering Harness",
+  "phase": "Phase 1",
+  "pr": "PR-09R3",
+  "baseline": "9c47381",
+  "implementation_test_commits": ["197bd2d"],
+  "prior_evidence_commits": ["9913feb", "4f2e911", "9c47381"],
+  "migration_head": "0009_run_input_seal_fix",
+  "postgresql": "18.6",
+  "verification": {
+    "pytest": "315 passed",
+    "targeted_pr09_r3": "pass",
+    "ruff_check": "pass",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "owned_scoped_format": "pass",
+    "repository_format": "8 inherited baseline failures"
+  },
+  "unauthorized_scope": {
+    "pr10_measurement": false,
+    "run_version": false,
+    "generic_version_orm": false,
+    "new_migration": false,
+    "phase2_plus": false
+  },
+  "final_head": "197bd2d",
+  "final_head_definition": "implementation/test HEAD before evidence-only commits; the evidence commits are listed after this fingerprint is finalized because a commit cannot self-reference its own hash",
+  "all_pr09r3_commits": ["197bd2d", "evidence commit(s) recorded in final commands_and_results.md"]
+}

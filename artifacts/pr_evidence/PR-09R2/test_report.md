@@ -1,6 +1,8 @@
 # Test report
 
-The fresh full suite passed with `312 passed` against PostgreSQL 18.6.
+The historical PR-09R2 full suite passed with `312 passed` against PostgreSQL
+18.6. PR-09R3 added three closure/finalized-state regressions and reran the
+full suite with `315 passed`.
 
 The PR-09/PR-09R2 targeted set passed 23 tests. The new proof module contains
 8 tests: one exact-SQL atomicity test covering create/dataset attach/artifact
@@ -13,4 +15,6 @@ state handling, concurrent start/finish, architecture boundaries, and Run
 domain contracts.
 
 The repository-wide format check remains an inherited baseline failure only;
-the two PR-09R2-owned Python files pass scoped formatting.
+the PR-09/PR-09R/PR-09R2/PR-09R3-owned Python files pass scoped formatting.
+The PR-09R3 targeted suite additionally proves the actual lock-boundary event
+ordering and FROZEN/SUPERSEDED/DRAFT/ABANDONED closure matrix.

@@ -1,10 +1,14 @@
-# Exact provenance regression
+# Exact provenance regression (historical PR-09R2 record)
 
-The integration regression creates and binds:
+The PR-09R2 test verified that the Run retained concrete identifiers after
+current-pointer or snapshot advancement:
 
-- Run → ExperimentSpecVersion V1, then revises the ExperimentSpec identity to V2 and verifies the Run still stores V1;
-- Run → ArtifactVersion A1, then creates A2 and verifies the Artifact identity current pointer moves to A2 while the Run edge remains A1;
-- Run → DatasetSnapshot D1, then creates later snapshot D2 and verifies the Run edge remains D1.
+- Run → ExperimentSpecVersion V1 remained V1 after the ExperimentSpec identity advanced to V2;
+- Run → ArtifactVersion A1 remained A1 after the Artifact identity advanced to A2;
+- Run → DatasetSnapshot D1 remained D1 after D2 was created.
 
-All assertions read through fresh application UoWs. The Run stores concrete
-version/snapshot identifiers and never resolves current pointers at read time.
+That test did not prove that a Run remained closure-valid after V1/A1 became
+`SUPERSEDED`. The PR-09R2 wording must therefore not be read as closure proof.
+PR-09R3 adds the PostgreSQL closure regression and applies
+AD-PR09R3-001; the authoritative replacement is
+`artifacts/pr_evidence/PR-09R3/exact_provenance_closure_report.md`.

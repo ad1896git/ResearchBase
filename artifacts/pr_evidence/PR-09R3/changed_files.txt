@@ -1,0 +1,18 @@
+# Git-derived PR-09R3 inventory
+
+Baseline: `9c47381`
+
+Implementation/test commit:
+
+```text
+git diff --name-status 9c47381..197bd2d
+```
+
+```text
+M	src/researchbase/application/closure.py
+M	tests/integration/test_pr09r2_proof.py
+```
+
+The evidence commit(s) add the 20 files under
+`artifacts/pr_evidence/PR-09R3/` and update the reconciled PR-09R2 evidence
+files listed in the evidence reconciliation. No migration file changed.
