@@ -9,6 +9,7 @@ from uuid import UUID
 from researchbase.application.ports import UnitOfWork
 from researchbase.domain.run import Run, RunId, RunStatus
 from researchbase.foundation.errors import ErrorCode
+from researchbase.foundation.versioning import VersionStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +70,7 @@ class ProvenanceClosureValidator:
             )
         else:
             visited.add(("ExperimentSpecVersion", UUID(str(spec.id))))
-            if spec.status.value != "FROZEN":
+            if spec.status not in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED}:
                 violations.append(
                     ClosureViolation(
                         ErrorCode.VERSION_NOT_FROZEN.value,
@@ -109,7 +110,7 @@ class ProvenanceClosureValidator:
                 )
             else:
                 visited.add(("ArtifactVersion", UUID(str(version.id))))
-                if version.status.value != "FROZEN":
+                if version.status not in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED}:
                     violations.append(
                         ClosureViolation(
                             ErrorCode.VERSION_NOT_FROZEN.value,

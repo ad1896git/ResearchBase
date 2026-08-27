@@ -49,6 +49,7 @@ from researchbase.foundation.artifact_store import ContentAddressedFilesystemArt
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.time import FixedClock
+from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.repositories import SqlAlchemyRunRepository
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
@@ -310,7 +311,9 @@ def test_real_sql_atomicity_uses_same_transaction_visibility_and_complete_rollba
             run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
         )
     )
-    assert len(factory().list_run_dataset_inputs(run.id)) == 1
+    assert factory().list_run_dataset_inputs(run.id) == [
+        RunDatasetInputReadModel(run.id, snapshot.id, DatasetInputRole.TEST, 0)
+    ]
 
     before = full_run_state(factory(), run.id)
     with observe_target_sql(
@@ -344,7 +347,9 @@ def test_real_sql_atomicity_uses_same_transaction_visibility_and_complete_rollba
             actor_context,
         )
     )
-    assert len(factory().list_run_artifact_inputs(run.id)) == 1
+    assert factory().list_run_artifact_inputs(run.id) == [
+        RunArtifactInputReadModel(run.id, artifact.id, ArtifactInputRole.MODEL, 0)
+    ]
 
     before = full_run_state(factory(), run.id)
     with observe_target_sql(
@@ -422,10 +427,40 @@ def run_serialization_case(
     allow_start = Event()
     active = {"attach": Event(), "start": Event()}
     locked = {"attach": Event(), "start": Event()}
+    lock_attempted = {"attach": Event(), "start": Event()}
+    lock_acquired = {"attach": Event(), "start": Event()}
     txids: dict[str, int] = {}
     role_local = threading.local()
     original = SqlAlchemyRunRepository.get_for_update
     txid_lock = threading.Lock()
+
+    def is_run_lock(statement: str) -> bool:
+        normalized = " ".join(statement.lower().split())
+        return "from runs" in normalized and "for update" in normalized
+
+    def before_cursor_execute(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        _parameters: Any,
+        _context: Any,
+        _executemany: bool,
+    ) -> None:
+        role = getattr(role_local, "role", None)
+        if role in {"attach", "start"} and is_run_lock(statement):
+            lock_attempted[role].set()
+
+    def after_cursor_execute(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        _parameters: Any,
+        _context: Any,
+        _executemany: bool,
+    ) -> None:
+        role = getattr(role_local, "role", None)
+        if role in {"attach", "start"} and is_run_lock(statement):
+            lock_acquired[role].set()
 
     def synchronized(repository: SqlAlchemyRunRepository, run_id: Any) -> Any:
         role = getattr(role_local, "role", None)
@@ -479,32 +514,47 @@ def run_serialization_case(
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(SqlAlchemyRunRepository, "get_for_update", synchronized)
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            if attach_first:
-                attach_future = executor.submit(attach_worker)
-                assert locked["attach"].wait(timeout=20)
-                assert attach_flushed.wait(timeout=20)
-                start_future = executor.submit(start_worker)
-                assert active["start"].wait(timeout=20)
-                assert_workers_active()
-                allow_attach.set()
-                attached = attach_future.result(timeout=20)
-                started = start_future.result(timeout=20)
-                assert attached.row_version == run.row_version + 1
-                assert started.status is RunStatus.RUNNING
-            else:
-                start_future = executor.submit(controlled_start_worker)
-                assert locked["start"].wait(timeout=20)
-                assert start_flushed.wait(timeout=20)
-                attach_future = executor.submit(attach_worker)
-                assert active["attach"].wait(timeout=20)
-                assert_workers_active()
-                allow_start.set()
-                started = start_future.result(timeout=20)
-                with pytest.raises(ResearchBaseError) as stale:
-                    attach_future.result(timeout=20)
-                assert stale.value.code is ErrorCode.CONCURRENT_MODIFICATION
-                assert started.status is RunStatus.RUNNING
+        event.listen(engine, "before_cursor_execute", before_cursor_execute)
+        event.listen(engine, "after_cursor_execute", after_cursor_execute)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                if attach_first:
+                    attach_future = executor.submit(attach_worker)
+                    assert locked["attach"].wait(timeout=20)
+                    assert lock_acquired["attach"].is_set()
+                    assert attach_flushed.wait(timeout=20)
+                    start_future = executor.submit(start_worker)
+                    assert active["start"].wait(timeout=20)
+                    assert lock_attempted["start"].is_set()
+                    assert not lock_acquired["start"].is_set()
+                    assert_workers_active()
+                    allow_attach.set()
+                    attached = attach_future.result(timeout=20)
+                    started = start_future.result(timeout=20)
+                    assert attached.row_version == run.row_version + 1
+                    assert started.status is RunStatus.RUNNING
+                else:
+                    start_future = executor.submit(controlled_start_worker)
+                    assert locked["start"].wait(timeout=20)
+                    assert lock_acquired["start"].is_set()
+                    assert start_flushed.wait(timeout=20)
+                    attach_future = executor.submit(attach_worker)
+                    assert active["attach"].wait(timeout=20)
+                    assert lock_attempted["attach"].is_set()
+                    assert not lock_acquired["attach"].is_set()
+                    assert_workers_active()
+                    allow_start.set()
+                    started = start_future.result(timeout=20)
+                    with pytest.raises(ResearchBaseError) as stale:
+                        attach_future.result(timeout=20)
+                    assert stale.value.code is ErrorCode.CONCURRENT_MODIFICATION
+                    assert started.status is RunStatus.RUNNING
+        finally:
+            event.remove(engine, "before_cursor_execute", before_cursor_execute)
+            event.remove(engine, "after_cursor_execute", after_cursor_execute)
+
+    assert lock_acquired["attach"].is_set()
+    assert lock_acquired["start"].is_set()
 
     final = factory().get_run(run.id)
     inputs = factory().list_run_dataset_inputs(run.id)
@@ -740,3 +790,170 @@ def test_stale_finish_has_no_side_effects(
     assert started.status is RunStatus.RUNNING
     assert winner.status is RunStatus.SUCCEEDED
     assert winner.row_version == started.row_version + 1
+
+
+def test_finalized_superseded_exact_refs_remain_closure_valid_and_startable(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    spec, spec_v1 = frozen_spec(service, project_id, actor_context)
+    artifact_id, artifact_a1 = artifact_version(
+        service, project_id, actor_context, b"PR09R3 artifact A1"
+    )
+    dataset = service.register_dataset(
+        RegisterDatasetCommand(project_id, f"PR09R3 dataset-{uuid4()}", None, None, actor_context)
+    )
+    dataset_d1 = service.create_dataset_snapshot(
+        CreateDatasetSnapshotCommand(dataset.id, "b" * 64, {"selection": "D1"}, None, actor_context)
+    )
+    run = service.create_run(CreateRunCommand(project_id, spec_v1.id, None, actor_context))
+    run = service.attach_run_dataset_input(
+        AttachRunDatasetInputCommand(
+            run.id, dataset_d1.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
+        )
+    )
+    run = service.attach_run_artifact_input(
+        AttachRunArtifactInputCommand(
+            run.id, artifact_a1.id, ArtifactInputRole.MODEL, 0, run.row_version, actor_context
+        )
+    )
+
+    spec_v2 = service.revise_experiment_spec(
+        ReviseExperimentSpecCommand(
+            spec.id,
+            "PR09R3 experiment V2",
+            "PR09R3 objective V2",
+            {"steps": ["execute", "verify"]},
+            None,
+            None,
+            None,
+            service.get_experiment_spec(spec.id).row_version,
+            actor_context,
+        )
+    )
+    artifact_a2 = service.create_artifact_version(
+        CreateArtifactVersionCommand(
+            ArtifactId(artifact_id),
+            b"PR09R3 artifact A2",
+            None,
+            None,
+            "text/plain",
+            None,
+            None,
+            actor_context,
+        )
+    )
+    service.freeze_artifact_version(
+        FreezeArtifactVersionCommand(
+            ArtifactId(artifact_id),
+            ArtifactVersionId(artifact_a2.id),
+            actor_context,
+            artifact_a2.row_version,
+        )
+    )
+    dataset_d2 = service.create_dataset_snapshot(
+        CreateDatasetSnapshotCommand(dataset.id, "c" * 64, {"selection": "D2"}, None, actor_context)
+    )
+
+    assert spec_v2.current_version_id != spec_v1.id
+    assert dataset_d2.id != dataset_d1.id
+    assert service.get_run(run.id).experiment_spec_version_id == spec_v1.id
+    assert service.list_run_artifact_inputs(run.id)[0].artifact_version_id == artifact_a1.id
+    assert service.list_run_dataset_inputs(run.id)[0].dataset_snapshot_id == dataset_d1.id
+
+    planned_report = service.validate_run_closure(run.id)
+    assert planned_report.complete
+    started = service.start_run(StartRunCommand(run.id, run.row_version, actor_context))
+    assert service.validate_run_closure(run.id).complete
+    finished = service.finish_run(
+        FinishRunCommand(run.id, RunStatus.SUCCEEDED, 0, None, started.row_version, actor_context)
+    )
+    assert finished.status is RunStatus.SUCCEEDED
+    assert service.validate_run_closure(run.id).complete
+
+
+def test_superseded_versions_remain_ineligible_for_new_authoring(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    spec, spec_v1 = frozen_spec(service, project_id, actor_context)
+    revised_spec = service.revise_experiment_spec(
+        ReviseExperimentSpecCommand(
+            spec.id,
+            "PR09R3 revised",
+            "PR09R3 objective",
+            {"steps": ["revised"]},
+            None,
+            None,
+            None,
+            service.get_experiment_spec(spec.id).row_version,
+            actor_context,
+        )
+    )
+    with pytest.raises(ResearchBaseError) as create_error:
+        service.create_run(CreateRunCommand(project_id, spec_v1.id, None, actor_context))
+    assert create_error.value.code is ErrorCode.VERSION_NOT_FROZEN
+    assert revised_spec.current_version_id != spec_v1.id
+
+    artifact_id, artifact_a1 = artifact_version(
+        service, project_id, actor_context, b"PR09R3 authoring A1"
+    )
+    _, second_spec = frozen_spec(service, project_id, actor_context)
+    run = service.create_run(CreateRunCommand(project_id, second_spec.id, None, actor_context))
+    artifact_a2 = service.create_artifact_version(
+        CreateArtifactVersionCommand(
+            ArtifactId(artifact_id),
+            b"PR09R3 authoring A2",
+            None,
+            None,
+            "text/plain",
+            None,
+            None,
+            actor_context,
+        )
+    )
+    assert artifact_a2.status is VersionStatus.DRAFT
+    with pytest.raises(ResearchBaseError) as attach_error:
+        service.attach_run_artifact_input(
+            AttachRunArtifactInputCommand(
+                run.id, artifact_a1.id, ArtifactInputRole.MODEL, 0, run.row_version, actor_context
+            )
+        )
+    assert attach_error.value.code is ErrorCode.VERSION_NOT_FROZEN
+
+
+def test_abandoned_exact_refs_remain_closure_invalid(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    _, spec_v1 = frozen_spec(service, project_id, actor_context)
+    artifact_id, artifact_a1 = artifact_version(
+        service, project_id, actor_context, b"PR09R3 abandoned"
+    )
+    run = service.create_run(CreateRunCommand(project_id, spec_v1.id, None, actor_context))
+    run = service.attach_run_artifact_input(
+        AttachRunArtifactInputCommand(
+            run.id, artifact_a1.id, ArtifactInputRole.MODEL, 0, run.row_version, actor_context
+        )
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE experiment_spec_versions SET status='ABANDONED' WHERE id=:id"),
+            {"id": spec_v1.id},
+        )
+        connection.execute(
+            text("UPDATE artifact_versions SET status='ABANDONED' WHERE id=:id"),
+            {"id": artifact_a1.id},
+        )
+    report = service.validate_run_closure(run.id)
+    assert not report.complete
+    assert [violation.object_type for violation in report.violations] == [
+        "ArtifactVersion",
+        "ExperimentSpecVersion",
+    ]
