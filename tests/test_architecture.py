@@ -34,11 +34,9 @@ def test_no_forbidden_runtime_dependencies_or_parallel_manifests() -> None:
     assert not (ROOT / "poetry.lock").exists()
 
 
-def test_pr00_has_no_business_schema_migration() -> None:
+def test_phase1_has_no_later_business_schema_migration() -> None:
     migration_text = "\n".join(path.read_text() for path in _python_files(ROOT / "migrations"))
     forbidden_tables = (
-        "research_questions",
-        "hypotheses",
         "experiment_specs",
         "datasets",
         "claims",

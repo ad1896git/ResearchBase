@@ -56,13 +56,15 @@ def assert_version_contract(make_fixture: Callable[[object], VersionFixture]) ->
 
     for current, target in ALLOWED_TRANSITIONS:
         fixture = _fixture_at(make_fixture, current, frozen_at)
-        fixture.transition_to(target)
+        _apply_transition(fixture, target, frozen_at)
         assert fixture.status is target
 
     for current, target in FORBIDDEN_TRANSITIONS:
         fixture = _fixture_at(make_fixture, current, frozen_at)
         _expect_error(
-            lambda fixture=fixture, target=target: fixture.transition_to(target),
+            lambda fixture=fixture, target=target: _apply_transition(
+                fixture, target, frozen_at
+            ),
             ErrorCode.INVALID_STATE_TRANSITION,
         )
         assert fixture.status is current
@@ -146,6 +148,15 @@ def _expect_error(action: Callable[[], object], code: ErrorCode) -> None:
         assert error.code is code
     else:
         raise AssertionError(f"expected ResearchBaseError with code {code}")
+
+
+def _apply_transition(
+    fixture: VersionFixture, target: VersionStatus, frozen_at: datetime
+) -> None:
+    if target is VersionStatus.FROZEN:
+        fixture.freeze(_FixedContractClock(frozen_at))
+    else:
+        fixture.transition_to(target)
 
 
 class _FixedContractClock:

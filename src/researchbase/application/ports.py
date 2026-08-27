@@ -7,6 +7,16 @@ from typing import Protocol
 
 from researchbase.domain.identity import Actor
 from researchbase.domain.organization import Project, ProjectId, Workspace, WorkspaceId
+from researchbase.domain.research import (
+    Hypothesis,
+    HypothesisId,
+    HypothesisVersion,
+    HypothesisVersionId,
+    ResearchQuestion,
+    ResearchQuestionId,
+    ResearchQuestionVersion,
+    ResearchQuestionVersionId,
+)
 from researchbase.foundation.ids import ActorId
 
 
@@ -30,10 +40,84 @@ class WorkspaceRepository(Protocol):
     def get(self, workspace_id: WorkspaceId) -> Workspace | None: ...
 
 
+class ResearchQuestionRepository(Protocol):
+    def add(self, question: ResearchQuestion) -> None: ...
+
+    def add_version(self, version: ResearchQuestionVersion) -> None: ...
+
+    def get(self, question_id: ResearchQuestionId) -> ResearchQuestion | None: ...
+
+    def get_for_update(self, question_id: ResearchQuestionId) -> ResearchQuestion | None: ...
+
+    def get_version(
+        self, version_id: ResearchQuestionVersionId
+    ) -> ResearchQuestionVersion | None: ...
+
+    def get_version_for_update(
+        self, version_id: ResearchQuestionVersionId
+    ) -> ResearchQuestionVersion | None: ...
+
+    def get_current_version(
+        self, question_id: ResearchQuestionId
+    ) -> ResearchQuestionVersion | None: ...
+
+    def list_history(self, question_id: ResearchQuestionId) -> list[ResearchQuestionVersion]: ...
+
+    def max_version_number(self, question_id: ResearchQuestionId) -> int: ...
+
+    def update_current_version(
+        self,
+        question_id: ResearchQuestionId,
+        version_id: ResearchQuestionVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None: ...
+
+    def update_version(
+        self, version: ResearchQuestionVersion, expected_row_version: int
+    ) -> None: ...
+
+
+class HypothesisRepository(Protocol):
+    def add(self, hypothesis: Hypothesis) -> None: ...
+
+    def add_version(self, version: HypothesisVersion) -> None: ...
+
+    def get(self, hypothesis_id: HypothesisId) -> Hypothesis | None: ...
+
+    def get_for_update(self, hypothesis_id: HypothesisId) -> Hypothesis | None: ...
+
+    def get_version(self, version_id: HypothesisVersionId) -> HypothesisVersion | None: ...
+
+    def get_version_for_update(
+        self, version_id: HypothesisVersionId
+    ) -> HypothesisVersion | None: ...
+
+    def get_current_version(self, hypothesis_id: HypothesisId) -> HypothesisVersion | None: ...
+
+    def list_history(self, hypothesis_id: HypothesisId) -> list[HypothesisVersion]: ...
+
+    def max_version_number(self, hypothesis_id: HypothesisId) -> int: ...
+
+    def update_current_version(
+        self,
+        hypothesis_id: HypothesisId,
+        version_id: HypothesisVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None: ...
+
+    def update_version(self, version: HypothesisVersion, expected_row_version: int) -> None: ...
+
+
 class UnitOfWork(Protocol):
     actors: ActorRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
+    research_questions: ResearchQuestionRepository
+    hypotheses: HypothesisRepository
 
     def __enter__(self) -> UnitOfWork: ...
 

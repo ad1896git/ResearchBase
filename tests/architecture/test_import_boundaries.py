@@ -109,11 +109,12 @@ def test_production_does_not_import_shared_test_contracts() -> None:
     assert violations == []
 
 
-def test_pr02_has_only_the_authorized_business_migration() -> None:
+def test_phase1_has_only_the_authorized_business_migrations() -> None:
     migrations = Path(__file__).parents[2] / "migrations" / "versions"
-    assert [path.name for path in migrations.glob("*.py")] == [
+    assert sorted(path.name for path in migrations.glob("*.py")) == [
         "0001_empty_bootstrap.py",
         "0002_actor_project_workspace.py",
+        "0003_research_question_hypothesis.py",
     ]
 
 

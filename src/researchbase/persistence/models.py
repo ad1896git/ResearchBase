@@ -5,7 +5,19 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import (
+    CHAR,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -82,6 +94,128 @@ class WorkspaceModel(Base):
         PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class ResearchQuestionModel(Base):
+    __tablename__ = "research_questions"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    current_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_question_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class ResearchQuestionVersionModel(Base):
+    __tablename__ = "research_question_versions"
+    __table_args__ = (
+        CheckConstraint(
+            "version_number > 0", name="ck_research_question_versions_version_number"
+        ),
+        CheckConstraint(
+            "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
+            name="ck_research_question_versions_status",
+        ),
+        UniqueConstraint(
+            "research_question_id",
+            "version_number",
+            name="uq_research_question_versions_parent_version",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    research_question_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_questions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[object | None] = mapped_column(JSONB, nullable=True)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class HypothesisModel(Base):
+    __tablename__ = "hypotheses"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    research_question_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_questions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    current_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("hypothesis_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class HypothesisVersionModel(Base):
+    __tablename__ = "hypothesis_versions"
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_hypothesis_versions_version_number"),
+        CheckConstraint(
+            "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
+            name="ck_hypothesis_versions_status",
+        ),
+        UniqueConstraint(
+            "hypothesis_id", "version_number", name="uq_hypothesis_versions_parent_version"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    hypothesis_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("hypotheses.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_direction: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    success_criteria: Mapped[object | None] = mapped_column(JSONB, nullable=True)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     row_version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("1"), default=1
     )

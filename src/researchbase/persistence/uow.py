@@ -10,13 +10,17 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from researchbase.application.ports import (
     ActorRepository,
+    HypothesisRepository,
     ProjectRepository,
+    ResearchQuestionRepository,
     WorkspaceRepository,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
+    SqlAlchemyHypothesisRepository,
     SqlAlchemyProjectRepository,
+    SqlAlchemyResearchQuestionRepository,
     SqlAlchemyWorkspaceRepository,
 )
 
@@ -25,6 +29,8 @@ class SqlAlchemyUnitOfWork:
     actors: ActorRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
+    research_questions: ResearchQuestionRepository
+    hypotheses: HypothesisRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -38,6 +44,8 @@ class SqlAlchemyUnitOfWork:
         self.actors = SqlAlchemyActorRepository(self._session)
         self.projects = SqlAlchemyProjectRepository(self._session)
         self.workspaces = SqlAlchemyWorkspaceRepository(self._session)
+        self.research_questions = SqlAlchemyResearchQuestionRepository(self._session)
+        self.hypotheses = SqlAlchemyHypothesisRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -49,6 +57,15 @@ class SqlAlchemyUnitOfWork:
                     ErrorCode.VALIDATION_ERROR,
                     "external_key is already in use",
                     {"field": "external_key"},
+                ) from exc
+            if (
+                "uq_research_question_versions_parent_version" in str(exc.orig)
+                or "uq_hypothesis_versions_parent_version" in str(exc.orig)
+            ):
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "version_number is already in use for this parent",
+                    {"field": "version_number"},
                 ) from exc
             raise
         self._committed = True
