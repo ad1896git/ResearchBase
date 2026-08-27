@@ -15,6 +15,8 @@ from researchbase.application.dto import (
     ExperimentSpecVersionReadModel,
     HypothesisReadModel,
     HypothesisVersionReadModel,
+    MetricDefinitionReadModel,
+    MetricDefinitionVersionReadModel,
     ProjectReadModel,
     ResearchQuestionReadModel,
     ResearchQuestionVersionReadModel,
@@ -30,6 +32,12 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersionId,
 )
 from researchbase.domain.identity import Actor, ActorType
+from researchbase.domain.metric import (
+    MetricDefinition,
+    MetricDefinitionId,
+    MetricDefinitionVersion,
+    MetricDefinitionVersionId,
+)
 from researchbase.domain.organization import (
     LifecycleStatus,
     Project,
@@ -209,6 +217,51 @@ class FreezeExperimentSpecCommand:
     version_id: ExperimentSpecVersionId
     context: ExecutionContext
     expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CreateMetricDefinitionCommand:
+    project_id: ProjectId | None
+    name: str
+    definition: object
+    unit: str | None
+    aggregation: str | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class ReviseMetricDefinitionCommand:
+    metric_definition_id: MetricDefinitionId
+    definition: object
+    unit: str | None
+    aggregation: str | None
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateMetricDefinitionDraftCommand:
+    metric_definition_id: MetricDefinitionId
+    version_id: MetricDefinitionVersionId
+    definition: object
+    unit: str | None
+    aggregation: str | None
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class FreezeMetricDefinitionCommand:
+    metric_definition_id: MetricDefinitionId
+    version_id: MetricDefinitionVersionId
+    context: ExecutionContext
+    expected_row_version: int | None = None
+
+
+# Explicit version-suffixed aliases keep the public command vocabulary aligned with
+# the existing owning-domain commands without introducing another implementation path.
+UpdateMetricDefinitionVersionDraftCommand = UpdateMetricDefinitionDraftCommand
+FreezeMetricDefinitionVersionCommand = FreezeMetricDefinitionCommand
 
 
 @dataclass(frozen=True, slots=True)
@@ -764,6 +817,162 @@ class ApplicationService:
                 for version in uow.experiment_specs.list_history(ExperimentSpecId(spec_id))
             ]
 
+    def create_metric_definition(
+        self, command: CreateMetricDefinitionCommand
+    ) -> MetricDefinitionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            project_id = ProjectId(command.project_id) if command.project_id is not None else None
+            if project_id is not None:
+                _require_project(uow, project_id)
+            try:
+                metric = MetricDefinition(
+                    id=new_typed_id(MetricDefinitionId),
+                    project_id=project_id,
+                    name=command.name,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+                version = _new_metric_definition_version(
+                    metric.id, command, actor_id, self._clock, 1
+                )
+            except (TypeError, ValueError, ResearchBaseError) as exc:
+                if isinstance(exc, ResearchBaseError):
+                    raise
+                raise _validation_error(str(exc), "metric definition") from exc
+            uow.metric_definitions.add(metric)
+            uow.metric_definition_versions.add(version)
+            uow.metric_definitions.update_current_version(
+                metric.id, version.id, metric.row_version, increment=False
+            )
+            uow.commit()
+            return _metric_definition_read_model(replace(metric, current_version_id=version.id))
+
+    def revise_metric_definition(
+        self, command: ReviseMetricDefinitionCommand
+    ) -> MetricDefinitionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        metric_id = MetricDefinitionId(command.metric_definition_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            metric = uow.metric_definitions.get_for_update(metric_id)
+            if metric is None:
+                raise _not_found("metric definition", metric_id)
+            _require_expected_row_version(metric.row_version, command.expected_row_version)
+            current = _metric_current_version(uow, metric)
+            if current is None or current.status is not VersionStatus.FROZEN:
+                raise ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION,
+                    "metric definition revision requires a frozen current version",
+                )
+            version = _new_metric_definition_version(
+                metric.id,
+                command,
+                actor_id,
+                self._clock,
+                uow.metric_definition_versions.max_version_number(metric.id) + 1,
+            )
+            uow.metric_definition_versions.update(
+                current.transition_to(VersionStatus.SUPERSEDED), current.row_version
+            )
+            uow.metric_definition_versions.add(version)
+            uow.metric_definitions.update_current_version(metric.id, version.id, metric.row_version)
+            uow.commit()
+            return _metric_definition_read_model(
+                replace(metric, current_version_id=version.id, row_version=metric.row_version + 1)
+            )
+
+    def update_metric_definition_draft(
+        self, command: UpdateMetricDefinitionDraftCommand
+    ) -> MetricDefinitionVersionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        metric_id = MetricDefinitionId(command.metric_definition_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            metric = uow.metric_definitions.get(metric_id)
+            if metric is None:
+                raise _not_found("metric definition", metric_id)
+            version = uow.metric_definition_versions.get_for_update(
+                MetricDefinitionVersionId(command.version_id)
+            )
+            version = _require_metric_version_parent(version, metric.id)
+            _require_expected_row_version(version.row_version, command.expected_row_version)
+            updated = version.edit_material(
+                definition=command.definition,
+                unit=command.unit,
+                aggregation=command.aggregation,
+            )
+            uow.metric_definition_versions.update(updated, version.row_version)
+            uow.commit()
+            return _metric_definition_version_read_model(
+                replace(updated, row_version=version.row_version + 1)
+            )
+
+    def freeze_metric_definition(
+        self, command: FreezeMetricDefinitionCommand
+    ) -> MetricDefinitionVersionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        metric_id = MetricDefinitionId(command.metric_definition_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            metric = uow.metric_definitions.get_for_update(metric_id)
+            if metric is None:
+                raise _not_found("metric definition", metric_id)
+            version = _require_metric_version_parent(
+                uow.metric_definition_versions.get_for_update(
+                    MetricDefinitionVersionId(command.version_id)
+                ),
+                metric.id,
+            )
+            if command.expected_row_version is not None:
+                _require_expected_row_version(version.row_version, command.expected_row_version)
+            frozen = version.freeze(self._clock)
+            uow.metric_definition_versions.update(frozen, version.row_version)
+            uow.metric_definitions.update_current_version(metric.id, version.id, metric.row_version)
+            uow.commit()
+            return _metric_definition_version_read_model(
+                replace(frozen, row_version=version.row_version + 1)
+            )
+
+    def update_metric_definition_version_draft(
+        self, command: UpdateMetricDefinitionVersionDraftCommand
+    ) -> MetricDefinitionVersionReadModel:
+        return self.update_metric_definition_draft(command)
+
+    def freeze_metric_definition_version(
+        self, command: FreezeMetricDefinitionVersionCommand
+    ) -> MetricDefinitionVersionReadModel:
+        return self.freeze_metric_definition(command)
+
+    def get_metric_definition(self, metric_id: MetricDefinitionId) -> MetricDefinitionReadModel:
+        with self._uow_factory() as uow:
+            metric = uow.metric_definitions.get(MetricDefinitionId(metric_id))
+            if metric is None:
+                raise _not_found("metric definition", metric_id)
+            return _metric_definition_read_model(metric)
+
+    def get_metric_definition_version(
+        self, version_id: MetricDefinitionVersionId
+    ) -> MetricDefinitionVersionReadModel:
+        with self._uow_factory() as uow:
+            version = uow.metric_definition_versions.get(MetricDefinitionVersionId(version_id))
+            if version is None:
+                raise _not_found("metric definition version", version_id)
+            return _metric_definition_version_read_model(version)
+
+    def get_metric_definition_history(
+        self, metric_id: MetricDefinitionId
+    ) -> list[MetricDefinitionVersionReadModel]:
+        with self._uow_factory() as uow:
+            metric_id = MetricDefinitionId(metric_id)
+            if uow.metric_definitions.get(metric_id) is None:
+                raise _not_found("metric definition", metric_id)
+            return [
+                _metric_definition_version_read_model(version)
+                for version in uow.metric_definition_versions.list_history(metric_id)
+            ]
+
     def get_research_question(self, question_id: ResearchQuestionId) -> ResearchQuestionReadModel:
         with self._uow_factory() as uow:
             question = uow.research_questions.get(ResearchQuestionId(question_id))
@@ -1217,6 +1426,31 @@ def _new_experiment_spec_version(
         raise _validation_error(str(exc), "material") from exc
 
 
+def _new_metric_definition_version(
+    parent_id: MetricDefinitionId,
+    command: CreateMetricDefinitionCommand | ReviseMetricDefinitionCommand,
+    actor_id: ActorId,
+    clock: Clock,
+    version_number: int,
+) -> MetricDefinitionVersion:
+    try:
+        version = MetricDefinitionVersion(
+            id=new_typed_id(MetricDefinitionVersionId),
+            metric_definition_id=parent_id,
+            version_number=version_number,
+            status=VersionStatus.DRAFT,
+            definition=command.definition,
+            unit=command.unit,
+            aggregation=command.aggregation,
+            created_by=actor_id,
+            created_at=clock.now(),
+        )
+        version.validate_material()
+        return version
+    except (TypeError, ValueError) as exc:
+        raise _validation_error(str(exc), "material") from exc
+
+
 def _question_base_version(
     uow: UnitOfWork,
     question: ResearchQuestion,
@@ -1291,6 +1525,28 @@ def _require_experiment_spec_version_parent(
         raise ResearchBaseError(
             ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
             "version does not belong to the experiment spec",
+        )
+    return version
+
+
+def _metric_current_version(
+    uow: UnitOfWork, metric: MetricDefinition
+) -> MetricDefinitionVersion | None:
+    if metric.current_version_id is None:
+        return None
+    version = uow.metric_definition_versions.get_for_update(metric.current_version_id)
+    return _require_metric_version_parent(version, metric.id)
+
+
+def _require_metric_version_parent(
+    version: MetricDefinitionVersion | None, metric_id: MetricDefinitionId
+) -> MetricDefinitionVersion:
+    if version is None:
+        raise _not_found("metric definition version", metric_id)
+    if version.metric_definition_id != metric_id:
+        raise ResearchBaseError(
+            ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+            "metric definition version must belong to the metric definition",
         )
     return version
 
@@ -1513,6 +1769,38 @@ def _artifact_version_read_model(version: ArtifactVersion) -> ArtifactVersionRea
         byte_size=version.byte_size,
         content_hash=version.content_hash,
         metadata=version.metadata,
+        created_by=version.created_by,
+        created_at=version.created_at,
+        frozen_at=version.frozen_at,
+        row_version=version.row_version,
+    )
+
+
+def _metric_definition_read_model(metric: MetricDefinition) -> MetricDefinitionReadModel:
+    return MetricDefinitionReadModel(
+        id=metric.id,
+        project_id=metric.project_id,
+        name=metric.name,
+        created_by=metric.created_by,
+        created_at=metric.created_at,
+        current_version_id=metric.current_version_id,
+        row_version=metric.row_version,
+    )
+
+
+def _metric_definition_version_read_model(
+    version: MetricDefinitionVersion,
+) -> MetricDefinitionVersionReadModel:
+    return MetricDefinitionVersionReadModel(
+        id=version.id,
+        metric_definition_id=version.metric_definition_id,
+        version_number=version.version_number,
+        status=version.status,
+        definition=version.definition,
+        unit=version.unit,
+        aggregation=version.aggregation,
+        content_hash=version.content_hash,
+        hash_scheme=version.hash_scheme,
         created_by=version.created_by,
         created_at=version.created_at,
         frozen_at=version.frozen_at,

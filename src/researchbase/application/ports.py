@@ -14,6 +14,12 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersionId,
 )
 from researchbase.domain.identity import Actor
+from researchbase.domain.metric import (
+    MetricDefinition,
+    MetricDefinitionId,
+    MetricDefinitionVersion,
+    MetricDefinitionVersionId,
+)
 from researchbase.domain.organization import Project, ProjectId, Workspace, WorkspaceId
 from researchbase.domain.research import (
     Hypothesis,
@@ -202,6 +208,39 @@ class ArtifactVersionRepository(Protocol):
     def update(self, version: ArtifactVersion, expected_row_version: int) -> None: ...
 
 
+class MetricDefinitionRepository(Protocol):
+    def add(self, aggregate: MetricDefinition) -> None: ...
+
+    def get(self, metric_id: MetricDefinitionId) -> MetricDefinition | None: ...
+
+    def get_for_update(self, metric_id: MetricDefinitionId) -> MetricDefinition | None: ...
+
+    def update_current_version(
+        self,
+        metric_id: MetricDefinitionId,
+        version_id: MetricDefinitionVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None: ...
+
+
+class MetricDefinitionVersionRepository(Protocol):
+    def add(self, version: MetricDefinitionVersion) -> None: ...
+
+    def get(self, version_id: MetricDefinitionVersionId) -> MetricDefinitionVersion | None: ...
+
+    def get_for_update(
+        self, version_id: MetricDefinitionVersionId
+    ) -> MetricDefinitionVersion | None: ...
+
+    def max_version_number(self, metric_id: MetricDefinitionId) -> int: ...
+
+    def list_history(self, metric_id: MetricDefinitionId) -> list[MetricDefinitionVersion]: ...
+
+    def update(self, version: MetricDefinitionVersion, expected_row_version: int) -> None: ...
+
+
 class UnitOfWork(Protocol):
     actors: ActorRepository
     projects: ProjectRepository
@@ -213,6 +252,8 @@ class UnitOfWork(Protocol):
     dataset_snapshots: DatasetSnapshotRepository
     artifacts: ArtifactRepository
     artifact_versions: ArtifactVersionRepository
+    metric_definitions: MetricDefinitionRepository
+    metric_definition_versions: MetricDefinitionVersionRepository
 
     def __enter__(self) -> UnitOfWork: ...
 

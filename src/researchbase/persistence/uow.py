@@ -16,6 +16,8 @@ from researchbase.application.ports import (
     DatasetSnapshotRepository,
     ExperimentSpecRepository,
     HypothesisRepository,
+    MetricDefinitionRepository,
+    MetricDefinitionVersionRepository,
     ProjectRepository,
     ResearchQuestionRepository,
     WorkspaceRepository,
@@ -29,6 +31,8 @@ from researchbase.persistence.repositories import (
     SqlAlchemyDatasetSnapshotRepository,
     SqlAlchemyExperimentSpecRepository,
     SqlAlchemyHypothesisRepository,
+    SqlAlchemyMetricDefinitionRepository,
+    SqlAlchemyMetricDefinitionVersionRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyResearchQuestionRepository,
     SqlAlchemyWorkspaceRepository,
@@ -46,6 +50,8 @@ class SqlAlchemyUnitOfWork:
     dataset_snapshots: DatasetSnapshotRepository
     artifacts: ArtifactRepository
     artifact_versions: ArtifactVersionRepository
+    metric_definitions: MetricDefinitionRepository
+    metric_definition_versions: MetricDefinitionVersionRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -66,6 +72,8 @@ class SqlAlchemyUnitOfWork:
         self.dataset_snapshots = SqlAlchemyDatasetSnapshotRepository(self._session)
         self.artifacts = SqlAlchemyArtifactRepository(self._session)
         self.artifact_versions = SqlAlchemyArtifactVersionRepository(self._session)
+        self.metric_definitions = SqlAlchemyMetricDefinitionRepository(self._session)
+        self.metric_definition_versions = SqlAlchemyMetricDefinitionVersionRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -82,6 +90,7 @@ class SqlAlchemyUnitOfWork:
                 "uq_research_question_versions_parent_version" in str(exc.orig)
                 or "uq_hypothesis_versions_parent_version" in str(exc.orig)
                 or "uq_experiment_spec_versions_parent_version" in str(exc.orig)
+                or "uq_metric_definition_versions_parent_version" in str(exc.orig)
             ):
                 raise ResearchBaseError(
                     ErrorCode.VALIDATION_ERROR,

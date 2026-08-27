@@ -9,6 +9,7 @@ from researchbase.domain.artifact import ArtifactId, ArtifactVersionId
 from researchbase.domain.evidence import DatasetId, DatasetSnapshotId
 from researchbase.domain.experiment import ExperimentSpecId, ExperimentSpecVersionId
 from researchbase.domain.identity import ActorType
+from researchbase.domain.metric import MetricDefinitionId, MetricDefinitionVersionId
 from researchbase.domain.organization import LifecycleStatus, ProjectId, WorkspaceId
 from researchbase.domain.research import (
     HypothesisId,
@@ -194,4 +195,32 @@ class ArtifactVersionReadModel:
     created_by: ActorId
     created_at: datetime
     frozen_at: datetime | None
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class MetricDefinitionVersionReadModel:
+    id: MetricDefinitionVersionId
+    metric_definition_id: MetricDefinitionId
+    version_number: int
+    status: VersionStatus
+    definition: object
+    unit: str | None
+    aggregation: str | None
+    content_hash: ContentHash | None
+    hash_scheme: str | None
+    created_by: ActorId
+    created_at: datetime
+    frozen_at: datetime | None
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class MetricDefinitionReadModel:
+    id: MetricDefinitionId
+    project_id: ProjectId | None
+    name: str
+    created_by: ActorId
+    created_at: datetime
+    current_version_id: MetricDefinitionVersionId | None
     row_version: int

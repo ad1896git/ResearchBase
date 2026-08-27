@@ -400,3 +400,60 @@ class ArtifactVersionModel(Base):
     row_version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("1"), default=1
     )
+
+
+class MetricDefinitionModel(Base):
+    __tablename__ = "metric_definitions"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    current_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), nullable=True
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class MetricDefinitionVersionModel(Base):
+    __tablename__ = "metric_definition_versions"
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_metric_definition_versions_version_number"),
+        CheckConstraint(
+            "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
+            name="ck_metric_definition_versions_status",
+        ),
+        UniqueConstraint(
+            "metric_definition_id",
+            "version_number",
+            name="uq_metric_definition_versions_parent_version",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    metric_definition_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("metric_definitions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    definition: Mapped[object] = mapped_column(JSONB, nullable=False)
+    unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    aggregation: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )

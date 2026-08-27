@@ -16,6 +16,12 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersionId,
 )
 from researchbase.domain.identity import Actor, ActorType
+from researchbase.domain.metric import (
+    MetricDefinition,
+    MetricDefinitionId,
+    MetricDefinitionVersion,
+    MetricDefinitionVersionId,
+)
 from researchbase.domain.organization import (
     LifecycleStatus,
     Project,
@@ -47,6 +53,8 @@ from researchbase.persistence.models import (
     ExperimentSpecVersionModel,
     HypothesisModel,
     HypothesisVersionModel,
+    MetricDefinitionModel,
+    MetricDefinitionVersionModel,
     ProjectModel,
     ResearchQuestionModel,
     ResearchQuestionVersionModel,
@@ -736,6 +744,140 @@ class SqlAlchemyArtifactVersionRepository:
         _require_one_row(result_any.rowcount, "artifact version", version.id)
 
 
+class SqlAlchemyMetricDefinitionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, aggregate: MetricDefinition) -> None:
+        self._session.add(
+            MetricDefinitionModel(
+                id=aggregate.id,
+                project_id=aggregate.project_id,
+                name=aggregate.name,
+                current_version_id=aggregate.current_version_id,
+                created_by=aggregate.created_by,
+                created_at=aggregate.created_at,
+                row_version=aggregate.row_version,
+            )
+        )
+
+    def get(self, metric_id: MetricDefinitionId) -> MetricDefinition | None:
+        model = self._session.get(MetricDefinitionModel, metric_id)
+        return _metric_definition_from_model(model) if model is not None else None
+
+    def get_for_update(self, metric_id: MetricDefinitionId) -> MetricDefinition | None:
+        model = self._session.scalar(
+            select(MetricDefinitionModel)
+            .where(MetricDefinitionModel.id == metric_id)
+            .with_for_update()
+        )
+        return _metric_definition_from_model(model) if model is not None else None
+
+    def update_current_version(
+        self,
+        metric_id: MetricDefinitionId,
+        version_id: MetricDefinitionVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None:
+        self._session.flush()
+        version = self._session.get(MetricDefinitionVersionModel, version_id)
+        if version is None:
+            raise _not_found("metric definition version", version_id)
+        if version.metric_definition_id != metric_id:
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "current version must belong to the metric definition",
+            )
+        values: dict[str, object] = {"current_version_id": version_id}
+        if increment:
+            values["row_version"] = MetricDefinitionModel.row_version + 1
+        result = self._session.execute(
+            update(MetricDefinitionModel)
+            .where(
+                MetricDefinitionModel.id == metric_id,
+                MetricDefinitionModel.row_version == expected_row_version,
+            )
+            .values(**values)
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "metric definition", metric_id)
+
+
+class SqlAlchemyMetricDefinitionVersionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, version: MetricDefinitionVersion) -> None:
+        self._session.add(
+            MetricDefinitionVersionModel(
+                id=version.id,
+                metric_definition_id=version.metric_definition_id,
+                version_number=version.version_number,
+                status=version.status.value,
+                definition=version.definition,
+                unit=version.unit,
+                aggregation=version.aggregation,
+                content_hash=str(version.content_hash) if version.content_hash else None,
+                created_by=version.created_by,
+                created_at=version.created_at,
+                frozen_at=version.frozen_at,
+                row_version=version.row_version,
+            )
+        )
+
+    def get(self, version_id: MetricDefinitionVersionId) -> MetricDefinitionVersion | None:
+        model = self._session.get(MetricDefinitionVersionModel, version_id)
+        return _metric_definition_version_from_model(model) if model is not None else None
+
+    def get_for_update(
+        self, version_id: MetricDefinitionVersionId
+    ) -> MetricDefinitionVersion | None:
+        model = self._session.scalar(
+            select(MetricDefinitionVersionModel)
+            .where(MetricDefinitionVersionModel.id == version_id)
+            .with_for_update()
+        )
+        return _metric_definition_version_from_model(model) if model is not None else None
+
+    def max_version_number(self, metric_id: MetricDefinitionId) -> int:
+        value = self._session.scalar(
+            select(func.coalesce(func.max(MetricDefinitionVersionModel.version_number), 0)).where(
+                MetricDefinitionVersionModel.metric_definition_id == metric_id
+            )
+        )
+        return int(value or 0)
+
+    def list_history(self, metric_id: MetricDefinitionId) -> list[MetricDefinitionVersion]:
+        models = self._session.scalars(
+            select(MetricDefinitionVersionModel)
+            .where(MetricDefinitionVersionModel.metric_definition_id == metric_id)
+            .order_by(MetricDefinitionVersionModel.version_number)
+        ).all()
+        return [_metric_definition_version_from_model(model) for model in models]
+
+    def update(self, version: MetricDefinitionVersion, expected_row_version: int) -> None:
+        result = self._session.execute(
+            update(MetricDefinitionVersionModel)
+            .where(
+                MetricDefinitionVersionModel.id == version.id,
+                MetricDefinitionVersionModel.row_version == expected_row_version,
+            )
+            .values(
+                status=version.status.value,
+                definition=version.definition,
+                unit=version.unit,
+                aggregation=version.aggregation,
+                content_hash=str(version.content_hash) if version.content_hash else None,
+                frozen_at=version.frozen_at,
+                row_version=MetricDefinitionVersionModel.row_version + 1,
+            )
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "metric definition version", version.id)
+
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -777,6 +919,42 @@ def _artifact_version_from_model(model: ArtifactVersionModel) -> ArtifactVersion
         byte_size=model.byte_size,
         content_hash=ContentHash(model.content_hash),
         metadata=model.metadata_json,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        frozen_at=model.frozen_at,
+        row_version=model.row_version,
+    )
+
+
+def _metric_definition_from_model(model: MetricDefinitionModel) -> MetricDefinition:
+    return MetricDefinition(
+        id=MetricDefinitionId(model.id),
+        project_id=ProjectId(model.project_id) if model.project_id is not None else None,
+        name=model.name,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        current_version_id=(
+            MetricDefinitionVersionId(model.current_version_id)
+            if model.current_version_id is not None
+            else None
+        ),
+        row_version=model.row_version,
+    )
+
+
+def _metric_definition_version_from_model(
+    model: MetricDefinitionVersionModel,
+) -> MetricDefinitionVersion:
+    return MetricDefinitionVersion(
+        id=MetricDefinitionVersionId(model.id),
+        metric_definition_id=MetricDefinitionId(model.metric_definition_id),
+        version_number=model.version_number,
+        status=VersionStatus(model.status),
+        definition=model.definition,
+        unit=model.unit,
+        aggregation=model.aggregation,
+        content_hash=ContentHash(model.content_hash) if model.content_hash else None,
+        hash_scheme=CANONICAL_JSON_HASH_SCHEME if model.content_hash else None,
         created_by=ActorId(model.created_by),
         created_at=model.created_at,
         frozen_at=model.frozen_at,
