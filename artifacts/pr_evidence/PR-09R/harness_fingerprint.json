@@ -1,0 +1,21 @@
+{
+  "harness": "external engineering Harness",
+  "phase": "Phase 1",
+  "pr": "PR-09R",
+  "baseline": "8e67b48",
+  "remediation_commit": "e879ad8",
+  "migration_head": "0009_run_input_seal_fix",
+  "verification": {
+    "pytest": "304 passed",
+    "ruff_check": "pass",
+    "pyright": "0 errors",
+    "postgresql": "18.6",
+    "owned_format_files": 15,
+    "repository_format_inherited_failures": 8
+  },
+  "unauthorized_scope": {
+    "pr10_measurement": false,
+    "run_version": false,
+    "phase2_plus": false
+  }
+}

@@ -1,0 +1,23 @@
+# PR-09R implementation/test range: 8e67b48..e879ad8 (3 files)
+# Command: git diff --name-only 8e67b48..e879ad8
+
+migrations/versions/0009_run_input_seal_fix.py
+tests/architecture/test_import_boundaries.py
+tests/integration/test_pr09_application.py
+
+# PR-09 evidence reconciliation range: e879ad8..ddbd2cf (11 files)
+# Command: git diff --name-only e879ad8..ddbd2cf
+
+artifacts/pr_evidence/PR-09/changed_files.txt
+artifacts/pr_evidence/PR-09/closure_validator_report.md
+artifacts/pr_evidence/PR-09/code_review.md
+artifacts/pr_evidence/PR-09/commands_and_results.md
+artifacts/pr_evidence/PR-09/fk_restrict_report.md
+artifacts/pr_evidence/PR-09/formatting_gate_report.md
+artifacts/pr_evidence/PR-09/input_sealing_report.md
+artifacts/pr_evidence/PR-09/race_condition_report.md
+artifacts/pr_evidence/PR-09/test_report.md
+artifacts/pr_evidence/PR-09/transaction_report.md
+artifacts/pr_evidence/PR-09/unresolved_findings.md
+
+# PR-09R evidence inventory: generated separately in this directory (16 files).
