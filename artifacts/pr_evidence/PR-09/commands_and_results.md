@@ -9,4 +9,3 @@
 - PostgreSQL version query: PASS, 18.6.
 - Disposable empty upgrade and `0008 -> 0007 -> 0008`: PASS.
 - PR-09 PostgreSQL application/schema tests: PASS, 11 tests.
-

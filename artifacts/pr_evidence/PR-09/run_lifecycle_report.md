@@ -8,4 +8,3 @@
 - Terminal runs cannot restart or finish again.
 
 Application and domain tests cover all three terminal outcomes and stable transition errors.
-

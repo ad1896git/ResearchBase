@@ -6,4 +6,3 @@ The following accepted PR-08 P2 findings remain recorded and were not silently c
 2. PR-08 evidence reported an imprecise range/count.
 
 Neither blocks Run Core correctness.
-
