@@ -19,6 +19,6 @@ M	tests/integration/test_pr09_application.py
 A	tests/integration/test_pr09r2_proof.py
 ```
 
-The subsequent evidence-only commit adds exactly the 15 files in
+The subsequent evidence-only commits add exactly the 15 files in
 `artifacts/pr_evidence/PR-09R2/`. No `src/` or `migrations/` file is in the
 PR-09R2 implementation/test diff.
