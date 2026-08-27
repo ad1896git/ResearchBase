@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
@@ -15,6 +16,7 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersionId,
 )
 from researchbase.domain.organization import ProjectId
+from researchbase.domain.research import HypothesisId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import Clock, FixedClock
@@ -111,6 +113,53 @@ def test_freeze_reuses_pr03_semantics_and_hashes_only_material() -> None:
             analysis_plan=frozen.analysis_plan,
         )
     assert raised.value.code is ErrorCode.IMMUTABLE_RECORD
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("title", "A different title"),
+        ("objective", "A different objective"),
+        ("protocol", {"arms": ["control", "treatment"], "blinded": True}),
+        ("planned_metrics", [{"name": "another-outcome"}]),
+        ("seed_policy", {"kind": "random", "seed": 42}),
+        ("analysis_plan", {"test": "mann-whitney"}),
+    ],
+)
+def test_each_material_field_changes_the_frozen_hash(field: str, value: object) -> None:
+    baseline = _version().freeze(FixedClock(FIXED_TIME))
+    changed = _version(**{field: value}).freeze(FixedClock(FIXED_TIME))
+    assert baseline.content_hash != changed.content_hash
+
+
+def test_excluded_metadata_and_identity_hypothesis_link_do_not_change_hash() -> None:
+    baseline = _version().freeze(FixedClock(FIXED_TIME))
+    metadata_variant = replace(
+        _version(),
+        id=ExperimentSpecVersionId(uuid4()),
+        experiment_spec_id=ExperimentSpecId(uuid4()),
+        version_number=9,
+        created_by=ActorId(uuid4()),
+        created_at=datetime(2026, 8, 28, 4, 0, tzinfo=UTC),
+        row_version=4,
+    ).freeze(FixedClock(FIXED_TIME))
+    assert baseline.content_hash == metadata_variant.content_hash
+
+    first_identity = ExperimentSpec(
+        id=ExperimentSpecId(uuid4()),
+        project_id=ProjectId(uuid4()),
+        hypothesis_id=HypothesisId(uuid4()),
+        created_by=ActorId(uuid4()),
+        created_at=FIXED_TIME,
+    )
+    second_identity = replace(first_identity, id=ExperimentSpecId(uuid4()), hypothesis_id=None)
+    assert first_identity.hypothesis_id != second_identity.hypothesis_id
+    assert (
+        _version(experiment_spec_id=first_identity.id).freeze(FixedClock(FIXED_TIME)).content_hash
+        == _version(experiment_spec_id=second_identity.id)
+        .freeze(FixedClock(FIXED_TIME))
+        .content_hash
+    )
 
 
 class ExperimentSpecVersionContractAdapter:

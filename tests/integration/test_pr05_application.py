@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime
 from threading import Barrier, Lock
 from typing import cast
@@ -167,6 +168,142 @@ def test_hypothesis_link_requires_existence_and_same_project(
     assert missing.value.code is ErrorCode.NOT_FOUND
 
 
+def test_hypothesis_identity_link_is_preserved_across_revise_and_freeze(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    hypothesis = service.create_hypothesis(
+        CreateHypothesisCommand(project_id, "Treatment helps", None, None, None, actor_context)
+    )
+    created = service.create_experiment_spec(
+        spec_command(project_id, actor_context, hypothesis_id=hypothesis.id)
+    )
+    service.freeze_experiment_spec(
+        FreezeExperimentSpecCommand(created.id, created.current_version_id, actor_context, 1)
+    )
+    revised = service.revise_experiment_spec(
+        ReviseExperimentSpecCommand(
+            created.id,
+            "Revised",
+            "Measure",
+            {"steps": ["run"]},
+            None,
+            None,
+            None,
+            2,
+            actor_context,
+        )
+    )
+    assert service.get_experiment_spec(revised.id).hypothesis_id == hypothesis.id
+    assert not hasattr(service, "relink_experiment_spec_hypothesis")
+
+
+def test_create_and_revise_reject_unserializable_material_with_stable_error(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    with pytest.raises(ResearchBaseError) as create_error:
+        service.create_experiment_spec(spec_command(project_id, actor_context, protocol=object()))
+    assert create_error.value.code is ErrorCode.VALIDATION_ERROR
+    assert isinstance(create_error.value.__cause__, TypeError | ValueError)
+
+    created = service.create_experiment_spec(spec_command(project_id, actor_context))
+    service.freeze_experiment_spec(
+        FreezeExperimentSpecCommand(created.id, created.current_version_id, actor_context, 1)
+    )
+    with pytest.raises(ResearchBaseError) as revise_error:
+        service.revise_experiment_spec(
+            ReviseExperimentSpecCommand(
+                created.id,
+                "Revised",
+                "Measure",
+                object(),
+                None,
+                None,
+                None,
+                2,
+                actor_context,
+            )
+        )
+    assert revise_error.value.code is ErrorCode.VALIDATION_ERROR
+    assert isinstance(revise_error.value.__cause__, TypeError | ValueError)
+    assert [item.version_number for item in service.get_experiment_spec_history(created.id)] == [1]
+
+
+def test_draft_update_rejects_unserializable_material_with_stable_error(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    created = service.create_experiment_spec(spec_command(project_id, actor_context))
+    version = service.get_experiment_spec_history(created.id)[0]
+    with pytest.raises(ResearchBaseError) as raised:
+        service.update_experiment_spec_draft(
+            UpdateExperimentSpecDraftCommand(
+                created.id,
+                version.id,
+                version.title,
+                version.objective,
+                object(),
+                version.planned_metrics,
+                version.seed_policy,
+                version.analysis_plan,
+                version.row_version,
+                actor_context,
+            )
+        )
+    assert raised.value.code is ErrorCode.VALIDATION_ERROR
+    assert isinstance(raised.value.__cause__, TypeError | ValueError)
+    assert service.get_experiment_spec_history(created.id)[0].protocol == version.protocol
+
+
+def test_freeze_rejects_unserializable_material_without_persisting_changes(
+    service_factory: Callable[[], ApplicationService],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    created = service.create_experiment_spec(spec_command(project_id, actor_context))
+    before_spec = service.get_experiment_spec(created.id)
+    before_version = service.get_experiment_spec_history(created.id)[0]
+    original = SqlAlchemyExperimentSpecRepository.get_version_for_update
+
+    def corrupt_material(
+        repository: SqlAlchemyExperimentSpecRepository, version_id: ExperimentSpecVersionId
+    ):
+        loaded = original(repository, version_id)
+        return replace(loaded, protocol=object()) if loaded is not None else None
+
+    monkeypatch.setattr(
+        SqlAlchemyExperimentSpecRepository, "get_version_for_update", corrupt_material
+    )
+    with pytest.raises(ResearchBaseError) as raised:
+        service.freeze_experiment_spec(
+            FreezeExperimentSpecCommand(
+                created.id, before_version.id, actor_context, before_version.row_version
+            )
+        )
+    assert raised.value.code is ErrorCode.VALIDATION_ERROR
+    assert isinstance(raised.value.__cause__, TypeError | ValueError)
+    after_spec = service.get_experiment_spec(created.id)
+    after_version = service.get_experiment_spec_history(created.id)[0]
+    assert after_spec.current_version_id == before_spec.current_version_id
+    assert after_spec.row_version == before_spec.row_version
+    assert (
+        after_version.status,
+        after_version.content_hash,
+        after_version.frozen_at,
+        after_version.row_version,
+    ) == (
+        before_version.status,
+        before_version.content_hash,
+        before_version.frozen_at,
+        before_version.row_version,
+    )
+
+
 def test_cross_parent_current_pointer_attack_is_rejected(
     service_factory: Callable[[], ApplicationService],
 ) -> None:
@@ -268,10 +405,39 @@ def test_concurrent_revisions_create_only_one_child(
     error = next(result for result in results if result[0] == "error")[1]
     assert isinstance(error, ResearchBaseError)
     assert error.code is ErrorCode.CONCURRENT_MODIFICATION
-    assert [item.version_number for item in service.get_experiment_spec_history(created.id)] == [
-        1,
-        2,
-    ]
+    history = service.get_experiment_spec_history(created.id)
+    assert [item.version_number for item in history] == [1, 2]
+    assert all(
+        result[0] == "ok" or isinstance(result[1], ResearchBaseError) for result in results
+    )
+    engine = create_database_engine()
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT id, version_number, status FROM experiment_spec_versions "
+                    "WHERE experiment_spec_id = :spec_id ORDER BY version_number"
+                ),
+                {"spec_id": created.id},
+            ).mappings().all()
+            pointer = connection.execute(
+                text(
+                    "SELECT s.current_version_id, s.row_version, v.experiment_spec_id "
+                    "FROM experiment_specs s "
+                    "JOIN experiment_spec_versions v ON v.id = s.current_version_id "
+                    "WHERE s.id = :spec_id"
+                ),
+                {"spec_id": created.id},
+            ).mappings().one()
+        assert [(row["id"], row["version_number"], row["status"]) for row in rows] == [
+            (history[0].id, 1, "SUPERSEDED"),
+            (history[1].id, 2, "DRAFT"),
+        ]
+        assert pointer["current_version_id"] == history[1].id
+        assert pointer["row_version"] == 3
+        assert pointer["experiment_spec_id"] == created.id
+    finally:
+        engine.dispose()
 
 
 def test_create_rollback_leaves_no_spec_rows(
@@ -331,7 +497,16 @@ def test_freeze_and_revise_roll_back_without_partial_state(
     service = service_factory()
     _, project_id, actor_context = seed(service)
     created = service.create_experiment_spec(spec_command(project_id, actor_context))
-    before = service.get_experiment_spec_history(created.id)[0]
+    before_spec = service.get_experiment_spec(created.id)
+    before_version = service.get_experiment_spec_history(created.id)[0]
+    before_freeze_state = (
+        before_version.status,
+        before_version.content_hash,
+        before_version.frozen_at,
+        before_version.row_version,
+        before_spec.current_version_id,
+        before_spec.row_version,
+    )
 
     def fail_commit(uow: SqlAlchemyUnitOfWork) -> None:
         uow._require_session().flush()
@@ -340,15 +515,43 @@ def test_freeze_and_revise_roll_back_without_partial_state(
     monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", fail_commit)
     with pytest.raises(RuntimeError, match="forced commit failure"):
         service.freeze_experiment_spec(
-            FreezeExperimentSpecCommand(created.id, before.id, actor_context, before.row_version)
+            FreezeExperimentSpecCommand(
+                created.id, before_version.id, actor_context, before_version.row_version
+            )
         )
-    assert service.get_experiment_spec_history(created.id)[0].status is VersionStatus.DRAFT
-    assert service.get_experiment_spec(created.id).current_version_id == before.id
+    after_failed_spec = service.get_experiment_spec(created.id)
+    after_failed_version = service.get_experiment_spec_history(created.id)[0]
+    assert (
+        after_failed_version.status,
+        after_failed_version.content_hash,
+        after_failed_version.frozen_at,
+        after_failed_version.row_version,
+        after_failed_spec.current_version_id,
+        after_failed_spec.row_version,
+    ) == before_freeze_state
 
-    monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", fail_commit)
     monkeypatch.undo()
     frozen = service.freeze_experiment_spec(
-        FreezeExperimentSpecCommand(created.id, before.id, actor_context, before.row_version)
+        FreezeExperimentSpecCommand(
+            created.id, before_version.id, actor_context, before_version.row_version
+        )
+    )
+    before_revise_spec = service.get_experiment_spec(created.id)
+    before_revise_history = service.get_experiment_spec_history(created.id)
+    before_revise_state = (
+        before_revise_spec.current_version_id,
+        before_revise_spec.row_version,
+        [
+            (
+                item.id,
+                item.version_number,
+                item.status,
+                item.content_hash,
+                item.frozen_at,
+                item.row_version,
+            )
+            for item in before_revise_history
+        ],
     )
     monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", fail_commit)
     with pytest.raises(RuntimeError, match="forced commit failure"):
@@ -366,8 +569,21 @@ def test_freeze_and_revise_roll_back_without_partial_state(
             )
         )
     monkeypatch.undo()
+    after_revise_spec = service.get_experiment_spec(created.id)
     history = service.get_experiment_spec_history(created.id)
-    assert [item.version_number for item in history] == [1]
-    assert history[0].status is VersionStatus.FROZEN
+    assert (
+        after_revise_spec.current_version_id,
+        after_revise_spec.row_version,
+        [
+            (
+                item.id,
+                item.version_number,
+                item.status,
+                item.content_hash,
+                item.frozen_at,
+                item.row_version,
+            )
+            for item in history
+        ],
+    ) == before_revise_state
     assert history[0].content_hash == frozen.content_hash
-    assert service.get_experiment_spec(created.id).current_version_id == frozen.id

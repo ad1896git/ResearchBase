@@ -637,6 +637,7 @@ class ApplicationService:
                 )
             except ValueError as exc:
                 raise _validation_error(str(exc), "material") from exc
+            updated.validate_material()
             uow.experiment_specs.update_version(updated, version.row_version)
             uow.commit()
             return _experiment_spec_version_read_model(
@@ -812,7 +813,7 @@ def _new_experiment_spec_version(
     version_number: int,
 ) -> ExperimentSpecVersion:
     try:
-        return ExperimentSpecVersion(
+        version = ExperimentSpecVersion(
             id=new_typed_id(ExperimentSpecVersionId),
             experiment_spec_id=parent_id,
             version_number=version_number,
@@ -826,6 +827,8 @@ def _new_experiment_spec_version(
             created_by=actor_id,
             created_at=clock.now(),
         )
+        version.validate_material()
+        return version
     except ValueError as exc:
         raise _validation_error(str(exc), "material") from exc
 

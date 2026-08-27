@@ -9,11 +9,16 @@ from uuid import UUID
 
 from researchbase.domain.organization import ProjectId
 from researchbase.domain.research import HypothesisId
+from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import Clock, to_utc
-from researchbase.foundation.versioning import VersionStatus, freeze_material, require_transition
+from researchbase.foundation.versioning import (
+    VersionStatus,
+    freeze_material,
+    require_transition,
+)
 
 ExperimentSpecId = NewType("ExperimentSpecId", UUID)
 ExperimentSpecVersionId = NewType("ExperimentSpecVersionId", UUID)
@@ -104,6 +109,17 @@ class ExperimentSpecVersion:
             "seed_policy": self.seed_policy,
             "analysis_plan": self.analysis_plan,
         }
+
+    def validate_material(self) -> None:
+        """Validate material before a persistence adapter can attempt JSONB encoding."""
+        try:
+            canonical_json_bytes(self.material_payload())
+        except (TypeError, ValueError) as exc:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "version material is not valid canonical JSON",
+                details={"field": "material"},
+            ) from exc
 
     def edit_material(
         self,
