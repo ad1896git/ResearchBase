@@ -29,3 +29,12 @@ PASS — no whitespace errors.
 ```
 
 The migration report records the separate disposable-database upgrade/downgrade/upgrade roundtrip.
+
+Git state for the evidence package:
+
+```text
+starting accepted PR-05 final baseline: 403a26c
+PR-06 implementation/evidence commit: a5c53e2
+```
+
+The remaining untracked execution packs and `.DS_Store` files were pre-existing user-owned files and were not included in the PR-06 commit.
