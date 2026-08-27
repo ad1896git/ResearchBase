@@ -162,6 +162,47 @@ def test_excluded_metadata_and_identity_hypothesis_link_do_not_change_hash() -> 
     )
 
 
+def test_status_is_excluded_from_material_hash() -> None:
+    draft = _version()
+    frozen = draft.freeze(FixedClock(FIXED_TIME))
+    superseded = frozen.transition_to(VersionStatus.SUPERSEDED)
+
+    assert draft.freeze(FixedClock(FIXED_TIME)).content_hash == frozen.content_hash
+    assert superseded.content_hash == frozen.content_hash
+
+
+def test_frozen_at_is_excluded_from_material_hash() -> None:
+    first = _version().freeze(FixedClock(FIXED_TIME))
+    second = _version().freeze(FixedClock(datetime(2026, 8, 27, 5, 0, tzinfo=UTC)))
+
+    assert first.frozen_at != second.frozen_at
+    assert first.content_hash == second.content_hash
+
+
+def test_identity_current_pointer_is_excluded_from_material_hash() -> None:
+    parent_id = ExperimentSpecId(uuid4())
+    first_version = _version(experiment_spec_id=parent_id, version_number=1)
+    second_version = _version(experiment_spec_id=parent_id, version_number=2)
+    first_identity = ExperimentSpec(
+        id=ExperimentSpecId(uuid4()),
+        project_id=ProjectId(uuid4()),
+        hypothesis_id=None,
+        created_by=ActorId(uuid4()),
+        created_at=FIXED_TIME,
+        current_version_id=first_version.id,
+    )
+    second_identity = replace(
+        first_identity,
+        id=ExperimentSpecId(uuid4()),
+        current_version_id=second_version.id,
+    )
+    first_hash = first_version.freeze(FixedClock(FIXED_TIME)).content_hash
+    second_hash = second_version.freeze(FixedClock(FIXED_TIME)).content_hash
+
+    assert first_identity.current_version_id != second_identity.current_version_id
+    assert first_hash == second_hash
+
+
 class ExperimentSpecVersionContractAdapter:
     def __init__(self, material: object) -> None:
         mapping = cast(dict[str, object], material)
