@@ -1,0 +1,9 @@
+{
+  "researchbase_git_commit": null,
+  "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+  "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+  "target_pr_pack_sha256": "1299a794a05da8174c95a9f25664b050f32a4502ef7b43c2495e7812c75137ec",
+  "codex_runtime_version": "unknown",
+  "model_identifier": "unknown",
+  "external_harness_used": []
+}

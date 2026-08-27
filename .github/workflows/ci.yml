@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: researchbase
+          POSTGRES_USER: researchbase
+          POSTGRES_PASSWORD: researchbase
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U researchbase -d researchbase"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - run: uv run pytest
+      - run: uv run alembic upgrade head
+

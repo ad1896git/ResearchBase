@@ -1,0 +1,93 @@
+# ResearchBase Engineering Harness Lock
+# schema_version is for this file format, not a ResearchBase canonical schema.
+schema_version: 1
+generated_on: "2026-08-27"
+
+policy:
+  external_harness_default: deny_unpinned_execution
+  allow_reference_without_execution: true
+  researchbase_invariants_override_external_harness: true
+  self_modification_during_governed_execution: forbidden
+
+phase1:
+  role: development_tooling_only
+  runtime_agent_framework_in_researchbase: forbidden
+
+dependencies:
+  superpowers:
+    source: "https://github.com/obra/superpowers"
+    kind: engineering_harness
+    mode: executable
+    version: "v6.2.0"
+    required_for_pr00: false
+    notes: >
+      Optional engineering workflow aid. If unavailable, PR-00 may proceed using
+      native Codex plus the repository rules, but verification and review gates
+      remain mandatory.
+
+  codex_security:
+    source: "https://github.com/openai/plugins"
+    plugin: "codex-security"
+    kind: security_plugin
+    mode: executable_when_installed
+    version: "0.1.11"
+    required_for_pr00: false
+    notes: >
+      Not a Phase 1 ResearchBase runtime dependency. Security review may use this
+      plugin when installed and compatible.
+
+  plugin_eval:
+    source: "https://github.com/openai/plugins"
+    plugin: "plugin-eval"
+    kind: harness_evaluation_tool
+    mode: reference_or_executable_when_pinned
+    revision: null
+    required_for_pr00: false
+    activation_rule: >
+      Before executable use in a governed release workflow, replace null with an
+      exact reviewed commit/revision and update this lock through a dedicated
+      harness-change review.
+    notes: >
+      The upstream plugin is currently used from a source checkout; do not claim
+      reproducible executable pinning while revision is null.
+
+  agent_skills:
+    source: "https://github.com/addyosmani/agent-skills"
+    kind: engineering_reference_library
+    mode: reference_only
+    revision: null
+    required_for_pr00: false
+    activation_rule: >
+      Do not execute or install as a governed ResearchBase dependency until an
+      exact reviewed commit is recorded here.
+    notes: >
+      Skills such as source-driven development, doubt-driven development,
+      interface design, ADR practice, and context engineering are design
+      references until explicitly pinned and admitted.
+
+researchbase_scientific_skills:
+  phase1:
+    enabled: false
+    reason: "Phase 1 does not implement Scientific Agent Runtime."
+  phase2:
+    planned:
+      - RB-S01
+      - RB-S02
+      - RB-S03
+      - RB-S04
+      - RB-S10
+  phase3_plus:
+    governed_by: "09_Harness_Integration_Specification_v1.0.md"
+
+fingerprint:
+  record_for_development_execution:
+    - researchbase_git_commit
+    - agents_md_sha256
+    - harness_lock_sha256
+    - target_pr_pack_sha256
+    - codex_runtime_version_if_available
+    - model_identifier_if_available
+    - external_harness_versions_actually_used
+  rule: >
+    Unknown/unavailable fingerprint fields must remain explicit null/unknown;
+    they must not be invented.
