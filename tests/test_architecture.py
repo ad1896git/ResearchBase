@@ -10,8 +10,10 @@ def _python_files(path: Path) -> list[Path]:
     return sorted(path.rglob("*.py"))
 
 
-def test_domain_is_not_present_in_pr00() -> None:
-    assert not (SRC / "domain").exists()
+def test_pr02_domain_slice_is_present() -> None:
+    assert (SRC / "domain").is_dir()
+    assert (SRC / "domain" / "identity.py").is_file()
+    assert (SRC / "domain" / "organization.py").is_file()
 
 
 def test_persistence_does_not_import_framework_adapters() -> None:

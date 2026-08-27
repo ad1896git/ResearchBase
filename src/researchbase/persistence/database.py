@@ -6,8 +6,13 @@ import os
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 DEFAULT_DATABASE_URL = "postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase"
+
+
+class Base(DeclarativeBase):
+    """Base for persistence-only SQLAlchemy models."""
 
 
 def database_url() -> str:
@@ -16,6 +21,10 @@ def database_url() -> str:
 
 def create_database_engine(url: str | None = None) -> Engine:
     return create_engine(url or database_url(), future=True)
+
+
+def create_session_factory(engine: Engine) -> sessionmaker[Session]:
+    return sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
 
 def check_database_connection(engine: Engine) -> bool:

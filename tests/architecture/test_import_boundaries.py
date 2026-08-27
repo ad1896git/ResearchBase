@@ -97,9 +97,12 @@ def test_foundation_has_no_forbidden_reverse_or_framework_imports() -> None:
     assert _find_forbidden_imports(FOUNDATION) == []
 
 
-def test_pr01_does_not_add_business_migrations() -> None:
+def test_pr02_has_only_the_authorized_business_migration() -> None:
     migrations = Path(__file__).parents[2] / "migrations" / "versions"
-    assert [path.name for path in migrations.glob("*.py")] == ["0001_empty_bootstrap.py"]
+    assert [path.name for path in migrations.glob("*.py")] == [
+        "0001_empty_bootstrap.py",
+        "0002_actor_project_workspace.py",
+    ]
 
 
 def test_boundary_scanner_recurses_into_nested_foundation_files(tmp_path: Path) -> None:
