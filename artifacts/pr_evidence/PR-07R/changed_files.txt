@@ -1,0 +1,12 @@
+src/researchbase/application/commands.py
+tests/contracts/version_contract.py
+tests/integration/test_pr07_application.py
+tests/integration/test_pr07_schema.py
+tests/unit/domain/test_pr07_artifact.py
+artifacts/pr_evidence/PR-07/code_review.md
+artifacts/pr_evidence/PR-07/unresolved_findings.md
+artifacts/pr_evidence/PR-07/test_report.md
+artifacts/pr_evidence/PR-07/commands_and_results.md
+artifacts/pr_evidence/PR-07/artifact_store_contract.md
+artifacts/pr_evidence/PR-07/version_contract_report.md
+artifacts/pr_evidence/PR-07/immutability_report.md

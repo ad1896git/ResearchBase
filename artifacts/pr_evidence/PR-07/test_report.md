@@ -7,4 +7,7 @@ concurrent duplicate and distinct content, row-version conflicts, freeze, histor
 pointer ownership, rollback, PostgreSQL checks/FKs/uniques, and frozen-field trigger
 immutability.
 
-Result: full suite `262 passed`; PR-07 integration/schema subset `21 passed`.
+PR-07R adds an independent store-derived byte-size attack and valid-update test, plus a
+direct ArtifactVersion adapter invocation of the shared PR-03 lifecycle/immutability
+harness. Result: full suite `264 passed`; PR-07 integration/schema subset `22 passed`;
+focused contract/architecture/store tests `78 passed`.

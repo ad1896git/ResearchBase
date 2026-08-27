@@ -5,4 +5,6 @@ The scientific domain depends only on the existing `ArtifactStore` protocol:
 infrastructure adapter and uses content-addressed `sha256:<hex>` identities.
 
 ArtifactVersion stores the bare digest in PostgreSQL while its locator remains reference
-metadata. No S3/MinIO or alternate storage backend was introduced.
+metadata. PR-07R also requires every supported DRAFT update to re-verify the object and
+derive its byte length from `open(...)`; caller size cannot override the verified fact. No
+S3/MinIO or alternate storage backend was introduced.

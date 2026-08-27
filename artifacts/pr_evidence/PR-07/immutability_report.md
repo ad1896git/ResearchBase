@@ -7,4 +7,7 @@ content hash, metadata, creator, and creation time, while allowing lifecycle-onl
 `FROZEN -> SUPERSEDED` updates.
 
 The integration suite attempts direct updates to every protected field and confirms the
-row remains unchanged.
+row remains unchanged. A DRAFT byte-size update now verifies the stored bytes first, rejects
+an invalid size with `VALIDATION_ERROR`, and leaves both persisted byte_size and row_version
+unchanged; a valid-size update remains supported. Freeze-time verification remains active
+as defense in depth.
