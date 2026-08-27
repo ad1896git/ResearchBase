@@ -12,4 +12,3 @@ tests/integration/test_pr09_application.py
 tests/integration/test_pr09_schema.py
 tests/test_architecture.py
 tests/unit/domain/test_pr09_run.py
-
