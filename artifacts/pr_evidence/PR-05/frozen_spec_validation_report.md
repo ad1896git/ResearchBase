@@ -1,3 +1,3 @@
-# Frozen specification validation
+# Frozen specification validation (reconciled by PR-05R)
 
-Create and draft-edit validate nonblank title/objective and nonempty protocol. Freeze delegates lifecycle, canonical JSON serializability, hash, and UTC timestamp behavior to the shared PR-03 helper. Non-DRAFT freeze, blank material, empty protocol, malformed canonical material, missing linked hypothesis, and cross-project hypothesis links are rejected without raw serializer/SQL errors at the application boundary.
+Create, revise, and DRAFT update now validate canonical serializability before JSONB persistence. Freeze delegates lifecycle, canonical JSON serializability, hash, and UTC timestamp behavior to the shared PR-03 helper. PR-05R directly exercises freeze with an unserializable material value at the application/repository boundary and verifies `VALIDATION_ERROR`, unchanged DRAFT status/hash/frozen_at/pointer in a fresh UoW. Blank material, empty protocol, non-DRAFT freeze, missing hypothesis, and cross-project hypothesis links remain rejected without raw serializer errors.

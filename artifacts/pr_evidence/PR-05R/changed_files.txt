@@ -1,0 +1,15 @@
+docs/superpowers/plans/2026-08-27-pr05r-remediation.md
+src/researchbase/domain/experiment.py
+src/researchbase/application/commands.py
+tests/unit/domain/test_pr05_experiment.py
+tests/integration/test_pr05_application.py
+artifacts/pr_evidence/PR-05/commands_and_results.md
+artifacts/pr_evidence/PR-05/concurrency_report.md
+artifacts/pr_evidence/PR-05/frozen_spec_validation_report.md
+artifacts/pr_evidence/PR-05/hypothesis_link_report.md
+artifacts/pr_evidence/PR-05/material_hash_report.md
+artifacts/pr_evidence/PR-05/migration_report.md
+artifacts/pr_evidence/PR-05/test_report.md
+artifacts/pr_evidence/PR-05/transaction_report.md
+artifacts/pr_evidence/PR-05/unresolved_findings.md
+artifacts/pr_evidence/PR-05R/

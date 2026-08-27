@@ -1,3 +1,3 @@
-# Test report
+# Test report (reconciled by PR-05R)
 
-Fresh final run: 171 tests passed. PostgreSQL integration subset: 43 passed. PR-05 unit tests cover identity defaults, title/objective/protocol validation, explicit material, shared freeze/hash, immutability, and the reusable PR-03 contract. Integration tests cover create/revise/freeze/history, hypothesis existence and same-project rules, pointer ownership, stale DRAFT updates, genuine overlapping concurrent revisions, rollback, and schema constraints.
+Fresh PR-05R run: 182 tests passed. PostgreSQL integration subset: 47 passed. Added remediation coverage includes stable invalid-material errors and cause chaining, direct freeze-path invalid material, exact fresh-session rollback state, complete concurrent final-state assertions, six independent material-field hash differentials, excluded metadata stability, and identity hypothesis-link preservation.

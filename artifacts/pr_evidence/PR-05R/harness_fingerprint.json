@@ -1,0 +1,14 @@
+{
+  "pr": "PR-05R",
+  "execution_date": "2026-08-27",
+  "baseline_commit": "1ab60334f261b0e11f98e76d8416bc7ef5afa7d6",
+  "remediation_commit": "da7a81f1c9dd0da8d0dab619eac6e80c54aa1444",
+  "database": "PostgreSQL disposable/test and persistent development head",
+  "persistent_migration_head": "0004_experiment_spec",
+  "pytest": 182,
+  "integration_tests": 47,
+  "architecture_tests": 27,
+  "open_p0": 0,
+  "open_p1": 0,
+  "pr06_implementation_detected": false
+}
