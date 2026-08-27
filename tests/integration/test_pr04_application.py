@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import text
 
 from researchbase.application.commands import (
     ApplicationService,
@@ -27,6 +28,7 @@ from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.time import FixedClock
 from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.database import create_database_engine, create_session_factory
+from researchbase.persistence.repositories import SqlAlchemyResearchQuestionRepository
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 pytestmark = pytest.mark.integration
@@ -219,3 +221,59 @@ def test_independent_uows_reject_stale_identity_pointer_updates(
             assert raised.value.code is ErrorCode.CONCURRENT_MODIFICATION
     finally:
         engine.dispose()
+
+
+def test_research_question_create_rolls_back_identity_and_version(
+    service_factory: Callable[[], ApplicationService], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    engine = create_database_engine()
+    try:
+        with engine.connect() as connection:
+            before = connection.execute(
+                text("SELECT count(*) FROM research_questions")
+            ).scalar_one()
+        def fail_pointer(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("forced pointer failure")
+
+        monkeypatch.setattr(
+            SqlAlchemyResearchQuestionRepository, "update_current_version", fail_pointer
+        )
+        with pytest.raises(RuntimeError, match="forced pointer failure"):
+            service.create_research_question(
+                CreateResearchQuestionCommand(
+                    project_id, "Atomic question", None, None, actor_context
+                )
+            )
+        with engine.connect() as connection:
+            after = connection.execute(
+                text("SELECT count(*) FROM research_questions")
+            ).scalar_one()
+        assert after == before
+    finally:
+        engine.dispose()
+
+
+def test_research_question_freeze_rolls_back_version_and_pointer(
+    service_factory: Callable[[], ApplicationService], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    created = service.create_research_question(
+        CreateResearchQuestionCommand(project_id, "Atomic freeze", None, None, actor_context)
+    )
+
+    def fail_pointer(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("forced pointer failure")
+
+    monkeypatch.setattr(
+        SqlAlchemyResearchQuestionRepository, "update_current_version", fail_pointer
+    )
+    with pytest.raises(RuntimeError, match="forced pointer failure"):
+        service.freeze_research_question(
+            FreezeResearchQuestionCommand(created.id, created.current_version_id, actor_context, 1)
+        )
+    history = service.get_research_question_history(created.id)
+    assert history[0].status is VersionStatus.DRAFT
+    assert history[0].content_hash is None
