@@ -1,0 +1,12 @@
+migrations/versions/0007_metric_definition.py
+src/researchbase/domain/metric.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/unit/domain/test_pr08_metric.py
+tests/integration/test_pr08_application.py
+tests/integration/test_pr08_schema.py
