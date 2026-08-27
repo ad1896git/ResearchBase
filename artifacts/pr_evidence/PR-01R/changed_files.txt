@@ -1,0 +1,21 @@
+# PR-01R remediation commit: c3e7497
+# Parent baseline: 647facf
+
+src/researchbase/foundation/canonical_json.py
+src/researchbase/foundation/errors.py
+src/researchbase/foundation/hashing.py
+tests/architecture/test_import_boundaries.py
+tests/unit/foundation/test_canonical_json.py
+tests/unit/foundation/test_hashing.py
+tests/unit/foundation/test_ids.py
+
+# PR-01R evidence files:
+artifacts/pr_evidence/PR-01R/remediation_summary.md
+artifacts/pr_evidence/PR-01R/finding_disposition.md
+artifacts/pr_evidence/PR-01R/changed_files.txt
+artifacts/pr_evidence/PR-01R/commands_and_results.md
+artifacts/pr_evidence/PR-01R/test_report.md
+artifacts/pr_evidence/PR-01R/architecture_review.md
+artifacts/pr_evidence/PR-01R/code_review.md
+artifacts/pr_evidence/PR-01R/unresolved_findings.md
+artifacts/pr_evidence/PR-01R/harness_fingerprint.json
