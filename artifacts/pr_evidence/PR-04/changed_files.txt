@@ -1,0 +1,19 @@
+PR-04 implementation and verification files relative to accepted PR-03R baseline:
+
+docs/superpowers/plans/2026-08-27-pr04-research-question-hypothesis.md
+migrations/versions/0003_research_question_hypothesis.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/research.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/contracts/version_contract.py
+tests/integration/test_pr04_application.py
+tests/integration/test_pr04_schema.py
+tests/test_architecture.py
+tests/unit/domain/test_pr04_research.py
+
+User-provided execution packs and unrelated .DS_Store files were not staged.
