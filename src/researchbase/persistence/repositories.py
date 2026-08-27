@@ -39,6 +39,15 @@ from researchbase.domain.research import (
     ResearchQuestionVersion,
     ResearchQuestionVersionId,
 )
+from researchbase.domain.run import (
+    ArtifactInputRole,
+    DatasetInputRole,
+    Run,
+    RunArtifactInput,
+    RunDatasetInput,
+    RunId,
+    RunStatus,
+)
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import CANONICAL_JSON_HASH_SCHEME, ContentHash
 from researchbase.foundation.ids import ActorId
@@ -58,6 +67,9 @@ from researchbase.persistence.models import (
     ProjectModel,
     ResearchQuestionModel,
     ResearchQuestionVersionModel,
+    RunArtifactInputModel,
+    RunDatasetInputModel,
+    RunModel,
     WorkspaceModel,
 )
 
@@ -878,6 +890,93 @@ class SqlAlchemyMetricDefinitionVersionRepository:
         _require_one_row(result_any.rowcount, "metric definition version", version.id)
 
 
+class SqlAlchemyRunRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, run: Run) -> None:
+        self._session.add(
+            RunModel(
+                id=run.id,
+                project_id=run.project_id,
+                experiment_spec_version_id=run.experiment_spec_version_id,
+                run_type=run.run_type,
+                status=run.status.value,
+                inputs_sealed_at=run.inputs_sealed_at,
+                started_at=run.started_at,
+                finished_at=run.finished_at,
+                exit_code=run.exit_code,
+                failure_reason=run.failure_reason,
+                created_by=run.created_by,
+                created_at=run.created_at,
+                row_version=run.row_version,
+            )
+        )
+
+    def get(self, run_id: RunId) -> Run | None:
+        model = self._session.get(RunModel, run_id)
+        return _run_from_model(model) if model is not None else None
+
+    def get_for_update(self, run_id: RunId) -> Run | None:
+        model = self._session.scalar(
+            select(RunModel).where(RunModel.id == run_id).with_for_update()
+        )
+        return _run_from_model(model) if model is not None else None
+
+    def update(self, run: Run, expected_row_version: int) -> None:
+        result = self._session.execute(
+            update(RunModel)
+            .where(RunModel.id == run.id, RunModel.row_version == expected_row_version)
+            .values(
+                status=run.status.value,
+                inputs_sealed_at=run.inputs_sealed_at,
+                started_at=run.started_at,
+                finished_at=run.finished_at,
+                exit_code=run.exit_code,
+                failure_reason=run.failure_reason,
+                row_version=RunModel.row_version + 1,
+            )
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "run", run.id)
+
+    def add_dataset_input(self, input: RunDatasetInput) -> None:
+        self._session.add(
+            RunDatasetInputModel(
+                run_id=input.run_id,
+                dataset_snapshot_id=input.dataset_snapshot_id,
+                role=input.role.value,
+                ordinal=input.ordinal,
+            )
+        )
+
+    def add_artifact_input(self, input: RunArtifactInput) -> None:
+        self._session.add(
+            RunArtifactInputModel(
+                run_id=input.run_id,
+                artifact_version_id=input.artifact_version_id,
+                role=input.role.value,
+                ordinal=input.ordinal,
+            )
+        )
+
+    def list_dataset_inputs(self, run_id: RunId) -> list[RunDatasetInput]:
+        models = self._session.scalars(
+            select(RunDatasetInputModel)
+            .where(RunDatasetInputModel.run_id == run_id)
+            .order_by(RunDatasetInputModel.dataset_snapshot_id, RunDatasetInputModel.role)
+        ).all()
+        return [_run_dataset_input_from_model(model) for model in models]
+
+    def list_artifact_inputs(self, run_id: RunId) -> list[RunArtifactInput]:
+        models = self._session.scalars(
+            select(RunArtifactInputModel)
+            .where(RunArtifactInputModel.run_id == run_id)
+            .order_by(RunArtifactInputModel.artifact_version_id, RunArtifactInputModel.role)
+        ).all()
+        return [_run_artifact_input_from_model(model) for model in models]
+
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -959,6 +1058,42 @@ def _metric_definition_version_from_model(
         created_at=model.created_at,
         frozen_at=model.frozen_at,
         row_version=model.row_version,
+    )
+
+
+def _run_from_model(model: RunModel) -> Run:
+    return Run(
+        id=RunId(model.id),
+        project_id=ProjectId(model.project_id),
+        experiment_spec_version_id=ExperimentSpecVersionId(model.experiment_spec_version_id),
+        run_type=model.run_type,
+        status=RunStatus(model.status),
+        inputs_sealed_at=model.inputs_sealed_at,
+        started_at=model.started_at,
+        finished_at=model.finished_at,
+        exit_code=model.exit_code,
+        failure_reason=model.failure_reason,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        row_version=model.row_version,
+    )
+
+
+def _run_dataset_input_from_model(model: RunDatasetInputModel) -> RunDatasetInput:
+    return RunDatasetInput(
+        run_id=RunId(model.run_id),
+        dataset_snapshot_id=DatasetSnapshotId(model.dataset_snapshot_id),
+        role=DatasetInputRole(model.role),
+        ordinal=model.ordinal,
+    )
+
+
+def _run_artifact_input_from_model(model: RunArtifactInputModel) -> RunArtifactInput:
+    return RunArtifactInput(
+        run_id=RunId(model.run_id),
+        artifact_version_id=ArtifactVersionId(model.artifact_version_id),
+        role=ArtifactInputRole(model.role),
+        ordinal=model.ordinal,
     )
 
 

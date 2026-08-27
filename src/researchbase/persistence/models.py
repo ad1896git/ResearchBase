@@ -457,3 +457,89 @@ class MetricDefinitionVersionModel(Base):
     row_version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("1"), default=1
     )
+
+
+class RunModel(Base):
+    __tablename__ = "runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PLANNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED')",
+            name="ck_runs_status",
+        ),
+        CheckConstraint(
+            "(status = 'PLANNED' AND inputs_sealed_at IS NULL) OR "
+            "(status <> 'PLANNED' AND inputs_sealed_at IS NOT NULL)",
+            name="ck_runs_inputs_sealed",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    experiment_spec_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("experiment_spec_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    run_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default=text("'experiment'")
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    inputs_sealed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class RunDatasetInputModel(Base):
+    __tablename__ = "run_dataset_inputs"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('train', 'validation', 'test', 'calibration', 'auxiliary', 'other')",
+            name="ck_run_dataset_inputs_role",
+        ),
+    )
+
+    run_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("runs.id", ondelete="RESTRICT"), primary_key=True
+    )
+    dataset_snapshot_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("dataset_snapshots.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    role: Mapped[str] = mapped_column(String(32), primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+class RunArtifactInputModel(Base):
+    __tablename__ = "run_artifact_inputs"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('source_code', 'model', 'checkpoint', 'configuration', "
+            "'environment_manifest', 'script', 'dependency_lock', 'other')",
+            name="ck_run_artifact_inputs_role",
+        ),
+    )
+
+    run_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("runs.id", ondelete="RESTRICT"), primary_key=True
+    )
+    artifact_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    role: Mapped[str] = mapped_column(String(32), primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))

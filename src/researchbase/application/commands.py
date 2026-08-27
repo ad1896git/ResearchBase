@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
+from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
 from researchbase.application.dto import (
     ActorReadModel,
     ArtifactReadModel,
@@ -20,6 +21,9 @@ from researchbase.application.dto import (
     ProjectReadModel,
     ResearchQuestionReadModel,
     ResearchQuestionVersionReadModel,
+    RunArtifactInputReadModel,
+    RunDatasetInputReadModel,
+    RunReadModel,
     WorkspaceReadModel,
 )
 from researchbase.application.ports import UnitOfWork
@@ -54,6 +58,15 @@ from researchbase.domain.research import (
     ResearchQuestionId,
     ResearchQuestionVersion,
     ResearchQuestionVersionId,
+)
+from researchbase.domain.run import (
+    ArtifactInputRole,
+    DatasetInputRole,
+    Run,
+    RunArtifactInput,
+    RunDatasetInput,
+    RunId,
+    RunStatus,
 )
 from researchbase.foundation.artifact_store import ArtifactStore
 from researchbase.foundation.canonical_json import canonical_json_bytes
@@ -256,6 +269,51 @@ class FreezeMetricDefinitionCommand:
     version_id: MetricDefinitionVersionId
     context: ExecutionContext
     expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CreateRunCommand:
+    project_id: ProjectId
+    experiment_spec_version_id: ExperimentSpecVersionId
+    run_type: str | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class AttachRunDatasetInputCommand:
+    run_id: RunId
+    dataset_snapshot_id: DatasetSnapshotId
+    role: DatasetInputRole | str
+    ordinal: int
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class AttachRunArtifactInputCommand:
+    run_id: RunId
+    artifact_version_id: ArtifactVersionId
+    role: ArtifactInputRole | str
+    ordinal: int
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class StartRunCommand:
+    run_id: RunId
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class FinishRunCommand:
+    run_id: RunId
+    outcome: RunStatus | str
+    exit_code: int | None
+    failure_reason: str | None
+    expected_row_version: int
+    context: ExecutionContext
 
 
 # Explicit version-suffixed aliases keep the public command vocabulary aligned with
@@ -972,6 +1030,171 @@ class ApplicationService:
                 _metric_definition_version_read_model(version)
                 for version in uow.metric_definition_versions.list_history(metric_id)
             ]
+
+    def create_run(self, command: CreateRunCommand) -> RunReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        project_id = ProjectId(command.project_id)
+        spec_version_id = ExperimentSpecVersionId(command.experiment_spec_version_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            project = _require_project(uow, project_id)
+            spec_version = uow.experiment_specs.get_version(spec_version_id)
+            if spec_version is None:
+                raise _not_found("experiment spec version", spec_version_id)
+            if spec_version.status is not VersionStatus.FROZEN:
+                raise ResearchBaseError(
+                    ErrorCode.VERSION_NOT_FROZEN,
+                    "run requires a frozen experiment spec version",
+                )
+            spec = uow.experiment_specs.get(spec_version.experiment_spec_id)
+            if spec is None:
+                raise _not_found("experiment spec", spec_version.experiment_spec_id)
+            if spec.project_id != project.id:
+                raise ResearchBaseError(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                    "run project must match experiment spec project",
+                )
+            try:
+                run = Run(
+                    id=new_typed_id(RunId),
+                    project_id=project.id,
+                    experiment_spec_version_id=spec_version.id,
+                    run_type=command.run_type or "experiment",
+                    status=RunStatus.PLANNED,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+            except (TypeError, ValueError) as exc:
+                raise _validation_error(str(exc), "run") from exc
+            uow.runs.add(run)
+            uow.commit()
+            return _run_read_model(run)
+
+    def get_run(self, run_id: RunId) -> RunReadModel:
+        with self._uow_factory() as uow:
+            run = uow.runs.get(RunId(run_id))
+            if run is None:
+                raise _not_found("run", run_id)
+            return _run_read_model(run)
+
+    def list_run_dataset_inputs(self, run_id: RunId) -> list[RunDatasetInputReadModel]:
+        with self._uow_factory() as uow:
+            run = uow.runs.get(RunId(run_id))
+            if run is None:
+                raise _not_found("run", run_id)
+            return [
+                _run_dataset_input_read_model(item) for item in uow.runs.list_dataset_inputs(run.id)
+            ]
+
+    def list_run_artifact_inputs(self, run_id: RunId) -> list[RunArtifactInputReadModel]:
+        with self._uow_factory() as uow:
+            run = uow.runs.get(RunId(run_id))
+            if run is None:
+                raise _not_found("run", run_id)
+            return [
+                _run_artifact_input_read_model(item)
+                for item in uow.runs.list_artifact_inputs(run.id)
+            ]
+
+    def attach_run_dataset_input(self, command: AttachRunDatasetInputCommand) -> RunReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            run = uow.runs.get_for_update(RunId(command.run_id))
+            if run is None:
+                raise _not_found("run", command.run_id)
+            _require_expected_row_version(run.row_version, command.expected_row_version)
+            if run.status is not RunStatus.PLANNED:
+                raise ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "run inputs are sealed")
+            snapshot = uow.dataset_snapshots.get(DatasetSnapshotId(command.dataset_snapshot_id))
+            if snapshot is None:
+                raise _not_found("dataset snapshot", command.dataset_snapshot_id)
+            try:
+                input = RunDatasetInput(
+                    run.id,
+                    snapshot.id,
+                    DatasetInputRole(command.role),
+                    command.ordinal,
+                )
+            except (TypeError, ValueError) as exc:
+                raise _validation_error(str(exc), "dataset input") from exc
+            uow.runs.add_dataset_input(input)
+            updated = replace(run, row_version=run.row_version + 1)
+            uow.runs.update(updated, run.row_version)
+            uow.commit()
+            return _run_read_model(updated)
+
+    def attach_run_artifact_input(self, command: AttachRunArtifactInputCommand) -> RunReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            run = uow.runs.get_for_update(RunId(command.run_id))
+            if run is None:
+                raise _not_found("run", command.run_id)
+            _require_expected_row_version(run.row_version, command.expected_row_version)
+            if run.status is not RunStatus.PLANNED:
+                raise ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "run inputs are sealed")
+            version = uow.artifact_versions.get(ArtifactVersionId(command.artifact_version_id))
+            if version is None:
+                raise _not_found("artifact version", command.artifact_version_id)
+            if version.status is not VersionStatus.FROZEN:
+                raise ResearchBaseError(
+                    ErrorCode.VERSION_NOT_FROZEN,
+                    "run artifact inputs require frozen artifact versions",
+                )
+            try:
+                input = RunArtifactInput(
+                    run.id,
+                    version.id,
+                    ArtifactInputRole(command.role),
+                    command.ordinal,
+                )
+            except (TypeError, ValueError) as exc:
+                raise _validation_error(str(exc), "artifact input") from exc
+            uow.runs.add_artifact_input(input)
+            updated = replace(run, row_version=run.row_version + 1)
+            uow.runs.update(updated, run.row_version)
+            uow.commit()
+            return _run_read_model(updated)
+
+    def start_run(self, command: StartRunCommand) -> RunReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            run = uow.runs.get_for_update(RunId(command.run_id))
+            if run is None:
+                raise _not_found("run", command.run_id)
+            _require_expected_row_version(run.row_version, command.expected_row_version)
+            report = ProvenanceClosureValidator(self._uow_factory).validate_run_in_uow(uow, run.id)
+            if not report.complete:
+                raise ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "run provenance closure is incomplete",
+                    {"violations": len(report.violations)},
+                )
+            started = run.start(self._clock)
+            uow.runs.update(started, run.row_version)
+            uow.commit()
+            return _run_read_model(replace(started, row_version=run.row_version + 1))
+
+    def finish_run(self, command: FinishRunCommand) -> RunReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            run = uow.runs.get_for_update(RunId(command.run_id))
+            if run is None:
+                raise _not_found("run", command.run_id)
+            _require_expected_row_version(run.row_version, command.expected_row_version)
+            finished = run.finish(command.outcome, self._clock)
+            finished = replace(
+                finished, exit_code=command.exit_code, failure_reason=command.failure_reason
+            )
+            uow.runs.update(finished, run.row_version)
+            uow.commit()
+            return _run_read_model(replace(finished, row_version=run.row_version + 1))
+
+    def validate_run_closure(self, run_id: RunId) -> ClosureReport:
+        return ProvenanceClosureValidator(self._uow_factory).validate_run(RunId(run_id))
 
     def get_research_question(self, question_id: ResearchQuestionId) -> ResearchQuestionReadModel:
         with self._uow_factory() as uow:
@@ -1805,6 +2028,46 @@ def _metric_definition_version_read_model(
         created_at=version.created_at,
         frozen_at=version.frozen_at,
         row_version=version.row_version,
+    )
+
+
+def _run_read_model(run: Run) -> RunReadModel:
+    return RunReadModel(
+        id=run.id,
+        project_id=run.project_id,
+        experiment_spec_version_id=run.experiment_spec_version_id,
+        run_type=run.run_type,
+        status=run.status,
+        inputs_sealed_at=run.inputs_sealed_at,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        exit_code=run.exit_code,
+        failure_reason=run.failure_reason,
+        created_by=run.created_by,
+        created_at=run.created_at,
+        row_version=run.row_version,
+    )
+
+
+def _run_dataset_input_read_model(
+    input: RunDatasetInput,
+) -> RunDatasetInputReadModel:
+    return RunDatasetInputReadModel(
+        run_id=input.run_id,
+        dataset_snapshot_id=input.dataset_snapshot_id,
+        role=input.role,
+        ordinal=input.ordinal,
+    )
+
+
+def _run_artifact_input_read_model(
+    input: RunArtifactInput,
+) -> RunArtifactInputReadModel:
+    return RunArtifactInputReadModel(
+        run_id=input.run_id,
+        artifact_version_id=input.artifact_version_id,
+        role=input.role,
+        ordinal=input.ordinal,
     )
 
 

@@ -31,6 +31,7 @@ from researchbase.domain.research import (
     ResearchQuestionVersion,
     ResearchQuestionVersionId,
 )
+from researchbase.domain.run import Run, RunArtifactInput, RunDatasetInput, RunId
 from researchbase.foundation.ids import ActorId
 
 
@@ -241,6 +242,24 @@ class MetricDefinitionVersionRepository(Protocol):
     def update(self, version: MetricDefinitionVersion, expected_row_version: int) -> None: ...
 
 
+class RunRepository(Protocol):
+    def add(self, run: Run) -> None: ...
+
+    def get(self, run_id: RunId) -> Run | None: ...
+
+    def get_for_update(self, run_id: RunId) -> Run | None: ...
+
+    def update(self, run: Run, expected_row_version: int) -> None: ...
+
+    def add_dataset_input(self, input: RunDatasetInput) -> None: ...
+
+    def add_artifact_input(self, input: RunArtifactInput) -> None: ...
+
+    def list_dataset_inputs(self, run_id: RunId) -> list[RunDatasetInput]: ...
+
+    def list_artifact_inputs(self, run_id: RunId) -> list[RunArtifactInput]: ...
+
+
 class UnitOfWork(Protocol):
     actors: ActorRepository
     projects: ProjectRepository
@@ -254,6 +273,7 @@ class UnitOfWork(Protocol):
     artifact_versions: ArtifactVersionRepository
     metric_definitions: MetricDefinitionRepository
     metric_definition_versions: MetricDefinitionVersionRepository
+    runs: RunRepository
 
     def __enter__(self) -> UnitOfWork: ...
 

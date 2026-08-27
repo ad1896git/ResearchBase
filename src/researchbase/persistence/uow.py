@@ -20,6 +20,7 @@ from researchbase.application.ports import (
     MetricDefinitionVersionRepository,
     ProjectRepository,
     ResearchQuestionRepository,
+    RunRepository,
     WorkspaceRepository,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
@@ -35,6 +36,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyMetricDefinitionVersionRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyResearchQuestionRepository,
+    SqlAlchemyRunRepository,
     SqlAlchemyWorkspaceRepository,
 )
 
@@ -52,6 +54,7 @@ class SqlAlchemyUnitOfWork:
     artifact_versions: ArtifactVersionRepository
     metric_definitions: MetricDefinitionRepository
     metric_definition_versions: MetricDefinitionVersionRepository
+    runs: RunRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -74,6 +77,7 @@ class SqlAlchemyUnitOfWork:
         self.artifact_versions = SqlAlchemyArtifactVersionRepository(self._session)
         self.metric_definitions = SqlAlchemyMetricDefinitionRepository(self._session)
         self.metric_definition_versions = SqlAlchemyMetricDefinitionVersionRepository(self._session)
+        self.runs = SqlAlchemyRunRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -112,6 +116,13 @@ class SqlAlchemyUnitOfWork:
                     ErrorCode.VALIDATION_ERROR,
                     "version number is already in use for this artifact",
                     {"field": "version_number"},
+                ) from exc
+            if "run_dataset_inputs_pkey" in str(exc.orig) or "run_artifact_inputs_pkey" in str(
+                exc.orig
+            ):
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "run input is already attached",
                 ) from exc
             raise
         self._committed = True

@@ -119,6 +119,7 @@ def test_phase1_has_only_the_authorized_business_migrations() -> None:
         "0005_dataset_snapshot.py",
         "0006_artifact_version.py",
         "0007_metric_definition.py",
+        "0008_run_core.py",
     ]
 
 

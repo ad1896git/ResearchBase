@@ -17,6 +17,12 @@ from researchbase.domain.research import (
     ResearchQuestionId,
     ResearchQuestionVersionId,
 )
+from researchbase.domain.run import (
+    ArtifactInputRole,
+    DatasetInputRole,
+    RunId,
+    RunStatus,
+)
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
@@ -224,3 +230,36 @@ class MetricDefinitionReadModel:
     created_at: datetime
     current_version_id: MetricDefinitionVersionId | None
     row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class RunReadModel:
+    id: RunId
+    project_id: ProjectId
+    experiment_spec_version_id: ExperimentSpecVersionId
+    run_type: str
+    status: RunStatus
+    inputs_sealed_at: datetime | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    exit_code: int | None
+    failure_reason: str | None
+    created_by: ActorId
+    created_at: datetime
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class RunDatasetInputReadModel:
+    run_id: RunId
+    dataset_snapshot_id: DatasetSnapshotId
+    role: DatasetInputRole
+    ordinal: int
+
+
+@dataclass(frozen=True, slots=True)
+class RunArtifactInputReadModel:
+    run_id: RunId
+    artifact_version_id: ArtifactVersionId
+    role: ArtifactInputRole
+    ordinal: int

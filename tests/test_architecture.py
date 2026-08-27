@@ -39,9 +39,9 @@ def test_phase1_has_no_later_business_schema_migration() -> None:
     forbidden_tables = (
         "claims",
         "measurements",
-        "runs",
     )
     assert not any(table in migration_text for table in forbidden_tables)
+    assert "run_versions" not in migration_text
 
 
 def test_pr06_does_not_add_dataset_version_or_pr07_business_schema() -> None:
@@ -54,8 +54,6 @@ def test_pr06_does_not_add_dataset_version_or_pr07_business_schema() -> None:
 
 def test_pr07_does_not_add_run_roles_or_generic_version_schema() -> None:
     source_text = "\n".join(path.read_text() for path in _python_files(SRC))
-    migration_text = "\n".join(path.read_text() for path in _python_files(ROOT / "migrations"))
-    assert "run_artifact_inputs" not in migration_text
     assert "GenericVersion" not in source_text
 
 
