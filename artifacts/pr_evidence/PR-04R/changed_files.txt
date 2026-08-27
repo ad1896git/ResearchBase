@@ -1,0 +1,14 @@
+PR-04R remediation files relative to baseline `059641c`:
+
+tests/integration/test_pr04_application.py
+artifacts/pr_evidence/PR-04/commands_and_results.md
+artifacts/pr_evidence/PR-04/concurrency_report.md
+artifacts/pr_evidence/PR-04/test_report.md
+artifacts/pr_evidence/PR-04/transaction_report.md
+artifacts/pr_evidence/PR-04/unresolved_findings.md
+
+PR-04R evidence files:
+
+artifacts/pr_evidence/PR-04R/
+
+No production source, migration, dependency, or schema file changed in PR-04R.

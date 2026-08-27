@@ -1,0 +1,11 @@
+{
+  "researchbase_git_commit": "c6be24bc27e32d0e16452e7a79195e3b09609d5a",
+  "pr04_baseline_commit": "059641c8445749ebdac11786be40185ba8644004",
+  "pr04r_remediation_commit": "c6be24bc27e32d0e16452e7a79195e3b09609d5a",
+  "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+  "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+  "target_pr04r_pack_sha256": "241964ab50ce2ca5e5b1de9ba883c242091e47501c3047de652298018aa3237d",
+  "codex_runtime_version": "unknown",
+  "model_identifier": "unknown",
+  "external_harness_used": ["superpowers@v6.2.0"]
+}
