@@ -38,3 +38,5 @@ PR-06 implementation/evidence commit: a5c53e2
 ```
 
 The remaining untracked execution packs and `.DS_Store` files were pre-existing user-owned files and were not included in the PR-06 commit.
+
+Evidence reconciliation: the original PR-06 command/test results remain historical and are not being relabeled as independent proof for PR06-REV-001 through PR06-REV-007. Fresh remediation commands and outcomes are recorded in `artifacts/pr_evidence/PR-06R/commands_and_results.md`.

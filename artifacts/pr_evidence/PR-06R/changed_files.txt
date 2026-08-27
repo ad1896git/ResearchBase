@@ -1,0 +1,12 @@
+PR-06R remediation files relative to baseline c92f119:
+
+tests/integration/test_pr06_application.py
+artifacts/pr_evidence/PR-06/code_review.md
+artifacts/pr_evidence/PR-06/unresolved_findings.md
+artifacts/pr_evidence/PR-06/snapshot_hash_contract.md
+artifacts/pr_evidence/PR-06/transaction_report.md
+artifacts/pr_evidence/PR-06/test_report.md
+artifacts/pr_evidence/PR-06/commands_and_results.md
+artifacts/pr_evidence/PR-06R/
+
+No production source, migration, or schema change was required.

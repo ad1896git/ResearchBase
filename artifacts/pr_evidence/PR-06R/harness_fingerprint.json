@@ -1,0 +1,13 @@
+{
+  "phase": "Phase 1",
+  "pr": "PR-06R",
+  "execution_pack": "PR-06R_Remediation_Execution_Pack_v1.0.md",
+  "baseline": "c92f119",
+  "python": "3.12",
+  "dependency_manager": "uv",
+  "database": "PostgreSQL",
+  "postgresql_version": "18.6",
+  "new_migration": false,
+  "production_semantic_changes": false,
+  "pr07_started": false
+}

@@ -8,7 +8,7 @@ from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.exc import IntegrityError
 
 from researchbase.application.commands import (
@@ -137,6 +137,101 @@ def test_snapshot_create_get_and_locator_independent_idempotency(
     assert loaded.manifest_locator == "file:///first/manifest.json"
 
 
+def test_application_snapshot_hash_matches_independent_material_oracle(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    dataset = service.register_dataset(register_command(project_id, actor_context))
+    manifest_hash = "Ab" * 32
+    selection_definition = {"split": "train", "where": {"status": "ready"}}
+    expected_material = {
+        "manifest_hash": manifest_hash.lower(),
+        "selection_definition": selection_definition,
+    }
+    expected_hash = sha256_canonical_json(expected_material)
+
+    result = service.create_dataset_snapshot(
+        snapshot_command(
+            DatasetId(dataset.id),
+            actor_context,
+            manifest_hash=manifest_hash,
+            selection_definition=selection_definition,
+        )
+    )
+    engine = create_database_engine()
+    try:
+        with engine.connect() as connection:
+            persisted_hash = connection.execute(
+                text("SELECT content_hash FROM dataset_snapshots WHERE id = :id"),
+                {"id": result.id},
+            ).scalar_one()
+    finally:
+        engine.dispose()
+
+    assert result.content_hash == expected_hash
+    assert persisted_hash == expected_hash
+    assert result.content_hash != manifest_hash.lower()
+
+
+def test_application_material_changes_change_content_hash(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    dataset = service.register_dataset(register_command(project_id, actor_context))
+    baseline = service.create_dataset_snapshot(
+        snapshot_command(DatasetId(dataset.id), actor_context)
+    )
+    selection_variant = service.create_dataset_snapshot(
+        snapshot_command(
+            DatasetId(dataset.id), actor_context, selection_definition={"split": "test"}
+        )
+    )
+    manifest_variant = service.create_dataset_snapshot(
+        snapshot_command(DatasetId(dataset.id), actor_context, manifest_hash="b" * 64)
+    )
+
+    assert selection_variant.content_hash != baseline.content_hash
+    assert manifest_variant.content_hash != baseline.content_hash
+
+
+def test_application_key_order_equivalence_is_idempotent(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    dataset = service.register_dataset(register_command(project_id, actor_context))
+    first = service.create_dataset_snapshot(
+        snapshot_command(
+            DatasetId(dataset.id),
+            actor_context,
+            selection_definition={"where": {"b": 2, "a": 1}, "split": "train"},
+        )
+    )
+    second = service.create_dataset_snapshot(
+        snapshot_command(
+            DatasetId(dataset.id),
+            actor_context,
+            manifest_locator="file:///reordered/manifest.json",
+            selection_definition={"split": "train", "where": {"a": 1, "b": 2}},
+        )
+    )
+
+    assert second.id == first.id
+    assert second.content_hash == first.content_hash
+    engine = create_database_engine()
+    try:
+        with engine.connect() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM dataset_snapshots WHERE dataset_id = :dataset_id"),
+                {"dataset_id": dataset.id},
+            ).scalar_one()
+        assert count == 1
+    finally:
+        engine.dispose()
+
+
 def test_same_material_on_different_datasets_creates_distinct_snapshots(
     service_factory: Callable[[], ApplicationService],
 ) -> None:
@@ -185,6 +280,29 @@ def test_snapshot_rejects_unserializable_selection_definition(
     assert isinstance(raised.value.__cause__, TypeError | ValueError)
 
 
+def test_snapshot_rejects_missing_dataset_without_persistence(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    _, _, actor_context = seed(service)
+    missing_dataset_id = DatasetId(uuid4())
+
+    with pytest.raises(ResearchBaseError) as raised:
+        service.create_dataset_snapshot(snapshot_command(missing_dataset_id, actor_context))
+
+    assert raised.value.code is ErrorCode.NOT_FOUND
+    engine = create_database_engine()
+    try:
+        with engine.connect() as connection:
+            count = connection.execute(
+                text("SELECT count(*) FROM dataset_snapshots WHERE dataset_id = :dataset_id"),
+                {"dataset_id": missing_dataset_id},
+            ).scalar_one()
+        assert count == 0
+    finally:
+        engine.dispose()
+
+
 def test_snapshot_material_hash_differential_is_single_variable() -> None:
     baseline = {"manifest_hash": "a" * 64, "selection_definition": {"split": "train"}}
     manifest_variant = {**baseline, "manifest_hash": "b" * 64}
@@ -221,6 +339,60 @@ def test_snapshot_immutability_trigger_rejects_direct_update(
         engine.dispose()
 
 
+@pytest.mark.parametrize(
+    ("column", "expression"),
+    [
+        ("dataset_id", "'88888888-8888-7888-8888-888888888888'"),
+        ("manifest_hash", "repeat('c', 64)"),
+        ("selection_definition", "'{\"split\":\"changed\"}'::jsonb"),
+        ("manifest_locator", "'file:///changed'"),
+        ("content_hash", "repeat('d', 64)"),
+        ("created_by", "'99999999-9999-7999-8999-999999999999'"),
+        ("created_at", "now()"),
+    ],
+)
+def test_snapshot_trigger_rejects_update_of_every_field(
+    service_factory: Callable[[], ApplicationService], column: str, expression: str
+) -> None:
+    service = service_factory()
+    _, project_id, actor_context = seed(service)
+    dataset = service.register_dataset(register_command(project_id, actor_context))
+    snapshot = service.create_dataset_snapshot(
+        snapshot_command(DatasetId(dataset.id), actor_context)
+    )
+    engine = create_database_engine()
+    statement = text(
+        f"UPDATE dataset_snapshots SET {column} = {expression} WHERE id = :snapshot_id"
+    )
+    try:
+        with engine.connect() as connection:
+            before = connection.execute(
+                text(
+                    "SELECT dataset_id, manifest_hash, selection_definition, manifest_locator, "
+                    "content_hash, created_by, created_at "
+                    "FROM dataset_snapshots WHERE id = :snapshot_id"
+                ),
+                {"snapshot_id": snapshot.id},
+            ).one()
+        with engine.connect() as connection:
+            transaction = connection.begin()
+            with pytest.raises(IntegrityError):
+                connection.execute(statement, {"snapshot_id": snapshot.id})
+            transaction.rollback()
+        with engine.connect() as connection:
+            after = connection.execute(
+                text(
+                    "SELECT dataset_id, manifest_hash, selection_definition, manifest_locator, "
+                    "content_hash, created_by, created_at "
+                    "FROM dataset_snapshots WHERE id = :snapshot_id"
+                ),
+                {"snapshot_id": snapshot.id},
+            ).one()
+        assert after == before
+    finally:
+        engine.dispose()
+
+
 def test_snapshot_late_failure_rolls_back_and_retry_is_single_row(
     service_factory: Callable[[], ApplicationService],
 ) -> None:
@@ -229,6 +401,20 @@ def test_snapshot_late_failure_rolls_back_and_retry_is_single_row(
     dataset = service.register_dataset(register_command(project_id, actor_context))
     engine = create_database_engine()
     sessions = create_session_factory(engine)
+    observed_inserts: list[str] = []
+
+    def observe_insert(
+        _conn: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        if "INSERT INTO dataset_snapshots" in statement:
+            observed_inserts.append(statement)
+
+    event.listen(engine, "before_cursor_execute", observe_insert)
 
     class FailingUnitOfWork(SqlAlchemyUnitOfWork):
         def commit(self) -> None:
@@ -250,12 +436,52 @@ def test_snapshot_late_failure_rolls_back_and_retry_is_single_row(
             ).scalar_one()
         assert count == 0
     finally:
+        event.remove(engine, "before_cursor_execute", observe_insert)
         engine.dispose()
 
+    assert observed_inserts
     retried = service.create_dataset_snapshot(
         snapshot_command(DatasetId(dataset.id), actor_context)
     )
     assert retried.id
+
+
+def test_pr06_restrict_foreign_keys_block_referenced_deletes(
+    service_factory: Callable[[], ApplicationService],
+) -> None:
+    service = service_factory()
+    actor_id, project_id, actor_context = seed(service)
+    dataset = service.register_dataset(register_command(project_id, actor_context))
+    service.create_dataset_snapshot(snapshot_command(DatasetId(dataset.id), actor_context))
+    engine = create_database_engine()
+    try:
+        delete_cases = [
+            (
+                "DELETE FROM datasets WHERE id = :id",
+                {"id": dataset.id},
+                "SELECT count(*) FROM datasets WHERE id = :id",
+            ),
+            (
+                "DELETE FROM actors WHERE id = :id",
+                {"id": actor_id},
+                "SELECT count(*) FROM actors WHERE id = :id",
+            ),
+            (
+                "DELETE FROM projects WHERE id = :id",
+                {"id": project_id},
+                "SELECT count(*) FROM projects WHERE id = :id",
+            ),
+        ]
+        for statement, params, survivor_query in delete_cases:
+            with engine.connect() as connection:
+                transaction = connection.begin()
+                with pytest.raises(IntegrityError):
+                    connection.execute(text(statement), params)
+                transaction.rollback()
+            with engine.connect() as connection:
+                assert connection.execute(text(survivor_query), params).scalar_one() == 1
+    finally:
+        engine.dispose()
 
 
 def test_concurrent_same_content_creation_is_idempotent(
