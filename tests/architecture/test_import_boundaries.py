@@ -97,6 +97,18 @@ def test_foundation_has_no_forbidden_reverse_or_framework_imports() -> None:
     assert _find_forbidden_imports(FOUNDATION) == []
 
 
+def test_production_does_not_import_shared_test_contracts() -> None:
+    source_root = Path(__file__).parents[2] / "src" / "researchbase"
+    violations = []
+    for path in sorted(source_root.rglob("*.py")):
+        relative_parent = path.relative_to(source_root).parent.parts
+        current_package = ".".join(("researchbase", *relative_parent))
+        for module in _imported_modules(path, current_package):
+            if module == "tests" or module.startswith("tests."):
+                violations.append((path, module))
+    assert violations == []
+
+
 def test_pr02_has_only_the_authorized_business_migration() -> None:
     migrations = Path(__file__).parents[2] / "migrations" / "versions"
     assert [path.name for path in migrations.glob("*.py")] == [
