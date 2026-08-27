@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -36,12 +37,13 @@ from researchbase.application.dto import (
 from researchbase.domain.artifact import ArtifactId, ArtifactVersionId
 from researchbase.domain.identity import ActorType
 from researchbase.domain.organization import ProjectId
-from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
+from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunId, RunStatus
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
+from researchbase.persistence.repositories import SqlAlchemyRunRepository
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 pytestmark = pytest.mark.integration
@@ -68,6 +70,25 @@ def resources(
 
 def context(actor_id: UUID) -> ExecutionContext:
     return ExecutionContext(actor_id=actor_id, request_id=uuid4(), client_type="test")
+
+
+def synchronize_run_lock(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    original = SqlAlchemyRunRepository.get_for_update
+    barrier = threading.Barrier(2)
+    reached = [0]
+    reached_lock = threading.Lock()
+    state = threading.local()
+
+    def synchronized(repository: SqlAlchemyRunRepository, run_id: RunId):
+        if not getattr(state, "passed", False):
+            with reached_lock:
+                reached[0] += 1
+            barrier.wait(timeout=10)
+            state.passed = True
+        return original(repository, run_id)
+
+    monkeypatch.setattr(SqlAlchemyRunRepository, "get_for_update", synchronized)
+    return reached
 
 
 def seed(service: ApplicationService) -> tuple[UUID, ProjectId, ExecutionContext]:
@@ -321,6 +342,7 @@ def test_run_terminal_outcomes_and_closure_are_deterministic(
 
 def test_concurrent_start_and_finish_use_row_version(
     resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     factory, _ = resources
     service = factory()
@@ -339,8 +361,11 @@ def test_concurrent_start_and_finish_use_row_version(
     def start() -> RunReadModel:
         return factory().start_run(StartRunCommand(run.id, current.row_version, actor_context))
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        results = [executor.submit(start), executor.submit(start)]
+    with monkeypatch.context() as patch:
+        reached = synchronize_run_lock(patch)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = [executor.submit(start), executor.submit(start)]
+    assert reached == [2]
     outcomes = [future.exception() for future in results]
     assert sum(error is None for error in outcomes) == 1
     assert (
@@ -351,17 +376,23 @@ def test_concurrent_start_and_finish_use_row_version(
         == 1
     )
     started = service.get_run(run.id)
+    assert started.status is RunStatus.RUNNING
+    assert started.inputs_sealed_at is not None
+    assert started.row_version == current.row_version + 1
 
     def finish(outcome: RunStatus) -> RunReadModel:
         return factory().finish_run(
             FinishRunCommand(run.id, outcome, 0, None, started.row_version, actor_context)
         )
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        results = [
-            executor.submit(finish, RunStatus.SUCCEEDED),
-            executor.submit(finish, RunStatus.FAILED),
-        ]
+    with monkeypatch.context() as patch:
+        reached = synchronize_run_lock(patch)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = [
+                executor.submit(finish, RunStatus.SUCCEEDED),
+                executor.submit(finish, RunStatus.FAILED),
+            ]
+    assert reached == [2]
     outcomes = [future.exception() for future in results]
     assert sum(error is None for error in outcomes) == 1
     assert (
@@ -371,6 +402,53 @@ def test_concurrent_start_and_finish_use_row_version(
         )
         == 1
     )
+    finished = service.get_run(run.id)
+    assert finished.status in {RunStatus.SUCCEEDED, RunStatus.FAILED}
+    assert finished.finished_at is not None
+    assert finished.row_version == started.row_version + 1
+
+
+def test_attach_vs_start_has_genuine_deterministic_overlap(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory, _ = resources
+    service = factory()
+    run, snapshot, _, actor_context = prepared_run(service)
+
+    def start() -> RunReadModel:
+        return factory().start_run(StartRunCommand(run.id, run.row_version, actor_context))
+
+    def attach() -> RunReadModel:
+        return factory().attach_run_dataset_input(
+            AttachRunDatasetInputCommand(
+                run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
+            )
+        )
+
+    with monkeypatch.context() as patch:
+        reached = synchronize_run_lock(patch)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            start_future = executor.submit(start)
+            attach_future = executor.submit(attach)
+    assert reached == [2]
+    start_error = start_future.exception()
+    attach_error = attach_future.exception()
+    if attach_error is None:
+        assert service.list_run_dataset_inputs(run.id)[0].dataset_snapshot_id == snapshot.id
+        assert isinstance(start_error, ResearchBaseError)
+        assert start_error.code is ErrorCode.CONCURRENT_MODIFICATION
+        refreshed = factory().get_run(run.id)
+        service.start_run(StartRunCommand(run.id, refreshed.row_version, actor_context))
+    else:
+        assert isinstance(attach_error, ResearchBaseError)
+        assert attach_error.code is ErrorCode.IMMUTABLE_RECORD
+        assert start_error is None
+        assert service.list_run_dataset_inputs(run.id) == []
+    final = factory().get_run(run.id)
+    assert final.status is RunStatus.RUNNING
+    assert final.inputs_sealed_at is not None
+    assert final.row_version in {2, 3}
 
 
 def test_post_seal_trigger_and_fk_restrict_preserve_provenance(
@@ -407,18 +485,37 @@ def test_run_create_attach_start_finish_roll_back_after_flush(
 ) -> None:
     factory, engine = resources
     service = factory()
-    run, snapshot, artifact, actor_context = prepared_run(service)
+    _, project_id, actor_context = seed(service)
+    spec_version_id = frozen_spec(service, project_id, actor_context)
     sessions = create_session_factory(engine)
+    observed_insert = False
 
     class FailingUnitOfWork(SqlAlchemyUnitOfWork):
         def commit(self) -> None:
+            nonlocal observed_insert
             self._require_session().flush()
+            observed_insert = True
             raise RuntimeError("injected PR-09 failure")
 
     failing = ApplicationService(
         lambda: FailingUnitOfWork(sessions),
         FixedClock(datetime(2026, 8, 28, 0, 0, tzinfo=UTC)),
     )
+    with pytest.raises(RuntimeError, match="injected PR-09 failure"):
+        failing.create_run(CreateRunCommand(project_id, spec_version_id, None, actor_context))
+    assert observed_insert
+    with engine.connect() as connection:
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM runs WHERE project_id=:project_id"),
+                {"project_id": project_id},
+            ).scalar_one()
+            == 0
+        )
+    retried = service.create_run(CreateRunCommand(project_id, spec_version_id, None, actor_context))
+    assert retried.status is RunStatus.PLANNED
+
+    run, snapshot, artifact, actor_context = prepared_run(service)
     with pytest.raises(RuntimeError, match="injected PR-09 failure"):
         failing.attach_run_dataset_input(
             AttachRunDatasetInputCommand(
@@ -433,6 +530,14 @@ def test_run_create_attach_start_finish_roll_back_after_flush(
             run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
         )
     )
+    with pytest.raises(RuntimeError, match="injected PR-09 failure"):
+        failing.attach_run_artifact_input(
+            AttachRunArtifactInputCommand(
+                run.id, artifact.id, ArtifactInputRole.MODEL, 0, current.row_version, actor_context
+            )
+        )
+    assert factory().get_run(run.id).row_version == current.row_version
+    assert factory().list_run_artifact_inputs(run.id) == []
     current = service.attach_run_artifact_input(
         AttachRunArtifactInputCommand(
             run.id, artifact.id, ArtifactInputRole.MODEL, 0, current.row_version, actor_context
@@ -454,3 +559,223 @@ def test_run_create_attach_start_finish_roll_back_after_flush(
     rolled_back_finish = factory().get_run(run.id)
     assert rolled_back_finish.status is RunStatus.RUNNING
     assert rolled_back_finish.finished_at is None
+
+
+def test_sealed_input_trigger_blocks_all_retarget_and_mutation_attacks(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    spec_version_id = frozen_spec(service, project_id, actor_context)
+    snapshot = frozen_dataset(service, project_id, actor_context)
+    artifact = frozen_artifact(service, project_id, actor_context)
+
+    def create_run() -> RunReadModel:
+        return service.create_run(
+            CreateRunCommand(project_id, spec_version_id, None, actor_context)
+        )
+
+    def add_inputs(
+        run: RunReadModel, dataset_role: DatasetInputRole, artifact_role: ArtifactInputRole
+    ) -> RunReadModel:
+        run = service.attach_run_dataset_input(
+            AttachRunDatasetInputCommand(
+                run.id, snapshot.id, dataset_role, 0, run.row_version, actor_context
+            )
+        )
+        return service.attach_run_artifact_input(
+            AttachRunArtifactInputCommand(
+                run.id, artifact.id, artifact_role, 0, run.row_version, actor_context
+            )
+        )
+
+    sealed_a = add_inputs(create_run(), DatasetInputRole.TEST, ArtifactInputRole.MODEL)
+    planned_b = create_run()
+    planned_c = add_inputs(create_run(), DatasetInputRole.VALIDATION, ArtifactInputRole.SOURCE_CODE)
+    sealed_d = add_inputs(create_run(), DatasetInputRole.CALIBRATION, ArtifactInputRole.CHECKPOINT)
+    sealed_e = add_inputs(create_run(), DatasetInputRole.AUXILIARY, ArtifactInputRole.CONFIGURATION)
+    sealed_f = add_inputs(create_run(), DatasetInputRole.OTHER, ArtifactInputRole.SCRIPT)
+    for run in (sealed_a, sealed_d, sealed_e, sealed_f):
+        service.start_run(StartRunCommand(run.id, run.row_version, actor_context))
+
+    def reject(statement: str, parameters: dict[str, object]) -> None:
+        with pytest.raises(DBAPIError):
+            with engine.begin() as connection:
+                connection.execute(text(statement), parameters)
+
+    for table, id_column in (
+        ("run_dataset_inputs", "dataset_snapshot_id"),
+        ("run_artifact_inputs", "artifact_version_id"),
+    ):
+        reject(
+            f"UPDATE {table} SET run_id=:new_id WHERE run_id=:old_id",
+            {"new_id": planned_b.id, "old_id": sealed_a.id},
+        )
+        reject(
+            f"UPDATE {table} SET run_id=:new_id WHERE run_id=:old_id",
+            {"new_id": sealed_d.id, "old_id": planned_c.id},
+        )
+        reject(
+            f"UPDATE {table} SET run_id=:new_id WHERE run_id=:old_id",
+            {"new_id": sealed_f.id, "old_id": sealed_e.id},
+        )
+        reject(
+            f"UPDATE {table} SET role='other' WHERE run_id=:run_id",
+            {"run_id": sealed_a.id},
+        )
+        reject(
+            f"UPDATE {table} SET ordinal=ordinal+1 WHERE run_id=:run_id",
+            {"run_id": sealed_a.id},
+        )
+        reject(
+            f"DELETE FROM {table} WHERE run_id=:run_id",
+            {"run_id": sealed_a.id},
+        )
+        reject(
+            f"INSERT INTO {table} (run_id, {id_column}, role, ordinal) "
+            f"VALUES (:run_id, :object_id, 'other', 0)",
+            {
+                "run_id": sealed_a.id,
+                "object_id": snapshot.id if table == "run_dataset_inputs" else artifact.id,
+            },
+        )
+
+    assert service.get_run(sealed_a.id).status is RunStatus.RUNNING
+    assert [item.role for item in service.list_run_dataset_inputs(sealed_a.id)] == [
+        DatasetInputRole.TEST
+    ]
+    assert [item.role for item in service.list_run_artifact_inputs(sealed_a.id)] == [
+        ArtifactInputRole.MODEL
+    ]
+
+
+def test_closure_dto_orders_multiple_violations_and_blocks_start(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    draft_spec = service.create_experiment_spec(
+        CreateExperimentSpecCommand(
+            project_id,
+            None,
+            "Draft closure spec",
+            "Draft objective",
+            {"step": "draft"},
+            None,
+            None,
+            None,
+            actor_context,
+        )
+    )
+    assert draft_spec.current_version_id is not None
+    dataset_snapshot = frozen_dataset(service, project_id, actor_context)
+    artifact = service.create_artifact(
+        CreateArtifactCommand(project_id, "text/plain", f"Draft-{uuid4()}", None, actor_context)
+    )
+    draft_artifact = service.create_artifact_version(
+        CreateArtifactVersionCommand(
+            ArtifactId(artifact.id),
+            b"draft run input",
+            None,
+            None,
+            "text/plain",
+            None,
+            None,
+            actor_context,
+        )
+    )
+    run_id = uuid4()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO runs (id, project_id, experiment_spec_version_id, run_type, status, "
+                "created_by, created_at, row_version) VALUES "
+                "(:id, :project_id, :spec_id, 'experiment', 'PLANNED', :actor_id, :created_at, 1)"
+            ),
+            {
+                "id": run_id,
+                "project_id": project_id,
+                "spec_id": draft_spec.current_version_id,
+                "actor_id": actor_context.actor_id,
+                "created_at": datetime(2026, 8, 28, 0, 0, tzinfo=UTC),
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO run_dataset_inputs (run_id, dataset_snapshot_id, role, ordinal) "
+                "VALUES (:run_id, :snapshot_id, 'test', 0)"
+            ),
+            {"run_id": run_id, "snapshot_id": dataset_snapshot.id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO run_artifact_inputs (run_id, artifact_version_id, role, ordinal) "
+                "VALUES (:run_id, :artifact_id, 'model', 0)"
+            ),
+            {"run_id": run_id, "artifact_id": draft_artifact.id},
+        )
+    report = service.validate_run_closure(RunId(run_id))
+    repeated = service.validate_run_closure(RunId(run_id))
+    assert report == repeated
+    assert report.complete is False
+    assert report.visited_count == 4
+    assert [violation.code for violation in report.violations] == [
+        ErrorCode.VERSION_NOT_FROZEN.value,
+        ErrorCode.VERSION_NOT_FROZEN.value,
+    ]
+    assert report.violations[0].object_type == "ArtifactVersion"
+    assert report.violations[1].object_type == "ExperimentSpecVersion"
+    for violation in report.violations:
+        assert violation.code
+        assert violation.object_type
+        assert violation.object_id
+        assert violation.path
+        assert violation.message
+    with pytest.raises(ResearchBaseError) as error:
+        service.start_run(StartRunCommand(RunId(run_id), 1, actor_context))
+    assert error.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    fresh = factory().get_run(RunId(run_id))
+    assert fresh.status is RunStatus.PLANNED
+    assert fresh.inputs_sealed_at is None
+    assert fresh.started_at is None
+    assert fresh.row_version == 1
+
+
+def test_pr09_fk_restrict_matrix_rejects_all_referenced_deletes(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    actor_id, project_id, actor_context = seed(service)
+    spec_version_id = frozen_spec(service, project_id, actor_context)
+    snapshot = frozen_dataset(service, project_id, actor_context)
+    artifact = frozen_artifact(service, project_id, actor_context)
+    run = service.create_run(CreateRunCommand(project_id, spec_version_id, None, actor_context))
+    run = service.attach_run_dataset_input(
+        AttachRunDatasetInputCommand(
+            run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
+        )
+    )
+    run = service.attach_run_artifact_input(
+        AttachRunArtifactInputCommand(
+            run.id, artifact.id, ArtifactInputRole.MODEL, 0, run.row_version, actor_context
+        )
+    )
+    service.start_run(StartRunCommand(run.id, run.row_version, actor_context))
+    deletes = [
+        ("projects", project_id),
+        ("experiment_spec_versions", spec_version_id),
+        ("actors", actor_id),
+        ("dataset_snapshots", snapshot.id),
+        ("artifact_versions", artifact.id),
+        ("runs", run.id),
+    ]
+    for table, identifier in deletes:
+        with pytest.raises(DBAPIError):
+            with engine.begin() as connection:
+                connection.execute(text(f"DELETE FROM {table} WHERE id=:id"), {"id": identifier})
+    assert factory().get_run(run.id).status is RunStatus.RUNNING
+    assert len(factory().list_run_dataset_inputs(run.id)) == 1
+    assert len(factory().list_run_artifact_inputs(run.id)) == 1
