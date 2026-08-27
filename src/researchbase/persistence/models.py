@@ -219,3 +219,69 @@ class HypothesisVersionModel(Base):
     row_version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("1"), default=1
     )
+
+
+class ExperimentSpecModel(Base):
+    __tablename__ = "experiment_specs"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    hypothesis_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("hypotheses.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    current_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("experiment_spec_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class ExperimentSpecVersionModel(Base):
+    __tablename__ = "experiment_spec_versions"
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_experiment_spec_versions_version_number"),
+        CheckConstraint(
+            "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
+            name="ck_experiment_spec_versions_status",
+        ),
+        UniqueConstraint(
+            "experiment_spec_id",
+            "version_number",
+            name="uq_experiment_spec_versions_parent_version",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    experiment_spec_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("experiment_specs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    protocol: Mapped[object] = mapped_column(JSONB, nullable=False)
+    planned_metrics: Mapped[object | None] = mapped_column(JSONB, nullable=True)
+    seed_policy: Mapped[object | None] = mapped_column(JSONB, nullable=True)
+    analysis_plan: Mapped[object | None] = mapped_column(JSONB, nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )

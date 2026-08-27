@@ -7,6 +7,8 @@ from dataclasses import dataclass, replace
 
 from researchbase.application.dto import (
     ActorReadModel,
+    ExperimentSpecReadModel,
+    ExperimentSpecVersionReadModel,
     HypothesisReadModel,
     HypothesisVersionReadModel,
     ProjectReadModel,
@@ -15,6 +17,12 @@ from researchbase.application.dto import (
     WorkspaceReadModel,
 )
 from researchbase.application.ports import UnitOfWork
+from researchbase.domain.experiment import (
+    ExperimentSpec,
+    ExperimentSpecId,
+    ExperimentSpecVersion,
+    ExperimentSpecVersionId,
+)
 from researchbase.domain.identity import Actor, ActorType
 from researchbase.domain.organization import (
     LifecycleStatus,
@@ -141,6 +149,55 @@ class UpdateHypothesisDraftCommand:
 class FreezeHypothesisCommand:
     hypothesis_id: HypothesisId
     version_id: HypothesisVersionId
+    context: ExecutionContext
+    expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CreateExperimentSpecCommand:
+    project_id: ProjectId
+    hypothesis_id: HypothesisId | None
+    title: str
+    objective: str
+    protocol: object
+    planned_metrics: object | None
+    seed_policy: object | None
+    analysis_plan: object | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class ReviseExperimentSpecCommand:
+    experiment_spec_id: ExperimentSpecId
+    title: str
+    objective: str
+    protocol: object
+    planned_metrics: object | None
+    seed_policy: object | None
+    analysis_plan: object | None
+    expected_row_version: int
+    context: ExecutionContext
+    base_version_id: ExperimentSpecVersionId | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateExperimentSpecDraftCommand:
+    experiment_spec_id: ExperimentSpecId
+    version_id: ExperimentSpecVersionId
+    title: str
+    objective: str
+    protocol: object
+    planned_metrics: object | None
+    seed_policy: object | None
+    analysis_plan: object | None
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class FreezeExperimentSpecCommand:
+    experiment_spec_id: ExperimentSpecId
+    version_id: ExperimentSpecVersionId
     context: ExecutionContext
     expected_row_version: int | None = None
 
@@ -482,6 +539,163 @@ class ApplicationService:
                 for version in uow.hypotheses.list_history(HypothesisId(hypothesis_id))
             ]
 
+    def create_experiment_spec(
+        self, command: CreateExperimentSpecCommand
+    ) -> ExperimentSpecReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            project = _require_project(uow, ProjectId(command.project_id))
+            _require_actor(uow, actor_id)
+            if command.hypothesis_id is not None:
+                hypothesis = uow.hypotheses.get(HypothesisId(command.hypothesis_id))
+                if hypothesis is None:
+                    raise _not_found("hypothesis", command.hypothesis_id)
+                _require_same_project(project.id, hypothesis.project_id)
+            spec = ExperimentSpec(
+                id=new_typed_id(ExperimentSpecId),
+                project_id=project.id,
+                hypothesis_id=(
+                    HypothesisId(command.hypothesis_id)
+                    if command.hypothesis_id is not None
+                    else None
+                ),
+                created_by=actor_id,
+                created_at=self._clock.now(),
+            )
+            version = _new_experiment_spec_version(
+                spec.id, command, actor_id, self._clock, 1
+            )
+            uow.experiment_specs.add(spec)
+            uow.experiment_specs.add_version(version)
+            uow.experiment_specs.update_current_version(
+                spec.id, version.id, spec.row_version, increment=False
+            )
+            uow.commit()
+            return _experiment_spec_read_model(replace(spec, current_version_id=version.id))
+
+    def revise_experiment_spec(
+        self, command: ReviseExperimentSpecCommand
+    ) -> ExperimentSpecReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        spec_id = ExperimentSpecId(command.experiment_spec_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            spec = uow.experiment_specs.get_for_update(spec_id)
+            if spec is None:
+                raise _not_found("experiment spec", spec_id)
+            _require_expected_row_version(spec.row_version, command.expected_row_version)
+            base = _experiment_spec_base_version(uow, spec, command.base_version_id)
+            if command.base_version_id is None and base.status is not VersionStatus.FROZEN:
+                raise ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION,
+                    "experiment spec revision requires a frozen current version",
+                )
+            version = _new_experiment_spec_version(
+                spec.id,
+                command,
+                actor_id,
+                self._clock,
+                uow.experiment_specs.max_version_number(spec.id) + 1,
+            )
+            if base.status is VersionStatus.FROZEN:
+                uow.experiment_specs.update_version(
+                    base.transition_to(VersionStatus.SUPERSEDED), base.row_version
+                )
+            uow.experiment_specs.add_version(version)
+            uow.experiment_specs.update_current_version(
+                spec.id, version.id, spec.row_version
+            )
+            uow.commit()
+            return _experiment_spec_read_model(
+                replace(spec, current_version_id=version.id, row_version=spec.row_version + 1)
+            )
+
+    def update_experiment_spec_draft(
+        self, command: UpdateExperimentSpecDraftCommand
+    ) -> ExperimentSpecVersionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            spec = uow.experiment_specs.get(ExperimentSpecId(command.experiment_spec_id))
+            if spec is None:
+                raise _not_found("experiment spec", command.experiment_spec_id)
+            version = _require_experiment_spec_version_parent(
+                uow.experiment_specs.get_version_for_update(
+                    ExperimentSpecVersionId(command.version_id)
+                ),
+                spec.id,
+            )
+            _require_expected_row_version(version.row_version, command.expected_row_version)
+            try:
+                updated = version.edit_material(
+                    title=command.title,
+                    objective=command.objective,
+                    protocol=command.protocol,
+                    planned_metrics=command.planned_metrics,
+                    seed_policy=command.seed_policy,
+                    analysis_plan=command.analysis_plan,
+                )
+            except ValueError as exc:
+                raise _validation_error(str(exc), "material") from exc
+            uow.experiment_specs.update_version(updated, version.row_version)
+            uow.commit()
+            return _experiment_spec_version_read_model(
+                replace(updated, row_version=version.row_version + 1)
+            )
+
+    def freeze_experiment_spec(
+        self, command: FreezeExperimentSpecCommand
+    ) -> ExperimentSpecVersionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        spec_id = ExperimentSpecId(command.experiment_spec_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            spec = uow.experiment_specs.get_for_update(spec_id)
+            if spec is None:
+                raise _not_found("experiment spec", spec_id)
+            version = _require_experiment_spec_version_parent(
+                uow.experiment_specs.get_version_for_update(
+                    ExperimentSpecVersionId(command.version_id)
+                ),
+                spec.id,
+            )
+            if command.expected_row_version is not None:
+                _require_expected_row_version(version.row_version, command.expected_row_version)
+            if spec.hypothesis_id is not None:
+                hypothesis = uow.hypotheses.get(spec.hypothesis_id)
+                if hypothesis is None:
+                    raise _not_found("hypothesis", spec.hypothesis_id)
+                _require_same_project(spec.project_id, hypothesis.project_id)
+            frozen = version.freeze(self._clock)
+            uow.experiment_specs.update_version(frozen, version.row_version)
+            uow.experiment_specs.update_current_version(
+                spec.id, version.id, spec.row_version
+            )
+            uow.commit()
+            return _experiment_spec_version_read_model(
+                replace(frozen, row_version=version.row_version + 1)
+            )
+
+    def get_experiment_spec(
+        self, spec_id: ExperimentSpecId
+    ) -> ExperimentSpecReadModel:
+        with self._uow_factory() as uow:
+            spec = uow.experiment_specs.get(ExperimentSpecId(spec_id))
+            if spec is None:
+                raise _not_found("experiment spec", spec_id)
+            return _experiment_spec_read_model(spec)
+
+    def get_experiment_spec_history(
+        self, spec_id: ExperimentSpecId
+    ) -> list[ExperimentSpecVersionReadModel]:
+        with self._uow_factory() as uow:
+            if uow.experiment_specs.get(ExperimentSpecId(spec_id)) is None:
+                raise _not_found("experiment spec", spec_id)
+            return [
+                _experiment_spec_version_read_model(version)
+                for version in uow.experiment_specs.list_history(ExperimentSpecId(spec_id))
+            ]
+
     def get_research_question(
         self, question_id: ResearchQuestionId
     ) -> ResearchQuestionReadModel:
@@ -590,6 +804,32 @@ def _new_hypothesis_version(
         raise _validation_error(str(exc), "statement") from exc
 
 
+def _new_experiment_spec_version(
+    parent_id: ExperimentSpecId,
+    command: CreateExperimentSpecCommand | ReviseExperimentSpecCommand,
+    actor_id: ActorId,
+    clock: Clock,
+    version_number: int,
+) -> ExperimentSpecVersion:
+    try:
+        return ExperimentSpecVersion(
+            id=new_typed_id(ExperimentSpecVersionId),
+            experiment_spec_id=parent_id,
+            version_number=version_number,
+            status=VersionStatus.DRAFT,
+            title=command.title,
+            objective=command.objective,
+            protocol=command.protocol,
+            planned_metrics=command.planned_metrics,
+            seed_policy=command.seed_policy,
+            analysis_plan=command.analysis_plan,
+            created_by=actor_id,
+            created_at=clock.now(),
+        )
+    except ValueError as exc:
+        raise _validation_error(str(exc), "material") from exc
+
+
 def _question_base_version(
     uow: UnitOfWork,
     question: ResearchQuestion,
@@ -616,6 +856,19 @@ def _hypothesis_base_version(
     return _require_hypothesis_version_parent(version, hypothesis.id)
 
 
+def _experiment_spec_base_version(
+    uow: UnitOfWork,
+    spec: ExperimentSpec,
+    base_version_id: ExperimentSpecVersionId | None,
+) -> ExperimentSpecVersion:
+    version = (
+        uow.experiment_specs.get_version(base_version_id)
+        if base_version_id is not None
+        else uow.experiment_specs.get_current_version(spec.id)
+    )
+    return _require_experiment_spec_version_parent(version, spec.id)
+
+
 def _require_question_version_parent(
     version: ResearchQuestionVersion | None, question_id: ResearchQuestionId
 ) -> ResearchQuestionVersion:
@@ -638,6 +891,19 @@ def _require_hypothesis_version_parent(
         raise ResearchBaseError(
             ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
             "version does not belong to the hypothesis",
+        )
+    return version
+
+
+def _require_experiment_spec_version_parent(
+    version: ExperimentSpecVersion | None, spec_id: ExperimentSpecId
+) -> ExperimentSpecVersion:
+    if version is None:
+        raise _not_found("experiment spec version", spec_id)
+    if version.experiment_spec_id != spec_id:
+        raise ResearchBaseError(
+            ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+            "version does not belong to the experiment spec",
         )
     return version
 
@@ -721,6 +987,45 @@ def _hypothesis_version_read_model(version: HypothesisVersion) -> HypothesisVers
         expected_direction=version.expected_direction,
         success_criteria=version.success_criteria,
         rationale=version.rationale,
+        content_hash=version.content_hash,
+        hash_scheme=version.hash_scheme,
+        created_by=version.created_by,
+        created_at=version.created_at,
+        frozen_at=version.frozen_at,
+        row_version=version.row_version,
+    )
+
+
+def _experiment_spec_read_model(spec: ExperimentSpec) -> ExperimentSpecReadModel:
+    if spec.current_version_id is None:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "experiment spec has no current version"
+        )
+    return ExperimentSpecReadModel(
+        id=spec.id,
+        project_id=spec.project_id,
+        hypothesis_id=spec.hypothesis_id,
+        created_by=spec.created_by,
+        created_at=spec.created_at,
+        current_version_id=spec.current_version_id,
+        row_version=spec.row_version,
+    )
+
+
+def _experiment_spec_version_read_model(
+    version: ExperimentSpecVersion,
+) -> ExperimentSpecVersionReadModel:
+    return ExperimentSpecVersionReadModel(
+        id=version.id,
+        experiment_spec_id=version.experiment_spec_id,
+        version_number=version.version_number,
+        status=version.status,
+        title=version.title,
+        objective=version.objective,
+        protocol=version.protocol,
+        planned_metrics=version.planned_metrics,
+        seed_policy=version.seed_policy,
+        analysis_plan=version.analysis_plan,
         content_hash=version.content_hash,
         hash_scheme=version.hash_scheme,
         created_by=version.created_by,

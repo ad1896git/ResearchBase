@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from researchbase.domain.experiment import ExperimentSpecId, ExperimentSpecVersionId
 from researchbase.domain.identity import ActorType
 from researchbase.domain.organization import LifecycleStatus, ProjectId, WorkspaceId
 from researchbase.domain.research import (
@@ -105,4 +106,35 @@ class HypothesisReadModel:
     created_by: ActorId
     created_at: datetime
     current_version_id: HypothesisVersionId
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentSpecVersionReadModel:
+    id: ExperimentSpecVersionId
+    experiment_spec_id: ExperimentSpecId
+    version_number: int
+    status: VersionStatus
+    title: str
+    objective: str
+    protocol: object
+    planned_metrics: object | None
+    seed_policy: object | None
+    analysis_plan: object | None
+    content_hash: ContentHash | None
+    hash_scheme: str | None
+    created_by: ActorId
+    created_at: datetime
+    frozen_at: datetime | None
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentSpecReadModel:
+    id: ExperimentSpecId
+    project_id: ProjectId
+    hypothesis_id: HypothesisId | None
+    created_by: ActorId
+    created_at: datetime
+    current_version_id: ExperimentSpecVersionId
     row_version: int

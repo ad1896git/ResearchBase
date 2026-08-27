@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from researchbase.application.ports import (
     ActorRepository,
+    ExperimentSpecRepository,
     HypothesisRepository,
     ProjectRepository,
     ResearchQuestionRepository,
@@ -18,6 +19,7 @@ from researchbase.application.ports import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
+    SqlAlchemyExperimentSpecRepository,
     SqlAlchemyHypothesisRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyResearchQuestionRepository,
@@ -31,6 +33,7 @@ class SqlAlchemyUnitOfWork:
     workspaces: WorkspaceRepository
     research_questions: ResearchQuestionRepository
     hypotheses: HypothesisRepository
+    experiment_specs: ExperimentSpecRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -46,6 +49,7 @@ class SqlAlchemyUnitOfWork:
         self.workspaces = SqlAlchemyWorkspaceRepository(self._session)
         self.research_questions = SqlAlchemyResearchQuestionRepository(self._session)
         self.hypotheses = SqlAlchemyHypothesisRepository(self._session)
+        self.experiment_specs = SqlAlchemyExperimentSpecRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -61,6 +65,7 @@ class SqlAlchemyUnitOfWork:
             if (
                 "uq_research_question_versions_parent_version" in str(exc.orig)
                 or "uq_hypothesis_versions_parent_version" in str(exc.orig)
+                or "uq_experiment_spec_versions_parent_version" in str(exc.orig)
             ):
                 raise ResearchBaseError(
                     ErrorCode.VALIDATION_ERROR,

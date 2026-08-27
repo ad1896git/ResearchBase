@@ -37,7 +37,6 @@ def test_no_forbidden_runtime_dependencies_or_parallel_manifests() -> None:
 def test_phase1_has_no_later_business_schema_migration() -> None:
     migration_text = "\n".join(path.read_text() for path in _python_files(ROOT / "migrations"))
     forbidden_tables = (
-        "experiment_specs",
         "datasets",
         "claims",
         "measurements",

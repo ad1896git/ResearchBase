@@ -7,6 +7,12 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from researchbase.domain.experiment import (
+    ExperimentSpec,
+    ExperimentSpecId,
+    ExperimentSpecVersion,
+    ExperimentSpecVersionId,
+)
 from researchbase.domain.identity import Actor, ActorType
 from researchbase.domain.organization import (
     LifecycleStatus,
@@ -31,6 +37,8 @@ from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.models import (
     ActorModel,
+    ExperimentSpecModel,
+    ExperimentSpecVersionModel,
     HypothesisModel,
     HypothesisVersionModel,
     ProjectModel,
@@ -386,6 +394,147 @@ class SqlAlchemyHypothesisRepository:
         _require_one_row(result_any.rowcount, "hypothesis version", version.id)
 
 
+class SqlAlchemyExperimentSpecRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, aggregate: ExperimentSpec) -> None:
+        self._session.add(
+            ExperimentSpecModel(
+                id=aggregate.id,
+                project_id=aggregate.project_id,
+                hypothesis_id=aggregate.hypothesis_id,
+                current_version_id=aggregate.current_version_id,
+                created_by=aggregate.created_by,
+                created_at=aggregate.created_at,
+                row_version=aggregate.row_version,
+            )
+        )
+
+    def add_version(self, version: ExperimentSpecVersion) -> None:
+        self._session.add(
+            ExperimentSpecVersionModel(
+                id=version.id,
+                experiment_spec_id=version.experiment_spec_id,
+                version_number=version.version_number,
+                status=version.status.value,
+                title=version.title,
+                objective=version.objective,
+                protocol=version.protocol,
+                planned_metrics=version.planned_metrics,
+                seed_policy=version.seed_policy,
+                analysis_plan=version.analysis_plan,
+                content_hash=str(version.content_hash) if version.content_hash else None,
+                created_by=version.created_by,
+                created_at=version.created_at,
+                frozen_at=version.frozen_at,
+                row_version=version.row_version,
+            )
+        )
+
+    def get(self, spec_id: ExperimentSpecId) -> ExperimentSpec | None:
+        model = self._session.get(ExperimentSpecModel, spec_id)
+        return _experiment_spec_from_model(model) if model is not None else None
+
+    def get_for_update(self, spec_id: ExperimentSpecId) -> ExperimentSpec | None:
+        model = self._session.scalar(
+            select(ExperimentSpecModel)
+            .where(ExperimentSpecModel.id == spec_id)
+            .with_for_update()
+        )
+        return _experiment_spec_from_model(model) if model is not None else None
+
+    def get_version(self, version_id: ExperimentSpecVersionId) -> ExperimentSpecVersion | None:
+        model = self._session.get(ExperimentSpecVersionModel, version_id)
+        return _experiment_spec_version_from_model(model) if model is not None else None
+
+    def get_version_for_update(
+        self, version_id: ExperimentSpecVersionId
+    ) -> ExperimentSpecVersion | None:
+        model = self._session.scalar(
+            select(ExperimentSpecVersionModel)
+            .where(ExperimentSpecVersionModel.id == version_id)
+            .with_for_update()
+        )
+        return _experiment_spec_version_from_model(model) if model is not None else None
+
+    def get_current_version(self, spec_id: ExperimentSpecId) -> ExperimentSpecVersion | None:
+        spec = self.get(spec_id)
+        if spec is None or spec.current_version_id is None:
+            return None
+        return self.get_version(spec.current_version_id)
+
+    def list_history(self, spec_id: ExperimentSpecId) -> list[ExperimentSpecVersion]:
+        models = self._session.scalars(
+            select(ExperimentSpecVersionModel)
+            .where(ExperimentSpecVersionModel.experiment_spec_id == spec_id)
+            .order_by(ExperimentSpecVersionModel.version_number)
+        ).all()
+        return [_experiment_spec_version_from_model(model) for model in models]
+
+    def max_version_number(self, spec_id: ExperimentSpecId) -> int:
+        value = self._session.scalar(
+            select(func.coalesce(func.max(ExperimentSpecVersionModel.version_number), 0)).where(
+                ExperimentSpecVersionModel.experiment_spec_id == spec_id
+            )
+        )
+        return int(value or 0)
+
+    def update_current_version(
+        self,
+        spec_id: ExperimentSpecId,
+        version_id: ExperimentSpecVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None:
+        self._session.flush()
+        version = self._session.get(ExperimentSpecVersionModel, version_id)
+        if version is None:
+            raise _not_found("experiment spec version", version_id)
+        if version.experiment_spec_id != spec_id:
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "current version must belong to the experiment spec",
+            )
+        values: dict[str, object] = {"current_version_id": version_id}
+        if increment:
+            values["row_version"] = ExperimentSpecModel.row_version + 1
+        result = self._session.execute(
+            update(ExperimentSpecModel)
+            .where(
+                ExperimentSpecModel.id == spec_id,
+                ExperimentSpecModel.row_version == expected_row_version,
+            )
+            .values(**values)
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "experiment spec", spec_id)
+
+    def update_version(self, version: ExperimentSpecVersion, expected_row_version: int) -> None:
+        result = self._session.execute(
+            update(ExperimentSpecVersionModel)
+            .where(
+                ExperimentSpecVersionModel.id == version.id,
+                ExperimentSpecVersionModel.row_version == expected_row_version,
+            )
+            .values(
+                status=version.status.value,
+                title=version.title,
+                objective=version.objective,
+                protocol=version.protocol,
+                planned_metrics=version.planned_metrics,
+                seed_policy=version.seed_policy,
+                analysis_plan=version.analysis_plan,
+                content_hash=str(version.content_hash) if version.content_hash else None,
+                frozen_at=version.frozen_at,
+                row_version=ExperimentSpecVersionModel.row_version + 1,
+            )
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "experiment spec version", version.id)
+
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -492,6 +641,45 @@ def _hypothesis_version_from_model(model: HypothesisVersionModel) -> HypothesisV
         created_at=model.created_at,
         content_hash=ContentHash(model.content_hash) if model.content_hash else None,
         hash_scheme=CANONICAL_JSON_HASH_SCHEME if model.content_hash else None,
+        frozen_at=model.frozen_at,
+        row_version=model.row_version,
+    )
+
+
+def _experiment_spec_from_model(model: ExperimentSpecModel) -> ExperimentSpec:
+    return ExperimentSpec(
+        id=ExperimentSpecId(model.id),
+        project_id=ProjectId(model.project_id),
+        hypothesis_id=HypothesisId(model.hypothesis_id) if model.hypothesis_id else None,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        current_version_id=(
+            ExperimentSpecVersionId(model.current_version_id)
+            if model.current_version_id is not None
+            else None
+        ),
+        row_version=model.row_version,
+    )
+
+
+def _experiment_spec_version_from_model(
+    model: ExperimentSpecVersionModel,
+) -> ExperimentSpecVersion:
+    return ExperimentSpecVersion(
+        id=ExperimentSpecVersionId(model.id),
+        experiment_spec_id=ExperimentSpecId(model.experiment_spec_id),
+        version_number=model.version_number,
+        status=VersionStatus(model.status),
+        title=model.title,
+        objective=model.objective,
+        protocol=model.protocol,
+        planned_metrics=model.planned_metrics,
+        seed_policy=model.seed_policy,
+        analysis_plan=model.analysis_plan,
+        content_hash=ContentHash(model.content_hash) if model.content_hash else None,
+        hash_scheme=CANONICAL_JSON_HASH_SCHEME if model.content_hash else None,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
         frozen_at=model.frozen_at,
         row_version=model.row_version,
     )

@@ -5,6 +5,12 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol
 
+from researchbase.domain.experiment import (
+    ExperimentSpec,
+    ExperimentSpecId,
+    ExperimentSpecVersion,
+    ExperimentSpecVersionId,
+)
 from researchbase.domain.identity import Actor
 from researchbase.domain.organization import Project, ProjectId, Workspace, WorkspaceId
 from researchbase.domain.research import (
@@ -112,12 +118,46 @@ class HypothesisRepository(Protocol):
     def update_version(self, version: HypothesisVersion, expected_row_version: int) -> None: ...
 
 
+class ExperimentSpecRepository(Protocol):
+    def add(self, aggregate: ExperimentSpec) -> None: ...
+
+    def add_version(self, version: ExperimentSpecVersion) -> None: ...
+
+    def get(self, spec_id: ExperimentSpecId) -> ExperimentSpec | None: ...
+
+    def get_for_update(self, spec_id: ExperimentSpecId) -> ExperimentSpec | None: ...
+
+    def get_version(self, version_id: ExperimentSpecVersionId) -> ExperimentSpecVersion | None: ...
+
+    def get_version_for_update(
+        self, version_id: ExperimentSpecVersionId
+    ) -> ExperimentSpecVersion | None: ...
+
+    def get_current_version(self, spec_id: ExperimentSpecId) -> ExperimentSpecVersion | None: ...
+
+    def list_history(self, spec_id: ExperimentSpecId) -> list[ExperimentSpecVersion]: ...
+
+    def max_version_number(self, spec_id: ExperimentSpecId) -> int: ...
+
+    def update_current_version(
+        self,
+        spec_id: ExperimentSpecId,
+        version_id: ExperimentSpecVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None: ...
+
+    def update_version(self, version: ExperimentSpecVersion, expected_row_version: int) -> None: ...
+
+
 class UnitOfWork(Protocol):
     actors: ActorRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
     research_questions: ResearchQuestionRepository
     hypotheses: HypothesisRepository
+    experiment_specs: ExperimentSpecRepository
 
     def __enter__(self) -> UnitOfWork: ...
 
