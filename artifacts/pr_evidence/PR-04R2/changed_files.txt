@@ -1,0 +1,16 @@
+PR-04R2 changed files relative to baseline `0573fa5`:
+
+tests/integration/test_pr04_application.py
+artifacts/pr_evidence/PR-04/concurrency_report.md
+artifacts/pr_evidence/PR-04/test_report.md
+artifacts/pr_evidence/PR-04/transaction_report.md
+artifacts/pr_evidence/PR-04/unresolved_findings.md
+artifacts/pr_evidence/PR-04R/atomicity_report.md
+artifacts/pr_evidence/PR-04R/code_review.md
+artifacts/pr_evidence/PR-04R/concurrency_report.md
+artifacts/pr_evidence/PR-04R/finding_disposition.md
+artifacts/pr_evidence/PR-04R/remediation_summary.md
+artifacts/pr_evidence/PR-04R/unresolved_findings.md
+artifacts/pr_evidence/PR-04R2/
+
+No `src/` or `migrations/` file changed. No new migration, schema, dependency, or production implementation was added.
