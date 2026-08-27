@@ -7,4 +7,6 @@
 - PR05-REV-005 ACCEPTED -> FIXED
 - PR05-REV-006 ACCEPTED -> FIXED
 
-PR-05R2 completion: PR05-REV-006 is fully closed; PR05R-NEW-001 is CLOSED. Independent stability cases now cover `status`, `frozen_at`, and identity `current_version_id`.
+PR-05R2 evidence was methodologically incomplete because fresh fixtures changed unrelated identity/metadata. PR-05R3 closes that gap with deterministic single-variable tests.
+
+PR-05R3 disposition: PR05-REV-006 -> CLOSED; PR05R-NEW-001 -> CLOSED; PR05R2-NEW-001 -> CLOSED.

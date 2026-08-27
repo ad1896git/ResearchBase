@@ -1,0 +1,23 @@
+tests/unit/domain/test_pr05_experiment.py
+artifacts/pr_evidence/PR-05R/material_hash_report.md
+artifacts/pr_evidence/PR-05R/finding_disposition.md
+artifacts/pr_evidence/PR-05R/test_report.md
+artifacts/pr_evidence/PR-05R/commands_and_results.md
+artifacts/pr_evidence/PR-05R/unresolved_findings.md
+artifacts/pr_evidence/PR-05R2/material_hash_report.md
+artifacts/pr_evidence/PR-05R2/material_hash_completion_report.md
+artifacts/pr_evidence/PR-05R2/finding_disposition.md
+artifacts/pr_evidence/PR-05R2/test_report.md
+artifacts/pr_evidence/PR-05R2/commands_and_results.md
+artifacts/pr_evidence/PR-05R2/unresolved_findings.md
+artifacts/pr_evidence/PR-05R3/remediation_summary.md
+artifacts/pr_evidence/PR-05R3/finding_disposition.md
+artifacts/pr_evidence/PR-05R3/single_variable_hash_proof.md
+artifacts/pr_evidence/PR-05R3/changed_files.txt
+artifacts/pr_evidence/PR-05R3/commands_and_results.md
+artifacts/pr_evidence/PR-05R3/test_report.md
+artifacts/pr_evidence/PR-05R3/code_review.md
+artifacts/pr_evidence/PR-05R3/unresolved_findings.md
+artifacts/pr_evidence/PR-05R3/harness_fingerprint.json
+
+No production source or migration file changed in PR-05R3.

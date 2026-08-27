@@ -1,0 +1,13 @@
+{
+  "baseline_commit": "66c4f3d",
+  "test_commit": "0269e69",
+  "scope": "PR-05R3 single-variable material hash differential proof",
+  "production_code_changed": false,
+  "schema_or_migration_changed": false,
+  "pytest_passed": 193,
+  "postgresql_integration_passed": 47,
+  "architecture_tests_passed": 27,
+  "alembic_head": "0004_experiment_spec",
+  "new_migration": false,
+  "pr06_implementation_detected": false
+}
