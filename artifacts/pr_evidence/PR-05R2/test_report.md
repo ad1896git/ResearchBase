@@ -1,5 +1,5 @@
 # Test report
 
-PR-05R2 adds three independent domain tests: status changes from FROZEN to SUPERSEDED without changing the material hash, two aware UTC frozen_at values produce the same hash, and two ExperimentSpec identities with different current pointers produce the same hash for equivalent version material. Existing six-field sensitivity and all prior regression tests remain green.
+PR-05R3 reconciles the R2 tests to one deterministic fixed baseline and one-field `dataclasses.replace` mutations. The six material-field sensitivity cases and ten excluded/context-field stability cases prove isolation before comparing hashes.
 
-Fresh totals: 185 pytest, 47 PostgreSQL integration, 27 architecture.
+Fresh PR-05R3 totals: 193 pytest, 47 PostgreSQL integration, 27 architecture, 29 PR-05 domain tests, and 19 targeted material/hash tests.

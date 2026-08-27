@@ -1,6 +1,6 @@
-# Material hash completion report
+# Material hash completion report (reconciled by PR-05R3)
 
-Independent test oracle uses the explicit six-field material payload and separately varies metadata.
+The R2 evidence was superseded because its fresh fixtures changed unrelated identity/metadata. PR-05R3 retains the explicit six-field material oracle and re-runs every differential case from one deterministic baseline using `dataclasses.replace`, proving single-variable causality.
 
 Excluded metadata hash stability:
 
