@@ -1,0 +1,14 @@
+migrations/versions/0006_artifact_version.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/artifact.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/test_architecture.py
+tests/test_artifact_store.py
+tests/integration/test_pr07_application.py
+tests/integration/test_pr07_schema.py
+tests/unit/domain/test_pr07_artifact.py
