@@ -1,4 +1,4 @@
-# PR-04 Concurrency Report (updated by PR-04R)
+# PR-04 Concurrency Report (updated by PR-04R2)
 
 Identity pointer updates use conditional SQL updates of the form `WHERE id = :id AND row_version = :expected`, incrementing `row_version` on success. A zero row count is translated to `CONCURRENT_MODIFICATION`.
 
@@ -14,5 +14,9 @@ Real PostgreSQL tests passed for:
 - concurrent Hypothesis revisions from independent connections;
 - parent-local version numbering and retained history.
 
-The concurrent revision tests observed one successful v2 creation and one stable
-`CONCURRENT_MODIFICATION`; the final pointer resolved to v2 and no duplicate or partial version row was committed. No raw `IntegrityError` escaped the application path.
+The PR-04R baseline tests observed one successful v2 creation and one stable
+`CONCURRENT_MODIFICATION`, but did not deterministically prove overlap. PR-04R2
+adds a barrier immediately before each parent-lock call and verifies both workers
+entered before release. The synchronized tests retain the same final invariants:
+the final pointer resolves to v2, no duplicate or partial version row is committed,
+and no raw `IntegrityError` escapes the application path.

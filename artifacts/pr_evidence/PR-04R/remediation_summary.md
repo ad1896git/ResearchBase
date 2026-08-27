@@ -1,10 +1,10 @@
-# PR-04R Remediation Summary
+# PR-04R Remediation Summary (superseded by PR-04R2)
 
-PR-04R closes the three accepted PR-04 verification findings without changing production domain semantics, schema, or transaction ownership.
+PR-04R added the initial verification cases without changing production domain semantics, schema, or transaction ownership. Its remaining proof gaps were closed by PR-04R2.
 
-- PR04-REV-001: added late-failure, post-flush rollback proof for ResearchQuestion and Hypothesis create/freeze flows, verified through new connections/UoWs.
+- PR04-REV-001: initial post-flush rollback cases were strengthened in PR-04R2 with direct identity/version absence and exact freeze pre-state comparisons.
 - PR04-REV-002: added Application-level cross-parent current-pointer attacks for both domains and verified unchanged persisted pointers.
-- PR04-REV-003: added genuine independent-connection concurrent revision tests for both domains; one request succeeds and the stale request receives `CONCURRENT_MODIFICATION`.
+- PR04-REV-003: initial independent-connection cases were strengthened in PR-04R2 with deterministic barriers proving both workers entered before the parent-lock critical section.
 - Hypothesis stale DRAFT mutation: verified through two independent UoWs and conditional row-version updates.
 
-No production code, migration, or schema change was required. Remediation commit: `c6be24b`, based on preserved PR-04 evidence commit `059641c`.
+No production code, migration, or schema change was required. PR-04R remains the historical baseline; PR-04R2 is the closure remediation on top of `0573fa5`.

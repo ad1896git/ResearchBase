@@ -4,11 +4,13 @@ import os
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from threading import Barrier, Lock
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
 
+import researchbase.application.commands as commands_module
 from researchbase.application.commands import (
     ApplicationService,
     CreateActorCommand,
@@ -23,12 +25,23 @@ from researchbase.application.commands import (
 )
 from researchbase.domain.identity import ActorType
 from researchbase.domain.organization import ProjectId
-from researchbase.domain.research import ResearchQuestionId
+from researchbase.domain.research import (
+    Hypothesis,
+    HypothesisId,
+    HypothesisVersionId,
+    ResearchQuestion,
+    ResearchQuestionId,
+    ResearchQuestionVersionId,
+)
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.time import FixedClock
 from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.database import create_database_engine, create_session_factory
+from researchbase.persistence.repositories import (
+    SqlAlchemyHypothesisRepository,
+    SqlAlchemyResearchQuestionRepository,
+)
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 pytestmark = pytest.mark.integration
@@ -229,13 +242,27 @@ def test_research_question_create_rolls_back_identity_and_version(
     service = service_factory()
     _, project_id, actor_context = seed(service)
     engine = create_database_engine()
+    generated_ids: dict[str, UUID] = {}
+
+    original_new_typed_id = commands_module.new_typed_id
+
+    def capture_new_typed_id(id_type: Callable[[UUID], object]) -> object:
+        generated = original_new_typed_id(id_type)
+        if isinstance(generated, UUID):
+            if id_type is ResearchQuestionId:
+                generated_ids["parent"] = generated
+            elif id_type is ResearchQuestionVersionId:
+                generated_ids["version"] = generated
+        return generated
+
+    monkeypatch.setattr(commands_module, "new_typed_id", capture_new_typed_id)
+    flush_observed = False
+
     try:
-        with engine.connect() as connection:
-            before = connection.execute(
-                text("SELECT count(*) FROM research_questions")
-            ).scalar_one()
         def fail_commit(uow: SqlAlchemyUnitOfWork) -> None:
+            nonlocal flush_observed
             uow._require_session().flush()
+            flush_observed = True
             raise RuntimeError("forced commit failure")
 
         monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", fail_commit)
@@ -245,11 +272,25 @@ def test_research_question_create_rolls_back_identity_and_version(
                     project_id, "Atomic question", None, None, actor_context
                 )
             )
+        assert flush_observed
         with engine.connect() as connection:
-            after = connection.execute(
-                text("SELECT count(*) FROM research_questions")
-            ).scalar_one()
-        assert after == before
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM research_questions WHERE id = :parent_id"),
+                    {"parent_id": generated_ids["parent"]},
+                ).scalar_one()
+                == 0
+            )
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT count(*) FROM research_question_versions "
+                        "WHERE id = :version_id AND research_question_id = :parent_id"
+                    ),
+                    {"version_id": generated_ids["version"], "parent_id": generated_ids["parent"]},
+                ).scalar_one()
+                == 0
+            )
     finally:
         engine.dispose()
 
@@ -262,9 +303,22 @@ def test_research_question_freeze_rolls_back_version_and_pointer(
     created = service.create_research_question(
         CreateResearchQuestionCommand(project_id, "Atomic freeze", None, None, actor_context)
     )
+    before_question = service.get_research_question(created.id)
+    before_version = service.get_research_question_history(created.id)[0]
+    before_state = (
+        before_version.status,
+        before_version.content_hash,
+        before_version.frozen_at,
+        before_version.row_version,
+        before_question.current_version_id,
+        before_question.row_version,
+    )
+    flush_observed = False
 
     def fail_commit(uow: SqlAlchemyUnitOfWork) -> None:
+        nonlocal flush_observed
         uow._require_session().flush()
+        flush_observed = True
         raise RuntimeError("forced commit failure")
 
     monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", fail_commit)
@@ -272,9 +326,17 @@ def test_research_question_freeze_rolls_back_version_and_pointer(
         service.freeze_research_question(
             FreezeResearchQuestionCommand(created.id, created.current_version_id, actor_context, 1)
         )
-    history = service.get_research_question_history(created.id)
-    assert history[0].status is VersionStatus.DRAFT
-    assert history[0].content_hash is None
+    assert flush_observed
+    after_question = service.get_research_question(created.id)
+    after_version = service.get_research_question_history(created.id)[0]
+    assert (
+        after_version.status,
+        after_version.content_hash,
+        after_version.frozen_at,
+        after_version.row_version,
+        after_question.current_version_id,
+        after_question.row_version,
+    ) == before_state
 
 
 def test_hypothesis_create_rolls_back_identity_and_version(
@@ -283,12 +345,27 @@ def test_hypothesis_create_rolls_back_identity_and_version(
     service = service_factory()
     _, project_id, actor_context = seed(service)
     engine = create_database_engine()
-    try:
-        with engine.connect() as connection:
-            before = connection.execute(text("SELECT count(*) FROM hypotheses")).scalar_one()
+    generated_ids: dict[str, UUID] = {}
 
+    original_new_typed_id = commands_module.new_typed_id
+
+    def capture_new_typed_id(id_type: Callable[[UUID], object]) -> object:
+        generated = original_new_typed_id(id_type)
+        if isinstance(generated, UUID):
+            if id_type is HypothesisId:
+                generated_ids["parent"] = generated
+            elif id_type is HypothesisVersionId:
+                generated_ids["version"] = generated
+        return generated
+
+    monkeypatch.setattr(commands_module, "new_typed_id", capture_new_typed_id)
+    flush_observed = False
+
+    try:
         def fail_commit(uow: SqlAlchemyUnitOfWork) -> None:
+            nonlocal flush_observed
             uow._require_session().flush()
+            flush_observed = True
             raise RuntimeError("forced commit failure")
 
         monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", fail_commit)
@@ -298,9 +375,25 @@ def test_hypothesis_create_rolls_back_identity_and_version(
                     project_id, "Atomic hypothesis", None, None, None, actor_context
                 )
             )
+        assert flush_observed
         with engine.connect() as connection:
-            after = connection.execute(text("SELECT count(*) FROM hypotheses")).scalar_one()
-        assert after == before
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM hypotheses WHERE id = :parent_id"),
+                    {"parent_id": generated_ids["parent"]},
+                ).scalar_one()
+                == 0
+            )
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT count(*) FROM hypothesis_versions "
+                        "WHERE id = :version_id AND hypothesis_id = :parent_id"
+                    ),
+                    {"version_id": generated_ids["version"], "parent_id": generated_ids["parent"]},
+                ).scalar_one()
+                == 0
+            )
     finally:
         engine.dispose()
 
@@ -315,9 +408,22 @@ def test_hypothesis_freeze_rolls_back_version_and_pointer(
             project_id, "Atomic hypothesis freeze", None, None, None, actor_context
         )
     )
+    before_hypothesis = service.get_hypothesis(created.id)
+    before_version = service.get_hypothesis_history(created.id)[0]
+    before_state = (
+        before_version.status,
+        before_version.content_hash,
+        before_version.frozen_at,
+        before_version.row_version,
+        before_hypothesis.current_version_id,
+        before_hypothesis.row_version,
+    )
+    flush_observed = False
 
     def fail_commit(uow: SqlAlchemyUnitOfWork) -> None:
+        nonlocal flush_observed
         uow._require_session().flush()
+        flush_observed = True
         raise RuntimeError("forced commit failure")
 
     monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", fail_commit)
@@ -325,9 +431,17 @@ def test_hypothesis_freeze_rolls_back_version_and_pointer(
         service.freeze_hypothesis(
             FreezeHypothesisCommand(created.id, created.current_version_id, actor_context, 1)
         )
-    history = service.get_hypothesis_history(created.id)
-    assert history[0].status is VersionStatus.DRAFT
-    assert history[0].content_hash is None
+    assert flush_observed
+    after_hypothesis = service.get_hypothesis(created.id)
+    after_version = service.get_hypothesis_history(created.id)[0]
+    assert (
+        after_version.status,
+        after_version.content_hash,
+        after_version.frozen_at,
+        after_version.row_version,
+        after_hypothesis.current_version_id,
+        after_hypothesis.row_version,
+    ) == before_state
 
 
 def test_application_rejects_cross_parent_current_pointer_attacks(
@@ -414,7 +528,7 @@ def test_hypothesis_draft_update_rejects_stale_independent_uow(
 
 
 def test_concurrent_research_question_revisions_serialize_safely(
-    service_factory: Callable[[], ApplicationService],
+    service_factory: Callable[[], ApplicationService], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = service_factory()
     _, project_id, actor_context = seed(service)
@@ -427,6 +541,23 @@ def test_concurrent_research_question_revisions_serialize_safely(
     command = ReviseResearchQuestionCommand(
         created.id, "Concurrent revision", None, None, 2, actor_context
     )
+    barrier = Barrier(2)
+    entry_lock = Lock()
+    entered = 0
+    original_get_for_update = SqlAlchemyResearchQuestionRepository.get_for_update
+
+    def synchronized_get_for_update(
+        repository: SqlAlchemyResearchQuestionRepository, question_id: ResearchQuestionId
+    ) -> ResearchQuestion | None:
+        nonlocal entered
+        with entry_lock:
+            entered += 1
+        barrier.wait(timeout=10)
+        return original_get_for_update(repository, question_id)
+
+    monkeypatch.setattr(
+        SqlAlchemyResearchQuestionRepository, "get_for_update", synchronized_get_for_update
+    )
 
     def revise() -> tuple[str, object]:
         try:
@@ -437,6 +568,7 @@ def test_concurrent_research_question_revisions_serialize_safely(
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(revise) for _ in range(2)]
         results = [future.result() for future in futures]
+    assert entered == 2
     assert sorted(result[0] for result in results) == ["error", "ok"]
     error_result = next(result for result in results if result[0] == "error")
     assert isinstance(error_result[1], ResearchBaseError)
@@ -444,10 +576,32 @@ def test_concurrent_research_question_revisions_serialize_safely(
     history = service.get_research_question_history(created.id)
     assert [version.version_number for version in history] == [1, 2]
     assert service.get_research_question(created.id).current_version_id == history[1].id
+    engine = create_database_engine()
+    try:
+        with engine.connect() as connection:
+            version_rows = connection.execute(
+                text(
+                    "SELECT version_number FROM research_question_versions "
+                    "WHERE research_question_id = :question_id ORDER BY version_number"
+                ),
+                {"question_id": created.id},
+            ).scalars().all()
+            pointer_parent = connection.execute(
+                text(
+                    "SELECT v.research_question_id FROM research_questions q "
+                    "JOIN research_question_versions v ON v.id = q.current_version_id "
+                    "WHERE q.id = :question_id"
+                ),
+                {"question_id": created.id},
+            ).scalar_one()
+        assert version_rows == [1, 2]
+        assert pointer_parent == created.id
+    finally:
+        engine.dispose()
 
 
 def test_concurrent_hypothesis_revisions_serialize_safely(
-    service_factory: Callable[[], ApplicationService],
+    service_factory: Callable[[], ApplicationService], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = service_factory()
     _, project_id, actor_context = seed(service)
@@ -462,6 +616,23 @@ def test_concurrent_hypothesis_revisions_serialize_safely(
     command = ReviseHypothesisCommand(
         created.id, "Concurrent revision", None, None, None, 2, actor_context
     )
+    barrier = Barrier(2)
+    entry_lock = Lock()
+    entered = 0
+    original_get_for_update = SqlAlchemyHypothesisRepository.get_for_update
+
+    def synchronized_get_for_update(
+        repository: SqlAlchemyHypothesisRepository, hypothesis_id: HypothesisId
+    ) -> Hypothesis | None:
+        nonlocal entered
+        with entry_lock:
+            entered += 1
+        barrier.wait(timeout=10)
+        return original_get_for_update(repository, hypothesis_id)
+
+    monkeypatch.setattr(
+        SqlAlchemyHypothesisRepository, "get_for_update", synchronized_get_for_update
+    )
 
     def revise() -> tuple[str, object]:
         try:
@@ -472,6 +643,7 @@ def test_concurrent_hypothesis_revisions_serialize_safely(
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(revise) for _ in range(2)]
         results = [future.result() for future in futures]
+    assert entered == 2
     assert sorted(result[0] for result in results) == ["error", "ok"]
     error_result = next(result for result in results if result[0] == "error")
     assert isinstance(error_result[1], ResearchBaseError)
@@ -479,3 +651,25 @@ def test_concurrent_hypothesis_revisions_serialize_safely(
     history = service.get_hypothesis_history(created.id)
     assert [version.version_number for version in history] == [1, 2]
     assert service.get_hypothesis(created.id).current_version_id == history[1].id
+    engine = create_database_engine()
+    try:
+        with engine.connect() as connection:
+            version_rows = connection.execute(
+                text(
+                    "SELECT version_number FROM hypothesis_versions "
+                    "WHERE hypothesis_id = :hypothesis_id ORDER BY version_number"
+                ),
+                {"hypothesis_id": created.id},
+            ).scalars().all()
+            pointer_parent = connection.execute(
+                text(
+                    "SELECT v.hypothesis_id FROM hypotheses h "
+                    "JOIN hypothesis_versions v ON v.id = h.current_version_id "
+                    "WHERE h.id = :hypothesis_id"
+                ),
+                {"hypothesis_id": created.id},
+            ).scalar_one()
+        assert version_rows == [1, 2]
+        assert pointer_parent == created.id
+    finally:
+        engine.dispose()

@@ -1,5 +1,5 @@
-# PR-04R Unresolved Findings
+# PR-04R Unresolved Findings (superseded by PR-04R2)
 
-None. PR04-REV-001, PR04-REV-002, and PR04-REV-003 are fixed and independently verified. Hypothesis stale DRAFT optimistic concurrency is verified.
+PR04R-001, PR04R-002, and PR04R-003 remained open proof gaps after the initial PR-04R evidence. PR-04R2 supplies the required direct rollback postconditions, deterministic overlap proof, and stale-count reconciliation.
 
 PR-05 remains unauthorized and was not started.
