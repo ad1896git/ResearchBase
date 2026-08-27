@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
     ExperimentSpecId,
@@ -37,6 +38,8 @@ from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.models import (
     ActorModel,
+    DatasetModel,
+    DatasetSnapshotModel,
     ExperimentSpecModel,
     ExperimentSpecVersionModel,
     HypothesisModel,
@@ -535,6 +538,64 @@ class SqlAlchemyExperimentSpecRepository:
         _require_one_row(result_any.rowcount, "experiment spec version", version.id)
 
 
+class SqlAlchemyDatasetRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, dataset: Dataset) -> None:
+        self._session.add(
+            DatasetModel(
+                id=dataset.id,
+                project_id=dataset.project_id,
+                name=dataset.name,
+                description=dataset.description,
+                source_locator=dataset.source_locator,
+                lifecycle_status=dataset.lifecycle_status.value,
+                created_by=dataset.created_by,
+                created_at=dataset.created_at,
+                row_version=dataset.row_version,
+            )
+        )
+
+    def get(self, dataset_id: DatasetId) -> Dataset | None:
+        model = self._session.get(DatasetModel, dataset_id)
+        return _dataset_from_model(model) if model is not None else None
+
+
+class SqlAlchemyDatasetSnapshotRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, snapshot: DatasetSnapshot) -> None:
+        self._session.add(
+            DatasetSnapshotModel(
+                id=snapshot.id,
+                dataset_id=snapshot.dataset_id,
+                manifest_hash=str(snapshot.manifest_hash),
+                selection_definition=snapshot.selection_definition,
+                manifest_locator=snapshot.manifest_locator,
+                content_hash=str(snapshot.content_hash),
+                created_by=snapshot.created_by,
+                created_at=snapshot.created_at,
+            )
+        )
+
+    def get(self, snapshot_id: DatasetSnapshotId) -> DatasetSnapshot | None:
+        model = self._session.get(DatasetSnapshotModel, snapshot_id)
+        return _dataset_snapshot_from_model(model) if model is not None else None
+
+    def find_by_dataset_and_content_hash(
+        self, dataset_id: DatasetId, content_hash: str
+    ) -> DatasetSnapshot | None:
+        model = self._session.scalar(
+            select(DatasetSnapshotModel).where(
+                DatasetSnapshotModel.dataset_id == dataset_id,
+                DatasetSnapshotModel.content_hash == content_hash,
+            )
+        )
+        return _dataset_snapshot_from_model(model) if model is not None else None
+
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -544,6 +605,33 @@ def _actor_from_model(model: ActorModel) -> Actor:
         created_at=model.created_at,
         retired_at=model.retired_at,
         row_version=model.row_version,
+    )
+
+
+def _dataset_from_model(model: DatasetModel) -> Dataset:
+    return Dataset(
+        id=DatasetId(model.id),
+        project_id=ProjectId(model.project_id) if model.project_id is not None else None,
+        name=model.name,
+        description=model.description,
+        source_locator=model.source_locator,
+        lifecycle_status=LifecycleStatus(model.lifecycle_status),
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        row_version=model.row_version,
+    )
+
+
+def _dataset_snapshot_from_model(model: DatasetSnapshotModel) -> DatasetSnapshot:
+    return DatasetSnapshot(
+        id=DatasetSnapshotId(model.id),
+        dataset_id=DatasetId(model.dataset_id),
+        manifest_hash=ContentHash(model.manifest_hash),
+        selection_definition=model.selection_definition,
+        manifest_locator=model.manifest_locator,
+        content_hash=ContentHash(model.content_hash),
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
     )
 
 

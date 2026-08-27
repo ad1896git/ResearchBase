@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from researchbase.application.ports import (
     ActorRepository,
+    DatasetRepository,
+    DatasetSnapshotRepository,
     ExperimentSpecRepository,
     HypothesisRepository,
     ProjectRepository,
@@ -19,6 +21,8 @@ from researchbase.application.ports import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
+    SqlAlchemyDatasetRepository,
+    SqlAlchemyDatasetSnapshotRepository,
     SqlAlchemyExperimentSpecRepository,
     SqlAlchemyHypothesisRepository,
     SqlAlchemyProjectRepository,
@@ -34,6 +38,8 @@ class SqlAlchemyUnitOfWork:
     research_questions: ResearchQuestionRepository
     hypotheses: HypothesisRepository
     experiment_specs: ExperimentSpecRepository
+    datasets: DatasetRepository
+    dataset_snapshots: DatasetSnapshotRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -50,6 +56,8 @@ class SqlAlchemyUnitOfWork:
         self.research_questions = SqlAlchemyResearchQuestionRepository(self._session)
         self.hypotheses = SqlAlchemyHypothesisRepository(self._session)
         self.experiment_specs = SqlAlchemyExperimentSpecRepository(self._session)
+        self.datasets = SqlAlchemyDatasetRepository(self._session)
+        self.dataset_snapshots = SqlAlchemyDatasetSnapshotRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -71,6 +79,11 @@ class SqlAlchemyUnitOfWork:
                     ErrorCode.VALIDATION_ERROR,
                     "version_number is already in use for this parent",
                     {"field": "version_number"},
+                ) from exc
+            if "uq_dataset_snapshots_dataset_content_hash" in str(exc.orig):
+                raise ResearchBaseError(
+                    ErrorCode.DUPLICATE_CONTENT,
+                    "dataset snapshot content already exists for this dataset",
                 ) from exc
             raise
         self._committed = True

@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol
 
+from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
     ExperimentSpecId,
@@ -151,6 +152,22 @@ class ExperimentSpecRepository(Protocol):
     def update_version(self, version: ExperimentSpecVersion, expected_row_version: int) -> None: ...
 
 
+class DatasetRepository(Protocol):
+    def add(self, dataset: Dataset) -> None: ...
+
+    def get(self, dataset_id: DatasetId) -> Dataset | None: ...
+
+
+class DatasetSnapshotRepository(Protocol):
+    def add(self, snapshot: DatasetSnapshot) -> None: ...
+
+    def get(self, snapshot_id: DatasetSnapshotId) -> DatasetSnapshot | None: ...
+
+    def find_by_dataset_and_content_hash(
+        self, dataset_id: DatasetId, content_hash: str
+    ) -> DatasetSnapshot | None: ...
+
+
 class UnitOfWork(Protocol):
     actors: ActorRepository
     projects: ProjectRepository
@@ -158,6 +175,8 @@ class UnitOfWork(Protocol):
     research_questions: ResearchQuestionRepository
     hypotheses: HypothesisRepository
     experiment_specs: ExperimentSpecRepository
+    datasets: DatasetRepository
+    dataset_snapshots: DatasetSnapshotRepository
 
     def __enter__(self) -> UnitOfWork: ...
 

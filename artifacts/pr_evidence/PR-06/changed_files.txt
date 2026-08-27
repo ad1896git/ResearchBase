@@ -1,0 +1,18 @@
+PR-06 implementation and verification files relative to baseline 403a26c:
+
+migrations/versions/0005_dataset_snapshot.py
+src/researchbase/domain/evidence.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/unit/domain/test_pr06_dataset.py
+tests/integration/test_pr06_application.py
+tests/integration/test_pr06_schema.py
+tests/architecture/test_import_boundaries.py
+tests/test_architecture.py
+artifacts/pr_evidence/PR-06/
+
+User-owned prior execution packs and .DS_Store files were not staged.

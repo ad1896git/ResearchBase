@@ -116,6 +116,7 @@ def test_phase1_has_only_the_authorized_business_migrations() -> None:
         "0002_actor_project_workspace.py",
         "0003_research_question_hypothesis.py",
         "0004_experiment_spec.py",
+        "0005_dataset_snapshot.py",
     ]
 
 

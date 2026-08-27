@@ -7,6 +7,8 @@ from dataclasses import dataclass, replace
 
 from researchbase.application.dto import (
     ActorReadModel,
+    DatasetReadModel,
+    DatasetSnapshotReadModel,
     ExperimentSpecReadModel,
     ExperimentSpecVersionReadModel,
     HypothesisReadModel,
@@ -17,6 +19,7 @@ from researchbase.application.dto import (
     WorkspaceReadModel,
 )
 from researchbase.application.ports import UnitOfWork
+from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
     ExperimentSpecId,
@@ -41,8 +44,10 @@ from researchbase.domain.research import (
     ResearchQuestionVersion,
     ResearchQuestionVersionId,
 )
+from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
+from researchbase.foundation.hashing import ContentHash, sha256_canonical_json
 from researchbase.foundation.ids import ActorId, new_typed_id
 from researchbase.foundation.time import Clock
 from researchbase.foundation.versioning import VersionStatus
@@ -200,6 +205,24 @@ class FreezeExperimentSpecCommand:
     version_id: ExperimentSpecVersionId
     context: ExecutionContext
     expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegisterDatasetCommand:
+    project_id: ProjectId | None
+    name: str
+    description: str | None
+    source_locator: str | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class CreateDatasetSnapshotCommand:
+    dataset_id: DatasetId
+    manifest_hash: str | ContentHash
+    selection_definition: object
+    manifest_locator: str | None
+    context: ExecutionContext
 
 
 UowFactory = Callable[[], UnitOfWork]
@@ -734,6 +757,100 @@ class ApplicationService:
                 raise _not_found("workspace", workspace_id)
             return _workspace_read_model(workspace)
 
+    def register_dataset(self, command: RegisterDatasetCommand) -> DatasetReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            if command.project_id is not None:
+                _require_project(uow, ProjectId(command.project_id))
+            try:
+                dataset = Dataset(
+                    id=new_typed_id(DatasetId),
+                    project_id=(
+                        ProjectId(command.project_id) if command.project_id is not None else None
+                    ),
+                    name=command.name,
+                    description=command.description,
+                    source_locator=command.source_locator,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+            except ValueError as exc:
+                raise _validation_error(str(exc), "dataset") from exc
+            uow.datasets.add(dataset)
+            uow.commit()
+            return _dataset_read_model(dataset)
+
+    def get_dataset(self, dataset_id: DatasetId) -> DatasetReadModel:
+        with self._uow_factory() as uow:
+            dataset = uow.datasets.get(DatasetId(dataset_id))
+            if dataset is None:
+                raise _not_found("dataset", dataset_id)
+            return _dataset_read_model(dataset)
+
+    def create_dataset_snapshot(
+        self, command: CreateDatasetSnapshotCommand
+    ) -> DatasetSnapshotReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        dataset_id = DatasetId(command.dataset_id)
+        manifest_hash = _normalize_content_hash(command.manifest_hash, "manifest_hash")
+        try:
+            canonical_json_bytes(command.selection_definition)
+        except (TypeError, ValueError) as exc:
+            raise _validation_error(
+                "selection_definition is not valid canonical JSON", "selection_definition"
+            ) from exc
+        content_hash = sha256_canonical_json(
+            {
+                "manifest_hash": str(manifest_hash),
+                "selection_definition": command.selection_definition,
+            }
+        )
+
+        try:
+            with self._uow_factory() as uow:
+                _require_dataset(uow, dataset_id)
+                _require_actor(uow, actor_id)
+                existing = uow.dataset_snapshots.find_by_dataset_and_content_hash(
+                    dataset_id, str(content_hash)
+                )
+                if existing is not None:
+                    return _dataset_snapshot_read_model(existing)
+                snapshot = DatasetSnapshot(
+                    id=new_typed_id(DatasetSnapshotId),
+                    dataset_id=dataset_id,
+                    manifest_hash=manifest_hash,
+                    selection_definition=command.selection_definition,
+                    manifest_locator=command.manifest_locator,
+                    content_hash=content_hash,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+                uow.dataset_snapshots.add(snapshot)
+                uow.commit()
+                return _dataset_snapshot_read_model(snapshot)
+        except ResearchBaseError as exc:
+            if exc.code is not ErrorCode.DUPLICATE_CONTENT:
+                raise
+
+        with self._uow_factory() as uow:
+            existing = uow.dataset_snapshots.find_by_dataset_and_content_hash(
+                dataset_id, str(content_hash)
+            )
+            if existing is None:
+                raise ResearchBaseError(
+                    ErrorCode.DUPLICATE_CONTENT,
+                    "dataset snapshot creation raced without a visible winner",
+                )
+            return _dataset_snapshot_read_model(existing)
+
+    def get_dataset_snapshot(self, snapshot_id: DatasetSnapshotId) -> DatasetSnapshotReadModel:
+        with self._uow_factory() as uow:
+            snapshot = uow.dataset_snapshots.get(DatasetSnapshotId(snapshot_id))
+            if snapshot is None:
+                raise _not_found("dataset snapshot", snapshot_id)
+            return _dataset_snapshot_read_model(snapshot)
+
 
 def _require_actor(uow: UnitOfWork, actor_id: ActorId) -> Actor:
     actor = uow.actors.get(actor_id)
@@ -747,6 +864,20 @@ def _require_project(uow: UnitOfWork, project_id: ProjectId) -> Project:
     if project is None:
         raise _not_found("project", project_id)
     return project
+
+
+def _require_dataset(uow: UnitOfWork, dataset_id: DatasetId) -> Dataset:
+    dataset = uow.datasets.get(dataset_id)
+    if dataset is None:
+        raise _not_found("dataset", dataset_id)
+    return dataset
+
+
+def _normalize_content_hash(value: str | ContentHash, field: str) -> ContentHash:
+    try:
+        return ContentHash(value)
+    except (TypeError, ValueError) as exc:
+        raise _validation_error(f"{field} must be a valid SHA-256 hex digest", field) from exc
 
 
 def _require_expected_row_version(actual: int, expected: int) -> None:
@@ -1072,4 +1203,33 @@ def _workspace_read_model(workspace: Workspace) -> WorkspaceReadModel:
         created_by=workspace.created_by,
         created_at=workspace.created_at,
         row_version=workspace.row_version,
+    )
+
+
+def _dataset_read_model(dataset: Dataset) -> DatasetReadModel:
+    return DatasetReadModel(
+        id=dataset.id,
+        project_id=dataset.project_id,
+        name=dataset.name,
+        description=dataset.description,
+        source_locator=dataset.source_locator,
+        lifecycle_status=dataset.lifecycle_status,
+        created_by=dataset.created_by,
+        created_at=dataset.created_at,
+        row_version=dataset.row_version,
+    )
+
+
+def _dataset_snapshot_read_model(
+    snapshot: DatasetSnapshot,
+) -> DatasetSnapshotReadModel:
+    return DatasetSnapshotReadModel(
+        id=snapshot.id,
+        dataset_id=snapshot.dataset_id,
+        manifest_hash=snapshot.manifest_hash,
+        selection_definition=snapshot.selection_definition,
+        manifest_locator=snapshot.manifest_locator,
+        content_hash=snapshot.content_hash,
+        created_by=snapshot.created_by,
+        created_at=snapshot.created_at,
     )

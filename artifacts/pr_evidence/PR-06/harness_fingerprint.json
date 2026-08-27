@@ -1,0 +1,12 @@
+{
+  "phase": "Phase 1",
+  "pr": "PR-06",
+  "execution_pack": "PR-06_Execution_Pack_v1.0.md",
+  "baseline": "403a26c",
+  "python": "3.12",
+  "dependency_manager": "uv",
+  "database": "PostgreSQL",
+  "hash_schemes": ["canonical-json-v1", "sha256-cjson-v1", "sha256-bytes-v1"],
+  "external_harness_dependency": false,
+  "pr07_started": false
+}

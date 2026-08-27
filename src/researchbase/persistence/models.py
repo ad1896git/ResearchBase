@@ -285,3 +285,53 @@ class ExperimentSpecVersionModel(Base):
     row_version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("1"), default=1
     )
+
+
+class DatasetModel(Base):
+    __tablename__ = "datasets"
+    __table_args__ = (
+        CheckConstraint(
+            "lifecycle_status IN ('active', 'archived', 'retired')",
+            name="ck_datasets_lifecycle_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_locator: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'active'")
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class DatasetSnapshotModel(Base):
+    __tablename__ = "dataset_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset_id", "content_hash", name="uq_dataset_snapshots_dataset_content_hash"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    dataset_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("datasets.id", ondelete="RESTRICT"), nullable=False
+    )
+    manifest_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    selection_definition: Mapped[object] = mapped_column(JSONB, nullable=False)
+    manifest_locator: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
