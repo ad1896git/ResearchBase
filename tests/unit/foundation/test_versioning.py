@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -13,7 +14,7 @@ from researchbase.foundation.hashing import (
     CANONICAL_JSON_HASH_SCHEME,
     RAW_BYTES_HASH_SCHEME,
 )
-from researchbase.foundation.time import FixedClock
+from researchbase.foundation.time import Clock, FixedClock
 from researchbase.foundation.versioning import (
     VersionStatus,
     can_transition,
@@ -25,6 +26,11 @@ from researchbase.foundation.versioning import (
 class MappingVersion:
     def __init__(self, material: object) -> None:
         self.material = material
+        self.non_material_metadata = {
+            "id": uuid4(),
+            "created_at": "2026-08-27T04:00:00Z",
+            "row_version": 1,
+        }
         self.status = VersionStatus.DRAFT
         self.content_hash = None
         self.hash_scheme = None
@@ -35,29 +41,28 @@ class MappingVersion:
             raise ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "version material is immutable")
         self.material = material
 
-    def freeze(self, clock: FixedClock) -> None:
+    def freeze(self, clock: Clock) -> None:
         result = freeze_material(self.status, self.material, clock)
         self.status = result.status
         self.content_hash = result.content_hash
         self.hash_scheme = result.hash_scheme
         self.frozen_at = result.frozen_at
 
-    def supersede(self) -> None:
-        require_transition(self.status, VersionStatus.SUPERSEDED)
-        self.status = VersionStatus.SUPERSEDED
-
-    def abandon(self) -> None:
-        require_transition(self.status, VersionStatus.ABANDONED)
-        self.status = VersionStatus.ABANDONED
-
-    def reactivate(self) -> None:
-        require_transition(self.status, VersionStatus.DRAFT)
-        self.status = VersionStatus.DRAFT
+    def transition_to(self, target: VersionStatus) -> None:
+        require_transition(self.status, target)
+        self.status = target
 
 
 @dataclass
 class SequenceVersion:
     document: object
+    non_material_metadata: dict[str, object] = field(
+        default_factory=lambda: {
+            "id": uuid4(),
+            "created_at": "2026-08-27T04:00:00Z",
+            "row_version": 1,
+        }
+    )
     status: VersionStatus = VersionStatus.DRAFT
     content_hash: object = None
     hash_scheme: str | None = None
@@ -68,24 +73,26 @@ class SequenceVersion:
             raise ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "version material is immutable")
         self.document = material
 
-    def freeze(self, clock: FixedClock) -> None:
+    def freeze(self, clock: Clock) -> None:
         result = freeze_material(self.status, self.document, clock)
         self.status = result.status
         self.content_hash = result.content_hash
         self.hash_scheme = result.hash_scheme
         self.frozen_at = result.frozen_at
 
-    def supersede(self) -> None:
-        require_transition(self.status, VersionStatus.SUPERSEDED)
-        self.status = VersionStatus.SUPERSEDED
+    def transition_to(self, target: VersionStatus) -> None:
+        require_transition(self.status, target)
+        self.status = target
 
-    def abandon(self) -> None:
-        require_transition(self.status, VersionStatus.ABANDONED)
-        self.status = VersionStatus.ABANDONED
 
-    def reactivate(self) -> None:
-        require_transition(self.status, VersionStatus.DRAFT)
-        self.status = VersionStatus.DRAFT
+class BrokenFrozenReversionVersion(MappingVersion):
+    """Adversarial fixture that violates the frozen reversion contract."""
+
+    def transition_to(self, target: VersionStatus) -> None:
+        if self.status is VersionStatus.FROZEN and target is VersionStatus.DRAFT:
+            self.status = target
+            return
+        super().transition_to(target)
 
 
 def test_version_status_has_exact_string_values() -> None:
@@ -162,8 +169,17 @@ def test_freeze_rejects_non_draft_and_invalid_material() -> None:
         freeze_material(VersionStatus.FROZEN, {"value": 1}, clock)
     assert frozen_error.value.code is ErrorCode.INVALID_STATE_TRANSITION
 
-    with pytest.raises(TypeError, match="supported JSON subset"):
-        freeze_material(VersionStatus.DRAFT, {"value": object()}, clock)
+
+@pytest.mark.parametrize("material", [{"value": object()}, {"value": math.nan}])
+def test_freeze_normalizes_expected_canonical_material_errors(material: object) -> None:
+    clock = FixedClock(datetime(2026, 8, 27, 4, 0, tzinfo=UTC))
+
+    with pytest.raises(ResearchBaseError) as error:
+        freeze_material(VersionStatus.DRAFT, material, clock)
+
+    assert error.value.code is ErrorCode.VALIDATION_ERROR
+    assert isinstance(error.value.__cause__, TypeError | ValueError)
+    assert error.value.details == {"field": "material"}
 
 
 def test_same_material_has_same_hash_and_key_order_does_not_matter() -> None:
@@ -225,3 +241,8 @@ def test_hash_scheme_identifiers_remain_machine_readable() -> None:
 )
 def test_reusable_contract_supports_two_lightweight_fixture_shapes(factory: object) -> None:
     assert_version_contract(factory)  # type: ignore[arg-type]
+
+
+def test_reusable_contract_rejects_broken_frozen_reversion_fixture() -> None:
+    with pytest.raises(AssertionError, match="INVALID_STATE_TRANSITION"):
+        assert_version_contract(lambda material: BrokenFrozenReversionVersion(material))

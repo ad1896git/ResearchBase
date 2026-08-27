@@ -73,7 +73,14 @@ def freeze_material(
     an owning object and therefore cannot accidentally include identity or operational fields.
     """
     require_transition(current, VersionStatus.FROZEN)
-    content_hash = sha256_canonical_json(material)
+    try:
+        content_hash = sha256_canonical_json(material)
+    except (TypeError, ValueError) as exc:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "version material is not valid canonical JSON",
+            details={"field": "material"},
+        ) from exc
     return FrozenVersionState(
         status=VersionStatus.FROZEN,
         content_hash=content_hash,
