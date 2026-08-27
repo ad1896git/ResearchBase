@@ -442,7 +442,7 @@ def test_attach_vs_start_has_genuine_deterministic_overlap(
         service.start_run(StartRunCommand(run.id, refreshed.row_version, actor_context))
     else:
         assert isinstance(attach_error, ResearchBaseError)
-        assert attach_error.code is ErrorCode.IMMUTABLE_RECORD
+        assert attach_error.code is ErrorCode.CONCURRENT_MODIFICATION
         assert start_error is None
         assert service.list_run_dataset_inputs(run.id) == []
     final = factory().get_run(run.id)

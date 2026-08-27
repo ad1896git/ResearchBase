@@ -1,10 +1,14 @@
-# Attach-vs-start race report
+# Attach-vs-start race report — superseded by PR-09R2
 
-The test uses two independent SQLAlchemy UoWs/connections and a `threading.Barrier` installed at `SqlAlchemyRunRepository.get_for_update`. A protected counter proves both workers reached the synchronization point before either lock decision completes.
+The earlier PR-09R claim is withdrawn. A barrier/counter placed before
+`SELECT ... FOR UPDATE` proved only that Python workers reached a test
+barrier; it did not prove that both database transactions were active at the
+relevant lock boundary or establish which transaction reached that boundary
+first. The earlier report therefore overclaimed deterministic serialization.
 
-The observed serializations are safe under row-version semantics:
-
-1. Start wins: start commits sealing; attach receives stable `IMMUTABLE_RECORD` and no edge is added.
-2. Attach wins: the original stale start receives `CONCURRENT_MODIFICATION`; a fresh row-version start then seals the committed edge.
-
-Both final states are checked with a fresh UoW. No input edge is committed after `inputs_sealed_at`.
+PR-09R2 replaces it with two separately controlled PostgreSQL serializations.
+Each worker records `txid_current()` in its independent UoW before the real
+Run lock query; the first worker holds its transaction after the real mutation
+flush while the competing worker has an active transaction attempting the
+same Run lock. The current measured outcomes are documented in
+`artifacts/pr_evidence/PR-09R2/attach_start_serialization_report.md`.
