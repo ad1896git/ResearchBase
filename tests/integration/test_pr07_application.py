@@ -170,10 +170,13 @@ def test_exact_bytes_sha256_is_black_box_proven_and_metadata_is_not_identity(
     assert store.verify("sha256:" + expected_hash)
     assert store.open("sha256:" + expected_hash) == payload
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT content_hash FROM artifact_versions WHERE id = :id"),
-            {"id": created.id},
-        ).scalar_one() == expected_hash
+        assert (
+            connection.execute(
+                text("SELECT content_hash FROM artifact_versions WHERE id = :id"),
+                {"id": created.id},
+            ).scalar_one()
+            == expected_hash
+        )
 
     retry = service.create_artifact_version(
         version_command(
@@ -224,10 +227,13 @@ def test_artifact_version_rejects_hash_and_size_mismatch_and_missing_store_objec
         )
     assert missing_store.value.code is ErrorCode.VALIDATION_ERROR
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
-            {"id": artifact.id},
-        ).scalar_one() == 0
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
+                {"id": artifact.id},
+            ).scalar_one()
+            == 0
+        )
 
 
 def test_store_verification_precedes_database_registration(
@@ -343,6 +349,61 @@ def test_invalid_metadata_is_a_stable_validation_error(
     assert raised.value.code is ErrorCode.VALIDATION_ERROR
 
 
+def test_draft_byte_size_update_must_match_verified_store_bytes(
+    resources: tuple[Callable[..., ApplicationService], Engine, ArtifactStore],
+) -> None:
+    factory, engine, store = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    artifact = service.create_artifact(artifact_command(project_id, actor_context))
+    artifact_id = ArtifactId(artifact.id)
+    payload = b"draft byte-size contract"
+    version = service.create_artifact_version(
+        version_command(artifact_id, actor_context, data=payload)
+    )
+    identity = "sha256:" + version.content_hash
+    opened = store.open(identity)
+    expected_size = len(opened)
+    assert hashlib.sha256(opened).hexdigest() == version.content_hash
+
+    with pytest.raises(ResearchBaseError) as invalid:
+        service.update_artifact_version_draft(
+            UpdateArtifactVersionDraftCommand(
+                artifact_id=artifact_id,
+                version_id=ArtifactVersionId(version.id),
+                locator=version.locator,
+                media_type=version.media_type,
+                byte_size=expected_size + 1,
+                metadata=version.metadata,
+                expected_row_version=version.row_version,
+                context=actor_context,
+            )
+        )
+    assert invalid.value.code is ErrorCode.VALIDATION_ERROR
+
+    with engine.connect() as connection:
+        unchanged = connection.execute(
+            text("SELECT byte_size, row_version FROM artifact_versions WHERE id = :version_id"),
+            {"version_id": version.id},
+        ).one()
+    assert unchanged.byte_size == expected_size
+    assert unchanged.row_version == version.row_version
+
+    valid = service.update_artifact_version_draft(
+        UpdateArtifactVersionDraftCommand(
+            artifact_id=artifact_id,
+            version_id=ArtifactVersionId(version.id),
+            locator="file:///valid-draft-update",
+            media_type=version.media_type,
+            byte_size=expected_size,
+            metadata=version.metadata,
+            expected_row_version=version.row_version,
+            context=actor_context,
+        )
+    )
+    assert valid.row_version == version.row_version + 1
+
+
 def test_cross_parent_current_pointer_is_rejected_and_concurrent_duplicate_is_idempotent(
     resources: tuple[Callable[..., ApplicationService], Engine, ArtifactStore],
 ) -> None:
@@ -383,10 +444,13 @@ def test_cross_parent_current_pointer_is_rejected_and_concurrent_duplicate_is_id
         results = [future.result(timeout=20) for future in futures]
     assert results[0].id == results[1].id
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
-            {"id": duplicate_artifact.id},
-        ).scalar_one() == 1
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
+                {"id": duplicate_artifact.id},
+            ).scalar_one()
+            == 1
+        )
 
 
 def test_concurrent_distinct_content_gets_parent_local_version_numbers(
@@ -413,10 +477,13 @@ def test_concurrent_distinct_content_gets_parent_local_version_numbers(
 
     assert sorted(result.version_number for result in results) == [2, 3]
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
-            {"id": artifact.id},
-        ).scalar_one() == 3
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
+                {"id": artifact.id},
+            ).scalar_one()
+            == 3
+        )
 
 
 def test_store_success_db_failure_rolls_back_but_keeps_verified_bytes(
@@ -445,10 +512,13 @@ def test_store_success_db_failure_rolls_back_but_keeps_verified_bytes(
             version_command(ArtifactId(artifact.id), actor_context, data=payload)
         )
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
-            {"id": artifact.id},
-        ).scalar_one() == 0
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM artifact_versions WHERE artifact_id = :id"),
+                {"id": artifact.id},
+            ).scalar_one()
+            == 0
+        )
     assert store.verify("sha256:" + expected_hash)
     retried = service.create_artifact_version(
         version_command(ArtifactId(artifact.id), actor_context, data=payload)
@@ -496,9 +566,7 @@ def test_frozen_version_trigger_rejects_every_material_update(
             context=actor_context,
         )
     )
-    statement = text(
-        f"UPDATE artifact_versions SET {column} = {expression} WHERE id = :version_id"
-    )
+    statement = text(f"UPDATE artifact_versions SET {column} = {expression} WHERE id = :version_id")
     try:
         with engine.connect() as connection:
             before = connection.execute(

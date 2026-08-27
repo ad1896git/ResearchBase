@@ -242,9 +242,7 @@ class SqlAlchemyResearchQuestionRepository:
         result_any: Any = result
         _require_one_row(result_any.rowcount, "research question", question_id)
 
-    def update_version(
-        self, version: ResearchQuestionVersion, expected_row_version: int
-    ) -> None:
+    def update_version(self, version: ResearchQuestionVersion, expected_row_version: int) -> None:
         result = self._session.execute(
             update(ResearchQuestionVersionModel)
             .where(
@@ -307,9 +305,7 @@ class SqlAlchemyHypothesisRepository:
 
     def get_for_update(self, hypothesis_id: HypothesisId) -> Hypothesis | None:
         model = self._session.scalar(
-            select(HypothesisModel)
-            .where(HypothesisModel.id == hypothesis_id)
-            .with_for_update()
+            select(HypothesisModel).where(HypothesisModel.id == hypothesis_id).with_for_update()
         )
         return _hypothesis_from_model(model) if model is not None else None
 
@@ -444,9 +440,7 @@ class SqlAlchemyExperimentSpecRepository:
 
     def get_for_update(self, spec_id: ExperimentSpecId) -> ExperimentSpec | None:
         model = self._session.scalar(
-            select(ExperimentSpecModel)
-            .where(ExperimentSpecModel.id == spec_id)
-            .with_for_update()
+            select(ExperimentSpecModel).where(ExperimentSpecModel.id == spec_id).with_for_update()
         )
         return _experiment_spec_from_model(model) if model is not None else None
 
@@ -740,6 +734,7 @@ class SqlAlchemyArtifactVersionRepository:
         )
         result_any: Any = result
         _require_one_row(result_any.rowcount, "artifact version", version.id)
+
 
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(

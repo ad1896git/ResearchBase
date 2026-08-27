@@ -50,7 +50,9 @@ class VersionFixture(Protocol):
     def transition_to(self, target: VersionStatus) -> None: ...
 
 
-def assert_version_contract(make_fixture: Callable[[object], VersionFixture]) -> None:
+def assert_version_contract(
+    make_fixture: Callable[[object], VersionFixture], *, verify_material_hash: bool = True
+) -> None:
     """Run the independent lifecycle and immutability assertions for one fixture factory."""
     frozen_at = datetime(2026, 8, 27, 4, 0, tzinfo=UTC)
 
@@ -75,7 +77,8 @@ def assert_version_contract(make_fixture: Callable[[object], VersionFixture]) ->
     draft.freeze(_FixedContractClock(frozen_at))
     assert draft.status is VersionStatus.FROZEN
     assert draft.content_hash is not None
-    assert draft.hash_scheme == "sha256-cjson-v1"
+    if verify_material_hash:
+        assert draft.hash_scheme == "sha256-cjson-v1"
     assert draft.frozen_at == frozen_at
     assert draft.frozen_at is not None and draft.frozen_at.utcoffset() is not None
     assert draft.frozen_at.tzinfo == UTC
@@ -112,16 +115,17 @@ def assert_version_contract(make_fixture: Callable[[object], VersionFixture]) ->
         ErrorCode.IMMUTABLE_RECORD,
     )
 
-    left = make_fixture({"title": "same material"})
-    right = make_fixture({"title": "same material"})
-    assert left.non_material_metadata != right.non_material_metadata
-    left.freeze(_FixedContractClock(frozen_at))
-    right.freeze(_FixedContractClock(frozen_at))
-    assert left.content_hash == right.content_hash
+    if verify_material_hash:
+        left = make_fixture({"title": "same material"})
+        right = make_fixture({"title": "same material"})
+        assert left.non_material_metadata != right.non_material_metadata
+        left.freeze(_FixedContractClock(frozen_at))
+        right.freeze(_FixedContractClock(frozen_at))
+        assert left.content_hash == right.content_hash
 
-    changed = make_fixture({"title": "changed material"})
-    changed.freeze(_FixedContractClock(frozen_at))
-    assert changed.content_hash != left.content_hash
+        changed = make_fixture({"title": "changed material"})
+        changed.freeze(_FixedContractClock(frozen_at))
+        assert changed.content_hash != left.content_hash
 
 
 def _fixture_at(

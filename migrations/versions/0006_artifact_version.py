@@ -48,9 +48,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("frozen_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("row_version", sa.Integer(), server_default=sa.text("1"), nullable=False),
-        sa.CheckConstraint(
-            "version_number > 0", name="ck_artifact_versions_version_number"
-        ),
+        sa.CheckConstraint("version_number > 0", name="ck_artifact_versions_version_number"),
         sa.CheckConstraint(
             "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
             name="ck_artifact_versions_status",

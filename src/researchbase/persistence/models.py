@@ -124,9 +124,7 @@ class ResearchQuestionModel(Base):
 class ResearchQuestionVersionModel(Base):
     __tablename__ = "research_question_versions"
     __table_args__ = (
-        CheckConstraint(
-            "version_number > 0", name="ck_research_question_versions_version_number"
-        ),
+        CheckConstraint("version_number > 0", name="ck_research_question_versions_version_number"),
         CheckConstraint(
             "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
             name="ck_research_question_versions_status",

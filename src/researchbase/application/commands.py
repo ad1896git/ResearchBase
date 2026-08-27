@@ -420,7 +420,7 @@ class ApplicationService:
                 raise _not_found("research question", command.research_question_id)
             version = _require_question_version_parent(
                 uow.research_questions.get_version_for_update(
-                ResearchQuestionVersionId(command.version_id)
+                    ResearchQuestionVersionId(command.version_id)
                 ),
                 question.id,
             )
@@ -452,7 +452,7 @@ class ApplicationService:
                 raise _not_found("research question", question_id)
             version = _require_question_version_parent(
                 uow.research_questions.get_version_for_update(
-                ResearchQuestionVersionId(command.version_id)
+                    ResearchQuestionVersionId(command.version_id)
                 ),
                 question.id,
             )
@@ -540,9 +540,7 @@ class ApplicationService:
                     base.transition_to(VersionStatus.SUPERSEDED), base.row_version
                 )
             uow.hypotheses.add_version(version)
-            uow.hypotheses.update_current_version(
-                hypothesis.id, version.id, hypothesis.row_version
-            )
+            uow.hypotheses.update_current_version(hypothesis.id, version.id, hypothesis.row_version)
             uow.commit()
             return _hypothesis_read_model(
                 replace(
@@ -599,9 +597,7 @@ class ApplicationService:
                 _require_expected_row_version(version.row_version, command.expected_row_version)
             frozen = version.freeze(self._clock)
             uow.hypotheses.update_version(frozen, version.row_version)
-            uow.hypotheses.update_current_version(
-                hypothesis.id, version.id, hypothesis.row_version
-            )
+            uow.hypotheses.update_current_version(hypothesis.id, version.id, hypothesis.row_version)
             uow.commit()
             return _hypothesis_version_read_model(
                 replace(frozen, row_version=version.row_version + 1)
@@ -641,9 +637,7 @@ class ApplicationService:
                 created_by=actor_id,
                 created_at=self._clock.now(),
             )
-            version = _new_experiment_spec_version(
-                spec.id, command, actor_id, self._clock, 1
-            )
+            version = _new_experiment_spec_version(spec.id, command, actor_id, self._clock, 1)
             uow.experiment_specs.add(spec)
             uow.experiment_specs.add_version(version)
             uow.experiment_specs.update_current_version(
@@ -681,9 +675,7 @@ class ApplicationService:
                     base.transition_to(VersionStatus.SUPERSEDED), base.row_version
                 )
             uow.experiment_specs.add_version(version)
-            uow.experiment_specs.update_current_version(
-                spec.id, version.id, spec.row_version
-            )
+            uow.experiment_specs.update_current_version(spec.id, version.id, spec.row_version)
             uow.commit()
             return _experiment_spec_read_model(
                 replace(spec, current_version_id=version.id, row_version=spec.row_version + 1)
@@ -748,17 +740,13 @@ class ApplicationService:
                 _require_same_project(spec.project_id, hypothesis.project_id)
             frozen = version.freeze(self._clock)
             uow.experiment_specs.update_version(frozen, version.row_version)
-            uow.experiment_specs.update_current_version(
-                spec.id, version.id, spec.row_version
-            )
+            uow.experiment_specs.update_current_version(spec.id, version.id, spec.row_version)
             uow.commit()
             return _experiment_spec_version_read_model(
                 replace(frozen, row_version=version.row_version + 1)
             )
 
-    def get_experiment_spec(
-        self, spec_id: ExperimentSpecId
-    ) -> ExperimentSpecReadModel:
+    def get_experiment_spec(self, spec_id: ExperimentSpecId) -> ExperimentSpecReadModel:
         with self._uow_factory() as uow:
             spec = uow.experiment_specs.get(ExperimentSpecId(spec_id))
             if spec is None:
@@ -776,9 +764,7 @@ class ApplicationService:
                 for version in uow.experiment_specs.list_history(ExperimentSpecId(spec_id))
             ]
 
-    def get_research_question(
-        self, question_id: ResearchQuestionId
-    ) -> ResearchQuestionReadModel:
+    def get_research_question(self, question_id: ResearchQuestionId) -> ResearchQuestionReadModel:
         with self._uow_factory() as uow:
             question = uow.research_questions.get(ResearchQuestionId(question_id))
             if question is None:
@@ -993,9 +979,7 @@ class ApplicationService:
                         current.transition_to(VersionStatus.SUPERSEDED), current.row_version
                     )
                 uow.artifact_versions.add(version)
-                uow.artifacts.update_current_version(
-                    artifact.id, version.id, artifact.row_version
-                )
+                uow.artifacts.update_current_version(artifact.id, version.id, artifact.row_version)
                 uow.commit()
                 return _artifact_version_read_model(version)
         except ResearchBaseError as exc:
@@ -1032,6 +1016,7 @@ class ApplicationService:
     def update_artifact_version_draft(
         self, command: UpdateArtifactVersionDraftCommand
     ) -> ArtifactVersionReadModel:
+        store = _require_artifact_store(self._artifact_store)
         actor_id = ActorId(command.context.actor_id)
         artifact_id = ArtifactId(command.artifact_id)
         version_id = ArtifactVersionId(command.version_id)
@@ -1049,11 +1034,12 @@ class ApplicationService:
                     "artifact version must belong to the artifact",
                 )
             _require_expected_row_version(version.row_version, command.expected_row_version)
+            verified_size = _verify_stored_artifact(store, version.content_hash, command.byte_size)
             try:
                 updated = version.edit_metadata(
                     locator=command.locator,
                     media_type=command.media_type,
-                    byte_size=command.byte_size,
+                    byte_size=verified_size,
                     metadata=command.metadata,
                 )
             except (TypeError, ValueError) as exc:
@@ -1554,9 +1540,7 @@ def _verify_or_store_artifact(
         if data is not None:
             if not isinstance(data, bytes):
                 raise TypeError("artifact data must be bytes")
-            expected = (
-                f"sha256:{ContentHash(supplied_hash)}" if supplied_hash is not None else None
-            )
+            expected = f"sha256:{ContentHash(supplied_hash)}" if supplied_hash is not None else None
             identity = store.put_verified(data, expected)
             content_hash = _content_hash_from_store_identity(identity)
             if not store.verify(identity):

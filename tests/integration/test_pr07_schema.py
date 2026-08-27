@@ -47,13 +47,30 @@ def test_pr07_schema_columns_constraints_and_restrict_foreign_keys(engine: Engin
         for row in rows:
             columns.setdefault(row.table_name, set()).add(row.column_name)
         assert columns["artifacts"] == {
-            "id", "project_id", "artifact_type", "name", "description",
-            "current_version_id", "created_by", "created_at", "row_version",
+            "id",
+            "project_id",
+            "artifact_type",
+            "name",
+            "description",
+            "current_version_id",
+            "created_by",
+            "created_at",
+            "row_version",
         }
         assert columns["artifact_versions"] == {
-            "id", "artifact_id", "version_number", "status", "locator",
-            "media_type", "byte_size", "content_hash", "metadata", "created_by",
-            "created_at", "frozen_at", "row_version",
+            "id",
+            "artifact_id",
+            "version_number",
+            "status",
+            "locator",
+            "media_type",
+            "byte_size",
+            "content_hash",
+            "metadata",
+            "created_by",
+            "created_at",
+            "frozen_at",
+            "row_version",
         }
         foreign_keys = connection.execute(
             text(
@@ -72,10 +89,7 @@ def test_pr07_schema_columns_constraints_and_restrict_foreign_keys(engine: Engin
             )
         ).all()
         assert all(row.delete_rule == "RESTRICT" for row in foreign_keys)
-        assert {
-            (row.table_name, row.column_name)
-            for row in foreign_keys
-        } >= {
+        assert {(row.table_name, row.column_name) for row in foreign_keys} >= {
             ("artifacts", "project_id"),
             ("artifacts", "created_by"),
             ("artifacts", "current_version_id"),
@@ -171,9 +185,7 @@ def test_pr07_restrict_foreign_keys_block_referenced_deletes(engine: Engine) -> 
     with engine.connect() as connection:
         transaction = connection.begin()
         with pytest.raises(IntegrityError):
-            connection.execute(
-                text("DELETE FROM artifacts WHERE id = :id"), {"id": artifact_id}
-            )
+            connection.execute(text("DELETE FROM artifacts WHERE id = :id"), {"id": artifact_id})
         transaction.rollback()
     with engine.connect() as connection:
         transaction = connection.begin()
@@ -185,9 +197,7 @@ def test_pr07_restrict_foreign_keys_block_referenced_deletes(engine: Engine) -> 
             text("UPDATE artifacts SET current_version_id = NULL WHERE id = :id"),
             {"id": artifact_id},
         )
-        connection.execute(
-            text("DELETE FROM artifact_versions WHERE id = :id"), {"id": version_id}
-        )
+        connection.execute(text("DELETE FROM artifact_versions WHERE id = :id"), {"id": version_id})
         connection.execute(text("DELETE FROM artifacts WHERE id = :id"), {"id": artifact_id})
         connection.execute(text("DELETE FROM projects WHERE id = :id"), {"id": project_id})
         connection.execute(text("DELETE FROM actors WHERE id = :id"), {"id": actor_id})
