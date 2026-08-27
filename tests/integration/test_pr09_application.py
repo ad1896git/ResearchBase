@@ -400,3 +400,57 @@ def test_post_seal_trigger_and_fk_restrict_preserve_provenance(
         with engine.begin() as connection:
             connection.execute(text("DELETE FROM runs WHERE id=:run_id"), {"run_id": run.id})
     assert service.get_run(run.id).status is RunStatus.RUNNING
+
+
+def test_run_create_attach_start_finish_roll_back_after_flush(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    run, snapshot, artifact, actor_context = prepared_run(service)
+    sessions = create_session_factory(engine)
+
+    class FailingUnitOfWork(SqlAlchemyUnitOfWork):
+        def commit(self) -> None:
+            self._require_session().flush()
+            raise RuntimeError("injected PR-09 failure")
+
+    failing = ApplicationService(
+        lambda: FailingUnitOfWork(sessions),
+        FixedClock(datetime(2026, 8, 28, 0, 0, tzinfo=UTC)),
+    )
+    with pytest.raises(RuntimeError, match="injected PR-09 failure"):
+        failing.attach_run_dataset_input(
+            AttachRunDatasetInputCommand(
+                run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
+            )
+        )
+    assert factory().get_run(run.id).row_version == run.row_version
+    assert factory().list_run_dataset_inputs(run.id) == []
+
+    current = service.attach_run_dataset_input(
+        AttachRunDatasetInputCommand(
+            run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
+        )
+    )
+    current = service.attach_run_artifact_input(
+        AttachRunArtifactInputCommand(
+            run.id, artifact.id, ArtifactInputRole.MODEL, 0, current.row_version, actor_context
+        )
+    )
+    with pytest.raises(RuntimeError, match="injected PR-09 failure"):
+        failing.start_run(StartRunCommand(run.id, current.row_version, actor_context))
+    rolled_back_start = factory().get_run(run.id)
+    assert rolled_back_start.status is RunStatus.PLANNED
+    assert rolled_back_start.inputs_sealed_at is None
+
+    started = service.start_run(StartRunCommand(run.id, current.row_version, actor_context))
+    with pytest.raises(RuntimeError, match="injected PR-09 failure"):
+        failing.finish_run(
+            FinishRunCommand(
+                run.id, RunStatus.SUCCEEDED, 0, None, started.row_version, actor_context
+            )
+        )
+    rolled_back_finish = factory().get_run(run.id)
+    assert rolled_back_finish.status is RunStatus.RUNNING
+    assert rolled_back_finish.finished_at is None
