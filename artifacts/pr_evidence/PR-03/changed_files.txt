@@ -1,0 +1,23 @@
+# PR-03 implementation commit: 9929df6
+# Parent accepted PR-02/PR-02R baseline: 99e402c
+
+src/researchbase/foundation/versioning.py
+tests/__init__.py
+tests/architecture/test_import_boundaries.py
+tests/contracts/__init__.py
+tests/contracts/version_contract.py
+tests/unit/foundation/test_versioning.py
+
+# PR-03 evidence files:
+artifacts/pr_evidence/PR-03/implementation_summary.md
+artifacts/pr_evidence/PR-03/version_contract.md
+artifacts/pr_evidence/PR-03/hash_contract.md
+artifacts/pr_evidence/PR-03/changed_files.txt
+artifacts/pr_evidence/PR-03/commands_and_results.md
+artifacts/pr_evidence/PR-03/test_report.md
+artifacts/pr_evidence/PR-03/architecture_review.md
+artifacts/pr_evidence/PR-03/code_review.md
+artifacts/pr_evidence/PR-03/unresolved_findings.md
+artifacts/pr_evidence/PR-03/harness_fingerprint.json
+
+# User-provided execution packs and existing .DS_Store files were intentionally not staged.
