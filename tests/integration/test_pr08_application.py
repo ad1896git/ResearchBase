@@ -239,8 +239,8 @@ def test_metric_revision_is_genuinely_concurrent_and_row_versioned(
                     "SELECT count(*) FROM metric_definition_versions WHERE metric_definition_id=:id"
                 ),
                 {"id": created.id},
-        ).scalar_one()
-        == 2
+            ).scalar_one()
+            == 2
         )
 
 
