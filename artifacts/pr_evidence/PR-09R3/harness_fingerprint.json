@@ -22,7 +22,8 @@
     "new_migration": false,
     "phase2_plus": false
   },
-  "final_head": "197bd2d",
-  "final_head_definition": "implementation/test HEAD before evidence-only commits; the evidence commits are listed after this fingerprint is finalized because a commit cannot self-reference its own hash",
-  "all_pr09r3_commits": ["197bd2d", "evidence commit(s) recorded in final commands_and_results.md"]
+  "evidence_commits": ["9e1bb85"],
+  "all_pr09r3_commits": ["197bd2d", "9e1bb85"],
+  "final_head": "9e1bb85",
+  "final_head_definition": "last fully recorded R3 implementation/evidence HEAD; a later fingerprint-only metadata commit, if any, cannot self-reference its own hash and is reported separately"
 }

@@ -13,6 +13,44 @@ M	src/researchbase/application/closure.py
 M	tests/integration/test_pr09r2_proof.py
 ```
 
-The evidence commit(s) add the 20 files under
-`artifacts/pr_evidence/PR-09R3/` and update the reconciled PR-09R2 evidence
-files listed in the evidence reconciliation. No migration file changed.
+Evidence/test commit range:
+
+```text
+git diff --name-status 9c47381..9e1bb85
+```
+
+```text
+M	artifacts/pr_evidence/PR-09R2/attach_start_serialization_report.md
+M	artifacts/pr_evidence/PR-09R2/commands_and_results.md
+M	artifacts/pr_evidence/PR-09R2/evidence_reconciliation.md
+M	artifacts/pr_evidence/PR-09R2/exact_provenance_regression.md
+M	artifacts/pr_evidence/PR-09R2/finding_disposition.md
+M	artifacts/pr_evidence/PR-09R2/harness_fingerprint.json
+M	artifacts/pr_evidence/PR-09R2/retry_cardinality_report.md
+M	artifacts/pr_evidence/PR-09R2/test_report.md
+M	artifacts/pr_evidence/PR-09R2/unresolved_findings.md
+A	artifacts/pr_evidence/PR-09R3/architecture_decision_AD-PR09R3-001.md
+A	artifacts/pr_evidence/PR-09R3/architecture_review.md
+A	artifacts/pr_evidence/PR-09R3/atomicity_regression_report.md
+A	artifacts/pr_evidence/PR-09R3/changed_files.txt
+A	artifacts/pr_evidence/PR-09R3/closure_finalized_state_report.md
+A	artifacts/pr_evidence/PR-09R3/code_review.md
+A	artifacts/pr_evidence/PR-09R3/commands_and_results.md
+A	artifacts/pr_evidence/PR-09R3/concurrent_start_finish_report.md
+A	artifacts/pr_evidence/PR-09R3/evidence_reconciliation.md
+A	artifacts/pr_evidence/PR-09R3/exact_provenance_closure_report.md
+A	artifacts/pr_evidence/PR-09R3/finding_disposition.md
+A	artifacts/pr_evidence/PR-09R3/formatting_ownership_report.md
+A	artifacts/pr_evidence/PR-09R3/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R3/lock_boundary_race_report.md
+A	artifacts/pr_evidence/PR-09R3/remediation_summary.md
+A	artifacts/pr_evidence/PR-09R3/retry_identity_report.md
+A	artifacts/pr_evidence/PR-09R3/sealed_input_regression.md
+A	artifacts/pr_evidence/PR-09R3/stale_concurrency_regression.md
+A	artifacts/pr_evidence/PR-09R3/test_report.md
+A	artifacts/pr_evidence/PR-09R3/unresolved_findings.md
+M	src/researchbase/application/closure.py
+M	tests/integration/test_pr09r2_proof.py
+```
+
+No migration file changed.
