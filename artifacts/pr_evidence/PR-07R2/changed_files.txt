@@ -1,0 +1,2 @@
+tests/contracts/version_contract.py
+tests/integration/test_pr07_application.py

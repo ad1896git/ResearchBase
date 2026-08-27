@@ -18,4 +18,7 @@ freeze regression behavior: passed; freeze re-verification remains active
 
 `update_artifact_version_draft` calls `ArtifactStore.verify` and opens the exact digest
 before the domain edit, derives the persisted size from verified bytes, and rejects a
-mismatch before issuing an UPDATE. A caller cannot override this fact.
+mismatch before issuing an UPDATE. A caller cannot override this fact. The test now reads
+the complete pre-state and post-state through `service.get_artifact_version(...)` and
+`service.get_artifact(...)`, each of which creates a new UnitOfWork/session; raw SQL remains
+only supplemental evidence.

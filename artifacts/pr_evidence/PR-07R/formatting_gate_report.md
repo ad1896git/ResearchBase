@@ -1,25 +1,26 @@
 # Formatting gate report
 
-Initial repository-wide `uv run ruff format --check .` reported 15 files:
+The PR-07R remediation diff is the Git range `52a962a..8219672`. Its changed Python files
+are owned for this gate, including files changed only by formatting. `tests/contracts/
+version_contract.py` was modified by PR-07R and is therefore owned; it has now been
+formatted and passes.
+
+The current repository-wide `uv run ruff format --check .` reports these eight files:
 
 ```text
-migrations/versions/0004_experiment_spec.py       inherited baseline
-migrations/versions/0006_artifact_version.py      PR-07-owned
-src/researchbase/application/commands.py          PR-07-owned
-src/researchbase/persistence/models.py            PR-07-owned
-src/researchbase/persistence/repositories.py      PR-07-owned
-tests/contracts/version_contract.py               inherited PR-03 baseline
-tests/integration/test_pr04_application.py        inherited baseline
-tests/integration/test_pr04_schema.py             inherited baseline
-tests/integration/test_pr05_application.py        inherited baseline
-tests/integration/test_pr05_schema.py             inherited baseline
-tests/integration/test_pr06_application.py        inherited baseline
-tests/integration/test_pr06_schema.py             inherited baseline
-tests/integration/test_pr07_application.py         PR-07-owned
-tests/integration/test_pr07_schema.py              PR-07-owned
-tests/unit/domain/test_pr05_experiment.py         inherited baseline
+migrations/versions/0004_experiment_spec.py       PR-07 NO / PR-07R NO / owned NO / FAIL
+tests/integration/test_pr04_application.py        PR-07 NO / PR-07R NO / owned NO / FAIL
+tests/integration/test_pr04_schema.py             PR-07 NO / PR-07R NO / owned NO / FAIL
+tests/integration/test_pr05_application.py        PR-07 NO / PR-07R NO / owned NO / FAIL
+tests/integration/test_pr05_schema.py             PR-07 NO / PR-07R NO / owned NO / FAIL
+tests/integration/test_pr06_application.py        PR-07 NO / PR-07R NO / owned NO / FAIL
+tests/integration/test_pr06_schema.py             PR-07 NO / PR-07R NO / owned NO / FAIL
+tests/unit/domain/test_pr05_experiment.py         PR-07 NO / PR-07R NO / owned NO / FAIL
 ```
 
-After formatting only PR-07-owned files, the scoped result is `7 files already formatted`.
-The repository-wide result is truthfully `9 files would be reformatted`, all inherited
-baseline debt. No unrelated historical files were modified.
+The explicitly owned `tests/contracts/version_contract.py` classification is
+PR-07 NO / PR-07R YES / owned YES / PASS. The other changed PR-07/PR-07R Python files
+(`0006_artifact_version.py`, `commands.py`, `models.py`, `repositories.py`, and the PR-07
+tests) also pass. The scoped result is `8 files already formatted`. The remaining eight
+repository-wide failures are genuinely untouched baseline files. The prior statement that
+the contract helper was inherited unchanged has been corrected.
