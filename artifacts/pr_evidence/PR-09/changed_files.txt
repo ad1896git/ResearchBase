@@ -1,0 +1,15 @@
+migrations/versions/0008_run_core.py
+src/researchbase/application/closure.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/run.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/integration/test_pr09_application.py
+tests/integration/test_pr09_schema.py
+tests/test_architecture.py
+tests/unit/domain/test_pr09_run.py
+
