@@ -1,0 +1,13 @@
+{
+  "pr": "PR-05R2",
+  "execution_date": "2026-08-27",
+  "baseline_commit": "5ca4dd8c9e083b5370014d86789e82c6e9c5b8ac",
+  "new_test_commit": "20e3b0fe18e1759e1615ada0047b683cc49b3132",
+  "database": "PostgreSQL persistent development head",
+  "migration_head": "0004_experiment_spec",
+  "pytest": 185,
+  "integration_tests": 47,
+  "architecture_tests": 27,
+  "new_migration": false,
+  "pr06_implementation_detected": false
+}
