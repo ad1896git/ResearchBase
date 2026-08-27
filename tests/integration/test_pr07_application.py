@@ -365,6 +365,8 @@ def test_draft_byte_size_update_must_match_verified_store_bytes(
     opened = store.open(identity)
     expected_size = len(opened)
     assert hashlib.sha256(opened).hexdigest() == version.content_hash
+    before_version = service.get_artifact_version(ArtifactVersionId(version.id))
+    before_identity = service.get_artifact(artifact.id)
 
     with pytest.raises(ResearchBaseError) as invalid:
         service.update_artifact_version_draft(
@@ -380,6 +382,25 @@ def test_draft_byte_size_update_must_match_verified_store_bytes(
             )
         )
     assert invalid.value.code is ErrorCode.VALIDATION_ERROR
+
+    after_version = service.get_artifact_version(ArtifactVersionId(version.id))
+    after_identity = service.get_artifact(artifact.id)
+    assert after_version.id == before_version.id
+    assert after_version.artifact_id == before_version.artifact_id
+    assert after_version.version_number == before_version.version_number
+    assert after_version.locator == before_version.locator
+    assert after_version.media_type == before_version.media_type
+    assert after_version.byte_size == before_version.byte_size
+    assert after_version.content_hash == before_version.content_hash
+    assert after_version.metadata == before_version.metadata
+    assert after_version.status == before_version.status
+    assert after_version.frozen_at == before_version.frozen_at
+    assert after_version.created_by == before_version.created_by
+    assert after_version.created_at == before_version.created_at
+    assert after_version.row_version == before_version.row_version
+    assert after_identity.id == before_identity.id
+    assert after_identity.current_version_id == before_identity.current_version_id
+    assert after_identity.row_version == before_identity.row_version
 
     with engine.connect() as connection:
         unchanged = connection.execute(
