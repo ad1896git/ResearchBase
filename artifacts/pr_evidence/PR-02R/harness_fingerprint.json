@@ -1,0 +1,13 @@
+{
+  "baseline_pr01_implementation_commit": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+  "baseline_pr01_evidence_commit": "647facf1fc4e6973f131a3e3ff64b49c3f81e349",
+  "baseline_pr01r_remediation_commit": "c3e7497046b5c0213f18c619e7e587a0f18165e6",
+  "baseline_pr01r_evidence_commit": "99e088812e8ce86ddaceec7f731bc9ae913c33e0",
+  "baseline_pr02_implementation_commit": "dd69bbff27971b9ce4065d06a321f3c278e728a1",
+  "baseline_pr02_evidence_commit": "57a8d156fb8cd3a15de16b48b211ef433437fdf9",
+  "pr02r_remediation_commit": "1fbb4634066cbcd49454590609486dfcebeca30f",
+  "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+  "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+  "target_pr02r_pack_sha256": "f97b9e634b8933fb1b774552e418adcebc8d8be2aa29baf48968b7d732fa40e3",
+  "external_harness_used": ["superpowers@v6.2.0"]
+}

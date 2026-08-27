@@ -1,0 +1,21 @@
+# PR-02R remediation commit: 1fbb4634066cbcd49454590609486dfcebeca30f
+# Parent PR-02 evidence commit: 57a8d156fb8cd3a15de16b48b211ef433437fdf9
+
+tests/architecture/test_pr02_boundaries.py
+tests/integration/test_pr02_transactions.py
+
+# Added to complete the original PR-02 evidence package:
+artifacts/pr_evidence/PR-02/schema_summary.md
+artifacts/pr_evidence/PR-02/migration_report.md
+artifacts/pr_evidence/PR-02/transaction_report.md
+
+# PR-02R evidence files:
+artifacts/pr_evidence/PR-02R/remediation_summary.md
+artifacts/pr_evidence/PR-02R/finding_disposition.md
+artifacts/pr_evidence/PR-02R/changed_files.txt
+artifacts/pr_evidence/PR-02R/commands_and_results.md
+artifacts/pr_evidence/PR-02R/test_report.md
+artifacts/pr_evidence/PR-02R/architecture_review.md
+artifacts/pr_evidence/PR-02R/code_review.md
+artifacts/pr_evidence/PR-02R/unresolved_findings.md
+artifacts/pr_evidence/PR-02R/harness_fingerprint.json
