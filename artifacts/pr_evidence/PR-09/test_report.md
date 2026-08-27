@@ -1,3 +1,3 @@
 # Test report
 
-The complete suite collected 300 tests and passed with a real PostgreSQL service. PR-09-specific coverage includes exact schema/constraints, lifecycle and all terminal outcomes, concrete exact-version inputs, closed roles, duplicate behavior, closure completeness/visited count, stale writers, concurrent start/finish, post-seal trigger enforcement, FK RESTRICT, and failure-after-flush rollback with fresh UoWs.
+The original PR-09 suite collected 300 tests and passed with real PostgreSQL, but its evidence overstated deterministic race, create/artifact atomicity, and FK matrix coverage. PR-09R adds the missing synchronized races, complete flush-after-INSERT rollback checks, full FK delete matrix, retarget attacks, multiple-violation closure DTO checks, and fresh-state assertions. The final PR-09R suite is reported in `artifacts/pr_evidence/PR-09R/test_report.md`.

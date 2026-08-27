@@ -1,3 +1,6 @@
+# PR-09 baseline implementation/test inventory (14 files)
+# Range: 275de41..8e67b48
+
 migrations/versions/0008_run_core.py
 src/researchbase/application/closure.py
 src/researchbase/application/commands.py

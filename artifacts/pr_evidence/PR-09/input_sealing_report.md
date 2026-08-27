@@ -1,3 +1,3 @@
 # Input sealing report
 
-Start locks the Run row, validates the closure, then seals and transitions the Run in the same transaction. PostgreSQL trigger `reject_sealed_run_input_mutation()` rejects insert/update/delete on both input tables after `inputs_sealed_at` is set. Application checks and the database trigger therefore protect supported and direct SQL paths.
+Reconciled by PR-09R: the original trigger checked only `NEW.run_id` for UPDATE, so a sealed-to-unsealed retarget could bypass protection. New migration `0009_run_input_seal_fix` checks OLD and NEW rows for UPDATE and requires PLANNED plus unsealed status for INSERT/UPDATE/DELETE. Direct retarget, role, ordinal, delete, and insert attacks now fail in isolated PostgreSQL transactions, with fresh reads proving unchanged rows.

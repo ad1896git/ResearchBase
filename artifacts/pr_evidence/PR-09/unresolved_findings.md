@@ -1,9 +1,9 @@
 # Unresolved findings
 
-P0: none.
+Reconciled by PR-09R: the original PR-09 evidence incorrectly reported no P1 findings. PR09-REV-001, PR09-REV-002, and PR09-REV-003 were P1 findings and are closed by PR-09R.
 
-P1: none.
+P1: none remain after PR-09R.
 
-P2: the two accepted PR-08 backlog items remain; repository-wide formatting has 8 inherited baseline failures. These are recorded, do not affect PR-09-owned formatting or Run Core behavior, and are not silently fixed in PR-09.
+P2: PR09-REV-004 through PR09-REV-007 are closed by PR-09R. The two accepted PR-08 backlog items remain; repository-wide formatting has inherited baseline failures. These are recorded and not silently fixed.
 
 P3: none.

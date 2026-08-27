@@ -1,3 +1,3 @@
 # Race-condition report
 
-Real PostgreSQL tests used independent sessions and concurrent futures. Concurrent starts produced exactly one success and one `CONCURRENT_MODIFICATION`; concurrent finishes produced exactly one success and one stale-writer error. The Run row lock serializes attach-vs-start decisions, and the sealing trigger rejects any post-seal edge mutation.
+Reconciled by PR-09R: the original PR-09 concurrent-start/finish tests used independent sessions but no deterministic synchronization, and the original attach-vs-start statement was therefore overclaimed. PR-09R adds a `threading.Barrier` at the real Run lock path, proves both workers entered, records the final state, and verifies that no input edge commits after sealing. The original unsynchronized result remains historical evidence only.
