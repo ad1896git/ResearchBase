@@ -1,0 +1,24 @@
+# PR-09R6 changed-files inventory
+
+## R6 allowed paths
+
+PR-09R6 changes are restricted to:
+
+```text
+artifacts/pr_evidence/PR-09R5/
+artifacts/pr_evidence/PR-09R6/
+```
+
+The R5 metadata correction is limited to evidence files. The R6 package is
+the seven required evidence files in this directory.
+
+## Forbidden-scope verification
+
+```text
+git diff -- src tests migrations
+[empty]
+```
+
+No production source, test, migration, architecture, or PR-10 file is part of
+the remediation. Untracked user-owned execution packs and `.DS_Store` files
+were not staged.

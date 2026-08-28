@@ -9,4 +9,9 @@ The correction does not reinterpret R5's later evidence commit as part of the
 PR-09R4 implementation. R5 evidence distinguishes the preserved R4 review
 baseline from the R5 evidence payload and current review HEAD.
 
+The corrected R5 metadata preserves the exact distinction required for the
+evidence chain: R4 final HEAD is `602f224`, the R5 evidence payload commit is
+`9c35e6a`, and the R5 `current_head_at_review` is the independently reviewed
+repository HEAD `ecb9ada`.
+
 No production code, tests, migrations, or architecture files changed in R5.

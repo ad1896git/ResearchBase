@@ -23,7 +23,11 @@ Evidence-only checks:
 - `git diff -- src tests migrations`: no output at the R5 starting baseline.
 - `git diff --name-status 044c72a..602f224`: five evidence/reporting files only.
 - `git diff --name-status 602f224..9c35e6a`: 15 evidence/reporting files only.
-- R5 evidence payload HEAD: `9c35e6a6f320c6b608bcb6408ac29fa0f061b48f`.
+- R5 evidence payload commit: `9c35e6a26bf0cdecf69081aa609f3a1aa54778ce`.
+- R5 independent review HEAD: `ecb9adaf6aebef73fb45d344197ea9e18ad37d9c`.
+- R5 `current_head_at_review` is corrected to the independent review HEAD
+  `ecb9ada`; it is distinct from the R4 final HEAD `602f224` and R5 payload
+  commit `9c35e6a`.
 - `git diff --check`: PASS for the R5 evidence changes.
 - harness fingerprint JSON parse: PASS.
 - `uv run alembic current`: PASS — `0009_run_input_seal_fix (head)`.

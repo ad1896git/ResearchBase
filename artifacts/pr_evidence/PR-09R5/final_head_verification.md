@@ -19,5 +19,7 @@ claim that the R5 commit is the historical PR-09R4 final HEAD.
 
 The R5 evidence payload commit is
 `9c35e6a26bf0cdecf69081aa609f3a1aa54778ce`. Its post-baseline range is
-evidence-only. The final response reports the final Git HEAD after any
-fingerprint-only metadata follow-up.
+evidence-only. At the R5 independent review, the actual repository HEAD was
+`ecb9adaf6aebef73fb45d344197ea9e18ad37d9c`; this is the value recorded as
+`current_head_at_review` in the R5 fingerprint. The final response reports the
+final Git HEAD after any later evidence-only metadata follow-up.
