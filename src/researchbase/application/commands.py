@@ -16,6 +16,7 @@ from researchbase.application.dto import (
     ExperimentSpecVersionReadModel,
     HypothesisReadModel,
     HypothesisVersionReadModel,
+    MeasurementReadModel,
     MetricDefinitionReadModel,
     MetricDefinitionVersionReadModel,
     ProjectReadModel,
@@ -36,6 +37,7 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersionId,
 )
 from researchbase.domain.identity import Actor, ActorType
+from researchbase.domain.measurement import Measurement, MeasurementId
 from researchbase.domain.metric import (
     MetricDefinition,
     MetricDefinitionId,
@@ -313,6 +315,17 @@ class FinishRunCommand:
     exit_code: int | None
     failure_reason: str | None
     expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class RecordMeasurementCommand:
+    run_id: RunId
+    metric_definition_version_id: MetricDefinitionVersionId
+    numeric_value: float | None
+    structured_value: object | None
+    unit: str | None
+    evaluation_scope: object | None
     context: ExecutionContext
 
 
@@ -1193,6 +1206,106 @@ class ApplicationService:
             uow.commit()
             return _run_read_model(replace(finished, row_version=run.row_version + 1))
 
+    def record_measurement(self, command: RecordMeasurementCommand) -> MeasurementReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        run_id = RunId(command.run_id)
+        metric_version_id = MetricDefinitionVersionId(command.metric_definition_version_id)
+        if command.numeric_value is not None and (
+            isinstance(command.numeric_value, bool)
+            or not isinstance(command.numeric_value, int | float)
+        ):
+            raise _validation_error("numeric_value must be a number", "numeric_value")
+        numeric_value = float(command.numeric_value) if command.numeric_value is not None else None
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            run = uow.runs.get(run_id)
+            if run is None:
+                raise _not_found("run", run_id)
+            if run.status is not RunStatus.SUCCEEDED:
+                raise ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION,
+                    "measurements require a succeeded run",
+                )
+            if run.inputs_sealed_at is None:
+                raise ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "measurements require sealed run inputs",
+                )
+            closure = ProvenanceClosureValidator(self._uow_factory).validate_run_in_uow(uow, run.id)
+            if not closure.complete:
+                raise ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "run provenance closure is incomplete",
+                    {"violations": len(closure.violations)},
+                )
+            metric_version = uow.metric_definition_versions.get(metric_version_id)
+            if metric_version is None:
+                raise _not_found("metric definition version", metric_version_id)
+            if metric_version.status is not VersionStatus.FROZEN:
+                raise ResearchBaseError(
+                    ErrorCode.VERSION_NOT_FROZEN,
+                    "measurements require a frozen metric definition version",
+                )
+            metric = uow.metric_definitions.get(metric_version.metric_definition_id)
+            if metric is None:
+                raise _not_found("metric definition", metric_version.metric_definition_id)
+            if metric.project_id is not None and metric.project_id != run.project_id:
+                raise ResearchBaseError(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                    "measurement metric must belong to the run project",
+                )
+            if (
+                metric_version.unit is not None
+                and command.unit is not None
+                and metric_version.unit != command.unit
+            ):
+                raise _validation_error(
+                    "measurement unit must exactly match metric definition unit", "unit"
+                )
+            material = {
+                "run_id": str(run.id),
+                "metric_definition_version_id": str(metric_version.id),
+                "numeric_value": numeric_value,
+                "structured_value": command.structured_value,
+                "unit": command.unit,
+                "evaluation_scope": command.evaluation_scope,
+            }
+            try:
+                content_hash = sha256_canonical_json(material)
+            except (TypeError, ValueError) as exc:
+                raise _validation_error(
+                    "measurement material is not valid canonical JSON", "measurement"
+                ) from exc
+            measurement = Measurement(
+                id=new_typed_id(MeasurementId),
+                run_id=run.id,
+                metric_definition_version_id=metric_version.id,
+                numeric_value=numeric_value,
+                structured_value=command.structured_value,
+                unit=command.unit,
+                evaluation_scope=command.evaluation_scope,
+                content_hash=content_hash,
+                created_by=actor_id,
+                created_at=self._clock.now(),
+            )
+            uow.measurements.add(measurement)
+            uow.commit()
+            return _measurement_read_model(measurement)
+
+    def get_measurement(self, measurement_id: MeasurementId) -> MeasurementReadModel:
+        with self._uow_factory() as uow:
+            measurement = uow.measurements.get(MeasurementId(measurement_id))
+            if measurement is None:
+                raise _not_found("measurement", measurement_id)
+            return _measurement_read_model(measurement)
+
+    def list_measurements_for_run(self, run_id: RunId) -> list[MeasurementReadModel]:
+        with self._uow_factory() as uow:
+            run = uow.runs.get(RunId(run_id))
+            if run is None:
+                raise _not_found("run", run_id)
+            return [_measurement_read_model(item) for item in uow.measurements.list_by_run(run.id)]
+
     def validate_run_closure(self, run_id: RunId) -> ClosureReport:
         return ProvenanceClosureValidator(self._uow_factory).validate_run(RunId(run_id))
 
@@ -2028,6 +2141,21 @@ def _metric_definition_version_read_model(
         created_at=version.created_at,
         frozen_at=version.frozen_at,
         row_version=version.row_version,
+    )
+
+
+def _measurement_read_model(measurement: Measurement) -> MeasurementReadModel:
+    return MeasurementReadModel(
+        id=measurement.id,
+        run_id=measurement.run_id,
+        metric_definition_version_id=measurement.metric_definition_version_id,
+        numeric_value=measurement.numeric_value,
+        structured_value=measurement.structured_value,
+        unit=measurement.unit,
+        evaluation_scope=measurement.evaluation_scope,
+        content_hash=measurement.content_hash,
+        created_by=measurement.created_by,
+        created_at=measurement.created_at,
     )
 
 

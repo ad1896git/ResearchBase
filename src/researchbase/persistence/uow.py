@@ -16,6 +16,7 @@ from researchbase.application.ports import (
     DatasetSnapshotRepository,
     ExperimentSpecRepository,
     HypothesisRepository,
+    MeasurementRepository,
     MetricDefinitionRepository,
     MetricDefinitionVersionRepository,
     ProjectRepository,
@@ -32,6 +33,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyDatasetSnapshotRepository,
     SqlAlchemyExperimentSpecRepository,
     SqlAlchemyHypothesisRepository,
+    SqlAlchemyMeasurementRepository,
     SqlAlchemyMetricDefinitionRepository,
     SqlAlchemyMetricDefinitionVersionRepository,
     SqlAlchemyProjectRepository,
@@ -54,6 +56,7 @@ class SqlAlchemyUnitOfWork:
     artifact_versions: ArtifactVersionRepository
     metric_definitions: MetricDefinitionRepository
     metric_definition_versions: MetricDefinitionVersionRepository
+    measurements: MeasurementRepository
     runs: RunRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
@@ -77,6 +80,7 @@ class SqlAlchemyUnitOfWork:
         self.artifact_versions = SqlAlchemyArtifactVersionRepository(self._session)
         self.metric_definitions = SqlAlchemyMetricDefinitionRepository(self._session)
         self.metric_definition_versions = SqlAlchemyMetricDefinitionVersionRepository(self._session)
+        self.measurements = SqlAlchemyMeasurementRepository(self._session)
         self.runs = SqlAlchemyRunRepository(self._session)
         return self
 

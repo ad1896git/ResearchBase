@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -543,3 +543,33 @@ class RunArtifactInputModel(Base):
     )
     role: Mapped[str] = mapped_column(String(32), primary_key=True)
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+class MeasurementModel(Base):
+    __tablename__ = "measurements"
+    __table_args__ = (
+        CheckConstraint(
+            "(numeric_value IS NOT NULL AND structured_value IS NULL) OR "
+            "(numeric_value IS NULL AND structured_value IS NOT NULL)",
+            name="ck_measurements_value_xor",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    run_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    metric_definition_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("metric_definition_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    numeric_value: Mapped[float | None] = mapped_column(DOUBLE_PRECISION(), nullable=True)
+    structured_value: Mapped[object | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    evaluation_scope: Mapped[object | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

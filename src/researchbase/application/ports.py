@@ -14,6 +14,7 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersionId,
 )
 from researchbase.domain.identity import Actor
+from researchbase.domain.measurement import Measurement, MeasurementId
 from researchbase.domain.metric import (
     MetricDefinition,
     MetricDefinitionId,
@@ -242,6 +243,14 @@ class MetricDefinitionVersionRepository(Protocol):
     def update(self, version: MetricDefinitionVersion, expected_row_version: int) -> None: ...
 
 
+class MeasurementRepository(Protocol):
+    def add(self, measurement: Measurement) -> None: ...
+
+    def get(self, measurement_id: MeasurementId) -> Measurement | None: ...
+
+    def list_by_run(self, run_id: RunId) -> list[Measurement]: ...
+
+
 class RunRepository(Protocol):
     def add(self, run: Run) -> None: ...
 
@@ -273,6 +282,7 @@ class UnitOfWork(Protocol):
     artifact_versions: ArtifactVersionRepository
     metric_definitions: MetricDefinitionRepository
     metric_definition_versions: MetricDefinitionVersionRepository
+    measurements: MeasurementRepository
     runs: RunRepository
 
     def __enter__(self) -> UnitOfWork: ...

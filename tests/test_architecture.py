@@ -38,10 +38,20 @@ def test_phase1_has_no_later_business_schema_migration() -> None:
     migration_text = "\n".join(path.read_text() for path in _python_files(ROOT / "migrations"))
     forbidden_tables = (
         "claims",
-        "measurements",
+        "statistical_results",
+        "evidence_relations",
+        "measurement_versions",
     )
     assert not any(table in migration_text for table in forbidden_tables)
     assert "run_versions" not in migration_text
+
+
+def test_pr10_adds_only_the_measurement_schema_slice() -> None:
+    migration = (ROOT / "migrations" / "versions" / "0010_measurement.py").read_text()
+    assert '"measurements"' in migration
+    assert "MeasurementVersion" not in migration
+    assert "statistical_results" not in migration
+    assert "claims" not in migration
 
 
 def test_pr06_does_not_add_dataset_version_or_pr07_business_schema() -> None:
@@ -66,3 +76,18 @@ def test_dataset_snapshot_repository_has_no_mutating_surface() -> None:
 
     assert {"add", "get", "find_by_dataset_and_content_hash"} <= public_methods
     assert not public_methods & {"update", "save", "delete", "relocate"}
+
+
+def test_measurement_domain_and_repository_preserve_immutable_boundary() -> None:
+    domain_text = (SRC / "domain" / "measurement.py").read_text()
+    assert "sqlalchemy" not in domain_text.lower()
+    assert "fastapi" not in domain_text.lower()
+    assert "typer" not in domain_text.lower()
+
+    from researchbase.persistence.repositories import SqlAlchemyMeasurementRepository
+
+    public_methods = {
+        name for name in dir(SqlAlchemyMeasurementRepository) if not name.startswith("_")
+    }
+    assert {"add", "get", "list_by_run"} <= public_methods
+    assert not public_methods & {"update", "save", "delete"}

@@ -16,6 +16,7 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersionId,
 )
 from researchbase.domain.identity import Actor, ActorType
+from researchbase.domain.measurement import Measurement, MeasurementId
 from researchbase.domain.metric import (
     MetricDefinition,
     MetricDefinitionId,
@@ -62,6 +63,7 @@ from researchbase.persistence.models import (
     ExperimentSpecVersionModel,
     HypothesisModel,
     HypothesisVersionModel,
+    MeasurementModel,
     MetricDefinitionModel,
     MetricDefinitionVersionModel,
     ProjectModel,
@@ -977,6 +979,39 @@ class SqlAlchemyRunRepository:
         return [_run_artifact_input_from_model(model) for model in models]
 
 
+class SqlAlchemyMeasurementRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, measurement: Measurement) -> None:
+        self._session.add(
+            MeasurementModel(
+                id=measurement.id,
+                run_id=measurement.run_id,
+                metric_definition_version_id=measurement.metric_definition_version_id,
+                numeric_value=measurement.numeric_value,
+                structured_value=measurement.structured_value,
+                unit=measurement.unit,
+                evaluation_scope=measurement.evaluation_scope,
+                content_hash=str(measurement.content_hash),
+                created_by=measurement.created_by,
+                created_at=measurement.created_at,
+            )
+        )
+
+    def get(self, measurement_id: MeasurementId) -> Measurement | None:
+        model = self._session.get(MeasurementModel, measurement_id)
+        return _measurement_from_model(model) if model is not None else None
+
+    def list_by_run(self, run_id: RunId) -> list[Measurement]:
+        models = self._session.scalars(
+            select(MeasurementModel)
+            .where(MeasurementModel.run_id == run_id)
+            .order_by(MeasurementModel.created_at, MeasurementModel.id)
+        ).all()
+        return [_measurement_from_model(model) for model in models]
+
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -1094,6 +1129,21 @@ def _run_artifact_input_from_model(model: RunArtifactInputModel) -> RunArtifactI
         artifact_version_id=ArtifactVersionId(model.artifact_version_id),
         role=ArtifactInputRole(model.role),
         ordinal=model.ordinal,
+    )
+
+
+def _measurement_from_model(model: MeasurementModel) -> Measurement:
+    return Measurement(
+        id=MeasurementId(model.id),
+        run_id=RunId(model.run_id),
+        metric_definition_version_id=MetricDefinitionVersionId(model.metric_definition_version_id),
+        numeric_value=model.numeric_value,
+        structured_value=model.structured_value,
+        unit=model.unit,
+        evaluation_scope=model.evaluation_scope,
+        content_hash=ContentHash(model.content_hash),
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
     )
 
 
