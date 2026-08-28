@@ -10,7 +10,9 @@ artifacts/pr_evidence/PR-09R6/
 ```
 
 The R5 metadata correction is limited to evidence files. The R6 package is
-the seven required evidence files in this directory.
+the seven required evidence files in this directory. The initial R6 payload
+commit `e311222` contains exactly the four corrected R5 evidence files and
+these seven R6 files; all 11 paths are under `artifacts/pr_evidence/`.
 
 ## Forbidden-scope verification
 

@@ -45,9 +45,30 @@ PASS — semantic distinction preserved
 ```
 
 The R6 evidence payload commit and final post-evidence HEAD are recorded by
-the final Git verification in this package's completion report. The R5
+the final Git verification in this package's completion report. The initial R6
+evidence payload commit is
+`e3112223544a87668edfa3ea1558da07d01af1dd`; the final metadata follow-up
+commit is reported separately after it is created. The R5
 `current_head_at_review` value remains the reviewed `ecb9ada` and is never
 changed to a self-referential R6 commit.
+
+```text
+git diff --name-status ecb9ada..e311222
+M	artifacts/pr_evidence/PR-09R5/commands_and_results.md
+M	artifacts/pr_evidence/PR-09R5/evidence_reconciliation.md
+M	artifacts/pr_evidence/PR-09R5/final_head_verification.md
+M	artifacts/pr_evidence/PR-09R5/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R6/changed_files.txt
+A	artifacts/pr_evidence/PR-09R6/commands_and_results.md
+A	artifacts/pr_evidence/PR-09R6/finding_disposition.md
+A	artifacts/pr_evidence/PR-09R6/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R6/head_metadata_correction.md
+A	artifacts/pr_evidence/PR-09R6/remediation_summary.md
+A	artifacts/pr_evidence/PR-09R6/unresolved_findings.md
+```
+
+The final metadata follow-up remains evidence-only and is not used as the R5
+review HEAD.
 
 ## Repository checks
 

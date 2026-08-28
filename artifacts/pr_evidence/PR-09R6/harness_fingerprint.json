@@ -7,7 +7,8 @@
   "r5_payload_commit": "9c35e6a26bf0cdecf69081aa609f3a1aa54778ce",
   "r5_current_head_at_review": "ecb9adaf6aebef73fb45d344197ea9e18ad37d9c",
   "r6_scope": "evidence metadata only",
-  "r6_evidence_payload_commit": "reported by final Git verification; not encoded as R5 current_head_at_review",
+  "r6_evidence_payload_commit": "e3112223544a87668edfa3ea1558da07d01af1dd",
+  "post_evidence_current_head": "reported by final Git verification; not encoded as R5 current_head_at_review",
   "migration_head": "0009_run_input_seal_fix",
   "postgresql": "18.6",
   "unauthorized_scope": {
