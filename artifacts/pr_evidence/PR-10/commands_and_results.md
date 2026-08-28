@@ -30,7 +30,7 @@ Fresh verification:
     14 files already formatted
 
     uv run pytest tests/unit/domain/test_pr10_measurement.py tests/unit/test_pr10_contracts.py tests/architecture/test_import_boundaries.py tests/test_architecture.py
-    39 passed
+    41 passed
 
     DATABASE_URL=... uv run pytest tests/test_integration.py
     1 passed in 0.13s

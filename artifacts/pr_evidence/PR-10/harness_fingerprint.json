@@ -12,6 +12,6 @@
   "pr10_scoped_format": "PASS",
   "repository_wide_format": "FAIL: eight inherited non-PR-10 files",
   "pr11_implemented": false,
-  "evidence_generated_at_head": "0661a584aff47537c24e537edcef7946f8f0129b",
-  "evidence_payload_commit": "created after evidence generation; recorded by final Git verification"
+  "evidence_generated_at_code_head": "0661a584aff47537c24e537edcef7946f8f0129b",
+  "evidence_payload_follows_implementation_head": true
 }
