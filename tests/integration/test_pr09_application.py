@@ -380,18 +380,22 @@ def test_concurrent_start_and_finish_use_row_version(
     assert started.inputs_sealed_at is not None
     assert started.row_version == current.row_version + 1
 
-    def finish(outcome: RunStatus) -> RunReadModel:
+    finish_commands = [
+        (RunStatus.SUCCEEDED, 0, "writer-a-success"),
+        (RunStatus.FAILED, 73, "writer-b-failure"),
+    ]
+
+    def finish(outcome: RunStatus, exit_code: int, failure_reason: str) -> RunReadModel:
         return factory().finish_run(
-            FinishRunCommand(run.id, outcome, 0, None, started.row_version, actor_context)
+            FinishRunCommand(
+                run.id, outcome, exit_code, failure_reason, started.row_version, actor_context
+            )
         )
 
     with monkeypatch.context() as patch:
         reached = synchronize_run_lock(patch)
         with ThreadPoolExecutor(max_workers=2) as executor:
-            results = [
-                executor.submit(finish, RunStatus.SUCCEEDED),
-                executor.submit(finish, RunStatus.FAILED),
-            ]
+            results = [executor.submit(finish, *command) for command in finish_commands]
     assert reached == [2]
     outcomes = [future.exception() for future in results]
     assert sum(error is None for error in outcomes) == 1
@@ -402,9 +406,13 @@ def test_concurrent_start_and_finish_use_row_version(
         )
         == 1
     )
+    winner_index = next(index for index, future in enumerate(results) if future.exception() is None)
+    winner_status, winner_exit_code, winner_failure_reason = finish_commands[winner_index]
     finished = service.get_run(run.id)
-    assert finished.status in {RunStatus.SUCCEEDED, RunStatus.FAILED}
+    assert finished.status is winner_status
     assert finished.finished_at is not None
+    assert finished.exit_code == winner_exit_code
+    assert finished.failure_reason == winner_failure_reason
     assert finished.row_version == started.row_version + 1
 
 
