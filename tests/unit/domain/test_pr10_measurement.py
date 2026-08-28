@@ -180,9 +180,7 @@ def test_each_material_field_changes_hash_independently() -> None:
     assert _measurement(unit="cm").content_hash != baseline.content_hash
     assert _measurement(evaluation_scope={"split": "train"}).content_hash != baseline.content_hash
 
-    structured_baseline = _measurement(
-        numeric_value=None, structured_value={"value": 1.0}
-    )
+    structured_baseline = _measurement(numeric_value=None, structured_value={"value": 1.0})
     structured_changed = _measurement(
         numeric_value=None,
         structured_value={"value": 2.0},
