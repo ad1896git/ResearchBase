@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
@@ -10,7 +12,6 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
 
-from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
 from researchbase.application.commands import (
     ApplicationService,
     CreateActorCommand,
@@ -31,7 +32,6 @@ from researchbase.domain.organization import ProjectId
 from researchbase.domain.run import RunId, RunStatus
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
-from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.time import FixedClock
 from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.database import create_database_engine, create_session_factory
@@ -55,6 +55,18 @@ def resources() -> Iterator[tuple[Callable[[], ApplicationService], Engine]]:
 
 def context(actor_id: UUID) -> ExecutionContext:
     return ExecutionContext(actor_id=actor_id, request_id=uuid4(), client_type="test")
+
+
+def independent_canonical_json_sha256(value: object) -> str:
+    """Test-owned canonical-json-v1 oracle; do not import production hash code."""
+    canonical_bytes = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical_bytes).hexdigest()
 
 
 def seed(service: ApplicationService) -> tuple[UUID, ProjectId, ExecutionContext]:
@@ -165,12 +177,15 @@ def test_record_numeric_measurement_uses_exact_independent_hash(
         "evaluation_scope": {"split": "test"},
     }
     assert measurement.metric_definition_version_id == version.id
-    assert measurement.content_hash == sha256_canonical_json(material)
+    expected_hash = independent_canonical_json_sha256(material)
+    assert measurement.content_hash == expected_hash
     assert measurement.id != metric.id
-    assert factory().get_measurement(measurement.id) == measurement
+    persisted = factory().get_measurement(measurement.id)
+    assert persisted == measurement
+    assert persisted.content_hash == expected_hash
 
 
-def test_structured_measurements_and_duplicate_content_are_allowed(
+def test_structured_measurements_use_independent_hash_and_allow_duplicates(
     resources: tuple[Callable[[], ApplicationService], Engine],
 ) -> None:
     factory, _ = resources
@@ -197,8 +212,20 @@ def test_structured_measurements_and_duplicate_content_are_allowed(
         structured_value={"values": [1, 2], "label": "ok"},
         unit="custom",
     )
-    assert first.content_hash == second.content_hash
+    material = {
+        "run_id": str(run.id),
+        "metric_definition_version_id": str(version.id),
+        "numeric_value": None,
+        "structured_value": {"values": [1, 2], "label": "ok"},
+        "unit": "custom",
+        "evaluation_scope": None,
+    }
+    expected_hash = independent_canonical_json_sha256(material)
+    assert first.content_hash == expected_hash
+    assert second.content_hash == expected_hash
     assert first.id != second.id
+    assert factory().get_measurement(first.id).content_hash == expected_hash
+    assert factory().get_measurement(second.id).content_hash == expected_hash
     listed_ids = [item.id for item in factory().list_measurements_for_run(run.id)]
     assert len(listed_ids) == 2
     assert set(listed_ids) == {first.id, second.id}
@@ -346,25 +373,44 @@ def test_run_state_matrix_rejects_planned_running_failed_and_cancelled(
         assert error.value.code is ErrorCode.INVALID_STATE_TRANSITION
 
 
-def test_incomplete_provenance_closure_is_rejected(
+def test_persisted_incomplete_provenance_closure_is_rejected(
     resources: tuple[Callable[[], ApplicationService], Engine],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    factory, _ = resources
+    factory, engine = resources
     service = factory()
     _, project_id, actor_context = seed(service)
     _, version = frozen_metric(service, project_id, actor_context, unit=None)
     run = succeeded_run(service, project_id, actor_context)
 
-    def incomplete(
-        _validator: ProvenanceClosureValidator, _uow: object, _run_id: RunId
-    ) -> ClosureReport:
-        return ClosureReport(complete=False, visited_count=1, violations=[])
+    draft_spec = service.create_experiment_spec(
+        CreateExperimentSpecCommand(
+            project_id,
+            None,
+            "Invalid closure draft",
+            "Objective",
+            {"step": "draft"},
+            None,
+            None,
+            None,
+            actor_context,
+        )
+    )
+    assert draft_spec.current_version_id is not None
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE runs SET experiment_spec_version_id=:spec_version_id WHERE id=:run_id"),
+            {"spec_version_id": draft_spec.current_version_id, "run_id": run.id},
+        )
 
-    monkeypatch.setattr(ProvenanceClosureValidator, "validate_run_in_uow", incomplete)
+    closure = service.validate_run_closure(run.id)
+    assert closure.complete is False
+    assert any(
+        violation.code == ErrorCode.VERSION_NOT_FROZEN.value for violation in closure.violations
+    )
     with pytest.raises(ResearchBaseError) as error:
         record(service, run.id, version.id, actor_context, unit=None)
     assert error.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    assert factory().list_measurements_for_run(run.id) == []
 
 
 def test_unit_compatibility_is_exact_and_project_scope_is_enforced(
@@ -403,6 +449,8 @@ def test_exact_provenance_survives_metric_current_pointer_change(
     metric, version_one = frozen_metric(service, project_id, actor_context, unit=None)
     run = succeeded_run(service, project_id, actor_context)
     measurement = record(service, run.id, version_one.id, actor_context, unit=None)
+    before = factory().get_measurement(measurement.id)
+    assert before is not None
     revised = service.revise_metric_definition(
         ReviseMetricDefinitionCommand(
             metric.id,
@@ -415,10 +463,24 @@ def test_exact_provenance_survives_metric_current_pointer_change(
     )
     assert revised.current_version_id is not None
     assert revised.current_version_id != version_one.id
+    version_one_after = service.get_metric_definition_version(version_one.id)
+    assert version_one_after.status is VersionStatus.SUPERSEDED
     with pytest.raises(ResearchBaseError) as superseded:
         record(service, run.id, version_one.id, actor_context, unit=None)
     assert superseded.value.code is ErrorCode.VERSION_NOT_FROZEN
-    assert factory().get_measurement(measurement.id).metric_definition_version_id == version_one.id
+    after = factory().get_measurement(measurement.id)
+    assert after is not None
+    assert after.id == before.id
+    assert after.run_id == before.run_id
+    assert after.metric_definition_version_id == version_one.id
+    assert after.metric_definition_version_id == before.metric_definition_version_id
+    assert after.numeric_value == before.numeric_value
+    assert after.structured_value == before.structured_value
+    assert after.unit == before.unit
+    assert after.evaluation_scope == before.evaluation_scope
+    assert after.content_hash == before.content_hash
+    assert after.created_by == before.created_by
+    assert after.created_at == before.created_at
 
 
 def test_measurements_are_database_immutable_and_fk_restricted(

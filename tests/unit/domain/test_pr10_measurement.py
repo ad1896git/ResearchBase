@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime
 from typing import Any, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -11,10 +13,25 @@ from researchbase.domain.measurement import Measurement, MeasurementId
 from researchbase.domain.metric import MetricDefinitionVersionId
 from researchbase.domain.run import RunId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.ids import ActorId
 
 NOW = datetime(2026, 8, 28, 2, 0, tzinfo=UTC)
+BASE_RUN_ID = RunId(UUID("00000000-0000-4000-8000-000000000001"))
+BASE_METRIC_ID = MetricDefinitionVersionId(UUID("00000000-0000-4000-8000-000000000002"))
+BASE_MEASUREMENT_ID = MeasurementId(UUID("00000000-0000-4000-8000-000000000003"))
+BASE_ACTOR_ID = ActorId(UUID("00000000-0000-4000-8000-000000000004"))
+
+
+def independent_canonical_json_sha256(value: object) -> str:
+    """Test-owned canonical-json-v1 oracle; do not import production hash code."""
+    canonical_bytes = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical_bytes).hexdigest()
 
 
 def _material(
@@ -37,17 +54,15 @@ def _material(
 
 
 def _measurement(**overrides: object) -> Measurement:
-    run_id = RunId(uuid4())
-    metric_id = MetricDefinitionVersionId(uuid4())
     values: dict[str, object] = {
-        "id": MeasurementId(uuid4()),
-        "run_id": run_id,
-        "metric_definition_version_id": metric_id,
+        "id": BASE_MEASUREMENT_ID,
+        "run_id": BASE_RUN_ID,
+        "metric_definition_version_id": BASE_METRIC_ID,
         "numeric_value": 0.875,
         "structured_value": None,
         "unit": "m",
         "evaluation_scope": {"split": "test"},
-        "created_by": ActorId(uuid4()),
+        "created_by": BASE_ACTOR_ID,
         "created_at": NOW,
     }
     values.update(overrides)
@@ -60,7 +75,7 @@ def _measurement(**overrides: object) -> Measurement:
         evaluation_scope=values["evaluation_scope"],
     )
     try:
-        values["content_hash"] = sha256_canonical_json(material)
+        values["content_hash"] = independent_canonical_json_sha256(material)
     except (TypeError, ValueError):
         values["content_hash"] = "0" * 64
     return Measurement(**cast(dict[str, Any], values))
@@ -78,7 +93,7 @@ def test_measurement_hash_material_is_exact_and_metadata_independent() -> None:
     )
 
     assert measurement.material_payload() == expected
-    assert measurement.content_hash == sha256_canonical_json(expected)
+    assert measurement.content_hash == independent_canonical_json_sha256(expected)
 
     changed_metadata = replace(
         measurement, id=MeasurementId(uuid4()), created_by=ActorId(uuid4()), created_at=NOW
@@ -177,30 +192,53 @@ def test_material_field_changes_hash() -> None:
 
 def test_each_material_field_changes_hash_independently() -> None:
     baseline = _measurement()
+
+    def with_recomputed_hash(measurement: Measurement, **changes: object) -> Measurement:
+        material = _material(
+            run_id=changes.get("run_id", measurement.run_id),
+            metric_definition_version_id=changes.get(
+                "metric_definition_version_id", measurement.metric_definition_version_id
+            ),
+            numeric_value=cast(
+                float | None, changes.get("numeric_value", measurement.numeric_value)
+            ),
+            structured_value=changes.get("structured_value", measurement.structured_value),
+            unit=cast(str | None, changes.get("unit", measurement.unit)),
+            evaluation_scope=changes.get("evaluation_scope", measurement.evaluation_scope),
+        )
+        return replace(
+            measurement,
+            **changes,
+            content_hash=independent_canonical_json_sha256(material),
+        )
+
     assert (
-        _measurement(
-            run_id=RunId(uuid4()),
-            metric_definition_version_id=baseline.metric_definition_version_id,
+        with_recomputed_hash(
+            baseline,
+            run_id=RunId(UUID("00000000-0000-4000-8000-000000000011")),
         ).content_hash
         != baseline.content_hash
     )
     assert (
-        _measurement(
-            run_id=baseline.run_id,
-            metric_definition_version_id=MetricDefinitionVersionId(uuid4()),
+        with_recomputed_hash(
+            baseline,
+            metric_definition_version_id=MetricDefinitionVersionId(
+                UUID("00000000-0000-4000-8000-000000000012")
+            ),
         ).content_hash
         != baseline.content_hash
     )
-    assert _measurement(numeric_value=1.875).content_hash != baseline.content_hash
-    assert _measurement(unit="cm").content_hash != baseline.content_hash
-    assert _measurement(evaluation_scope={"split": "train"}).content_hash != baseline.content_hash
+    assert with_recomputed_hash(baseline, numeric_value=1.875).content_hash != baseline.content_hash
+    assert with_recomputed_hash(baseline, unit="cm").content_hash != baseline.content_hash
+    assert (
+        with_recomputed_hash(baseline, evaluation_scope={"split": "train"}).content_hash
+        != baseline.content_hash
+    )
 
     structured_baseline = _measurement(numeric_value=None, structured_value={"value": 1.0})
-    structured_changed = _measurement(
-        numeric_value=None,
+    structured_changed = with_recomputed_hash(
+        structured_baseline,
         structured_value={"value": 2.0},
-        run_id=structured_baseline.run_id,
-        metric_definition_version_id=structured_baseline.metric_definition_version_id,
     )
     assert structured_changed.content_hash != structured_baseline.content_hash
 
@@ -208,26 +246,17 @@ def test_each_material_field_changes_hash_independently() -> None:
 def test_excluded_metadata_fields_do_not_change_hash_independently() -> None:
     baseline = _measurement()
     assert (
-        _measurement(
-            run_id=baseline.run_id,
-            metric_definition_version_id=baseline.metric_definition_version_id,
-            id=MeasurementId(uuid4()),
+        replace(
+            baseline,
+            id=MeasurementId(UUID("00000000-0000-4000-8000-000000000021")),
         ).content_hash
         == baseline.content_hash
     )
     assert (
-        _measurement(
-            run_id=baseline.run_id,
-            metric_definition_version_id=baseline.metric_definition_version_id,
-            created_by=ActorId(uuid4()),
+        replace(
+            baseline,
+            created_by=ActorId(UUID("00000000-0000-4000-8000-000000000022")),
         ).content_hash
         == baseline.content_hash
     )
-    assert (
-        _measurement(
-            run_id=baseline.run_id,
-            metric_definition_version_id=baseline.metric_definition_version_id,
-            created_at=NOW.replace(day=29),
-        ).content_hash
-        == baseline.content_hash
-    )
+    assert replace(baseline, created_at=NOW.replace(day=29)).content_hash == baseline.content_hash
