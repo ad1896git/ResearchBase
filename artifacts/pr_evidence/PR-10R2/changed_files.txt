@@ -8,10 +8,24 @@ artifacts/pr_evidence/PR-10R2/
 ```
 
 The final inventory is set-equal to the Git-resolved PR-10R2 range from the
-preserved baseline `bffb95c` to the final PR-10R2 evidence HEAD. It includes
-only the corrected PR-10R evidence files and the required PR-10R2 evidence
-package files. The exact final Git output is recorded in
-`commands_and_results.md`.
+preserved baseline `bffb95c` to the evidence payload commit
+`686402e3082424260c9a52b5636c45fbc00e38a5`. It includes exactly:
+
+artifacts/pr_evidence/PR-10R/changed_files.txt
+artifacts/pr_evidence/PR-10R/fingerprint_reconciliation.md
+artifacts/pr_evidence/PR-10R/harness_fingerprint.json
+artifacts/pr_evidence/PR-10R2/changed_files.txt
+artifacts/pr_evidence/PR-10R2/commands_and_results.md
+artifacts/pr_evidence/PR-10R2/evidence_only_range_report.md
+artifacts/pr_evidence/PR-10R2/final_head_reconciliation.md
+artifacts/pr_evidence/PR-10R2/finding_disposition.md
+artifacts/pr_evidence/PR-10R2/git_commit_resolution.md
+artifacts/pr_evidence/PR-10R2/harness_fingerprint.json
+artifacts/pr_evidence/PR-10R2/remediation_summary.md
+artifacts/pr_evidence/PR-10R2/unresolved_findings.md
+
+This list matches `git diff --name-only bffb95c..686402e` exactly. The final
+metadata follow-up, if any, remains within this same set of evidence paths.
 
 No production source, test, migration, architecture, dependency, or PR-11
 path is part of this remediation. Pre-existing untracked execution packs and

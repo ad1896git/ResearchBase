@@ -3,7 +3,7 @@
   "scope": "evidence metadata only",
   "baseline_pr10r_current_head_at_review": "bffb95c3dc239219ec4c288eaa3c9991f7733f6c",
   "corrected_pr10r_evidence_payload_commit": "7db0696f4e687fe07c2f603ab37a24f620fd1281",
-  "pr10r2_evidence_payload_commit": null,
+  "pr10r2_evidence_payload_commit": "686402e3082424260c9a52b5636c45fbc00e38a5",
   "post_pr10r2_current_head": "reported by final Git verification; not encoded as a self-reference",
   "allowed_paths": [
     "artifacts/pr_evidence/PR-10R/",

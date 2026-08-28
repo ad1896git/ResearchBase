@@ -37,6 +37,34 @@ M  artifacts/pr_evidence/PR-10R/harness_fingerprint.json
 The corresponding stat is evidence-only. The range has zero production,
 test, migration, and architecture changes.
 
+The first PR-10R2 evidence payload commit was:
+
+```text
+686402e3082424260c9a52b5636c45fbc00e38a5
+```
+
+Its `bffb95c..686402e` changed-file set is the 12-path inventory in
+`changed_files.txt`, and every path is under an allowed evidence directory.
+
+```text
+git diff --name-only bffb95c..686402e
+artifacts/pr_evidence/PR-10R/changed_files.txt
+artifacts/pr_evidence/PR-10R/fingerprint_reconciliation.md
+artifacts/pr_evidence/PR-10R/harness_fingerprint.json
+artifacts/pr_evidence/PR-10R2/changed_files.txt
+artifacts/pr_evidence/PR-10R2/commands_and_results.md
+artifacts/pr_evidence/PR-10R2/evidence_only_range_report.md
+artifacts/pr_evidence/PR-10R2/final_head_reconciliation.md
+artifacts/pr_evidence/PR-10R2/finding_disposition.md
+artifacts/pr_evidence/PR-10R2/git_commit_resolution.md
+artifacts/pr_evidence/PR-10R2/harness_fingerprint.json
+artifacts/pr_evidence/PR-10R2/remediation_summary.md
+artifacts/pr_evidence/PR-10R2/unresolved_findings.md
+
+git diff --name-only bffb95c..686402e -- src tests migrations
+[empty]
+```
+
 ## Forbidden-scope verification
 
 ```text
@@ -46,6 +74,17 @@ git diff -- src tests migrations
 
 The PR-10R2 changes are restricted to the two evidence directories. No PR-11
 implementation was added.
+
+```text
+git diff --check
+PASS
+
+JSON parse of PR-10R and PR-10R2 harness_fingerprint.json
+PASS
+
+uv run alembic current
+0010_measurement (head)
+```
 
 ## Final verification
 

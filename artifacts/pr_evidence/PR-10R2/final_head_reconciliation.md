@@ -18,4 +18,7 @@ specific correction required by `PR10R-REV-004-001`.
 PR-10R2 evidence commits, if created after this reviewed baseline, are
 post-review evidence payloads. They must not replace the corrected PR-10R
 `current_head_at_review` value or be described as part of the prior PR-10R
-implementation review.
+implementation review. The first PR-10R2 evidence payload commit is
+`686402e3082424260c9a52b5636c45fbc00e38a5`; any later metadata-only commit is
+the post-PR-10R2 current HEAD and is reported separately by the final Git
+verification to avoid a self-referential SHA.
