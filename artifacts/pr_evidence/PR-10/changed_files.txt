@@ -1,0 +1,19 @@
+# PR-10 implementation commits 1106702, 9e04277, 733972d, and 0661a58
+
+migrations/versions/0010_measurement.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/measurement.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/integration/test_pr10_application.py
+tests/integration/test_pr10_schema.py
+tests/test_architecture.py
+tests/unit/domain/test_pr10_measurement.py
+tests/unit/test_pr10_contracts.py
+
+The repository also contains unrelated pre-existing untracked execution-pack and
+.DS_Store files; they were not included in the implementation commit.

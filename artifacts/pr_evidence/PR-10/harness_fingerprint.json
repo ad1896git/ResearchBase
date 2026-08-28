@@ -1,0 +1,17 @@
+{
+  "pr": "PR-10",
+  "scope": "Measurement only",
+  "accepted_pr09_baseline": "fe8027dfef4f585566a60f467f66fdd8116e0964",
+  "implementation_commits": ["1106702", "9e04277", "733972d", "0661a58"],
+  "migration_head": "0010_measurement",
+  "postgresql": "18.6",
+  "full_pytest": "356 passed",
+  "targeted_postgresql_tests": "20 passed",
+  "ruff_check": "PASS",
+  "pyright": "PASS",
+  "pr10_scoped_format": "PASS",
+  "repository_wide_format": "FAIL: eight inherited non-PR-10 files",
+  "pr11_implemented": false,
+  "evidence_generated_at_head": "0661a584aff47537c24e537edcef7946f8f0129b",
+  "evidence_payload_commit": "created after evidence generation; recorded by final Git verification"
+}
