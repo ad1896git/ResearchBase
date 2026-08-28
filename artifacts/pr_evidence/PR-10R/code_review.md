@@ -14,5 +14,6 @@ change is present. No P0 or P1 issue remains in the PR-10R scope. Repository-wid
 housekeeping issue limited to eight files outside this remediation; all owned files
 are formatted.
 
-Assessment: ready for the PR-10R gate after final evidence fingerprint metadata is
-written and verified.
+Assessment: ready for the PR-10R gate. The evidence payload fingerprint is valid JSON,
+records the reviewed implementation head and payload/current-head semantics, and the
+final repository HEAD is reported separately by the gate result.

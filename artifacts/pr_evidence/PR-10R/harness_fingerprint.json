@@ -23,7 +23,7 @@
   "phase2_plus_implemented": false,
   "measurement_version_added": false,
   "generic_version_orm_added": false,
-  "evidence_payload_commit": null,
-  "current_head_at_review": "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d",
-  "fingerprint_finalized": false
+  "evidence_payload_commit": "7db0696e0be713b38d5627f1a1072f7d95d88f0c",
+  "current_head_at_review": "7db0696e0be713b38d5627f1a1072f7d95d88f0c",
+  "fingerprint_finalized": true
 }
