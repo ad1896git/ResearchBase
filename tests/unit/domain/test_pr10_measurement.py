@@ -118,6 +118,21 @@ def test_measurement_rejects_non_canonical_json(field: str) -> None:
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
 
 
+def test_measurement_accepts_json_lists_and_scope_objects() -> None:
+    measurement = _measurement(
+        numeric_value=None,
+        structured_value=[{"value": 1}, {"value": 2}],
+        evaluation_scope={"fold": 0, "nested": {"split": "test"}},
+    )
+    assert measurement.structured_value == [{"value": 1}, {"value": 2}]
+
+
+def test_measurement_rejects_nonfinite_nested_json() -> None:
+    with pytest.raises(ResearchBaseError) as exc_info:
+        _measurement(numeric_value=None, structured_value={"value": float("nan")})
+    assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
+
+
 def test_measurement_unit_is_bounded_and_record_is_frozen() -> None:
     with pytest.raises(ResearchBaseError) as exc_info:
         _measurement(unit="x" * 65)

@@ -10,6 +10,7 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
 
+from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
 from researchbase.application.commands import (
     ApplicationService,
     CreateActorCommand,
@@ -245,6 +246,21 @@ def test_nonfinite_numeric_values_are_rejected(
     assert error.value.code is ErrorCode.VALIDATION_ERROR
 
 
+def test_unrepresentable_numeric_values_return_stable_validation_error(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    _, version = frozen_metric(service, project_id, actor_context, unit=None)
+    run = succeeded_run(service, project_id, actor_context)
+    with pytest.raises(ResearchBaseError) as error:
+        record(  # type: ignore[arg-type]
+            service, run.id, version.id, actor_context, numeric_value=10**400, unit=None
+        )
+    assert error.value.code is ErrorCode.VALIDATION_ERROR
+
+
 def test_eligibility_requires_succeeded_run_and_frozen_metric(
     resources: tuple[Callable[[], ApplicationService], Engine],
 ) -> None:
@@ -328,6 +344,27 @@ def test_run_state_matrix_rejects_planned_running_failed_and_cancelled(
         with pytest.raises(ResearchBaseError) as error:
             record(service, terminal.id, version.id, actor_context, unit=None)
         assert error.value.code is ErrorCode.INVALID_STATE_TRANSITION
+
+
+def test_incomplete_provenance_closure_is_rejected(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed(service)
+    _, version = frozen_metric(service, project_id, actor_context, unit=None)
+    run = succeeded_run(service, project_id, actor_context)
+
+    def incomplete(
+        _validator: ProvenanceClosureValidator, _uow: object, _run_id: RunId
+    ) -> ClosureReport:
+        return ClosureReport(complete=False, visited_count=1, violations=[])
+
+    monkeypatch.setattr(ProvenanceClosureValidator, "validate_run_in_uow", incomplete)
+    with pytest.raises(ResearchBaseError) as error:
+        record(service, run.id, version.id, actor_context, unit=None)
+    assert error.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
 
 
 def test_unit_compatibility_is_exact_and_project_scope_is_enforced(
