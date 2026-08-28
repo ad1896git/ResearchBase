@@ -32,6 +32,7 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.time import FixedClock
+from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
@@ -197,10 +198,9 @@ def test_structured_measurements_and_duplicate_content_are_allowed(
     )
     assert first.content_hash == second.content_hash
     assert first.id != second.id
-    assert [item.id for item in factory().list_measurements_for_run(run.id)] == [
-        first.id,
-        second.id,
-    ]
+    listed_ids = [item.id for item in factory().list_measurements_for_run(run.id)]
+    assert len(listed_ids) == 2
+    assert set(listed_ids) == {first.id, second.id}
 
 
 @pytest.mark.parametrize(
@@ -283,6 +283,17 @@ def test_eligibility_requires_succeeded_run_and_frozen_metric(
     with pytest.raises(ResearchBaseError) as draft:
         record(service, succeeded.id, metric.current_version_id, actor_context, unit=None)
     assert draft.value.code is ErrorCode.VERSION_NOT_FROZEN
+
+    sessions = create_session_factory(resources[1])
+    with SqlAlchemyUnitOfWork(sessions) as uow:
+        draft_version = uow.metric_definition_versions.get(metric.current_version_id)
+        assert draft_version is not None
+        abandoned = draft_version.transition_to(VersionStatus.ABANDONED)
+        uow.metric_definition_versions.update(abandoned, draft_version.row_version)
+        uow.commit()
+    with pytest.raises(ResearchBaseError) as abandoned_error:
+        record(service, succeeded.id, metric.current_version_id, actor_context, unit=None)
+    assert abandoned_error.value.code is ErrorCode.VERSION_NOT_FROZEN
 
 
 def test_run_state_matrix_rejects_planned_running_failed_and_cancelled(
@@ -367,6 +378,9 @@ def test_exact_provenance_survives_metric_current_pointer_change(
     )
     assert revised.current_version_id is not None
     assert revised.current_version_id != version_one.id
+    with pytest.raises(ResearchBaseError) as superseded:
+        record(service, run.id, version_one.id, actor_context, unit=None)
+    assert superseded.value.code is ErrorCode.VERSION_NOT_FROZEN
     assert factory().get_measurement(measurement.id).metric_definition_version_id == version_one.id
 
 

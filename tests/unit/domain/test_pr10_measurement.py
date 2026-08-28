@@ -105,6 +105,12 @@ def test_measurement_rejects_non_finite_numeric_values(value: float) -> None:
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
 
 
+def test_measurement_rejects_unrepresentable_numeric_values() -> None:
+    with pytest.raises(ResearchBaseError) as exc_info:
+        _measurement(numeric_value=10**400)
+    assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
+
+
 @pytest.mark.parametrize("field", ["structured_value", "evaluation_scope"])
 def test_measurement_rejects_non_canonical_json(field: str) -> None:
     with pytest.raises(ResearchBaseError) as exc_info:
@@ -152,3 +158,63 @@ def test_material_field_changes_hash() -> None:
         unit="cm",
     )
     assert changed.content_hash != baseline.content_hash
+
+
+def test_each_material_field_changes_hash_independently() -> None:
+    baseline = _measurement()
+    assert (
+        _measurement(
+            run_id=RunId(uuid4()),
+            metric_definition_version_id=baseline.metric_definition_version_id,
+        ).content_hash
+        != baseline.content_hash
+    )
+    assert (
+        _measurement(
+            run_id=baseline.run_id,
+            metric_definition_version_id=MetricDefinitionVersionId(uuid4()),
+        ).content_hash
+        != baseline.content_hash
+    )
+    assert _measurement(numeric_value=1.875).content_hash != baseline.content_hash
+    assert _measurement(unit="cm").content_hash != baseline.content_hash
+    assert _measurement(evaluation_scope={"split": "train"}).content_hash != baseline.content_hash
+
+    structured_baseline = _measurement(
+        numeric_value=None, structured_value={"value": 1.0}
+    )
+    structured_changed = _measurement(
+        numeric_value=None,
+        structured_value={"value": 2.0},
+        run_id=structured_baseline.run_id,
+        metric_definition_version_id=structured_baseline.metric_definition_version_id,
+    )
+    assert structured_changed.content_hash != structured_baseline.content_hash
+
+
+def test_excluded_metadata_fields_do_not_change_hash_independently() -> None:
+    baseline = _measurement()
+    assert (
+        _measurement(
+            run_id=baseline.run_id,
+            metric_definition_version_id=baseline.metric_definition_version_id,
+            id=MeasurementId(uuid4()),
+        ).content_hash
+        == baseline.content_hash
+    )
+    assert (
+        _measurement(
+            run_id=baseline.run_id,
+            metric_definition_version_id=baseline.metric_definition_version_id,
+            created_by=ActorId(uuid4()),
+        ).content_hash
+        == baseline.content_hash
+    )
+    assert (
+        _measurement(
+            run_id=baseline.run_id,
+            metric_definition_version_id=baseline.metric_definition_version_id,
+            created_at=NOW.replace(day=29),
+        ).content_hash
+        == baseline.content_hash
+    )

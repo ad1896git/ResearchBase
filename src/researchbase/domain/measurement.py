@@ -90,13 +90,21 @@ class Measurement:
                     "numeric_value must be a number",
                     {"field": "numeric_value"},
                 )
-            if not math.isfinite(float(self.numeric_value)):
+            try:
+                numeric_value = float(self.numeric_value)
+            except OverflowError as exc:
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "numeric_value is not representable as DOUBLE PRECISION",
+                    {"field": "numeric_value"},
+                ) from exc
+            if not math.isfinite(numeric_value):
                 raise ResearchBaseError(
                     ErrorCode.VALIDATION_ERROR,
                     "numeric_value must be finite",
                     {"field": "numeric_value"},
                 )
-            object.__setattr__(self, "numeric_value", float(self.numeric_value))
+            object.__setattr__(self, "numeric_value", numeric_value)
         elif not isinstance(self.structured_value, dict | list):
             raise ResearchBaseError(
                 ErrorCode.VALIDATION_ERROR,

@@ -1215,7 +1215,14 @@ class ApplicationService:
             or not isinstance(command.numeric_value, int | float)
         ):
             raise _validation_error("numeric_value must be a number", "numeric_value")
-        numeric_value = float(command.numeric_value) if command.numeric_value is not None else None
+        try:
+            numeric_value = (
+                float(command.numeric_value) if command.numeric_value is not None else None
+            )
+        except OverflowError as exc:
+            raise _validation_error(
+                "numeric_value is not representable as DOUBLE PRECISION", "numeric_value"
+            ) from exc
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
             run = uow.runs.get(run_id)
