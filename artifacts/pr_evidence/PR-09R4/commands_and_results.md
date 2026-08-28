@@ -1,6 +1,7 @@
 # Commands and results
 
-Baseline: `0feba30`. R4 implementation/test commit: `8a57413`.
+Baseline: `0feba30`. R4 implementation/test commit: `8a57413`. R4 evidence
+package commit: `044c72a`.
 
 - `DATABASE_URL=... uv run pytest`: PASS — `315 passed in 3.32s`.
 - targeted PR-09 application/schema/proof/import-boundary tests: PASS.
@@ -20,4 +21,5 @@ Baseline: `0feba30`. R4 implementation/test commit: `8a57413`.
 - persistent `uv run alembic current`: PASS — `0009_run_input_seal_fix (head)`.
 - `git diff --name-status 9e1bb85..0feba30`: 2 files, both PR-09R3 evidence/reporting.
 - `git diff --name-status 0feba30..8a57413`: 1 file, test-only.
+- `git diff --name-status 0feba30..044c72a`: 21 files; 1 test and 20 evidence/reporting files.
 - no SQLite was used.

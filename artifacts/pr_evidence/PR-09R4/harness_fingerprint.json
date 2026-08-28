@@ -8,7 +8,7 @@
     "pr09r3_implementation_test": ["197bd2d"],
     "pr09r3_evidence": ["9e1bb85", "0feba30"],
     "pr09r4_implementation_test": ["8a57413"],
-    "pr09r4_evidence": ["pending evidence commit"]
+    "pr09r4_evidence": ["044c72a"]
   },
   "commit_classification": {
     "9c47381": "accepted PR-09R3 evidence baseline",
@@ -35,6 +35,6 @@
     "new_migration": false,
     "phase2_plus": false
   },
-  "final_head": "8a57413",
-  "final_head_definition": "final PR-09R4 implementation/test HEAD before the evidence-only package commit; the final Git HEAD and evidence commit are reported in the final response because a commit cannot self-reference its own hash"
+  "final_head": "044c72a",
+  "final_head_definition": "final PR-09R4 evidence-package HEAD; any later fingerprint-only metadata commit is evidence-only and cannot self-reference its own hash"
 }

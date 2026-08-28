@@ -34,6 +34,34 @@ Classification: production 1; tests 1; migration 0; evidence 29. The exact
 cumulative list is the union shown by the Git command in
 `commands_and_results.md`; no migration is present.
 
-The final `0feba30..PR-09R4_FINAL_HEAD` range is the R4 test file plus the R4
-evidence/reconciliation files. Its exact post-commit list is recorded in
-`changed_files.txt` and the final Git log.
+## `0feba30..044c72a` — 21 files
+
+Classification: production 0; tests 1; migration 0; evidence 20.
+
+```text
+M	artifacts/pr_evidence/PR-09R3/commands_and_results.md
+M	artifacts/pr_evidence/PR-09R3/concurrent_start_finish_report.md
+M	artifacts/pr_evidence/PR-09R3/evidence_reconciliation.md
+M	artifacts/pr_evidence/PR-09R3/finding_disposition.md
+M	artifacts/pr_evidence/PR-09R3/harness_fingerprint.json
+M	artifacts/pr_evidence/PR-09R3/test_report.md
+M	artifacts/pr_evidence/PR-09R3/unresolved_findings.md
+A	artifacts/pr_evidence/PR-09R4/architecture_review.md
+A	artifacts/pr_evidence/PR-09R4/changed_files.txt
+A	artifacts/pr_evidence/PR-09R4/changed_files_reconciliation.md
+A	artifacts/pr_evidence/PR-09R4/code_review.md
+A	artifacts/pr_evidence/PR-09R4/commands_and_results.md
+A	artifacts/pr_evidence/PR-09R4/concurrent_finish_winner_report.md
+A	artifacts/pr_evidence/PR-09R4/evidence_reconciliation.md
+A	artifacts/pr_evidence/PR-09R4/final_head_fingerprint_report.md
+A	artifacts/pr_evidence/PR-09R4/finding_disposition.md
+A	artifacts/pr_evidence/PR-09R4/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R4/remediation_summary.md
+A	artifacts/pr_evidence/PR-09R4/test_report.md
+A	artifacts/pr_evidence/PR-09R4/unresolved_findings.md
+M	tests/integration/test_pr09_application.py
+```
+
+This is the complete R4 range at the evidence-package commit. Any later
+fingerprint-only metadata commit is classified as evidence-only in the final
+Git-derived inventory.
