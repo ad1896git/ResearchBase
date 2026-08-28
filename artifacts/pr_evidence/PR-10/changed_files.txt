@@ -17,3 +17,7 @@ tests/unit/test_pr10_contracts.py
 
 The repository also contains unrelated pre-existing untracked execution-pack and
 .DS_Store files; they were not included in the implementation commit.
+
+PR-10R remediation changes are recorded separately in
+artifacts/pr_evidence/PR-10R/changed_files.txt and are not part of this PR-10
+implementation inventory.

@@ -1,0 +1,12 @@
+# PR-10R remediation implementation/test range: 41a8863..9c5a87a
+
+tests/integration/test_pr10_application.py
+tests/unit/domain/test_pr10_measurement.py
+
+Git set-equality check:
+
+    git diff --name-only 41a8863..9c5a87a
+
+matches the two paths above exactly. There is no PR-10R production source or
+migration change. The repository also contains unrelated pre-existing untracked
+execution packs and `.DS_Store` files; they are not part of this remediation.

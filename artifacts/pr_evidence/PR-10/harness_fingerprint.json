@@ -3,6 +3,12 @@
   "scope": "Measurement only",
   "accepted_pr09_baseline": "fe8027dfef4f585566a60f467f66fdd8116e0964",
   "implementation_commits": ["1106702", "9e04277", "733972d", "0661a58"],
+  "pr10r_remediation_commits": ["35efe3d", "9c5a87a"],
+  "pr10r_proof_gaps_closed": [
+    "independent test-owned hash oracle",
+    "persisted invalid closure",
+    "complete historical Measurement row comparison"
+  ],
   "migration_head": "0010_measurement",
   "postgresql": "18.6",
   "full_pytest": "356 passed",
@@ -13,5 +19,7 @@
   "repository_wide_format": "FAIL: eight inherited non-PR-10 files",
   "pr11_implemented": false,
   "evidence_generated_at_code_head": "0661a584aff47537c24e537edcef7946f8f0129b",
-  "evidence_payload_follows_implementation_head": true
+  "evidence_payload_follows_implementation_head": true,
+  "evidence_reconciled_by_pr10r": true,
+  "pr10r_reviewed_implementation_head": "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d"
 }

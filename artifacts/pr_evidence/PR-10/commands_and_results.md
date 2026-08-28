@@ -12,13 +12,26 @@ Implementation commits:
     733972d test: format PR-10 hash contract coverage
     0661a58 test: complete PR-10 measurement attack matrix
 
+PR-10R remediation commit:
+
+    35efe3d test: harden PR-10 remediation proof
+
+The original PR-10 evidence had three proof-quality gaps: its integration hash
+oracle imported production code, its invalid-closure case monkeypatched the validator,
+and its historical provenance case did not compare the complete persisted row. These
+are reconciled in PR-10R; the original PR-10 implementation and migration remain
+unchanged.
+
 Fresh verification:
 
     DATABASE_URL=... uv run pytest
-    356 passed in 3.90s
+    356 passed
 
     DATABASE_URL=... uv run pytest tests/integration/test_pr10_schema.py tests/integration/test_pr10_application.py
-    20 passed in 1.11s
+    20 passed
+
+    DATABASE_URL=... uv run pytest tests/unit/domain/test_pr10_measurement.py
+    17 passed
 
     uv run ruff check .
     All checks passed!
@@ -39,7 +52,8 @@ Fresh verification:
     0010_measurement (head)
 
 Disposable migration verification: empty to 0010 PASS; 0010 to 0009 PASS;
-0009 to 0010 PASS; final current 0010_measurement (head) PASS.
+0009 to 0010 PASS; final current 0010_measurement (head) PASS. PostgreSQL health and
+connection smoke passed; PostgreSQL version was 18.6.
 
 Repository-wide uv run ruff format --check .: FAIL on eight inherited non-PR-10
 files, documented in formatting_gate_report.md.

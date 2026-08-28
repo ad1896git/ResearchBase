@@ -1,0 +1,29 @@
+{
+  "pr": "PR-10R",
+  "scope": "PR-10 proof and evidence remediation only",
+  "accepted_pr10_baseline": "41a886344f277e84c7d63891c5b4351262329e30",
+  "reviewed_implementation_head": "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d",
+  "remediation_commits": [
+    "35efe3dcc5970d0668c75863ce0dbea20560a480",
+    "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d"
+  ],
+  "migration_head": "0010_measurement",
+  "postgresql": "18.6",
+  "full_pytest": "356 passed",
+  "targeted_pr10_integration": "20 passed",
+  "targeted_pr10_domain": "17 passed",
+  "ruff_check": "PASS",
+  "pyright": "PASS",
+  "owned_scoped_format": "PASS",
+  "repository_wide_format": "FAIL: eight inherited non-PR-10 files",
+  "independent_hash_oracle": true,
+  "real_persisted_invalid_closure": true,
+  "historical_full_row_proof": true,
+  "pr11_implemented": false,
+  "phase2_plus_implemented": false,
+  "measurement_version_added": false,
+  "generic_version_orm_added": false,
+  "evidence_payload_commit": null,
+  "current_head_at_review": "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d",
+  "fingerprint_finalized": false
+}

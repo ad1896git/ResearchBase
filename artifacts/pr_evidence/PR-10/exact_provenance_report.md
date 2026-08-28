@@ -2,7 +2,10 @@
 
 Measurements persist direct foreign-key bindings to run_id and
 metric_definition_version_id; no identity-level or current-pointer resolution is
-used. An integration regression recorded against MetricDefinitionVersion V1, moved
-the identity current pointer to V2, and verified the Measurement still references V1.
+used. The original regression proved only that the V1 identifier remained visible.
+PR-10R captures every persisted Measurement field before V1 is superseded, moves the
+identity current pointer to V2, and verifies field-for-field equality in a new UoW,
+including the exact V1 binding and content_hash. New recording against SUPERSEDED V1
+remains rejected.
 
-Result: PASS.
+Result after PR-10R: PASS.
