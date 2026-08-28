@@ -1,0 +1,66 @@
+# Git-derived PR-09R5 inventory
+
+The exact R4 chain ranges are recorded below. Each block is copied from the
+corresponding direct Git commands; counts are from `git diff --name-only ... |
+wc -l`.
+
+## `044c72a..602f224` — 5 files
+
+```text
+git diff --name-only 044c72a..602f224
+git diff --name-status 044c72a..602f224
+git diff --stat 044c72a..602f224
+```
+
+Classification: production 0; tests 0; migration 0; evidence 5.
+
+```text
+M	artifacts/pr_evidence/PR-09R4/changed_files.txt
+M	artifacts/pr_evidence/PR-09R4/changed_files_reconciliation.md
+M	artifacts/pr_evidence/PR-09R4/commands_and_results.md
+M	artifacts/pr_evidence/PR-09R4/final_head_fingerprint_report.md
+M	artifacts/pr_evidence/PR-09R4/harness_fingerprint.json
+```
+
+## `0feba30..602f224` — 21 files
+
+Classification: production 0; tests 1; migration 0; evidence 20.
+
+```text
+M	artifacts/pr_evidence/PR-09R3/commands_and_results.md
+M	artifacts/pr_evidence/PR-09R3/concurrent_start_finish_report.md
+M	artifacts/pr_evidence/PR-09R3/evidence_reconciliation.md
+M	artifacts/pr_evidence/PR-09R3/finding_disposition.md
+M	artifacts/pr_evidence/PR-09R3/harness_fingerprint.json
+M	artifacts/pr_evidence/PR-09R3/test_report.md
+M	artifacts/pr_evidence/PR-09R3/unresolved_findings.md
+A	artifacts/pr_evidence/PR-09R4/architecture_review.md
+A	artifacts/pr_evidence/PR-09R4/changed_files.txt
+A	artifacts/pr_evidence/PR-09R4/changed_files_reconciliation.md
+A	artifacts/pr_evidence/PR-09R4/code_review.md
+A	artifacts/pr_evidence/PR-09R4/commands_and_results.md
+A	artifacts/pr_evidence/PR-09R4/concurrent_finish_winner_report.md
+A	artifacts/pr_evidence/PR-09R4/evidence_reconciliation.md
+A	artifacts/pr_evidence/PR-09R4/final_head_fingerprint_report.md
+A	artifacts/pr_evidence/PR-09R4/finding_disposition.md
+A	artifacts/pr_evidence/PR-09R4/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R4/remediation_summary.md
+A	artifacts/pr_evidence/PR-09R4/test_report.md
+A	artifacts/pr_evidence/PR-09R4/unresolved_findings.md
+M	tests/integration/test_pr09_application.py
+```
+
+## `9c47381..602f224` — 45 files
+
+Classification: production 1; tests 2; migration 0; evidence 42.
+
+The exact list is set-equal to the direct Git result and is the union of the
+31-entry `9c47381..9e1bb85`, 2-entry `9e1bb85..0feba30`, 1-entry
+`0feba30..8a57413`, 20-entry `8a57413..044c72a`, and 5-entry
+`044c72a..602f224` Git blocks recorded in the PR-09R4 package.
+
+## R5 payload range
+
+`602f224..R5_EVIDENCE_HEAD` is evidence-only by hard scope. Its exact hash,
+name/status list, stat, and current HEAD are recorded after the R5 evidence
+payload commit in this directory's fingerprint and command report.

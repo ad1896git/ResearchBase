@@ -65,3 +65,20 @@ M	tests/integration/test_pr09_application.py
 This is the complete R4 range at the evidence-package commit. Any later
 fingerprint-only metadata commit is classified as evidence-only in the final
 Git-derived inventory.
+
+The actual final R4 commit is `602f224`. The final metadata correction range
+is `044c72a..602f224`, exactly five evidence-only files:
+
+```text
+M	artifacts/pr_evidence/PR-09R4/changed_files.txt
+M	artifacts/pr_evidence/PR-09R4/changed_files_reconciliation.md
+M	artifacts/pr_evidence/PR-09R4/commands_and_results.md
+M	artifacts/pr_evidence/PR-09R4/final_head_fingerprint_report.md
+M	artifacts/pr_evidence/PR-09R4/harness_fingerprint.json
+```
+
+Therefore the complete `0feba30..602f224` range is 21 files: one test and 20
+evidence/reporting files, with zero production and zero migration files. The
+complete `9c47381..602f224` range is 45 files: one production, two tests, zero
+migrations, and 42 evidence/reporting files. These counts and lists are
+set-equal to the direct Git commands recorded in the R5 package.

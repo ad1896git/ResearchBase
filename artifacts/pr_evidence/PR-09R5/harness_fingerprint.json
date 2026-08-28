@@ -1,0 +1,34 @@
+{
+  "harness": "external engineering Harness",
+  "phase": "Phase 1",
+  "pr": "PR-09R5",
+  "review_baseline_head": "602f22478c6919f2611ff436b4199a81fa6b8297",
+  "historical_chain": {
+    "accepted_baseline": "9c473814877c10c440c2ca11f194dbfb58cd2403",
+    "pr09r3_implementation_test": ["197bd2da996c55c09b2cad0ff66ebe97dd632623"],
+    "pr09r3_evidence": ["9e1bb857af0a1958a0e46609068e38355e06642e", "0feba305ce8d798e1257b93c7695a768ded72899"],
+    "pr09r4_test": ["8a57413145d27864d41ffb3c8596a205a7cb4fb8"],
+    "pr09r4_evidence": ["044c72aacf46fb24c288ab187bf5b16a0067089b"],
+    "pr09r4_final_evidence_only": "602f22478c6919f2611ff436b4199a81fa6b8297"
+  },
+  "evidence_payload_commit": "pending R5 evidence commit",
+  "current_head_at_review": "602f22478c6919f2611ff436b4199a81fa6b8297",
+  "final_head_definition": "R4 historical final HEAD is 602f224; R5 evidence payload and its post-payload metadata are tracked separately to avoid false self-reference",
+  "classification": {
+    "044c72a..602f224": {
+      "production": 0,
+      "tests": 0,
+      "migrations": 0,
+      "evidence": 5
+    }
+  },
+  "migration_head": "0009_run_input_seal_fix",
+  "postgresql": "18.6",
+  "unauthorized_scope": {
+    "production_code": false,
+    "tests": false,
+    "migrations": false,
+    "pr10": false,
+    "phase2_plus": false
+  }
+}
