@@ -18,3 +18,8 @@ The following prior overclaims are explicitly withdrawn or narrowed:
 Fresh R3 evidence is consistent with the actual diff, test results, current
 Git state, PostgreSQL 18.6, and Alembic `0009_run_input_seal_fix (head)`. No
 new migration, PR-10 behavior, or later-phase implementation exists.
+
+The R3 package was authoritative through `0feba30`. Its final narrow review
+identified two P2 gaps: omission of `0feba30` from its own final chain and
+insufficient concurrent-finish winner metadata assertions. PR-09R4 records
+and closes both gaps; its package is authoritative for the final remediation.

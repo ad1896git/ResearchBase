@@ -1,0 +1,40 @@
+{
+  "harness": "external engineering Harness",
+  "phase": "Phase 1",
+  "pr": "PR-09R4",
+  "baseline": "0feba30",
+  "chain": {
+    "accepted_pr09r2_baseline": "9c47381",
+    "pr09r3_implementation_test": ["197bd2d"],
+    "pr09r3_evidence": ["9e1bb85", "0feba30"],
+    "pr09r4_implementation_test": ["8a57413"],
+    "pr09r4_evidence": ["pending evidence commit"]
+  },
+  "commit_classification": {
+    "9c47381": "accepted PR-09R3 evidence baseline",
+    "197bd2d": "PR-09R3 implementation/test",
+    "9e1bb85": "PR-09R3 evidence-only",
+    "0feba30": "PR-09R3 evidence-only; independently proven by 9e1bb85..0feba30",
+    "8a57413": "PR-09R4 test-only"
+  },
+  "migration_head": "0009_run_input_seal_fix",
+  "postgresql": "18.6",
+  "verification": {
+    "pytest": "315 passed",
+    "ruff_check": "pass",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "owned_scoped_format": "pass",
+    "repository_format": "8 inherited baseline failures"
+  },
+  "unauthorized_scope": {
+    "pr10_measurement": false,
+    "statistical_result": false,
+    "claim": false,
+    "run_version": false,
+    "generic_version_orm": false,
+    "new_migration": false,
+    "phase2_plus": false
+  },
+  "final_head": "8a57413",
+  "final_head_definition": "final PR-09R4 implementation/test HEAD before the evidence-only package commit; the final Git HEAD and evidence commit are reported in the final response because a commit cannot self-reference its own hash"
+}

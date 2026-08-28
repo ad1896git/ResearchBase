@@ -19,3 +19,15 @@ marked disposable.
 - disposable upgrade `0008_run_core`→`0009_run_input_seal_fix`: PASS; current is head.
 - disposable database was dropped after the roundtrip.
 - No SQLite was used for persistence, constraints, concurrency, or migration proof.
+
+PR-09R4 fresh reruns:
+
+- `DATABASE_URL=... uv run pytest`: PASS — `315 passed in 3.32s`.
+- targeted PR-09 application/schema/R2 proof/import-boundary set: PASS.
+- concurrent-finish winner metadata test: PASS.
+- `uv run ruff check .`: PASS.
+- `uv run pyright`: PASS.
+- owned format check: PASS.
+- repository format: same 8 inherited baseline failures, reported and not modified.
+- PostgreSQL health/version: PASS — accepting connections, version `18.6`.
+- persistent `uv run alembic current`: PASS — `0009_run_input_seal_fix (head)`.

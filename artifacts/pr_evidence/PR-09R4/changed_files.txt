@@ -1,0 +1,72 @@
+# Git-derived PR-09R4 inventory
+
+## `9c47381..9e1bb85` — 31 files
+
+```text
+M	artifacts/pr_evidence/PR-09R2/attach_start_serialization_report.md
+M	artifacts/pr_evidence/PR-09R2/commands_and_results.md
+M	artifacts/pr_evidence/PR-09R2/evidence_reconciliation.md
+M	artifacts/pr_evidence/PR-09R2/exact_provenance_regression.md
+M	artifacts/pr_evidence/PR-09R2/finding_disposition.md
+M	artifacts/pr_evidence/PR-09R2/harness_fingerprint.json
+M	artifacts/pr_evidence/PR-09R2/retry_cardinality_report.md
+M	artifacts/pr_evidence/PR-09R2/test_report.md
+M	artifacts/pr_evidence/PR-09R2/unresolved_findings.md
+A	artifacts/pr_evidence/PR-09R3/architecture_decision_AD-PR09R3-001.md
+A	artifacts/pr_evidence/PR-09R3/architecture_review.md
+A	artifacts/pr_evidence/PR-09R3/atomicity_regression_report.md
+A	artifacts/pr_evidence/PR-09R3/changed_files.txt
+A	artifacts/pr_evidence/PR-09R3/closure_finalized_state_report.md
+A	artifacts/pr_evidence/PR-09R3/code_review.md
+A	artifacts/pr_evidence/PR-09R3/commands_and_results.md
+A	artifacts/pr_evidence/PR-09R3/concurrent_start_finish_report.md
+A	artifacts/pr_evidence/PR-09R3/evidence_reconciliation.md
+A	artifacts/pr_evidence/PR-09R3/exact_provenance_closure_report.md
+A	artifacts/pr_evidence/PR-09R3/finding_disposition.md
+A	artifacts/pr_evidence/PR-09R3/formatting_ownership_report.md
+A	artifacts/pr_evidence/PR-09R3/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R3/lock_boundary_race_report.md
+A	artifacts/pr_evidence/PR-09R3/remediation_summary.md
+A	artifacts/pr_evidence/PR-09R3/retry_identity_report.md
+A	artifacts/pr_evidence/PR-09R3/sealed_input_regression.md
+A	artifacts/pr_evidence/PR-09R3/stale_concurrency_regression.md
+A	artifacts/pr_evidence/PR-09R3/test_report.md
+A	artifacts/pr_evidence/PR-09R3/unresolved_findings.md
+M	src/researchbase/application/closure.py
+M	tests/integration/test_pr09r2_proof.py
+```
+
+## `9e1bb85..0feba30` — 2 files
+
+```text
+M	artifacts/pr_evidence/PR-09R3/changed_files.txt
+M	artifacts/pr_evidence/PR-09R3/harness_fingerprint.json
+```
+
+Classification: evidence-only.
+
+## `0feba30..8a57413` — 1 file
+
+```text
+M	tests/integration/test_pr09_application.py
+```
+
+Classification: tests-only.
+
+## `9c47381..0feba30` — 31 files
+
+Classification: production 1; tests 1; migration 0; evidence 29. The exact
+file list is the 31-entry list under `9c47381..9e1bb85` above.
+
+## `0feba30..PR09R4_FINAL_HEAD`
+
+At evidence generation, `PR09R4_FINAL_HEAD` is `8a57413` for the implementation
+state: one tests-only file. After the evidence-only commit, the final Git HEAD
+is reported in the final response; that commit adds/updates evidence only.
+
+Commands used for every range:
+
+```text
+git diff --name-status <base>..<head>
+git diff --name-only <base>..<head> | wc -l
+```

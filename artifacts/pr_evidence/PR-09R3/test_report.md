@@ -14,3 +14,9 @@ in the targeted and full suites.
 
 Ruff check and Pyright passed. Owned-file formatting passed. Repository-wide
 format has the eight inherited failures documented separately.
+
+The final review found a remaining concurrent-finish proof gap: the historical
+test used identical terminal metadata. PR-09R4 reran the full suite at
+`315 passed` after adding distinguishable writer metadata and winner-field
+assertions for status, finished_at, exit_code, failure_reason, and
+row_version.

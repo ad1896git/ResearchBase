@@ -21,4 +21,10 @@ reused or reassigned.
 - `PR09R3-REV-005`: CLOSED. The R3 fingerprint records baseline `9c47381`, implementation/test commit `197bd2d`, and the evidence commits; the non-self-referential final-HEAD convention is explained there.
 - `PR09R3-REV-006`: ACCEPTED INHERITED P2. Eight repository-wide formatting failures are outside the PR-09R3-owned files; all owned Python files pass scoped format checking. No mass-formatting was performed.
 
-Open P0: none. Open P1: none.
+At the R3 endpoint, the final narrow review additionally opened:
+
+- `PR09R3-FINAL-001`: P2, fingerprint/inventory omitted evidence-only commit `0feba30`; resolved by PR-09R4.
+- `PR09R3-FINAL-002`: P2, concurrent finish did not prove winner metadata ownership; resolved by PR-09R4.
+
+Open P0: none. Open P1: none. The authoritative final dispositions are in
+`artifacts/pr_evidence/PR-09R4/finding_disposition.md`.
