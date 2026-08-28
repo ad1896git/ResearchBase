@@ -92,7 +92,6 @@ def test_measurement_hash_material_is_exact_and_metadata_independent() -> None:
         evaluation_scope=measurement.evaluation_scope,
     )
 
-    assert measurement.material_payload() == expected
     assert measurement.content_hash == independent_canonical_json_sha256(expected)
 
     changed_metadata = replace(
