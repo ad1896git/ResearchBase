@@ -16,3 +16,8 @@ R5 has a distinct evidence payload commit after the preserved R4 baseline.
 The R5 fingerprint distinguishes `review_baseline_head`,
 `evidence_payload_commit`, and `current_head_at_review`; it does not falsely
 claim that the R5 commit is the historical PR-09R4 final HEAD.
+
+The R5 evidence payload commit is
+`9c35e6a26bf0cdecf69081aa609f3a1aa54778ce`. Its post-baseline range is
+evidence-only. The final response reports the final Git HEAD after any
+fingerprint-only metadata follow-up.

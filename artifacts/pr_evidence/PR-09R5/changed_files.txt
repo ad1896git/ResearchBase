@@ -59,8 +59,34 @@ The exact list is set-equal to the direct Git result and is the union of the
 `0feba30..8a57413`, 20-entry `8a57413..044c72a`, and 5-entry
 `044c72a..602f224` Git blocks recorded in the PR-09R4 package.
 
-## R5 payload range
+## `602f224..9c35e6a` — 15 files
 
-`602f224..R5_EVIDENCE_HEAD` is evidence-only by hard scope. Its exact hash,
-name/status list, stat, and current HEAD are recorded after the R5 evidence
-payload commit in this directory's fingerprint and command report.
+Commands:
+
+```text
+git diff --name-only 602f224..9c35e6a
+git diff --name-status 602f224..9c35e6a
+git diff --stat 602f224..9c35e6a
+```
+
+Classification: production 0; tests 0; migration 0; evidence 15.
+
+```text
+M	artifacts/pr_evidence/PR-09R4/changed_files.txt
+M	artifacts/pr_evidence/PR-09R4/changed_files_reconciliation.md
+M	artifacts/pr_evidence/PR-09R4/final_head_fingerprint_report.md
+M	artifacts/pr_evidence/PR-09R4/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R5/changed_files.txt
+A	artifacts/pr_evidence/PR-09R5/code_review.md
+A	artifacts/pr_evidence/PR-09R5/commands_and_results.md
+A	artifacts/pr_evidence/PR-09R5/evidence_only_classification.md
+A	artifacts/pr_evidence/PR-09R5/evidence_reconciliation.md
+A	artifacts/pr_evidence/PR-09R5/final_head_verification.md
+A	artifacts/pr_evidence/PR-09R5/final_range_inventory.md
+A	artifacts/pr_evidence/PR-09R5/finding_disposition.md
+A	artifacts/pr_evidence/PR-09R5/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-09R5/remediation_summary.md
+A	artifacts/pr_evidence/PR-09R5/unresolved_findings.md
+```
+
+The 15 names/count are set-equal to the direct Git commands.

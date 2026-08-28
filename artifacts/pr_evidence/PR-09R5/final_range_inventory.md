@@ -16,3 +16,6 @@ The required ranges were run with `git diff --name-only`,
 The exact name/status blocks and command outputs are in
 `changed_files.txt` and `commands_and_results.md`. The cumulative counts are
 set-equal to the corresponding direct Git output.
+
+The R5 payload range `602f224..9c35e6a` contains 15 evidence/reporting files
+and zero production, test, or migration files.

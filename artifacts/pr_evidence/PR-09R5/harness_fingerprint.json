@@ -11,9 +11,9 @@
     "pr09r4_evidence": ["044c72aacf46fb24c288ab187bf5b16a0067089b"],
     "pr09r4_final_evidence_only": "602f22478c6919f2611ff436b4199a81fa6b8297"
   },
-  "evidence_payload_commit": "pending R5 evidence commit",
-  "current_head_at_review": "602f22478c6919f2611ff436b4199a81fa6b8297",
-  "final_head_definition": "R4 historical final HEAD is 602f224; R5 evidence payload and its post-payload metadata are tracked separately to avoid false self-reference",
+  "evidence_payload_commit": "9c35e6a26bf0cdecf69081aa609f3a1aa54778ce",
+  "current_head_at_review": "9c35e6a26bf0cdecf69081aa609f3a1aa54778ce",
+  "final_head_definition": "R4 historical final HEAD is 602f224; R5 evidence payload is 9c35e6a; any later fingerprint-only metadata commit is tracked separately to avoid false self-reference",
   "classification": {
     "044c72a..602f224": {
       "production": 0,
