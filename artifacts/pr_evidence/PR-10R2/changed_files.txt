@@ -1,0 +1,18 @@
+# PR-10R2 changed-files inventory
+
+Allowed scope from the PR-10R2 pack:
+
+```text
+artifacts/pr_evidence/PR-10R/
+artifacts/pr_evidence/PR-10R2/
+```
+
+The final inventory is set-equal to the Git-resolved PR-10R2 range from the
+preserved baseline `bffb95c` to the final PR-10R2 evidence HEAD. It includes
+only the corrected PR-10R evidence files and the required PR-10R2 evidence
+package files. The exact final Git output is recorded in
+`commands_and_results.md`.
+
+No production source, test, migration, architecture, dependency, or PR-11
+path is part of this remediation. Pre-existing untracked execution packs and
+`.DS_Store` files were not staged.

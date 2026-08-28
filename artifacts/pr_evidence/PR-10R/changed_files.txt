@@ -10,3 +10,20 @@ Git set-equality check:
 matches the two paths above exactly. There is no PR-10R production source or
 migration change. The repository also contains unrelated pre-existing untracked
 execution packs and `.DS_Store` files; they are not part of this remediation.
+
+# PR-10R evidence-finalization range: 7db0696..bffb95c
+
+The final PR-10R evidence metadata range is evidence-only. The exact Git
+set is:
+
+artifacts/pr_evidence/PR-10R/code_review.md
+artifacts/pr_evidence/PR-10R/commands_and_results.md
+artifacts/pr_evidence/PR-10R/fingerprint_reconciliation.md
+artifacts/pr_evidence/PR-10R/harness_fingerprint.json
+
+This list matches:
+
+    git diff --name-only 7db0696..bffb95c
+
+No `src/`, `tests/`, `migrations/`, architecture, or PR-11 path is present in
+that range.

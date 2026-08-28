@@ -11,11 +11,16 @@ The final fingerprint records three distinct meanings:
 - `reviewed_implementation_head`: the PR-10R code/test commit reviewed for behavior;
 - `evidence_payload_commit`: the commit that first contains the complete PR-10R
   evidence payload;
-- `current_head_at_review`: the HEAD observed when the evidence payload was reviewed.
-  In this package, the evidence payload commit is also that reviewed current head
-  (`7db0696e0be713b38d5627f1a1072f7d95d88f0c`); the final evidence-only metadata
-  commit that follows is reported as the ending repository HEAD, not falsely folded
-  into the implementation head.
+- `current_head_at_review`: the final PR-10R HEAD observed by the independent
+  review, after the PR-10R evidence metadata was finalized.
+
+The Git-resolved PR-10R evidence payload commit is
+`7db0696f4e687fe07c2f603ab37a24f620fd1281`. The PR-10R current HEAD at review is
+`bffb95c3dc239219ec4c288eaa3c9991f7733f6c`. These are intentionally distinct:
+the payload commit is an earlier evidence commit, while `bffb95c` is the final
+PR-10R reviewed HEAD. The prior fingerprint incorrectly used an invalid SHA for
+`7db0696` and incorrectly set `current_head_at_review` to the payload commit;
+PR-10R2 corrects both fields.
 
 The remediation range is derived directly from
 `git diff --name-only 41a8863..9c5a87a` and contains exactly:
@@ -25,5 +30,9 @@ The remediation range is derived directly from
 
 The PR-10R `changed_files.txt` records this exact set. Evidence documents are
 separately tracked payload files and are not misrepresented as implementation files.
+
+The separate evidence-only range `7db0696..bffb95c` contains only the four
+PR-10R evidence paths listed in `changed_files.txt`; it contains no source,
+test, migration, or architecture file.
 
 Result: PASS. `PR10-REV-004` is closed.
