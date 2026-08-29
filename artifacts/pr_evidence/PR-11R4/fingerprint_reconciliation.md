@@ -15,10 +15,11 @@ no placeholders or invented full SHAs are used.
 
 The PR-11R3 reviewed HEAD is not relabeled as a PR-11R4 commit. Any PR-11R4
 payload/finalization commits are recorded separately. The PR-11R4 evidence
-payload commit is `be72678e8acd4b096bbd3df2b7b45b4707845d1b`.
+payload commit is `be726787c8b6e6a3f475bb00759f35061fa299fd`; the subsequent
+metadata finalization commit is `713102bfc887fcfdd005aafc2fed2c5da3a9d382`.
 Because a commit cannot contain its own SHA without a self-reference, the
-final current HEAD is reported in the required PR-11R4 status output and the
-final metadata update records the payload commit separately.
+final current HEAD after the present SHA correction is reported in the
+required PR-11R4 status output and is not copied into its own content.
 
 ## Resolution checks
 

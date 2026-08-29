@@ -12,7 +12,8 @@
   "target_range": "e62d19f..716e316",
   "target_range_file_count": 15,
   "target_range_set_equal": true,
-  "pr11r4_payload_commit": "be72678e8acd4b096bbd3df2b7b45b4707845d1b",
+  "pr11r4_payload_commit": "be726787c8b6e6a3f475bb00759f35061fa299fd",
+  "pr11r4_prior_finalization_commit": "713102bfc887fcfdd005aafc2fed2c5da3a9d382",
   "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
   "verification": {
     "production_changes": false,
