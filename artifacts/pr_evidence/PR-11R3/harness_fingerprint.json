@@ -12,11 +12,13 @@
   "pr11r2_finalization_evidence_commit": "e62d19f97c965003492648df84a220a25b3ebffa",
   "pr11r3_test_commits": [
     "ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa",
-    "813aaebd8749e6ca1553802f0930dca04a0f21d0"
+    "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+    "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
+    "716e316d57d4dc40b4c13586f3dfafebdc17caba"
   ],
+  "pr11r3_reviewed_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
   "pr11r3_evidence_payload_commit": "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
-  "pr11r3_finalization_parent": "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
-  "post_pr11r3_current_head_at_payload_verification": "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
+  "pr11r3_finalization_commit": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
   "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
   "verification": {
     "postgresql": "18.6",
@@ -41,5 +43,5 @@
     "phase2_plus": false,
     "sqlite": false
   },
-  "fingerprint_note": "Historical reviewed heads and all known prior commits are Git-resolved. The evidence payload and final metadata commit are added after this test head; their resolved identities are recorded in the follow-up metadata finalization without self-referential SHA claims. Final current HEAD is reported separately."
+  "fingerprint_note": "Historical reviewed heads and all PR-11R3 commits are Git-resolved. PR-11R3 reviewed HEAD is the final metadata commit 716e316d57d4dc40b4c13586f3dfafebdc17caba; any later PR-11R4 evidence commits must be recorded separately and must not replace this historical reviewed HEAD."
 }

@@ -1,0 +1,25 @@
+{
+  "pr": "PR-11R4",
+  "scope": "evidence-only final PR-11R3 reconciliation",
+  "reviewed_pr11r2_head": "e62d19f97c965003492648df84a220a25b3ebffa",
+  "pr11r3_commits": [
+    "ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa",
+    "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+    "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
+    "716e316d57d4dc40b4c13586f3dfafebdc17caba"
+  ],
+  "pr11r3_reviewed_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+  "target_range": "e62d19f..716e316",
+  "target_range_file_count": 15,
+  "target_range_set_equal": true,
+  "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+  "verification": {
+    "production_changes": false,
+    "test_changes": false,
+    "migration_changes": false,
+    "pr12_implementation": false,
+    "placeholders": false,
+    "sqlite_used": false
+  },
+  "fingerprint_note": "Historical PR-11R3 reviewed HEAD is preserved exactly. PR-11R4 payload and finalization SHAs are added only after their commits are resolved from Git; the final current HEAD is reported separately to avoid self-reference."
+}

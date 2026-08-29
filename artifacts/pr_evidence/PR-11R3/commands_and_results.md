@@ -8,13 +8,15 @@ database, URL, or test path was used.
 
 ```text
 git rev-parse HEAD before changes: e62d19f97c965003492648df84a220a25b3ebffa
-git diff --name-only e62d19f..813aaeb: tests/integration/test_pr11r2_migration.py
+git diff --name-only e62d19f..716e316: 15 paths
+git diff --name-status e62d19f..716e316: 2 modified, 12 added, 1 modified test path
 ```
 
-The cumulative inventory was regenerated with Git after the evidence payload
-commit and matched `changed_files.txt` exactly. The only production-looking
-paths in the cumulative history are pre-existing PR-11R2 paths; PR-11R3 added
-no `src/` or `migrations/` path.
+The PR-11R3 target-range inventory was regenerated with Git from
+`e62d19f..716e316` and is set-equal to `changed_files.txt`. It includes the two
+PR-11R2 evidence paths that were changed in that target range and excludes
+older cumulative/pre-existing files. PR-11R3 added no `src/` or `migrations/`
+path.
 
 ## Fresh verification commands
 
@@ -51,4 +53,3 @@ persistent roundtrip: downgrade to 0012 passed; upgrade to 0013 passed
 
 The repository-wide formatting debt is inherited and remains outside the
 PR-11R3 change set. The scoped owned-file format check passed.
-

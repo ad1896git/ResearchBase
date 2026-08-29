@@ -14,24 +14,22 @@ All historical identifiers were resolved with `git rev-parse`:
   - `ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa`
   - `813aaebd8749e6ca1553802f0930dca04a0f21d0`
 - PR-11R3 evidence payload commit: `3a539a7b623f6599e50f9080343f2b5cf4a74e63`
-- PR-11R3 final metadata commit: resolved as the post-payload current HEAD in
-  the required status report.
+- PR-11R3 final metadata/reviewed HEAD: `716e316d57d4dc40b4c13586f3dfafebdc17caba`
 
-The final metadata commit cannot contain its own SHA without a self-referential
-hash. Its parent/payload and the post-finalization current HEAD are therefore
-reported separately and are resolved directly from Git.
+All four PR-11R3 commits are resolved directly from Git. If PR-11R4 adds
+evidence commits, those commits are separate from the historical PR-11R3
+reviewed HEAD above.
 
 ## Inventory commands
 
 The following ranges were checked:
 
 ```text
-git diff --name-only 6675a744..e62d19f
-git diff --name-only e62d19f..813aaeb
-git diff --name-only 813aaeb..PR11R3_FINAL_HEAD
-git diff --name-only 6675a744..PR11R3_FINAL_HEAD
+git diff --name-only e62d19f..716e316
+git diff --name-status e62d19f..716e316
+git diff --stat e62d19f..716e316
 ```
 
-The cumulative changed-file set is recorded in `changed_files.txt` and is
-set-equal to the final Git diff. The PR-11R3 change set contains only tests and
-evidence; it contains no `src/` or `migrations/` path.
+The PR-11R3 target-range set in `changed_files.txt` is set-equal to
+`git diff --name-only e62d19f..716e316`; it contains 15 paths. Cumulative
+historical ranges from earlier remediation work are not mixed into that file.
