@@ -103,14 +103,121 @@ def _counts(engine: Engine, result_id: UUID) -> tuple[int, int]:
     return int(parent_count), int(input_count)
 
 
+def _result_snapshot(engine: Engine, result_id: UUID) -> tuple[object, ...]:
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(
+                "SELECT id, project_id, analysis_type, result_payload, "
+                "analysis_definition, content_hash, created_by, created_at "
+                "FROM statistical_results WHERE id=:id"
+            ),
+            {"id": result_id},
+        ).one()
+    return tuple(row)
+
+
+def _input_snapshot(engine: Engine, result_id: UUID) -> tuple[tuple[object, ...], ...]:
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT statistical_result_id, measurement_id, input_role, ordinal "
+                "FROM statistical_result_inputs "
+                "WHERE statistical_result_id=:id "
+                "ORDER BY ordinal, input_role, measurement_id"
+            ),
+            {"id": result_id},
+        ).all()
+    return tuple(tuple(row) for row in rows)
+
+
+def _catalog_snapshot(engine: Engine) -> dict[str, tuple[tuple[object, ...], ...]]:
+    with engine.connect() as connection:
+        functions = connection.execute(
+            text(
+                "SELECT n.nspname, p.proname, "
+                "pg_get_function_identity_arguments(p.oid), pg_get_functiondef(p.oid) "
+                "FROM pg_proc AS p "
+                "JOIN pg_namespace AS n ON n.oid=p.pronamespace "
+                "WHERE n.nspname='public' "
+                "ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)"
+            )
+        ).all()
+        triggers = connection.execute(
+            text(
+                "SELECT n.nspname, c.relname, t.tgname, pg_get_triggerdef(t.oid) "
+                "FROM pg_trigger AS t "
+                "JOIN pg_class AS c ON c.oid=t.tgrelid "
+                "JOIN pg_namespace AS n ON n.oid=c.relnamespace "
+                "WHERE n.nspname='public' AND NOT t.tgisinternal "
+                "ORDER BY n.nspname, c.relname, t.tgname"
+            )
+        ).all()
+        constraints = connection.execute(
+            text(
+                "SELECT n.nspname, c.relname, con.conname, con.contype, "
+                "pg_get_constraintdef(con.oid) "
+                "FROM pg_constraint AS con "
+                "JOIN pg_class AS c ON c.oid=con.conrelid "
+                "JOIN pg_namespace AS n ON n.oid=c.relnamespace "
+                "WHERE n.nspname='public' "
+                "ORDER BY n.nspname, c.relname, con.conname"
+            )
+        ).all()
+        relations = connection.execute(
+            text(
+                "SELECT n.nspname, c.relname, c.relkind "
+                "FROM pg_class AS c "
+                "JOIN pg_namespace AS n ON n.oid=c.relnamespace "
+                "WHERE n.nspname='public' "
+                "ORDER BY n.nspname, c.relname, c.relkind"
+            )
+        ).all()
+    return {
+        "functions": tuple(tuple(row) for row in functions),
+        "triggers": tuple(tuple(row) for row in triggers),
+        "constraints": tuple(tuple(row) for row in constraints),
+        "relations": tuple(tuple(row) for row in relations),
+    }
+
+
 def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() -> None:
     engine = _reset_to_previous_head()
     try:
+        from researchbase.application.commands import ApplicationService
+        from researchbase.foundation.time import FixedClock
+        from researchbase.persistence.database import create_session_factory
+        from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+
+        sessions = create_session_factory(engine)
+        service = ApplicationService(
+            lambda: SqlAlchemyUnitOfWork(sessions),
+            FixedClock(datetime(2026, 8, 29, tzinfo=UTC)),
+        )
+        actor_id, project_id, actor_context = seed_project(service, "pr11r3-clean")
+        measurement_id, _ = seed_measurement(
+            service,
+            project_id,
+            actor_context,
+            "pr11r3-clean",
+        )
+        valid_result = record_result(
+            service,
+            project_id,
+            actor_context,
+            (StatisticalResultInputCommand(measurement_id),),
+        )
+        before_result = _result_snapshot(engine, valid_result.id)
+        before_inputs = _input_snapshot(engine, valid_result.id)
+        assert actor_id == valid_result.created_by
+        assert len(before_inputs) == 1
+
         upgrade = _alembic("upgrade", "head")
         assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
         current = _alembic("current")
         assert current.returncode == 0, current.stdout + current.stderr
         assert FINAL_HEAD in current.stdout
+        assert _result_snapshot(engine, valid_result.id) == before_result
+        assert _input_snapshot(engine, valid_result.id) == before_inputs
 
         downgrade = _alembic("downgrade", PREVIOUS_HEAD)
         assert downgrade.returncode == 0, downgrade.stdout + downgrade.stderr
@@ -141,6 +248,8 @@ def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() ->
         _insert_parent_only(engine, legacy_result_id, project_id, actor_id)
         upgrade_previous = _alembic("upgrade", PREVIOUS_HEAD)
         assert upgrade_previous.returncode == 0, upgrade_previous.stdout + upgrade_previous.stderr
+        before_result = _result_snapshot(engine, legacy_result_id)
+        before_catalog = _catalog_snapshot(engine)
 
         failed = _alembic("upgrade", "head")
         failure_text = failed.stdout + failed.stderr
@@ -151,6 +260,13 @@ def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() ->
         assert PREVIOUS_HEAD in current.stdout
         assert FINAL_HEAD not in current.stdout
         assert _counts(engine, legacy_result_id) == (1, 0)
+        after_catalog = _catalog_snapshot(engine)
+        assert after_catalog["functions"] == before_catalog["functions"]
+        assert after_catalog["triggers"] == before_catalog["triggers"]
+        assert after_catalog["constraints"] == before_catalog["constraints"]
+        assert after_catalog["relations"] == before_catalog["relations"]
+        assert _result_snapshot(engine, legacy_result_id) == before_result
+        assert _input_snapshot(engine, legacy_result_id) == ()
 
         measurement_id, _ = seed_measurement(
             service,
