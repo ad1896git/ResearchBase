@@ -17,6 +17,7 @@ git rev-parse 10a4e76
 The PR-11R5 fingerprint now records that full SHA as both
 `reviewed_pr11r5_head` and the end of its exact target range. The historical
 PR-11R3 and PR-11R4 reviewed heads are unchanged. PR-11R6 evidence/metadata
-commits are separate from the reviewed PR-11R5 HEAD; the final current HEAD is
-reported separately in the required PR-11R6 status output to avoid
+commits are separate from the reviewed PR-11R5 HEAD. The R6 evidence payload
+commit is `a130431bc09c87b7d16f141f9736db3dcec35388`; any later R6 finalization
+commit is reported separately in the required PR-11R6 status output to avoid
 self-reference.

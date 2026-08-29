@@ -18,7 +18,8 @@ grep -R "unresolved final-head token" artifacts/pr_evidence/PR-11R5 artifacts/pr
 
 The required baseline was `10a4e761eecda6e2a2b44b06d60400b43265e458`. Git
 resolved all required historical identifiers, and the placeholder search is
-empty after the fingerprint correction.
+empty after the fingerprint correction. The R6 evidence payload commit was
+resolved as `a130431bc09c87b7d16f141f9736db3dcec35388`.
 
 ## Scope and database checks
 
