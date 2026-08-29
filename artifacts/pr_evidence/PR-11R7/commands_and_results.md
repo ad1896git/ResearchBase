@@ -1,0 +1,56 @@
+# Commands and results
+
+All commands ran from `/Users/onephone/Documents/Codex/ResearchBase`.
+
+## Exact placeholder-token verification
+
+```bash
+needle="$(printf '%s_%s' 'PR11R5' 'FINAL_HEAD')"
+set +e
+grep -RFn -- "$needle" artifacts/pr_evidence/PR-11R5 artifacts/pr_evidence/PR-11R6 artifacts/pr_evidence/PR-11R7
+grep_status=$?
+set -e
+test "$grep_status" -eq 1
+printf '%s\n' 'no matches'
+```
+
+Result: `no matches`. The command constructs the exact token at runtime and
+uses fixed-string matching. It does not claim that a broader search for
+descriptive prose is empty; such prose may occur in historical evidence.
+
+## Git and scope verification
+
+```bash
+git rev-parse HEAD
+git status --short
+git diff --check
+git diff -- src tests migrations
+git diff --name-only adc78c84516c5779b46db103d35221afc810add3..HEAD
+diff -u <(git diff --name-only adc78c84516c5779b46db103d35221afc810add3..HEAD | sort) <(sort artifacts/pr_evidence/PR-11R7/changed_files.txt)
+```
+
+Results:
+
+- current HEAD and the two PR-11R7 evidence commits are resolved in the final
+  fingerprint;
+- the working tree has only pre-existing unrelated untracked files;
+- `git diff --check`: PASS;
+- `git diff -- src tests migrations`: empty;
+- the target-range file list is set-equal to `changed_files.txt`;
+- every target-range path is under the two allowed evidence directories.
+
+## Database state
+
+```bash
+uv run alembic current
+```
+
+Result: `0013_statistical_result_legacy_input_precheck (head)`.
+
+## PR-12 scope check
+
+```bash
+git diff --name-only adc78c84516c5779b46db103d35221afc810add3..HEAD | grep -E '(^|/)(src|tests|migrations)/|PR-12' || true
+```
+
+Result: no output. No PR-12 implementation was introduced.

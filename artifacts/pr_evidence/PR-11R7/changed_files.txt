@@ -1,0 +1,8 @@
+artifacts/pr_evidence/PR-11R6/commands_and_results.md
+artifacts/pr_evidence/PR-11R7/changed_files.txt
+artifacts/pr_evidence/PR-11R7/commands_and_results.md
+artifacts/pr_evidence/PR-11R7/finding_disposition.md
+artifacts/pr_evidence/PR-11R7/harness_fingerprint.json
+artifacts/pr_evidence/PR-11R7/remediation_summary.md
+artifacts/pr_evidence/PR-11R7/reproducibility_fix_report.md
+artifacts/pr_evidence/PR-11R7/unresolved_findings.md

@@ -13,13 +13,17 @@ git rev-parse 5f3626d
 git rev-parse 00cf1a5
 git rev-parse 10a4e76
 git rev-parse HEAD
-grep -R "unresolved final-head token" artifacts/pr_evidence/PR-11R5 artifacts/pr_evidence/PR-11R6 || true
+needle="$(printf '%s_%s' 'PR11R5' 'FINAL_HEAD')"
+grep -RFn -- "$needle" artifacts/pr_evidence/PR-11R5 artifacts/pr_evidence/PR-11R6
 ```
 
-The required baseline was `10a4e761eecda6e2a2b44b06d60400b43265e458`. Git
-resolved all required historical identifiers, and the placeholder search is
-empty after the fingerprint correction. The R6 evidence payload commit was
-resolved as `a130431bc09c87b7d16f141f9736db3dcec35388`.
+The required baseline was `10a4e761eecda6e2a2b44b06d60400b43265e458`. The
+command constructs the exact forbidden placeholder at runtime and searches
+the R5/R6 evidence recursively with fixed-string matching. It returned no
+matches after the fingerprint correction. A broader search for descriptive
+prose such as “unresolved final-head token” is not the acceptance check and
+may match historical explanation in evidence. The R6 evidence payload commit
+was resolved as `a130431bc09c87b7d16f141f9736db3dcec35388`.
 
 ## Scope and database checks
 
