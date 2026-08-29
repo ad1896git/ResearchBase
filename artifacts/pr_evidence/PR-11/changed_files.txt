@@ -1,9 +1,9 @@
 # PR-11 changed-files inventory
 
-The final baseline-to-HEAD Git set is recorded after the evidence commits. It
-contains exactly these PR-11 implementation, test, migration, and evidence
-paths; unrelated untracked execution packs and `.DS_Store` files were not
-staged:
+# The final baseline-to-HEAD Git set is recorded after the evidence commits.
+# It contains exactly these PR-11 implementation, test, migration, and evidence
+# paths; unrelated untracked execution packs and `.DS_Store` files were not
+# staged.
 
 artifacts/pr_evidence/PR-11/architecture_decisions.md
 artifacts/pr_evidence/PR-11/architecture_review.md

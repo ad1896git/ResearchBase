@@ -24,7 +24,7 @@ Implementation commit:
 The first evidence payload commit was:
 
 ```text
-f4ccdf8c5f78f48cb6c5f295224bfe46bf68b6b0 docs: add PR-11 evidence package
+f4ccdf843adfd56b79c5229b4304bd77a238f104 docs: add PR-11 evidence package
 ```
 
 The final Git-verification metadata follow-up remains within this same
