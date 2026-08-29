@@ -3,6 +3,7 @@
   "scope": "evidence-whitespace-only",
   "reviewed_pr11r3_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
   "reviewed_pr11r4_head": "5f3626d97ba129ab8487d5ce134fa87bba3312bb",
+  "pr11r5_cleanup_commit": "00cf1a5b37c9f6e7ae339406ae2fcb68c7fb24c6",
   "target_range": "5f3626d..PR11R5_FINAL_HEAD",
   "target_range_file_count": 20,
   "target_range_evidence_only": true,

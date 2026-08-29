@@ -15,7 +15,8 @@ The initial working-tree `git diff --check` returned exit 0 with empty output.
 The committed-content audit then identified the eight exact EOF defects listed
 in `whitespace_before_after.md`. After cleanup, both whitespace commands
 returned exit 0 with empty output. The source/test/migration diff remained
-empty. Alembic remained at
+empty. The cleanup commit was resolved as
+`00cf1a5b37c9f6e7ae339406ae2fcb68c7fb24c6`. Alembic remained at
 `0013_statistical_result_legacy_input_precheck (head)`.
 
 ## Inventory and fingerprint checks
@@ -29,4 +30,7 @@ while IFS= read -r sha; do git cat-file -e "${sha}^{commit}"; done < <(rg -o --n
 
 The target range contains 20 evidence paths, the inventory is set-equal to
 Git, and all recorded historical/evidence SHAs resolve. Historical reviewed
-heads remain distinct from PR-11R5 cleanup/finalization commits.
+heads remain distinct from PR-11R5 cleanup/finalization commits. The current
+target-range path set after the cleanup commit is the same 20-path set listed
+in `changed_files.txt`; any finalization commit changes only those existing
+evidence paths.
