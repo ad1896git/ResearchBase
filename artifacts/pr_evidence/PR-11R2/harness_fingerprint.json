@@ -1,0 +1,48 @@
+{
+  "pr": "PR-11R2",
+  "scope": "legacy StatisticalResult input precheck and PR-11R evidence fingerprint closure",
+  "accepted_pr10_final_baseline": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
+  "reviewed_pr11_baseline": "9592b66dc3372fae18fdd66555203f0788e407e2",
+  "reviewed_pr11r_baseline": "6675a7444cdb897d1bf810a55b32b6d88015ea15",
+  "pr11r_implementation_test_commits": [
+    "6319fda96e573e27ceca2afe1b45b03fcba5e628",
+    "13304196ba1f8d7044b92e1393a843debf35f974",
+    "4aa969e7781dd6fd36e7d98999153098af264095"
+  ],
+  "pr11r_evidence_commits": [
+    "d95a0c15b63e848aaa7676832b11f400d932a85f",
+    "7e18e9283e4b416ccab250e9829eecf5f3e6f65f",
+    "5beb20c2ef0d75ff62eb7772b95289c84e57bff0",
+    "6675a7444cdb897d1bf810a55b32b6d88015ea15"
+  ],
+  "pr11r2_implementation_test_commits": [
+    "1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5",
+    "2304c081f668a01a7663624a271728431a9ba745"
+  ],
+  "pr11r2_evidence_commits": [
+    "679efd79b42b911567d885b780ab7c64caa8226e"
+  ],
+  "pr11r2_evidence_payload_commit": "679efd79b42b911567d885b780ab7c64caa8226e",
+  "pr11r2_evidence_finalization_parent": "679efd79b42b911567d885b780ab7c64caa8226e",
+  "post_pr11r2_current_head_at_payload_verification": "679efd79b42b911567d885b780ab7c64caa8226e",
+  "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+  "verification": {
+    "postgresql": "18.6",
+    "migration_matrix": "2 passed",
+    "architecture": "PASS",
+    "sqlite_used": false
+  },
+  "forbidden_scope": {
+    "0011_rewritten": false,
+    "claim": false,
+    "claim_version": false,
+    "evidence_relation": false,
+    "support_set_hash": false,
+    "statistical_result_version": false,
+    "generic_version_orm": false,
+    "pr12": false,
+    "phase2_plus": false,
+    "sqlite": false
+  },
+  "fingerprint_note": "This final metadata is committed in a follow-on commit whose parent is the recorded evidence payload; a Git commit cannot contain its own SHA. The post-metadata current HEAD is resolved directly from Git and reported separately."
+}

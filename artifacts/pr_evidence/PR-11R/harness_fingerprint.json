@@ -20,9 +20,13 @@
     "1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5",
     "2304c081f668a01a7663624a271728431a9ba745"
   ],
-  "pr11r2_evidence_commits": [],
-  "post_pr11r2_current_head_at_fingerprint_generation": "2304c081f668a01a7663624a271728431a9ba745",
-  "fingerprint_note": "PR-11R2 evidence commit SHAs are finalized after the payload commit and recorded in the final metadata commit; the final current HEAD is resolved directly from Git in PR-11R2 evidence and completion output.",
+  "pr11r2_evidence_commits": [
+    "679efd79b42b911567d885b780ab7c64caa8226e"
+  ],
+  "pr11r2_evidence_payload_commit": "679efd79b42b911567d885b780ab7c64caa8226e",
+  "pr11r2_evidence_finalization_parent": "679efd79b42b911567d885b780ab7c64caa8226e",
+  "post_pr11r2_current_head_at_fingerprint_generation": "679efd79b42b911567d885b780ab7c64caa8226e",
+  "fingerprint_note": "This metadata is finalized in the follow-on commit whose parent is the recorded payload commit; a Git commit cannot contain its own SHA. The final post-metadata current HEAD is resolved directly from Git and reported separately.",
   "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
   "forbidden_scope": {
     "0011_rewritten": false,
