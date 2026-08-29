@@ -84,3 +84,11 @@ temporary database dropped after verification
 
 The atomicity test used SQLAlchemy execution events and fresh UoW rollback
 verification; it did not use a boolean set after flush as proof.
+
+## Historical evidence boundary
+
+The commands above are the PR-11 evidence captured at reviewed HEAD
+`9592b66dc3372fae18fdd66555203f0788e407e2`; they are not a claim that the
+post-remediation database still ends at `0011`. PR-11R verification runs,
+including the `0011` to `0012` guard roundtrip, are recorded separately in
+`artifacts/pr_evidence/PR-11R/commands_and_results.md`.

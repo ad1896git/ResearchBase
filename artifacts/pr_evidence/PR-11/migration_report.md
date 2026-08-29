@@ -17,3 +17,9 @@ On the named disposable PostgreSQL 18.6 database:
 
 The disposable database was removed after verification. No SQLite migration
 or test was used.
+
+This report is historical evidence for the reviewed PR-11 HEAD
+`9592b66dc3372fae18fdd66555203f0788e407e2` and intentionally records the then
+current `0011` head. PR-11R adds the separate narrow
+`0012_statistical_result_input_guard` migration; its current and roundtrip
+observations are recorded in `artifacts/pr_evidence/PR-11R/migration_report.md`.
