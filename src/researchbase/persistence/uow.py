@@ -22,6 +22,7 @@ from researchbase.application.ports import (
     ProjectRepository,
     ResearchQuestionRepository,
     RunRepository,
+    StatisticalResultRepository,
     WorkspaceRepository,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
@@ -39,6 +40,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyProjectRepository,
     SqlAlchemyResearchQuestionRepository,
     SqlAlchemyRunRepository,
+    SqlAlchemyStatisticalResultRepository,
     SqlAlchemyWorkspaceRepository,
 )
 
@@ -57,6 +59,7 @@ class SqlAlchemyUnitOfWork:
     metric_definitions: MetricDefinitionRepository
     metric_definition_versions: MetricDefinitionVersionRepository
     measurements: MeasurementRepository
+    statistical_results: StatisticalResultRepository
     runs: RunRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
@@ -81,6 +84,7 @@ class SqlAlchemyUnitOfWork:
         self.metric_definitions = SqlAlchemyMetricDefinitionRepository(self._session)
         self.metric_definition_versions = SqlAlchemyMetricDefinitionVersionRepository(self._session)
         self.measurements = SqlAlchemyMeasurementRepository(self._session)
+        self.statistical_results = SqlAlchemyStatisticalResultRepository(self._session)
         self.runs = SqlAlchemyRunRepository(self._session)
         return self
 
@@ -127,6 +131,11 @@ class SqlAlchemyUnitOfWork:
                 raise ResearchBaseError(
                     ErrorCode.VALIDATION_ERROR,
                     "run input is already attached",
+                ) from exc
+            if "statistical_result_inputs_pkey" in str(exc.orig):
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "statistical result input is already attached",
                 ) from exc
             raise
         self._committed = True

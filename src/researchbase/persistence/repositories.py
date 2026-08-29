@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.orm import Session
 
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
@@ -49,6 +49,11 @@ from researchbase.domain.run import (
     RunId,
     RunStatus,
 )
+from researchbase.domain.statistical_result import (
+    StatisticalResult,
+    StatisticalResultId,
+    StatisticalResultInput,
+)
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import CANONICAL_JSON_HASH_SCHEME, ContentHash
 from researchbase.foundation.ids import ActorId
@@ -72,6 +77,8 @@ from researchbase.persistence.models import (
     RunArtifactInputModel,
     RunDatasetInputModel,
     RunModel,
+    StatisticalResultInputModel,
+    StatisticalResultModel,
     WorkspaceModel,
 )
 
@@ -1012,6 +1019,59 @@ class SqlAlchemyMeasurementRepository:
         return [_measurement_from_model(model) for model in models]
 
 
+class SqlAlchemyStatisticalResultRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, result: StatisticalResult) -> None:
+        self._session.add(
+            StatisticalResultModel(
+                id=result.id,
+                project_id=result.project_id,
+                analysis_type=result.analysis_type,
+                result_payload=result.result_payload,
+                analysis_definition=result.analysis_definition,
+                content_hash=result.content_hash,
+                created_by=result.created_by,
+                created_at=result.created_at,
+            )
+        )
+
+    def add_input(self, input: StatisticalResultInput) -> None:
+        self._session.flush()
+        self._session.execute(
+            insert(StatisticalResultInputModel.__table__).values(  # type: ignore[arg-type]
+                statistical_result_id=input.statistical_result_id,
+                measurement_id=input.measurement_id,
+                input_role=input.input_role,
+                ordinal=input.ordinal,
+            )
+        )
+
+    def get(self, result_id: StatisticalResultId) -> StatisticalResult | None:
+        table = StatisticalResultModel.__table__
+        row = self._session.execute(select(table).where(table.c.id == result_id)).mappings().first()
+        return _statistical_result_from_row(row) if row is not None else None
+
+    def list_by_project(self, project_id: ProjectId) -> list[StatisticalResult]:
+        table = StatisticalResultModel.__table__
+        rows = self._session.execute(
+            select(table)
+            .where(table.c.project_id == project_id)
+            .order_by(table.c.created_at, table.c.id)
+        ).mappings()
+        return [_statistical_result_from_row(row) for row in rows]
+
+    def list_inputs(self, result_id: StatisticalResultId) -> list[StatisticalResultInput]:
+        table = StatisticalResultInputModel.__table__
+        rows = self._session.execute(
+            select(table)
+            .where(table.c.statistical_result_id == result_id)
+            .order_by(table.c.ordinal, table.c.input_role, table.c.measurement_id)
+        ).mappings()
+        return [_statistical_result_input_from_row(row) for row in rows]
+
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -1144,6 +1204,28 @@ def _measurement_from_model(model: MeasurementModel) -> Measurement:
         content_hash=ContentHash(model.content_hash),
         created_by=ActorId(model.created_by),
         created_at=model.created_at,
+    )
+
+
+def _statistical_result_from_row(row: Any) -> StatisticalResult:
+    return StatisticalResult(
+        id=StatisticalResultId(row["id"]),
+        project_id=ProjectId(row["project_id"]),
+        analysis_type=row["analysis_type"],
+        result_payload=row["result_payload"],
+        analysis_definition=row["analysis_definition"],
+        content_hash=ContentHash(row["content_hash"]),
+        created_by=ActorId(row["created_by"]),
+        created_at=row["created_at"],
+    )
+
+
+def _statistical_result_input_from_row(row: Any) -> StatisticalResultInput:
+    return StatisticalResultInput(
+        statistical_result_id=StatisticalResultId(row["statistical_result_id"]),
+        measurement_id=MeasurementId(row["measurement_id"]),
+        input_role=row["input_role"],
+        ordinal=row["ordinal"],
     )
 
 

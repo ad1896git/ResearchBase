@@ -573,3 +573,39 @@ class MeasurementModel(Base):
         PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StatisticalResultModel(Base):
+    __tablename__ = "statistical_results"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    analysis_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_payload: Mapped[object] = mapped_column(JSONB(), nullable=False)
+    analysis_definition: Mapped[object] = mapped_column(JSONB(), nullable=False)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StatisticalResultInputModel(Base):
+    __tablename__ = "statistical_result_inputs"
+
+    statistical_result_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("statistical_results.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    measurement_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("measurements.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    input_role: Mapped[str] = mapped_column(
+        String(32), primary_key=True, server_default=text("'input'")
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))

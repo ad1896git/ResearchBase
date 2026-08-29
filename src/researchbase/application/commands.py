@@ -25,6 +25,8 @@ from researchbase.application.dto import (
     RunArtifactInputReadModel,
     RunDatasetInputReadModel,
     RunReadModel,
+    StatisticalResultInputReadModel,
+    StatisticalResultReadModel,
     WorkspaceReadModel,
 )
 from researchbase.application.ports import UnitOfWork
@@ -69,6 +71,11 @@ from researchbase.domain.run import (
     RunDatasetInput,
     RunId,
     RunStatus,
+)
+from researchbase.domain.statistical_result import (
+    StatisticalResult,
+    StatisticalResultId,
+    StatisticalResultInput,
 )
 from researchbase.foundation.artifact_store import ArtifactStore
 from researchbase.foundation.canonical_json import canonical_json_bytes
@@ -326,6 +333,23 @@ class RecordMeasurementCommand:
     structured_value: object | None
     unit: str | None
     evaluation_scope: object | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class StatisticalResultInputCommand:
+    measurement_id: MeasurementId
+    input_role: str = "input"
+    ordinal: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class RecordStatisticalResultCommand:
+    project_id: ProjectId
+    analysis_type: str
+    result_payload: object
+    analysis_definition: object
+    inputs: tuple[StatisticalResultInputCommand, ...]
     context: ExecutionContext
 
 
@@ -1299,6 +1323,111 @@ class ApplicationService:
             uow.commit()
             return _measurement_read_model(measurement)
 
+    def record_statistical_result(
+        self, command: RecordStatisticalResultCommand
+    ) -> StatisticalResultReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        project_id = ProjectId(command.project_id)
+        if not command.inputs:
+            raise _validation_error("at least one measurement input is required", "inputs")
+        result_id = new_typed_id(StatisticalResultId)
+        material = {
+            "analysis_type": command.analysis_type,
+            "result_payload": command.result_payload,
+            "analysis_definition": command.analysis_definition,
+        }
+        try:
+            content_hash = sha256_canonical_json(material)
+        except (TypeError, ValueError) as exc:
+            raise _validation_error(
+                "statistical result material is not valid canonical JSON", "material"
+            ) from exc
+
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            _require_project(uow, project_id)
+            input_edges: list[StatisticalResultInput] = []
+            seen: set[tuple[MeasurementId, str]] = set()
+            for input_command in command.inputs:
+                try:
+                    measurement_id = MeasurementId(input_command.measurement_id)
+                    input_edge = StatisticalResultInput(
+                        statistical_result_id=result_id,
+                        measurement_id=measurement_id,
+                        input_role=input_command.input_role,
+                        ordinal=input_command.ordinal,
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise _validation_error(str(exc), "statistical result input") from exc
+                key = (input_edge.measurement_id, input_edge.input_role)
+                if key in seen:
+                    raise _validation_error(
+                        "a Measurement may occur only once for each input_role", "inputs"
+                    )
+                seen.add(key)
+                measurement = uow.measurements.get(input_edge.measurement_id)
+                if measurement is None:
+                    raise _not_found("measurement", input_edge.measurement_id)
+                run = uow.runs.get(measurement.run_id)
+                if run is None:
+                    raise _not_found("run", measurement.run_id)
+                if run.project_id != project_id:
+                    raise ResearchBaseError(
+                        ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                        "statistical result Measurements must belong to the result project",
+                    )
+                input_edges.append(input_edge)
+
+            try:
+                result = StatisticalResult(
+                    id=result_id,
+                    project_id=project_id,
+                    analysis_type=command.analysis_type,
+                    result_payload=command.result_payload,
+                    analysis_definition=command.analysis_definition,
+                    content_hash=content_hash,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+            except (TypeError, ValueError) as exc:
+                raise _validation_error(str(exc), "statistical result") from exc
+            uow.statistical_results.add(result)
+            for input_edge in input_edges:
+                uow.statistical_results.add_input(input_edge)
+            uow.commit()
+            return _statistical_result_read_model(result)
+
+    def get_statistical_result(self, result_id: StatisticalResultId) -> StatisticalResultReadModel:
+        with self._uow_factory() as uow:
+            result = uow.statistical_results.get(StatisticalResultId(result_id))
+            if result is None:
+                raise _not_found("statistical result", result_id)
+            return _statistical_result_read_model(result)
+
+    def list_statistical_results_for_project(
+        self, project_id: ProjectId
+    ) -> list[StatisticalResultReadModel]:
+        with self._uow_factory() as uow:
+            project = uow.projects.get(ProjectId(project_id))
+            if project is None:
+                raise _not_found("project", project_id)
+            return [
+                _statistical_result_read_model(result)
+                for result in uow.statistical_results.list_by_project(project.id)
+            ]
+
+    def list_statistical_result_inputs(
+        self, result_id: StatisticalResultId
+    ) -> list[StatisticalResultInputReadModel]:
+        with self._uow_factory() as uow:
+            result = uow.statistical_results.get(StatisticalResultId(result_id))
+            if result is None:
+                raise _not_found("statistical result", result_id)
+            return [
+                _statistical_result_input_read_model(input_edge)
+                for input_edge in uow.statistical_results.list_inputs(result.id)
+            ]
+
     def get_measurement(self, measurement_id: MeasurementId) -> MeasurementReadModel:
         with self._uow_factory() as uow:
             measurement = uow.measurements.get(MeasurementId(measurement_id))
@@ -2163,6 +2292,30 @@ def _measurement_read_model(measurement: Measurement) -> MeasurementReadModel:
         content_hash=measurement.content_hash,
         created_by=measurement.created_by,
         created_at=measurement.created_at,
+    )
+
+
+def _statistical_result_read_model(result: StatisticalResult) -> StatisticalResultReadModel:
+    return StatisticalResultReadModel(
+        id=result.id,
+        project_id=result.project_id,
+        analysis_type=result.analysis_type,
+        result_payload=result.result_payload,
+        analysis_definition=result.analysis_definition,
+        content_hash=result.content_hash,
+        created_by=result.created_by,
+        created_at=result.created_at,
+    )
+
+
+def _statistical_result_input_read_model(
+    input_edge: StatisticalResultInput,
+) -> StatisticalResultInputReadModel:
+    return StatisticalResultInputReadModel(
+        statistical_result_id=input_edge.statistical_result_id,
+        measurement_id=input_edge.measurement_id,
+        input_role=input_edge.input_role,
+        ordinal=input_edge.ordinal,
     )
 
 

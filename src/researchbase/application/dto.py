@@ -24,6 +24,7 @@ from researchbase.domain.run import (
     RunId,
     RunStatus,
 )
+from researchbase.domain.statistical_result import StatisticalResultId
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
@@ -245,6 +246,26 @@ class MeasurementReadModel:
     content_hash: ContentHash
     created_by: ActorId
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class StatisticalResultReadModel:
+    id: StatisticalResultId
+    project_id: ProjectId
+    analysis_type: str
+    result_payload: object
+    analysis_definition: object
+    content_hash: ContentHash
+    created_by: ActorId
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class StatisticalResultInputReadModel:
+    statistical_result_id: StatisticalResultId
+    measurement_id: MeasurementId
+    input_role: str
+    ordinal: int
 
 
 @dataclass(frozen=True, slots=True)

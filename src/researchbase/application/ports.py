@@ -33,6 +33,11 @@ from researchbase.domain.research import (
     ResearchQuestionVersionId,
 )
 from researchbase.domain.run import Run, RunArtifactInput, RunDatasetInput, RunId
+from researchbase.domain.statistical_result import (
+    StatisticalResult,
+    StatisticalResultId,
+    StatisticalResultInput,
+)
 from researchbase.foundation.ids import ActorId
 
 
@@ -251,6 +256,18 @@ class MeasurementRepository(Protocol):
     def list_by_run(self, run_id: RunId) -> list[Measurement]: ...
 
 
+class StatisticalResultRepository(Protocol):
+    def add(self, result: StatisticalResult) -> None: ...
+
+    def add_input(self, input: StatisticalResultInput) -> None: ...
+
+    def get(self, result_id: StatisticalResultId) -> StatisticalResult | None: ...
+
+    def list_by_project(self, project_id: ProjectId) -> list[StatisticalResult]: ...
+
+    def list_inputs(self, result_id: StatisticalResultId) -> list[StatisticalResultInput]: ...
+
+
 class RunRepository(Protocol):
     def add(self, run: Run) -> None: ...
 
@@ -283,6 +300,7 @@ class UnitOfWork(Protocol):
     metric_definitions: MetricDefinitionRepository
     metric_definition_versions: MetricDefinitionVersionRepository
     measurements: MeasurementRepository
+    statistical_results: StatisticalResultRepository
     runs: RunRepository
 
     def __enter__(self) -> UnitOfWork: ...

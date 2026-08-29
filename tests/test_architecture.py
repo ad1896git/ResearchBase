@@ -38,7 +38,6 @@ def test_phase1_has_no_later_business_schema_migration() -> None:
     migration_text = "\n".join(path.read_text() for path in _python_files(ROOT / "migrations"))
     forbidden_tables = (
         "claims",
-        "statistical_results",
         "evidence_relations",
         "measurement_versions",
     )
@@ -52,6 +51,15 @@ def test_pr10_adds_only_the_measurement_schema_slice() -> None:
     assert "MeasurementVersion" not in migration
     assert "statistical_results" not in migration
     assert "claims" not in migration
+
+
+def test_pr11_adds_only_statistical_result_schema_slice() -> None:
+    migration = (ROOT / "migrations" / "versions" / "0011_statistical_result.py").read_text()
+    assert '"statistical_results"' in migration
+    assert '"statistical_result_inputs"' in migration
+    assert "StatisticalResultVersion" not in migration
+    assert "claims" not in migration
+    assert "evidence_relations" not in migration
 
 
 def test_pr06_does_not_add_dataset_version_or_pr07_business_schema() -> None:
