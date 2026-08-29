@@ -111,7 +111,7 @@ def test_genuine_concurrent_revise_serializes_at_claim_row_lock(
     local = threading.local()
     results: dict[str, object] = {}
 
-    def before_cursor_execute(
+    def after_cursor_execute(
         _connection: Any,
         _cursor: Any,
         statement: str,
@@ -126,9 +126,21 @@ def test_genuine_concurrent_revise_serializes_at_claim_row_lock(
         if action == "first":
             first_started.set()
             assert release_first.wait(10)
-        elif action == "second":
-            second_sql_issued.set()
 
+    def before_cursor_execute(
+        _connection: Any,
+        _cursor: Any,
+        statement: str,
+        _parameters: Any,
+        _context: Any,
+        _executemany: bool,
+    ) -> None:
+        normalized = statement.upper()
+        if "FROM CLAIMS" in normalized and "FOR UPDATE" in normalized:
+            if getattr(local, "action", None) == "second":
+                second_sql_issued.set()
+
+    event.listen(engine, "after_cursor_execute", after_cursor_execute)
     event.listen(engine, "before_cursor_execute", before_cursor_execute)
     try:
 
@@ -169,6 +181,7 @@ def test_genuine_concurrent_revise_serializes_at_claim_row_lock(
         _assert_thread_finished(second)
     finally:
         release_first.set()
+        event.remove(engine, "after_cursor_execute", after_cursor_execute)
         event.remove(engine, "before_cursor_execute", before_cursor_execute)
 
     _assert_no_unexpected_thread_error(results["first"])
