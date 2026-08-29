@@ -1,0 +1,43 @@
+{
+  "pr": "PR-11R3",
+  "scope": "final evidence and migration test hardening only",
+  "reviewed_pr11_head": "9592b66dc3372fae18fdd66555203f0788e407e2",
+  "reviewed_pr11r_head": "6675a7444cdb897d1bf810a55b32b6d88015ea15",
+  "reviewed_pr11r2_head": "e62d19f97c965003492648df84a220a25b3ebffa",
+  "pr11r2_implementation_test_commits": [
+    "1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5",
+    "2304c081f668a01a7663624a271728431a9ba745",
+    "679efd79b42b911567d885b780ab7c64caa8226e"
+  ],
+  "pr11r2_finalization_evidence_commit": "e62d19f97c965003492648df84a220a25b3ebffa",
+  "pr11r3_test_commits": [
+    "ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa",
+    "813aaebd8749e6ca1553802f0930dca04a0f21d0"
+  ],
+  "pr11r3_test_head_before_evidence_payload": "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+  "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+  "verification": {
+    "postgresql": "18.6",
+    "full_pytest": "410 passed",
+    "migration_matrix": "2 passed",
+    "architecture": "PASS",
+    "owned_format": "PASS",
+    "sqlite_used": false
+  },
+  "semantic_drift": {
+    "production": false,
+    "migration": false
+  },
+  "forbidden_scope": {
+    "claim": false,
+    "claim_version": false,
+    "evidence_relation": false,
+    "support_set_hash": false,
+    "statistical_result_version": false,
+    "generic_version_orm": false,
+    "pr12": false,
+    "phase2_plus": false,
+    "sqlite": false
+  },
+  "fingerprint_note": "Historical reviewed heads and all known prior commits are Git-resolved. The evidence payload and final metadata commit are added after this test head; their resolved identities are recorded in the follow-up metadata finalization without self-referential SHA claims. Final current HEAD is reported separately."
+}

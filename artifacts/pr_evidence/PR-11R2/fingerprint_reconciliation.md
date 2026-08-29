@@ -23,12 +23,12 @@ short forms are shown only in prose where useful.
 - Implementation/test commits:
   - `1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5`
   - `2304c081f668a01a7663624a271728431a9ba745`
-- Evidence payload and final metadata commit SHAs are recorded in the final
-  `harness_fingerprint.json` after each is resolved from Git.
-- The final completion report separately records the post-evidence current
-  HEAD, avoiding confusion between reviewed HEAD, payload commit, and current
-  repository HEAD. The fingerprint's non-self-referential observation is the
-  payload parent/current HEAD immediately before final metadata finalization.
+  - `679efd79b42b911567d885b780ab7c64caa8226e`
+- Evidence payload commit: `679efd79b42b911567d885b780ab7c64caa8226e`
+- Finalization/evidence commit: `e62d19f97c965003492648df84a220a25b3ebffa`
+- Actual reviewed PR-11R2 HEAD: `e62d19f97c965003492648df84a220a25b3ebffa`
+- The PR-11R2 fingerprint's payload-parent observation remains explicitly
+  separate from the reviewed finalization HEAD and any later PR-11R3 HEAD.
 
 ## Inventory proof
 
