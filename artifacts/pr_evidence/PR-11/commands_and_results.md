@@ -21,6 +21,16 @@ Implementation commit:
 5093639b7ebdfa205c0304aa9914603fb6f13d11 feat: implement PR-11 statistical results
 ```
 
+The first evidence payload commit was:
+
+```text
+f4ccdf8c5f78f48cb6c5f295224bfe46bf68b6b0 docs: add PR-11 evidence package
+```
+
+The final Git-verification metadata follow-up remains within this same
+evidence directory; its final HEAD is recorded by the completion report and is
+not encoded as a self-referential value.
+
 ## Verification
 
 ```text
