@@ -1,0 +1,39 @@
+# PR-11 changed-files inventory
+
+The final baseline-to-HEAD Git set is recorded after the evidence commits. It
+contains exactly these PR-11 implementation, test, migration, and evidence
+paths; unrelated untracked execution packs and `.DS_Store` files were not
+staged:
+
+artifacts/pr_evidence/PR-11/architecture_decisions.md
+artifacts/pr_evidence/PR-11/architecture_review.md
+artifacts/pr_evidence/PR-11/atomicity_report.md
+artifacts/pr_evidence/PR-11/changed_files.txt
+artifacts/pr_evidence/PR-11/code_review.md
+artifacts/pr_evidence/PR-11/commands_and_results.md
+artifacts/pr_evidence/PR-11/exact_provenance_report.md
+artifacts/pr_evidence/PR-11/fk_restrict_report.md
+artifacts/pr_evidence/PR-11/hash_contract_report.md
+artifacts/pr_evidence/PR-11/harness_fingerprint.json
+artifacts/pr_evidence/PR-11/immutability_report.md
+artifacts/pr_evidence/PR-11/implementation_summary.md
+artifacts/pr_evidence/PR-11/input_integrity_report.md
+artifacts/pr_evidence/PR-11/migration_report.md
+artifacts/pr_evidence/PR-11/query_report.md
+artifacts/pr_evidence/PR-11/schema_summary.md
+artifacts/pr_evidence/PR-11/test_report.md
+artifacts/pr_evidence/PR-11/unresolved_findings.md
+migrations/versions/0011_statistical_result.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/statistical_result.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/integration/test_pr11_application.py
+tests/integration/test_pr11_schema.py
+tests/test_architecture.py
+tests/unit/domain/test_pr11_statistical_result.py
+tests/unit/test_pr11_contracts.py
