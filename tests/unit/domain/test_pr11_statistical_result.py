@@ -187,6 +187,16 @@ def test_input_role_is_one_to_32_characters(input_role: str) -> None:
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
 
 
+def test_input_role_length_32_is_accepted() -> None:
+    input_edge = StatisticalResultInput(
+        statistical_result_id=StatisticalResultId(RESULT_ID),
+        measurement_id=MeasurementId(MEASUREMENT_ID),
+        input_role="x" * 32,
+    )
+
+    assert len(input_edge.input_role) == 32
+
+
 def test_input_ordinal_must_be_non_negative() -> None:
     with pytest.raises(ResearchBaseError) as exc_info:
         StatisticalResultInput(

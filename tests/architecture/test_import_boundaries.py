@@ -123,6 +123,7 @@ def test_phase1_has_only_the_authorized_business_migrations() -> None:
         "0009_run_input_seal_fix.py",
         "0010_measurement.py",
         "0011_statistical_result.py",
+        "0012_statistical_result_input_guard.py",
     ]
 
 

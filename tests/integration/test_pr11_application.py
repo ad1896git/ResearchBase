@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from researchbase.application.commands import (
     ApplicationService,
@@ -24,6 +24,7 @@ from researchbase.application.commands import (
     FreezeMetricDefinitionCommand,
     RecordMeasurementCommand,
     RecordStatisticalResultCommand,
+    ReviseMetricDefinitionCommand,
     StartRunCommand,
     StatisticalResultInputCommand,
 )
@@ -32,9 +33,16 @@ from researchbase.domain.identity import ActorType
 from researchbase.domain.measurement import MeasurementId
 from researchbase.domain.organization import ProjectId
 from researchbase.domain.run import RunStatus
+from researchbase.domain.statistical_result import (
+    StatisticalResult,
+    StatisticalResultId,
+    StatisticalResultInput,
+)
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
+from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.time import FixedClock
+from researchbase.foundation.ids import ActorId
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
@@ -164,6 +172,24 @@ def record_result(
     )
 
 
+def direct_result(result_id: UUID, project_id: ProjectId, actor_id: UUID) -> StatisticalResult:
+    material = {
+        "analysis_type": "t_test",
+        "result_payload": {"p_value": 0.01},
+        "analysis_definition": {"method": "student"},
+    }
+    return StatisticalResult(
+        id=StatisticalResultId(result_id),
+        project_id=project_id,
+        analysis_type="t_test",
+        result_payload=material["result_payload"],
+        analysis_definition=material["analysis_definition"],
+        content_hash=ContentHash(independent_canonical_json_sha256(material)),
+        created_by=ActorId(actor_id),
+        created_at=datetime(2026, 8, 29, tzinfo=UTC),
+    )
+
+
 def test_record_statistical_result_persists_parent_and_exact_input(
     resources: tuple[Callable[[], ApplicationService], Engine],
 ) -> None:
@@ -231,6 +257,84 @@ def test_duplicate_same_measurement_and_role_is_rejected_before_persistence(
         record_result(service, project_id, actor_context, (input_edge, input_edge))
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
+    assert factory().list_statistical_results_for_project(project_id) == []
+
+
+def test_repository_parent_only_commit_is_rejected_and_rolled_back(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    actor_id, project_id, actor_context = seed_project(service, "repository-zero-input")
+    sessions = create_session_factory(engine)
+    result = direct_result(uuid4(), project_id, actor_id)
+
+    with pytest.raises(DBAPIError):
+        with SqlAlchemyUnitOfWork(sessions) as uow:
+            uow.statistical_results.add(result)
+            uow.commit()
+
+    assert factory().list_statistical_results_for_project(project_id) == []
+    assert actor_context.actor_id == actor_id
+
+
+def test_raw_sql_parent_only_commit_is_rejected_and_rolled_back(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    actor_id, project_id, _ = seed_project(service, "raw-sql-zero-input")
+    result_id = uuid4()
+
+    with pytest.raises(DBAPIError):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO statistical_results "
+                    "(id, project_id, analysis_type, result_payload, analysis_definition, "
+                    "content_hash, created_by, created_at) VALUES "
+                    "(:id, :project_id, 't_test', CAST(:payload AS jsonb), "
+                    "CAST(:definition AS jsonb), :content_hash, :created_by, :created_at)"
+                ),
+                {
+                    "id": result_id,
+                    "project_id": project_id,
+                    "payload": '{"p_value":0.01}',
+                    "definition": '{"method":"student"}',
+                    "content_hash": "0" * 64,
+                    "created_by": actor_id,
+                    "created_at": datetime(2026, 8, 29, tzinfo=UTC),
+                },
+            )
+
+    assert factory().list_statistical_results_for_project(project_id) == []
+
+
+def test_direct_repository_duplicate_input_is_translated_with_cause_and_rolled_back(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    actor_id, project_id, _ = seed_project(service, "repository-duplicate-input")
+    measurement_id, _ = seed_measurement(
+        service, project_id, context(actor_id), "repository-duplicate-input"
+    )
+    result = direct_result(uuid4(), project_id, actor_id)
+    edge = StatisticalResultInput(
+        statistical_result_id=result.id,
+        measurement_id=measurement_id,
+    )
+    sessions = create_session_factory(engine)
+
+    with SqlAlchemyUnitOfWork(sessions) as uow:
+        uow.statistical_results.add(result)
+        uow.statistical_results.add_input(edge)
+        with pytest.raises(ResearchBaseError) as exc_info:
+            uow.statistical_results.add_input(edge)
+
+        assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
+        assert isinstance(exc_info.value.__cause__, IntegrityError)
+
     assert factory().list_statistical_results_for_project(project_id) == []
 
 
@@ -306,6 +410,89 @@ def test_missing_and_cross_project_measurements_are_rejected(
     assert factory().list_statistical_results_for_project(project_one) == []
 
 
+def test_input_hash_excludes_measurement_id_role_and_ordinal_independently(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "hash-exclusions")
+    measurement_one, _ = seed_measurement(service, project_id, actor_context, "hash-exclusions-one")
+    measurement_two, _ = seed_measurement(service, project_id, actor_context, "hash-exclusions-two")
+    baseline_input = StatisticalResultInputCommand(measurement_one, "input", 0)
+    baseline = record_result(service, project_id, actor_context, (baseline_input,))
+
+    measurement_variant = record_result(
+        service,
+        project_id,
+        actor_context,
+        (StatisticalResultInputCommand(measurement_two, "input", 0),),
+    )
+    role_variant = record_result(
+        service,
+        project_id,
+        actor_context,
+        (StatisticalResultInputCommand(measurement_one, "secondary", 0),),
+    )
+    ordinal_variant = record_result(
+        service,
+        project_id,
+        actor_context,
+        (StatisticalResultInputCommand(measurement_one, "input", 1),),
+    )
+
+    assert measurement_variant.content_hash == baseline.content_hash
+    assert role_variant.content_hash == baseline.content_hash
+    assert ordinal_variant.content_hash == baseline.content_hash
+    assert factory().list_statistical_result_inputs(ordinal_variant.id)[0].ordinal == 1
+
+
+def test_same_ordinal_and_role_queries_measurement_id_ascending_after_reverse_insert(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "ordering-tie")
+    measurement_one, _ = seed_measurement(service, project_id, actor_context, "ordering-tie-one")
+    measurement_two, _ = seed_measurement(service, project_id, actor_context, "ordering-tie-two")
+    ascending = sorted([measurement_one, measurement_two])
+    result = record_result(
+        service,
+        project_id,
+        actor_context,
+        tuple(
+            StatisticalResultInputCommand(measurement_id, "input", 0)
+            for measurement_id in reversed(ascending)
+        ),
+    )
+
+    inputs = factory().list_statistical_result_inputs(result.id)
+    assert [item.measurement_id for item in inputs] == ascending
+
+
+def test_statistical_result_query_missing_paths_are_stable(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    missing_result = StatisticalResultId(uuid4())
+    missing_project = ProjectId(uuid4())
+
+    with pytest.raises(ResearchBaseError) as missing:
+        factory().get_statistical_result(missing_result)
+    assert missing.value.code is ErrorCode.NOT_FOUND
+
+    with pytest.raises(ResearchBaseError) as missing_inputs:
+        factory().list_statistical_result_inputs(missing_result)
+    assert missing_inputs.value.code is ErrorCode.NOT_FOUND
+
+    with pytest.raises(ResearchBaseError) as missing_project_error:
+        factory().list_statistical_results_for_project(missing_project)
+    assert missing_project_error.value.code is ErrorCode.NOT_FOUND
+
+    _, project_id, _ = seed_project(service, "empty-project-query")
+    assert factory().list_statistical_results_for_project(project_id) == []
+
+
 def test_hash_matches_independent_oracle_key_order_is_equivalent_and_duplicate_hashes_are_allowed(
     resources: tuple[Callable[[], ApplicationService], Engine],
 ) -> None:
@@ -365,6 +552,64 @@ def test_unserializable_material_returns_validation_error_not_serializer_error(
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
     assert factory().list_statistical_results_for_project(project_id) == []
+
+
+def test_unserializable_analysis_definition_returns_validation_error_not_serializer_error(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "unserializable-definition")
+    measurement_id, _ = seed_measurement(
+        service, project_id, actor_context, "unserializable-definition"
+    )
+
+    with pytest.raises(ResearchBaseError) as exc_info:
+        record_result(
+            service,
+            project_id,
+            actor_context,
+            (StatisticalResultInputCommand(measurement_id),),
+            analysis_definition=object(),
+        )
+
+    assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
+    assert factory().list_statistical_results_for_project(project_id) == []
+
+
+def test_result_payload_key_order_equivalence_uses_independent_hash_material(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "payload-key-order")
+    measurement_id, _ = seed_measurement(service, project_id, actor_context, "payload-key-order")
+    first = record_result(
+        service,
+        project_id,
+        actor_context,
+        (StatisticalResultInputCommand(measurement_id),),
+        result_payload={"z": {"b": 2, "a": 1}, "a": [1, 2]},
+    )
+    second = record_result(
+        service,
+        project_id,
+        actor_context,
+        (StatisticalResultInputCommand(measurement_id, "secondary"),),
+        result_payload={"a": [1, 2], "z": {"a": 1, "b": 2}},
+    )
+    expected = independent_canonical_json_sha256(
+        {
+            "analysis_type": "t_test",
+            "result_payload": {"z": {"b": 2, "a": 1}, "a": [1, 2]},
+            "analysis_definition": {"method": "student", "alternative": "two-sided"},
+        }
+    )
+
+    assert first.content_hash == expected
+    assert second.content_hash == expected
+    assert factory().get_statistical_result(first.id) == first
+    assert factory().get_statistical_result(second.id) == second
 
 
 def test_statistical_result_is_immutable_against_real_postgresql_update_attacks(
@@ -668,5 +913,93 @@ def test_referenced_rows_are_behaviorally_restrictive(
                 {"id": ids[parameters]},
             )
 
-    assert factory().get_statistical_result(result.id) == result
+    assert factory().get_project(project_id) is not None
+    assert factory().get_actor(actor_id) is not None
     assert factory().get_measurement(measurement_id) is not None
+    assert factory().get_statistical_result(result.id) == result
+    assert factory().list_statistical_result_inputs(result.id) == [
+        StatisticalResultInputReadModel(result.id, measurement_id, "input", 0)
+    ]
+
+
+def test_statistical_result_retains_exact_measurement_after_metric_version_advances(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "exact-provenance-version")
+    metric = service.create_metric_definition(
+        CreateMetricDefinitionCommand(
+            project_id,
+            f"versioned-metric-{uuid4()}",
+            {"kind": "mean"},
+            "ms",
+            "mean",
+            actor_context,
+        )
+    )
+    assert metric.current_version_id is not None
+    metric_v1 = service.freeze_metric_definition(
+        FreezeMetricDefinitionCommand(metric.id, metric.current_version_id, actor_context, 1)
+    )
+    spec = service.create_experiment_spec(
+        CreateExperimentSpecCommand(
+            project_id,
+            None,
+            "Exact provenance experiment",
+            "Exact provenance objective",
+            {"steps": ["execute"]},
+            None,
+            None,
+            None,
+            actor_context,
+        )
+    )
+    assert spec.current_version_id is not None
+    frozen_spec = service.freeze_experiment_spec(
+        FreezeExperimentSpecCommand(spec.id, spec.current_version_id, actor_context, 1)
+    )
+    run = service.create_run(CreateRunCommand(project_id, frozen_spec.id, None, actor_context))
+    started = service.start_run(StartRunCommand(run.id, run.row_version, actor_context))
+    finished = service.finish_run(
+        FinishRunCommand(run.id, RunStatus.SUCCEEDED, 0, None, started.row_version, actor_context)
+    )
+    measurement_one = service.record_measurement(
+        RecordMeasurementCommand(
+            finished.id,
+            metric_v1.id,
+            1.0,
+            None,
+            "ms",
+            {"source": "v1"},
+            actor_context,
+        )
+    )
+    result = record_result(
+        service,
+        project_id,
+        actor_context,
+        (StatisticalResultInputCommand(measurement_one.id),),
+    )
+    before = factory().get_statistical_result(result.id)
+    before_inputs = factory().list_statistical_result_inputs(result.id)
+
+    revised = service.revise_metric_definition(
+        ReviseMetricDefinitionCommand(
+            metric.id,
+            {"kind": "sum"},
+            "ms",
+            "sum",
+            metric.row_version + 1,
+            actor_context,
+        )
+    )
+    assert revised.current_version_id is not None
+    service.freeze_metric_definition(
+        FreezeMetricDefinitionCommand(metric.id, revised.current_version_id, actor_context, 1)
+    )
+
+    history = service.get_metric_definition_history(metric.id)
+    assert history[0].status.name == "SUPERSEDED"
+    assert factory().get_statistical_result(result.id) == before
+    assert factory().list_statistical_result_inputs(result.id) == before_inputs

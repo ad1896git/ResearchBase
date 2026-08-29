@@ -62,6 +62,16 @@ def test_pr11_adds_only_statistical_result_schema_slice() -> None:
     assert "evidence_relations" not in migration
 
 
+def test_pr11r_adds_only_the_narrow_statistical_result_guard() -> None:
+    migration = (
+        ROOT / "migrations" / "versions" / "0012_statistical_result_input_guard.py"
+    ).read_text()
+    assert "0011_statistical_result" in migration
+    assert "CREATE CONSTRAINT TRIGGER statistical_result_requires_input" in migration
+    assert "CREATE TABLE" not in migration
+    assert "statistical_result_version" not in migration.lower()
+
+
 def test_pr06_does_not_add_dataset_version_or_pr07_business_schema() -> None:
     source_text = "\n".join(path.read_text() for path in _python_files(SRC))
     migration_text = "\n".join(path.read_text() for path in _python_files(ROOT / "migrations"))

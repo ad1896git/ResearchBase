@@ -177,5 +177,21 @@ def test_statistical_result_tables_expose_immutability_triggers(engine: Engine) 
             )
         }
 
-    assert result_triggers == {"statistical_results_immutable"}
+    assert result_triggers == {
+        "statistical_results_immutable",
+        "statistical_result_requires_input",
+    }
     assert input_triggers == {"statistical_result_inputs_immutable"}
+
+
+def test_statistical_result_input_guard_is_deferred_and_transaction_safe(engine: Engine) -> None:
+    with engine.connect() as connection:
+        guard = connection.execute(
+            text(
+                "SELECT tgdeferrable, tginitdeferred, tgtype "
+                "FROM pg_trigger WHERE tgname='statistical_result_requires_input'"
+            )
+        ).one()
+
+    assert guard.tgdeferrable is True
+    assert guard.tginitdeferred is True

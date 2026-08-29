@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import func, insert, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
@@ -1039,14 +1040,24 @@ class SqlAlchemyStatisticalResultRepository:
 
     def add_input(self, input: StatisticalResultInput) -> None:
         self._session.flush()
-        self._session.execute(
-            insert(StatisticalResultInputModel.__table__).values(  # type: ignore[arg-type]
-                statistical_result_id=input.statistical_result_id,
-                measurement_id=input.measurement_id,
-                input_role=input.input_role,
-                ordinal=input.ordinal,
+        try:
+            self._session.execute(
+                insert(StatisticalResultInputModel.__table__).values(  # type: ignore[arg-type]
+                    statistical_result_id=input.statistical_result_id,
+                    measurement_id=input.measurement_id,
+                    input_role=input.input_role,
+                    ordinal=input.ordinal,
+                )
             )
-        )
+        except IntegrityError as exc:
+            if "statistical_result_inputs_pkey" not in str(exc.orig):
+                raise
+            self._session.rollback()
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "statistical result input is already attached",
+                {"field": "input"},
+            ) from exc
 
     def get(self, result_id: StatisticalResultId) -> StatisticalResult | None:
         table = StatisticalResultModel.__table__
