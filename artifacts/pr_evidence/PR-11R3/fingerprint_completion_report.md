@@ -13,11 +13,13 @@ All historical identifiers were resolved with `git rev-parse`:
 - PR-11R3 test commits:
   - `ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa`
   - `813aaebd8749e6ca1553802f0930dca04a0f21d0`
+- PR-11R3 evidence payload commit: `3a539a7b623f6599e50f9080343f2b5cf4a74e63`
+- PR-11R3 final metadata commit: resolved as the post-payload current HEAD in
+  the required status report.
 
-The evidence payload and later metadata-finalization commit are resolved from
-Git in `harness_fingerprint.json` after their commits. The final current HEAD
-is reported separately in the completion report because a Git commit cannot
-contain its own SHA without a self-referential hash.
+The final metadata commit cannot contain its own SHA without a self-referential
+hash. Its parent/payload and the post-finalization current HEAD are therefore
+reported separately and are resolved directly from Git.
 
 ## Inventory commands
 
