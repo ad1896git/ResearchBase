@@ -190,6 +190,25 @@ def direct_result(result_id: UUID, project_id: ProjectId, actor_id: UUID) -> Sta
     )
 
 
+def assert_no_statistical_result_rows(engine: Engine, project_id: ProjectId) -> None:
+    with engine.connect() as connection:
+        parent_count = connection.execute(
+            text("SELECT count(*) FROM statistical_results WHERE project_id=:project_id"),
+            {"project_id": project_id},
+        ).scalar_one()
+        input_count = connection.execute(
+            text(
+                "SELECT count(*) FROM statistical_result_inputs sri "
+                "JOIN statistical_results sr ON sr.id=sri.statistical_result_id "
+                "WHERE sr.project_id=:project_id"
+            ),
+            {"project_id": project_id},
+        ).scalar_one()
+
+    assert parent_count == 0
+    assert input_count == 0
+
+
 def test_record_statistical_result_persists_parent_and_exact_input(
     resources: tuple[Callable[[], ApplicationService], Engine],
 ) -> None:
@@ -275,6 +294,7 @@ def test_repository_parent_only_commit_is_rejected_and_rolled_back(
             uow.commit()
 
     assert factory().list_statistical_results_for_project(project_id) == []
+    assert_no_statistical_result_rows(engine, project_id)
     assert actor_context.actor_id == actor_id
 
 
@@ -308,6 +328,7 @@ def test_raw_sql_parent_only_commit_is_rejected_and_rolled_back(
             )
 
     assert factory().list_statistical_results_for_project(project_id) == []
+    assert_no_statistical_result_rows(engine, project_id)
 
 
 def test_direct_repository_duplicate_input_is_translated_with_cause_and_rolled_back(
@@ -333,9 +354,10 @@ def test_direct_repository_duplicate_input_is_translated_with_cause_and_rolled_b
             uow.statistical_results.add_input(edge)
 
         assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-        assert isinstance(exc_info.value.__cause__, IntegrityError)
+    assert isinstance(exc_info.value.__cause__, IntegrityError)
 
     assert factory().list_statistical_results_for_project(project_id) == []
+    assert_no_statistical_result_rows(engine, project_id)
 
 
 def test_zero_inputs_and_invalid_input_fields_are_stable_application_errors(
@@ -595,7 +617,7 @@ def test_result_payload_key_order_equivalence_uses_independent_hash_material(
         service,
         project_id,
         actor_context,
-        (StatisticalResultInputCommand(measurement_id, "secondary"),),
+        (StatisticalResultInputCommand(measurement_id),),
         result_payload={"a": [1, 2], "z": {"a": 1, "b": 2}},
     )
     expected = independent_canonical_json_sha256(
