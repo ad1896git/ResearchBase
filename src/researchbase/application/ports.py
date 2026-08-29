@@ -6,6 +6,14 @@ from types import TracebackType
 from typing import Protocol
 
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
+from researchbase.domain.claim import (
+    Claim,
+    ClaimId,
+    ClaimVersion,
+    ClaimVersionId,
+    EvidenceRelation,
+    EvidenceRelationId,
+)
 from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
@@ -268,6 +276,45 @@ class StatisticalResultRepository(Protocol):
     def list_inputs(self, result_id: StatisticalResultId) -> list[StatisticalResultInput]: ...
 
 
+class ClaimRepository(Protocol):
+    def add(self, claim: Claim) -> None: ...
+
+    def add_version(self, version: ClaimVersion) -> None: ...
+
+    def get(self, claim_id: ClaimId) -> Claim | None: ...
+
+    def get_for_update(self, claim_id: ClaimId) -> Claim | None: ...
+
+    def get_version(self, version_id: ClaimVersionId) -> ClaimVersion | None: ...
+
+    def get_version_for_update(self, version_id: ClaimVersionId) -> ClaimVersion | None: ...
+
+    def get_current_version(self, claim_id: ClaimId) -> ClaimVersion | None: ...
+
+    def list_history(self, claim_id: ClaimId) -> list[ClaimVersion]: ...
+
+    def max_version_number(self, claim_id: ClaimId) -> int: ...
+
+    def update_current_version(
+        self,
+        claim_id: ClaimId,
+        version_id: ClaimVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None: ...
+
+    def update_version(self, version: ClaimVersion, expected_row_version: int) -> None: ...
+
+    def add_evidence(self, relation: EvidenceRelation) -> None: ...
+
+    def remove_evidence(self, relation_id: EvidenceRelationId) -> None: ...
+
+    def get_evidence(self, relation_id: EvidenceRelationId) -> EvidenceRelation | None: ...
+
+    def list_evidence(self, version_id: ClaimVersionId) -> list[EvidenceRelation]: ...
+
+
 class RunRepository(Protocol):
     def add(self, run: Run) -> None: ...
 
@@ -301,6 +348,7 @@ class UnitOfWork(Protocol):
     metric_definition_versions: MetricDefinitionVersionRepository
     measurements: MeasurementRepository
     statistical_results: StatisticalResultRepository
+    claims: ClaimRepository
     runs: RunRepository
 
     def __enter__(self) -> UnitOfWork: ...

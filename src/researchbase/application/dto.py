@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from researchbase.domain.artifact import ArtifactId, ArtifactVersionId
+from researchbase.domain.claim import (
+    ClaimId,
+    ClaimVersionId,
+    EvidenceRelationId,
+    EvidenceRelationType,
+)
 from researchbase.domain.evidence import DatasetId, DatasetSnapshotId
 from researchbase.domain.experiment import ExperimentSpecId, ExperimentSpecVersionId
 from researchbase.domain.identity import ActorType
@@ -266,6 +272,46 @@ class StatisticalResultInputReadModel:
     measurement_id: MeasurementId
     input_role: str
     ordinal: int
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimReadModel:
+    id: ClaimId
+    project_id: ProjectId
+    created_by: ActorId
+    created_at: datetime
+    current_version_id: ClaimVersionId
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimVersionReadModel:
+    id: ClaimVersionId
+    claim_id: ClaimId
+    version_number: int
+    status: VersionStatus
+    statement: str
+    scope: object | None
+    qualification: str | None
+    support_set_hash: ContentHash | None
+    content_hash: ContentHash | None
+    hash_scheme: str | None
+    created_by: ActorId
+    created_at: datetime
+    frozen_at: datetime | None
+    row_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceRelationReadModel:
+    id: EvidenceRelationId
+    claim_version_id: ClaimVersionId
+    measurement_id: MeasurementId | None
+    statistical_result_id: StatisticalResultId | None
+    relation_type: EvidenceRelationType
+    qualification: str | None
+    created_by: ActorId
+    created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)

@@ -34,15 +34,28 @@ def test_no_forbidden_runtime_dependencies_or_parallel_manifests() -> None:
     assert not (ROOT / "poetry.lock").exists()
 
 
-def test_phase1_has_no_later_business_schema_migration() -> None:
+def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
     migration_text = "\n".join(path.read_text() for path in _python_files(ROOT / "migrations"))
     forbidden_tables = (
-        "claims",
-        "evidence_relations",
-        "measurement_versions",
+        "audit_findings",
+        "impact_assessments",
+        "correction_records",
+        "literature_evidence",
+        "scientific_conclusions",
+        "manuscripts",
     )
     assert not any(table in migration_text for table in forbidden_tables)
     assert "run_versions" not in migration_text
+
+
+def test_pr12_adds_only_claim_evidence_schema_slice() -> None:
+    migration = (ROOT / "migrations" / "versions" / "0014_claim_evidence.py").read_text()
+    assert '"claims"' in migration
+    assert '"claim_versions"' in migration
+    assert '"evidence_relations"' in migration
+    assert "StatisticalResultVersion" not in migration
+    assert "generic source_type/source_id" not in migration
+    assert "claim_version_versions" not in migration
 
 
 def test_pr10_adds_only_the_measurement_schema_slice() -> None:

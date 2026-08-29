@@ -609,3 +609,110 @@ class StatisticalResultInputModel(Base):
         String(32), primary_key=True, server_default=text("'input'")
     )
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+class ClaimModel(Base):
+    __tablename__ = "claims"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    current_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("claim_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class ClaimVersionModel(Base):
+    __tablename__ = "claim_versions"
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_claim_versions_version_number"),
+        CheckConstraint(
+            "status IN ('DRAFT', 'FROZEN', 'SUPERSEDED', 'ABANDONED')",
+            name="ck_claim_versions_status",
+        ),
+        UniqueConstraint("claim_id", "version_number", name="uq_claim_versions_parent_version"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    claim_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("claims.id", ondelete="RESTRICT"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[object | None] = mapped_column(JSONB, nullable=True)
+    qualification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    support_set_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class EvidenceRelationModel(Base):
+    __tablename__ = "evidence_relations"
+    __table_args__ = (
+        CheckConstraint(
+            "relation_type IN ('supports', 'contradicts', 'qualifies', 'context')",
+            name="ck_evidence_relations_relation_type",
+        ),
+        CheckConstraint(
+            "(measurement_id IS NOT NULL AND statistical_result_id IS NULL) OR "
+            "(measurement_id IS NULL AND statistical_result_id IS NOT NULL)",
+            name="ck_evidence_relations_source_xor",
+        ),
+        Index(
+            "uq_evidence_measurement",
+            "claim_version_id",
+            "measurement_id",
+            "relation_type",
+            unique=True,
+            postgresql_where=text("measurement_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_evidence_stat",
+            "claim_version_id",
+            "statistical_result_id",
+            "relation_type",
+            unique=True,
+            postgresql_where=text("statistical_result_id IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    claim_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("claim_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    measurement_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("measurements.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    statistical_result_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("statistical_results.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    relation_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    qualification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

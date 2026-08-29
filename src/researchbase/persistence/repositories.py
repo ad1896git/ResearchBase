@@ -4,11 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import case, delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
+from researchbase.domain.claim import (
+    Claim,
+    ClaimId,
+    ClaimVersion,
+    ClaimVersionId,
+    EvidenceRelation,
+    EvidenceRelationId,
+    EvidenceRelationType,
+)
 from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
@@ -63,8 +72,11 @@ from researchbase.persistence.models import (
     ActorModel,
     ArtifactModel,
     ArtifactVersionModel,
+    ClaimModel,
+    ClaimVersionModel,
     DatasetModel,
     DatasetSnapshotModel,
+    EvidenceRelationModel,
     ExperimentSpecModel,
     ExperimentSpecVersionModel,
     HypothesisModel,
@@ -1083,6 +1095,189 @@ class SqlAlchemyStatisticalResultRepository:
         return [_statistical_result_input_from_row(row) for row in rows]
 
 
+class SqlAlchemyClaimRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, claim: Claim) -> None:
+        self._session.add(
+            ClaimModel(
+                id=claim.id,
+                project_id=claim.project_id,
+                current_version_id=claim.current_version_id,
+                created_by=claim.created_by,
+                created_at=claim.created_at,
+                row_version=claim.row_version,
+            )
+        )
+
+    def add_version(self, version: ClaimVersion) -> None:
+        self._session.add(
+            ClaimVersionModel(
+                id=version.id,
+                claim_id=version.claim_id,
+                version_number=version.version_number,
+                status=version.status.value,
+                statement=version.statement,
+                scope=version.scope,
+                qualification=version.qualification,
+                support_set_hash=(
+                    str(version.support_set_hash) if version.support_set_hash is not None else None
+                ),
+                content_hash=str(version.content_hash)
+                if version.content_hash is not None
+                else None,
+                created_by=version.created_by,
+                created_at=version.created_at,
+                frozen_at=version.frozen_at,
+                row_version=version.row_version,
+            )
+        )
+
+    def get(self, claim_id: ClaimId) -> Claim | None:
+        model = self._session.get(ClaimModel, claim_id)
+        return _claim_from_model(model) if model is not None else None
+
+    def get_for_update(self, claim_id: ClaimId) -> Claim | None:
+        model = self._session.scalar(
+            select(ClaimModel).where(ClaimModel.id == claim_id).with_for_update()
+        )
+        return _claim_from_model(model) if model is not None else None
+
+    def get_version(self, version_id: ClaimVersionId) -> ClaimVersion | None:
+        model = self._session.get(ClaimVersionModel, version_id)
+        return _claim_version_from_model(model) if model is not None else None
+
+    def get_version_for_update(self, version_id: ClaimVersionId) -> ClaimVersion | None:
+        model = self._session.scalar(
+            select(ClaimVersionModel).where(ClaimVersionModel.id == version_id).with_for_update()
+        )
+        return _claim_version_from_model(model) if model is not None else None
+
+    def get_current_version(self, claim_id: ClaimId) -> ClaimVersion | None:
+        claim = self.get(claim_id)
+        if claim is None or claim.current_version_id is None:
+            return None
+        return self.get_version(claim.current_version_id)
+
+    def list_history(self, claim_id: ClaimId) -> list[ClaimVersion]:
+        models = self._session.scalars(
+            select(ClaimVersionModel)
+            .where(ClaimVersionModel.claim_id == claim_id)
+            .order_by(ClaimVersionModel.version_number)
+        ).all()
+        return [_claim_version_from_model(model) for model in models]
+
+    def max_version_number(self, claim_id: ClaimId) -> int:
+        value = self._session.scalar(
+            select(func.coalesce(func.max(ClaimVersionModel.version_number), 0)).where(
+                ClaimVersionModel.claim_id == claim_id
+            )
+        )
+        return int(value or 0)
+
+    def update_current_version(
+        self,
+        claim_id: ClaimId,
+        version_id: ClaimVersionId,
+        expected_row_version: int,
+        *,
+        increment: bool = True,
+    ) -> None:
+        self._session.flush()
+        version = self._session.get(ClaimVersionModel, version_id)
+        if version is None:
+            raise _not_found("claim version", version_id)
+        if version.claim_id != claim_id:
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "current version must belong to the claim",
+            )
+        values: dict[str, object] = {"current_version_id": version_id}
+        if increment:
+            values["row_version"] = ClaimModel.row_version + 1
+        result = self._session.execute(
+            update(ClaimModel)
+            .where(
+                ClaimModel.id == claim_id,
+                ClaimModel.row_version == expected_row_version,
+            )
+            .values(**values)
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "claim", claim_id)
+
+    def update_version(self, version: ClaimVersion, expected_row_version: int) -> None:
+        result = self._session.execute(
+            update(ClaimVersionModel)
+            .where(
+                ClaimVersionModel.id == version.id,
+                ClaimVersionModel.row_version == expected_row_version,
+            )
+            .values(
+                status=version.status.value,
+                statement=version.statement,
+                scope=version.scope,
+                qualification=version.qualification,
+                support_set_hash=(
+                    str(version.support_set_hash) if version.support_set_hash is not None else None
+                ),
+                content_hash=str(version.content_hash)
+                if version.content_hash is not None
+                else None,
+                frozen_at=version.frozen_at,
+                row_version=ClaimVersionModel.row_version + 1,
+            )
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "claim version", version.id)
+
+    def add_evidence(self, relation: EvidenceRelation) -> None:
+        self._session.add(
+            EvidenceRelationModel(
+                id=relation.id,
+                claim_version_id=relation.claim_version_id,
+                measurement_id=relation.measurement_id,
+                statistical_result_id=relation.statistical_result_id,
+                relation_type=relation.relation_type.value,
+                qualification=relation.qualification,
+                created_by=relation.created_by,
+                created_at=relation.created_at,
+            )
+        )
+
+    def remove_evidence(self, relation_id: EvidenceRelationId) -> None:
+        result = self._session.execute(
+            delete(EvidenceRelationModel).where(EvidenceRelationModel.id == relation_id)
+        )
+        result_any: Any = result
+        _require_one_row(result_any.rowcount, "evidence relation", relation_id)
+
+    def get_evidence(self, relation_id: EvidenceRelationId) -> EvidenceRelation | None:
+        model = self._session.get(EvidenceRelationModel, relation_id)
+        return _evidence_relation_from_model(model) if model is not None else None
+
+    def list_evidence(self, version_id: ClaimVersionId) -> list[EvidenceRelation]:
+        table = EvidenceRelationModel.__table__
+        source_type = case(
+            (table.c.measurement_id.is_not(None), "measurement"),
+            else_="statistical_result",
+        )
+        source_id = func.coalesce(table.c.measurement_id, table.c.statistical_result_id)
+        rows = self._session.execute(
+            select(table)
+            .where(table.c.claim_version_id == version_id)
+            .order_by(
+                source_type,
+                source_id,
+                table.c.relation_type,
+                table.c.qualification.asc().nullsfirst(),
+                table.c.id,
+            )
+        ).mappings()
+        return [_evidence_relation_from_row(row) for row in rows]
+
+
 def _actor_from_model(model: ActorModel) -> Actor:
     return Actor(
         id=ActorId(model.id),
@@ -1092,6 +1287,74 @@ def _actor_from_model(model: ActorModel) -> Actor:
         created_at=model.created_at,
         retired_at=model.retired_at,
         row_version=model.row_version,
+    )
+
+
+def _claim_from_model(model: ClaimModel) -> Claim:
+    return Claim(
+        id=ClaimId(model.id),
+        project_id=ProjectId(model.project_id),
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        current_version_id=(
+            ClaimVersionId(model.current_version_id)
+            if model.current_version_id is not None
+            else None
+        ),
+        row_version=model.row_version,
+    )
+
+
+def _claim_version_from_model(model: ClaimVersionModel) -> ClaimVersion:
+    return ClaimVersion(
+        id=ClaimVersionId(model.id),
+        claim_id=ClaimId(model.claim_id),
+        version_number=model.version_number,
+        status=VersionStatus(model.status),
+        statement=model.statement,
+        scope=model.scope,
+        qualification=model.qualification,
+        support_set_hash=(ContentHash(model.support_set_hash) if model.support_set_hash else None),
+        content_hash=ContentHash(model.content_hash) if model.content_hash else None,
+        hash_scheme=CANONICAL_JSON_HASH_SCHEME if model.content_hash else None,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+        frozen_at=model.frozen_at,
+        row_version=model.row_version,
+    )
+
+
+def _evidence_relation_from_model(model: EvidenceRelationModel) -> EvidenceRelation:
+    return EvidenceRelation(
+        id=EvidenceRelationId(model.id),
+        claim_version_id=ClaimVersionId(model.claim_version_id),
+        measurement_id=MeasurementId(model.measurement_id) if model.measurement_id else None,
+        statistical_result_id=(
+            StatisticalResultId(model.statistical_result_id)
+            if model.statistical_result_id
+            else None
+        ),
+        relation_type=EvidenceRelationType(model.relation_type),
+        qualification=model.qualification,
+        created_by=ActorId(model.created_by),
+        created_at=model.created_at,
+    )
+
+
+def _evidence_relation_from_row(row: Any) -> EvidenceRelation:
+    return EvidenceRelation(
+        id=EvidenceRelationId(row["id"]),
+        claim_version_id=ClaimVersionId(row["claim_version_id"]),
+        measurement_id=MeasurementId(row["measurement_id"]) if row["measurement_id"] else None,
+        statistical_result_id=(
+            StatisticalResultId(row["statistical_result_id"])
+            if row["statistical_result_id"]
+            else None
+        ),
+        relation_type=EvidenceRelationType(row["relation_type"]),
+        qualification=row["qualification"],
+        created_by=ActorId(row["created_by"]),
+        created_at=row["created_at"],
     )
 
 

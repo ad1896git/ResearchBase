@@ -10,8 +10,11 @@ from researchbase.application.dto import (
     ActorReadModel,
     ArtifactReadModel,
     ArtifactVersionReadModel,
+    ClaimReadModel,
+    ClaimVersionReadModel,
     DatasetReadModel,
     DatasetSnapshotReadModel,
+    EvidenceRelationReadModel,
     ExperimentSpecReadModel,
     ExperimentSpecVersionReadModel,
     HypothesisReadModel,
@@ -31,6 +34,16 @@ from researchbase.application.dto import (
 )
 from researchbase.application.ports import UnitOfWork
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
+from researchbase.domain.claim import (
+    Claim,
+    ClaimId,
+    ClaimVersion,
+    ClaimVersionId,
+    EvidenceRelation,
+    EvidenceRelationId,
+    EvidenceRelationType,
+    calculate_support_set_hash,
+)
 from researchbase.domain.evidence import Dataset, DatasetId, DatasetSnapshot, DatasetSnapshotId
 from researchbase.domain.experiment import (
     ExperimentSpec,
@@ -351,6 +364,73 @@ class RecordStatisticalResultCommand:
     analysis_definition: object
     inputs: tuple[StatisticalResultInputCommand, ...]
     context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class CreateClaimCommand:
+    project_id: ProjectId
+    statement: str
+    scope: object | None
+    qualification: str | None
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class ReviseClaimCommand:
+    claim_id: ClaimId
+    statement: str | None
+    scope: object | None
+    qualification: str | None
+    expected_row_version: int
+    context: ExecutionContext
+    base_version_id: ClaimVersionId | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateClaimDraftCommand:
+    claim_id: ClaimId
+    version_id: ClaimVersionId
+    statement: str
+    scope: object | None
+    qualification: str | None
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class LinkEvidenceCommand:
+    claim_id: ClaimId
+    claim_version_id: ClaimVersionId
+    measurement_id: MeasurementId | None
+    statistical_result_id: StatisticalResultId | None
+    relation_type: EvidenceRelationType | str
+    qualification: str | None
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class UnlinkEvidenceCommand:
+    claim_id: ClaimId
+    claim_version_id: ClaimVersionId
+    relation_id: EvidenceRelationId
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class FreezeClaimVersionCommand:
+    claim_id: ClaimId
+    version_id: ClaimVersionId
+    context: ExecutionContext
+    expected_row_version: int | None = None
+
+
+# Explicit aliases retain the owning-domain vocabulary for callers that spell the
+# version in the command name.
+UpdateClaimVersionDraftCommand = UpdateClaimDraftCommand
+LinkClaimVersionEvidenceCommand = LinkEvidenceCommand
+UnlinkClaimVersionEvidenceCommand = UnlinkEvidenceCommand
 
 
 # Explicit version-suffixed aliases keep the public command vocabulary aligned with
@@ -1397,6 +1477,252 @@ class ApplicationService:
             uow.commit()
             return _statistical_result_read_model(result)
 
+    def create_claim(self, command: CreateClaimCommand) -> ClaimReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        project_id = ProjectId(command.project_id)
+        with self._uow_factory() as uow:
+            project = _require_project(uow, project_id)
+            _require_actor(uow, actor_id)
+            try:
+                claim = Claim(
+                    id=new_typed_id(ClaimId),
+                    project_id=project.id,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+                version = ClaimVersion(
+                    id=new_typed_id(ClaimVersionId),
+                    claim_id=claim.id,
+                    version_number=1,
+                    status=VersionStatus.DRAFT,
+                    statement=command.statement,
+                    scope=command.scope,
+                    qualification=command.qualification,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+            except (TypeError, ValueError, ResearchBaseError) as exc:
+                if isinstance(exc, ResearchBaseError):
+                    raise
+                raise _validation_error(str(exc), "claim") from exc
+            uow.claims.add(claim)
+            uow.claims.add_version(version)
+            uow.claims.update_current_version(
+                claim.id, version.id, claim.row_version, increment=False
+            )
+            uow.commit()
+            return _claim_read_model(replace(claim, current_version_id=version.id))
+
+    def get_claim(self, claim_id: ClaimId) -> ClaimReadModel:
+        with self._uow_factory() as uow:
+            claim = uow.claims.get(ClaimId(claim_id))
+            if claim is None:
+                raise _not_found("claim", claim_id)
+            return _claim_read_model(claim)
+
+    def get_claim_version(self, version_id: ClaimVersionId) -> ClaimVersionReadModel:
+        with self._uow_factory() as uow:
+            version = uow.claims.get_version(ClaimVersionId(version_id))
+            if version is None:
+                raise _not_found("claim version", version_id)
+            return _claim_version_read_model(version)
+
+    def get_current_claim_version(self, claim_id: ClaimId) -> ClaimVersionReadModel:
+        with self._uow_factory() as uow:
+            claim = uow.claims.get(ClaimId(claim_id))
+            if claim is None:
+                raise _not_found("claim", claim_id)
+            version = uow.claims.get_current_version(claim.id)
+            if version is None:
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "claim has no current version",
+                )
+            return _claim_version_read_model(version)
+
+    def revise_claim(self, command: ReviseClaimCommand) -> ClaimReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        claim_id = ClaimId(command.claim_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            claim = uow.claims.get_for_update(claim_id)
+            if claim is None:
+                raise _not_found("claim", claim_id)
+            _require_expected_row_version(claim.row_version, command.expected_row_version)
+            base = _claim_base_version(uow, claim, command.base_version_id)
+            if command.base_version_id is None and base.status is not VersionStatus.FROZEN:
+                raise ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION,
+                    "claim revision requires a frozen current version",
+                )
+            statement = base.statement if command.statement is None else command.statement
+            try:
+                version = ClaimVersion(
+                    id=new_typed_id(ClaimVersionId),
+                    claim_id=claim.id,
+                    version_number=uow.claims.max_version_number(claim.id) + 1,
+                    status=VersionStatus.DRAFT,
+                    statement=statement,
+                    scope=command.scope,
+                    qualification=command.qualification,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+            except (TypeError, ValueError, ResearchBaseError) as exc:
+                if isinstance(exc, ResearchBaseError):
+                    raise
+                raise _validation_error(str(exc), "claim") from exc
+            if base.status is VersionStatus.FROZEN:
+                uow.claims.update_version(
+                    base.transition_to(VersionStatus.SUPERSEDED), base.row_version
+                )
+            uow.claims.add_version(version)
+            uow.claims.update_current_version(claim.id, version.id, claim.row_version)
+            uow.commit()
+            return _claim_read_model(
+                replace(claim, current_version_id=version.id, row_version=claim.row_version + 1)
+            )
+
+    def update_claim_draft(self, command: UpdateClaimDraftCommand) -> ClaimVersionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        claim_id = ClaimId(command.claim_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            claim = uow.claims.get(claim_id)
+            if claim is None:
+                raise _not_found("claim", claim_id)
+            version = _require_claim_version_parent(
+                uow.claims.get_version_for_update(ClaimVersionId(command.version_id)), claim.id
+            )
+            _require_expected_row_version(version.row_version, command.expected_row_version)
+            updated = version.edit_material(
+                statement=command.statement,
+                scope=command.scope,
+                qualification=command.qualification,
+            )
+            uow.claims.update_version(updated, version.row_version)
+            uow.commit()
+            return _claim_version_read_model(replace(updated, row_version=version.row_version + 1))
+
+    def link_evidence(self, command: LinkEvidenceCommand) -> EvidenceRelationReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        claim_id = ClaimId(command.claim_id)
+        version_id = ClaimVersionId(command.claim_version_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            claim = uow.claims.get(claim_id)
+            if claim is None:
+                raise _not_found("claim", claim_id)
+            version = _require_claim_version_parent(
+                uow.claims.get_version_for_update(version_id), claim.id
+            )
+            _require_expected_row_version(version.row_version, command.expected_row_version)
+            if version.status is not VersionStatus.DRAFT:
+                raise ResearchBaseError(
+                    ErrorCode.IMMUTABLE_RECORD, "evidence requires a draft claim version"
+                )
+            try:
+                relation_type = EvidenceRelationType(command.relation_type)
+                relation = EvidenceRelation(
+                    id=new_typed_id(EvidenceRelationId),
+                    claim_version_id=version.id,
+                    measurement_id=command.measurement_id,
+                    statistical_result_id=command.statistical_result_id,
+                    relation_type=relation_type,
+                    qualification=command.qualification,
+                    created_by=actor_id,
+                    created_at=self._clock.now(),
+                )
+            except (TypeError, ValueError, ResearchBaseError) as exc:
+                if isinstance(exc, ResearchBaseError):
+                    raise
+                raise _validation_error(str(exc), "evidence") from exc
+            _validate_evidence_source_project(uow, relation, claim.project_id)
+            uow.claims.add_evidence(relation)
+            uow.claims.update_version(
+                replace(version, row_version=version.row_version + 1), version.row_version
+            )
+            uow.commit()
+            return _evidence_relation_read_model(relation)
+
+    def unlink_evidence(self, command: UnlinkEvidenceCommand) -> EvidenceRelationReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            claim = uow.claims.get(ClaimId(command.claim_id))
+            if claim is None:
+                raise _not_found("claim", command.claim_id)
+            version = _require_claim_version_parent(
+                uow.claims.get_version_for_update(ClaimVersionId(command.claim_version_id)),
+                claim.id,
+            )
+            _require_expected_row_version(version.row_version, command.expected_row_version)
+            if version.status is not VersionStatus.DRAFT:
+                raise ResearchBaseError(
+                    ErrorCode.IMMUTABLE_RECORD, "evidence requires a draft claim version"
+                )
+            relation = uow.claims.get_evidence(EvidenceRelationId(command.relation_id))
+            if relation is None:
+                raise _not_found("evidence relation", command.relation_id)
+            if relation.claim_version_id != version.id:
+                raise ResearchBaseError(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                    "evidence relation does not belong to the claim version",
+                )
+            uow.claims.remove_evidence(relation.id)
+            uow.claims.update_version(
+                replace(version, row_version=version.row_version + 1), version.row_version
+            )
+            uow.commit()
+            return _evidence_relation_read_model(relation)
+
+    def freeze_claim_version(self, command: FreezeClaimVersionCommand) -> ClaimVersionReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        claim_id = ClaimId(command.claim_id)
+        version_id = ClaimVersionId(command.version_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            claim = uow.claims.get_for_update(claim_id)
+            if claim is None:
+                raise _not_found("claim", claim_id)
+            version = _require_claim_version_parent(
+                uow.claims.get_version_for_update(version_id), claim.id
+            )
+            if command.expected_row_version is not None:
+                _require_expected_row_version(version.row_version, command.expected_row_version)
+            evidence = uow.claims.list_evidence(version.id)
+            for relation in evidence:
+                _validate_evidence_source_project(uow, relation, claim.project_id)
+            support_set_hash = calculate_support_set_hash(evidence)
+            frozen = version.freeze(support_set_hash=support_set_hash, clock=self._clock)
+            uow.claims.update_version(frozen, version.row_version)
+            uow.claims.update_current_version(claim.id, version.id, claim.row_version)
+            uow.commit()
+            return _claim_version_read_model(replace(frozen, row_version=version.row_version + 1))
+
+    def get_claim_history(self, claim_id: ClaimId) -> list[ClaimVersionReadModel]:
+        with self._uow_factory() as uow:
+            claim = uow.claims.get(ClaimId(claim_id))
+            if claim is None:
+                raise _not_found("claim", claim_id)
+            return [_claim_version_read_model(item) for item in uow.claims.list_history(claim.id)]
+
+    def list_evidence_relations(
+        self, claim_version_id: ClaimVersionId
+    ) -> list[EvidenceRelationReadModel]:
+        with self._uow_factory() as uow:
+            version = uow.claims.get_version(ClaimVersionId(claim_version_id))
+            if version is None:
+                raise _not_found("claim version", claim_version_id)
+            return [
+                _evidence_relation_read_model(item) for item in uow.claims.list_evidence(version.id)
+            ]
+
+    def validate_claim_version(self, version_id: ClaimVersionId) -> ClosureReport:
+        return ProvenanceClosureValidator(self._uow_factory).validate_claim_version(
+            ClaimVersionId(version_id)
+        )
+
     def get_statistical_result(self, result_id: StatisticalResultId) -> StatisticalResultReadModel:
         with self._uow_factory() as uow:
             result = uow.statistical_results.get(StatisticalResultId(result_id))
@@ -1999,6 +2325,102 @@ def _require_experiment_spec_version_parent(
             "version does not belong to the experiment spec",
         )
     return version
+
+
+def _claim_base_version(
+    uow: UnitOfWork,
+    claim: Claim,
+    base_version_id: ClaimVersionId | None,
+) -> ClaimVersion:
+    version = (
+        uow.claims.get_version(base_version_id)
+        if base_version_id is not None
+        else uow.claims.get_current_version(claim.id)
+    )
+    return _require_claim_version_parent(version, claim.id)
+
+
+def _require_claim_version_parent(version: ClaimVersion | None, claim_id: ClaimId) -> ClaimVersion:
+    if version is None:
+        raise _not_found("claim version", claim_id)
+    if version.claim_id != claim_id:
+        raise ResearchBaseError(
+            ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+            "version does not belong to the claim",
+        )
+    return version
+
+
+def _validate_evidence_source_project(
+    uow: UnitOfWork, relation: EvidenceRelation, project_id: ProjectId
+) -> None:
+    if relation.measurement_id is not None:
+        measurement = uow.measurements.get(relation.measurement_id)
+        if measurement is None:
+            raise _not_found("measurement", relation.measurement_id)
+        run = uow.runs.get(measurement.run_id)
+        if run is None:
+            raise _not_found("run", measurement.run_id)
+        if run.project_id != project_id:
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "measurement evidence must belong to the claim project",
+            )
+        return
+    if relation.statistical_result_id is not None:
+        result = uow.statistical_results.get(relation.statistical_result_id)
+        if result is None:
+            raise _not_found("statistical result", relation.statistical_result_id)
+        if result.project_id != project_id:
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "statistical result evidence must belong to the claim project",
+            )
+
+
+def _claim_read_model(claim: Claim) -> ClaimReadModel:
+    if claim.current_version_id is None:
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "claim has no current version")
+    return ClaimReadModel(
+        id=claim.id,
+        project_id=claim.project_id,
+        created_by=claim.created_by,
+        created_at=claim.created_at,
+        current_version_id=claim.current_version_id,
+        row_version=claim.row_version,
+    )
+
+
+def _claim_version_read_model(version: ClaimVersion) -> ClaimVersionReadModel:
+    return ClaimVersionReadModel(
+        id=version.id,
+        claim_id=version.claim_id,
+        version_number=version.version_number,
+        status=version.status,
+        statement=version.statement,
+        scope=version.scope,
+        qualification=version.qualification,
+        support_set_hash=version.support_set_hash,
+        content_hash=version.content_hash,
+        hash_scheme=version.hash_scheme,
+        created_by=version.created_by,
+        created_at=version.created_at,
+        frozen_at=version.frozen_at,
+        row_version=version.row_version,
+    )
+
+
+def _evidence_relation_read_model(relation: EvidenceRelation) -> EvidenceRelationReadModel:
+    return EvidenceRelationReadModel(
+        id=relation.id,
+        claim_version_id=relation.claim_version_id,
+        measurement_id=relation.measurement_id,
+        statistical_result_id=relation.statistical_result_id,
+        relation_type=relation.relation_type,
+        qualification=relation.qualification,
+        created_by=relation.created_by,
+        created_at=relation.created_at,
+    )
 
 
 def _metric_current_version(

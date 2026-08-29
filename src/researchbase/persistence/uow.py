@@ -12,6 +12,7 @@ from researchbase.application.ports import (
     ActorRepository,
     ArtifactRepository,
     ArtifactVersionRepository,
+    ClaimRepository,
     DatasetRepository,
     DatasetSnapshotRepository,
     ExperimentSpecRepository,
@@ -30,6 +31,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
     SqlAlchemyArtifactRepository,
     SqlAlchemyArtifactVersionRepository,
+    SqlAlchemyClaimRepository,
     SqlAlchemyDatasetRepository,
     SqlAlchemyDatasetSnapshotRepository,
     SqlAlchemyExperimentSpecRepository,
@@ -61,6 +63,7 @@ class SqlAlchemyUnitOfWork:
     measurements: MeasurementRepository
     statistical_results: StatisticalResultRepository
     runs: RunRepository
+    claims: ClaimRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -86,6 +89,7 @@ class SqlAlchemyUnitOfWork:
         self.measurements = SqlAlchemyMeasurementRepository(self._session)
         self.statistical_results = SqlAlchemyStatisticalResultRepository(self._session)
         self.runs = SqlAlchemyRunRepository(self._session)
+        self.claims = SqlAlchemyClaimRepository(self._session)
         return self
 
     def commit(self) -> None:
@@ -136,6 +140,11 @@ class SqlAlchemyUnitOfWork:
                 raise ResearchBaseError(
                     ErrorCode.VALIDATION_ERROR,
                     "statistical result input is already attached",
+                ) from exc
+            if "uq_evidence_measurement" in str(exc.orig) or "uq_evidence_stat" in str(exc.orig):
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "evidence relation is already attached",
                 ) from exc
             raise
         self._committed = True
