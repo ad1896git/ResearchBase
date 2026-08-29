@@ -43,7 +43,8 @@ listed.
 ## PostgreSQL and migration gates
 
 ```text
-PR-11 application/schema integration: 25 passed
+PR-11 application integration: 27 passed
+PR-11 schema integration: 5 passed
 PostgreSQL health smoke: 1 passed
 PostgreSQL: 18.6, database=researchbase, schema=public
 alembic current: 0012_statistical_result_input_guard (head)

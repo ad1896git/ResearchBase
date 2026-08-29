@@ -4,7 +4,8 @@
 | --- | --- |
 | Full pytest regression | PASS — 408 passed |
 | PR-11R focused application/schema/domain | PASS — 47 passed |
-| PR-11 PostgreSQL application/schema | PASS — 25 passed |
+| PR-11 PostgreSQL application | PASS — 27 passed |
+| PR-11 PostgreSQL schema | PASS — 5 passed |
 | Ruff | PASS |
 | Pyright | PASS |
 | Architecture/import boundaries | PASS — 34 passed |
