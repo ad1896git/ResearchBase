@@ -1,0 +1,25 @@
+# Git-generated PR-12 implementation target range
+# Command: git diff --name-only 18fb4138e7ccb57809ea54b916f52d8b801b8bec..019148ed853c480f056975c2fa156a35abeea735
+# Set equality verified against the command above.
+migrations/versions/0014_claim_evidence.py
+src/researchbase/application/closure.py
+src/researchbase/application/commands.py
+src/researchbase/application/dto.py
+src/researchbase/application/ports.py
+src/researchbase/domain/claim.py
+src/researchbase/persistence/models.py
+src/researchbase/persistence/repositories.py
+src/researchbase/persistence/uow.py
+tests/architecture/test_import_boundaries.py
+tests/architecture/test_pr12_boundaries.py
+tests/integration/pr12_support.py
+tests/integration/test_pr11r2_migration.py
+tests/integration/test_pr12_application.py
+tests/integration/test_pr12_atomicity.py
+tests/integration/test_pr12_closure.py
+tests/integration/test_pr12_concurrency.py
+tests/integration/test_pr12_fk.py
+tests/integration/test_pr12_schema.py
+tests/test_architecture.py
+tests/unit/domain/test_pr12_claim.py
+tests/unit/test_pr12_contracts.py
