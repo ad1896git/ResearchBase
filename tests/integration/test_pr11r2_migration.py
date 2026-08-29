@@ -209,7 +209,8 @@ def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() ->
         before_result = _result_snapshot(engine, valid_result.id)
         before_inputs = _input_snapshot(engine, valid_result.id)
         assert actor_id == valid_result.created_by
-        assert len(before_inputs) == 1
+        assert _counts(engine, valid_result.id) == (1, 1)
+        assert before_inputs == ((valid_result.id, measurement_id, "input", 0),)
 
         upgrade = _alembic("upgrade", "head")
         assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
