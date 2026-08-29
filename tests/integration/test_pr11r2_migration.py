@@ -212,7 +212,7 @@ def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() ->
         assert _counts(engine, valid_result.id) == (1, 1)
         assert before_inputs == ((valid_result.id, measurement_id, "input", 0),)
 
-        upgrade = _alembic("upgrade", "head")
+        upgrade = _alembic("upgrade", FINAL_HEAD)
         assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
         current = _alembic("current")
         assert current.returncode == 0, current.stdout + current.stderr
@@ -294,7 +294,7 @@ def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() ->
             )
         assert _counts(engine, legacy_result_id) == (1, 1)
 
-        retry = _alembic("upgrade", "head")
+        retry = _alembic("upgrade", FINAL_HEAD)
         assert retry.returncode == 0, retry.stdout + retry.stderr
         current = _alembic("current")
         assert FINAL_HEAD in current.stdout
