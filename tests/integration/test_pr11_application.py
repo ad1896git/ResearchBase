@@ -41,8 +41,8 @@ from researchbase.domain.statistical_result import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.hashing import ContentHash
-from researchbase.foundation.time import FixedClock
 from researchbase.foundation.ids import ActorId
+from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
@@ -914,7 +914,7 @@ def test_referenced_rows_are_behaviorally_restrictive(
             )
 
     assert factory().get_project(project_id) is not None
-    assert factory().get_actor(actor_id) is not None
+    assert factory().get_actor(ActorId(actor_id)) is not None
     assert factory().get_measurement(measurement_id) is not None
     assert factory().get_statistical_result(result.id) == result
     assert factory().list_statistical_result_inputs(result.id) == [
