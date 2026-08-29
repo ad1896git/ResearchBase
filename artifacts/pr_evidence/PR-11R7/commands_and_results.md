@@ -16,7 +16,14 @@ printf '%s\n' 'no matches'
 
 Result: `no matches`. The command constructs the exact token at runtime and
 uses fixed-string matching. It does not claim that a broader search for
-descriptive prose is empty; such prose may occur in historical evidence.
+descriptive prose is empty. For transparency, this separate command:
+
+```bash
+grep -RFn -- "unresolved final-head token" artifacts/pr_evidence/PR-11R5 artifacts/pr_evidence/PR-11R6 artifacts/pr_evidence/PR-11R7 || true
+```
+
+returned five explanatory-prose matches in R6/R7 evidence. Those matches are
+historical explanation, not the exact-placeholder acceptance condition.
 
 ## Git and scope verification
 
