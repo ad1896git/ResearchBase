@@ -7,7 +7,8 @@ Implementation/test commits:
 
 - `6319fda` — deferred PostgreSQL zero-input guard, duplicate-edge translation,
   and regression coverage;
-- `1330419` — corrected PR-11R regression import/type details.
+- `1330419` — corrected PR-11R regression import/type details;
+- `4aa969e` — strengthened fresh rollback counts and independent hash-order proof.
 
 The accepted PR-11 implementation and evidence history were preserved. The
 only production change is the narrow repository error translation and the only

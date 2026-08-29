@@ -12,7 +12,8 @@
   ],
   "pr11r_implementation_test_commits": [
     "6319fda96e573e27ceca2afe1b45b03fcba5e628",
-    "13304196ba1f8d7044b92e1393a843debf35f974"
+    "13304196ba1f8d7044b92e1393a843debf35f974",
+    "4aa969e7781dd6fd36e7d98999153098af264095"
   ],
   "pr11r_evidence_payload_commit": "d95a0c15b63e848aaa7676832b11f400d932a85f",
   "post_evidence_current_head_at_payload_verification": "d95a0c15b63e848aaa7676832b11f400d932a85f",
