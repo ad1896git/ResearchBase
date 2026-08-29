@@ -1,0 +1,25 @@
+{
+  "pr": "PR-11R6",
+  "scope": "evidence-metadata-only final PR-11R5 fingerprint fix",
+  "reviewed_pr11r3_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+  "reviewed_pr11r4_head": "5f3626d97ba129ab8487d5ce134fa87bba3312bb",
+  "reviewed_pr11r5_head": "10a4e761eecda6e2a2b44b06d60400b43265e458",
+  "pr11r5_commits": [
+    "00cf1a5b37c9f6e7ae339406ae2fcb68c7fb24c6",
+    "10a4e761eecda6e2a2b44b06d60400b43265e458"
+  ],
+  "target_range_base": "10a4e761eecda6e2a2b44b06d60400b43265e458",
+  "target_range_file_count": 8,
+  "target_range_evidence_only": true,
+  "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+  "verification": {
+    "placeholder_search": false,
+    "production_changes": false,
+    "test_changes": false,
+    "migration_changes": false,
+    "architecture_changes": false,
+    "pr12_implementation": false,
+    "sqlite_used": false
+  },
+  "fingerprint_note": "PR-11R3, PR-11R4, and PR-11R5 reviewed HEADs are historical facts. PR-11R6 evidence commits are separate; the final current HEAD is reported in the status output rather than copied into its own content."
+}
