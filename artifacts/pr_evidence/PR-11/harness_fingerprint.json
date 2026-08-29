@@ -4,7 +4,7 @@
   "accepted_pr10_final_baseline": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
   "implementation_commit": "5093639b7ebdfa205c0304aa9914603fb6f13d11",
   "evidence_payload_commit": "f4ccdf8c5f78f48cb6c5f295224bfe46bf68b6b0",
-  "evidence_metadata_followup_commit": "pending final Git verification",
+  "evidence_metadata_followup_commit": "reported by final Git verification; not encoded as a self-reference",
   "post_evidence_current_head": "reported by final Git verification; not encoded as a self-reference",
   "expected_alembic_head": "0011_statistical_result",
   "allowed_scope": [
