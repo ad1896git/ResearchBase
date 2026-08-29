@@ -1,0 +1,41 @@
+{
+  "pr": "PR-11R",
+  "scope": "StatisticalResult provenance hardening only",
+  "accepted_pr10_final_baseline": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
+  "reviewed_pr11_baseline": "9592b66dc3372fae18fdd66555203f0788e407e2",
+  "pr11_implementation_commit": "5093639b7ebdfa205c0304aa9914603fb6f13d11",
+  "pr11_evidence_commits": [
+    "f4ccdf843adfd56b79c5229b4304bd77a238f104",
+    "191a48545330fdf46198f45a4ad6b96e84b06c18",
+    "46f21001edb8532faf0a81dc0a35352e1e6c9b28",
+    "9592b66dc3372fae18fdd66555203f0788e407e2"
+  ],
+  "pr11r_implementation_test_commits": [
+    "6319fda96e573e27ceca2afe1b45b03fcba5e628",
+    "13304196ba1f8d7044b92e1393a843debf35f974"
+  ],
+  "pr11r_evidence_payload_commit": "d95a0c15b63e848aaa7676832b11f400d932a85f",
+  "post_evidence_current_head_at_payload_verification": "d95a0c15b63e848aaa7676832b11f400d932a85f",
+  "fingerprint_note": "The final metadata commit is reported by final Git verification; this file records the post-payload reviewed head to avoid a self-referential Git SHA.",
+  "expected_alembic_head": "0012_statistical_result_input_guard",
+  "forbidden_scope": {
+    "0011_rewritten": false,
+    "statistical_result_version": false,
+    "generic_version_orm": false,
+    "claim": false,
+    "evidence_relation": false,
+    "pr12": false,
+    "phase2_plus": false,
+    "sqlite": false
+  },
+  "verification": {
+    "full_pytest": "408 passed",
+    "ruff": "PASS",
+    "pyright": "PASS",
+    "architecture": "34 passed",
+    "pr11r_owned_format": "PASS",
+    "postgresql": "18.6",
+    "alembic": "0012_statistical_result_input_guard (head)",
+    "changed_file_inventory_set_equality": "PASS"
+  }
+}
