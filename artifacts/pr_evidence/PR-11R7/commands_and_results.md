@@ -22,6 +22,7 @@ descriptive prose is empty; such prose may occur in historical evidence.
 
 ```bash
 git rev-parse HEAD
+git rev-parse 328fe13
 git status --short
 git diff --check
 git diff -- src tests migrations
@@ -31,8 +32,10 @@ diff -u <(git diff --name-only adc78c84516c5779b46db103d35221afc810add3..HEAD | 
 
 Results:
 
-- current HEAD and the two PR-11R7 evidence commits are resolved in the final
-  fingerprint;
+- the PR-11R7 payload commit resolves as
+  `328fe1378ebca5aa2880df020c4b50250bf43410`;
+- any later R7 finalization commit and post-R7 current HEAD are recorded
+  separately in the final status, avoiding self-reference in the fingerprint;
 - the working tree has only pre-existing unrelated untracked files;
 - `git diff --check`: PASS;
 - `git diff -- src tests migrations`: empty;

@@ -3,7 +3,9 @@
   "scope": "evidence-only final PR-11R6 command reproducibility fix",
   "reviewed_pr11r5_head": "10a4e761eecda6e2a2b44b06d60400b43265e458",
   "reviewed_pr11r6_head": "adc78c84516c5779b46db103d35221afc810add3",
-  "pr11r7_evidence_commits": [],
+  "pr11r7_evidence_commits": [
+    "328fe1378ebca5aa2880df020c4b50250bf43410"
+  ],
   "target_range_base": "adc78c84516c5779b46db103d35221afc810add3",
   "target_range_file_count": 8,
   "target_range_evidence_only": true,
@@ -20,5 +22,5 @@
     "git_diff_check": true,
     "changed_file_set_equality": true
   },
-  "fingerprint_note": "PR-11R5 and PR-11R6 reviewed HEADs are historical facts. PR-11R7 evidence commits are recorded separately from those reviewed heads and are finalized after Git resolution. Descriptive prose searches are not the exact-token acceptance check."
+  "fingerprint_note": "PR-11R5 and PR-11R6 reviewed HEADs are historical facts. The resolved PR-11R7 payload commit is recorded separately from those reviewed heads. Any later R7 finalization commit and the post-R7 current HEAD are reported separately to avoid self-reference. Descriptive prose searches are not the exact-token acceptance check."
 }
