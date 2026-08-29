@@ -15,10 +15,15 @@
     "13304196ba1f8d7044b92e1393a843debf35f974",
     "4aa969e7781dd6fd36e7d98999153098af264095"
   ],
-  "pr11r_evidence_payload_commit": "d95a0c15b63e848aaa7676832b11f400d932a85f",
-  "post_evidence_current_head_at_payload_verification": "d95a0c15b63e848aaa7676832b11f400d932a85f",
-  "fingerprint_note": "The final metadata commit is reported by final Git verification; this file records the post-payload reviewed head to avoid a self-referential Git SHA.",
-  "expected_alembic_head": "0012_statistical_result_input_guard",
+  "pr11r_reviewed_head": "6675a7444cdb897d1bf810a55b32b6d88015ea15",
+  "pr11r2_implementation_test_commits": [
+    "1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5",
+    "2304c081f668a01a7663624a271728431a9ba745"
+  ],
+  "pr11r2_evidence_commits": [],
+  "post_pr11r2_current_head_at_fingerprint_generation": "2304c081f668a01a7663624a271728431a9ba745",
+  "fingerprint_note": "PR-11R2 evidence commit SHAs are finalized after the payload commit and recorded in the final metadata commit; the final current HEAD is resolved directly from Git in PR-11R2 evidence and completion output.",
+  "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
   "forbidden_scope": {
     "0011_rewritten": false,
     "statistical_result_version": false,
@@ -36,7 +41,7 @@
     "architecture": "34 passed",
     "pr11r_owned_format": "PASS",
     "postgresql": "18.6",
-    "alembic": "0012_statistical_result_input_guard (head)",
+    "alembic": "0013_statistical_result_legacy_input_precheck (head)",
     "changed_file_inventory_set_equality": "PASS"
   }
 }

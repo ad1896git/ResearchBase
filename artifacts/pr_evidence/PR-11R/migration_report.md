@@ -1,21 +1,20 @@
-# PR-11R migration report
+# PR-11R migration report — historical record
 
-Migration `0012_statistical_result_input_guard` is a single narrow follow-up
-from `0011_statistical_result`; it creates no table. The persistent integration
-database ended at:
+At reviewed PR-11R HEAD `6675a7444cdb897d1bf810a55b32b6d88015ea15`,
+`0012_statistical_result_input_guard` was the head. It added the deferred
+PostgreSQL guard and did not rewrite `0011_statistical_result`.
 
-```text
-0012_statistical_result_input_guard (head)
-```
+The later independent PR-11R review correctly found `PR11R-MIG-001`: a
+zero-input row already present before the upgrade could survive `0012`, because
+the deferred trigger only guarded new parent inserts. Therefore the historical
+PR-11R migration evidence is retained, but its claim that the accepted head
+was sufficient for legacy data is withdrawn.
 
-On disposable PostgreSQL database `researchbase_pr11r_disposable`:
+PR-11R2 adds the narrow follow-up migration
+`0013_statistical_result_legacy_input_precheck`. Its transactional PostgreSQL
+precheck reads existing StatisticalResults and aborts with a clear
+zero-input/manual-remediation error before revision `0013` is recorded. See
+`artifacts/pr_evidence/PR-11R2/legacy_zero_input_migration_report.md` for the
+fresh attack matrix and recovery observations.
 
-1. clean base → head succeeded through `0012`;
-2. zero-input repository and raw-SQL tests passed at the clean head;
-3. `0012 → 0011` succeeded;
-4. `0011 → 0012` succeeded;
-5. current again reported `0012_statistical_result_input_guard (head)`.
-
-The deferred trigger metadata query returned `tgdeferrable=true` and
-`tginitdeferred=true`. The disposable database was removed after verification.
-No SQLite path was used and `0011_statistical_result` was not rewritten.
+No scientific row is deleted, synthesized, or retargeted by either migration.

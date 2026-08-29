@@ -11,3 +11,15 @@
 | F-007 | P2 | CLOSED | Missing query paths and fresh FK/RESTRICT survival assertions are covered. |
 
 No P0 or P1 findings remain open.
+
+## Subsequent independent review
+
+The final independent review performed after PR-11R found two later findings
+at reviewed HEAD `6675a7444cdb897d1bf810a55b32b6d88015ea15`:
+
+| Finding | Severity | Historical disposition at PR-11R HEAD | PR-11R2 disposition |
+| --- | --- | --- | --- |
+| PR11R-MIG-001 | P1 | OPEN — `0012` did not precheck legacy zero-input rows. | CLOSED by migration `0013` plus real PostgreSQL failure/recovery matrix. |
+| PR11R-EVID-001 | P1 | OPEN — fingerprint omitted later evidence commits and reviewed HEAD. | CLOSED by Git-resolved fingerprint reconciliation and set-equal inventories. |
+
+These findings are recorded rather than erased from the PR-11R history.
