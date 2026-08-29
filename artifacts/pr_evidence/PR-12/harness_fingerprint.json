@@ -1,0 +1,17 @@
+{
+  "phase": "Phase 1",
+  "pr": "PR-12",
+  "execution_pack": "PR-12_Execution_Pack_v1.0.md",
+  "accepted_pr11_final_reviewed_baseline": "18fb4138e7ccb57809ea54b916f52d8b801b8bec",
+  "pr12_implementation_commit": "4b8442c1e3e0a302d70c490c5a907467833bc73a",
+  "pr12_test_migration_commit": "14030a288d7eb2b4d90b0652871c32448466abe6",
+  "pr12_lock_boundary_test_commit": "019148ed853c480f056975c2fa156a35abeea735",
+  "pr12_evidence_payload_commit": "4454fe6f2afed551e076e25a7bd75020200e3e7f",
+  "current_head_at_reporting": "4454fe6f2afed551e076e25a7bd75020200e3e7f",
+  "database": "PostgreSQL 18.6",
+  "alembic_head": "0014_claim_evidence",
+  "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+  "execution_pack_sha256": "e1cfea00d7d125f7b1dd458673c777f59e2f66eb62098afc91725fe0a19f3b2f",
+  "sqlite_used": false,
+  "pr13_implementation_detected": false
+}
