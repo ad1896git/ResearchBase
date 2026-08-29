@@ -18,4 +18,3 @@
 Repository-wide `ruff format --check .` reports eight pre-existing files outside
 the PR-11R3 change set. This remains a non-blocking inherited P3; the owned
 scope is formatted.
-

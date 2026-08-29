@@ -25,4 +25,3 @@ The test also runs `0013 -> 0012 -> 0013` on the populated state. This is not
 an empty-database migration proof.
 
 Observed result: PASS, 2 migration-matrix tests passed.
-

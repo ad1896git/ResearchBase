@@ -1,0 +1,22 @@
+{
+  "pr": "PR-11R5",
+  "scope": "evidence-whitespace-only",
+  "reviewed_pr11r3_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+  "reviewed_pr11r4_head": "5f3626d97ba129ab8487d5ce134fa87bba3312bb",
+  "target_range": "5f3626d..PR11R5_FINAL_HEAD",
+  "target_range_file_count": 20,
+  "target_range_evidence_only": true,
+  "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+  "verification": {
+    "production_changes": false,
+    "test_changes": false,
+    "migration_changes": false,
+    "pr12_implementation": false,
+    "open_pr11_p0": false,
+    "open_pr11_p1": false,
+    "open_pr11_p2": false,
+    "open_pr11_p3": false,
+    "sqlite_used": false
+  },
+  "fingerprint_note": "PR-11R3 and PR-11R4 reviewed HEADs are historical facts. PR-11R5 cleanup and finalization commit identities are added only after Git resolves them; the final current HEAD is reported separately to avoid self-reference."
+}

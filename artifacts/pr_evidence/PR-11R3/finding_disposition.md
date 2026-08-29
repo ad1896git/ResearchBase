@@ -7,4 +7,3 @@
 | Failed-upgrade catalog gap | P2 | CLOSED | The migration test snapshots real PostgreSQL catalogs before failure and asserts no function, trigger, constraint, or public relation delta after the failed upgrade. |
 
 No new production or migration finding was exposed.
-

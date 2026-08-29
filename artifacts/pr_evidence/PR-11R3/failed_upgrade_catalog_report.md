@@ -32,4 +32,3 @@ controlled fixture-only setup, retries the migration, and verifies the future
 zero-input guard and normal one-/multi-input application paths.
 
 Observed result: PASS, 2 migration-matrix tests passed.
-

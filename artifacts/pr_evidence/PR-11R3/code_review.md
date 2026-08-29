@@ -13,4 +13,3 @@ No production or migration file changed in PR-11R3. The existing follow-up
 migration `0013_statistical_result_legacy_input_precheck` remains unchanged.
 
 Code review result: PASS. No P0/P1 code finding.
-

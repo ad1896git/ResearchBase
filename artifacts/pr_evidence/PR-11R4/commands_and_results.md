@@ -18,9 +18,12 @@ git diff -- src tests migrations
 
 The baseline inspection reported starting HEAD
 `716e316d57d4dc40b4c13586f3dfafebdc17caba`. The target range contained 15
-paths. The historical target-range whitespace check identified the nine
-listed PR-11R3 Markdown EOF defects; after cleanup, the current working-tree
-`git diff --check` passed. The source/test/migration diff is empty.
+paths. The historical target-range whitespace check identified nine PR-11R3
+Markdown EOF defects, and the then-current working-tree check passed. A later
+final independent committed-content audit found eight remaining EOF defects
+because the working-tree check does not re-check unchanged committed content.
+PR-11R5 removed those eight defects and verified a clean post-cleanup check.
+The source/test/migration diff is empty.
 
 ## Evidence checks
 

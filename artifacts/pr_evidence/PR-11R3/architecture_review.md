@@ -14,4 +14,3 @@ StatisticalResultVersion, generic Version ORM/table, PR-12, Phase 2+, Agent
 Runtime, or SQLite implementation was introduced.
 
 Architecture gate: PASS.
-

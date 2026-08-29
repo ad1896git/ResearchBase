@@ -18,4 +18,3 @@ or migration semantics changed. PR-12 and all later scope remain absent.
 ## Disposition
 
 Both test/evidence gaps are closed. No P0 or P1 remains open.
-
