@@ -15,3 +15,9 @@ claim_version / evidence / <relation> / statistical_result / inputs / 00000000-0
 ```
 
 The first two inputs remained valid and the specific missing Measurement object ID was reported. This fails a first-input-only validator.
+
+## PR-12R2 reconciliation
+
+The final review correctly identified that the original proof used only one positive and one negative validation and a lower-bound `visited_count`. PR-12R2 now creates two equivalent StatisticalResults with physical insertion order A=`M1,M2,M3` and B=`M3,M1,M2`, while semantic roles/ordinals remain primary/0, secondary/1, tertiary/2.
+
+Each positive report is repeated three times and is exactly equal with `complete=True`, `visited_count=19`, and no violations. Only M3 is redirected to missing Measurement `00000000-0000-0000-0000-000000000099`; each negative report is repeated three times and is exactly equal with `complete=False`, `visited_count=15`, and one exact M3 path. Reports from order A and B are semantically equal after normalizing only the unavoidable EvidenceRelation ID segment. The first two inputs remain valid.

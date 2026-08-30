@@ -9,3 +9,11 @@
 | F-005 | P2 | CLOSED | FROZEN eight-case matrix plus INSERT/UPDATE/DELETE representatives for SUPERSEDED and ABANDONED, with fresh reads and hash checks. |
 
 No production semantic drift and no migration change were required.
+
+## PR-12R2 final-review reconciliation
+
+| Finding | Severity | Disposition | Evidence |
+|---|---:|---|---|
+| PR12R-RR-001 | P1 | CLOSED by PR-12R2 | Reviewed PR-12R HEAD `3564361bb3b80a9302b48ed61b1b0b1fa773de26` is recorded explicitly and separately from R2 commits. |
+| PR12R-RR-002 | P2 | CLOSED by PR-12R2 | Separate stdlib-only oracle module; production helper is called only as SUT. |
+| PR12R-RR-003 | P2 | CLOSED by PR-12R2 | Exact 19/15 counts, three repeated reports per state/order, physical orders A/B, and exact later-M3 path. |

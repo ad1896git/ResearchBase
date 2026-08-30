@@ -22,3 +22,9 @@ The test independently sorts by source_type, source_id, relation_type, and NULL-
 - empty vector: `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`
 
 Single-variable tests change each semantic field and separately change relation identity, actor, timestamp, and insertion order. Semantic changes alter the hash; excluded metadata and order do not.
+
+## PR-12R2 reconciliation
+
+The independent final review found that the expected-value logic still lived in the same test module that imported the production hash helper. PR-12R2 moves the oracle to `tests/oracles/pr12_support_set_oracle.py`. That module imports only `collections.abc`, `hashlib`, and `json`; it imports no `researchbase` module and calls no production support-set helper.
+
+The production `calculate_support_set_hash` helper is invoked by `tests/unit/domain/test_pr12_claim.py` only as the system under test. Expected values come from literal four-field rows passed to the separate test-local oracle. Measurement-only, StatisticalResult-only, mixed, empty, NULL/non-NULL, reverse-order, same-prefix, semantic sensitivity, and excluded-metadata stability vectors passed in the 33-test unit suite.
