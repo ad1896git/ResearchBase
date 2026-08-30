@@ -1,0 +1,19 @@
+# Changed files
+
+R2 finalization range `1c8479aa8f36b3820796c42152b1b5ebeb6e3162..19429024924469cf37b7e3ac31de53e72130c632`:
+
+M artifacts/pr_evidence/PR-13R2/changed_files.txt
+M artifacts/pr_evidence/PR-13R2/code_review.md
+M artifacts/pr_evidence/PR-13R2/fingerprint_reconciliation.md
+M artifacts/pr_evidence/PR-13R2/harness_fingerprint.json
+M artifacts/pr_evidence/PR-13R2/test_report.md
+
+Exact count 5; evidence only; source 0, tests 0, migrations 0; set equality PASS.
+
+R3 implementation range `19429024924469cf37b7e3ac31de53e72130c632..2f6f3b7f1f49eece5231af1aab4ef6e81527e0c3`:
+
+M src/researchbase/application/closure.py
+M tests/integration/test_pr13_queries.py
+
+Exact count 2; source 1, tests 1, migrations 0; set equality PASS.
+
