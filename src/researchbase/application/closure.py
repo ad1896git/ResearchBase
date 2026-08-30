@@ -582,6 +582,7 @@ class ProvenanceClosureValidator:
         visited.add(("Run", UUID(str(run.id))))
         self._check_run_state(run, violations)
 
+        spec_context_incomplete = False
         if context is None:
             spec = uow.experiment_specs.get_version(run.experiment_spec_version_id)
         else:

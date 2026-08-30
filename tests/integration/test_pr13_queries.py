@@ -15,7 +15,10 @@ from tests.integration.test_pr09_application import (
 )
 from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
-from researchbase.application.closure import BatchLookup, ProvenanceClosureValidator
+from researchbase.application.closure import (
+    BatchLookup,
+    ProvenanceClosureValidator,
+)
 from researchbase.application.commands import (
     ApplicationService,
     AttachRunArtifactInputCommand,
@@ -49,7 +52,9 @@ from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_session_factory
 from researchbase.persistence.repositories import (
     SqlAlchemyArtifactVersionRepository,
+    SqlAlchemyExperimentSpecRepository,
     SqlAlchemyMeasurementRepository,
+    SqlAlchemyRunRepository,
     SqlAlchemyStatisticalResultRepository,
 )
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
@@ -854,3 +859,140 @@ def test_trace_never_requested_reference_is_a_stable_context_violation(
     assert observed == [
         ("PROVENANCE_CONTEXT_INCOMPLETE", "Measurement", str(measurement_id), "measurement")
     ]
+
+
+def test_run_requested_missing_spec_is_deterministic_and_cache_only(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "pr13r3-missing-spec")
+    measurement = service.get_measurement(
+        seed_measurement(service, project_id, actor_context, "pr13r3-missing-spec")
+    )
+    run = service.get_run(measurement.run_id)
+    fallback_calls = {"spec": 0, "dataset_inputs": 0, "artifact_inputs": 0}
+
+    monkeypatch.setattr(SqlAlchemyExperimentSpecRepository, "get_versions", lambda self, ids: [])
+
+    def forbidden_spec_get(self, version_id):
+        fallback_calls["spec"] += 1
+        raise AssertionError(f"spec fallback attempted for {version_id}")
+
+    def forbidden_dataset_inputs(self, run_id):
+        fallback_calls["dataset_inputs"] += 1
+        raise AssertionError(f"dataset-input fallback attempted for {run_id}")
+
+    def forbidden_artifact_inputs(self, run_id):
+        fallback_calls["artifact_inputs"] += 1
+        raise AssertionError(f"artifact-input fallback attempted for {run_id}")
+
+    monkeypatch.setattr(SqlAlchemyExperimentSpecRepository, "get_version", forbidden_spec_get)
+    monkeypatch.setattr(SqlAlchemyRunRepository, "list_dataset_inputs", forbidden_dataset_inputs)
+    monkeypatch.setattr(SqlAlchemyRunRepository, "list_artifact_inputs", forbidden_artifact_inputs)
+
+    select_counts: list[int] = []
+    observed = []
+    for _ in range(3):
+        statements: list[str] = []
+
+        def observe(
+            _conn,
+            _cursor,
+            statement,
+            _parameters,
+            _context,
+            _executemany,
+            statement_log=statements,
+        ) -> None:
+            statement_log.append(statement.lstrip().split(None, 1)[0].upper())
+
+        event.listen(engine, "before_cursor_execute", observe)
+        try:
+            observed.append(query_service(engine).get_run_provenance(run.id).closure)
+        finally:
+            event.remove(engine, "before_cursor_execute", observe)
+        assert set(statements) == {"SELECT"}
+        select_counts.append(len(statements))
+
+    assert observed[0] == observed[1] == observed[2]
+    assert observed[0].complete is False
+    assert observed[0].visited_count == 1
+    assert [
+        (
+            item.code,
+            item.object_type,
+            item.object_id,
+            item.path,
+            item.message,
+        )
+        for item in observed[0].violations
+    ] == [
+        (
+            ErrorCode.NOT_FOUND.value,
+            "ExperimentSpecVersion",
+            str(run.experiment_spec_version_id),
+            ("run", "experiment_spec_version"),
+            "experiment spec version was not found",
+        )
+    ]
+    assert fallback_calls == {"spec": 0, "dataset_inputs": 0, "artifact_inputs": 0}
+    assert select_counts == [6, 6, 6]
+
+
+def test_run_never_requested_spec_is_deterministic_and_non_contextual_still_works(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "pr13r3-never-requested-spec")
+    measurement = service.get_measurement(
+        seed_measurement(service, project_id, actor_context, "pr13r3-never-requested-spec")
+    )
+    run = service.get_run(measurement.run_id)
+    sessions = create_session_factory(engine)
+    validator = ProvenanceClosureValidator(lambda: SqlAlchemyUnitOfWork(sessions))
+
+    repository_backed = validator.validate_run(run.id)
+    assert repository_backed.complete is True
+
+    original_load = ProvenanceQueryService._load_run_context
+
+    def omit_spec_membership(uow, run_ids):
+        context = original_load(uow, run_ids)
+        context.spec_versions = BatchLookup()
+        return context
+
+    fallback_calls = {"spec": 0}
+
+    def forbidden_spec_get(self, version_id):
+        fallback_calls["spec"] += 1
+        raise AssertionError(f"spec fallback attempted for {version_id}")
+
+    monkeypatch.setattr(
+        ProvenanceQueryService,
+        "_load_run_context",
+        staticmethod(omit_spec_membership),
+    )
+    monkeypatch.setattr(SqlAlchemyExperimentSpecRepository, "get_version", forbidden_spec_get)
+
+    observed = [query_service(engine).get_run_provenance(run.id).closure for _ in range(3)]
+
+    assert observed[0] == observed[1] == observed[2]
+    assert observed[0].complete is False
+    assert observed[0].visited_count == 1
+    assert [
+        (item.code, item.object_type, item.object_id, item.path, item.message)
+        for item in observed[0].violations
+    ] == [
+        (
+            "PROVENANCE_CONTEXT_INCOMPLETE",
+            "ExperimentSpecVersion",
+            str(run.experiment_spec_version_id),
+            ("run", "experiment_spec_version"),
+            "ExperimentSpecVersion was referenced but never requested by the closure batch",
+        )
+    ]
+    assert fallback_calls == {"spec": 0}
