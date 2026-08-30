@@ -27,3 +27,22 @@ def test_pr13r_does_not_add_graph_or_persistent_cache_schema() -> None:
     source = (ROOT / "src/researchbase/application/provenance_queries.py").read_text()
     forbidden = ("GraphNode", "GraphEdge", "traverse_graph", "closure_cache", "trace_cache")
     assert not any(token in source for token in forbidden)
+
+
+def test_pr13r2_contextual_closure_has_no_repository_fallbacks() -> None:
+    source = (ROOT / "src/researchbase/application/closure.py").read_text()
+
+    assert "BatchLookup" in source
+    assert "requested_ids" in source
+    assert "PROVENANCE_CONTEXT_INCOMPLETE" in source
+    for required in (
+        "context.measurements.resolve",
+        "context.statistical_results.resolve",
+        "context.statistical_inputs.resolve",
+        "context.runs.resolve",
+        "context.dataset_snapshots.resolve",
+        "context.artifact_versions.resolve",
+    ):
+        assert required in source
+    for forbidden in ("def _cached(", "def _cached_list("):
+        assert forbidden not in source

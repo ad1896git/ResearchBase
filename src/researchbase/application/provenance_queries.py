@@ -8,6 +8,7 @@ from datetime import datetime
 from uuid import UUID
 
 from researchbase.application.closure import (
+    BatchLookup,
     ClosureEvaluationContext,
     ClosureReport,
     ProvenanceClosureValidator,
@@ -145,14 +146,18 @@ class ProvenanceQueryService:
             paths: list[ClaimEvidencePathDTO] = []
             for relation in relations:
                 if relation.measurement_id is not None:
-                    measurement = context.measurements.get(UUID(str(relation.measurement_id)))
+                    measurement = context.measurements.values.get(
+                        UUID(str(relation.measurement_id))
+                    )
                     if measurement is not None:
                         self._append_path(paths, version.id, relation, measurement)
                 elif relation.statistical_result_id is not None:
-                    for edge in context.statistical_inputs.get(
+                    for edge in context.statistical_inputs.values.get(
                         UUID(str(relation.statistical_result_id)), []
                     ):
-                        measurement = context.measurements.get(UUID(str(edge.measurement_id)))
+                        measurement = context.measurements.values.get(
+                            UUID(str(edge.measurement_id))
+                        )
                         if measurement is not None:
                             self._append_path(
                                 paths,
@@ -164,8 +169,8 @@ class ProvenanceQueryService:
                             )
             paths.sort(key=_path_key)
             runs = tuple(
-                self._run_provenance(uow, context.runs[key], context)
-                for key in sorted(context.runs, key=str)
+                self._run_provenance(uow, context.runs.values[key], context)
+                for key in sorted(context.runs.values, key=str)
             )
             return ClaimToRunsTraceDTO(
                 str(version.id), str(claim.project_id), runs, tuple(paths), _closure_dto(closure)
@@ -199,7 +204,7 @@ class ProvenanceQueryService:
     def _run_provenance(
         self, uow: UnitOfWork, run: Run, context: ClosureEvaluationContext
     ) -> RunProvenanceDTO:
-        spec = context.spec_versions.get(UUID(str(run.experiment_spec_version_id)))
+        spec = context.spec_versions.values.get(UUID(str(run.experiment_spec_version_id)))
         datasets = tuple(
             sorted(
                 (
@@ -208,13 +213,13 @@ class ProvenanceQueryService:
                         edge.role.value,
                         edge.ordinal,
                         str(
-                            context.dataset_snapshots[
+                            context.dataset_snapshots.values[
                                 UUID(str(edge.dataset_snapshot_id))
                             ].content_hash
                         ),
                     )
-                    for edge in context.dataset_inputs.get(UUID(str(run.id)), [])
-                    if UUID(str(edge.dataset_snapshot_id)) in context.dataset_snapshots
+                    for edge in context.dataset_inputs.values.get(UUID(str(run.id)), [])
+                    if UUID(str(edge.dataset_snapshot_id)) in context.dataset_snapshots.values
                 ),
                 key=_input_key,
             )
@@ -227,13 +232,13 @@ class ProvenanceQueryService:
                         edge.role.value,
                         edge.ordinal,
                         str(
-                            context.artifact_versions[
+                            context.artifact_versions.values[
                                 UUID(str(edge.artifact_version_id))
                             ].content_hash
                         ),
                     )
-                    for edge in context.artifact_inputs.get(UUID(str(run.id)), [])
-                    if UUID(str(edge.artifact_version_id)) in context.artifact_versions
+                    for edge in context.artifact_inputs.values.get(UUID(str(run.id)), [])
+                    if UUID(str(edge.artifact_version_id)) in context.artifact_versions.values
                 ),
                 key=_input_key,
             )
@@ -244,7 +249,7 @@ class ProvenanceQueryService:
                     MeasurementRefDTO(
                         str(item.id), str(item.metric_definition_version_id), str(item.content_hash)
                     )
-                    for item in context.measurements.values()
+                    for item in context.measurements.values.values()
                     if item.run_id == run.id
                 ),
                 key=lambda item: item.measurement_id,
@@ -284,12 +289,25 @@ class ProvenanceQueryService:
         } | {item.measurement_id for item in inputs}
         measurements = uow.measurements.get_many(measurement_ids)
         context = self._load_run_context(uow, {item.run_id for item in measurements})
-        context.measurements.update({UUID(str(item.id)): item for item in measurements})
-        context.statistical_results.update({UUID(str(item.id)): item for item in results})
+        context.measurements = BatchLookup(
+            values={
+                **context.measurements.values,
+                **{UUID(str(item.id)): item for item in measurements},
+            },
+            requested_ids=context.measurements.requested_ids
+            | frozenset(UUID(str(item)) for item in measurement_ids),
+        )
+        context.statistical_results = BatchLookup(
+            values={UUID(str(item.id)): item for item in results},
+            requested_ids=frozenset(UUID(str(item)) for item in result_ids),
+        )
+        statistical_inputs: dict[UUID, list[object]] = {UUID(str(item)): [] for item in result_ids}
         for item in inputs:
-            context.statistical_inputs.setdefault(UUID(str(item.statistical_result_id)), []).append(
-                item
-            )
+            statistical_inputs[UUID(str(item.statistical_result_id))].append(item)
+        context.statistical_inputs = BatchLookup(
+            values=statistical_inputs,
+            requested_ids=frozenset(UUID(str(item)) for item in result_ids),
+        )
         return context
 
     @staticmethod
@@ -311,18 +329,40 @@ class ProvenanceQueryService:
         metrics = uow.metric_definition_versions.get_many(
             {item.metric_definition_version_id for item in measurements}
         )
-        context = ClosureEvaluationContext(
-            runs={UUID(str(x.id)): x for x in runs},
-            measurements={UUID(str(x.id)): x for x in measurements},
-            metric_versions={UUID(str(x.id)): x for x in metrics},
-            spec_versions={UUID(str(x.id)): x for x in specs},
-            dataset_snapshots={UUID(str(x.id)): x for x in snapshots},
-            artifact_versions={UUID(str(x.id)): x for x in artifacts},
-        )
+        dataset_inputs_by_run: dict[UUID, list[object]] = {UUID(str(item)): [] for item in ids}
+        artifact_inputs_by_run: dict[UUID, list[object]] = {UUID(str(item)): [] for item in ids}
         for item in dataset_inputs:
-            context.dataset_inputs.setdefault(UUID(str(item.run_id)), []).append(item)
+            dataset_inputs_by_run[UUID(str(item.run_id))].append(item)
         for item in artifact_inputs:
-            context.artifact_inputs.setdefault(UUID(str(item.run_id)), []).append(item)
+            artifact_inputs_by_run[UUID(str(item.run_id))].append(item)
+        context = ClosureEvaluationContext(
+            runs=BatchLookup(
+                {UUID(str(x.id)): x for x in runs},
+                frozenset(UUID(str(x)) for x in run_ids),
+            ),
+            measurements=BatchLookup(
+                {UUID(str(x.id)): x for x in measurements},
+                frozenset(UUID(str(x.id)) for x in measurements),
+            ),
+            metric_versions=BatchLookup(
+                {UUID(str(x.id)): x for x in metrics},
+                frozenset(UUID(str(x.metric_definition_version_id)) for x in measurements),
+            ),
+            spec_versions=BatchLookup(
+                {UUID(str(x.id)): x for x in specs},
+                frozenset(UUID(str(x.experiment_spec_version_id)) for x in runs),
+            ),
+            dataset_inputs=BatchLookup(dataset_inputs_by_run, frozenset(dataset_inputs_by_run)),
+            artifact_inputs=BatchLookup(artifact_inputs_by_run, frozenset(artifact_inputs_by_run)),
+            dataset_snapshots=BatchLookup(
+                {UUID(str(x.id)): x for x in snapshots},
+                frozenset(UUID(str(x.dataset_snapshot_id)) for x in dataset_inputs),
+            ),
+            artifact_versions=BatchLookup(
+                {UUID(str(x.id)): x for x in artifacts},
+                frozenset(UUID(str(x.artifact_version_id)) for x in artifact_inputs),
+            ),
+        )
         return context
 
     @staticmethod

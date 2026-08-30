@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 from uuid import UUID
 
@@ -17,18 +18,35 @@ from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.versioning import VersionStatus
 
 
-def _cached(context: ClosureEvaluationContext | None, name: str, key: object) -> Any | None:
-    if context is None:
-        return None
-    return getattr(context, name).get(UUID(str(key)))
+class BatchLookupState(Enum):
+    FOUND = "found"
+    MISSING = "missing"
+    NEVER_REQUESTED = "never_requested"
 
 
-def _cached_list(
-    context: ClosureEvaluationContext | None, name: str, key: object
-) -> list[Any] | None:
-    if context is None:
-        return None
-    return getattr(context, name).get(UUID(str(key)), [])
+@dataclass(frozen=True, slots=True)
+class BatchLookup[T]:
+    """Explicit membership for one bounded request-local batch."""
+
+    values: dict[UUID, T] = field(default_factory=dict)
+    requested_ids: frozenset[UUID] = frozenset()
+
+    def __post_init__(self) -> None:
+        if not self.values.keys() <= self.requested_ids:
+            raise ValueError("values must be a subset of requested_ids")
+
+    @property
+    def missing_ids(self) -> frozenset[UUID]:
+        return self.requested_ids - self.values.keys()
+
+    def resolve(self, key: object) -> tuple[BatchLookupState, T | None]:
+        normalized = UUID(str(key))
+        if normalized not in self.requested_ids:
+            return BatchLookupState.NEVER_REQUESTED, None
+        value = self.values.get(normalized)
+        if value is None:
+            return BatchLookupState.MISSING, None
+        return BatchLookupState.FOUND, value
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,17 +69,35 @@ class ClosureReport:
 class ClosureEvaluationContext:
     """Request-local typed read cache shared by one trace transaction."""
 
-    measurements: dict[UUID, Any] = field(default_factory=dict)
-    statistical_results: dict[UUID, Any] = field(default_factory=dict)
-    statistical_inputs: dict[UUID, list[Any]] = field(default_factory=dict)
-    runs: dict[UUID, Run] = field(default_factory=dict)
-    metric_versions: dict[UUID, Any] = field(default_factory=dict)
-    spec_versions: dict[UUID, Any] = field(default_factory=dict)
-    dataset_inputs: dict[UUID, list[Any]] = field(default_factory=dict)
-    artifact_inputs: dict[UUID, list[Any]] = field(default_factory=dict)
-    dataset_snapshots: dict[UUID, Any] = field(default_factory=dict)
-    artifact_versions: dict[UUID, Any] = field(default_factory=dict)
+    measurements: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    statistical_results: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    statistical_inputs: BatchLookup[list[Any]] = field(
+        default_factory=lambda: BatchLookup[list[Any]]()
+    )
+    runs: BatchLookup[Run] = field(default_factory=lambda: BatchLookup[Run]())
+    metric_versions: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    spec_versions: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    dataset_inputs: BatchLookup[list[Any]] = field(default_factory=lambda: BatchLookup[list[Any]]())
+    artifact_inputs: BatchLookup[list[Any]] = field(
+        default_factory=lambda: BatchLookup[list[Any]]()
+    )
+    dataset_snapshots: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    artifact_versions: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
     run_reports: dict[UUID, ClosureReport] = field(default_factory=dict)
+
+
+def _context_incomplete(
+    object_type: str,
+    object_id: object,
+    path: list[str],
+) -> ClosureViolation:
+    return ClosureViolation(
+        "PROVENANCE_CONTEXT_INCOMPLETE",
+        object_type,
+        UUID(str(object_id)),
+        path,
+        f"{object_type} was referenced but never requested by the closure batch",
+    )
 
 
 class ProvenanceClosureValidator:
@@ -158,9 +194,19 @@ class ProvenanceClosureValidator:
             visited.add(("EvidenceRelation", relation_uuid))
             relation_path = ["claim_version", "evidence", str(relation.id)]
             if relation.measurement_id is not None:
-                measurement = _cached(context, "measurements", relation.measurement_id)
-                if measurement is None:
+                if context is None:
                     measurement = uow.measurements.get(relation.measurement_id)
+                else:
+                    state, measurement = context.measurements.resolve(relation.measurement_id)
+                    if state is BatchLookupState.NEVER_REQUESTED:
+                        violations.append(
+                            _context_incomplete(
+                                "Measurement",
+                                relation.measurement_id,
+                                [*relation_path, "measurement"],
+                            )
+                        )
+                        continue
                 self._validate_measurement_source(
                     uow,
                     measurement,
@@ -172,9 +218,21 @@ class ProvenanceClosureValidator:
                     context,
                 )
             elif relation.statistical_result_id is not None:
-                result = _cached(context, "statistical_results", relation.statistical_result_id)
-                if result is None:
+                if context is None:
                     result = uow.statistical_results.get(relation.statistical_result_id)
+                else:
+                    state, result = context.statistical_results.resolve(
+                        relation.statistical_result_id
+                    )
+                    if state is BatchLookupState.NEVER_REQUESTED:
+                        violations.append(
+                            _context_incomplete(
+                                "StatisticalResult",
+                                relation.statistical_result_id,
+                                [*relation_path, "statistical_result"],
+                            )
+                        )
+                        continue
                 self._validate_statistical_result_source(
                     uow,
                     result,
@@ -225,19 +283,28 @@ class ProvenanceClosureValidator:
             return
         measurement_uuid = UUID(str(measurement.id))
         visited.add(("Measurement", measurement_uuid))
-        run = _cached(context, "runs", measurement.run_id)
-        if run is None:
+        run_context_incomplete = False
+        if context is None:
             run = uow.runs.get(measurement.run_id)
-        if run is None:
-            violations.append(
-                ClosureViolation(
-                    ErrorCode.NOT_FOUND.value,
-                    "Run",
-                    UUID(str(measurement.run_id)),
-                    [*path, "measurement", "run"],
-                    "measurement run was not found",
+        else:
+            state, run = context.runs.resolve(measurement.run_id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete("Run", measurement.run_id, [*path, "measurement", "run"])
                 )
-            )
+                run = None
+                run_context_incomplete = True
+        if run is None:
+            if not run_context_incomplete:
+                violations.append(
+                    ClosureViolation(
+                        ErrorCode.NOT_FOUND.value,
+                        "Run",
+                        UUID(str(measurement.run_id)),
+                        [*path, "measurement", "run"],
+                        "measurement run was not found",
+                    )
+                )
         else:
             if claim_project_id is not None and run.project_id != claim_project_id:
                 violations.append(
@@ -251,19 +318,34 @@ class ProvenanceClosureValidator:
                 )
             self._record_run_closure(uow, run, path, visited, violations, context)
 
-        metric = _cached(context, "metric_versions", measurement.metric_definition_version_id)
-        if metric is None:
+        metric_context_incomplete = False
+        if context is None:
             metric = uow.metric_definition_versions.get(measurement.metric_definition_version_id)
-        if metric is None:
-            violations.append(
-                ClosureViolation(
-                    ErrorCode.NOT_FOUND.value,
-                    "MetricDefinitionVersion",
-                    UUID(str(measurement.metric_definition_version_id)),
-                    [*path, "measurement", "metric_definition_version"],
-                    "metric definition version was not found",
-                )
+        else:
+            state, metric = context.metric_versions.resolve(
+                measurement.metric_definition_version_id
             )
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete(
+                        "MetricDefinitionVersion",
+                        measurement.metric_definition_version_id,
+                        [*path, "measurement", "metric_definition_version"],
+                    )
+                )
+                metric = None
+                metric_context_incomplete = True
+        if metric is None:
+            if not metric_context_incomplete:
+                violations.append(
+                    ClosureViolation(
+                        ErrorCode.NOT_FOUND.value,
+                        "MetricDefinitionVersion",
+                        UUID(str(measurement.metric_definition_version_id)),
+                        [*path, "measurement", "metric_definition_version"],
+                        "metric definition version was not found",
+                    )
+                )
         else:
             metric_uuid = UUID(str(metric.id))
             visited.add(("MetricDefinitionVersion", metric_uuid))
@@ -312,9 +394,20 @@ class ProvenanceClosureValidator:
                     "statistical result belongs to a different project",
                 )
             )
-        inputs = _cached_list(context, "statistical_inputs", result.id)
-        if inputs is None:
+        if context is None:
             inputs = uow.statistical_results.list_inputs(result.id)
+        else:
+            state, inputs = context.statistical_inputs.resolve(result.id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete(
+                        "StatisticalResultInput",
+                        result.id,
+                        [*path, "statistical_result", "inputs"],
+                    )
+                )
+                return
+            inputs = inputs or []
         if not inputs:
             violations.append(
                 ClosureViolation(
@@ -327,9 +420,25 @@ class ProvenanceClosureValidator:
             )
         for input_edge in inputs:
             visited.add(("StatisticalResultInput", UUID(str(input_edge.measurement_id))))
-            measurement = _cached(context, "measurements", input_edge.measurement_id)
-            if measurement is None:
+            if context is None:
                 measurement = uow.measurements.get(input_edge.measurement_id)
+            else:
+                state, measurement = context.measurements.resolve(input_edge.measurement_id)
+                if state is BatchLookupState.NEVER_REQUESTED:
+                    violations.append(
+                        _context_incomplete(
+                            "Measurement",
+                            input_edge.measurement_id,
+                            [
+                                *path,
+                                "statistical_result",
+                                "inputs",
+                                str(input_edge.measurement_id),
+                                "measurement",
+                            ],
+                        )
+                    )
+                    continue
             self._validate_measurement_source(
                 uow,
                 measurement,
@@ -368,27 +477,76 @@ class ProvenanceClosureValidator:
                     violation.message,
                 )
             )
-        spec = _cached(context, "spec_versions", run.experiment_spec_version_id)
-        if spec is None:
+        if context is None:
             spec = uow.experiment_specs.get_version(run.experiment_spec_version_id)
+        else:
+            state, spec = context.spec_versions.resolve(run.experiment_spec_version_id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete(
+                        "ExperimentSpecVersion",
+                        run.experiment_spec_version_id,
+                        [*prefix, "run", "experiment_spec_version"],
+                    )
+                )
         if spec is not None:
             visited.add(("ExperimentSpecVersion", UUID(str(spec.id))))
-        dataset_inputs = _cached_list(context, "dataset_inputs", run.id)
-        if dataset_inputs is None:
+        if context is None:
             dataset_inputs = uow.runs.list_dataset_inputs(run.id)
+        else:
+            state, dataset_inputs = context.dataset_inputs.resolve(run.id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete(
+                        "RunDatasetInput", run.id, [*prefix, "run", "dataset_inputs"]
+                    )
+                )
+                dataset_inputs = []
+            else:
+                dataset_inputs = dataset_inputs or []
         for item in dataset_inputs:
-            snapshot = _cached(context, "dataset_snapshots", item.dataset_snapshot_id)
-            if snapshot is None:
+            if context is None:
                 snapshot = uow.dataset_snapshots.get(item.dataset_snapshot_id)
+            else:
+                state, snapshot = context.dataset_snapshots.resolve(item.dataset_snapshot_id)
+                if state is BatchLookupState.NEVER_REQUESTED:
+                    violations.append(
+                        _context_incomplete(
+                            "DatasetSnapshot",
+                            item.dataset_snapshot_id,
+                            [*prefix, "run", "dataset_inputs", item.role.value],
+                        )
+                    )
+                    continue
             if snapshot is not None:
                 visited.add(("DatasetSnapshot", UUID(str(snapshot.id))))
-        artifact_inputs = _cached_list(context, "artifact_inputs", run.id)
-        if artifact_inputs is None:
+        if context is None:
             artifact_inputs = uow.runs.list_artifact_inputs(run.id)
+        else:
+            state, artifact_inputs = context.artifact_inputs.resolve(run.id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete(
+                        "RunArtifactInput", run.id, [*prefix, "run", "artifact_inputs"]
+                    )
+                )
+                artifact_inputs = []
+            else:
+                artifact_inputs = artifact_inputs or []
         for item in artifact_inputs:
-            artifact = _cached(context, "artifact_versions", item.artifact_version_id)
-            if artifact is None:
+            if context is None:
                 artifact = uow.artifact_versions.get(item.artifact_version_id)
+            else:
+                state, artifact = context.artifact_versions.resolve(item.artifact_version_id)
+                if state is BatchLookupState.NEVER_REQUESTED:
+                    violations.append(
+                        _context_incomplete(
+                            "ArtifactVersion",
+                            item.artifact_version_id,
+                            [*prefix, "run", "artifact_inputs", item.role.value],
+                        )
+                    )
+                    continue
             if artifact is not None:
                 visited.add(("ArtifactVersion", UUID(str(artifact.id))))
 
@@ -397,9 +555,16 @@ class ProvenanceClosureValidator:
     ) -> ClosureReport:
         violations: list[ClosureViolation] = []
         visited: set[tuple[str, UUID]] = set()
-        run = _cached(context, "runs", run_id)
-        if run is None:
+        if context is None:
             run = uow.runs.get(run_id)
+        else:
+            state, run = context.runs.resolve(run_id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                return ClosureReport(
+                    complete=False,
+                    visited_count=0,
+                    violations=[_context_incomplete("Run", run_id, ["run"])],
+                )
         if run is None:
             return ClosureReport(
                 complete=False,
@@ -417,19 +582,30 @@ class ProvenanceClosureValidator:
         visited.add(("Run", UUID(str(run.id))))
         self._check_run_state(run, violations)
 
-        spec = _cached(context, "spec_versions", run.experiment_spec_version_id)
-        if spec is None:
+        if context is None:
             spec = uow.experiment_specs.get_version(run.experiment_spec_version_id)
-        if spec is None:
-            violations.append(
-                ClosureViolation(
-                    ErrorCode.NOT_FOUND.value,
-                    "ExperimentSpecVersion",
-                    UUID(str(run.experiment_spec_version_id)),
-                    ["run", "experiment_spec_version"],
-                    "experiment spec version was not found",
+        else:
+            state, spec = context.spec_versions.resolve(run.experiment_spec_version_id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete(
+                        "ExperimentSpecVersion",
+                        run.experiment_spec_version_id,
+                        ["run", "experiment_spec_version"],
+                    )
                 )
-            )
+                spec_context_incomplete = True
+        if spec is None:
+            if not spec_context_incomplete:
+                violations.append(
+                    ClosureViolation(
+                        ErrorCode.NOT_FOUND.value,
+                        "ExperimentSpecVersion",
+                        UUID(str(run.experiment_spec_version_id)),
+                        ["run", "experiment_spec_version"],
+                        "experiment spec version was not found",
+                    )
+                )
         else:
             visited.add(("ExperimentSpecVersion", UUID(str(spec.id))))
             if spec.status not in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED}:
@@ -443,13 +619,31 @@ class ProvenanceClosureValidator:
                     )
                 )
 
-        dataset_inputs = _cached_list(context, "dataset_inputs", run.id)
-        if dataset_inputs is None:
+        if context is None:
             dataset_inputs = uow.runs.list_dataset_inputs(run.id)
+        else:
+            state, dataset_inputs = context.dataset_inputs.resolve(run.id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete("RunDatasetInput", run.id, ["run", "dataset_inputs"])
+                )
+                dataset_inputs = []
+            else:
+                dataset_inputs = dataset_inputs or []
         for item in dataset_inputs:
-            snapshot = _cached(context, "dataset_snapshots", item.dataset_snapshot_id)
-            if snapshot is None:
+            if context is None:
                 snapshot = uow.dataset_snapshots.get(item.dataset_snapshot_id)
+            else:
+                state, snapshot = context.dataset_snapshots.resolve(item.dataset_snapshot_id)
+                if state is BatchLookupState.NEVER_REQUESTED:
+                    violations.append(
+                        _context_incomplete(
+                            "DatasetSnapshot",
+                            item.dataset_snapshot_id,
+                            ["run", "dataset_inputs", item.role.value],
+                        )
+                    )
+                    continue
             if snapshot is None:
                 violations.append(
                     ClosureViolation(
@@ -463,13 +657,31 @@ class ProvenanceClosureValidator:
             else:
                 visited.add(("DatasetSnapshot", UUID(str(snapshot.id))))
 
-        artifact_inputs = _cached_list(context, "artifact_inputs", run.id)
-        if artifact_inputs is None:
+        if context is None:
             artifact_inputs = uow.runs.list_artifact_inputs(run.id)
+        else:
+            state, artifact_inputs = context.artifact_inputs.resolve(run.id)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(
+                    _context_incomplete("RunArtifactInput", run.id, ["run", "artifact_inputs"])
+                )
+                artifact_inputs = []
+            else:
+                artifact_inputs = artifact_inputs or []
         for item in artifact_inputs:
-            version = _cached(context, "artifact_versions", item.artifact_version_id)
-            if version is None:
+            if context is None:
                 version = uow.artifact_versions.get(item.artifact_version_id)
+            else:
+                state, version = context.artifact_versions.resolve(item.artifact_version_id)
+                if state is BatchLookupState.NEVER_REQUESTED:
+                    violations.append(
+                        _context_incomplete(
+                            "ArtifactVersion",
+                            item.artifact_version_id,
+                            ["run", "artifact_inputs", item.role.value],
+                        )
+                    )
+                    continue
             if version is None:
                 violations.append(
                     ClosureViolation(

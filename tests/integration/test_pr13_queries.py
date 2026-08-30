@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import event, text
@@ -15,7 +15,7 @@ from tests.integration.test_pr09_application import (
 )
 from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
-from researchbase.application.closure import ProvenanceClosureValidator
+from researchbase.application.closure import BatchLookup, ProvenanceClosureValidator
 from researchbase.application.commands import (
     ApplicationService,
     AttachRunArtifactInputCommand,
@@ -47,6 +47,11 @@ from researchbase.foundation.artifact_store import ContentAddressedFilesystemArt
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_session_factory
+from researchbase.persistence.repositories import (
+    SqlAlchemyArtifactVersionRepository,
+    SqlAlchemyMeasurementRepository,
+    SqlAlchemyStatisticalResultRepository,
+)
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 pytestmark = pytest.mark.integration
@@ -605,3 +610,242 @@ def test_trace_sql_and_closure_calls_are_bounded_by_stages_and_unique_runs(
         assert set(sql) == {"SELECT"}
 
     assert observations == [(15, 1, 1, 3), (15, 1, 9, 12), (15, 1, 15, 24)]
+
+
+@pytest.mark.parametrize("missing_count", [1, 2])
+def test_trace_missing_measurements_are_cache_only_and_stage_bounded(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+    missing_count: int,
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, f"pr13r2-missing-{missing_count}")
+    first = service.get_measurement(
+        seed_measurement(service, project_id, actor_context, f"missing-{missing_count}-0")
+    )
+    measurements = [first]
+    for index in range(1, 4):
+        measurements.append(
+            service.record_measurement(
+                RecordMeasurementCommand(
+                    first.run_id,
+                    first.metric_definition_version_id,
+                    float(index + 1),
+                    None,
+                    "ms",
+                    {"missing_index": index},
+                    actor_context,
+                )
+            )
+        )
+    result = service.record_statistical_result(
+        RecordStatisticalResultCommand(
+            project_id,
+            "missing-cache",
+            {"count": 4},
+            {"method": "identity"},
+            tuple(
+                StatisticalResultInputCommand(item.id, f"input-{index}", index)
+                for index, item in enumerate(measurements)
+            ),
+            actor_context,
+        )
+    )
+    claim, version = seed_claim(service, project_id, actor_context)
+    service.link_evidence(
+        LinkEvidenceCommand(
+            claim.id,
+            version.id,
+            None,
+            result.id,
+            "supports",
+            None,
+            version.row_version,
+            actor_context,
+        )
+    )
+    current = service.get_current_claim_version(claim.id)
+    frozen = service.freeze_claim_version(
+        FreezeClaimVersionCommand(claim.id, current.id, actor_context, current.row_version)
+    )
+    missing_ids = {item.id for item in measurements[-missing_count:]}
+    original_many = SqlAlchemyMeasurementRepository.get_many
+    original_by_runs = SqlAlchemyMeasurementRepository.list_by_runs
+
+    def omit_from_many(self, ids):
+        return [item for item in original_many(self, ids) if item.id not in missing_ids]
+
+    def omit_from_runs(self, ids):
+        return [item for item in original_by_runs(self, ids) if item.id not in missing_ids]
+
+    def forbidden_get(self, measurement_id):
+        raise AssertionError(f"per-ID fallback attempted for {measurement_id}")
+
+    monkeypatch.setattr(SqlAlchemyMeasurementRepository, "get_many", omit_from_many)
+    monkeypatch.setattr(SqlAlchemyMeasurementRepository, "list_by_runs", omit_from_runs)
+    monkeypatch.setattr(SqlAlchemyMeasurementRepository, "get", forbidden_get)
+    statements: list[str] = []
+
+    def observe(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        statements.append(statement.lstrip().split(None, 1)[0].upper())
+
+    event.listen(engine, "before_cursor_execute", observe)
+    try:
+        trace = query_service(engine).trace_claim_to_runs(frozen.id)
+    finally:
+        event.remove(engine, "before_cursor_execute", observe)
+
+    missing_violations = [
+        item
+        for item in trace.closure.violations
+        if item.object_type == "Measurement" and item.code == ErrorCode.NOT_FOUND.value
+    ]
+    assert len(statements) == 15
+    assert set(statements) == {"SELECT"}
+    assert {item.object_id for item in missing_violations} == {str(item) for item in missing_ids}
+    assert all(item.path[-1] == "measurement" for item in missing_violations)
+
+
+def test_trace_missing_result_and_run_input_descendants_never_fall_back(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "pr13r2-missing-descendants")
+    measurement_id = seed_measurement(service, project_id, actor_context, "missing-descendants")
+    measurement = service.get_measurement(measurement_id)
+    result = service.record_statistical_result(
+        RecordStatisticalResultCommand(
+            project_id,
+            "missing-result",
+            {"value": 1},
+            {"method": "identity"},
+            (StatisticalResultInputCommand(measurement.id, "primary", 0),),
+            actor_context,
+        )
+    )
+    claim, version = seed_claim(service, project_id, actor_context)
+    service.link_evidence(
+        LinkEvidenceCommand(
+            claim.id,
+            version.id,
+            None,
+            result.id,
+            "supports",
+            None,
+            version.row_version,
+            actor_context,
+        )
+    )
+    current = service.get_current_claim_version(claim.id)
+    frozen = service.freeze_claim_version(
+        FreezeClaimVersionCommand(claim.id, current.id, actor_context, current.row_version)
+    )
+
+    monkeypatch.setattr(SqlAlchemyStatisticalResultRepository, "get_many", lambda self, ids: [])
+    monkeypatch.setattr(
+        SqlAlchemyStatisticalResultRepository,
+        "get",
+        lambda self, result_id: (_ for _ in ()).throw(
+            AssertionError(f"result fallback attempted for {result_id}")
+        ),
+    )
+    trace = query_service(engine).trace_claim_to_runs(frozen.id)
+    assert [(item.code, item.object_type, item.object_id) for item in trace.closure.violations] == [
+        (ErrorCode.NOT_FOUND.value, "StatisticalResult", str(result.id))
+    ]
+
+    run = service.get_run(measurement.run_id)
+    artifact = frozen_artifact(service, project_id, actor_context)
+    draft_run = service.create_run(
+        CreateRunCommand(project_id, run.experiment_spec_version_id, None, actor_context)
+    )
+    draft_run = service.attach_run_artifact_input(
+        AttachRunArtifactInputCommand(
+            draft_run.id,
+            artifact.id,
+            ArtifactInputRole.MODEL,
+            0,
+            draft_run.row_version,
+            actor_context,
+        )
+    )
+    monkeypatch.setattr(SqlAlchemyArtifactVersionRepository, "get_many", lambda self, ids: [])
+    monkeypatch.setattr(
+        SqlAlchemyArtifactVersionRepository,
+        "get",
+        lambda self, version_id: (_ for _ in ()).throw(
+            AssertionError(f"artifact fallback attempted for {version_id}")
+        ),
+    )
+    run_trace = query_service(engine).get_run_provenance(draft_run.id)
+    assert any(
+        item.code == ErrorCode.NOT_FOUND.value
+        and item.object_type == "ArtifactVersion"
+        and item.object_id == str(artifact.id)
+        for item in run_trace.closure.violations
+    )
+
+
+def test_trace_never_requested_reference_is_a_stable_context_violation(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "pr13r2-never-requested")
+    measurement_id = seed_measurement(service, project_id, actor_context, "never-requested")
+    claim, version = seed_claim(service, project_id, actor_context)
+    service.link_evidence(
+        LinkEvidenceCommand(
+            claim.id,
+            version.id,
+            measurement_id,
+            None,
+            "supports",
+            None,
+            version.row_version,
+            actor_context,
+        )
+    )
+    current = service.get_current_claim_version(claim.id)
+    frozen = service.freeze_claim_version(
+        FreezeClaimVersionCommand(claim.id, current.id, actor_context, current.row_version)
+    )
+    original_load = ProvenanceQueryService._load_claim_context
+
+    def omit_membership(self, uow, relations):
+        context = original_load(self, uow, relations)
+        key = next(UUID(str(item.measurement_id)) for item in relations if item.measurement_id)
+        context.measurements = BatchLookup(
+            values={
+                item_id: item
+                for item_id, item in context.measurements.values.items()
+                if item_id != key
+            },
+            requested_ids=frozenset(
+                item_id for item_id in context.measurements.requested_ids if item_id != key
+            ),
+        )
+        return context
+
+    monkeypatch.setattr(ProvenanceQueryService, "_load_claim_context", omit_membership)
+    monkeypatch.setattr(
+        SqlAlchemyMeasurementRepository,
+        "get",
+        lambda self, item_id: (_ for _ in ()).throw(
+            AssertionError(f"never-requested fallback attempted for {item_id}")
+        ),
+    )
+
+    trace = query_service(engine).trace_claim_to_runs(frozen.id)
+
+    observed = [
+        (item.code, item.object_type, item.object_id, item.path[-1])
+        for item in trace.closure.violations
+    ]
+    assert observed == [
+        ("PROVENANCE_CONTEXT_INCOMPLETE", "Measurement", str(measurement_id), "measurement")
+    ]
