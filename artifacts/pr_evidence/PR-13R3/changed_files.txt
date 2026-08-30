@@ -17,3 +17,9 @@ M tests/integration/test_pr13_queries.py
 
 Exact count 2; source 1, tests 1, migrations 0; set equality PASS.
 
+R3 evidence payload range `2f6f3b7f1f49eece5231af1aab4ef6e81527e0c3..4a232fd80e9a57cfb660544d864b5e189eaafef6`:
+
+- 6 modified PR-13R2 evidence files.
+- 16 added PR-13R3 evidence files.
+- Exact count 22; evidence only; source 0, tests 0, migrations 0.
+- Exact name/status set equality with Git: PASS.
