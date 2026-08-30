@@ -14,3 +14,11 @@ Exact count 6; source 4, tests 2, migration 0, architecture documents 0. Set equ
 Evidence range `b6afdb78a08ae29070291d73959098a9f11087a9..ad5790c26dd26ef374ac96e36eb9283fc5604002`:
 exact count 22; all files are under `artifacts/pr_evidence/PR-13{,R}/`; source 0, tests 0,
 migration 0, architecture documents 0. Set equality: PASS.
+
+Historical finalization range `ad5790c26dd26ef374ac96e36eb9283fc5604002..96fe5b203e23ed07fd212eb2be56dcc6e5318cc8`:
+
+M artifacts/pr_evidence/PR-13R/changed_files.txt
+M artifacts/pr_evidence/PR-13R/fingerprint_reconciliation.md
+M artifacts/pr_evidence/PR-13R/harness_fingerprint.json
+
+Exact count 3; evidence 3, source 0, tests 0, migrations 0, architecture 0. Set equality: PASS.

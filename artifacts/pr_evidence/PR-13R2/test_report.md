@@ -1,0 +1,8 @@
+# Test report
+
+Full suite completed against `postgresql+psycopg` PostgreSQL 18.6: 504 passed, 2 inherited skips.
+The focused cache suite covers membership states, source boundary, valid scaling, one/multiple
+missing Measurements, missing StatisticalResult, missing Run ArtifactVersion, never-requested ID,
+fallback assertions, SELECT-only purity, exact diagnostics, and closure reuse.
+
+No SQLite result was used.

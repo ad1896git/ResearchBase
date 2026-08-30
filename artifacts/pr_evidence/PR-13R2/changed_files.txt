@@ -1,0 +1,19 @@
+# Changed files
+
+Implementation range `96fe5b203e23ed07fd212eb2be56dcc6e5318cc8..1f71fb10158fe88dd448fbfccad770721ca4bf32`:
+
+M src/researchbase/application/closure.py
+M src/researchbase/application/provenance_queries.py
+M tests/architecture/test_pr13r_batched_reads.py
+M tests/integration/test_pr13_queries.py
+A tests/unit/test_pr13r2_cache_membership.py
+
+Exact count 5; source 2, tests 3, migrations 0, architecture documents 0. Set equality: PASS.
+
+Historical PR-13R finalization range `ad5790c26dd26ef374ac96e36eb9283fc5604002..96fe5b203e23ed07fd212eb2be56dcc6e5318cc8`:
+
+M artifacts/pr_evidence/PR-13R/changed_files.txt
+M artifacts/pr_evidence/PR-13R/fingerprint_reconciliation.md
+M artifacts/pr_evidence/PR-13R/harness_fingerprint.json
+
+Exact count 3; evidence only; source/test/migration count 0. Set equality: PASS.
