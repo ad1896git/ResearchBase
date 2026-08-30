@@ -6,3 +6,8 @@
 - PR-12R2 post-final current HEAD: `b973356f494bb75a2f324be8455a9f54934e9f5d`.
 
 Every SHA was resolved as a Git commit. Later PR-12R3 evidence commits are separate from, and do not rewrite, the historical PR-12R2 reviewed HEAD.
+
+- PR-12R3 evidence reconciliation commit: `050f4ae94210810740a4c25fe9ca71708a3e87a6`.
+- Post-PR-12R3 current HEAD at metadata generation: `050f4ae94210810740a4c25fe9ca71708a3e87a6`.
+
+Subsequent PR-12R3 metadata commits remain distinct from, and do not change, either historical reviewed HEAD.

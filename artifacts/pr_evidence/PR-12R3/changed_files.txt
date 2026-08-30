@@ -8,3 +8,20 @@ Exact statuses: 3 modified (`M`).
 Classification: evidence-only.
 Source/test/migration files: 0.
 Set equality: PASS against Git name-only and name-status output.
+
+PR-12R3 evidence reconciliation range (b973356f494bb75a2f324be8455a9f54934e9f5d..050f4ae94210810740a4c25fe9ca71708a3e87a6):
+M artifacts/pr_evidence/PR-12R2/changed_files.txt
+M artifacts/pr_evidence/PR-12R2/commands_and_results.md
+M artifacts/pr_evidence/PR-12R2/finding_disposition.md
+M artifacts/pr_evidence/PR-12R2/fingerprint_completion_report.md
+M artifacts/pr_evidence/PR-12R2/harness_fingerprint.json
+M artifacts/pr_evidence/PR-12R2/unresolved_findings.md
+A artifacts/pr_evidence/PR-12R3/changed_files.txt
+A artifacts/pr_evidence/PR-12R3/commands_and_results.md
+A artifacts/pr_evidence/PR-12R3/final_head_reconciliation.md
+A artifacts/pr_evidence/PR-12R3/finding_disposition.md
+A artifacts/pr_evidence/PR-12R3/harness_fingerprint.json
+A artifacts/pr_evidence/PR-12R3/remediation_summary.md
+A artifacts/pr_evidence/PR-12R3/unresolved_findings.md
+
+Exact file count: 13. Classification: evidence-only. Source/test/migration/architecture files: 0. Set equality: PASS against Git name-only and name-status output.

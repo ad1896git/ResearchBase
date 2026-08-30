@@ -6,7 +6,10 @@
   "pr12r2_final_metadata_range_file_count": 3,
   "pr12r2_final_metadata_range_evidence_only": true,
   "pr12r2_final_metadata_range_set_equal": true,
-  "pr12r3_evidence_commits": [],
+  "pr12r3_evidence_commits": [
+    "050f4ae94210810740a4c25fe9ca71708a3e87a6"
+  ],
+  "post_pr12r3_current_head_at_metadata_generation": "050f4ae94210810740a4c25fe9ca71708a3e87a6",
   "production_changes": false,
   "test_changes": false,
   "migration_changes": false,
