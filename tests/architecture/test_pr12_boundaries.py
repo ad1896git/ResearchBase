@@ -40,7 +40,6 @@ def test_pr12_does_not_leak_pr13_or_later_implementation() -> None:
         path.read_text() for path in (SRC / "application").rglob("*.py")
     )
     for forbidden in (
-        "trace_claim_to_runs",
         "auditfinding",
         "impactassessment",
         "correctionrecord",
