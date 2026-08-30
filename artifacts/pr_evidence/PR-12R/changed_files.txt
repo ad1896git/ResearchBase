@@ -51,7 +51,7 @@ tests/integration/test_pr12_application.py
 tests/integration/test_pr12_closure.py
 tests/unit/domain/test_pr12_claim.py
 
-PR-12R evidence range (054fb27f7007abf38a42b8dc674996e86b8038eb..a92ad0186266248ae4d1f9f91da8eb33b5d7bd26):
+PR-12R evidence range (054fb27f7007abf38a42b8dc674996e86b8038eb..de00596817269fd10cad27fc00cb998318ce73ef):
 artifacts/pr_evidence/PR-12/closure_validator_report.md
 artifacts/pr_evidence/PR-12/commands_and_results.md
 artifacts/pr_evidence/PR-12/evidence_state_guard_report.md
@@ -77,4 +77,4 @@ artifacts/pr_evidence/PR-12R/support_set_oracle_report.md
 artifacts/pr_evidence/PR-12R/test_report.md
 artifacts/pr_evidence/PR-12R/unresolved_findings.md
 
-The evidence range is intentionally separate from the implementation/test range. This inventory is regenerated from Git and its evidence-range section is set-equal to `git diff --name-only 054fb27f7007abf38a42b8dc674996e86b8038eb..a92ad0186266248ae4d1f9f91da8eb33b5d7bd26`.
+The evidence range is intentionally separate from the implementation/test range. This inventory is regenerated from Git and its evidence-range section is set-equal to `git diff --name-only 054fb27f7007abf38a42b8dc674996e86b8038eb..de00596817269fd10cad27fc00cb998318ce73ef`. The subsequent inventory-finalization commit changes no path outside this already enumerated evidence set; the final status report records that later current HEAD separately.
