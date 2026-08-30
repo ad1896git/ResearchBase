@@ -10,3 +10,7 @@ A tests/architecture/test_pr13r_batched_reads.py
 M tests/integration/test_pr13_queries.py
 
 Exact count 6; source 4, tests 2, migration 0, architecture documents 0. Set equality: PASS.
+
+Evidence range `b6afdb78a08ae29070291d73959098a9f11087a9..ad5790c26dd26ef374ac96e36eb9283fc5604002`:
+exact count 22; all files are under `artifacts/pr_evidence/PR-13{,R}/`; source 0, tests 0,
+migration 0, architecture documents 0. Set equality: PASS.
