@@ -51,7 +51,7 @@ tests/integration/test_pr12_application.py
 tests/integration/test_pr12_closure.py
 tests/unit/domain/test_pr12_claim.py
 
-PR-12R evidence payload range (054fb27f7007abf38a42b8dc674996e86b8038eb..298594d):
+PR-12R evidence range (054fb27f7007abf38a42b8dc674996e86b8038eb..a92ad0186266248ae4d1f9f91da8eb33b5d7bd26):
 artifacts/pr_evidence/PR-12/closure_validator_report.md
 artifacts/pr_evidence/PR-12/commands_and_results.md
 artifacts/pr_evidence/PR-12/evidence_state_guard_report.md
@@ -61,6 +61,7 @@ artifacts/pr_evidence/PR-12/migration_report.md
 artifacts/pr_evidence/PR-12/support_set_hash_report.md
 artifacts/pr_evidence/PR-12/test_report.md
 artifacts/pr_evidence/PR-12/unresolved_findings.md
+artifacts/pr_evidence/PR-12R/changed_files.txt
 artifacts/pr_evidence/PR-12R/code_review.md
 artifacts/pr_evidence/PR-12R/commands_and_results.md
 artifacts/pr_evidence/PR-12R/database_state_report.md
@@ -68,6 +69,7 @@ artifacts/pr_evidence/PR-12R/evidence_guard_matrix_report.md
 artifacts/pr_evidence/PR-12R/finding_disposition.md
 artifacts/pr_evidence/PR-12R/fingerprint_reconciliation.md
 artifacts/pr_evidence/PR-12R/full_suite_isolation_report.md
+artifacts/pr_evidence/PR-12R/harness_fingerprint.json
 artifacts/pr_evidence/PR-12R/multi_input_closure_report.md
 artifacts/pr_evidence/PR-12R/regression_report.md
 artifacts/pr_evidence/PR-12R/remediation_summary.md
@@ -75,4 +77,4 @@ artifacts/pr_evidence/PR-12R/support_set_oracle_report.md
 artifacts/pr_evidence/PR-12R/test_report.md
 artifacts/pr_evidence/PR-12R/unresolved_findings.md
 
-The evidence-payload range is intentionally separate from the implementation/test range. This inventory is regenerated from Git and its payload-range section is set-equal to `git diff --name-only 054fb27f7007abf38a42b8dc674996e86b8038eb..298594d`.
+The evidence range is intentionally separate from the implementation/test range. This inventory is regenerated from Git and its evidence-range section is set-equal to `git diff --name-only 054fb27f7007abf38a42b8dc674996e86b8038eb..a92ad0186266248ae4d1f9f91da8eb33b5d7bd26`.

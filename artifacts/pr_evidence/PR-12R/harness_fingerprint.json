@@ -6,6 +6,8 @@
   "pr12r_evidence_payload_commit": "298594d0c988fd0d19b05aadddff60ac027d98bf",
   "pr12r_changed_files_inventory_commit": "2aa939be55c1fdaed326b9888a5bb966b88e9aa9",
   "current_head_at_fingerprint_generation": "2aa939be55c1fdaed326b9888a5bb966b88e9aa9",
+  "pr12r_fingerprint_commit": "a92ad0186266248ae4d1f9f91da8eb33b5d7bd26",
+  "current_head_after_fingerprint_commit": "a92ad0186266248ae4d1f9f91da8eb33b5d7bd26",
   "shared_database": "researchbase",
   "shared_database_revision": "0014_claim_evidence",
   "disposable_migration_database": "researchbase_pr12r_migration_20260830",
