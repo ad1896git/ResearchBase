@@ -17,3 +17,30 @@ M artifacts/pr_evidence/PR-13R/fingerprint_reconciliation.md
 M artifacts/pr_evidence/PR-13R/harness_fingerprint.json
 
 Exact count 3; evidence only; source/test/migration count 0. Set equality: PASS.
+
+Evidence payload range `1f71fb10158fe88dd448fbfccad770721ca4bf32..cc26b1319240dbb35307e7aef3422f6f9bedd102`:
+
+M artifacts/pr_evidence/PR-13R/changed_files.txt
+M artifacts/pr_evidence/PR-13R/commands_and_results.md
+M artifacts/pr_evidence/PR-13R/finding_disposition.md
+M artifacts/pr_evidence/PR-13R/fingerprint_reconciliation.md
+M artifacts/pr_evidence/PR-13R/harness_fingerprint.json
+M artifacts/pr_evidence/PR-13R/unresolved_findings.md
+A artifacts/pr_evidence/PR-13R2/adversarial_cache_report.md
+A artifacts/pr_evidence/PR-13R2/architecture_review.md
+A artifacts/pr_evidence/PR-13R2/cache_membership_report.md
+A artifacts/pr_evidence/PR-13R2/cache_only_closure_report.md
+A artifacts/pr_evidence/PR-13R2/changed_files.txt
+A artifacts/pr_evidence/PR-13R2/closure_reuse_regression.md
+A artifacts/pr_evidence/PR-13R2/code_review.md
+A artifacts/pr_evidence/PR-13R2/commands_and_results.md
+A artifacts/pr_evidence/PR-13R2/finding_disposition.md
+A artifacts/pr_evidence/PR-13R2/fingerprint_reconciliation.md
+A artifacts/pr_evidence/PR-13R2/harness_fingerprint.json
+A artifacts/pr_evidence/PR-13R2/remediation_summary.md
+A artifacts/pr_evidence/PR-13R2/semantic_equivalence_report.md
+A artifacts/pr_evidence/PR-13R2/sql_scaling_regression.md
+A artifacts/pr_evidence/PR-13R2/test_report.md
+A artifacts/pr_evidence/PR-13R2/unresolved_findings.md
+
+Exact count 22; evidence only; source/test/migration count 0. Set equality: PASS.
