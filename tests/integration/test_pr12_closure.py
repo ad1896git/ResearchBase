@@ -9,6 +9,7 @@ from sqlalchemy.engine import Engine
 from tests.integration.pr12_support import postgres_resources
 from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
+from researchbase.application.closure import ClosureReport
 from researchbase.application.commands import (
     ApplicationService,
     FreezeClaimVersionCommand,
@@ -17,6 +18,7 @@ from researchbase.application.commands import (
     ReviseClaimCommand,
     StatisticalResultInputCommand,
 )
+from researchbase.application.dto import ClaimVersionReadModel, EvidenceRelationReadModel
 from researchbase.domain.measurement import MeasurementId
 from researchbase.domain.statistical_result import StatisticalResultId
 from researchbase.foundation.errors import ErrorCode
@@ -108,100 +110,202 @@ def test_claim_closure_traverses_all_statistical_result_inputs_and_detects_later
     measurement_one = seed_measurement(service, project_id, actor_context, "closure-input-one")
     measurement_two = seed_measurement(service, project_id, actor_context, "closure-input-two")
     measurement_three = seed_measurement(service, project_id, actor_context, "closure-input-three")
-    statistical_result = service.record_statistical_result(
+    order_a = (
+        StatisticalResultInputCommand(measurement_one, "primary", 0),
+        StatisticalResultInputCommand(measurement_two, "secondary", 1),
+        StatisticalResultInputCommand(measurement_three, "tertiary", 2),
+    )
+    order_b = (
+        StatisticalResultInputCommand(measurement_three, "tertiary", 2),
+        StatisticalResultInputCommand(measurement_one, "primary", 0),
+        StatisticalResultInputCommand(measurement_two, "secondary", 1),
+    )
+
+    statistical_result_a = service.record_statistical_result(
         RecordStatisticalResultCommand(
             project_id,
             "t_test",
             {"p_value": 0.01},
             {"method": "student"},
-            (
-                StatisticalResultInputCommand(measurement_one, "primary", 0),
-                StatisticalResultInputCommand(measurement_two, "secondary", 1),
-                StatisticalResultInputCommand(measurement_three, "tertiary", 2),
-            ),
+            order_a,
             actor_context,
         )
     )
-    inputs = service.list_statistical_result_inputs(statistical_result.id)
-    assert [(item.measurement_id, item.input_role, item.ordinal) for item in inputs] == [
+    statistical_result_b = service.record_statistical_result(
+        RecordStatisticalResultCommand(
+            project_id,
+            "t_test",
+            {"p_value": 0.01},
+            {"method": "student"},
+            order_b,
+            actor_context,
+        )
+    )
+    expected_semantic_order = [
         (measurement_one, "primary", 0),
         (measurement_two, "secondary", 1),
         (measurement_three, "tertiary", 2),
     ]
+    inputs_a = service.list_statistical_result_inputs(statistical_result_a.id)
+    inputs_b = service.list_statistical_result_inputs(statistical_result_b.id)
+    assert [(item.measurement_id, item.input_role, item.ordinal) for item in inputs_a] == (
+        expected_semantic_order
+    )
+    assert [(item.measurement_id, item.input_role, item.ordinal) for item in inputs_b] == (
+        expected_semantic_order
+    )
+    with engine.connect() as connection:
+        physical_order_a = (
+            connection.execute(
+                text(
+                    "SELECT measurement_id FROM statistical_result_inputs "
+                    "WHERE statistical_result_id=:result_id ORDER BY ctid"
+                ),
+                {"result_id": statistical_result_a.id},
+            )
+            .scalars()
+            .all()
+        )
+        physical_order_b = (
+            connection.execute(
+                text(
+                    "SELECT measurement_id FROM statistical_result_inputs "
+                    "WHERE statistical_result_id=:result_id ORDER BY ctid"
+                ),
+                {"result_id": statistical_result_b.id},
+            )
+            .scalars()
+            .all()
+        )
+    assert physical_order_a == [measurement_one, measurement_two, measurement_three]
+    assert physical_order_b == [measurement_three, measurement_one, measurement_two]
+
     run_ids = {
-        service.get_measurement(MeasurementId(item.measurement_id)).run_id for item in inputs
+        service.get_measurement(MeasurementId(item.measurement_id)).run_id for item in inputs_a
     }
     assert len(run_ids) == 3
 
-    claim, version = seed_claim(service, project_id, actor_context)
-    relation = service.link_evidence(
-        LinkEvidenceCommand(
-            claim.id,
-            version.id,
-            None,
-            StatisticalResultId(statistical_result.id),
-            "supports",
-            None,
-            version.row_version,
-            actor_context,
+    def freeze_claim_with_result(
+        result_id: StatisticalResultId,
+    ) -> tuple[EvidenceRelationReadModel, ClaimVersionReadModel]:
+        claim, version = seed_claim(service, project_id, actor_context)
+        relation = service.link_evidence(
+            LinkEvidenceCommand(
+                claim.id,
+                version.id,
+                None,
+                result_id,
+                "supports",
+                None,
+                version.row_version,
+                actor_context,
+            )
         )
-    )
-    frozen = service.freeze_claim_version(
-        FreezeClaimVersionCommand(
-            claim.id,
-            version.id,
-            actor_context,
-            service.get_current_claim_version(claim.id).row_version,
+        frozen = service.freeze_claim_version(
+            FreezeClaimVersionCommand(
+                claim.id,
+                version.id,
+                actor_context,
+                service.get_current_claim_version(claim.id).row_version,
+            )
         )
-    )
+        return relation, frozen
 
-    positive = service.validate_claim_version(frozen.id)
-    assert positive.complete is True
-    assert positive.violations == []
-    assert positive.visited_count >= 1 + 1 + 1 + 1 + 3 + 3
-    assert relation.statistical_result_id == statistical_result.id
+    relation_a, frozen_a = freeze_claim_with_result(StatisticalResultId(statistical_result_a.id))
+    relation_b, frozen_b = freeze_claim_with_result(StatisticalResultId(statistical_result_b.id))
+
+    positive_reports_a = tuple(service.validate_claim_version(frozen_a.id) for _ in range(3))
+    positive_reports_b = tuple(service.validate_claim_version(frozen_b.id) for _ in range(3))
+    assert positive_reports_a == (positive_reports_a[0],) * 3
+    assert positive_reports_b == (positive_reports_b[0],) * 3
+    assert positive_reports_a[0] == positive_reports_b[0]
+    assert positive_reports_a[0].complete is True
+    assert positive_reports_a[0].violations == []
+    assert positive_reports_a[0].visited_count == 19
+    assert relation_a.statistical_result_id == statistical_result_a.id
+    assert relation_b.statistical_result_id == statistical_result_b.id
+
+    def normalized_report(report: ClosureReport, relation_id: object) -> tuple[object, ...]:
+        return (
+            report.complete,
+            report.visited_count,
+            tuple(
+                (
+                    violation.code,
+                    violation.object_type,
+                    violation.object_id,
+                    tuple(
+                        "<relation_id>" if part == str(relation_id) else part
+                        for part in violation.path
+                    ),
+                    violation.message,
+                )
+                for violation in report.violations
+            ),
+        )
 
     missing_measurement_id = MeasurementId(UUID("00000000-0000-0000-0000-000000000099"))
     with engine.begin() as connection:
         connection.exec_driver_sql("ALTER TABLE statistical_result_inputs DISABLE TRIGGER ALL")
-        connection.execute(
-            text(
-                "UPDATE statistical_result_inputs SET measurement_id=:missing_id "
-                "WHERE statistical_result_id=:result_id AND ordinal=2"
-            ),
-            {"missing_id": missing_measurement_id, "result_id": statistical_result.id},
-        )
+        for result_id in (statistical_result_a.id, statistical_result_b.id):
+            updated = connection.execute(
+                text(
+                    "UPDATE statistical_result_inputs SET measurement_id=:missing_id "
+                    "WHERE statistical_result_id=:result_id AND ordinal=2"
+                ),
+                {"missing_id": missing_measurement_id, "result_id": result_id},
+            )
+            assert updated.rowcount == 1
         connection.exec_driver_sql("ALTER TABLE statistical_result_inputs ENABLE TRIGGER ALL")
 
     try:
-        negative = service.validate_claim_version(frozen.id)
-        assert negative.complete is False
-        missing_violations = [
-            item
-            for item in negative.violations
-            if item.object_type == "Measurement" and item.object_id == missing_measurement_id
-        ]
-        assert len(missing_violations) == 1
-        assert missing_violations[0].path == [
+        negative_reports_a = tuple(service.validate_claim_version(frozen_a.id) for _ in range(3))
+        negative_reports_b = tuple(service.validate_claim_version(frozen_b.id) for _ in range(3))
+        assert negative_reports_a == (negative_reports_a[0],) * 3
+        assert negative_reports_b == (negative_reports_b[0],) * 3
+        negative_a = negative_reports_a[0]
+        negative_b = negative_reports_b[0]
+        assert negative_a.complete is False
+        assert negative_b.complete is False
+        assert negative_a.visited_count == 15
+        assert negative_b.visited_count == 15
+        expected_path_a = [
             "claim_version",
             "evidence",
-            str(relation.id),
+            str(relation_a.id),
             "statistical_result",
             "inputs",
             str(missing_measurement_id),
             "measurement",
         ]
-        assert [item.path for item in negative.violations] == [missing_violations[0].path]
+        expected_path_b = [
+            "claim_version",
+            "evidence",
+            str(relation_b.id),
+            "statistical_result",
+            "inputs",
+            str(missing_measurement_id),
+            "measurement",
+        ]
+        assert [item.path for item in negative_a.violations] == [expected_path_a]
+        assert [item.path for item in negative_b.violations] == [expected_path_b]
+        assert [item.object_id for item in negative_a.violations] == [missing_measurement_id]
+        assert [item.object_id for item in negative_b.violations] == [missing_measurement_id]
+        assert normalized_report(negative_a, relation_a.id) == normalized_report(
+            negative_b, relation_b.id
+        )
     finally:
         with engine.begin() as connection:
             connection.exec_driver_sql("ALTER TABLE statistical_result_inputs DISABLE TRIGGER ALL")
-            connection.execute(
-                text(
-                    "UPDATE statistical_result_inputs SET measurement_id=:measurement_id "
-                    "WHERE statistical_result_id=:result_id AND ordinal=2"
-                ),
-                {"measurement_id": measurement_three, "result_id": statistical_result.id},
-            )
+            for result_id in (statistical_result_a.id, statistical_result_b.id):
+                restored = connection.execute(
+                    text(
+                        "UPDATE statistical_result_inputs SET measurement_id=:measurement_id "
+                        "WHERE statistical_result_id=:result_id AND ordinal=2"
+                    ),
+                    {"measurement_id": measurement_three, "result_id": result_id},
+                )
+                assert restored.rowcount == 1
             connection.exec_driver_sql("ALTER TABLE statistical_result_inputs ENABLE TRIGGER ALL")
 
 

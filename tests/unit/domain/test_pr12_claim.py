@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import hashlib
+import inspect
 import json
 from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime, timedelta
@@ -9,6 +11,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from tests.contracts.version_contract import VersionFixture, assert_version_contract
+from tests.oracles import pr12_support_set_oracle as support_set_oracle
 
 from researchbase.domain.claim import (
     Claim,
@@ -259,18 +262,23 @@ def test_claim_version_is_directly_wired_to_shared_pr03_contract() -> None:
     assert_version_contract(ClaimVersionContractAdapter)
 
 
-def _independent_support_hash(rows: list[dict[str, str | None]]) -> str:
-    semantic_rows = [dict(row) for row in rows]
-    semantic_rows.sort(
-        key=lambda row: (
-            row["source_type"],
-            row["source_id"],
-            row["relation_type"],
-            row["qualification"] is not None,
-            row["qualification"] or "",
-        )
+def test_support_set_oracle_imports_only_standard_library() -> None:
+    tree = ast.parse(inspect.getsource(support_set_oracle))
+    imported_roots = {
+        alias.name.split(".")[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    imported_roots.update(
+        node.module.split(".")[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        and node.module is not None
+        and node.module != "__future__"
     )
-    return independent_sha256(semantic_rows)
+
+    assert imported_roots == {"collections", "hashlib", "json"}
 
 
 def test_support_set_hash_matches_an_independent_mixed_evidence_oracle() -> None:
@@ -316,9 +324,36 @@ def test_support_set_hash_matches_an_independent_mixed_evidence_oracle() -> None
 
     assert str(
         calculate_support_set_hash([statistical_edge, measurement_edge, measurement_qualified_edge])
-    ) == (_independent_support_hash(expected_rows))
-    assert calculate_support_set_hash(relations) == (
-        calculate_support_set_hash(list(reversed(relations)))
+    ) == support_set_oracle.independent_support_set_hash(expected_rows)
+    assert (
+        str(calculate_support_set_hash(relations))
+        == str(calculate_support_set_hash(list(reversed(relations))))
+        == support_set_oracle.independent_support_set_hash(list(reversed(expected_rows)))
+    )
+
+
+@pytest.mark.parametrize("source_type", ["measurement", "statistical_result"])
+def test_support_set_hash_oracle_covers_each_single_source_type(source_type: str) -> None:
+    edge = relation()
+    source_id = MEASUREMENT_ID
+    if source_type == "statistical_result":
+        source_id = STATISTICAL_RESULT_ID
+        edge = replace(
+            edge,
+            measurement_id=None,
+            statistical_result_id=StatisticalResultId(source_id),
+        )
+    expected_rows = [
+        {
+            "source_type": source_type,
+            "source_id": str(source_id),
+            "relation_type": "supports",
+            "qualification": None,
+        }
+    ]
+
+    assert str(calculate_support_set_hash([edge])) == (
+        support_set_oracle.independent_support_set_hash(expected_rows)
     )
 
 
@@ -346,9 +381,11 @@ def test_support_set_hash_independent_oracle_covers_empty_and_null_ordering() ->
         measurement_id=MeasurementId(MEASUREMENT_ID),
     )
 
-    assert str(calculate_support_set_hash([])) == independent_sha256([])
+    assert str(calculate_support_set_hash([])) == (
+        support_set_oracle.independent_support_set_hash([])
+    )
     assert str(calculate_support_set_hash([qualified_relation, null_relation])) == (
-        _independent_support_hash(expected_rows)
+        support_set_oracle.independent_support_set_hash(expected_rows)
     )
 
 
@@ -358,23 +395,40 @@ def test_support_set_hash_independent_oracle_covers_empty_and_null_ordering() ->
 )
 def test_support_set_hash_changes_for_each_single_semantic_field(field: str) -> None:
     baseline = relation()
+    baseline_rows = [
+        {
+            "source_type": "measurement",
+            "source_id": str(MEASUREMENT_ID),
+            "relation_type": "supports",
+            "qualification": None,
+        }
+    ]
+    changed_rows = [dict(baseline_rows[0])]
     if field == "source_type":
         changed = replace(
             baseline,
             measurement_id=None,
-            statistical_result_id=StatisticalResultId(STATISTICAL_RESULT_ID),
+            statistical_result_id=StatisticalResultId(MEASUREMENT_ID),
         )
+        changed_rows[0]["source_type"] = "statistical_result"
     elif field == "source_id":
         changed = replace(
             baseline,
             measurement_id=MeasurementId(UUID("00000000-0000-0000-0000-000000000099")),
         )
+        changed_rows[0]["source_id"] = "00000000-0000-0000-0000-000000000099"
     elif field == "relation_type":
         changed = replace(baseline, relation_type=EvidenceRelationType.CONTRADICTS)
+        changed_rows[0]["relation_type"] = "contradicts"
     else:
         changed = replace(baseline, qualification="different qualification")
+        changed_rows[0]["qualification"] = "different qualification"
 
-    assert calculate_support_set_hash([baseline]) != calculate_support_set_hash([changed])
+    baseline_expected = support_set_oracle.independent_support_set_hash(baseline_rows)
+    changed_expected = support_set_oracle.independent_support_set_hash(changed_rows)
+    assert str(calculate_support_set_hash([baseline])) == baseline_expected
+    assert str(calculate_support_set_hash([changed])) == changed_expected
+    assert baseline_expected != changed_expected
 
 
 @pytest.mark.parametrize("field", ["id", "created_by", "created_at"])
@@ -391,7 +445,18 @@ def test_support_set_hash_ignores_each_single_metadata_field(field: str) -> None
     else:
         changed = replace(baseline, created_at=NOW + timedelta(seconds=1))
 
-    assert calculate_support_set_hash([baseline]) == calculate_support_set_hash([changed])
+    expected = support_set_oracle.independent_support_set_hash(
+        [
+            {
+                "source_type": "measurement",
+                "source_id": str(MEASUREMENT_ID),
+                "relation_type": "supports",
+                "qualification": None,
+            }
+        ]
+    )
+    assert str(calculate_support_set_hash([baseline])) == expected
+    assert str(calculate_support_set_hash([changed])) == expected
 
 
 def test_claim_hash_has_exact_material_and_canonical_key_order_stability() -> None:
