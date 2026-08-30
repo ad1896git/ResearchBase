@@ -15,6 +15,7 @@ from tests.integration.test_pr09_application import (
 )
 from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
+from researchbase.application.closure import ProvenanceClosureValidator
 from researchbase.application.commands import (
     ApplicationService,
     AttachRunArtifactInputCommand,
@@ -194,11 +195,12 @@ def test_run_queries_preserve_exact_inputs_and_execute_selects_only(
     assert before == after
     assert statements
     assert set(statements) == {"SELECT"}
-    assert len(statements) == 26
+    assert len(statements) == 16
 
 
 def test_statistical_result_all_inputs_preserve_paths_while_runs_are_deduplicated(
     resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     factory, engine = resources
     service = factory()
@@ -259,6 +261,20 @@ def test_statistical_result_all_inputs_preserve_paths_while_runs_are_deduplicate
         FreezeClaimVersionCommand(claim.id, current.id, actor_context, current.row_version)
     )
 
+    counts = {"claim": 0, "run": 0}
+    original_claim = ProvenanceClosureValidator.validate_claim_version_in_uow
+    original_run = ProvenanceClosureValidator.validate_run_in_uow
+
+    def count_claim(self, *args, **kwargs):
+        counts["claim"] += 1
+        return original_claim(self, *args, **kwargs)
+
+    def count_run(self, *args, **kwargs):
+        counts["run"] += 1
+        return original_run(self, *args, **kwargs)
+
+    monkeypatch.setattr(ProvenanceClosureValidator, "validate_claim_version_in_uow", count_claim)
+    monkeypatch.setattr(ProvenanceClosureValidator, "validate_run_in_uow", count_run)
     traces = tuple(query_service(engine).trace_claim_to_runs(frozen.id) for _ in range(3))
 
     assert traces == (traces[0],) * 3
@@ -270,6 +286,7 @@ def test_statistical_result_all_inputs_preserve_paths_while_runs_are_deduplicate
         str(second.id),
         str(third.id),
     ]
+    assert counts == {"claim": 3, "run": 3}
 
 
 def test_draft_claim_with_empty_evidence_returns_empty_trace_and_truthful_closure(
@@ -465,3 +482,118 @@ def test_trace_isolated_by_exact_cross_project_paths(
     assert {item.run_id for item in traces[0].runs}.isdisjoint(
         {item.run_id for item in traces[1].runs}
     )
+
+
+def test_trace_sql_and_closure_calls_are_bounded_by_stages_and_unique_runs(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory, engine = resources
+    original_claim = ProvenanceClosureValidator.validate_claim_version_in_uow
+    original_run = ProvenanceClosureValidator.validate_run_in_uow
+    calls = {"claim": 0, "run": 0}
+
+    def count_claim(self, *args, **kwargs):
+        calls["claim"] += 1
+        return original_claim(self, *args, **kwargs)
+
+    def count_run(self, *args, **kwargs):
+        calls["run"] += 1
+        return original_run(self, *args, **kwargs)
+
+    monkeypatch.setattr(ProvenanceClosureValidator, "validate_claim_version_in_uow", count_claim)
+    monkeypatch.setattr(ProvenanceClosureValidator, "validate_run_in_uow", count_run)
+    observations: list[tuple[int, int, int, int]] = []
+
+    for path_count, run_count in ((3, 1), (12, 9), (24, 15)):
+        service = factory()
+        _, project_id, actor_context = seed_project(
+            service, f"pr13r-scale-{path_count}-{run_count}"
+        )
+        measurements = [
+            service.get_measurement(
+                seed_measurement(service, project_id, actor_context, f"scale-{path_count}-{i}")
+            )
+            for i in range(run_count)
+        ]
+        first = measurements[0]
+        for index in range(run_count, path_count):
+            measurements.append(
+                service.record_measurement(
+                    RecordMeasurementCommand(
+                        first.run_id,
+                        first.metric_definition_version_id,
+                        float(index + 1),
+                        None,
+                        "ms",
+                        {"scale_index": index},
+                        actor_context,
+                    )
+                )
+            )
+        result = service.record_statistical_result(
+            RecordStatisticalResultCommand(
+                project_id,
+                "scale",
+                {"count": path_count - 1},
+                {"method": "identity"},
+                tuple(
+                    StatisticalResultInputCommand(item.id, f"input-{index}", index)
+                    for index, item in enumerate(measurements[1:])
+                ),
+                actor_context,
+            )
+        )
+        claim, version = seed_claim(service, project_id, actor_context)
+        service.link_evidence(
+            LinkEvidenceCommand(
+                claim.id,
+                version.id,
+                first.id,
+                None,
+                "supports",
+                "direct",
+                version.row_version,
+                actor_context,
+            )
+        )
+        current = service.get_current_claim_version(claim.id)
+        service.link_evidence(
+            LinkEvidenceCommand(
+                claim.id,
+                current.id,
+                None,
+                result.id,
+                "qualifies",
+                "aggregate",
+                current.row_version,
+                actor_context,
+            )
+        )
+        current = service.get_current_claim_version(claim.id)
+        frozen = service.freeze_claim_version(
+            FreezeClaimVersionCommand(claim.id, current.id, actor_context, current.row_version)
+        )
+        sql: list[str] = []
+
+        def observe(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+            sql.append(statement.lstrip().split(None, 1)[0].upper())
+
+        before = calls.copy()
+        event.listen(engine, "before_cursor_execute", observe)
+        try:
+            trace = query_service(engine).trace_claim_to_runs(frozen.id)
+        finally:
+            event.remove(engine, "before_cursor_execute", observe)
+        observations.append(
+            (
+                len(sql),
+                calls["claim"] - before["claim"],
+                calls["run"] - before["run"],
+                len(trace.paths),
+            )
+        )
+        assert len(trace.runs) == run_count
+        assert set(sql) == {"SELECT"}
+
+    assert observations == [(15, 1, 1, 3), (15, 1, 9, 12), (15, 1, 15, 24)]

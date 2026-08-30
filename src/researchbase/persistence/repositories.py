@@ -490,6 +490,16 @@ class SqlAlchemyExperimentSpecRepository:
         model = self._session.get(ExperimentSpecVersionModel, version_id)
         return _experiment_spec_version_from_model(model) if model is not None else None
 
+    def get_versions(
+        self, version_ids: set[ExperimentSpecVersionId]
+    ) -> list[ExperimentSpecVersion]:
+        if not version_ids:
+            return []
+        models = self._session.scalars(
+            select(ExperimentSpecVersionModel).where(ExperimentSpecVersionModel.id.in_(version_ids))
+        ).all()
+        return [_experiment_spec_version_from_model(model) for model in models]
+
     def get_version_for_update(
         self, version_id: ExperimentSpecVersionId
     ) -> ExperimentSpecVersion | None:
@@ -623,6 +633,14 @@ class SqlAlchemyDatasetSnapshotRepository:
         model = self._session.get(DatasetSnapshotModel, snapshot_id)
         return _dataset_snapshot_from_model(model) if model is not None else None
 
+    def get_many(self, snapshot_ids: set[DatasetSnapshotId]) -> list[DatasetSnapshot]:
+        if not snapshot_ids:
+            return []
+        models = self._session.scalars(
+            select(DatasetSnapshotModel).where(DatasetSnapshotModel.id.in_(snapshot_ids))
+        ).all()
+        return [_dataset_snapshot_from_model(model) for model in models]
+
     def find_by_dataset_and_content_hash(
         self, dataset_id: DatasetId, content_hash: str
     ) -> DatasetSnapshot | None:
@@ -720,6 +738,14 @@ class SqlAlchemyArtifactVersionRepository:
     def get(self, version_id: ArtifactVersionId) -> ArtifactVersion | None:
         model = self._session.get(ArtifactVersionModel, version_id)
         return _artifact_version_from_model(model) if model is not None else None
+
+    def get_many(self, version_ids: set[ArtifactVersionId]) -> list[ArtifactVersion]:
+        if not version_ids:
+            return []
+        models = self._session.scalars(
+            select(ArtifactVersionModel).where(ArtifactVersionModel.id.in_(version_ids))
+        ).all()
+        return [_artifact_version_from_model(model) for model in models]
 
     def get_for_update(self, version_id: ArtifactVersionId) -> ArtifactVersion | None:
         model = self._session.scalar(
@@ -865,6 +891,18 @@ class SqlAlchemyMetricDefinitionVersionRepository:
         model = self._session.get(MetricDefinitionVersionModel, version_id)
         return _metric_definition_version_from_model(model) if model is not None else None
 
+    def get_many(
+        self, version_ids: set[MetricDefinitionVersionId]
+    ) -> list[MetricDefinitionVersion]:
+        if not version_ids:
+            return []
+        models = self._session.scalars(
+            select(MetricDefinitionVersionModel).where(
+                MetricDefinitionVersionModel.id.in_(version_ids)
+            )
+        ).all()
+        return [_metric_definition_version_from_model(model) for model in models]
+
     def get_for_update(
         self, version_id: MetricDefinitionVersionId
     ) -> MetricDefinitionVersion | None:
@@ -939,6 +977,12 @@ class SqlAlchemyRunRepository:
         model = self._session.get(RunModel, run_id)
         return _run_from_model(model) if model is not None else None
 
+    def get_many(self, run_ids: set[RunId]) -> list[Run]:
+        if not run_ids:
+            return []
+        models = self._session.scalars(select(RunModel).where(RunModel.id.in_(run_ids))).all()
+        return [_run_from_model(model) for model in models]
+
     def get_for_update(self, run_id: RunId) -> Run | None:
         model = self._session.scalar(
             select(RunModel).where(RunModel.id == run_id).with_for_update()
@@ -998,6 +1042,22 @@ class SqlAlchemyRunRepository:
         ).all()
         return [_run_artifact_input_from_model(model) for model in models]
 
+    def list_dataset_inputs_for_runs(self, run_ids: set[RunId]) -> list[RunDatasetInput]:
+        if not run_ids:
+            return []
+        models = self._session.scalars(
+            select(RunDatasetInputModel).where(RunDatasetInputModel.run_id.in_(run_ids))
+        ).all()
+        return [_run_dataset_input_from_model(model) for model in models]
+
+    def list_artifact_inputs_for_runs(self, run_ids: set[RunId]) -> list[RunArtifactInput]:
+        if not run_ids:
+            return []
+        models = self._session.scalars(
+            select(RunArtifactInputModel).where(RunArtifactInputModel.run_id.in_(run_ids))
+        ).all()
+        return [_run_artifact_input_from_model(model) for model in models]
+
 
 class SqlAlchemyMeasurementRepository:
     def __init__(self, session: Session) -> None:
@@ -1023,11 +1083,27 @@ class SqlAlchemyMeasurementRepository:
         model = self._session.get(MeasurementModel, measurement_id)
         return _measurement_from_model(model) if model is not None else None
 
+    def get_many(self, measurement_ids: set[MeasurementId]) -> list[Measurement]:
+        if not measurement_ids:
+            return []
+        models = self._session.scalars(
+            select(MeasurementModel).where(MeasurementModel.id.in_(measurement_ids))
+        ).all()
+        return [_measurement_from_model(model) for model in models]
+
     def list_by_run(self, run_id: RunId) -> list[Measurement]:
         models = self._session.scalars(
             select(MeasurementModel)
             .where(MeasurementModel.run_id == run_id)
             .order_by(MeasurementModel.created_at, MeasurementModel.id)
+        ).all()
+        return [_measurement_from_model(model) for model in models]
+
+    def list_by_runs(self, run_ids: set[RunId]) -> list[Measurement]:
+        if not run_ids:
+            return []
+        models = self._session.scalars(
+            select(MeasurementModel).where(MeasurementModel.run_id.in_(run_ids))
         ).all()
         return [_measurement_from_model(model) for model in models]
 
@@ -1076,6 +1152,13 @@ class SqlAlchemyStatisticalResultRepository:
         row = self._session.execute(select(table).where(table.c.id == result_id)).mappings().first()
         return _statistical_result_from_row(row) if row is not None else None
 
+    def get_many(self, result_ids: set[StatisticalResultId]) -> list[StatisticalResult]:
+        if not result_ids:
+            return []
+        table = StatisticalResultModel.__table__
+        rows = self._session.execute(select(table).where(table.c.id.in_(result_ids))).mappings()
+        return [_statistical_result_from_row(row) for row in rows]
+
     def list_by_project(self, project_id: ProjectId) -> list[StatisticalResult]:
         table = StatisticalResultModel.__table__
         rows = self._session.execute(
@@ -1091,6 +1174,17 @@ class SqlAlchemyStatisticalResultRepository:
             select(table)
             .where(table.c.statistical_result_id == result_id)
             .order_by(table.c.ordinal, table.c.input_role, table.c.measurement_id)
+        ).mappings()
+        return [_statistical_result_input_from_row(row) for row in rows]
+
+    def list_inputs_for_results(
+        self, result_ids: set[StatisticalResultId]
+    ) -> list[StatisticalResultInput]:
+        if not result_ids:
+            return []
+        table = StatisticalResultInputModel.__table__
+        rows = self._session.execute(
+            select(table).where(table.c.statistical_result_id.in_(result_ids))
         ).mappings()
         return [_statistical_result_input_from_row(row) for row in rows]
 

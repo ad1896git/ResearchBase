@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from researchbase.application.ports import UnitOfWork
@@ -14,6 +15,20 @@ from researchbase.domain.statistical_result import StatisticalResult
 from researchbase.foundation.errors import ErrorCode
 from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.versioning import VersionStatus
+
+
+def _cached(context: ClosureEvaluationContext | None, name: str, key: object) -> Any | None:
+    if context is None:
+        return None
+    return getattr(context, name).get(UUID(str(key)))
+
+
+def _cached_list(
+    context: ClosureEvaluationContext | None, name: str, key: object
+) -> list[Any] | None:
+    if context is None:
+        return None
+    return getattr(context, name).get(UUID(str(key)), [])
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +47,23 @@ class ClosureReport:
     violations: list[ClosureViolation]
 
 
+@dataclass(slots=True)
+class ClosureEvaluationContext:
+    """Request-local typed read cache shared by one trace transaction."""
+
+    measurements: dict[UUID, Any] = field(default_factory=dict)
+    statistical_results: dict[UUID, Any] = field(default_factory=dict)
+    statistical_inputs: dict[UUID, list[Any]] = field(default_factory=dict)
+    runs: dict[UUID, Run] = field(default_factory=dict)
+    metric_versions: dict[UUID, Any] = field(default_factory=dict)
+    spec_versions: dict[UUID, Any] = field(default_factory=dict)
+    dataset_inputs: dict[UUID, list[Any]] = field(default_factory=dict)
+    artifact_inputs: dict[UUID, list[Any]] = field(default_factory=dict)
+    dataset_snapshots: dict[UUID, Any] = field(default_factory=dict)
+    artifact_versions: dict[UUID, Any] = field(default_factory=dict)
+    run_reports: dict[UUID, ClosureReport] = field(default_factory=dict)
+
+
 class ProvenanceClosureValidator:
     def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
         self._uow_factory = uow_factory
@@ -45,7 +77,10 @@ class ProvenanceClosureValidator:
             return self.validate_claim_version_in_uow(uow, ClaimVersionId(claim_version_id))
 
     def validate_claim_version_in_uow(
-        self, uow: UnitOfWork, claim_version_id: ClaimVersionId
+        self,
+        uow: UnitOfWork,
+        claim_version_id: ClaimVersionId,
+        context: ClosureEvaluationContext | None = None,
     ) -> ClosureReport:
         violations: list[ClosureViolation] = []
         visited: set[tuple[str, UUID]] = set()
@@ -123,7 +158,9 @@ class ProvenanceClosureValidator:
             visited.add(("EvidenceRelation", relation_uuid))
             relation_path = ["claim_version", "evidence", str(relation.id)]
             if relation.measurement_id is not None:
-                measurement = uow.measurements.get(relation.measurement_id)
+                measurement = _cached(context, "measurements", relation.measurement_id)
+                if measurement is None:
+                    measurement = uow.measurements.get(relation.measurement_id)
                 self._validate_measurement_source(
                     uow,
                     measurement,
@@ -132,9 +169,12 @@ class ProvenanceClosureValidator:
                     relation_path,
                     visited,
                     violations,
+                    context,
                 )
             elif relation.statistical_result_id is not None:
-                result = uow.statistical_results.get(relation.statistical_result_id)
+                result = _cached(context, "statistical_results", relation.statistical_result_id)
+                if result is None:
+                    result = uow.statistical_results.get(relation.statistical_result_id)
                 self._validate_statistical_result_source(
                     uow,
                     result,
@@ -143,6 +183,7 @@ class ProvenanceClosureValidator:
                     relation_path,
                     visited,
                     violations,
+                    context,
                 )
 
         violations.sort(
@@ -169,6 +210,7 @@ class ProvenanceClosureValidator:
         path: list[str],
         visited: set[tuple[str, UUID]],
         violations: list[ClosureViolation],
+        context: ClosureEvaluationContext | None = None,
     ) -> None:
         if measurement is None:
             violations.append(
@@ -183,7 +225,9 @@ class ProvenanceClosureValidator:
             return
         measurement_uuid = UUID(str(measurement.id))
         visited.add(("Measurement", measurement_uuid))
-        run = uow.runs.get(measurement.run_id)
+        run = _cached(context, "runs", measurement.run_id)
+        if run is None:
+            run = uow.runs.get(measurement.run_id)
         if run is None:
             violations.append(
                 ClosureViolation(
@@ -205,9 +249,11 @@ class ProvenanceClosureValidator:
                         "measurement run belongs to a different project",
                     )
                 )
-            self._record_run_closure(uow, run, path, visited, violations)
+            self._record_run_closure(uow, run, path, visited, violations, context)
 
-        metric = uow.metric_definition_versions.get(measurement.metric_definition_version_id)
+        metric = _cached(context, "metric_versions", measurement.metric_definition_version_id)
+        if metric is None:
+            metric = uow.metric_definition_versions.get(measurement.metric_definition_version_id)
         if metric is None:
             violations.append(
                 ClosureViolation(
@@ -241,6 +287,7 @@ class ProvenanceClosureValidator:
         path: list[str],
         visited: set[tuple[str, UUID]],
         violations: list[ClosureViolation],
+        context: ClosureEvaluationContext | None = None,
     ) -> None:
         if result is None:
             violations.append(
@@ -265,7 +312,9 @@ class ProvenanceClosureValidator:
                     "statistical result belongs to a different project",
                 )
             )
-        inputs = uow.statistical_results.list_inputs(result.id)
+        inputs = _cached_list(context, "statistical_inputs", result.id)
+        if inputs is None:
+            inputs = uow.statistical_results.list_inputs(result.id)
         if not inputs:
             violations.append(
                 ClosureViolation(
@@ -278,7 +327,9 @@ class ProvenanceClosureValidator:
             )
         for input_edge in inputs:
             visited.add(("StatisticalResultInput", UUID(str(input_edge.measurement_id))))
-            measurement = uow.measurements.get(input_edge.measurement_id)
+            measurement = _cached(context, "measurements", input_edge.measurement_id)
+            if measurement is None:
+                measurement = uow.measurements.get(input_edge.measurement_id)
             self._validate_measurement_source(
                 uow,
                 measurement,
@@ -287,6 +338,7 @@ class ProvenanceClosureValidator:
                 [*path, "statistical_result", "inputs", str(input_edge.measurement_id)],
                 visited,
                 violations,
+                context,
             )
 
     def _record_run_closure(
@@ -296,9 +348,15 @@ class ProvenanceClosureValidator:
         path: list[str],
         visited: set[tuple[str, UUID]],
         violations: list[ClosureViolation],
+        context: ClosureEvaluationContext | None = None,
     ) -> None:
         visited.add(("Run", UUID(str(run.id))))
-        report = self.validate_run_in_uow(uow, run.id)
+        run_uuid = UUID(str(run.id))
+        report = context.run_reports.get(run_uuid) if context is not None else None
+        if report is None:
+            report = self.validate_run_in_uow(uow, run.id, context)
+            if context is not None:
+                context.run_reports[run_uuid] = report
         prefix = [*path, "measurement", "run"]
         for violation in report.violations:
             violations.append(
@@ -310,22 +368,38 @@ class ProvenanceClosureValidator:
                     violation.message,
                 )
             )
-        spec = uow.experiment_specs.get_version(run.experiment_spec_version_id)
+        spec = _cached(context, "spec_versions", run.experiment_spec_version_id)
+        if spec is None:
+            spec = uow.experiment_specs.get_version(run.experiment_spec_version_id)
         if spec is not None:
             visited.add(("ExperimentSpecVersion", UUID(str(spec.id))))
-        for item in uow.runs.list_dataset_inputs(run.id):
-            snapshot = uow.dataset_snapshots.get(item.dataset_snapshot_id)
+        dataset_inputs = _cached_list(context, "dataset_inputs", run.id)
+        if dataset_inputs is None:
+            dataset_inputs = uow.runs.list_dataset_inputs(run.id)
+        for item in dataset_inputs:
+            snapshot = _cached(context, "dataset_snapshots", item.dataset_snapshot_id)
+            if snapshot is None:
+                snapshot = uow.dataset_snapshots.get(item.dataset_snapshot_id)
             if snapshot is not None:
                 visited.add(("DatasetSnapshot", UUID(str(snapshot.id))))
-        for item in uow.runs.list_artifact_inputs(run.id):
-            artifact = uow.artifact_versions.get(item.artifact_version_id)
+        artifact_inputs = _cached_list(context, "artifact_inputs", run.id)
+        if artifact_inputs is None:
+            artifact_inputs = uow.runs.list_artifact_inputs(run.id)
+        for item in artifact_inputs:
+            artifact = _cached(context, "artifact_versions", item.artifact_version_id)
+            if artifact is None:
+                artifact = uow.artifact_versions.get(item.artifact_version_id)
             if artifact is not None:
                 visited.add(("ArtifactVersion", UUID(str(artifact.id))))
 
-    def validate_run_in_uow(self, uow: UnitOfWork, run_id: RunId) -> ClosureReport:
+    def validate_run_in_uow(
+        self, uow: UnitOfWork, run_id: RunId, context: ClosureEvaluationContext | None = None
+    ) -> ClosureReport:
         violations: list[ClosureViolation] = []
         visited: set[tuple[str, UUID]] = set()
-        run = uow.runs.get(run_id)
+        run = _cached(context, "runs", run_id)
+        if run is None:
+            run = uow.runs.get(run_id)
         if run is None:
             return ClosureReport(
                 complete=False,
@@ -343,7 +417,9 @@ class ProvenanceClosureValidator:
         visited.add(("Run", UUID(str(run.id))))
         self._check_run_state(run, violations)
 
-        spec = uow.experiment_specs.get_version(run.experiment_spec_version_id)
+        spec = _cached(context, "spec_versions", run.experiment_spec_version_id)
+        if spec is None:
+            spec = uow.experiment_specs.get_version(run.experiment_spec_version_id)
         if spec is None:
             violations.append(
                 ClosureViolation(
@@ -367,8 +443,13 @@ class ProvenanceClosureValidator:
                     )
                 )
 
-        for item in uow.runs.list_dataset_inputs(run.id):
-            snapshot = uow.dataset_snapshots.get(item.dataset_snapshot_id)
+        dataset_inputs = _cached_list(context, "dataset_inputs", run.id)
+        if dataset_inputs is None:
+            dataset_inputs = uow.runs.list_dataset_inputs(run.id)
+        for item in dataset_inputs:
+            snapshot = _cached(context, "dataset_snapshots", item.dataset_snapshot_id)
+            if snapshot is None:
+                snapshot = uow.dataset_snapshots.get(item.dataset_snapshot_id)
             if snapshot is None:
                 violations.append(
                     ClosureViolation(
@@ -382,8 +463,13 @@ class ProvenanceClosureValidator:
             else:
                 visited.add(("DatasetSnapshot", UUID(str(snapshot.id))))
 
-        for item in uow.runs.list_artifact_inputs(run.id):
-            version = uow.artifact_versions.get(item.artifact_version_id)
+        artifact_inputs = _cached_list(context, "artifact_inputs", run.id)
+        if artifact_inputs is None:
+            artifact_inputs = uow.runs.list_artifact_inputs(run.id)
+        for item in artifact_inputs:
+            version = _cached(context, "artifact_versions", item.artifact_version_id)
+            if version is None:
+                version = uow.artifact_versions.get(item.artifact_version_id)
             if version is None:
                 violations.append(
                     ClosureViolation(
