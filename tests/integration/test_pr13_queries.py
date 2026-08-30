@@ -180,6 +180,7 @@ def test_run_queries_preserve_exact_inputs_and_execute_selects_only(
     assert before == after
     assert statements
     assert set(statements) == {"SELECT"}
+    assert len(statements) == 26
 
 
 def test_statistical_result_all_inputs_preserve_paths_while_runs_are_deduplicated(
