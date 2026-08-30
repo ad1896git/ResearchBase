@@ -1,0 +1,13 @@
+{
+  "accepted_pr12_final_baseline": "5b4d7e1ffa3509adbb2f324d2fb82df9883780cb",
+  "pr13_implementation_commits": ["1a1877a26e1362d1c67270380855a5098eaea4f6", "c4c69ab752e390ac5ab84323c927d392c59f4a40", "92302831438bec7db163e5ec4de8e6f63dc97d6b"],
+  "pr13_evidence_payload_commits": ["4177bd80a981d78621f3fa116cb88f5b9886e569", "4a4f9daedd98ce57c7b0b021630d6fb18dd45c7d", "9229c1882fa14a1896b4839b885d9d060f24920e", "d99c215c5d06153da334de88021393588f177a1e"],
+  "pr13_reviewed_head": "d99c215c5d06153da334de88021393588f177a1e",
+  "pr13r_remediation_commits": ["6355b2f724e766b33aa7b07cdbfd965d02e449eb", "b6afdb78a08ae29070291d73959098a9f11087a9"],
+  "pr13r_evidence_commits": [],
+  "post_pr13r_current_head_at_evidence_capture": "b6afdb78a08ae29070291d73959098a9f11087a9",
+  "alembic_head": "0014_claim_evidence",
+  "postgresql_version": "18.6",
+  "new_migration_count": 0,
+  "new_business_table_count": 0
+}

@@ -9,3 +9,6 @@
 - `git diff --check`: PASS.
 - PostgreSQL: `18.6`.
 - `uv run alembic current`: `0014_claim_evidence (head)`.
+
+Reality-review correction: the old query implementation produced 13/53/231 SELECTs at increasing
+fixture scales; prior wording implying bounded reads is withdrawn. See PR-13R for fresh results.

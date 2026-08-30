@@ -1,6 +1,6 @@
 # Code review
 
-No open P0/P1/P2 implementation finding was identified. DTOs are frozen and finite. Run output is
-deduplicated separately from typed evidence paths. All StatisticalResult inputs are traversed. Query
-operations use one UoW and reuse accepted closure validators. SQL count is bounded for the tested
-fixture but remains an observable optimization target, not a correctness defect.
+The independent Reality Review found two P1 defects: path/entity-linear reads and repeated Run closure
+evaluation. PR-13R closes them with typed batch readers and one request-local evaluation context. The
+original implementation was semantically correct but its 13/53/231 SELECT observations were not
+stage-bounded; the earlier bounded/N+1 claim is withdrawn.

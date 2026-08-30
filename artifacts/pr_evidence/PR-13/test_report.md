@@ -6,3 +6,6 @@ passed after the exact count assertion. Coverage includes DTO boundary, missing 
 three-input StatisticalResult traversal, Run dedup/path cardinality, DRAFT empty evidence, exact Run
 inputs, SELECT-only SQL, persisted Run-state equality, full V1/D1/A1/M1/C1 later-state contamination,
 two-project exact-FK isolation, and architecture guards.
+
+Historical correction: these tests proved semantics but did not prove stage-bounded scaling. The
+independent review's 13/53/231 observations are accepted and remediated in PR-13R.

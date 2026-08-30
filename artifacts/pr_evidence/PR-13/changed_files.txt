@@ -9,6 +9,10 @@ A tests/unit/test_pr13_query_contracts.py
 # Classification: source=1 tests=4 evidence=0 migrations=0 architecture-docs=0
 # Set equality with Git: PASS
 
+# Final reviewed PR-13 HEAD
+# d99c215c5d06153da334de88021393588f177a1e
+# Later PR-13R files are recorded separately; historical PR-13 review is not rewritten.
+
 # PR-13 implementation/test head to evidence payload
 # Range: c4c69ab752e390ac5ab84323c927d392c59f4a40..4177bd80a981d78621f3fa116cb88f5b9886e569
 # Exact status: 19 added files, all under artifacts/pr_evidence/PR-13/

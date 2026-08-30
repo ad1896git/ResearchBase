@@ -1,6 +1,5 @@
 # SQL count report
 
-Fixture cardinality: one Run, one exact ExperimentSpecVersion, one DatasetSnapshot input, one
-ArtifactVersion input. Two complete representative calls executed 26 SELECTs total (13 per call),
-asserted by the PostgreSQL test. Lazy ORM graph serialization is absent; repository selects are
-explicit. This is a correctness baseline, not a performance benchmark or cache claim.
+Independent review reproduced the old implementation at 13 SELECTs (small), 53 SELECTs (3 paths / 1
+Run), and 231 SELECTs (12 paths / 9 Runs). The old implementation therefore had explicit repository
+N+1 behavior. PR-13R measurements are recorded separately in `../PR-13R/sql_scaling_report.md`.

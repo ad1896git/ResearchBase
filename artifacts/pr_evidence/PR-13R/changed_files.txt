@@ -1,0 +1,12 @@
+# Changed files
+
+Implementation range `d99c215c5d06153da334de88021393588f177a1e..b6afdb78a08ae29070291d73959098a9f11087a9`:
+
+M src/researchbase/application/closure.py
+M src/researchbase/application/ports.py
+M src/researchbase/application/provenance_queries.py
+M src/researchbase/persistence/repositories.py
+A tests/architecture/test_pr13r_batched_reads.py
+M tests/integration/test_pr13_queries.py
+
+Exact count 6; source 4, tests 2, migration 0, architecture documents 0. Set equality: PASS.
