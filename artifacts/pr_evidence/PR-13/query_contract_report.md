@@ -9,4 +9,3 @@
 - `get_claim_closure_report`: deterministic projection of the accepted validator.
 - Missing roots raise `ResearchBaseError(NOT_FOUND)`. DRAFT and empty-evidence roots return truthful
   closure reports; broken descendants remain closure violations rather than root NOT_FOUND.
-

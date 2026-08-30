@@ -5,4 +5,3 @@
 - AD-PR13-003: no generic graph abstraction or traversal registry.
 - AD-PR13-004: every public query opens exactly one UoW and reuses it for all traversal legs and closure validation.
 - Existing repositories and validators are reused; no second source of scientific truth exists.
-

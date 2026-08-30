@@ -9,4 +9,3 @@
 - `git diff --check`: PASS.
 - PostgreSQL: `18.6`.
 - `uv run alembic current`: `0014_claim_evidence (head)`.
-
