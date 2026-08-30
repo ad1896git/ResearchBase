@@ -576,8 +576,16 @@ def test_trace_sql_and_closure_calls_are_bounded_by_stages_and_unique_runs(
         )
         sql: list[str] = []
 
-        def observe(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
-            sql.append(statement.lstrip().split(None, 1)[0].upper())
+        def observe(
+            _conn,
+            _cursor,
+            statement,
+            _parameters,
+            _context,
+            _executemany,
+            target=sql,
+        ) -> None:
+            target.append(statement.lstrip().split(None, 1)[0].upper())
 
         before = calls.copy()
         event.listen(engine, "before_cursor_execute", observe)
