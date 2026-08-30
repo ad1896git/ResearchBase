@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
@@ -31,13 +34,31 @@ pytestmark = [
 
 REPOSITORY_ROOT = Path(__file__).parents[2]
 PREVIOUS_HEAD = "0012_statistical_result_input_guard"
-FINAL_HEAD = "0013_statistical_result_legacy_input_precheck"
+PR11_FINAL_HEAD = "0013_statistical_result_legacy_input_precheck"
 
 
 def _migration_db_url() -> str:
     value = os.getenv("PR11R2_MIGRATION_DB_URL")
     assert value is not None
     return value
+
+
+def _repository_head() -> str:
+    config = Config(str(REPOSITORY_ROOT / "alembic.ini"))
+    head = ScriptDirectory.from_config(config).get_current_head()
+    assert head is not None
+    return head
+
+
+@pytest.fixture(scope="module", autouse=True)
+def restore_migration_database_to_repository_head() -> Iterator[None]:
+    yield
+    head = _repository_head()
+    restored = _alembic("upgrade", head)
+    assert restored.returncode == 0, restored.stdout + restored.stderr
+    current = _alembic("current")
+    assert current.returncode == 0, current.stdout + current.stderr
+    assert head in current.stdout
 
 
 def _alembic(*arguments: str) -> subprocess.CompletedProcess[str]:
@@ -212,17 +233,17 @@ def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() ->
         assert _counts(engine, valid_result.id) == (1, 1)
         assert before_inputs == ((valid_result.id, measurement_id, "input", 0),)
 
-        upgrade = _alembic("upgrade", FINAL_HEAD)
+        upgrade = _alembic("upgrade", PR11_FINAL_HEAD)
         assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
         current = _alembic("current")
         assert current.returncode == 0, current.stdout + current.stderr
-        assert FINAL_HEAD in current.stdout
+        assert PR11_FINAL_HEAD in current.stdout
         assert _result_snapshot(engine, valid_result.id) == before_result
         assert _input_snapshot(engine, valid_result.id) == before_inputs
 
         downgrade = _alembic("downgrade", PREVIOUS_HEAD)
         assert downgrade.returncode == 0, downgrade.stdout + downgrade.stderr
-        retry = _alembic("upgrade", FINAL_HEAD)
+        retry = _alembic("upgrade", PR11_FINAL_HEAD)
         assert retry.returncode == 0, retry.stdout + retry.stderr
     finally:
         engine.dispose()
@@ -259,7 +280,7 @@ def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() ->
         assert "manual remediation required" in failure_text.lower()
         current = _alembic("current")
         assert PREVIOUS_HEAD in current.stdout
-        assert FINAL_HEAD not in current.stdout
+        assert PR11_FINAL_HEAD not in current.stdout
         assert _counts(engine, legacy_result_id) == (1, 0)
         after_catalog = _catalog_snapshot(engine)
         assert after_catalog["functions"] == before_catalog["functions"]
@@ -294,10 +315,10 @@ def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() ->
             )
         assert _counts(engine, legacy_result_id) == (1, 1)
 
-        retry = _alembic("upgrade", FINAL_HEAD)
+        retry = _alembic("upgrade", PR11_FINAL_HEAD)
         assert retry.returncode == 0, retry.stdout + retry.stderr
         current = _alembic("current")
-        assert FINAL_HEAD in current.stdout
+        assert PR11_FINAL_HEAD in current.stdout
 
         future_parent_id = uuid4()
         with pytest.raises(DBAPIError):

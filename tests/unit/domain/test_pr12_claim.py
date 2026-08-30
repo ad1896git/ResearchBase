@@ -275,22 +275,80 @@ def _independent_support_hash(rows: list[dict[str, str | None]]) -> str:
 
 def test_support_set_hash_matches_an_independent_mixed_evidence_oracle() -> None:
     measurement_edge = relation(relation_id=UUID("00000000-0000-0000-0000-000000000010"))
+    measurement_qualified_edge = replace(
+        relation(
+            relation_type=EvidenceRelationType.QUALIFIES,
+            qualification="under the stated scope",
+            relation_id=UUID("00000000-0000-0000-0000-000000000011"),
+        ),
+        measurement_id=MeasurementId(MEASUREMENT_ID),
+    )
     statistical_edge = replace(
         relation(
             relation_type=EvidenceRelationType.CONTEXT,
             qualification="secondary analysis",
-            relation_id=UUID("00000000-0000-0000-0000-000000000011"),
+            relation_id=UUID("00000000-0000-0000-0000-000000000012"),
         ),
         measurement_id=None,
         statistical_result_id=StatisticalResultId(STATISTICAL_RESULT_ID),
     )
-    expected_rows = [measurement_edge.semantic_row(), statistical_edge.semantic_row()]
+    expected_rows = [
+        {
+            "source_type": "measurement",
+            "source_id": str(MEASUREMENT_ID),
+            "relation_type": "supports",
+            "qualification": None,
+        },
+        {
+            "source_type": "measurement",
+            "source_id": str(MEASUREMENT_ID),
+            "relation_type": "qualifies",
+            "qualification": "under the stated scope",
+        },
+        {
+            "source_type": "statistical_result",
+            "source_id": str(STATISTICAL_RESULT_ID),
+            "relation_type": "context",
+            "qualification": "secondary analysis",
+        },
+    ]
+    relations = [measurement_edge, measurement_qualified_edge, statistical_edge]
 
-    assert str(calculate_support_set_hash([statistical_edge, measurement_edge])) == (
-        _independent_support_hash(expected_rows)
+    assert str(
+        calculate_support_set_hash([statistical_edge, measurement_edge, measurement_qualified_edge])
+    ) == (_independent_support_hash(expected_rows))
+    assert calculate_support_set_hash(relations) == (
+        calculate_support_set_hash(list(reversed(relations)))
     )
-    assert calculate_support_set_hash([measurement_edge, statistical_edge]) == (
-        calculate_support_set_hash([statistical_edge, measurement_edge])
+
+
+def test_support_set_hash_independent_oracle_covers_empty_and_null_ordering() -> None:
+    expected_rows = [
+        {
+            "source_type": "measurement",
+            "source_id": str(MEASUREMENT_ID),
+            "relation_type": "supports",
+            "qualification": None,
+        },
+        {
+            "source_type": "measurement",
+            "source_id": str(MEASUREMENT_ID),
+            "relation_type": "supports",
+            "qualification": "qualified",
+        },
+    ]
+    null_relation = relation(relation_id=UUID("00000000-0000-0000-0000-000000000013"))
+    qualified_relation = replace(
+        relation(
+            qualification="qualified",
+            relation_id=UUID("00000000-0000-0000-0000-000000000014"),
+        ),
+        measurement_id=MeasurementId(MEASUREMENT_ID),
+    )
+
+    assert str(calculate_support_set_hash([])) == independent_sha256([])
+    assert str(calculate_support_set_hash([qualified_relation, null_relation])) == (
+        _independent_support_hash(expected_rows)
     )
 
 

@@ -31,6 +31,7 @@ from researchbase.application.commands import (
     UnlinkEvidenceCommand,
     UpdateClaimDraftCommand,
 )
+from researchbase.domain.claim import ClaimVersionId
 from researchbase.domain.identity import ActorType
 from researchbase.domain.measurement import MeasurementId
 from researchbase.domain.organization import ProjectId
@@ -588,26 +589,95 @@ def test_draft_unlink_and_non_draft_unlink_are_state_guarded(
     assert exc_info.value.code is ErrorCode.IMMUTABLE_RECORD
 
 
-def test_direct_sql_frozen_evidence_mutations_are_rejected(
+def _fresh_evidence_state(
+    engine: Engine, version_id: ClaimVersionId
+) -> tuple[tuple[tuple[object, ...], ...], object, object]:
+    with engine.connect() as connection:
+        edges = tuple(
+            tuple(row)
+            for row in connection.execute(
+                text(
+                    "SELECT id, claim_version_id, measurement_id, statistical_result_id, "
+                    "relation_type, qualification FROM evidence_relations "
+                    "WHERE claim_version_id=:version_id ORDER BY id"
+                ),
+                {"version_id": version_id},
+            ).all()
+        )
+        support_set_hash, content_hash = connection.execute(
+            text("SELECT support_set_hash, content_hash FROM claim_versions WHERE id=:version_id"),
+            {"version_id": version_id},
+        ).one()
+    return edges, support_set_hash, content_hash
+
+
+def _assert_fresh_evidence_state(
+    factory: Callable[[], ApplicationService],
+    engine: Engine,
+    version_id: ClaimVersionId,
+    expected: tuple[tuple[tuple[object, ...], ...], object, object],
+) -> None:
+    assert _fresh_evidence_state(engine, version_id) == expected
+    assert len(factory().list_evidence_relations(version_id)) == len(expected[0])
+
+
+def test_direct_sql_frozen_evidence_mutation_matrix_is_rejected(
     resources: tuple[Callable[[], ApplicationService], Engine],
 ) -> None:
     factory, engine = resources
     service = factory()
     actor_id, project_id, actor_context = seed_project(service, "claim-sql-guard")
     measurement_id = seed_measurement(service, project_id, actor_context, "claim-sql-guard")
+    second_measurement_id = seed_measurement(
+        service, project_id, actor_context, "claim-sql-guard-second"
+    )
+    statistical_result = service.record_statistical_result(
+        RecordStatisticalResultCommand(
+            project_id,
+            "t_test",
+            {"p_value": 0.01},
+            {"method": "student"},
+            (StatisticalResultInputCommand(measurement_id),),
+            actor_context,
+        )
+    )
+    second_statistical_result = service.record_statistical_result(
+        RecordStatisticalResultCommand(
+            project_id,
+            "t_test",
+            {"p_value": 0.02},
+            {"method": "student"},
+            (StatisticalResultInputCommand(second_measurement_id),),
+            actor_context,
+        )
+    )
     claim, version = seed_claim(service, project_id, actor_context)
-    relation = service.link_evidence(
+    measurement_relation = service.link_evidence(
         LinkEvidenceCommand(
             claim.id,
             version.id,
             measurement_id,
             None,
             "supports",
-            "original",
+            "measurement original",
             version.row_version,
             actor_context,
         )
     )
+    current = service.get_current_claim_version(claim.id)
+    statistical_relation = service.link_evidence(
+        LinkEvidenceCommand(
+            claim.id,
+            version.id,
+            None,
+            StatisticalResultId(statistical_result.id),
+            "qualifies",
+            "statistical original",
+            current.row_version,
+            actor_context,
+        )
+    )
+    _other_claim, other_version = seed_claim(service, project_id, actor_context, "other claim")
     current = service.get_current_claim_version(claim.id)
     frozen = service.freeze_claim_version(
         FreezeClaimVersionCommand(claim.id, version.id, actor_context, current.row_version)
@@ -621,30 +691,59 @@ def test_direct_sql_frozen_evidence_mutations_are_rejected(
             {
                 "id": uuid4(),
                 "version_id": frozen.id,
-                "measurement_id": measurement_id,
+                "measurement_id": second_measurement_id,
                 "actor_id": actor_id,
                 "created_at": datetime(2026, 8, 30, tzinfo=UTC),
             },
         ),
         (
-            "UPDATE evidence_relations SET qualification='tampered' WHERE id=:relation_id",
-            {"relation_id": relation.id},
+            "INSERT INTO evidence_relations "
+            "(id, claim_version_id, statistical_result_id, relation_type, created_by, created_at) "
+            "VALUES (:id, :version_id, :statistical_result_id, 'context', :actor_id, :created_at)",
+            {
+                "id": uuid4(),
+                "version_id": frozen.id,
+                "statistical_result_id": second_statistical_result.id,
+                "actor_id": actor_id,
+                "created_at": datetime(2026, 8, 30, tzinfo=UTC),
+            },
+        ),
+        (
+            "UPDATE evidence_relations SET claim_version_id=:other_version_id "
+            "WHERE id=:relation_id",
+            {"other_version_id": other_version.id, "relation_id": measurement_relation.id},
+        ),
+        (
+            "UPDATE evidence_relations SET measurement_id=:measurement_id WHERE id=:relation_id",
+            {"measurement_id": second_measurement_id, "relation_id": measurement_relation.id},
+        ),
+        (
+            "UPDATE evidence_relations SET statistical_result_id=:statistical_result_id "
+            "WHERE id=:relation_id",
+            {
+                "statistical_result_id": second_statistical_result.id,
+                "relation_id": statistical_relation.id,
+            },
         ),
         (
             "UPDATE evidence_relations SET relation_type='context' WHERE id=:relation_id",
-            {"relation_id": relation.id},
+            {"relation_id": measurement_relation.id},
+        ),
+        (
+            "UPDATE evidence_relations SET qualification='tampered' WHERE id=:relation_id",
+            {"relation_id": measurement_relation.id},
         ),
         (
             "DELETE FROM evidence_relations WHERE id=:relation_id",
-            {"relation_id": relation.id},
+            {"relation_id": statistical_relation.id},
         ),
     )
+    expected = _fresh_evidence_state(engine, frozen.id)
     for statement, parameters in attacks:
         with pytest.raises(DBAPIError):
             with engine.begin() as connection:
                 connection.execute(text(statement), parameters)
-
-    assert service.list_evidence_relations(frozen.id) == [relation]
+        _assert_fresh_evidence_state(factory, engine, frozen.id, expected)
 
 
 def test_direct_sql_superseded_and_abandoned_evidence_mutations_are_rejected(
@@ -684,29 +783,34 @@ def test_direct_sql_superseded_and_abandoned_evidence_mutations_are_rejected(
         )
     )
 
-    for statement, parameters in (
-        (
-            "UPDATE evidence_relations SET qualification='tampered' WHERE id=:id",
-            {"id": relation.id},
-        ),
-        ("DELETE FROM evidence_relations WHERE id=:id", {"id": relation.id}),
-        (
-            "INSERT INTO evidence_relations "
-            "(id, claim_version_id, measurement_id, relation_type, created_by, created_at) "
-            "VALUES (:new_id, :version_id, :measurement_id, 'supports', :actor_id, :created_at)",
-            {
-                "new_id": uuid4(),
-                "version_id": frozen.id,
-                "measurement_id": measurement_id,
-                "actor_id": actor_id,
-                "created_at": datetime(2026, 8, 30, tzinfo=UTC),
-            },
-        ),
-    ):
-        with pytest.raises(DBAPIError):
-            with engine.begin() as connection:
-                connection.execute(text(statement), parameters)
-    assert service.list_evidence_relations(frozen.id) == [relation]
+    def assert_non_draft_matrix(version_id: ClaimVersionId, relation_id: UUID) -> None:
+        expected = _fresh_evidence_state(engine, version_id)
+        attacks = (
+            (
+                "INSERT INTO evidence_relations "
+                "(id, claim_version_id, measurement_id, relation_type, created_by, created_at) "
+                "VALUES (:new_id, :version_id, :measurement_id, 'context', :actor_id, :created_at)",
+                {
+                    "new_id": uuid4(),
+                    "version_id": version_id,
+                    "measurement_id": measurement_id,
+                    "actor_id": actor_id,
+                    "created_at": datetime(2026, 8, 30, tzinfo=UTC),
+                },
+            ),
+            (
+                "UPDATE evidence_relations SET qualification='tampered' WHERE id=:id",
+                {"id": relation_id},
+            ),
+            ("DELETE FROM evidence_relations WHERE id=:id", {"id": relation_id}),
+        )
+        for statement, parameters in attacks:
+            with pytest.raises(DBAPIError):
+                with engine.begin() as connection:
+                    connection.execute(text(statement), parameters)
+            _assert_fresh_evidence_state(factory, engine, version_id, expected)
+
+    assert_non_draft_matrix(frozen.id, relation.id)
 
     abandoned_claim, abandoned_version = seed_claim(service, project_id, actor_context, "abandoned")
     abandoned_relation = service.link_evidence(
@@ -726,13 +830,7 @@ def test_direct_sql_superseded_and_abandoned_evidence_mutations_are_rejected(
             text("UPDATE claim_versions SET status='ABANDONED' WHERE id=:id"),
             {"id": abandoned_version.id},
         )
-    with pytest.raises(DBAPIError):
-        with engine.begin() as connection:
-            connection.execute(
-                text("DELETE FROM evidence_relations WHERE id=:id"),
-                {"id": abandoned_relation.id},
-            )
-    assert service.list_evidence_relations(abandoned_version.id) == [abandoned_relation]
+    assert_non_draft_matrix(abandoned_version.id, abandoned_relation.id)
 
 
 def test_direct_sql_frozen_claim_version_material_is_immutable(

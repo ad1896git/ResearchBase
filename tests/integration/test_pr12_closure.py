@@ -99,6 +99,112 @@ def test_claim_closure_traverses_mixed_exact_historical_evidence(
     assert historical_report.violations == []
 
 
+def test_claim_closure_traverses_all_statistical_result_inputs_and_detects_later_break(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "closure-three-inputs")
+    measurement_one = seed_measurement(service, project_id, actor_context, "closure-input-one")
+    measurement_two = seed_measurement(service, project_id, actor_context, "closure-input-two")
+    measurement_three = seed_measurement(service, project_id, actor_context, "closure-input-three")
+    statistical_result = service.record_statistical_result(
+        RecordStatisticalResultCommand(
+            project_id,
+            "t_test",
+            {"p_value": 0.01},
+            {"method": "student"},
+            (
+                StatisticalResultInputCommand(measurement_one, "primary", 0),
+                StatisticalResultInputCommand(measurement_two, "secondary", 1),
+                StatisticalResultInputCommand(measurement_three, "tertiary", 2),
+            ),
+            actor_context,
+        )
+    )
+    inputs = service.list_statistical_result_inputs(statistical_result.id)
+    assert [(item.measurement_id, item.input_role, item.ordinal) for item in inputs] == [
+        (measurement_one, "primary", 0),
+        (measurement_two, "secondary", 1),
+        (measurement_three, "tertiary", 2),
+    ]
+    run_ids = {
+        service.get_measurement(MeasurementId(item.measurement_id)).run_id for item in inputs
+    }
+    assert len(run_ids) == 3
+
+    claim, version = seed_claim(service, project_id, actor_context)
+    relation = service.link_evidence(
+        LinkEvidenceCommand(
+            claim.id,
+            version.id,
+            None,
+            StatisticalResultId(statistical_result.id),
+            "supports",
+            None,
+            version.row_version,
+            actor_context,
+        )
+    )
+    frozen = service.freeze_claim_version(
+        FreezeClaimVersionCommand(
+            claim.id,
+            version.id,
+            actor_context,
+            service.get_current_claim_version(claim.id).row_version,
+        )
+    )
+
+    positive = service.validate_claim_version(frozen.id)
+    assert positive.complete is True
+    assert positive.violations == []
+    assert positive.visited_count >= 1 + 1 + 1 + 1 + 3 + 3
+    assert relation.statistical_result_id == statistical_result.id
+
+    missing_measurement_id = MeasurementId(UUID("00000000-0000-0000-0000-000000000099"))
+    with engine.begin() as connection:
+        connection.exec_driver_sql("ALTER TABLE statistical_result_inputs DISABLE TRIGGER ALL")
+        connection.execute(
+            text(
+                "UPDATE statistical_result_inputs SET measurement_id=:missing_id "
+                "WHERE statistical_result_id=:result_id AND ordinal=2"
+            ),
+            {"missing_id": missing_measurement_id, "result_id": statistical_result.id},
+        )
+        connection.exec_driver_sql("ALTER TABLE statistical_result_inputs ENABLE TRIGGER ALL")
+
+    try:
+        negative = service.validate_claim_version(frozen.id)
+        assert negative.complete is False
+        missing_violations = [
+            item
+            for item in negative.violations
+            if item.object_type == "Measurement" and item.object_id == missing_measurement_id
+        ]
+        assert len(missing_violations) == 1
+        assert missing_violations[0].path == [
+            "claim_version",
+            "evidence",
+            str(relation.id),
+            "statistical_result",
+            "inputs",
+            str(missing_measurement_id),
+            "measurement",
+        ]
+        assert [item.path for item in negative.violations] == [missing_violations[0].path]
+    finally:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE statistical_result_inputs DISABLE TRIGGER ALL")
+            connection.execute(
+                text(
+                    "UPDATE statistical_result_inputs SET measurement_id=:measurement_id "
+                    "WHERE statistical_result_id=:result_id AND ordinal=2"
+                ),
+                {"measurement_id": measurement_three, "result_id": statistical_result.id},
+            )
+            connection.exec_driver_sql("ALTER TABLE statistical_result_inputs ENABLE TRIGGER ALL")
+
+
 def test_claim_closure_detects_support_and_content_hash_tampering(
     resources: tuple[Callable[[], ApplicationService], Engine],
 ) -> None:
