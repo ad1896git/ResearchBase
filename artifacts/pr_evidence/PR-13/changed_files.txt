@@ -9,3 +9,8 @@ A tests/unit/test_pr13_query_contracts.py
 # Classification: source=1 tests=4 evidence=0 migrations=0 architecture-docs=0
 # Set equality with Git: PASS
 
+# PR-13 implementation/test head to evidence payload
+# Range: c4c69ab752e390ac5ab84323c927d392c59f4a40..4177bd80a981d78621f3fa116cb88f5b9886e569
+# Exact status: 19 added files, all under artifacts/pr_evidence/PR-13/
+# Classification: source=0 tests=0 evidence=19 migrations=0 architecture-docs=0
+# Set equality with Git: PASS
