@@ -9,5 +9,6 @@ All SHAs below were resolved from Git as commit objects.
 - Independently reviewed PR-12R HEAD: `3564361bb3b80a9302b48ed61b1b0b1fa773de26`.
 - PR-12R2 implementation/test commit: `e95fee5e59c97d78cf4ebe6c86f195c86b3ab759`.
 - PR-12R2 evidence payload commit: `0d9f78ce5055987f448ef64c4b43fb8c635f0465`.
+- PR-12R2 fingerprint/inventory commit: `16228b935c9c87053b97f574a2c57e4c181b372a`.
 
-The PR-12R reviewed HEAD is a historical review fact. Later PR-12R2 implementation and evidence commits do not rewrite it. The final metadata commit and resulting current HEAD are recorded separately in the final status report.
+The PR-12R reviewed HEAD is a historical review fact. Later PR-12R2 implementation and evidence commits do not rewrite it. This report records the resolved fingerprint/inventory commit; the final metadata commit and resulting current HEAD are recorded separately in the final status report.

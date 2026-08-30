@@ -16,6 +16,8 @@
   "pr12r2_implementation_test_commit": "e95fee5e59c97d78cf4ebe6c86f195c86b3ab759",
   "pr12r2_evidence_payload_commit": "0d9f78ce5055987f448ef64c4b43fb8c635f0465",
   "current_head_at_fingerprint_generation": "0d9f78ce5055987f448ef64c4b43fb8c635f0465",
+  "pr12r2_fingerprint_inventory_commit": "16228b935c9c87053b97f574a2c57e4c181b372a",
+  "current_head_before_final_fingerprint_commit": "16228b935c9c87053b97f574a2c57e4c181b372a",
   "shared_database_revision": "0014_claim_evidence",
   "disposable_migration_database_revision": "0014_claim_evidence",
   "production_semantic_drift": false,

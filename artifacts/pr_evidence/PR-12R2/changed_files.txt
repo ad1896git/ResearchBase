@@ -54,3 +54,13 @@ artifacts/pr_evidence/PR-12R2/test_report.md
 artifacts/pr_evidence/PR-12R2/unresolved_findings.md
 
 Each section is set-equal to the corresponding `git diff --name-only` range. Later fingerprint metadata files are listed in the final metadata commit inventory and do not alter these historical ranges.
+
+PR-12R2 fingerprint/inventory range (0d9f78ce5055987f448ef64c4b43fb8c635f0465..16228b935c9c87053b97f574a2c57e4c181b372a):
+artifacts/pr_evidence/PR-12R/changed_files.txt
+artifacts/pr_evidence/PR-12R/fingerprint_reconciliation.md
+artifacts/pr_evidence/PR-12R/harness_fingerprint.json
+artifacts/pr_evidence/PR-12R2/changed_files.txt
+artifacts/pr_evidence/PR-12R2/fingerprint_completion_report.md
+artifacts/pr_evidence/PR-12R2/harness_fingerprint.json
+
+This fingerprint/inventory section is set-equal to `git diff --name-only 0d9f78ce5055987f448ef64c4b43fb8c635f0465..16228b935c9c87053b97f574a2c57e4c181b372a`.
