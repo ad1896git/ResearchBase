@@ -64,3 +64,10 @@ artifacts/pr_evidence/PR-12R2/fingerprint_completion_report.md
 artifacts/pr_evidence/PR-12R2/harness_fingerprint.json
 
 This fingerprint/inventory section is set-equal to `git diff --name-only 0d9f78ce5055987f448ef64c4b43fb8c635f0465..16228b935c9c87053b97f574a2c57e4c181b372a`.
+
+PR-12R2 final metadata range (16228b935c9c87053b97f574a2c57e4c181b372a..b973356f494bb75a2f324be8455a9f54934e9f5d):
+M artifacts/pr_evidence/PR-12R2/changed_files.txt
+M artifacts/pr_evidence/PR-12R2/fingerprint_completion_report.md
+M artifacts/pr_evidence/PR-12R2/harness_fingerprint.json
+
+Exact file count: 3. Exact statuses: three modified (`M`) evidence files. This range is evidence-only, contains zero source/test/migration files, and is set-equal to both `git diff --name-only 16228b935c9c87053b97f574a2c57e4c181b372a..b973356f494bb75a2f324be8455a9f54934e9f5d` and `git diff --name-status` after status-prefix normalization.

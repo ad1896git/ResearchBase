@@ -18,3 +18,15 @@
 - `git diff 3564361..HEAD -- src migrations`: empty.
 
 No manual database repair occurred. SQLite was not used.
+
+## PR-12R3 final-head reconciliation
+
+- `git rev-parse 16228b9`: `16228b935c9c87053b97f574a2c57e4c181b372a`.
+- `git rev-parse b973356`: `b973356f494bb75a2f324be8455a9f54934e9f5d`.
+- `git diff --name-only 16228b9..b973356`: exactly 3 PR-12R2 evidence files.
+- `git diff --name-status 16228b9..b973356`: exactly 3 modified (`M`) evidence files.
+- `git diff --stat 16228b9..b973356`: 3 files changed, 14 insertions, 1 deletion.
+- Final metadata range set equality: PASS.
+- Source/test/migration files in the final metadata range: 0.
+
+The evidence directly records the R2 reviewed and post-final current HEAD as `b973356f494bb75a2f324be8455a9f54934e9f5d`.

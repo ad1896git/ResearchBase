@@ -2,7 +2,7 @@
 
 P0: none.
 
-P1: none. PR12R-RR-001 is closed.
+P1: none. The final independent review reopened PR12R-RR-001 because the final R2 HEAD/range was not recorded; PR-12R3 closes it with Git-resolved reviewed/current HEAD semantics and exact range proof.
 
 P2: none. PR12R-RR-002 and PR12R-RR-003 are closed.
 

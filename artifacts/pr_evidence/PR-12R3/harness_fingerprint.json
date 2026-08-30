@@ -1,0 +1,15 @@
+{
+  "pr12r_reviewed_head": "3564361bb3b80a9302b48ed61b1b0b1fa773de26",
+  "pr12r2_evidence_payload_pre_final_head": "16228b935c9c87053b97f574a2c57e4c181b372a",
+  "pr12r2_reviewed_head": "b973356f494bb75a2f324be8455a9f54934e9f5d",
+  "post_pr12r2_current_head": "b973356f494bb75a2f324be8455a9f54934e9f5d",
+  "pr12r2_final_metadata_range_file_count": 3,
+  "pr12r2_final_metadata_range_evidence_only": true,
+  "pr12r2_final_metadata_range_set_equal": true,
+  "pr12r3_evidence_commits": [],
+  "production_changes": false,
+  "test_changes": false,
+  "migration_changes": false,
+  "architecture_changes": false,
+  "pr13_implementation": false
+}
