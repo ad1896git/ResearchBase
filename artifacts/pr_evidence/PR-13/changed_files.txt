@@ -14,3 +14,9 @@ A tests/unit/test_pr13_query_contracts.py
 # Exact status: 19 added files, all under artifacts/pr_evidence/PR-13/
 # Classification: source=0 tests=0 evidence=19 migrations=0 architecture-docs=0
 # Set equality with Git: PASS
+
+# Evidence-finalization head to historical-isolation test commit
+# Range: 4a4f9daedd98ce57c7b0b021630d6fb18dd45c7d..92302831438bec7db163e5ec4de8e6f63dc97d6b
+M tests/integration/test_pr13_queries.py
+# Exact file count: 1; source=0 tests=1 evidence=0 migrations=0
+# Set equality with Git: PASS
