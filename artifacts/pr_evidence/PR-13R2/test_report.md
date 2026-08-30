@@ -5,4 +5,7 @@ The focused cache suite covers membership states, source boundary, valid scaling
 missing Measurements, missing StatisticalResult, missing Run ArtifactVersion, never-requested ID,
 fallback assertions, SELECT-only purity, exact diagnostics, and closure reuse.
 
+The small fixture (one direct Measurement path, one StatisticalResult path, one unique Run) is an
+explicit member of the SQL-count matrix and observed 15 SELECTs.
+
 No SQLite result was used.
