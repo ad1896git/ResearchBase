@@ -1,0 +1,18 @@
+{
+  "pr11_final_baseline": "18fb4138e7ccb57809ea54b916f52d8b801b8bec",
+  "pr12_reviewed_head": "9244ac1ca920c2a7d8777e7f1fbbdcab0fda27e2",
+  "pr12_original_evidence_payload_commit": "4454fe6f2afed551e076e25a7bd75020200e3e7f",
+  "pr12r_remediation_implementation_test_commit": "054fb27f7007abf38a42b8dc674996e86b8038eb",
+  "pr12r_evidence_payload_commit": "298594d0c988fd0d19b05aadddff60ac027d98bf",
+  "pr12r_changed_files_inventory_commit": "2aa939be55c1fdaed326b9888a5bb966b88e9aa9",
+  "current_head_at_fingerprint_generation": "2aa939be55c1fdaed326b9888a5bb966b88e9aa9",
+  "shared_database": "researchbase",
+  "shared_database_revision": "0014_claim_evidence",
+  "disposable_migration_database": "researchbase_pr12r_migration_20260830",
+  "disposable_migration_database_revision": "0014_claim_evidence",
+  "old_state_reproduction_database": "researchbase_pr12r_oldstate_20260830",
+  "old_state_reproduction_revision": "0013_statistical_result_legacy_input_precheck",
+  "production_semantic_drift": false,
+  "migration_semantic_drift": false,
+  "sqlite_used": false
+}
