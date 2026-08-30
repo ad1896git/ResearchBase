@@ -16,3 +16,7 @@ All commands below were executed from the repository root.
 - `git diff --name-only 18fb413...019148e` compared set-equal to `changed_files.txt`.
 
 The full suite and migration tests use real PostgreSQL; SQLite was not used.
+
+## PR-12R reconciliation
+
+The original `481 passed` observation did not prove isolation when migration tests were directed at the shared database. PR-12R used a dedicated disposable migration database, restored it to the dynamically discovered repository head, immediately ran PR-12 targeted tests, and ran the full suite twice. Results were 66 targeted tests, then 483 passed for Run A and 483 passed for Run C. Shared and disposable databases both reported `0014_claim_evidence (head)` after the sequence; no manual Alembic repair occurred between stages.
