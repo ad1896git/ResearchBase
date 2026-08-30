@@ -510,7 +510,7 @@ def test_trace_sql_and_closure_calls_are_bounded_by_stages_and_unique_runs(
     monkeypatch.setattr(ProvenanceClosureValidator, "validate_run_in_uow", count_run)
     observations: list[tuple[int, int, int, int]] = []
 
-    for path_count, run_count in ((3, 1), (12, 9), (24, 15)):
+    for path_count, run_count in ((2, 1), (3, 1), (12, 9), (24, 15)):
         service = factory()
         _, project_id, actor_context = seed_project(
             service, f"pr13r-scale-{path_count}-{run_count}"
@@ -609,7 +609,12 @@ def test_trace_sql_and_closure_calls_are_bounded_by_stages_and_unique_runs(
         assert len(trace.runs) == run_count
         assert set(sql) == {"SELECT"}
 
-    assert observations == [(15, 1, 1, 3), (15, 1, 9, 12), (15, 1, 15, 24)]
+    assert observations == [
+        (15, 1, 1, 2),
+        (15, 1, 1, 3),
+        (15, 1, 9, 12),
+        (15, 1, 15, 24),
+    ]
 
 
 @pytest.mark.parametrize("missing_count", [1, 2])
