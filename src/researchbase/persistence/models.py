@@ -716,3 +716,123 @@ class EvidenceRelationModel(Base):
         PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuditFindingModel(Base):
+    __tablename__ = "audit_findings"
+    __table_args__ = (
+        CheckConstraint(
+            "severity IN ('info','minor','major','critical')",
+            name="ck_audit_findings_severity",
+        ),
+        CheckConstraint(
+            "status IN ('open','confirmed','dismissed','resolved')",
+            name="ck_audit_findings_status",
+        ),
+        Index("ix_audit_findings_project", "project_id"),
+        Index("ix_audit_findings_target", "project_id", "target_type", "target_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    finding_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    target_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    target_content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'open'"))
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), default=1
+    )
+
+
+class ImpactAssessmentModel(Base):
+    __tablename__ = "impact_assessments"
+    __table_args__ = (
+        CheckConstraint(
+            "conclusion IN ('no_impact','stale','invalid','requires_review','unknown')",
+            name="ck_impact_assessments_conclusion",
+        ),
+        Index("ix_impact_assessments_project", "project_id"),
+        Index("ix_impact_assessments_finding", "audit_finding_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    audit_finding_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("audit_findings.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    assessment_payload: Mapped[object] = mapped_column(JSONB, nullable=False)
+    conclusion: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+
+
+class ImpactTargetModel(Base):
+    __tablename__ = "impact_targets"
+    __table_args__ = (
+        CheckConstraint(
+            "impact_kind IN ('direct','downstream','stale','invalid','requires_review')",
+            name="ck_impact_targets_kind",
+        ),
+        Index("ix_impact_targets_target", "target_type", "target_id"),
+    )
+
+    impact_assessment_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("impact_assessments.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    target_type: Mapped[str] = mapped_column(String(64), primary_key=True)
+    target_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    target_content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    impact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class CorrectionRecordModel(Base):
+    __tablename__ = "correction_records"
+    __table_args__ = (
+        CheckConstraint(
+            "correction_type IN ('factual','metadata','computational','attribution','other')",
+            name="ck_correction_records_type",
+        ),
+        Index(
+            "ix_correction_records_target",
+            "project_id",
+            "target_type",
+            "target_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    target_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    target_content_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    correction_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    corrected_assertion: Mapped[object] = mapped_column(JSONB, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import TracebackType
 from typing import Protocol
+from uuid import UUID
 
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
 from researchbase.domain.claim import (
@@ -21,6 +22,7 @@ from researchbase.domain.experiment import (
     ExperimentSpecVersion,
     ExperimentSpecVersionId,
 )
+from researchbase.domain.governance import AuditFinding, CorrectionRecord, ImpactAssessment
 from researchbase.domain.identity import Actor
 from researchbase.domain.measurement import Measurement, MeasurementId
 from researchbase.domain.metric import (
@@ -361,6 +363,53 @@ class RunRepository(Protocol):
     def list_artifact_inputs_for_runs(self, run_ids: set[RunId]) -> list[RunArtifactInput]: ...
 
 
+class GovernanceRepository(Protocol):
+    """Closed PR-14 persistence boundary; target lookup methods are explicit."""
+
+    def resolve_experiment_spec_version(self, target_id: UUID) -> object | None: ...
+    def resolve_dataset_snapshot(self, target_id: UUID) -> object | None: ...
+    def resolve_artifact_version(self, target_id: UUID) -> object | None: ...
+    def resolve_run(self, target_id: UUID) -> object | None: ...
+    def resolve_metric_definition_version(self, target_id: UUID) -> object | None: ...
+    def resolve_measurement(self, target_id: UUID) -> object | None: ...
+    def resolve_statistical_result(self, target_id: UUID) -> object | None: ...
+    def resolve_claim_version(self, target_id: UUID) -> object | None: ...
+
+    def add_audit_finding(self, finding: AuditFinding) -> None: ...
+
+    def get_audit_finding(self, finding_id: UUID) -> AuditFinding | None: ...
+
+    def list_audit_findings(
+        self, project_id: UUID, target_type: str | None = None, target_id: UUID | None = None
+    ) -> list[AuditFinding]: ...
+
+    def transition_audit_finding(
+        self, finding: AuditFinding, expected_row_version: int
+    ) -> None: ...
+
+    def add_impact_assessment(self, assessment: ImpactAssessment) -> None: ...
+
+    def get_impact_assessment(self, assessment_id: UUID) -> ImpactAssessment | None: ...
+
+    def list_impact_assessments(self, finding_id: UUID) -> list[ImpactAssessment]: ...
+
+    def add_correction_record(self, correction: CorrectionRecord) -> None: ...
+
+    def get_correction_record(self, correction_id: UUID) -> CorrectionRecord | None: ...
+
+    def list_correction_records(
+        self, project_id: UUID, target_type: str, target_id: UUID
+    ) -> list[CorrectionRecord]: ...
+
+    def downstream_impact_rows(
+        self, project_id: UUID, target_type: str, target_id: UUID
+    ) -> list[tuple[object, ...]]: ...
+
+    def validity_rows(
+        self, project_id: UUID, target_type: str, target_id: UUID
+    ) -> list[tuple[object, ...]]: ...
+
+
 class UnitOfWork(Protocol):
     actors: ActorRepository
     projects: ProjectRepository
@@ -378,6 +427,7 @@ class UnitOfWork(Protocol):
     statistical_results: StatisticalResultRepository
     claims: ClaimRepository
     runs: RunRepository
+    governance: GovernanceRepository
 
     def __enter__(self) -> UnitOfWork: ...
 

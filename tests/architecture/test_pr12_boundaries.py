@@ -35,14 +35,16 @@ def test_pr12_migration_keeps_hard_typed_evidence_and_restrict_deletes() -> None
 
 
 def test_pr12_does_not_leak_pr13_or_later_implementation() -> None:
-    source_text = "\n".join(path.read_text() for path in (SRC / "domain").rglob("*.py"))
+    excluded = {"governance.py", "governance_queries.py"}
+    source_text = "\n".join(
+        path.read_text() for path in (SRC / "domain").rglob("*.py") if path.name not in excluded
+    )
     source_text += "\n" + "\n".join(
-        path.read_text() for path in (SRC / "application").rglob("*.py")
+        path.read_text()
+        for path in (SRC / "application").rglob("*.py")
+        if path.name not in excluded
     )
     for forbidden in (
-        "auditfinding",
-        "impactassessment",
-        "correctionrecord",
         "literatureevidence",
         "claimversionversion",
         "generic evidencerepository",

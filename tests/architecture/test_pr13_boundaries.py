@@ -22,7 +22,7 @@ def test_query_boundary_has_no_persistence_framework_or_adapter_imports() -> Non
 
 def test_pr13_adds_no_migration_or_generic_graph_abstraction() -> None:
     migrations = list((ROOT / "migrations/versions").glob("*.py"))
-    assert all("0015" not in path.name for path in migrations)
+    assert [path.name for path in migrations if "0015" in path.name] == ["0015_governance_audit.py"]
     source = QUERY_MODULE.read_text()
     assert "GraphNode" not in source
     assert "GraphEdge" not in source

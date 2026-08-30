@@ -16,6 +16,7 @@ from researchbase.application.ports import (
     DatasetRepository,
     DatasetSnapshotRepository,
     ExperimentSpecRepository,
+    GovernanceRepository,
     HypothesisRepository,
     MeasurementRepository,
     MetricDefinitionRepository,
@@ -27,6 +28,7 @@ from researchbase.application.ports import (
     WorkspaceRepository,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
     SqlAlchemyArtifactRepository,
@@ -64,6 +66,7 @@ class SqlAlchemyUnitOfWork:
     statistical_results: StatisticalResultRepository
     runs: RunRepository
     claims: ClaimRepository
+    governance: GovernanceRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -90,6 +93,7 @@ class SqlAlchemyUnitOfWork:
         self.statistical_results = SqlAlchemyStatisticalResultRepository(self._session)
         self.runs = SqlAlchemyRunRepository(self._session)
         self.claims = SqlAlchemyClaimRepository(self._session)
+        self.governance = SqlAlchemyGovernanceRepository(self._session)
         return self
 
     def commit(self) -> None:
