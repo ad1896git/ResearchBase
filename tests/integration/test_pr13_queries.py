@@ -19,15 +19,29 @@ from researchbase.application.commands import (
     ApplicationService,
     AttachRunArtifactInputCommand,
     AttachRunDatasetInputCommand,
+    CreateArtifactVersionCommand,
+    CreateDatasetSnapshotCommand,
+    CreateMetricDefinitionCommand,
     CreateRunCommand,
+    FinishRunCommand,
+    FreezeArtifactVersionCommand,
     FreezeClaimVersionCommand,
+    FreezeExperimentSpecCommand,
+    FreezeMetricDefinitionCommand,
     LinkEvidenceCommand,
     RecordMeasurementCommand,
     RecordStatisticalResultCommand,
+    ReviseClaimCommand,
+    ReviseExperimentSpecCommand,
+    ReviseMetricDefinitionCommand,
+    StartRunCommand,
     StatisticalResultInputCommand,
 )
 from researchbase.application.provenance_queries import ProvenanceQueryService
-from researchbase.domain.run import ArtifactInputRole, DatasetInputRole
+from researchbase.domain.artifact import ArtifactId, ArtifactVersionId
+from researchbase.domain.experiment import ExperimentSpecId
+from researchbase.domain.metric import MetricDefinitionId
+from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.time import FixedClock
@@ -274,3 +288,180 @@ def test_draft_claim_with_empty_evidence_returns_empty_trace_and_truthful_closur
     assert trace.closure == closure
     assert closure.complete is False
     assert "VERSION_NOT_FROZEN" in {item.code for item in closure.violations}
+
+
+def test_historical_trace_is_unchanged_after_all_current_state_advances(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    _, project_id, actor_context = seed_project(service, "pr13-history")
+    spec_v1 = frozen_spec(service, project_id, actor_context)
+    snapshot_v1 = frozen_dataset(service, project_id, actor_context)
+    artifact_v1 = frozen_artifact(service, project_id, actor_context)
+    run = service.create_run(CreateRunCommand(project_id, spec_v1, None, actor_context))
+    run = service.attach_run_dataset_input(
+        AttachRunDatasetInputCommand(
+            run.id, snapshot_v1.id, DatasetInputRole.TEST, 0, run.row_version, actor_context
+        )
+    )
+    run = service.attach_run_artifact_input(
+        AttachRunArtifactInputCommand(
+            run.id, artifact_v1.id, ArtifactInputRole.MODEL, 0, run.row_version, actor_context
+        )
+    )
+    run = service.start_run(StartRunCommand(run.id, run.row_version, actor_context))
+    run = service.finish_run(
+        FinishRunCommand(run.id, RunStatus.SUCCEEDED, 0, None, run.row_version, actor_context)
+    )
+    metric = service.create_metric_definition(
+        CreateMetricDefinitionCommand(
+            project_id, "historical metric", {"kind": "mean"}, "ms", "mean", actor_context
+        )
+    )
+    assert metric.current_version_id is not None
+    metric_v1 = service.freeze_metric_definition(
+        FreezeMetricDefinitionCommand(metric.id, metric.current_version_id, actor_context, 1)
+    )
+    measurement = service.record_measurement(
+        RecordMeasurementCommand(
+            run.id, metric_v1.id, 1.0, None, "ms", {"split": "test"}, actor_context
+        )
+    )
+    claim, claim_v1 = seed_claim(service, project_id, actor_context)
+    service.link_evidence(
+        LinkEvidenceCommand(
+            claim.id,
+            claim_v1.id,
+            measurement.id,
+            None,
+            "supports",
+            None,
+            claim_v1.row_version,
+            actor_context,
+        )
+    )
+    claim_v1 = service.get_current_claim_version(claim.id)
+    claim_v1 = service.freeze_claim_version(
+        FreezeClaimVersionCommand(claim.id, claim_v1.id, actor_context, claim_v1.row_version)
+    )
+    queries = query_service(engine)
+    trace_before = queries.trace_claim_to_runs(claim_v1.id)
+    run_before = queries.get_run_provenance(run.id)
+
+    with engine.connect() as connection:
+        spec_identity_id = connection.execute(
+            text("SELECT experiment_spec_id FROM experiment_spec_versions WHERE id=:id"),
+            {"id": spec_v1},
+        ).scalar_one()
+    spec_identity = service.get_experiment_spec(ExperimentSpecId(spec_identity_id))
+    spec_v2 = service.revise_experiment_spec(
+        ReviseExperimentSpecCommand(
+            spec_identity.id,
+            "later spec",
+            "later objective",
+            {"steps": ["later"]},
+            None,
+            None,
+            None,
+            spec_identity.row_version,
+            actor_context,
+        )
+    )
+    service.freeze_experiment_spec(
+        FreezeExperimentSpecCommand(spec_identity.id, spec_v2.current_version_id, actor_context, 1)
+    )
+    service.create_dataset_snapshot(
+        CreateDatasetSnapshotCommand(
+            snapshot_v1.dataset_id, "b" * 64, {"split": "later"}, None, actor_context
+        )
+    )
+    artifact_v2 = service.create_artifact_version(
+        CreateArtifactVersionCommand(
+            ArtifactId(artifact_v1.artifact_id),
+            b"later artifact",
+            None,
+            None,
+            "text/plain",
+            None,
+            None,
+            actor_context,
+        )
+    )
+    service.freeze_artifact_version(
+        FreezeArtifactVersionCommand(
+            ArtifactId(artifact_v1.artifact_id),
+            ArtifactVersionId(artifact_v2.id),
+            actor_context,
+            artifact_v2.row_version,
+        )
+    )
+    metric_identity = service.get_metric_definition(MetricDefinitionId(metric.id))
+    metric_v2 = service.revise_metric_definition(
+        ReviseMetricDefinitionCommand(
+            metric_identity.id,
+            {"kind": "median"},
+            "ms",
+            "median",
+            metric_identity.row_version,
+            actor_context,
+        )
+    )
+    assert metric_v2.current_version_id is not None
+    service.freeze_metric_definition(
+        FreezeMetricDefinitionCommand(
+            metric_identity.id, metric_v2.current_version_id, actor_context, 1
+        )
+    )
+    current_claim = service.get_claim(claim.id)
+    service.revise_claim(
+        ReviseClaimCommand(
+            claim.id,
+            "later claim",
+            {"population": "later"},
+            None,
+            current_claim.row_version,
+            actor_context,
+        )
+    )
+
+    assert queries.trace_claim_to_runs(claim_v1.id) == trace_before
+    assert queries.get_run_provenance(run.id) == run_before
+    assert trace_before.paths[0].metric_definition_version_id == str(metric_v1.id)
+    assert run_before.experiment_spec_version_id == str(spec_v1)
+    assert run_before.dataset_inputs[0].target_id == str(snapshot_v1.id)
+    assert run_before.artifact_inputs[0].target_id == str(artifact_v1.id)
+
+
+def test_trace_isolated_by_exact_cross_project_paths(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, engine = resources
+    service = factory()
+    traces = []
+    for label in ("pr13-project-a", "pr13-project-b"):
+        _, project_id, actor_context = seed_project(service, label)
+        measurement_id = seed_measurement(service, project_id, actor_context, label)
+        claim, version = seed_claim(service, project_id, actor_context)
+        service.link_evidence(
+            LinkEvidenceCommand(
+                claim.id,
+                version.id,
+                measurement_id,
+                None,
+                "context",
+                "same role names",
+                version.row_version,
+                actor_context,
+            )
+        )
+        version = service.get_current_claim_version(claim.id)
+        version = service.freeze_claim_version(
+            FreezeClaimVersionCommand(claim.id, version.id, actor_context, version.row_version)
+        )
+        traces.append(query_service(engine).trace_claim_to_runs(version.id))
+
+    assert traces[0].project_id != traces[1].project_id
+    assert {item.run_id for item in traces[0].runs}.isdisjoint(
+        {item.run_id for item in traces[1].runs}
+    )
