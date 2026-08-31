@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, cast
 from uuid import UUID
 
@@ -68,6 +69,25 @@ class SqlAlchemyGovernanceRepository:
         ).one_or_none()
         return self._resolved(GovernanceTargetType.EXPERIMENT_SPEC_VERSION, target_id, row)
 
+    def resolve_experiment_spec_versions(
+        self, target_ids: set[UUID]
+    ) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(
+                ExperimentSpecVersionModel.id,
+                ExperimentSpecModel.project_id,
+                ExperimentSpecVersionModel.content_hash,
+            )
+            .join(
+                ExperimentSpecVersionModel,
+                ExperimentSpecVersionModel.experiment_spec_id == ExperimentSpecModel.id,
+            )
+            .where(ExperimentSpecVersionModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.EXPERIMENT_SPEC_VERSION, rows)
+
     def resolve_dataset_snapshot(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
             select(DatasetModel.project_id, DatasetSnapshotModel.content_hash)
@@ -75,6 +95,20 @@ class SqlAlchemyGovernanceRepository:
             .where(DatasetSnapshotModel.id == target_id)
         ).one_or_none()
         return self._resolved(GovernanceTargetType.DATASET_SNAPSHOT, target_id, row)
+
+    def resolve_dataset_snapshots(self, target_ids: set[UUID]) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(
+                DatasetSnapshotModel.id,
+                DatasetModel.project_id,
+                DatasetSnapshotModel.content_hash,
+            )
+            .join(DatasetSnapshotModel, DatasetSnapshotModel.dataset_id == DatasetModel.id)
+            .where(DatasetSnapshotModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.DATASET_SNAPSHOT, rows)
 
     def resolve_artifact_version(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
@@ -84,11 +118,33 @@ class SqlAlchemyGovernanceRepository:
         ).one_or_none()
         return self._resolved(GovernanceTargetType.ARTIFACT_VERSION, target_id, row)
 
+    def resolve_artifact_versions(self, target_ids: set[UUID]) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(
+                ArtifactVersionModel.id,
+                ArtifactModel.project_id,
+                ArtifactVersionModel.content_hash,
+            )
+            .join(ArtifactVersionModel, ArtifactVersionModel.artifact_id == ArtifactModel.id)
+            .where(ArtifactVersionModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.ARTIFACT_VERSION, rows)
+
     def resolve_run(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
             select(RunModel.project_id).where(RunModel.id == target_id)
         ).one_or_none()
         return self._resolved(GovernanceTargetType.RUN, target_id, row)
+
+    def resolve_runs(self, target_ids: set[UUID]) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(RunModel.id, RunModel.project_id).where(RunModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.RUN, rows)
 
     def resolve_metric_definition_version(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
@@ -104,6 +160,25 @@ class SqlAlchemyGovernanceRepository:
         ).one_or_none()
         return self._resolved(GovernanceTargetType.METRIC_DEFINITION_VERSION, target_id, row)
 
+    def resolve_metric_definition_versions(
+        self, target_ids: set[UUID]
+    ) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(
+                MetricDefinitionVersionModel.id,
+                MetricDefinitionModel.project_id,
+                MetricDefinitionVersionModel.content_hash,
+            )
+            .join(
+                MetricDefinitionVersionModel,
+                MetricDefinitionVersionModel.metric_definition_id == MetricDefinitionModel.id,
+            )
+            .where(MetricDefinitionVersionModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.METRIC_DEFINITION_VERSION, rows)
+
     def resolve_measurement(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
             select(RunModel.project_id, MeasurementModel.content_hash)
@@ -111,6 +186,16 @@ class SqlAlchemyGovernanceRepository:
             .where(MeasurementModel.id == target_id)
         ).one_or_none()
         return self._resolved(GovernanceTargetType.MEASUREMENT, target_id, row)
+
+    def resolve_measurements(self, target_ids: set[UUID]) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(MeasurementModel.id, RunModel.project_id, MeasurementModel.content_hash)
+            .join(MeasurementModel, MeasurementModel.run_id == RunModel.id)
+            .where(MeasurementModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.MEASUREMENT, rows)
 
     def resolve_statistical_result(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
@@ -120,6 +205,18 @@ class SqlAlchemyGovernanceRepository:
         ).one_or_none()
         return self._resolved(GovernanceTargetType.STATISTICAL_RESULT, target_id, row)
 
+    def resolve_statistical_results(self, target_ids: set[UUID]) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(
+                StatisticalResultModel.id,
+                StatisticalResultModel.project_id,
+                StatisticalResultModel.content_hash,
+            ).where(StatisticalResultModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.STATISTICAL_RESULT, rows)
+
     def resolve_claim_version(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
             select(ClaimModel.project_id, ClaimVersionModel.content_hash)
@@ -127,6 +224,16 @@ class SqlAlchemyGovernanceRepository:
             .where(ClaimVersionModel.id == target_id)
         ).one_or_none()
         return self._resolved(GovernanceTargetType.CLAIM_VERSION, target_id, row)
+
+    def resolve_claim_versions(self, target_ids: set[UUID]) -> list[ResolvedGovernanceTarget]:
+        if not target_ids:
+            return []
+        rows = self._session.execute(
+            select(ClaimVersionModel.id, ClaimModel.project_id, ClaimVersionModel.content_hash)
+            .join(ClaimVersionModel, ClaimVersionModel.claim_id == ClaimModel.id)
+            .where(ClaimVersionModel.id.in_(target_ids))
+        ).all()
+        return self._resolved_many(GovernanceTargetType.CLAIM_VERSION, rows)
 
     @staticmethod
     def _resolved(
@@ -144,6 +251,18 @@ class SqlAlchemyGovernanceRepository:
             ProjectId(project_id),
             ContentHash(content_hash) if content_hash is not None else None,
         )
+
+    @classmethod
+    def _resolved_many(
+        cls, target_type: GovernanceTargetType, rows: Sequence[object]
+    ) -> list[ResolvedGovernanceTarget]:
+        resolved: list[ResolvedGovernanceTarget] = []
+        for row in rows:
+            values = tuple(cast(Any, row))
+            item = cls._resolved(target_type, values[0], values[1:])
+            if item is not None:
+                resolved.append(item)
+        return resolved
 
     def add_audit_finding(self, finding: AuditFinding) -> None:
         self._session.add(
@@ -368,6 +487,15 @@ class SqlAlchemyGovernanceRepository:
             run_paths = [(target_id,)] if exists else []
 
         paths: list[tuple[object, ...]] = []
+        if target_type in {
+            GovernanceTargetType.ARTIFACT_VERSION.value,
+            GovernanceTargetType.DATASET_SNAPSHOT.value,
+        }:
+            paths.extend(
+                (GovernanceTargetType.RUN.value, run_id, run_id, None, None, None, None, None, None)
+                for run_id in sorted({row[0] for row in run_paths}, key=str)
+            )
+
         measurement_prefixes: list[tuple[UUID | None, UUID]] = []
         if target_type == GovernanceTargetType.MEASUREMENT.value:
             row = self._session.execute(
@@ -380,15 +508,29 @@ class SqlAlchemyGovernanceRepository:
         elif run_paths:
             run_ids = {row[0] for row in run_paths}
             for row in self._session.execute(
-                select(MeasurementModel.run_id, MeasurementModel.id).where(
-                    MeasurementModel.run_id.in_(run_ids)
-                )
+                select(
+                    MeasurementModel.run_id,
+                    MeasurementModel.id,
+                    MeasurementModel.content_hash,
+                ).where(MeasurementModel.run_id.in_(run_ids))
             ):
                 measurement_prefixes.append((row.run_id, row.id))
-                paths.append(("measurement", row.id, row.run_id, None, None))
+                paths.append(
+                    (
+                        GovernanceTargetType.MEASUREMENT.value,
+                        row.id,
+                        row.run_id,
+                        None,
+                        None,
+                        row.content_hash,
+                        None,
+                        None,
+                        None,
+                    )
+                )
 
         measurement_ids = {row[1] for row in measurement_prefixes}
-        stat_prefixes: list[tuple[UUID | None, UUID | None, UUID]] = []
+        stat_prefixes: list[tuple[UUID | None, UUID | None, UUID, str | None, int | None]] = []
         if target_type == GovernanceTargetType.STATISTICAL_RESULT.value:
             exists = self._session.scalar(
                 select(StatisticalResultModel.id).where(
@@ -397,13 +539,16 @@ class SqlAlchemyGovernanceRepository:
                 )
             )
             if exists:
-                stat_prefixes.append((None, None, target_id))
+                stat_prefixes.append((None, None, target_id, None, None))
         elif measurement_ids:
             for row in self._session.execute(
                 select(
                     MeasurementModel.run_id,
                     StatisticalResultInputModel.measurement_id,
                     StatisticalResultInputModel.statistical_result_id,
+                    StatisticalResultModel.content_hash,
+                    StatisticalResultInputModel.input_role,
+                    StatisticalResultInputModel.ordinal,
                 )
                 .join(
                     MeasurementModel,
@@ -418,7 +563,15 @@ class SqlAlchemyGovernanceRepository:
                     StatisticalResultModel.project_id == project_id,
                 )
             ):
-                stat_prefixes.append((row.run_id, row.measurement_id, row.statistical_result_id))
+                stat_prefixes.append(
+                    (
+                        row.run_id,
+                        row.measurement_id,
+                        row.statistical_result_id,
+                        row.input_role,
+                        row.ordinal,
+                    )
+                )
                 paths.append(
                     (
                         "statistical_result",
@@ -426,12 +579,17 @@ class SqlAlchemyGovernanceRepository:
                         row.run_id,
                         row.measurement_id,
                         None,
+                        row.content_hash,
+                        None,
+                        row.input_role,
+                        row.ordinal,
                     )
                 )
 
         if measurement_ids:
             for row in self._session.execute(
                 select(
+                    EvidenceRelationModel.id,
                     EvidenceRelationModel.measurement_id,
                     EvidenceRelationModel.claim_version_id,
                     ClaimVersionModel.content_hash,
@@ -455,6 +613,9 @@ class SqlAlchemyGovernanceRepository:
                         row.measurement_id,
                         None,
                         row.content_hash,
+                        row.id,
+                        None,
+                        None,
                     )
                 )
 
@@ -462,6 +623,7 @@ class SqlAlchemyGovernanceRepository:
         if stat_ids:
             for row in self._session.execute(
                 select(
+                    EvidenceRelationModel.id,
                     EvidenceRelationModel.statistical_result_id,
                     EvidenceRelationModel.claim_version_id,
                     ClaimVersionModel.content_hash,
@@ -477,7 +639,7 @@ class SqlAlchemyGovernanceRepository:
                 )
             ):
                 prefixes = [p for p in stat_prefixes if p[2] == row.statistical_result_id]
-                for run_id, measurement_id, stat_id in prefixes:
+                for run_id, measurement_id, stat_id, input_role, ordinal in prefixes:
                     paths.append(
                         (
                             "claim_version",
@@ -486,6 +648,9 @@ class SqlAlchemyGovernanceRepository:
                             measurement_id,
                             stat_id,
                             row.content_hash,
+                            row.id,
+                            input_role,
+                            ordinal,
                         )
                     )
         return sorted(set(paths), key=lambda row: tuple("" if v is None else str(v) for v in row))

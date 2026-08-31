@@ -27,6 +27,9 @@ class DownstreamImpactPath:
     measurement_id: UUID | None
     statistical_result_id: UUID | None
     target_content_hash: str | None = None
+    evidence_relation_id: UUID | None = None
+    statistical_input_role: str | None = None
+    statistical_input_ordinal: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +51,8 @@ class ValidityState(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ValidityProjection:
+    target_type: GovernanceTargetType
+    target_id: UUID
     state: ValidityState
     finding_ids: tuple[UUID, ...]
     assessment_ids: tuple[UUID, ...]
@@ -102,7 +107,7 @@ class GovernanceQueryService:
             self._resolvers.resolve(uow.governance, project, kind, target_id)
             rows = uow.governance.downstream_impact_rows(project_id, kind.value, target_id)
         grouped: dict[
-            tuple[GovernanceTargetType, UUID, str | None], list[DownstreamImpactPath]
+            tuple[GovernanceTargetType, UUID], tuple[str | None, list[DownstreamImpactPath]]
         ] = {}
         for raw_row in rows:
             row = cast(Sequence[Any], raw_row)
@@ -110,12 +115,24 @@ class GovernanceQueryService:
             result_id = row[1]
             content_hash = str(row[5]) if len(row) > 5 and row[5] is not None else None
             path = DownstreamImpactPath(
-                result_type, result_id, row[2], row[3], row[4], content_hash
+                result_type,
+                result_id,
+                row[2],
+                row[3],
+                row[4],
+                content_hash,
+                row[6],
+                row[7],
+                row[8],
             )
-            grouped.setdefault((result_type, result_id, content_hash), []).append(path)
+            key = (result_type, result_id)
+            expected_hash, paths = grouped.setdefault(key, (content_hash, []))
+            if expected_hash != content_hash:
+                raise ValueError("inconsistent downstream target content hash")
+            paths.append(path)
         return tuple(
-            DownstreamImpactTarget(key[0], key[1], key[2], tuple(paths))
-            for key, paths in sorted(
+            DownstreamImpactTarget(key[0], key[1], content_hash, tuple(paths))
+            for key, (content_hash, paths) in sorted(
                 grouped.items(), key=lambda item: (item[0][0].value, str(item[0][1]))
             )
         )
@@ -155,6 +172,8 @@ class GovernanceQueryService:
             }
             state = max((mapping[row[1]] for row in active), key=precedence.__getitem__)
         return ValidityProjection(
+            kind,
+            target_id,
             state,
             tuple(sorted({row[2] for row in active if row[2] is not None}, key=str)),
             tuple(sorted({row[0] for row in active}, key=str)),

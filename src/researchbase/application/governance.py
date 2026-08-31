@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
@@ -36,16 +36,30 @@ from researchbase.foundation.time import Clock
 class TargetResolver(Protocol):
     target_type: GovernanceTargetType
 
-    def resolve(self, repository: GovernanceRepository, target_id: UUID) -> object | None: ...
+    def resolve(
+        self, repository: GovernanceRepository, target_id: UUID
+    ) -> ResolvedGovernanceTarget | None: ...
+
+    def resolve_many(
+        self, repository: GovernanceRepository, target_ids: set[UUID]
+    ) -> list[ResolvedGovernanceTarget]: ...
 
 
 @dataclass(frozen=True, slots=True)
 class _MethodResolver:
     target_type: GovernanceTargetType
-    method: Callable[[GovernanceRepository, UUID], object | None]
+    method: Callable[[GovernanceRepository, UUID], ResolvedGovernanceTarget | None]
+    batch_method: Callable[[GovernanceRepository, set[UUID]], list[ResolvedGovernanceTarget]]
 
-    def resolve(self, repository: GovernanceRepository, target_id: UUID) -> object | None:
+    def resolve(
+        self, repository: GovernanceRepository, target_id: UUID
+    ) -> ResolvedGovernanceTarget | None:
         return self.method(repository, target_id)
+
+    def resolve_many(
+        self, repository: GovernanceRepository, target_ids: set[UUID]
+    ) -> list[ResolvedGovernanceTarget]:
+        return self.batch_method(repository, target_ids)
 
 
 class TargetResolverRegistry:
@@ -53,46 +67,71 @@ class TargetResolverRegistry:
         pairs: tuple[
             tuple[
                 GovernanceTargetType,
-                Callable[[GovernanceRepository, UUID], object | None],
+                Callable[[GovernanceRepository, UUID], ResolvedGovernanceTarget | None],
+                Callable[[GovernanceRepository, set[UUID]], list[ResolvedGovernanceTarget]],
             ],
             ...,
         ] = (
             (
                 GovernanceTargetType.EXPERIMENT_SPEC_VERSION,
                 lambda repository, target_id: repository.resolve_experiment_spec_version(target_id),
+                lambda repository, target_ids: repository.resolve_experiment_spec_versions(
+                    target_ids
+                ),
             ),
             (
                 GovernanceTargetType.DATASET_SNAPSHOT,
                 lambda repository, target_id: repository.resolve_dataset_snapshot(target_id),
+                lambda repository, target_ids: repository.resolve_dataset_snapshots(target_ids),
             ),
             (
                 GovernanceTargetType.ARTIFACT_VERSION,
                 lambda repository, target_id: repository.resolve_artifact_version(target_id),
+                lambda repository, target_ids: repository.resolve_artifact_versions(target_ids),
             ),
             (
                 GovernanceTargetType.RUN,
                 lambda repository, target_id: repository.resolve_run(target_id),
+                lambda repository, target_ids: repository.resolve_runs(target_ids),
             ),
             (
                 GovernanceTargetType.METRIC_DEFINITION_VERSION,
                 lambda repository, target_id: repository.resolve_metric_definition_version(
                     target_id
                 ),
+                lambda repository, target_ids: repository.resolve_metric_definition_versions(
+                    target_ids
+                ),
             ),
             (
                 GovernanceTargetType.MEASUREMENT,
                 lambda repository, target_id: repository.resolve_measurement(target_id),
+                lambda repository, target_ids: repository.resolve_measurements(target_ids),
             ),
             (
                 GovernanceTargetType.STATISTICAL_RESULT,
                 lambda repository, target_id: repository.resolve_statistical_result(target_id),
+                lambda repository, target_ids: repository.resolve_statistical_results(target_ids),
             ),
             (
                 GovernanceTargetType.CLAIM_VERSION,
                 lambda repository, target_id: repository.resolve_claim_version(target_id),
+                lambda repository, target_ids: repository.resolve_claim_versions(target_ids),
             ),
         )
-        self._resolvers = {kind: _MethodResolver(kind, method) for kind, method in pairs}
+        self._resolvers = {
+            kind: _MethodResolver(kind, method, batch_method)
+            for kind, method, batch_method in pairs
+        }
+
+    @staticmethod
+    def normalize_type(target_type: GovernanceTargetType | str) -> GovernanceTargetType:
+        try:
+            return GovernanceTargetType(target_type)
+        except ValueError as exc:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR, "unsupported governance target type"
+            ) from exc
 
     @property
     def supported_types(self) -> frozenset[GovernanceTargetType]:
@@ -105,12 +144,7 @@ class TargetResolverRegistry:
         target_type: GovernanceTargetType | str,
         target_id: UUID,
     ) -> ResolvedGovernanceTarget:
-        try:
-            kind = GovernanceTargetType(target_type)
-        except ValueError as exc:
-            raise ResearchBaseError(
-                ErrorCode.VALIDATION_ERROR, "unsupported governance target type"
-            ) from exc
+        kind = self.normalize_type(target_type)
         resolved = self._resolvers[kind].resolve(repository, target_id)
         if not isinstance(resolved, ResolvedGovernanceTarget):
             raise ResearchBaseError(ErrorCode.NOT_FOUND, f"{kind.value} target not found")
@@ -119,6 +153,33 @@ class TargetResolverRegistry:
                 ErrorCode.VALIDATION_ERROR,
                 "governance target belongs to another project",
             )
+        return resolved
+
+    def resolve_many(
+        self,
+        repository: GovernanceRepository,
+        requested_project_id: ProjectId,
+        targets: Iterable[tuple[GovernanceTargetType | str, UUID]],
+    ) -> dict[tuple[GovernanceTargetType, UUID], ResolvedGovernanceTarget]:
+        grouped: dict[GovernanceTargetType, set[UUID]] = {}
+        for target_type, target_id in targets:
+            kind = self.normalize_type(target_type)
+            grouped.setdefault(kind, set()).add(target_id)
+
+        resolved: dict[tuple[GovernanceTargetType, UUID], ResolvedGovernanceTarget] = {}
+        for kind in sorted(grouped, key=lambda item: item.value):
+            items = self._resolvers[kind].resolve_many(repository, grouped[kind])
+            by_id = {item.target_id: item for item in items}
+            for target_id in sorted(grouped[kind], key=str):
+                item = by_id.get(target_id)
+                if item is None:
+                    raise ResearchBaseError(ErrorCode.NOT_FOUND, f"{kind.value} target not found")
+                if item.project_id != requested_project_id:
+                    raise ResearchBaseError(
+                        ErrorCode.VALIDATION_ERROR,
+                        "governance target belongs to another project",
+                    )
+                resolved[(kind, target_id)] = item
         return resolved
 
 
@@ -236,24 +297,41 @@ class GovernanceService:
                         "audit finding belongs to another project",
                     )
             assessment_id = new_typed_id(ImpactAssessmentId)
-            targets = tuple(
-                ImpactTarget(
-                    assessment_id,
-                    resolved.target_type,
-                    resolved.target_id,
-                    resolved.content_hash,
+            normalized = tuple(
+                (
+                    self.target_resolvers.normalize_type(proposed.target_type),
+                    proposed.target_id,
                     ImpactKind(proposed.impact_kind),
                 )
                 for proposed in command.targets
-                for resolved in (
-                    self.target_resolvers.resolve(
-                        uow.governance, project_id, proposed.target_type, proposed.target_id
+            )
+            identities = {(target_type, target_id) for target_type, target_id, _ in normalized}
+            if len(identities) != len(normalized):
+                raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "duplicate impact target")
+            resolved_targets = self.target_resolvers.resolve_many(
+                uow.governance,
+                project_id,
+                ((target_type, target_id) for target_type, target_id, _ in normalized),
+            )
+            targets = tuple(
+                sorted(
+                    (
+                        ImpactTarget(
+                            assessment_id,
+                            resolved_targets[(target_type, target_id)].target_type,
+                            target_id,
+                            resolved_targets[(target_type, target_id)].content_hash,
+                            impact_kind,
+                        )
+                        for target_type, target_id, impact_kind in normalized
+                    ),
+                    key=lambda target: (
+                        target.target_type.value,
+                        str(target.target_id),
+                        target.impact_kind.value,
                     ),
                 )
             )
-            identities = {(target.target_type, target.target_id) for target in targets}
-            if len(identities) != len(targets):
-                raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "duplicate impact target")
             conclusion = ImpactAssessmentConclusion(command.conclusion)
             content_hash = calculate_impact_assessment_hash(
                 project_id=project_id,

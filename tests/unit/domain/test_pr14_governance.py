@@ -174,6 +174,20 @@ def test_impact_assessment_hash_matches_independent_oracle_and_ignores_order() -
         )
         == production
     )
+
+    same_material_different_metadata = ImpactAssessment(
+        id=ImpactAssessmentId(UUID("00000000-0000-0000-0000-000000000108")),
+        project_id=ProjectId(PROJECT_ID),
+        audit_finding_id=AuditFindingId(FINDING_ID),
+        assessment_payload={"nested": {"说明": "代码错误"}, "score": 1},
+        conclusion=ImpactAssessmentConclusion.STALE,
+        created_by=ActorId(UUID("00000000-0000-0000-0000-000000000109")),
+        created_at=NOW + timedelta(days=1),
+        content_hash=production,
+        targets=tuple(reversed(targets)),
+    )
+    assert same_material_different_metadata.content_hash == assessment.content_hash
+
     with pytest.raises(FrozenInstanceError):
         assessment.conclusion = ImpactAssessmentConclusion.INVALID  # type: ignore[misc]
 
