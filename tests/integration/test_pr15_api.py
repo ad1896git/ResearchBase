@@ -234,6 +234,23 @@ def test_real_postgresql_http_golden_flow_uses_application_semantics(
     )
     assert spec.status_code == 201
     spec_body = spec.json()
+    draft_reference = client.post(
+        "/v1/runs",
+        json={
+            "project_id": str(project_id),
+            "experiment_spec_version_id": spec_body["current_version_id"],
+        },
+        headers=headers,
+    )
+    assert draft_reference.status_code == 409
+    assert draft_reference.json()["error"]["code"] == "VERSION_NOT_FROZEN"
+    stale_freeze = client.post(
+        f"/v1/experiment-spec-versions/{spec_body['current_version_id']}:freeze",
+        json={"experiment_spec_id": spec_body["id"], "expected_row_version": 999},
+        headers=headers,
+    )
+    assert stale_freeze.status_code == 409
+    assert stale_freeze.json()["error"]["code"] == "CONCURRENT_MODIFICATION"
     frozen_spec = client.post(
         f"/v1/experiment-spec-versions/{spec_body['current_version_id']}:freeze",
         json={
@@ -243,6 +260,21 @@ def test_real_postgresql_http_golden_flow_uses_application_semantics(
         headers=headers,
     )
     assert frozen_spec.status_code == 200
+
+    other_project = client.post(
+        "/v1/projects", json={"name": f"PR15-other-{uuid4()}"}, headers=headers
+    )
+    assert other_project.status_code == 201
+    wrong_project = client.post(
+        "/v1/runs",
+        json={
+            "project_id": other_project.json()["id"],
+            "experiment_spec_version_id": frozen_spec.json()["id"],
+        },
+        headers=headers,
+    )
+    assert wrong_project.status_code == 409
+    assert wrong_project.json()["error"]["code"] == "REFERENTIAL_INTEGRITY_ERROR"
 
     run = client.post(
         "/v1/runs",
@@ -260,6 +292,17 @@ def test_real_postgresql_http_golden_flow_uses_application_semantics(
         headers=headers,
     )
     assert started.status_code == 200
+    immutable_input = client.post(
+        f"/v1/runs/{run_id}/dataset-inputs",
+        json={
+            "dataset_snapshot_id": str(uuid4()),
+            "role": "test",
+            "expected_row_version": started.json()["row_version"],
+        },
+        headers=headers,
+    )
+    assert immutable_input.status_code == 409
+    assert immutable_input.json()["error"]["code"] == "IMMUTABLE_RECORD"
     finished = client.post(
         f"/v1/runs/{run_id}:finish",
         json={

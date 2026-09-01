@@ -212,6 +212,7 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.REFERENTIAL_INTEGRITY_ERROR: 409,
         ErrorCode.PROVENANCE_CLOSURE_VIOLATION: 409,
     }
+    assert set(expected) == set(ErrorCode)
     request_id = uuid4()
     actor_id = uuid4()
     for code, status in expected.items():
