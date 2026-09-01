@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # pyright: reportArgumentType=false
-
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import UTC, datetime
 from enum import Enum
