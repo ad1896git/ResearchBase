@@ -1,24 +1,83 @@
-PR-14R2 pre-finalization reporting head: 16695506f285fe015eb15948bb5b07f95f5944aa
+PR-14R2 evidence payload/current head: 3a9cb09ca0c7a84a43c6c12e752c5e41892c3449
 
 Range: e57cc7f47250a2c5156387cc1e04bb7888537e6c..b979525a97318aa85a1934f4872b208c1e9ef7b3
 File count: 17
 Set equality: PASS
 Classification: PR-14 implementation source/test/migration
+A	migrations/versions/0015_governance_audit.py
+A	src/researchbase/application/governance.py
+A	src/researchbase/application/governance_queries.py
+M	src/researchbase/application/ports.py
+A	src/researchbase/domain/governance.py
+A	src/researchbase/persistence/governance_repository.py
+M	src/researchbase/persistence/models.py
+M	src/researchbase/persistence/uow.py
+M	tests/architecture/test_import_boundaries.py
+M	tests/architecture/test_pr12_boundaries.py
+M	tests/architecture/test_pr13_boundaries.py
+A	tests/architecture/test_pr14_boundaries.py
+A	tests/integration/test_pr14_governance_integration.py
+A	tests/integration/test_pr14_schema.py
+A	tests/oracles/pr14_governance_hash_oracle.py
+M	tests/test_architecture.py
+A	tests/unit/domain/test_pr14_governance.py
 
 Range: b979525a97318aa85a1934f4872b208c1e9ef7b3..16695506f285fe015eb15948bb5b07f95f5944aa
 File count: 29
 Set equality: PASS
 Classification: six reviewed PR-14 source/test files plus 23 PR-14 evidence files
+A	artifacts/pr_evidence/PR-14/architecture_decisions.md
+A	artifacts/pr_evidence/PR-14/architecture_review.md
+A	artifacts/pr_evidence/PR-14/atomicity_report.md
+A	artifacts/pr_evidence/PR-14/audit_finding_report.md
+A	artifacts/pr_evidence/PR-14/changed_files.txt
+A	artifacts/pr_evidence/PR-14/code_review.md
+A	artifacts/pr_evidence/PR-14/commands_and_results.md
+A	artifacts/pr_evidence/PR-14/concurrency_report.md
+A	artifacts/pr_evidence/PR-14/correction_immutability_report.md
+A	artifacts/pr_evidence/PR-14/downstream_impact_report.md
+A	artifacts/pr_evidence/PR-14/fk_restrict_report.md
+A	artifacts/pr_evidence/PR-14/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14/hash_oracle_report.md
+A	artifacts/pr_evidence/PR-14/historical_invariance_report.md
+A	artifacts/pr_evidence/PR-14/impact_assessment_report.md
+A	artifacts/pr_evidence/PR-14/implementation_summary.md
+A	artifacts/pr_evidence/PR-14/migration_report.md
+A	artifacts/pr_evidence/PR-14/query_performance_report.md
+A	artifacts/pr_evidence/PR-14/schema_report.md
+A	artifacts/pr_evidence/PR-14/target_resolver_report.md
+A	artifacts/pr_evidence/PR-14/test_report.md
+A	artifacts/pr_evidence/PR-14/unresolved_findings.md
+A	artifacts/pr_evidence/PR-14/validity_projection_report.md
+M	src/researchbase/application/governance.py
+M	src/researchbase/application/governance_queries.py
+M	src/researchbase/application/ports.py
+M	src/researchbase/persistence/governance_repository.py
+M	tests/integration/test_pr14_governance_integration.py
+M	tests/unit/domain/test_pr14_governance.py
 
-Range: 16695506f285fe015eb15948bb5b07f95f5944aa..PR14R2_FINAL_HEAD
-File count: 0 before PR-14R2 payload commit
-Set equality: PASS for the pre-finalization state
+Range: 16695506f285fe015eb15948bb5b07f95f5944aa..3a9cb09ca0c7a84a43c6c12e752c5e41892c3449
+File count: 13
+Set equality: PASS
 
-PR-14R2 intended classification after evidence payload finalization:
+PR-14R2 final classification:
 - source changes: 0
 - test changes: 0
 - migration changes: 0
 - architecture changes: 0
 - evidence-only: YES
 
-The exact final PR-14R2 range and file set are reconciled after the evidence payload commit.
+Exact final PR-14R2 range and file set:
+A	artifacts/pr_evidence/PR-14R2/audit_finding_concurrency_report.md
+A	artifacts/pr_evidence/PR-14R2/changed_files.txt
+A	artifacts/pr_evidence/PR-14R2/commands_and_results.md
+A	artifacts/pr_evidence/PR-14R2/finding_disposition.md
+A	artifacts/pr_evidence/PR-14R2/fk_restrict_behavior_report.md
+A	artifacts/pr_evidence/PR-14R2/formatting_scope_report.md
+A	artifacts/pr_evidence/PR-14R2/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R2/regression_report.md
+A	artifacts/pr_evidence/PR-14R2/remediation_summary.md
+A	artifacts/pr_evidence/PR-14R2/sql_scaling_report.md
+A	artifacts/pr_evidence/PR-14R2/target_resolution_scaling_report.md
+A	artifacts/pr_evidence/PR-14R2/test_report.md
+A	artifacts/pr_evidence/PR-14R2/unresolved_findings.md

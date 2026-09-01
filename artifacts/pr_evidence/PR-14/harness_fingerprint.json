@@ -2,9 +2,9 @@
   "baseline": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
   "pr14_implementation_commits": ["b979525a97318aa85a1934f4872b208c1e9ef7b3", "701df464c55d8993c7b14690bcea75594d553553"],
   "pr14_test_commits": ["b979525a97318aa85a1934f4872b208c1e9ef7b3", "701df464c55d8993c7b14690bcea75594d553553"],
-  "pr14_evidence_payload_commits": [],
-  "current_head_at_reporting": "701df464c55d8993c7b14690bcea75594d553553",
-  "changed_files_range": "e57cc7f47250a2c5156387cc1e04bb7888537e6c..701df464c55d8993c7b14690bcea75594d553553",
+  "pr14_evidence_payload_commits": ["16695506f285fe015eb15948bb5b07f95f5944aa"],
+  "current_head_at_reporting": "16695506f285fe015eb15948bb5b07f95f5944aa",
+  "changed_files_range": "e57cc7f47250a2c5156387cc1e04bb7888537e6c..16695506f285fe015eb15948bb5b07f95f5944aa",
   "postgresql": "18.6",
   "alembic_head": "0015_governance_audit",
   "status": "BLOCKED"

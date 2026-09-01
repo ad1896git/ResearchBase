@@ -2,9 +2,9 @@
   "pr13_final_baseline": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
   "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
   "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
-  "pr14r2_evidence_payload_commits": [],
-  "pr14r2_evidence_payload_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
-  "pr14r2_final_current_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+  "pr14r2_evidence_payload_commits": ["3a9cb09ca0c7a84a43c6c12e752c5e41892c3449"],
+  "pr14r2_evidence_payload_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+  "pr14r2_final_current_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
   "pr14r2_post_finalization_commit": "none",
-  "status": "EVIDENCE_ONLY_FINALIZATION"
+  "status": "PASS"
 }
