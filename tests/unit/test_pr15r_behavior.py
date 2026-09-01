@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
-from typing import Any
-from uuid import uuid4
+# pyright: reportArgumentType=false
+
+from dataclasses import asdict, dataclass, fields, is_dataclass
+from datetime import UTC, datetime
+from enum import Enum
+from types import UnionType
+from typing import Any, Union, get_args, get_origin, get_type_hints
+from uuid import UUID, uuid4
 
 import pytest
+from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 
 from researchbase.api.app import create_app
+from researchbase.application import dto
+from researchbase.application.governance_queries import DownstreamImpactTarget
+from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
+from researchbase.domain import governance as governance_domain
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 
@@ -236,6 +246,106 @@ def _context_from_call(call: tuple[str, tuple[object, ...]]) -> ExecutionContext
     return getattr(command, context_field.name)
 
 
+def _contains(value: object, expected: object) -> bool:
+    if str(value) == str(expected):
+        return True
+    if is_dataclass(value):
+        return _contains(asdict(value), expected)
+    if isinstance(value, dict):
+        return any(_contains(item, expected) for item in value.values())
+    if isinstance(value, list | tuple):
+        return any(_contains(item, expected) for item in value)
+    return False
+
+
+def _normalize_json(value: object) -> object:
+    if isinstance(value, dict):
+        return {key: _normalize_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalize_json(item) for item in value]
+    if isinstance(value, str) and value.endswith("+00:00"):
+        return f"{value[:-6]}Z"
+    return value
+
+
+_RESPONSE_TYPES: dict[str, type[Any]] = {
+    "ProjectReadModelResponse": dto.ProjectReadModel,
+    "ResearchQuestionReadModelResponse": dto.ResearchQuestionReadModel,
+    "ResearchQuestionVersionReadModelResponse": dto.ResearchQuestionVersionReadModel,
+    "HypothesisReadModelResponse": dto.HypothesisReadModel,
+    "HypothesisVersionReadModelResponse": dto.HypothesisVersionReadModel,
+    "ExperimentSpecReadModelResponse": dto.ExperimentSpecReadModel,
+    "ExperimentSpecVersionReadModelResponse": dto.ExperimentSpecVersionReadModel,
+    "DatasetReadModelResponse": dto.DatasetReadModel,
+    "DatasetSnapshotReadModelResponse": dto.DatasetSnapshotReadModel,
+    "ArtifactReadModelResponse": dto.ArtifactReadModel,
+    "ArtifactVersionReadModelResponse": dto.ArtifactVersionReadModel,
+    "MetricDefinitionReadModelResponse": dto.MetricDefinitionReadModel,
+    "MetricDefinitionVersionReadModelResponse": dto.MetricDefinitionVersionReadModel,
+    "RunReadModelResponse": dto.RunReadModel,
+    "RunProvenanceDTOResponse": RunProvenanceDTO,
+    "MeasurementReadModelResponse": dto.MeasurementReadModel,
+    "StatisticalResultReadModelResponse": dto.StatisticalResultReadModel,
+    "ClaimReadModelResponse": dto.ClaimReadModel,
+    "ClaimVersionReadModelResponse": dto.ClaimVersionReadModel,
+    "EvidenceRelationReadModelResponse": dto.EvidenceRelationReadModel,
+    "ClaimToRunsTraceDTOResponse": ClaimToRunsTraceDTO,
+    "AuditFindingResponse": governance_domain.AuditFinding,
+    "ImpactAssessmentResponse": governance_domain.ImpactAssessment,
+    "CorrectionRecordResponse": governance_domain.CorrectionRecord,
+    "DownstreamImpactTargetResponse": DownstreamImpactTarget,
+}
+
+
+def _sample(annotation: Any) -> Any:
+    if annotation is Any or annotation is object:
+        return {}
+    supertype = getattr(annotation, "__supertype__", None)
+    if supertype is not None:
+        if getattr(annotation, "__name__", "") == "ContentHash":
+            return "0" * 64
+        return _sample(supertype)
+    origin = get_origin(annotation)
+    if origin in (Union, UnionType):
+        non_none = [item for item in get_args(annotation) if item is not type(None)]
+        return None if not non_none else _sample(non_none[0])
+    if origin in (tuple, list, set, frozenset):
+        return () if origin is tuple else []
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return next(iter(annotation))
+    if getattr(annotation, "__name__", "") == "ContentHash":
+        return "0" * 64
+    if annotation is UUID:
+        return uuid4()
+    if annotation is datetime:
+        return datetime(2026, 9, 1, tzinfo=UTC)
+    if annotation is str:
+        return "value"
+    if annotation is int:
+        return 1
+    if annotation is float:
+        return 1.0
+    if annotation is bool:
+        return True
+    if annotation is bytes:
+        return b"x"
+    if isinstance(annotation, type) and is_dataclass(annotation):
+        hints = get_type_hints(annotation)
+        return annotation(
+            **{field.name: _sample(hints[field.name]) for field in fields(annotation)}
+        )
+    return "value"
+
+
+def _actual_result(schema: dict[str, Any], components: dict[str, Any]) -> object:
+    ref = schema.get("$ref")
+    if ref is None and schema.get("type") == "array":
+        return (_actual_result(schema["items"], components),)
+    name = ref.rsplit("/", 1)[-1] if ref else ""
+    model = _RESPONSE_TYPES[name]
+    return _sample(model)
+
+
 @pytest.mark.parametrize("case", FAMILIES, ids=lambda item: item.family)
 def test_every_route_family_forwards_to_expected_service_with_normalized_error(
     case: FamilyCase,
@@ -243,11 +353,20 @@ def test_every_route_family_forwards_to_expected_service_with_normalized_error(
     services = _services()
     request_id = uuid4()
     actor_id = uuid4()
+    correlation_id = uuid4()
+    causation_id = uuid4()
     response = TestClient(create_app(services)).request(
         case.method,
         case.path,
         json=case.body,
-        headers={"X-Actor-ID": str(actor_id), "X-Request-ID": str(request_id)},
+        headers={
+            "X-Actor-ID": str(actor_id),
+            "X-Request-ID": str(request_id),
+            "X-Correlation-ID": str(correlation_id),
+            "X-Causation-ID": str(causation_id),
+            "X-Client-Name": "pr15r-tests",
+            "X-Client-Version": "1",
+        },
     )
 
     assert response.status_code == 404
@@ -260,6 +379,14 @@ def test_every_route_family_forwards_to_expected_service_with_normalized_error(
         context = _context_from_call(recorder.calls[0])
         assert context.actor_id == actor_id
         assert context.request_id == request_id
+        assert context.correlation_id == correlation_id
+        assert context.causation_id == causation_id
+        assert context.client_type == "human_ui"
+        assert context.client_name == "pr15r-tests"
+        assert context.client_version == "1"
+        for marker in (ID, OTHER_ID):
+            if marker in str(case.body) or marker in case.path:
+                assert _contains(recorder.calls[0][1], marker)
 
 
 @pytest.mark.parametrize("case", FAMILIES, ids=lambda item: item.family)
@@ -278,18 +405,48 @@ def test_every_route_family_maps_application_output_through_finite_response_sche
         if status.startswith("2")
     )
     response_schema = response_spec["content"]["application/json"]["schema"]
-    result = _example(response_schema, schema["components"]["schemas"])
+    result = _actual_result(response_schema, schema["components"]["schemas"])
     services = _success_services(case.service, result)
+    actor_id = uuid4()
+    request_id = uuid4()
+    correlation_id = uuid4()
+    causation_id = uuid4()
     response = TestClient(create_app(services)).request(
         case.method,
         case.path,
         json=case.body,
-        headers={"X-Actor-ID": str(uuid4())},
+        headers={
+            "X-Actor-ID": str(actor_id),
+            "X-Request-ID": str(request_id),
+            "X-Correlation-ID": str(correlation_id),
+            "X-Causation-ID": str(causation_id),
+            "X-Client-Name": "pr15r-tests",
+            "X-Client-Version": "1",
+        },
     )
 
     assert response.status_code == int(status)
-    assert response.json() == result
+    assert response.json() == _normalize_json(jsonable_encoder(result))
     assert getattr(services, case.service).calls[0][0] == case.handler
+
+    if case.method == "post":
+        context = _context_from_call(getattr(services, case.service).calls[0])
+        assert context.actor_id == actor_id
+        assert context.request_id == request_id
+        assert context.client_type == "human_ui"
+        assert context.client_name == "pr15r-tests"
+        assert context.client_version == "1"
+        assert context.correlation_id == correlation_id
+        assert context.causation_id == causation_id
+        command_args = getattr(services, case.service).calls[0][1]
+        for marker in (ID, OTHER_ID):
+            if marker in str(case.body) or marker in case.path:
+                assert _contains(command_args, marker)
+    else:
+        command_args = getattr(services, case.service).calls[0][1]
+        assert _contains(command_args, ID)
+        if OTHER_ID in case.path:
+            assert _contains(command_args, OTHER_ID)
 
 
 @pytest.mark.parametrize(

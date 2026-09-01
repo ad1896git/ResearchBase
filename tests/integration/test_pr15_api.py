@@ -202,6 +202,93 @@ def test_trace_and_impact_http_queries_are_equivalent_read_only_and_add_no_sql(
         assert sum(len(target["paths"]) for target in response.json()) >= 2
 
 
+@pytest.mark.parametrize(
+    ("route", "mode"),
+    [("trace", "small"), ("trace", "multipath"), ("impact", "small"), ("impact", "multipath")],
+)
+def test_trace_and_impact_sql_counts_are_bounded_across_fixture_cardinality(
+    real_services: tuple[ServiceBundle, Engine], route: str, mode: str
+) -> None:
+    services, engine = real_services
+    ids = _seed_graph(engine)
+    if route == "trace" and mode == "small":
+        ids["small_claim_version"] = uuid4()
+        ids["small_evidence"] = uuid4()
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO claim_versions "
+                    "(id,claim_id,version_number,status,statement,created_by,created_at) "
+                    "VALUES (:id,:claim,2,'DRAFT','small claim',:actor,:now)"
+                ),
+                {
+                    "id": ids["small_claim_version"],
+                    "claim": ids["claim"],
+                    "actor": ids["actor"],
+                    "now": datetime(2026, 8, 30, tzinfo=UTC),
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO evidence_relations "
+                    "(id,claim_version_id,measurement_id,relation_type,created_by,created_at) "
+                    "VALUES (:id,:claim,:measurement,'supports',:actor,:now)"
+                ),
+                {
+                    "id": ids["small_evidence"],
+                    "claim": ids["small_claim_version"],
+                    "measurement": ids["measurement"],
+                    "actor": ids["actor"],
+                    "now": datetime(2026, 8, 30, tzinfo=UTC),
+                },
+            )
+    target_key = "stat" if route == "impact" and mode == "small" else "artifact_version"
+    target_type = "statistical_result" if target_key == "stat" else "artifact_version"
+    state_before = _state_counts(engine)
+    if route == "trace":
+        claim_version_id = ids.get("small_claim_version", ids["claim_version"])
+        direct_path = f"/v1/claim-versions/{claim_version_id}/trace"
+
+        def direct_call() -> object:
+            return services.provenance.trace_claim_to_runs(claim_version_id)
+
+    else:
+        direct_path = f"/v1/impact/{target_type}/{ids[target_key]}?project_id={ids['project']}"
+
+        def direct_call() -> object:
+            return services.governance_queries.downstream_impact(
+                ids["project"], target_type, ids[target_key]
+            )
+
+    statements: list[str] = []
+
+    def capture(_conn: object, _cursor: object, statement: str, *_args: object) -> None:
+        statements.append(statement.lstrip().split(None, 1)[0].upper())
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        direct = direct_call()
+        direct_selects = statements.count("SELECT")
+        statements.clear()
+        response = TestClient(create_app(services)).get(direct_path)
+        http_selects = statements.count("SELECT")
+        writes = sum(statements.count(kind) for kind in ("INSERT", "UPDATE", "DELETE"))
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    assert response.status_code == 200
+    assert response.json() == _json_value(direct)
+    assert http_selects == direct_selects
+    assert writes == 0
+    assert _state_counts(engine) == state_before
+    cardinality = (
+        len(response.json()["paths"])
+        if route == "trace"
+        else sum(len(target["paths"]) for target in response.json())
+    )
+    assert cardinality == (1 if mode == "small" else (2 if route == "trace" else 5))
+
+
 def test_real_postgresql_http_golden_flow_uses_application_semantics(
     real_services: tuple[ServiceBundle, Engine],
 ) -> None:
