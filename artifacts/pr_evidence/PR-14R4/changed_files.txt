@@ -1,0 +1,20 @@
+Baseline: c4b324ab5d29a71fce999c2a801e62c8a124a77d
+Range endpoint: refs/heads/codex/pr-02 resolved by final verification
+File count: 10
+Set equality: PASS
+Classification: evidence-only
+Production files: 0
+Test files: 0
+Migration files: 0
+Architecture files: 0
+
+M	artifacts/pr_evidence/PR-14R3/changed_files.txt
+M	artifacts/pr_evidence/PR-14R3/final_head_reconciliation.md
+M	artifacts/pr_evidence/PR-14R3/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R4/changed_files.txt
+A	artifacts/pr_evidence/PR-14R4/commands_and_results.md
+A	artifacts/pr_evidence/PR-14R4/final_head_reconciliation.md
+A	artifacts/pr_evidence/PR-14R4/finding_disposition.md
+A	artifacts/pr_evidence/PR-14R4/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R4/remediation_summary.md
+A	artifacts/pr_evidence/PR-14R4/unresolved_findings.md
