@@ -1,0 +1,24 @@
+PR-14R2 pre-finalization reporting head: 16695506f285fe015eb15948bb5b07f95f5944aa
+
+Range: e57cc7f47250a2c5156387cc1e04bb7888537e6c..b979525a97318aa85a1934f4872b208c1e9ef7b3
+File count: 17
+Set equality: PASS
+Classification: PR-14 implementation source/test/migration
+
+Range: b979525a97318aa85a1934f4872b208c1e9ef7b3..16695506f285fe015eb15948bb5b07f95f5944aa
+File count: 29
+Set equality: PASS
+Classification: six reviewed PR-14 source/test files plus 23 PR-14 evidence files
+
+Range: 16695506f285fe015eb15948bb5b07f95f5944aa..PR14R2_FINAL_HEAD
+File count: 0 before PR-14R2 payload commit
+Set equality: PASS for the pre-finalization state
+
+PR-14R2 intended classification after evidence payload finalization:
+- source changes: 0
+- test changes: 0
+- migration changes: 0
+- architecture changes: 0
+- evidence-only: YES
+
+The exact final PR-14R2 range and file set are reconciled after the evidence payload commit.
