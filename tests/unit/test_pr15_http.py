@@ -205,6 +205,7 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.NOT_FOUND: 404,
         ErrorCode.INVALID_STATE_TRANSITION: 409,
         ErrorCode.VERSION_NOT_FROZEN: 409,
+        ErrorCode.FROZEN_REFERENCE_REQUIRED: 409,
         ErrorCode.IMMUTABLE_RECORD: 409,
         ErrorCode.CONCURRENT_MODIFICATION: 409,
         ErrorCode.DUPLICATE_CONTENT: 409,
@@ -238,6 +239,45 @@ def test_generated_request_ids_are_isolated_under_concurrency() -> None:
         values = list(pool.map(invoke, range(32)))
     assert len(set(values)) == len(values)
     assert all(UUID(value) for value in values)
+
+
+def test_supplied_request_ids_are_isolated_across_concurrent_success_and_error() -> None:
+    actor_id = uuid4()
+
+    class ConcurrentApplication:
+        def create_project(self, command: object) -> object:
+            if cast(Any, command).name.startswith("error"):
+                raise ResearchBaseError(ErrorCode.NOT_FOUND, "x")
+            return ProjectReadModel(
+                id=uuid4(),
+                name=cast(Any, command).name,
+                description=None,
+                lifecycle_status=LifecycleStatus.ACTIVE,
+                created_by=actor_id,
+                created_at=__import__("datetime").datetime(
+                    2026, 9, 1, tzinfo=__import__("datetime").UTC
+                ),
+                row_version=1,
+            )
+
+    app = create_app(Services(ConcurrentApplication()))
+    cases = [(uuid4(), "ok" if index % 2 == 0 else "error") for index in range(32)]
+
+    def invoke(case: tuple[UUID, str]) -> tuple[str, int]:
+        request_id, outcome = case
+        response = TestClient(app).post(
+            "/v1/projects",
+            json={"name": f"{outcome}-{request_id}"},
+            headers={"X-Actor-ID": str(actor_id), "X-Request-ID": str(request_id)},
+        )
+        return response.headers["X-Request-ID"], response.status_code
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        actual = list(pool.map(invoke, cases))
+
+    assert actual == [
+        (str(request_id), 201 if outcome == "ok" else 404) for request_id, outcome in cases
+    ]
 
 
 def test_request_recovers_after_validation_handled_and_unexpected_errors() -> None:

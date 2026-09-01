@@ -1,0 +1,386 @@
+"""PR-15R exhaustive structural contract for the frozen HTTP surface."""
+
+from __future__ import annotations
+
+import inspect
+from dataclasses import dataclass
+
+from researchbase.api import routes
+from researchbase.api.app import create_app
+
+
+class EmptyServices:
+    application = object()
+    provenance = object()
+    governance = object()
+    governance_queries = object()
+
+
+@dataclass(frozen=True, slots=True)
+class RouteContract:
+    method: str
+    path: str
+    endpoint: str
+    handler: str
+    request_schema: str | None
+    response_schema: str
+    operation_id: str
+
+
+ROUTES = (
+    RouteContract(
+        "post",
+        "/v1/projects",
+        "create_project",
+        "create_project",
+        "ProjectIn",
+        "ProjectReadModelResponse",
+        "create_project",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-questions",
+        "create_research_question",
+        "create_research_question",
+        "ResearchQuestionIn",
+        "ResearchQuestionReadModelResponse",
+        "create_research_question",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-questions/{id}/versions",
+        "revise_research_question",
+        "revise_research_question",
+        "ReviseResearchQuestionIn",
+        "ResearchQuestionReadModelResponse",
+        "revise_research_question",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-question-versions/{id}:freeze",
+        "freeze_research_question",
+        "freeze_research_question",
+        "FreezeResearchQuestionIn",
+        "ResearchQuestionVersionReadModelResponse",
+        "freeze_research_question_version",
+    ),
+    RouteContract(
+        "post",
+        "/v1/hypotheses",
+        "create_hypothesis",
+        "create_hypothesis",
+        "HypothesisIn",
+        "HypothesisReadModelResponse",
+        "create_hypothesis",
+    ),
+    RouteContract(
+        "post",
+        "/v1/hypotheses/{id}/versions",
+        "revise_hypothesis",
+        "revise_hypothesis",
+        "ReviseHypothesisIn",
+        "HypothesisReadModelResponse",
+        "revise_hypothesis",
+    ),
+    RouteContract(
+        "post",
+        "/v1/hypothesis-versions/{id}:freeze",
+        "freeze_hypothesis",
+        "freeze_hypothesis",
+        "FreezeHypothesisIn",
+        "HypothesisVersionReadModelResponse",
+        "freeze_hypothesis_version",
+    ),
+    RouteContract(
+        "post",
+        "/v1/experiment-specs",
+        "create_experiment_spec",
+        "create_experiment_spec",
+        "ExperimentSpecIn",
+        "ExperimentSpecReadModelResponse",
+        "create_experiment_spec",
+    ),
+    RouteContract(
+        "post",
+        "/v1/experiment-specs/{id}/versions",
+        "revise_experiment_spec",
+        "revise_experiment_spec",
+        "ReviseExperimentSpecIn",
+        "ExperimentSpecReadModelResponse",
+        "revise_experiment_spec",
+    ),
+    RouteContract(
+        "post",
+        "/v1/experiment-spec-versions/{id}:freeze",
+        "freeze_experiment_spec",
+        "freeze_experiment_spec",
+        "FreezeExperimentSpecIn",
+        "ExperimentSpecVersionReadModelResponse",
+        "freeze_experiment_spec_version",
+    ),
+    RouteContract(
+        "post",
+        "/v1/datasets",
+        "register_dataset",
+        "register_dataset",
+        "DatasetIn",
+        "DatasetReadModelResponse",
+        "register_dataset",
+    ),
+    RouteContract(
+        "post",
+        "/v1/datasets/{id}/snapshots",
+        "create_dataset_snapshot",
+        "create_dataset_snapshot",
+        "DatasetSnapshotIn",
+        "DatasetSnapshotReadModelResponse",
+        "create_dataset_snapshot",
+    ),
+    RouteContract(
+        "post",
+        "/v1/artifacts",
+        "create_artifact",
+        "create_artifact",
+        "ArtifactIn",
+        "ArtifactReadModelResponse",
+        "create_artifact",
+    ),
+    RouteContract(
+        "post",
+        "/v1/artifacts/{id}/versions",
+        "create_artifact_version",
+        "create_artifact_version",
+        "ArtifactVersionIn",
+        "ArtifactVersionReadModelResponse",
+        "create_artifact_version",
+    ),
+    RouteContract(
+        "post",
+        "/v1/artifact-versions/{id}:freeze",
+        "freeze_artifact_version",
+        "freeze_artifact_version",
+        "FreezeArtifactIn",
+        "ArtifactVersionReadModelResponse",
+        "freeze_artifact_version",
+    ),
+    RouteContract(
+        "post",
+        "/v1/metric-definitions",
+        "create_metric_definition",
+        "create_metric_definition",
+        "MetricDefinitionIn",
+        "MetricDefinitionReadModelResponse",
+        "create_metric_definition",
+    ),
+    RouteContract(
+        "post",
+        "/v1/metric-definitions/{id}/versions",
+        "revise_metric_definition",
+        "revise_metric_definition",
+        "ReviseMetricDefinitionIn",
+        "MetricDefinitionReadModelResponse",
+        "revise_metric_definition",
+    ),
+    RouteContract(
+        "post",
+        "/v1/metric-definition-versions/{id}:freeze",
+        "freeze_metric_definition",
+        "freeze_metric_definition",
+        "FreezeMetricDefinitionIn",
+        "MetricDefinitionVersionReadModelResponse",
+        "freeze_metric_definition_version",
+    ),
+    RouteContract(
+        "post",
+        "/v1/runs",
+        "create_run",
+        "create_run",
+        "RunIn",
+        "RunReadModelResponse",
+        "create_run",
+    ),
+    RouteContract(
+        "post",
+        "/v1/runs/{id}/dataset-inputs",
+        "attach_dataset",
+        "attach_run_dataset_input",
+        "DatasetInputIn",
+        "RunReadModelResponse",
+        "attach_run_dataset_input",
+    ),
+    RouteContract(
+        "post",
+        "/v1/runs/{id}/artifact-inputs",
+        "attach_artifact",
+        "attach_run_artifact_input",
+        "ArtifactInputIn",
+        "RunReadModelResponse",
+        "attach_run_artifact_input",
+    ),
+    RouteContract(
+        "post",
+        "/v1/runs/{id}:start",
+        "start_run",
+        "start_run",
+        "TransitionIn",
+        "RunReadModelResponse",
+        "start_run",
+    ),
+    RouteContract(
+        "post",
+        "/v1/runs/{id}:finish",
+        "finish_run",
+        "finish_run",
+        "FinishRunIn",
+        "RunReadModelResponse",
+        "finish_run",
+    ),
+    RouteContract(
+        "get",
+        "/v1/runs/{id}/provenance",
+        "run_provenance",
+        "get_run_provenance",
+        None,
+        "RunProvenanceDTOResponse",
+        "get_run_provenance",
+    ),
+    RouteContract(
+        "post",
+        "/v1/measurements",
+        "record_measurement",
+        "record_measurement",
+        "MeasurementIn",
+        "MeasurementReadModelResponse",
+        "record_measurement",
+    ),
+    RouteContract(
+        "post",
+        "/v1/statistical-results",
+        "record_statistical_result",
+        "record_statistical_result",
+        "StatisticalResultIn",
+        "StatisticalResultReadModelResponse",
+        "record_statistical_result",
+    ),
+    RouteContract(
+        "post",
+        "/v1/claims",
+        "create_claim",
+        "create_claim",
+        "ClaimIn",
+        "ClaimReadModelResponse",
+        "create_claim",
+    ),
+    RouteContract(
+        "post",
+        "/v1/claims/{id}/versions",
+        "revise_claim",
+        "revise_claim",
+        "ReviseClaimIn",
+        "ClaimReadModelResponse",
+        "revise_claim",
+    ),
+    RouteContract(
+        "post",
+        "/v1/claim-versions/{id}/evidence",
+        "link_evidence",
+        "link_evidence",
+        "EvidenceIn",
+        "EvidenceRelationReadModelResponse",
+        "link_evidence",
+    ),
+    RouteContract(
+        "post",
+        "/v1/claim-versions/{id}:freeze",
+        "freeze_claim",
+        "freeze_claim_version",
+        "FreezeClaimIn",
+        "ClaimVersionReadModelResponse",
+        "freeze_claim_version",
+    ),
+    RouteContract(
+        "get",
+        "/v1/claim-versions/{id}/trace",
+        "claim_trace",
+        "trace_claim_to_runs",
+        None,
+        "ClaimToRunsTraceDTOResponse",
+        "trace_claim_to_runs",
+    ),
+    RouteContract(
+        "post",
+        "/v1/audit-findings",
+        "create_audit_finding",
+        "create_audit_finding",
+        "AuditFindingIn",
+        "AuditFindingResponse",
+        "create_audit_finding",
+    ),
+    RouteContract(
+        "post",
+        "/v1/impact-assessments",
+        "create_impact_assessment",
+        "create_impact_assessment",
+        "ImpactAssessmentIn",
+        "ImpactAssessmentResponse",
+        "create_impact_assessment",
+    ),
+    RouteContract(
+        "post",
+        "/v1/corrections",
+        "create_correction",
+        "create_correction_record",
+        "CorrectionIn",
+        "CorrectionRecordResponse",
+        "create_correction",
+    ),
+    RouteContract(
+        "get",
+        "/v1/impact/{target_type}/{target_id}",
+        "downstream_impact",
+        "downstream_impact",
+        None,
+        "DownstreamImpactTargetResponse",
+        "get_downstream_impact",
+    ),
+)
+
+
+def _ref_name(schema: dict[str, object]) -> str:
+    if "$ref" in schema:
+        return str(schema["$ref"]).rsplit("/", 1)[-1]
+    return str(schema["items"]["$ref"]).rsplit("/", 1)[-1]  # type: ignore[index]
+
+
+def test_all_35_routes_have_exact_schema_operation_and_application_bindings() -> None:
+    assert len(ROUTES) == 35
+    schema = create_app(EmptyServices()).openapi()
+    actual = {
+        (method, path)
+        for path, operations in schema["paths"].items()
+        if path.startswith("/v1/")
+        for method in operations
+        if method in {"get", "post"}
+    }
+    assert actual == {(item.method, item.path) for item in ROUTES}
+    assert len({item.operation_id for item in ROUTES}) == 35
+
+    for item in ROUTES:
+        operation = schema["paths"][item.path][item.method]
+        body = (
+            operation.get("requestBody", {})
+            .get("content", {})
+            .get("application/json", {})
+            .get("schema")
+        )
+        success = next(
+            response
+            for status, response in operation["responses"].items()
+            if status.startswith("2")
+        )
+        response = success["content"]["application/json"]["schema"]
+        assert (_ref_name(body) if body else None) == item.request_schema
+        assert _ref_name(response) == item.response_schema
+        assert operation["operationId"] == item.operation_id
+        source = inspect.getsource(getattr(routes, item.endpoint))
+        assert f".{item.handler}(" in source
