@@ -1,0 +1,13 @@
+{
+  "evidence_protocol": "non-self-referential-v1",
+  "reviewed_subject_head": "6be2727669864da0e3a0d7b73dc2073068234d1f",
+  "evidence_parent_head": "6be2727669864da0e3a0d7b73dc2073068234d1f",
+  "self_commit_sha_in_payload": false,
+  "files": {
+    "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+    "execution/phase1/PR-15_Architecture_Freeze_v1.0.md": "6992d16c00834bcfae16c8280d6d7e0bd54aa490038b230b7760ab9ef5832525",
+    "execution/phase1/PR-15R_Test_Evidence_Remediation_Pack_v1.0.md": "442249b4d89c70e15096abf2aabc44d3ef27af1d24d06d46d65843a05b8afa83",
+    "pyproject.toml": "25b492a67f124df3fb1715e1e81bf534c83e972d93e697c1fa3051bdd384f66e",
+    "uv.lock": "ec8bb1204bcf6da23573f414f8a64b7d7cab12d314a13ff4bd166f0292874137"
+  }
+}
