@@ -1,0 +1,21 @@
+Baseline: 724c67d4411fac7904470301cef80af18f1507a0
+Range endpoint: PR-14R5 final evidence commit verified directly by Git
+File count: 10
+Set equality: PASS
+Classification: evidence-only
+Production files: 0
+Test files: 0
+Migration files: 0
+Architecture files: 0
+
+M	artifacts/pr_evidence/PR-14R4/changed_files.txt
+M	artifacts/pr_evidence/PR-14R4/final_head_reconciliation.md
+M	artifacts/pr_evidence/PR-14R4/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R5/changed_files.txt
+A	artifacts/pr_evidence/PR-14R5/commands_and_results.md
+A	artifacts/pr_evidence/PR-14R5/finding_disposition.md
+A	artifacts/pr_evidence/PR-14R5/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R5/immutable_head_reconciliation.md
+A	artifacts/pr_evidence/PR-14R5/remediation_summary.md
+A	artifacts/pr_evidence/PR-14R5/unresolved_findings.md
+

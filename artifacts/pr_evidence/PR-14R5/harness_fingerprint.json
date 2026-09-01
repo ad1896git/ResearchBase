@@ -1,0 +1,30 @@
+{
+  "pr": "PR-14R5",
+  "scope": "strictly evidence-only immutable final-SHA reconciliation",
+  "pr13_final": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+  "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+  "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+  "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+  "pr14r3_reviewed_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+  "pr14r4_reviewed_head": "724c67d4411fac7904470301cef80af18f1507a0",
+  "pr14r5_evidence_payload_commit": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
+  "post_pr14r5_current_head": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
+  "post_pr14r5_current_head_semantics": "immutable current commit SHA at evidence payload capture; later R5 finalization commit is recorded separately",
+  "pr14r5_range_base": "724c67d4411fac7904470301cef80af18f1507a0",
+  "pr14r5_range_file_count": 10,
+  "pr14r5_range_evidence_only": true,
+  "verification": {
+    "production_changes": false,
+    "test_changes": false,
+    "migration_changes": false,
+    "architecture_changes": false,
+    "pr15_implementation": false,
+    "phase2_plus_implementation": false,
+    "changed_file_set_equality": true,
+    "authoritative_mutable_ref_matches": 0,
+    "null_final_head_fields": false,
+    "unresolved_tokens": false
+  },
+  "alembic_head": "0015_governance_audit",
+  "fingerprint_note": "All authoritative reviewed/final/current identities are immutable full Git commit SHAs."
+}
