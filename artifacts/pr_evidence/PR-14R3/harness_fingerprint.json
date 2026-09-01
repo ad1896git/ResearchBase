@@ -6,8 +6,9 @@
   "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
   "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
   "pr14r3_evidence_payload_commit": "b6a231ab22df7903628963d93bcae76c5ecf0bdd",
-  "post_pr14r3_current_head": null,
-  "post_pr14r3_current_head_reporting": "resolved directly from Git in the required final status; intentionally not self-embedded",
+  "pr14r3_reviewed_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+  "post_pr14r3_current_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+  "post_pr14r3_current_head_reporting": "independently reviewed and resolved from Git",
   "pr14r2_range": "16695506f285fe015eb15948bb5b07f95f5944aa..3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
   "pr14r2_range_file_count": 13,
   "pr14r2_range_set_equal": true,
@@ -25,5 +26,5 @@
     "active_unresolved_placeholder": false
   },
   "alembic_head": "0015_governance_audit",
-  "fingerprint_note": "The payload SHA is Git-resolved. The final commit and post-PR-14R3 current HEAD are reported after commit to avoid impossible self-reference."
+  "fingerprint_note": "The payload SHA and reviewed/final PR-14R3 HEAD are distinct Git-resolved commits. Later PR-14R4 evidence commits are recorded separately."
 }

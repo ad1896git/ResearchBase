@@ -7,11 +7,11 @@ The commit containing the five previously uncommitted evidence corrections is
 `b6a231ab22df7903628963d93bcae76c5ecf0bdd`. This is the PR-14R3 evidence
 payload commit, not a historical reviewed HEAD.
 
-The commit that adds this PR-14R3 reconciliation package advances HEAD again.
-Because a commit cannot truthfully contain its own SHA, the post-PR-14R3
-current HEAD is resolved from Git after that commit and recorded in the final
-status output. This is the repository's self-reference-safe evidence model;
-no pre-commit SHA is labeled as the final/current HEAD.
+The commit that added the PR-14R3 reconciliation package, and the independently
+reviewed PR-14R3 final/current HEAD, is
+`c4b324ab5d29a71fce999c2a801e62c8a124a77d`. It is distinct from the payload
+commit and from every historical reviewed HEAD. Later PR-14R4 evidence commits
+are recorded separately.
 
 The historical PR-14R2 range was regenerated directly from Git:
 
