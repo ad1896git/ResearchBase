@@ -1,0 +1,12 @@
+{
+  "evidence_protocol": "non-self-referential-v1",
+  "reviewed_subject_head": "b1a1f16e9972618b8115488baceb293279f901f7",
+  "evidence_parent_head": "ce94d738129fee584744c1a7e1eef8fd334ea225",
+  "self_commit_sha_in_payload": false,
+  "files": {
+    "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+    "execution/phase1/PR-15_Architecture_Freeze_v1.0.md": "6992d16c00834bcfae16c8280d6d7e0bd54aa490038b230b7760ab9ef5832525",
+    "pyproject.toml": "25b492a67f124df3fb1715e1e81bf534c83e972d93e697c1fa3051bdd384f66e",
+    "uv.lock": "ec8bb1204bcf6da23573f414f8a64b7d7cab12d314a13ff4bd166f0292874137"
+  }
+}
