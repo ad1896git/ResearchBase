@@ -1,0 +1,21 @@
+Baseline: b1a1f16e9972618b8115488baceb293279f901f7
+Evidence parent: b1a1f16e9972618b8115488baceb293279f901f7
+Classification: evidence/process metadata only
+Production files: 0
+Test files: 0
+Migration files: 0
+Architecture/business files: 0
+PR-15 files: 0
+
+M	artifacts/pr_evidence/PR-14R5/changed_files.txt
+M	artifacts/pr_evidence/PR-14R5/finding_disposition.md
+M	artifacts/pr_evidence/PR-14R5/harness_fingerprint.json
+M	artifacts/pr_evidence/PR-14R5/immutable_head_reconciliation.md
+A	artifacts/pr_evidence/PR-14R7/changed_files.txt
+A	artifacts/pr_evidence/PR-14R7/commands_and_results.md
+A	artifacts/pr_evidence/PR-14R7/finding_disposition.md
+A	artifacts/pr_evidence/PR-14R7/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R7/protocol_correction.md
+A	artifacts/pr_evidence/PR-14R7/remediation_summary.md
+A	artifacts/pr_evidence/PR-14R7/reviewed_subject_reconciliation.md
+A	artifacts/pr_evidence/PR-14R7/unresolved_findings.md

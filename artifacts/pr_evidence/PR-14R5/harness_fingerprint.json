@@ -8,8 +8,7 @@
   "pr14r3_reviewed_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
   "pr14r4_reviewed_head": "724c67d4411fac7904470301cef80af18f1507a0",
   "pr14r5_evidence_payload_commit": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
-  "post_pr14r5_current_head": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
-  "post_pr14r5_current_head_semantics": "immutable current commit SHA at evidence payload capture; later R5 finalization commit is recorded separately",
+  "pr14r5_reviewed_head": "b1a1f16e9972618b8115488baceb293279f901f7",
   "pr14r5_range_base": "724c67d4411fac7904470301cef80af18f1507a0",
   "pr14r5_range_file_count": 11,
   "pr14r5_range_evidence_only": true,
@@ -26,5 +25,5 @@
     "unresolved_tokens": false
   },
   "alembic_head": "0015_governance_audit",
-  "fingerprint_note": "All authoritative reviewed/final/current identities are immutable full Git commit SHAs."
+  "fingerprint_note": "The R5 reviewed subject identity is an immutable full Git commit SHA; the earlier payload commit retains only its historical payload role."
 }
