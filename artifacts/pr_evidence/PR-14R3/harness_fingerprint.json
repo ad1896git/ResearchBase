@@ -1,0 +1,29 @@
+{
+  "pr": "PR-14R3",
+  "scope": "strictly evidence-only PR-14R2 commit remediation",
+  "pr13_final": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+  "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+  "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+  "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+  "pr14r3_evidence_payload_commit": "b6a231ab22df7903628963d93bcae76c5ecf0bdd",
+  "post_pr14r3_current_head": null,
+  "post_pr14r3_current_head_reporting": "resolved directly from Git in the required final status; intentionally not self-embedded",
+  "pr14r2_range": "16695506f285fe015eb15948bb5b07f95f5944aa..3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+  "pr14r2_range_file_count": 13,
+  "pr14r2_range_set_equal": true,
+  "pr14r3_range_base": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+  "pr14r3_range_file_count": 12,
+  "pr14r3_range_evidence_only": true,
+  "verification": {
+    "production_changes": false,
+    "test_changes": false,
+    "migration_changes": false,
+    "architecture_changes": false,
+    "pr15_implementation": false,
+    "phase2_plus_implementation": false,
+    "changed_file_set_equality": true,
+    "active_unresolved_placeholder": false
+  },
+  "alembic_head": "0015_governance_audit",
+  "fingerprint_note": "The payload SHA is Git-resolved. The final commit and post-PR-14R3 current HEAD are reported after commit to avoid impossible self-reference."
+}

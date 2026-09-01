@@ -1,0 +1,22 @@
+Baseline: 3a9cb09ca0c7a84a43c6c12e752c5e41892c3449
+Range endpoint: final Git-resolved PR-14R3 HEAD reported in required status output
+File count: 12
+Set equality: PASS
+Classification: evidence-only
+Production files: 0
+Test files: 0
+Migration files: 0
+Architecture files: 0
+
+M	artifacts/pr_evidence/PR-14/changed_files.txt
+M	artifacts/pr_evidence/PR-14/harness_fingerprint.json
+M	artifacts/pr_evidence/PR-14R2/changed_files.txt
+M	artifacts/pr_evidence/PR-14R2/commands_and_results.md
+M	artifacts/pr_evidence/PR-14R2/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R3/changed_files.txt
+A	artifacts/pr_evidence/PR-14R3/commands_and_results.md
+A	artifacts/pr_evidence/PR-14R3/final_head_reconciliation.md
+A	artifacts/pr_evidence/PR-14R3/finding_disposition.md
+A	artifacts/pr_evidence/PR-14R3/harness_fingerprint.json
+A	artifacts/pr_evidence/PR-14R3/remediation_summary.md
+A	artifacts/pr_evidence/PR-14R3/unresolved_findings.md
