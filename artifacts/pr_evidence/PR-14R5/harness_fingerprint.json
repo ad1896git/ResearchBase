@@ -11,7 +11,7 @@
   "post_pr14r5_current_head": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
   "post_pr14r5_current_head_semantics": "immutable current commit SHA at evidence payload capture; later R5 finalization commit is recorded separately",
   "pr14r5_range_base": "724c67d4411fac7904470301cef80af18f1507a0",
-  "pr14r5_range_file_count": 10,
+  "pr14r5_range_file_count": 11,
   "pr14r5_range_evidence_only": true,
   "verification": {
     "production_changes": false,

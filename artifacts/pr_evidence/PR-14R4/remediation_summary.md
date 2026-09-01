@@ -14,9 +14,8 @@ Historical roles remain unchanged:
 - PR-14R3 reviewed HEAD: `c4b324ab5d29a71fce999c2a801e62c8a124a77d`
 - PR-14R4 evidence payload commit: `94536ebbbaa6719de7d38238ee12f4192c09d526`
 
-The post-PR-14R4 current state is represented self-reference-safely by the
-live Git ref `refs/heads/codex/pr-02`; its exact resolved SHA is reported after
-the final evidence commit in the required status output.
+The post-PR-14R4 reviewed/final/current state is the immutable full commit SHA
+`724c67d4411fac7904470301cef80af18f1507a0`.
 
 Accepted substantive evidence is unchanged: downstream SQL 5/6/6/6,
 TargetResolver SQL 4/11/11, real concurrency PASS, FK/RESTRICT 8/8 PASS, and
