@@ -1,7 +1,7 @@
 {
   "evidence_protocol": "non-self-referential-v1",
-  "reviewed_subject_head": "6be2727669864da0e3a0d7b73dc2073068234d1f",
-  "evidence_parent_head": "6be2727669864da0e3a0d7b73dc2073068234d1f",
+  "reviewed_subject_head": "8fabea3817a7480db71908eedaf630982e2671d2",
+  "evidence_parent_head": "8fabea3817a7480db71908eedaf630982e2671d2",
   "self_commit_sha_in_payload": false,
   "files": {
     "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",

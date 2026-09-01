@@ -44,4 +44,5 @@ The canonical table below is asserted against live FastAPI OpenAPI plus route-fu
 Runtime families: Project, ResearchQuestion, Hypothesis, ExperimentSpec, Dataset, Artifact,
 MetricDefinition, Run, Measurement, StatisticalResult, Claim, Claim Evidence, Governance, and all
 three Query routes. Each family has success-schema and normalized-error execution; POST families
-also assert forwarded ExecutionContext.
+assert exact body/path UUID forwarding and all accepted ExecutionContext header fields. Success probes
+return actual Application dataclass DTOs, not schema-shaped dictionaries.
