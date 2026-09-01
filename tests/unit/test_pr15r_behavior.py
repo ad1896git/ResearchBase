@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# pyright: reportArgumentType=false
+# pyright: reportArgumentType=false, reportIndexIssue=false
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -19,6 +19,7 @@ from researchbase.application import dto
 from researchbase.application.governance_queries import DownstreamImpactTarget
 from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
 from researchbase.domain import governance as governance_domain
+from researchbase.domain.claim import EvidenceRelationType
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 
@@ -245,18 +246,6 @@ def _context_from_call(call: tuple[str, tuple[object, ...]]) -> ExecutionContext
     return getattr(command, context_field.name)
 
 
-def _contains(value: object, expected: object) -> bool:
-    if str(value) == str(expected):
-        return True
-    if is_dataclass(value):
-        return _contains(asdict(value), expected)
-    if isinstance(value, dict):
-        return any(_contains(item, expected) for item in value.values())
-    if isinstance(value, list | tuple):
-        return any(_contains(item, expected) for item in value)
-    return False
-
-
 def _normalize_json(value: object) -> object:
     if isinstance(value, dict):
         return {key: _normalize_json(item) for key, item in value.items()}
@@ -265,6 +254,40 @@ def _normalize_json(value: object) -> object:
     if isinstance(value, str) and value.endswith("+00:00"):
         return f"{value[:-6]}Z"
     return value
+
+
+def _assert_exact_forwarding(case: FamilyCase, args: tuple[object, ...]) -> None:
+    if case.method == "get":
+        if case.family in {"RunQuery", "ClaimQuery"}:
+            assert args == (UUID(ID),)
+        else:
+            assert args == (UUID(OTHER_ID), governance_domain.GovernanceTargetType.RUN, UUID(ID))
+        return
+    command = args[0]
+    assert is_dataclass(command)
+    values = asdict(command)
+    for name, expected in (case.body or {}).items():
+        actual = values[name]
+        if name == "inputs":
+            assert len(actual) == 1
+            assert actual[0]["measurement_id"] == UUID(expected[0]["measurement_id"])
+            assert actual[0]["input_role"] == expected[0].get("input_role", "input")
+            assert actual[0]["ordinal"] == expected[0].get("ordinal", 0)
+        elif name == "relation_type":
+            assert actual == EvidenceRelationType(expected)
+        elif name in {"severity"}:
+            assert actual.value == expected
+        elif name in {"target_type"}:
+            assert actual == governance_domain.GovernanceTargetType(expected)
+        elif isinstance(expected, str):
+            try:
+                assert actual == UUID(expected)
+            except ValueError:
+                assert actual == expected
+        else:
+            assert actual == expected
+    if case.family == "ClaimEvidence":
+        assert values["claim_version_id"] == UUID(ID)
 
 
 _RESPONSE_TYPES: dict[str, type[Any]] = {
@@ -383,9 +406,7 @@ def test_every_route_family_forwards_to_expected_service_with_normalized_error(
         assert context.client_type == "human_ui"
         assert context.client_name == "pr15r-tests"
         assert context.client_version == "1"
-        for marker in (ID, OTHER_ID):
-            if marker in str(case.body) or marker in case.path:
-                assert _contains(recorder.calls[0][1], marker)
+        _assert_exact_forwarding(case, recorder.calls[0][1])
 
 
 @pytest.mark.parametrize("case", FAMILIES, ids=lambda item: item.family)
@@ -437,15 +458,9 @@ def test_every_route_family_maps_application_output_through_finite_response_sche
         assert context.client_version == "1"
         assert context.correlation_id == correlation_id
         assert context.causation_id == causation_id
-        command_args = getattr(services, case.service).calls[0][1]
-        for marker in (ID, OTHER_ID):
-            if marker in str(case.body) or marker in case.path:
-                assert _contains(command_args, marker)
+        _assert_exact_forwarding(case, getattr(services, case.service).calls[0][1])
     else:
-        command_args = getattr(services, case.service).calls[0][1]
-        assert _contains(command_args, ID)
-        if OTHER_ID in case.path:
-            assert _contains(command_args, OTHER_ID)
+        _assert_exact_forwarding(case, getattr(services, case.service).calls[0][1])
 
 
 @pytest.mark.parametrize(
