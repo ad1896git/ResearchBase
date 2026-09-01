@@ -7,8 +7,8 @@
   "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
   "pr14r3_reviewed_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
   "pr14r4_evidence_payload_commit": "94536ebbbaa6719de7d38238ee12f4192c09d526",
-  "post_pr14r4_current_head": "refs/heads/codex/pr-02",
-  "post_pr14r4_current_head_semantics": "live Git ref resolved to an exact commit after finalization and reported in PR-14R4 STATUS",
+  "post_pr14r4_current_head": "724c67d4411fac7904470301cef80af18f1507a0",
+  "post_pr14r4_current_head_semantics": "immutable independently reviewed PR-14R4 final/current commit SHA",
   "pr14r4_range_base": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
   "pr14r4_range_file_count": 10,
   "pr14r4_range_evidence_only": true,
@@ -24,5 +24,5 @@
     "unresolved_tokens": false
   },
   "alembic_head": "0015_governance_audit",
-  "fingerprint_note": "All literal SHAs are Git-resolved. The post-R4 current state uses a non-null live ref so the final commit does not falsely self-reference a pre-finalization SHA."
+  "fingerprint_note": "All authoritative reviewed/final/current identities are immutable full Git commit SHAs."
 }

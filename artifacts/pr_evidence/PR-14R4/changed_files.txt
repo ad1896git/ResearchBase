@@ -1,5 +1,5 @@
 Baseline: c4b324ab5d29a71fce999c2a801e62c8a124a77d
-Range endpoint: refs/heads/codex/pr-02 resolved by final verification
+Range endpoint: 724c67d4411fac7904470301cef80af18f1507a0
 File count: 10
 Set equality: PASS
 Classification: evidence-only
