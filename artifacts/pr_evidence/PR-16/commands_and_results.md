@@ -1,7 +1,7 @@
 # Commands and Results
 
 - Starting HEAD: `912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1`.
-- Subject implementation/test HEAD: `3659ba3` (final formatting fix follows implementation subject `77d2152`).
+- Subject implementation/test HEAD: `fac2093` (final formatting fix follows implementation subject `77d2152`).
 - `pytest -o addopts='' -q -ra`: `360 passed, 259 skipped` without `DATABASE_URL`; skips are PostgreSQL-gated tests.
 - PR-16 targeted/unit/architecture: `20 passed`.
 - PR-16 PostgreSQL CLI integration: `3 passed`.
