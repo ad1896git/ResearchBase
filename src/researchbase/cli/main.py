@@ -1,23 +1,6 @@
-"""Minimal Typer CLI smoke application."""
+"""Executable entry point for the ResearchBase Typer CLI."""
 
-import typer
-
-from researchbase import __version__
-
-app = typer.Typer(help="ResearchBase bootstrap CLI.")
-
-
-@app.command()
-def version() -> None:
-    """Print the package version."""
-    typer.echo(__version__)
-
-
-@app.command()
-def status() -> None:
-    """Print the bootstrap CLI status."""
-    typer.echo("ok")
-
+from .app import app
 
 if __name__ == "__main__":
     app()
