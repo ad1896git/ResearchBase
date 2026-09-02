@@ -1,9 +1,9 @@
 {
   "evidence_protocol": "non-self-referential-v1",
-  "reviewed_subject_head": "77d2152bd5d2d354d4b6089b5379fe3e97af9540",
-  "evidence_parent_head": "77d2152bd5d2d354d4b6089b5379fe3e97af9540",
+  "reviewed_subject_head": "3659ba35303930e35c225632a4d383b0d3dfa257",
+  "evidence_parent_head": "3659ba35303930e35c225632a4d383b0d3dfa257",
   "self_commit_sha_in_payload": false,
-  "subject_changed_files_source": "git diff --name-only 912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1 77d2152",
+  "subject_changed_files_source": "git diff --name-only 912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1 3659ba35303930e35c225632a4d383b0d3dfa257",
   "governing_files": {
     "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
     "execution/phase1/PR-16_Architecture_Freeze_v1.0.md": "49e692136e29662ba4eb865cecd90707aa27283bbce215f718661f4d526852b3",

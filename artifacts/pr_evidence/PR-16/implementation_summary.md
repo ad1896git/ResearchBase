@@ -7,4 +7,5 @@ and serializes accepted ORM-free DTOs deterministically.
 No Domain, Application, persistence, schema, migration, HTTP, DecisionRecord, Approval, PR-17, or Phase 2+
 business implementation was added.
 
-Subject implementation/test head: `77d2152` (`feat: add PR-16 Typer CLI adapter`).
+Subject implementation/test head: `3659ba3` (`test: keep PR-16 CLI contract lint-clean`), following the
+implementation subject `77d2152`.
