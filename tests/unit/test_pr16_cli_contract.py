@@ -11,8 +11,8 @@ from uuid import uuid4
 from typer.testing import CliRunner
 
 from researchbase.application.dto import ProjectReadModel
-from researchbase.cli.app import create_app
 from researchbase.cli import context as cli_context
+from researchbase.cli.app import create_app
 from researchbase.domain.organization import LifecycleStatus
 
 
