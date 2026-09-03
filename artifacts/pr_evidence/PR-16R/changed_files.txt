@@ -1,0 +1,7 @@
+artifacts/pr_evidence/PR-16R/remediation_summary.md
+artifacts/pr_evidence/PR-16R/finding_disposition.md
+artifacts/pr_evidence/PR-16R/formatting_reconciliation.md
+artifacts/pr_evidence/PR-16R/changed_files.txt
+artifacts/pr_evidence/PR-16R/commands_and_results.md
+artifacts/pr_evidence/PR-16R/unresolved_findings.md
+artifacts/pr_evidence/PR-16R/harness_fingerprint.json

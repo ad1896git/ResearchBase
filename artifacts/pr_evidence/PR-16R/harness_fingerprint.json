@@ -1,0 +1,11 @@
+{
+  "evidence_protocol": "non-self-referential-v1",
+  "reviewed_subject_head": "390cbda614215c439766ce805947d339772dc55a",
+  "evidence_parent_head": "390cbda614215c439766ce805947d339772dc55a",
+  "evidence_scope": "evidence-only",
+  "self_commit_sha_in_payload": false,
+  "active_pr16_inventory": "artifacts/pr_evidence/PR-16/unresolved_findings.md",
+  "fresh_repository_format_result": "8 inherited files would be reformatted; 150 files already formatted",
+  "pr16_owned_format_result": "PASS; 22 files already formatted",
+  "evidence_head_resolution": "resolve directly from Git after commit"
+}
