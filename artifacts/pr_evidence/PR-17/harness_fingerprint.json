@@ -1,0 +1,15 @@
+{
+  "evidence_protocol": "non-self-referential-v1",
+  "reviewed_subject_head": "78c6024555e4ff1f1175bbe93f87a4797d1ef1ee",
+  "evidence_parent_head": "78c6024555e4ff1f1175bbe93f87a4797d1ef1ee",
+  "evidence_scope": "evidence/process",
+  "self_commit_sha_in_payload": false,
+  "subject_changed_files_source": "git diff --name-only 0eed8d85f4009a4f5265a697476423b7cdaf8ea4 78c6024555e4ff1f1175bbe93f87a4797d1ef1ee",
+  "evidence_metadata_head_resolution": "independent reviewer resolves final evidence HEAD from Git",
+  "governing_files": {
+    "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+    "execution/phase1/PR-17_Architecture_Freeze_and_Acceptance_Pack_v1.0.md": "e1928ff5383cec6808dc9da5323fa74dc4f043c07437de2d142a97743cf3e5ab",
+    "pyproject.toml": "25b492a67f124df3fb1715e1e81bf534c83e972d93e697c1fa3051bdd384f66e",
+    "uv.lock": "ec8bb1204bcf6da23573f414f8a64b7d7cab12d314a13ff4bd166f0292874137"
+  }
+}
