@@ -1,7 +1,7 @@
 # PR-17 Implementation Summary
 
 PR-17 adds the Phase 1 Golden Scientific Workflow E2E acceptance suite only. The committed subject is
-`78c6024555e4ff1f1175bbe93f87a4797d1ef1ee`.
+`745de1b0cb90e6f590fc28f2da1e0317809e3e5a`.
 
 The suite composes the accepted Application handlers directly, and independently composes the accepted
 FastAPI and Typer adapters. It exercises GSAS-01 on isolated PostgreSQL schemas migrated from an empty

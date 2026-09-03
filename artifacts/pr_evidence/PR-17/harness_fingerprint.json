@@ -1,10 +1,10 @@
 {
   "evidence_protocol": "non-self-referential-v1",
-  "reviewed_subject_head": "78c6024555e4ff1f1175bbe93f87a4797d1ef1ee",
-  "evidence_parent_head": "78c6024555e4ff1f1175bbe93f87a4797d1ef1ee",
+  "reviewed_subject_head": "745de1b0cb90e6f590fc28f2da1e0317809e3e5a",
+  "evidence_parent_head": "745de1b0cb90e6f590fc28f2da1e0317809e3e5a",
   "evidence_scope": "evidence/process",
   "self_commit_sha_in_payload": false,
-  "subject_changed_files_source": "git diff --name-only 0eed8d85f4009a4f5265a697476423b7cdaf8ea4 78c6024555e4ff1f1175bbe93f87a4797d1ef1ee",
+  "subject_changed_files_source": "git diff --name-only 0eed8d85f4009a4f5265a697476423b7cdaf8ea4 745de1b0cb90e6f590fc28f2da1e0317809e3e5a",
   "evidence_metadata_head_resolution": "independent reviewer resolves final evidence HEAD from Git",
   "governing_files": {
     "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",

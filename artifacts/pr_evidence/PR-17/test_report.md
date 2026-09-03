@@ -2,13 +2,13 @@
 
 | Check | Result |
 |---|---|
-| GSAS-01 direct Application / repeated fresh fixtures | PASS; included in 16 E2E tests |
+| GSAS-01 direct Application / repeated fresh fixtures | PASS; included in 18 E2E tests |
 | Application/FastAPI/Typer equivalence and order independence | PASS |
 | historical exactness, immutability, hash invariance | PASS |
 | positive/negative closure and governance propagation | PASS |
 | HTTP/CLI failure recovery and complete error map | PASS |
 | atomicity and fresh-UoW rollback/retry | PASS |
-| real PostgreSQL concurrency | PASS |
+| real PostgreSQL concurrency | PASS; includes Run transition and Claim evidence-link versus freeze races |
 | query purity and output SQL | PASS |
 | scaled SQL performance shape | PASS |
 | architecture boundaries | 41 passed |
