@@ -15,12 +15,15 @@ from tests.e2e.support import FIXED_NOW, fresh_fixture, run_workflow
 
 from researchbase.application.commands import (
     ApplicationService,
+    AttachRunArtifactInputCommand,
+    AttachRunDatasetInputCommand,
     CreateClaimCommand,
     CreateRunCommand,
     FreezeClaimVersionCommand,
     LinkEvidenceCommand,
     RecordStatisticalResultCommand,
     ReviseResearchQuestionCommand,
+    StartRunCommand,
     StatisticalResultInputCommand,
 )
 from researchbase.application.governance import (
@@ -36,6 +39,7 @@ from researchbase.domain.governance import (
     ImpactAssessmentConclusion,
     ImpactKind,
 )
+from researchbase.domain.run import ArtifactInputRole, DatasetInputRole
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_session_factory
@@ -263,3 +267,89 @@ def test_concurrent_freeze_and_audit_transition_have_stable_winner_loser(tmp_pat
         assert final_finding is not None
         assert final_finding.status in {AuditFindingStatus.CONFIRMED, AuditFindingStatus.DISMISSED}
         assert final_finding.row_version == finding.row_version + 1
+
+
+def test_concurrent_run_transition_has_one_winner_and_no_partial_overwrite(
+    tmp_path: Path,
+) -> None:
+    with fresh_fixture(tmp_path, "gsas-concurrent-run") as fixture:
+        ids = run_workflow(fixture, "application")
+        app = fixture.application
+        run = app.create_run(
+            CreateRunCommand(
+                ids.project_id,
+                ids.experiment_spec_version_id,
+                "transition-race",
+                fixture.context,
+            )
+        )
+        run = app.attach_run_dataset_input(
+            AttachRunDatasetInputCommand(
+                run.id,
+                ids.dataset_snapshot_id,
+                DatasetInputRole.TEST,
+                0,
+                run.row_version,
+                fixture.context,
+            )
+        )
+        run = app.attach_run_artifact_input(
+            AttachRunArtifactInputCommand(
+                run.id,
+                ids.artifact_version_id,
+                ArtifactInputRole.SOURCE_CODE,
+                0,
+                run.row_version,
+                fixture.context,
+            )
+        )
+        results = _race(
+            lambda: fixture.fresh_application().start_run(
+                StartRunCommand(run.id, run.row_version, fixture.context)
+            ),
+            lambda: fixture.fresh_application().start_run(
+                StartRunCommand(run.id, run.row_version, fixture.context)
+            ),
+        )
+        successes = [item for item in results if not isinstance(item, BaseException)]
+        failures = [item for item in results if isinstance(item, ResearchBaseError)]
+        assert len(successes) == 1
+        assert len(failures) == 1
+        assert failures[0].code is ErrorCode.CONCURRENT_MODIFICATION  # type: ignore[union-attr]
+        final_run = fixture.application.get_run(run.id)
+        assert final_run.status.value == "RUNNING"
+        assert final_run.row_version == run.row_version + 1
+
+
+def test_claim_evidence_link_and_freeze_conflict_has_valid_final_state(tmp_path: Path) -> None:
+    with fresh_fixture(tmp_path, "gsas-concurrent-evidence") as fixture:
+        ids = run_workflow(fixture, "application")
+        claim = fixture.application.create_claim(
+            CreateClaimCommand(ids.project_id, "evidence race", None, None, fixture.context)
+        )
+        version = fixture.application.get_current_claim_version(claim.id)
+        link = LinkEvidenceCommand(
+            claim.id,
+            version.id,
+            ids.measurement_ids[0],
+            None,
+            EvidenceRelationType.SUPPORTS,
+            "race",
+            version.row_version,
+            fixture.context,
+        )
+        results = _race(
+            lambda: fixture.fresh_application().link_evidence(link),
+            lambda: fixture.fresh_application().freeze_claim_version(
+                FreezeClaimVersionCommand(claim.id, version.id, fixture.context)
+            ),
+        )
+        failures = [item for item in results if isinstance(item, ResearchBaseError)]
+        assert all(
+            error.code in {ErrorCode.CONCURRENT_MODIFICATION, ErrorCode.IMMUTABLE_RECORD}
+            for error in failures
+        )
+        final_version = fixture.application.get_current_claim_version(claim.id)
+        assert final_version.status.value == "FROZEN"
+        assert len(fixture.application.list_evidence_relations(final_version.id)) in {0, 1}
+        assert fixture.provenance.get_claim_closure_report(final_version.id).complete is True
