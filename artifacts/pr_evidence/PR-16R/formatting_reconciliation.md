@@ -22,5 +22,6 @@ Exact failing set, in command output order:
 All eight files predate PR-16 ownership and remain unchanged. The explicit PR-16-owned formatting check
 passed: 22 files already formatted, with zero PR-16-owned failures.
 
-The reviewed active PR-16 file `artifacts/pr_evidence/PR-16/unresolved_findings.md` contains this exact
-eight-file inventory. No other PR-16 evidence file contains a stale seven-file inventory.
+The reviewed active PR-16 file `artifacts/pr_evidence/PR-16/unresolved_findings.md` contained a stale
+seven-file inventory at baseline; PR-16R adds `tests/integration/test_pr06_schema.py` so it now contains this
+exact eight-file inventory. No other PR-16 evidence file contains a stale seven-file inventory.

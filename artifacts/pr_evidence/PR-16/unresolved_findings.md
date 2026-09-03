@@ -15,4 +15,5 @@ ownership. They were not modified:
 - `tests/integration/test_pr05_application.py`
 - `tests/integration/test_pr05_schema.py`
 - `tests/integration/test_pr06_application.py`
+- `tests/integration/test_pr06_schema.py`
 - `tests/unit/domain/test_pr05_experiment.py`

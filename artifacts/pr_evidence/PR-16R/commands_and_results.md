@@ -6,6 +6,8 @@ Baseline and scope:
 - `git diff --name-status 390cbda614215c439766ce805947d339772dc55a..HEAD`: empty.
 - `git diff -- src tests migrations`: empty.
 - `git diff --check`: PASS.
+- Baseline active PR-16 formatting inventory: 7 files; PR-16R correction: added
+  `tests/integration/test_pr06_schema.py`.
 
 Fresh verification:
 
