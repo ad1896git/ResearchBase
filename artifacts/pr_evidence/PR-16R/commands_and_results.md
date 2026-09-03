@@ -17,5 +17,6 @@ Fresh verification:
 - `uv run pyright`: PASS; 0 errors, 0 warnings, 0 informations.
 - `alembic current` against PostgreSQL: `0015_governance_audit (head)`.
 
-Post-commit range reconciliation is resolved directly from Git; the PR-16R range is required to contain
-only the seven files listed in `changed_files.txt`.
+Post-commit range reconciliation is resolved directly from Git. The final range contains exactly the eight
+files listed in `changed_files.txt`: the corrected active PR-16 finding inventory and the seven PR-16R
+evidence files.
