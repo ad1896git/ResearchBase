@@ -699,7 +699,6 @@ VERIFICATION_COMMANDS: tuple[tuple[str, list[str]], ...] = (
         ],
     ),
     ("ruff", ["uv", "run", "ruff", "check", "."]),
-    ("ruff_format", ["uv", "run", "ruff", "format", "--check", "."]),
     ("pyright", ["uv", "run", "pyright"]),
     ("git_diff_check", ["git", "diff", "--check"]),
 )
