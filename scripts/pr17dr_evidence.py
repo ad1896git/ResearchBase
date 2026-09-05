@@ -287,9 +287,7 @@ _SUMMARY_COUNT = re.compile(
     r"(?P<count>\d+) (?P<kind>passed|failed|skipped|deselected|xfailed|xpassed)"
 )
 _COLLECTED_COUNT = re.compile(r"(?P<count>\d+) tests? collected")
-_SKIP_DETAIL = re.compile(
-    r"SKIPPED \[(?P<count>\d+)\] (?P<nodeid>[^:]+:\d+): (?P<reason>.*)"
-)
+_SKIP_DETAIL = re.compile(r"SKIPPED \[(?P<count>\d+)\] (?P<nodeid>[^:]+:\d+): (?P<reason>.*)")
 
 
 def _summary_counts(output: str) -> dict[str, int]:
@@ -323,7 +321,7 @@ def _skip_details(output: str) -> list[dict[str, Any]]:
                 else "current_remediation"
             ),
         }
-    for match in _SKIP_DETAIL.finditer(output)
+        for match in _SKIP_DETAIL.finditer(output)
     ]
 
 
