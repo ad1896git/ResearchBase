@@ -1,0 +1,17 @@
+{
+  "evidence_commit": null,
+  "evidence_protocol": "non-self-referential-v1",
+  "expected": {
+    "all_required_checks": "PASS",
+    "current_remediation_skips": 0
+  },
+  "implementation_subject_head": "9f4bdde982ef7411d1a3cb4e711812e2a8c10f2b",
+  "observed": {
+    "catalog_verdict": "PASS",
+    "current_remediation_skips": 0,
+    "implementation_verdict": "PASS"
+  },
+  "schema": "pr17dr2-readiness-v1",
+  "source": "execution-derived catalog and verification results",
+  "verdict": "PASS"
+}

@@ -1,0 +1,572 @@
+{
+  "commands": {
+    "adapter_equivalence": {
+      "collection": {
+        "collected": 17,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/e2e/test_phase1_cross_adapter_equivalence.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/e2e/test_phase1_cross_adapter_equivalence.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
+      "command_id": "adapter_equivalence",
+      "counts": {
+        "collected": 17,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 17,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "architecture": {
+      "collection": {
+        "collected": 47,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/architecture",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/architecture",
+      "command_id": "architecture",
+      "counts": {
+        "collected": 47,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 47,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "atomicity": {
+      "collection": {
+        "collected": 5,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr12_atomicity.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr12_atomicity.py",
+      "command_id": "atomicity",
+      "counts": {
+        "collected": 5,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "catalog_exact_verification": {
+      "collection": {
+        "collected": 2,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr_catalog.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_catalog.py",
+      "command_id": "catalog_exact_verification",
+      "counts": {
+        "collected": 2,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "focused_write_result": {
+      "collection": {
+        "collected": 44,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/unit/test_pr17dr2_write_result.py tests/unit/test_pr15_http.py tests/unit/test_pr16_cli_contract.py tests/unit/test_pr16_cli_errors.py tests/unit/test_pr16_cli_transport_matrix.py tests/architecture/test_pr17_agent_ready_architecture.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/unit/test_pr17dr2_write_result.py tests/unit/test_pr15_http.py tests/unit/test_pr16_cli_contract.py tests/unit/test_pr16_cli_errors.py tests/unit/test_pr16_cli_transport_matrix.py tests/architecture/test_pr17_agent_ready_architecture.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
+      "command_id": "focused_write_result",
+      "counts": {
+        "collected": 44,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 44,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "full_pytest": {
+      "collection": {
+        "collected": 722,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra",
+      "command_id": "full_pytest",
+      "counts": {
+        "collected": 722,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 720,
+        "skipped": 2,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [
+        {
+          "classification": "inherited_pr11r2",
+          "count": 1,
+          "nodeid": "tests/integration/test_pr11r2_migration.py:204",
+          "reason": "PR11R2_MIGRATION_DB_URL is not set; run migration matrix against disposable PostgreSQL"
+        },
+        {
+          "classification": "inherited_pr11r2",
+          "count": 1,
+          "nodeid": "tests/integration/test_pr11r2_migration.py:253",
+          "reason": "PR11R2_MIGRATION_DB_URL is not set; run migration matrix against disposable PostgreSQL"
+        }
+      ],
+      "verdict": "PASS"
+    },
+    "git_diff_check": {
+      "collection": null,
+      "command": "git diff --check",
+      "command_id": "git_diff_check",
+      "counts": {
+        "collected": null,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "hash_invariance": {
+      "collection": {
+        "collected": 117,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/unit/domain/test_pr05_experiment.py tests/unit/domain/test_pr06_dataset.py tests/unit/domain/test_pr08_metric.py tests/unit/domain/test_pr10_measurement.py tests/unit/domain/test_pr11_statistical_result.py tests/unit/domain/test_pr12_claim.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/unit/domain/test_pr05_experiment.py tests/unit/domain/test_pr06_dataset.py tests/unit/domain/test_pr08_metric.py tests/unit/domain/test_pr10_measurement.py tests/unit/domain/test_pr11_statistical_result.py tests/unit/domain/test_pr12_claim.py",
+      "command_id": "hash_invariance",
+      "counts": {
+        "collected": 117,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 117,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "historical_exactness": {
+      "collection": {
+        "collected": 4,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/e2e/test_phase1_historical_exactness.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/e2e/test_phase1_historical_exactness.py",
+      "command_id": "historical_exactness",
+      "counts": {
+        "collected": 4,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "migration_lifecycle": {
+      "collection": {
+        "collected": 6,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr_migration.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_migration.py",
+      "command_id": "migration_lifecycle",
+      "counts": {
+        "collected": 6,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 6,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "migration_rollback_snapshot": {
+      "collection": {
+        "collected": 1,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows",
+      "command_id": "migration_rollback_snapshot",
+      "counts": {
+        "collected": 1,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "postgresql_integration": {
+      "collection": {
+        "collected": 722,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra -m integration",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra -m integration",
+      "command_id": "postgresql_integration",
+      "counts": {
+        "collected": 722,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 720,
+        "skipped": 2,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [
+        {
+          "classification": "inherited_pr11r2",
+          "count": 1,
+          "nodeid": "tests/integration/test_pr11r2_migration.py:204",
+          "reason": "PR11R2_MIGRATION_DB_URL is not set; run migration matrix against disposable PostgreSQL"
+        },
+        {
+          "classification": "inherited_pr11r2",
+          "count": 1,
+          "nodeid": "tests/integration/test_pr11r2_migration.py:253",
+          "reason": "PR11R2_MIGRATION_DB_URL is not set; run migration matrix against disposable PostgreSQL"
+        }
+      ],
+      "verdict": "PASS"
+    },
+    "pr17dr2_concurrency": {
+      "collection": {
+        "collected": 1,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr2_concurrency.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr2_concurrency.py",
+      "command_id": "pr17dr2_concurrency",
+      "counts": {
+        "collected": 1,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "pr17dr2_direct_sql_adversarial": {
+      "collection": {
+        "collected": 22,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr2_adversarial.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr2_adversarial.py",
+      "command_id": "pr17dr2_direct_sql_adversarial",
+      "counts": {
+        "collected": 22,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 22,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "provenance": {
+      "collection": {
+        "collected": 25,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr09r2_proof.py tests/integration/test_pr13_queries.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr09r2_proof.py tests/integration/test_pr13_queries.py",
+      "command_id": "provenance",
+      "counts": {
+        "collected": 25,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 25,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "pyright": {
+      "collection": null,
+      "command": "uv run pyright",
+      "command_id": "pyright",
+      "counts": {
+        "collected": null,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "regression_db_invariants": {
+      "collection": {
+        "collected": 113,
+        "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr06_application.py tests/integration/test_pr09_application.py tests/integration/test_pr10_application.py tests/integration/test_pr11_application.py tests/integration/test_pr12_closure.py tests/integration/test_pr14_governance_integration.py tests/integration/test_pr17dr_adversarial.py",
+        "return_code": 0
+      },
+      "command": "uv run pytest -q -ra tests/integration/test_pr06_application.py tests/integration/test_pr09_application.py tests/integration/test_pr10_application.py tests/integration/test_pr11_application.py tests/integration/test_pr12_closure.py tests/integration/test_pr14_governance_integration.py tests/integration/test_pr17dr_adversarial.py",
+      "command_id": "regression_db_invariants",
+      "counts": {
+        "collected": 113,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 113,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    },
+    "ruff": {
+      "collection": null,
+      "command": "uv run ruff check .",
+      "command_id": "ruff",
+      "counts": {
+        "collected": null,
+        "deselected": 0,
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0
+      },
+      "database": {
+        "alembic_revision": "0016_pr17d_history_protection",
+        "credentials": "redacted",
+        "database": "researchbase",
+        "schema": "public",
+        "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "version_number": "18.6"
+      },
+      "executed": true,
+      "return_code": 0,
+      "skips": [],
+      "verdict": "PASS"
+    }
+  },
+  "database": {
+    "alembic_revision": "0016_pr17d_history_protection",
+    "credentials": "redacted",
+    "database": "researchbase",
+    "schema": "public",
+    "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "version_number": "18.6"
+  },
+  "evidence_commit": null,
+  "evidence_protocol": "non-self-referential-v1",
+  "implementation_subject_head": "9f4bdde982ef7411d1a3cb4e711812e2a8c10f2b",
+  "schema": "pr17dr2-implementation-verification-v1",
+  "source": "exact commands executed by scripts/pr17dr_evidence.py",
+  "verdict": "PASS"
+}

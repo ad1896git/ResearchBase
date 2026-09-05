@@ -1,0 +1,346 @@
+{
+  "evidence_commit": null,
+  "evidence_protocol": "non-self-referential-v1",
+  "implementation_subject_head": "9f4bdde982ef7411d1a3cb4e711812e2a8c10f2b",
+  "invariants": [
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr17dr2_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/e2e/test_phase1_historical_exactness.py",
+          "tests/integration/test_pr09r2_proof.py"
+        ]
+      },
+      "invariant_id": "INV-VERSION-01",
+      "observed": {
+        "command_verdicts": [
+          "PASS",
+          "PASS",
+          "PASS",
+          "PASS"
+        ],
+        "commands": [
+          "pr17dr2_direct_sql_adversarial",
+          "regression_db_invariants",
+          "historical_exactness",
+          "provenance"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr17dr2_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/e2e/test_phase1_historical_exactness.py",
+          "tests/integration/test_pr09r2_proof.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr17dr2_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr09_application.py",
+          "tests/integration/test_pr10_application.py"
+        ]
+      },
+      "invariant_id": "INV-RUN-01",
+      "observed": {
+        "command_verdicts": [
+          "PASS",
+          "PASS"
+        ],
+        "commands": [
+          "pr17dr2_direct_sql_adversarial",
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr17dr2_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr09_application.py",
+          "tests/integration/test_pr10_application.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr17dr2_concurrency.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/e2e/test_phase1_concurrency_acceptance.py"
+        ]
+      },
+      "invariant_id": "INV-RUNINPUT-01",
+      "observed": {
+        "command_verdicts": [
+          "PASS",
+          "PASS"
+        ],
+        "commands": [
+          "pr17dr2_concurrency",
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr17dr2_concurrency.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/e2e/test_phase1_concurrency_acceptance.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr17dr2_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr12_closure.py"
+        ]
+      },
+      "invariant_id": "INV-EVIDENCE-01",
+      "observed": {
+        "command_verdicts": [
+          "PASS",
+          "PASS"
+        ],
+        "commands": [
+          "pr17dr2_direct_sql_adversarial",
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr17dr2_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr12_closure.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr06_application.py"
+        ]
+      },
+      "invariant_id": "INV-IMMUTABLE-01",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr06_application.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr10_application.py"
+        ]
+      },
+      "invariant_id": "INV-IMMUTABLE-02",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr10_application.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr11_application.py"
+        ]
+      },
+      "invariant_id": "INV-IMMUTABLE-03",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr11_application.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr11_application.py"
+        ]
+      },
+      "invariant_id": "INV-IMMUTABLE-04",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr11_application.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "invariant_id": "INV-GOV-01",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr17dr_adversarial.py",
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "invariant_id": "INV-GOV-02",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "invariant_id": "INV-GOV-03",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "verdict": "PASS"
+    },
+    {
+      "expected": {
+        "db_enforced": true,
+        "test_paths": [
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "invariant_id": "INV-GOV-04",
+      "observed": {
+        "command_verdicts": [
+          "PASS"
+        ],
+        "commands": [
+          "regression_db_invariants"
+        ],
+        "db_enforced": true
+      },
+      "source": {
+        "catalog": "U07 live PostgreSQL catalog",
+        "tests": [
+          "tests/integration/test_pr14_governance_integration.py"
+        ]
+      },
+      "verdict": "PASS"
+    }
+  ],
+  "schema": "pr17dr-invariant-to-test-projection-v1",
+  "source": "executed implementation verification commands",
+  "verdict": "PASS"
+}
