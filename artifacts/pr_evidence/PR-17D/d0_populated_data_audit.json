@@ -1,0 +1,879 @@
+{
+  "protocol_version": "pr17d-d0-v1.5",
+  "evidence_protocol": "non-self-referential-v1",
+  "timestamp": "2026-09-05T08:40:08.797385Z",
+  "design_version": "v1.6",
+  "subject_baseline": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+  "reviewed_subject_head": "4d536f4818c760d5f5dacd3ec88bb3042af72a28",
+  "evidence_parent_head": "4d536f4818c760d5f5dacd3ec88bb3042af72a28",
+  "database_connection_source": {
+    "classification": "canonical_database_url_fallback",
+    "resolution": "DATABASE_URL absent; canonical existing default selected",
+    "credential_bearing_url_persisted": false
+  },
+  "candidate_designation": {
+    "expected_host": "localhost",
+    "expected_port": 5432,
+    "expected_database": "researchbase",
+    "designation_complete": true,
+    "missing_variables": []
+  },
+  "database_identity": {
+    "expected": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "researchbase"
+    },
+    "actual": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "researchbase"
+    },
+    "expected_actual_match": true,
+    "normalized_identity_fields": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "researchbase",
+      "schema": "public",
+      "postgres_major": 18,
+      "alembic_revision": "0015_governance_audit"
+    },
+    "identity_fingerprint": "sha256:a34097ca4f2c90c67fdefa2004df0909a59c0d8702fa9505c7b9c90d066bbd32",
+    "fingerprint_input": "host=localhost\nport=5432\ndatabase=researchbase\nschema=public\npostgres_major=18\nalembic_revision=0015_governance_audit\n",
+    "credentials_persisted": false
+  },
+  "database_server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+  "postgresql_major": 18,
+  "schema": "public",
+  "search_path": "\"$user\", public",
+  "alembic_revision": "0015_governance_audit",
+  "read_only_execution": {
+    "executed": true,
+    "transaction_isolation": "repeatable read",
+    "transaction_read_only": true
+  },
+  "audited_fields": [
+    {
+      "field_number": 1,
+      "table": "actors",
+      "column": "actor_type",
+      "semantic_classification": "identity vocabulary",
+      "authoritative_source": "ActorType",
+      "expected_policy": {
+        "allowed_values": [
+          "human",
+          "agent",
+          "service"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "agent",
+        "human",
+        "service"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 2,
+      "table": "projects",
+      "column": "lifecycle_status",
+      "semantic_classification": "lifecycle vocabulary",
+      "authoritative_source": "LifecycleStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "active",
+          "archived",
+          "retired"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "active"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 3,
+      "table": "workspaces",
+      "column": "lifecycle_status",
+      "semantic_classification": "lifecycle vocabulary",
+      "authoritative_source": "LifecycleStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "active",
+          "archived",
+          "retired"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "active"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 4,
+      "table": "datasets",
+      "column": "lifecycle_status",
+      "semantic_classification": "lifecycle vocabulary",
+      "authoritative_source": "LifecycleStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "active",
+          "archived",
+          "retired"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "active"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 5,
+      "table": "research_question_versions",
+      "column": "status",
+      "semantic_classification": "canonical version status",
+      "authoritative_source": "VersionStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "DRAFT",
+          "FROZEN",
+          "SUPERSEDED",
+          "ABANDONED"
+        ],
+        "case": "UPPER_SNAKE_CASE",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "DRAFT",
+        "SUPERSEDED"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 6,
+      "table": "hypothesis_versions",
+      "column": "status",
+      "semantic_classification": "canonical version status",
+      "authoritative_source": "VersionStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "DRAFT",
+          "FROZEN",
+          "SUPERSEDED",
+          "ABANDONED"
+        ],
+        "case": "UPPER_SNAKE_CASE",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "DRAFT",
+        "SUPERSEDED"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 7,
+      "table": "experiment_spec_versions",
+      "column": "status",
+      "semantic_classification": "canonical version status",
+      "authoritative_source": "VersionStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "DRAFT",
+          "FROZEN",
+          "SUPERSEDED",
+          "ABANDONED"
+        ],
+        "case": "UPPER_SNAKE_CASE",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "ABANDONED",
+        "DRAFT",
+        "FROZEN",
+        "SUPERSEDED"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 8,
+      "table": "artifact_versions",
+      "column": "status",
+      "semantic_classification": "canonical version status",
+      "authoritative_source": "VersionStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "DRAFT",
+          "FROZEN",
+          "SUPERSEDED",
+          "ABANDONED"
+        ],
+        "case": "UPPER_SNAKE_CASE",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "ABANDONED",
+        "DRAFT",
+        "FROZEN",
+        "SUPERSEDED"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 9,
+      "table": "metric_definition_versions",
+      "column": "status",
+      "semantic_classification": "canonical version status",
+      "authoritative_source": "VersionStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "DRAFT",
+          "FROZEN",
+          "SUPERSEDED",
+          "ABANDONED"
+        ],
+        "case": "UPPER_SNAKE_CASE",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "ABANDONED",
+        "DRAFT",
+        "FROZEN",
+        "SUPERSEDED"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 10,
+      "table": "claim_versions",
+      "column": "status",
+      "semantic_classification": "canonical version status",
+      "authoritative_source": "VersionStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "DRAFT",
+          "FROZEN",
+          "SUPERSEDED",
+          "ABANDONED"
+        ],
+        "case": "UPPER_SNAKE_CASE",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "ABANDONED",
+        "DRAFT",
+        "FROZEN",
+        "SUPERSEDED"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 11,
+      "table": "runs",
+      "column": "status",
+      "semantic_classification": "Run lifecycle",
+      "authoritative_source": "RunStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "PLANNED",
+          "RUNNING",
+          "SUCCEEDED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "case": "UPPER_SNAKE_CASE",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "CANCELLED",
+        "FAILED",
+        "PLANNED",
+        "RUNNING",
+        "SUCCEEDED"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 12,
+      "table": "runs",
+      "column": "run_type",
+      "semantic_classification": "open vocabulary",
+      "authoritative_source": "Design v1.6 open-vocabulary rule",
+      "expected_policy": {
+        "rule": "non-blank, max 32 characters",
+        "case": "preserve exact string/case",
+        "normalization": "none",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "experiment"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 13,
+      "table": "artifacts",
+      "column": "artifact_type",
+      "semantic_classification": "open vocabulary",
+      "authoritative_source": "Design v1.6 open-vocabulary rule",
+      "expected_policy": {
+        "rule": "non-blank, max 32 characters",
+        "case": "preserve exact string/case",
+        "normalization": "none",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "code",
+        "text/plain"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 14,
+      "table": "run_dataset_inputs",
+      "column": "role",
+      "semantic_classification": "input role",
+      "authoritative_source": "RunDatasetInputRole",
+      "expected_policy": {
+        "allowed_values": [
+          "train",
+          "validation",
+          "test",
+          "calibration",
+          "auxiliary",
+          "other"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "auxiliary",
+        "calibration",
+        "other",
+        "test",
+        "validation"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 15,
+      "table": "run_artifact_inputs",
+      "column": "role",
+      "semantic_classification": "input role",
+      "authoritative_source": "RunArtifactInputRole",
+      "expected_policy": {
+        "allowed_values": [
+          "source_code",
+          "model",
+          "checkpoint",
+          "configuration",
+          "environment_manifest",
+          "script",
+          "dependency_lock",
+          "other"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "checkpoint",
+        "configuration",
+        "model",
+        "script",
+        "source_code"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 16,
+      "table": "statistical_results",
+      "column": "analysis_type",
+      "semantic_classification": "open vocabulary",
+      "authoritative_source": "Design v1.6 open-vocabulary rule",
+      "expected_policy": {
+        "rule": "non-blank, max 64 characters",
+        "case": "preserve exact string/case",
+        "normalization": "none",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "aggregate",
+        "mean",
+        "missing-cache",
+        "missing-result",
+        "result-0",
+        "result-1",
+        "result-2",
+        "scale",
+        "small",
+        "t_test",
+        "two"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 17,
+      "table": "statistical_result_inputs",
+      "column": "input_role",
+      "semantic_classification": "open vocabulary",
+      "authoritative_source": "Design v1.6 open-vocabulary rule",
+      "expected_policy": {
+        "rule": "non-blank, max 32 characters; default input",
+        "case": "preserve exact string/case",
+        "normalization": "none",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "a",
+        "b",
+        "input",
+        "input-0",
+        "input-1",
+        "input-10",
+        "input-11",
+        "input-12",
+        "input-13",
+        "input-14",
+        "input-15",
+        "input-16",
+        "input-17",
+        "input-18",
+        "input-19",
+        "input-2",
+        "input-20",
+        "input-21",
+        "input-22",
+        "input-3",
+        "input-4",
+        "input-5",
+        "input-6",
+        "input-7",
+        "input-8",
+        "input-9",
+        "primary",
+        "role-0",
+        "role-1",
+        "role-2",
+        "secondary",
+        "tertiary"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 18,
+      "table": "evidence_relations",
+      "column": "relation_type",
+      "semantic_classification": "evidence relation",
+      "authoritative_source": "EvidenceRelationType",
+      "expected_policy": {
+        "allowed_values": [
+          "supports",
+          "contradicts",
+          "qualifies",
+          "context"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "context",
+        "contradicts",
+        "qualifies",
+        "supports"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 19,
+      "table": "audit_findings",
+      "column": "finding_type",
+      "semantic_classification": "open vocabulary",
+      "authoritative_source": "Design v1.6 open-vocabulary rule",
+      "expected_policy": {
+        "rule": "non-blank, max 64 characters",
+        "case": "preserve exact string/case",
+        "normalization": "none",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "adapter_test",
+        "atomic",
+        "atomic-parent",
+        "audit",
+        "batch",
+        "batch-evidence",
+        "cli-test",
+        "code_bug",
+        "code_bug-evidence",
+        "concurrency",
+        "dataset_issue",
+        "fk",
+        "one-target-evidence",
+        "one-target-evidence-2",
+        "parity"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 20,
+      "table": "audit_findings",
+      "column": "severity",
+      "semantic_classification": "governance severity",
+      "authoritative_source": "AuditFindingSeverity",
+      "expected_policy": {
+        "allowed_values": [
+          "info",
+          "minor",
+          "major",
+          "critical"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "critical",
+        "info",
+        "major",
+        "minor"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 21,
+      "table": "audit_findings",
+      "column": "target_type",
+      "semantic_classification": "governance discriminator",
+      "authoritative_source": "GovernanceTargetType",
+      "expected_policy": {
+        "allowed_values": [
+          "experiment_spec_version",
+          "dataset_snapshot",
+          "artifact_version",
+          "run",
+          "metric_definition_version",
+          "measurement",
+          "statistical_result",
+          "claim_version"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "artifact_version",
+        "dataset_snapshot",
+        "run"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 22,
+      "table": "audit_findings",
+      "column": "status",
+      "semantic_classification": "governance lifecycle",
+      "authoritative_source": "AuditFindingStatus",
+      "expected_policy": {
+        "allowed_values": [
+          "open",
+          "confirmed",
+          "dismissed",
+          "resolved"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "confirmed",
+        "dismissed",
+        "open"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 23,
+      "table": "impact_assessments",
+      "column": "conclusion",
+      "semantic_classification": "impact conclusion",
+      "authoritative_source": "ImpactConclusion",
+      "expected_policy": {
+        "allowed_values": [
+          "no_impact",
+          "stale",
+          "invalid",
+          "requires_review",
+          "unknown"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "invalid",
+        "requires_review",
+        "stale",
+        "unknown"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 24,
+      "table": "impact_targets",
+      "column": "target_type",
+      "semantic_classification": "governance discriminator",
+      "authoritative_source": "GovernanceTargetType",
+      "expected_policy": {
+        "allowed_values": [
+          "experiment_spec_version",
+          "dataset_snapshot",
+          "artifact_version",
+          "run",
+          "metric_definition_version",
+          "measurement",
+          "statistical_result",
+          "claim_version"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "claim_version",
+        "run"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 25,
+      "table": "impact_targets",
+      "column": "impact_kind",
+      "semantic_classification": "impact relation",
+      "authoritative_source": "ImpactKind",
+      "expected_policy": {
+        "allowed_values": [
+          "direct",
+          "downstream",
+          "stale",
+          "invalid",
+          "requires_review"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "downstream",
+        "invalid",
+        "requires_review",
+        "stale"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 26,
+      "table": "correction_records",
+      "column": "target_type",
+      "semantic_classification": "governance discriminator",
+      "authoritative_source": "GovernanceTargetType",
+      "expected_policy": {
+        "allowed_values": [
+          "experiment_spec_version",
+          "dataset_snapshot",
+          "artifact_version",
+          "run",
+          "metric_definition_version",
+          "measurement",
+          "statistical_result",
+          "claim_version"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "artifact_version",
+        "claim_version",
+        "run"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    },
+    {
+      "field_number": 27,
+      "table": "correction_records",
+      "column": "correction_type",
+      "semantic_classification": "correction vocabulary",
+      "authoritative_source": "CorrectionType",
+      "expected_policy": {
+        "allowed_values": [
+          "factual",
+          "metadata",
+          "computational",
+          "attribution",
+          "other"
+        ],
+        "case": "lower-case",
+        "normalization": "preserve",
+        "migration": "none",
+        "unexpected_value": "BLOCKED"
+      },
+      "hash_relevance": "not applicable",
+      "evidence_comparison_rule": "exact persisted value",
+      "observed_distinct_values": [
+        "computational",
+        "factual",
+        "metadata",
+        "other"
+      ],
+      "field_decision": "PASS",
+      "reason": "All observed values conform to the frozen policy."
+    }
+  ],
+  "overall_decision": "PASS",
+  "decision_reasons": [],
+  "safe_migration_currently_reachable": false,
+  "post_audit_integrity": {
+    "alembic_revision_checked_after_audit": true,
+    "pr17d_functions_created": 0,
+    "pr17d_triggers_created": 0,
+    "pr17d_constraints_created": 0,
+    "database_mutation_verified": true,
+    "existing_pr17d_functions_observed": 0,
+    "existing_pr17d_triggers_observed": 0,
+    "existing_pr17d_constraints_observed": 0,
+    "verification": "read-only transaction rolled back; no DDL/DML issued"
+  },
+  "credential_redaction": {
+    "password_present": false,
+    "token_present": false,
+    "authorization_header_present": false,
+    "credential_bearing_database_url_present": false,
+    "secret_environment_value_present": false
+  }
+}

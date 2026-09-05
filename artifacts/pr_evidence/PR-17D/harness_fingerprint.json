@@ -1,0 +1,5 @@
+{
+  "protocol": "non-self-referential-v1",
+  "reviewed_subject_head": "2e96361",
+  "credential_leakage": false
+}
