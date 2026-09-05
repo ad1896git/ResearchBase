@@ -1,0 +1,12 @@
+{
+  "evidence_protocol": "non-self-referential-v1",
+  "pr17_base": "03ccba54b8c983815f74d08a2390e0dfa45f8551",
+  "reviewed_subject_head": "2d8e2abe31d0410717412c182d3cf7bd0811cced",
+  "evidence_parent_head": "2d8e2abe31d0410717412c182d3cf7bd0811cced",
+  "self_commit_sha_in_payload": false,
+  "alembic_head": "0015_governance_audit",
+  "postgresql_version": "18.6",
+  "subject_source_test_changes_after_head": false,
+  "phase2_authorized": false,
+  "pr18_authorized": false
+}

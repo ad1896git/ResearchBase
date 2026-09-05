@@ -15,3 +15,8 @@ The projection asserts:
 
 The normalized projection retains status values, hashes, support-set hash, content hash, evidence relation
 semantics, closure counts, trace topology, impact paths, and validity state.
+
+PR-17R corrected the underlying observation path. Research statuses, Run input IDs, Measurement and
+StatisticalResult inputs, evidence relations, trace paths, closure, and governance values are read from returned
+DTO/JSON or fresh accepted queries; expected values remain separate assertions. The projection-integrity test
+changes when an observed status, exact input ID, or trace path changes.

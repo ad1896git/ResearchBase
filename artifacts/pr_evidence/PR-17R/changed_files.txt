@@ -1,0 +1,68 @@
+# PR-17R changed-file classification
+
+Reviewed baseline:
+
+```text
+03ccba54b8c983815f74d08a2390e0dfa45f8551
+```
+
+Subject range (`03ccba54..PR17R_SUBJECT`):
+
+```text
+A\ttests/architecture/test_pr17_agent_ready_architecture.py
+M\ttests/e2e/support.py
+M\ttests/e2e/test_phase1_concurrency_acceptance.py
+M\ttests/e2e/test_phase1_cross_adapter_equivalence.py
+M\ttests/e2e/test_phase1_golden_scientific_workflow.py
+M\ttests/e2e/test_phase1_historical_exactness.py
+```
+
+Evidence range (`PR17R_SUBJECT..final evidence HEAD`):
+
+```text
+M\tartifacts/pr_evidence/PR-17/baseline_regression_report.md
+M\tartifacts/pr_evidence/PR-17/closure_report.md
+M\tartifacts/pr_evidence/PR-17/concurrency_report.md
+M\tartifacts/pr_evidence/PR-17/cross_adapter_equivalence_report.md
+M\tartifacts/pr_evidence/PR-17/golden_projection_report.md
+M\tartifacts/pr_evidence/PR-17/historical_exactness_report.md
+M\tartifacts/pr_evidence/PR-17/immutability_hash_report.md
+M\tartifacts/pr_evidence/PR-17/test_report.md
+M\tartifacts/pr_evidence/PR-17/unresolved_findings.md
+M\tartifacts/pr_evidence/PR-17/commands_and_results.md
+M\tartifacts/pr_evidence/PR-17/harness_fingerprint.json
+A\tartifacts/pr_evidence/PR-17/agent_ready_architecture_report.md
+A\tartifacts/pr_evidence/PR-17/phase1_exit_summary.md
+A\tartifacts/pr_evidence/PR-17R/agent_ready_architecture_report.md
+A\tartifacts/pr_evidence/PR-17R/atomicity_report.md
+A\tartifacts/pr_evidence/PR-17R/baseline_regression_report.md
+A\tartifacts/pr_evidence/PR-17R/broken_descendant_closure_report.md
+A\tartifacts/pr_evidence/PR-17R/changed_files.txt
+A\tartifacts/pr_evidence/PR-17R/claim_concurrency_report.md
+A\tartifacts/pr_evidence/PR-17R/clean_install_report.md
+A\tartifacts/pr_evidence/PR-17R/commands_and_results.md
+A\tartifacts/pr_evidence/PR-17R/cross_adapter_equivalence_report.md
+A\tartifacts/pr_evidence/PR-17R/finding_disposition.md
+A\tartifacts/pr_evidence/PR-17R/harness_fingerprint.json
+A\tartifacts/pr_evidence/PR-17R/historical_exactness_report.md
+A\tartifacts/pr_evidence/PR-17R/http_cli_regression_report.md
+A\tartifacts/pr_evidence/PR-17R/immutability_report.md
+A\tartifacts/pr_evidence/PR-17R/phase1_exit_summary.md
+A\tartifacts/pr_evidence/PR-17R/projection_integrity_report.md
+A\tartifacts/pr_evidence/PR-17R/remediation_summary.md
+A\tartifacts/pr_evidence/PR-17R/repeated_run_report.md
+A\tartifacts/pr_evidence/PR-17R/test_report.md
+A\tartifacts/pr_evidence/PR-17R/unresolved_findings.md
+```
+
+Full range (`03ccba54..final evidence HEAD`) is the exact concatenation of the subject and evidence sets above;
+there are 39 paths: 6 subject paths and 33 evidence paths. The final evidence commit SHA is resolved by Git after
+the evidence commit and is intentionally omitted from the payload under `non-self-referential-v1`.
+
+Validation commands:
+
+```bash
+git diff --name-status 03ccba54b8c983815f74d08a2390e0dfa45f8551 2d8e2abe31d0410717412c182d3cf7bd0811cced
+git diff --name-status 2d8e2abe31d0410717412c182d3cf7bd0811cced HEAD
+git diff --name-status 03ccba54b8c983815f74d08a2390e0dfa45f8551 HEAD
+```

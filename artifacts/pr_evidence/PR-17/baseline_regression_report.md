@@ -1,9 +1,12 @@
 # Baseline Regression Report
 
-The explicit PostgreSQL PR-09 through PR-16 bundle passed:
+This active report is corrected by PR-17R. The prior PR-17 replay record was incomplete and its count is
+superseded by the exact reproducible bundle recorded in
+`artifacts/pr_evidence/PR-17R/baseline_regression_report.md`.
 
-`124 passed in 18.20s`
+The explicit PostgreSQL PR-09 through PR-16 baseline bundle was replayed with 156 selected tests:
 
-The full repository pytest run reached 100% with no failures. Two opt-in PR11R2 migration-matrix tests were
-skipped because `PR11R2_MIGRATION_DB_URL` was not set; all required current-head PostgreSQL integration tests
-ran. The separate PR-17 E2E suite passed `18 passed in 23.73s`.
+`154 passed, 2 skipped, 0 failed`
+
+The two skips are the opt-in PR11R2 migration-matrix tests because `PR11R2_MIGRATION_DB_URL` was not set.
+The PR-17R E2E and architecture selection passed `66 passed` on PostgreSQL 18.6.

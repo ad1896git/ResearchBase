@@ -11,3 +11,8 @@ StatisticalResult, frozen ClaimVersion, EvidenceRelation set, closure, trace, an
 Original IDs, material fields, hashes, evidence relations, Run row version, and original normalized projection
 remain unchanged. Original provenance retains its exact frozen input references; the later Run is not substituted
 by a latest/current shortcut.
+
+PR-17R strengthens this historical record with exact fresh-read comparisons for the original ExperimentSpecVersion,
+DatasetSnapshot, ArtifactVersion, MetricDefinitionVersion, Measurement IDs, StatisticalResult input roles and
+ordinals, ClaimVersion EvidenceRelation set, and all required material hashes. Later legal versions and observations
+are created before the original provenance, trace, closure, and impact are re-read.

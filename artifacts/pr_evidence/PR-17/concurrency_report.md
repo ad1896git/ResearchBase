@@ -1,5 +1,8 @@
 # Concurrency Report
 
+This report retains the historical PR-17 summary. The corrected PR-17R proof is recorded in
+`artifacts/pr_evidence/PR-17R/claim_concurrency_report.md`.
+
 Real independent PostgreSQL UoWs/connections are used through the shared session factory.
 
 The acceptance covers concurrent version revise, concurrent freeze, concurrent Run transition, Claim
@@ -8,5 +11,6 @@ winner and one handled ResearchBase loser (`CONCURRENT_MODIFICATION` or the froz
 contract requires it). Historical version count, final frozen state, final Run state, and final finding row
 version prove no partial overwrite.
 
-Claim evidence/freeze locking and duplicate-link race semantics remain covered by the accepted PR-12 concurrency
-regression, which passed in the explicit baseline bundle.
+PR-17R now proves the Claim evidence-link versus freeze interleaving with independent backend PIDs, explicit
+lock-boundary events, an accepted freeze winner, a stable `CONCURRENT_MODIFICATION` loser, and an unchanged final
+evidence set. The representative revise, freeze, Run transition, and AuditFinding row-version races also pass.

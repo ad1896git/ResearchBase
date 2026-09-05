@@ -1,23 +1,8 @@
 # Test Report
 
-| Check | Result |
-|---|---|
-| GSAS-01 direct Application / repeated fresh fixtures | PASS; included in 18 E2E tests |
-| Application/FastAPI/Typer equivalence and order independence | PASS |
-| historical exactness, immutability, hash invariance | PASS |
-| positive/negative closure and governance propagation | PASS |
-| HTTP/CLI failure recovery and complete error map | PASS |
-| atomicity and fresh-UoW rollback/retry | PASS |
-| real PostgreSQL concurrency | PASS; includes Run transition and Claim evidence-link versus freeze races |
-| query purity and output SQL | PASS |
-| scaled SQL performance shape | PASS |
-| architecture boundaries | 41 passed |
-| PR-09..16 baseline bundle | 124 passed |
-| full pytest | 100% reached; no failures; 2 opt-in skips |
-| Ruff | PASS |
-| Pyright | PASS |
-| owned formatting | PASS |
-| Alembic | `0015_governance_audit (head)` |
+The original PR-17 test table is superseded by the corrected PR-17R report at
+`artifacts/pr_evidence/PR-17R/test_report.md`. This active report is retained as the PR-17 evidence pointer so
+the old acceptance record cannot be mistaken for the final remediation result.
 
 All canonical acceptance database runs use PostgreSQL through the repository's synchronous SQLAlchemy UoW
 composition. SQLite is not used.

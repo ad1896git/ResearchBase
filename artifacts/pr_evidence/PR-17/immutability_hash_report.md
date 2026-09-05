@@ -9,3 +9,8 @@ identical before and after later scientific advancement. Original ArtifactVersio
 ExperimentSpec/ResearchQuestion historical IDs and content hashes remain present in history; only the legal
 historical status transition to `SUPERSEDED` occurs where the domain requires it. No scientific row is updated by
 CorrectionRecord creation.
+
+PR-17R captures full material snapshots before and after later state for Run, Measurement, StatisticalResult,
+ClaimVersion, EvidenceRelation, DatasetSnapshot, ArtifactVersion, MetricDefinitionVersion, and
+ExperimentSpecVersion. The corrected test compares those rows through fresh reads and separately asserts exact
+Measurement/StatisticalResult/Claim hashes and original reference IDs.

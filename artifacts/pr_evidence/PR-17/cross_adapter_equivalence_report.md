@@ -11,3 +11,7 @@ surface. HTTP payloads remain the accepted HTTP payloads. Neither adapter calls 
 
 The comparison retains scientific statuses, hashes, exact references, evidence relation type/qualification/
 ordinal, closure, trace topology, deduplicated Runs, and governance outcome.
+
+PR-17R corrected the projection helper to consume observed Application DTOs, HTTP JSON, CLI JSON, and fresh
+accepted reads. The independent order replay uses two fresh fixtures and both adapter orders; it also asserts
+Application == HTTP == CLI after real observation rather than comparing a no-op normalized structure.
