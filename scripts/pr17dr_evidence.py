@@ -287,7 +287,9 @@ _SUMMARY_COUNT = re.compile(
     r"(?P<count>\d+) (?P<kind>passed|failed|skipped|deselected|xfailed|xpassed)"
 )
 _COLLECTED_COUNT = re.compile(r"(?P<count>\d+) tests? collected")
-_SKIP_DETAIL = re.compile(r"SKIPPED \[[^\]]+\] (?P<nodeid>[^:]+:\d+): (?P<reason>.*)")
+_SKIP_DETAIL = re.compile(
+    r"SKIPPED \[(?P<count>\d+)\] (?P<nodeid>[^:]+:\d+): (?P<reason>.*)"
+)
 
 
 def _summary_counts(output: str) -> dict[str, int]:
@@ -308,9 +310,10 @@ def _collected_count(output: str) -> int | None:
     return int(matches[-1].group("count")) if matches else None
 
 
-def _skip_details(output: str) -> list[dict[str, str]]:
+def _skip_details(output: str) -> list[dict[str, Any]]:
     return [
         {
+            "count": int(match.group("count")),
             "nodeid": match.group("nodeid"),
             "reason": match.group("reason"),
             "classification": (
@@ -320,8 +323,38 @@ def _skip_details(output: str) -> list[dict[str, str]]:
                 else "current_remediation"
             ),
         }
-        for match in _SKIP_DETAIL.finditer(output)
+    for match in _SKIP_DETAIL.finditer(output)
     ]
+
+
+def _reconcile_success_counts(
+    counts: dict[str, int], output: str, collected: int | None, return_code: int
+) -> dict[str, int]:
+    """Fill exact outcome totals when pytest omits its terminal summary.
+
+    The repository's quiet pytest output can contain only progress and skip
+    reports.  In that form, a successful execution plus its independent
+    collection result and skip report provides the exact remaining passed
+    count.  Explicit pytest summary counts always remain authoritative.
+    """
+    if return_code != 0 or collected is None:
+        return counts
+    if _SUMMARY_COUNT.search(output):
+        return counts
+
+    skipped = sum(detail["count"] for detail in _skip_details(output))
+    reconciled = dict(counts)
+    reconciled["skipped"] = skipped
+    reconciled["passed"] = max(
+        0,
+        collected
+        - skipped
+        - reconciled["failed"]
+        - reconciled["deselected"]
+        - reconciled["xfailed"]
+        - reconciled["xpassed"],
+    )
+    return reconciled
 
 
 def _run_verification(
@@ -357,7 +390,10 @@ def _run_verification(
             "return_code": collected.returncode,
             "collected": _collected_count(collected.stdout + collected.stderr),
         }
-    skip_details = _skip_details(completed.stdout + completed.stderr)
+    output = completed.stdout + completed.stderr
+    collected_count = collection["collected"] if collection is not None else None
+    counts = _reconcile_success_counts(counts, output, collected_count, completed.returncode)
+    skip_details = _skip_details(output)
     if completed.returncode != 0:
         verdict = "FAIL"
     elif collection is not None and (

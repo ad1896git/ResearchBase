@@ -31,11 +31,31 @@ def test_inherited_skip_is_distinguished_from_current_remediation_skip() -> None
 
     assert details == [
         {
+            "count": 1,
             "nodeid": "tests/integration/test_pr11r2_migration.py:204",
             "reason": "PR11R2_MIGRATION_DB_URL is not set",
             "classification": "inherited_pr11r2",
         }
     ]
+
+
+def test_quiet_success_counts_are_reconciled_from_collection_and_skip_report() -> None:
+    result = pr17dr_evidence._reconcile_success_counts(
+        {
+            "passed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "deselected": 0,
+            "xfailed": 0,
+            "xpassed": 0,
+        },
+        "SKIPPED [2] tests/integration/test_pr11r2_migration.py:204: opt-in\n",
+        10,
+        0,
+    )
+
+    assert result["passed"] == 8
+    assert result["skipped"] == 2
 
 
 def test_projection_separates_expected_observed_and_verdict() -> None:
