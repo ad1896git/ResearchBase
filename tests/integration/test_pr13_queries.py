@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
+from tests.application_compat import LegacyApplicationService as ApplicationService
 from tests.integration.pr12_support import postgres_resources
 from tests.integration.test_pr09_application import (
     frozen_artifact,
@@ -20,7 +21,6 @@ from researchbase.application.closure import (
     ProvenanceClosureValidator,
 )
 from researchbase.application.commands import (
-    ApplicationService,
     AttachRunArtifactInputCommand,
     AttachRunDatasetInputCommand,
     CreateArtifactVersionCommand,

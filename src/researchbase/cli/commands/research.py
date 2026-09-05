@@ -19,9 +19,11 @@ from researchbase.application.commands import (
     ReviseExperimentSpecCommand,
     ReviseHypothesisCommand,
     ReviseResearchQuestionCommand,
+    WriteProjectionTarget,
 )
 
 from ..common import (
+    application_write,
     invoke,
     merged_payload,
     option_int,
@@ -62,12 +64,16 @@ def project_create(
             name=name,
             description=description,
         )
-        return runtime.services.application.create_project(
-            CreateProjectCommand(
-                text_value(values, "name", runtime.request_id),
-                optional_text(values, "description", runtime.request_id),
-                execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.PROJECT,
+            lambda: runtime.services.application.create_project(
+                CreateProjectCommand(
+                    text_value(values, "name", runtime.request_id),
+                    optional_text(values, "description", runtime.request_id),
+                    execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -95,14 +101,18 @@ def rq_create(
             scope=option_json(scope, "--scope", runtime.request_id),
             rationale=rationale,
         )
-        return runtime.services.application.create_research_question(
-            CreateResearchQuestionCommand(
-                project_id=uuid_value(values, "project_id", runtime.request_id),
-                question_text=text_value(values, "question_text", runtime.request_id),
-                scope=values.get("scope"),
-                rationale=optional_text(values, "rationale", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RESEARCH_QUESTION,
+            lambda: runtime.services.application.create_research_question(
+                CreateResearchQuestionCommand(
+                    project_id=uuid_value(values, "project_id", runtime.request_id),
+                    question_text=text_value(values, "question_text", runtime.request_id),
+                    scope=values.get("scope"),
+                    rationale=optional_text(values, "rationale", runtime.request_id),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -138,16 +148,24 @@ def rq_revise(
             ),
             base_version_id=option_uuid(base_version_id, "--base-version-id", runtime.request_id),
         )
-        return runtime.services.application.revise_research_question(
-            ReviseResearchQuestionCommand(
-                research_question_id=uuid_value(values, "research_question_id", runtime.request_id),
-                question_text=text_value(values, "question_text", runtime.request_id),
-                scope=values.get("scope"),
-                rationale=optional_text(values, "rationale", runtime.request_id),
-                expected_row_version=int_value_from_values(values, "expected_row_version", runtime),
-                base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RESEARCH_QUESTION,
+            lambda: runtime.services.application.revise_research_question(
+                ReviseResearchQuestionCommand(
+                    research_question_id=uuid_value(
+                        values, "research_question_id", runtime.request_id
+                    ),
+                    question_text=text_value(values, "question_text", runtime.request_id),
+                    scope=values.get("scope"),
+                    rationale=optional_text(values, "rationale", runtime.request_id),
+                    expected_row_version=int_value_from_values(
+                        values, "expected_row_version", runtime
+                    ),
+                    base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -177,15 +195,21 @@ def rq_freeze(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.freeze_research_question(
-            FreezeResearchQuestionCommand(
-                research_question_id=uuid_value(values, "research_question_id", runtime.request_id),
-                version_id=uuid_value(values, "version_id", runtime.request_id),
-                expected_row_version=optional_int_from_values(
-                    values, "expected_row_version", runtime
-                ),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RESEARCH_QUESTION_VERSION,
+            lambda: runtime.services.application.freeze_research_question(
+                FreezeResearchQuestionCommand(
+                    research_question_id=uuid_value(
+                        values, "research_question_id", runtime.request_id
+                    ),
+                    version_id=uuid_value(values, "version_id", runtime.request_id),
+                    expected_row_version=optional_int_from_values(
+                        values, "expected_row_version", runtime
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -221,18 +245,24 @@ def hypothesis_create(
                 research_question_id, "--research-question-id", runtime.request_id
             ),
         )
-        return runtime.services.application.create_hypothesis(
-            CreateHypothesisCommand(
-                project_id=uuid_value(values, "project_id", runtime.request_id),
-                statement=text_value(values, "statement", runtime.request_id),
-                expected_direction=optional_text(values, "expected_direction", runtime.request_id),
-                success_criteria=values.get("success_criteria"),
-                rationale=optional_text(values, "rationale", runtime.request_id),
-                research_question_id=optional_uuid_from_values(
-                    values, "research_question_id", runtime
-                ),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.HYPOTHESIS,
+            lambda: runtime.services.application.create_hypothesis(
+                CreateHypothesisCommand(
+                    project_id=uuid_value(values, "project_id", runtime.request_id),
+                    statement=text_value(values, "statement", runtime.request_id),
+                    expected_direction=optional_text(
+                        values, "expected_direction", runtime.request_id
+                    ),
+                    success_criteria=values.get("success_criteria"),
+                    rationale=optional_text(values, "rationale", runtime.request_id),
+                    research_question_id=optional_uuid_from_values(
+                        values, "research_question_id", runtime
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -270,17 +300,25 @@ def hypothesis_revise(
             ),
             base_version_id=option_uuid(base_version_id, "--base-version-id", runtime.request_id),
         )
-        return runtime.services.application.revise_hypothesis(
-            ReviseHypothesisCommand(
-                hypothesis_id=uuid_value(values, "hypothesis_id", runtime.request_id),
-                statement=text_value(values, "statement", runtime.request_id),
-                expected_direction=optional_text(values, "expected_direction", runtime.request_id),
-                success_criteria=values.get("success_criteria"),
-                rationale=optional_text(values, "rationale", runtime.request_id),
-                expected_row_version=int_value_from_values(values, "expected_row_version", runtime),
-                base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.HYPOTHESIS,
+            lambda: runtime.services.application.revise_hypothesis(
+                ReviseHypothesisCommand(
+                    hypothesis_id=uuid_value(values, "hypothesis_id", runtime.request_id),
+                    statement=text_value(values, "statement", runtime.request_id),
+                    expected_direction=optional_text(
+                        values, "expected_direction", runtime.request_id
+                    ),
+                    success_criteria=values.get("success_criteria"),
+                    rationale=optional_text(values, "rationale", runtime.request_id),
+                    expected_row_version=int_value_from_values(
+                        values, "expected_row_version", runtime
+                    ),
+                    base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -308,15 +346,19 @@ def hypothesis_freeze(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.freeze_hypothesis(
-            FreezeHypothesisCommand(
-                hypothesis_id=uuid_value(values, "hypothesis_id", runtime.request_id),
-                version_id=uuid_value(values, "version_id", runtime.request_id),
-                expected_row_version=optional_int_from_values(
-                    values, "expected_row_version", runtime
-                ),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.HYPOTHESIS_VERSION,
+            lambda: runtime.services.application.freeze_hypothesis(
+                FreezeHypothesisCommand(
+                    hypothesis_id=uuid_value(values, "hypothesis_id", runtime.request_id),
+                    version_id=uuid_value(values, "version_id", runtime.request_id),
+                    expected_row_version=optional_int_from_values(
+                        values, "expected_row_version", runtime
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -352,18 +394,22 @@ def spec_create(
             seed_policy=option_json(seed_policy, "--seed-policy", runtime.request_id),
             analysis_plan=option_json(analysis_plan, "--analysis-plan", runtime.request_id),
         )
-        return runtime.services.application.create_experiment_spec(
-            CreateExperimentSpecCommand(
-                project_id=uuid_value(values, "project_id", runtime.request_id),
-                hypothesis_id=optional_uuid_from_values(values, "hypothesis_id", runtime),
-                title=text_value(values, "title", runtime.request_id),
-                objective=text_value(values, "objective", runtime.request_id),
-                protocol=required(values, "protocol", runtime.request_id),
-                planned_metrics=values.get("planned_metrics"),
-                seed_policy=values.get("seed_policy"),
-                analysis_plan=values.get("analysis_plan"),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.EXPERIMENT_SPEC,
+            lambda: runtime.services.application.create_experiment_spec(
+                CreateExperimentSpecCommand(
+                    project_id=uuid_value(values, "project_id", runtime.request_id),
+                    hypothesis_id=optional_uuid_from_values(values, "hypothesis_id", runtime),
+                    title=text_value(values, "title", runtime.request_id),
+                    objective=text_value(values, "objective", runtime.request_id),
+                    protocol=required(values, "protocol", runtime.request_id),
+                    planned_metrics=values.get("planned_metrics"),
+                    seed_policy=values.get("seed_policy"),
+                    analysis_plan=values.get("analysis_plan"),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -405,19 +451,25 @@ def spec_revise(
             ),
             base_version_id=option_uuid(base_version_id, "--base-version-id", runtime.request_id),
         )
-        return runtime.services.application.revise_experiment_spec(
-            ReviseExperimentSpecCommand(
-                experiment_spec_id=uuid_value(values, "experiment_spec_id", runtime.request_id),
-                title=text_value(values, "title", runtime.request_id),
-                objective=text_value(values, "objective", runtime.request_id),
-                protocol=required(values, "protocol", runtime.request_id),
-                planned_metrics=values.get("planned_metrics"),
-                seed_policy=values.get("seed_policy"),
-                analysis_plan=values.get("analysis_plan"),
-                expected_row_version=int_value_from_values(values, "expected_row_version", runtime),
-                base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.EXPERIMENT_SPEC,
+            lambda: runtime.services.application.revise_experiment_spec(
+                ReviseExperimentSpecCommand(
+                    experiment_spec_id=uuid_value(values, "experiment_spec_id", runtime.request_id),
+                    title=text_value(values, "title", runtime.request_id),
+                    objective=text_value(values, "objective", runtime.request_id),
+                    protocol=required(values, "protocol", runtime.request_id),
+                    planned_metrics=values.get("planned_metrics"),
+                    seed_policy=values.get("seed_policy"),
+                    analysis_plan=values.get("analysis_plan"),
+                    expected_row_version=int_value_from_values(
+                        values, "expected_row_version", runtime
+                    ),
+                    base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -447,15 +499,19 @@ def spec_freeze(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.freeze_experiment_spec(
-            FreezeExperimentSpecCommand(
-                experiment_spec_id=uuid_value(values, "experiment_spec_id", runtime.request_id),
-                version_id=uuid_value(values, "version_id", runtime.request_id),
-                expected_row_version=optional_int_from_values(
-                    values, "expected_row_version", runtime
-                ),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.EXPERIMENT_SPEC_VERSION,
+            lambda: runtime.services.application.freeze_experiment_spec(
+                FreezeExperimentSpecCommand(
+                    experiment_spec_id=uuid_value(values, "experiment_spec_id", runtime.request_id),
+                    version_id=uuid_value(values, "version_id", runtime.request_id),
+                    expected_row_version=optional_int_from_values(
+                        values, "expected_row_version", runtime
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)

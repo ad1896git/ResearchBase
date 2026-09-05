@@ -11,11 +11,13 @@ from researchbase.application.commands import (
     FreezeClaimVersionCommand,
     LinkEvidenceCommand,
     ReviseClaimCommand,
+    WriteProjectionTarget,
 )
 from researchbase.domain.claim import EvidenceRelationType
 
 from ..commands.research import optional_uuid_from_values
 from ..common import (
+    application_write,
     enum_value,
     int_value,
     invoke,
@@ -61,14 +63,18 @@ def claim_create(
             scope=option_json(scope, "--scope", runtime.request_id),
             qualification=qualification,
         )
-        return runtime.services.application.create_claim(
-            CreateClaimCommand(
-                project_id=uuid_value(values, "project_id", runtime.request_id),
-                statement=text_value(values, "statement", runtime.request_id),
-                scope=values.get("scope"),
-                qualification=optional_text(values, "qualification", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.CLAIM,
+            lambda: runtime.services.application.create_claim(
+                CreateClaimCommand(
+                    project_id=uuid_value(values, "project_id", runtime.request_id),
+                    statement=text_value(values, "statement", runtime.request_id),
+                    scope=values.get("scope"),
+                    qualification=optional_text(values, "qualification", runtime.request_id),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -102,16 +108,22 @@ def claim_revise(
             ),
             base_version_id=option_uuid(base_version_id, "--base-version-id", runtime.request_id),
         )
-        return runtime.services.application.revise_claim(
-            ReviseClaimCommand(
-                claim_id=uuid_value(values, "claim_id", runtime.request_id),
-                statement=optional_text(values, "statement", runtime.request_id),
-                scope=values.get("scope"),
-                qualification=optional_text(values, "qualification", runtime.request_id),
-                expected_row_version=int_value(values, "expected_row_version", runtime.request_id),
-                base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.CLAIM,
+            lambda: runtime.services.application.revise_claim(
+                ReviseClaimCommand(
+                    claim_id=uuid_value(values, "claim_id", runtime.request_id),
+                    statement=optional_text(values, "statement", runtime.request_id),
+                    scope=values.get("scope"),
+                    qualification=optional_text(values, "qualification", runtime.request_id),
+                    expected_row_version=int_value(
+                        values, "expected_row_version", runtime.request_id
+                    ),
+                    base_version_id=optional_uuid_from_values(values, "base_version_id", runtime),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -151,21 +163,27 @@ def claim_add_evidence(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.link_evidence(
-            LinkEvidenceCommand(
-                claim_id=uuid_value(values, "claim_id", runtime.request_id),
-                claim_version_id=uuid_value(values, "claim_version_id", runtime.request_id),
-                measurement_id=optional_uuid_from_values(values, "measurement_id", runtime),
-                statistical_result_id=optional_uuid_from_values(
-                    values, "statistical_result_id", runtime
-                ),
-                relation_type=enum_value(
-                    values, "relation_type", EvidenceRelationType, runtime.request_id
-                ),
-                qualification=optional_text(values, "qualification", runtime.request_id),
-                expected_row_version=int_value(values, "expected_row_version", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.EVIDENCE_RELATION,
+            lambda: runtime.services.application.link_evidence(
+                LinkEvidenceCommand(
+                    claim_id=uuid_value(values, "claim_id", runtime.request_id),
+                    claim_version_id=uuid_value(values, "claim_version_id", runtime.request_id),
+                    measurement_id=optional_uuid_from_values(values, "measurement_id", runtime),
+                    statistical_result_id=optional_uuid_from_values(
+                        values, "statistical_result_id", runtime
+                    ),
+                    relation_type=enum_value(
+                        values, "relation_type", EvidenceRelationType, runtime.request_id
+                    ),
+                    qualification=optional_text(values, "qualification", runtime.request_id),
+                    expected_row_version=int_value(
+                        values, "expected_row_version", runtime.request_id
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -193,13 +211,19 @@ def claim_freeze(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.freeze_claim_version(
-            FreezeClaimVersionCommand(
-                claim_id=uuid_value(values, "claim_id", runtime.request_id),
-                version_id=uuid_value(values, "version_id", runtime.request_id),
-                expected_row_version=optional_positive_int(values, "expected_row_version", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.CLAIM_VERSION,
+            lambda: runtime.services.application.freeze_claim_version(
+                FreezeClaimVersionCommand(
+                    claim_id=uuid_value(values, "claim_id", runtime.request_id),
+                    version_id=uuid_value(values, "version_id", runtime.request_id),
+                    expected_row_version=optional_positive_int(
+                        values, "expected_row_version", runtime
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)

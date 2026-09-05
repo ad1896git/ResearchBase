@@ -11,9 +11,9 @@ import pytest
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
-    ApplicationService,
     CreateActorCommand,
     CreateExperimentSpecCommand,
     CreateMetricDefinitionCommand,

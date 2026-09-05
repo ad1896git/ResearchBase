@@ -9,10 +9,10 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 import researchbase.application.commands as commands_module
 from researchbase.application.commands import (
-    ApplicationService,
     CreateActorCommand,
     CreateHypothesisCommand,
     CreateProjectCommand,

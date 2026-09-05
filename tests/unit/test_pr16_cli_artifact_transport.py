@@ -17,6 +17,9 @@ class ArtifactApplication:
         self.command = command
         return {"ok": True}
 
+    def project_write_result(self, result: object, target: object) -> object:
+        return result
+
 
 @dataclass
 class Services:

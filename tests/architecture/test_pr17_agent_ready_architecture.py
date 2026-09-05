@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from dataclasses import fields, is_dataclass
 from pathlib import Path
+from typing import get_type_hints
 
 ROOT = Path(__file__).parents[2]
 SOURCE = ROOT / "src" / "researchbase"
@@ -44,12 +45,22 @@ def test_http_and_cli_adapters_call_application_directly_without_peer_coupling()
     http_source = "\n".join(path.read_text() for path in _python_files(API))
     cli_source = "\n".join(path.read_text() for path in _python_files(CLI))
 
-    assert "_services(request).application." in http_source
+    assert "application = _services(request).application" in http_source
+    assert "_legacy_write(" in http_source
     assert "runtime.services.application." in cli_source
     assert "researchbase.cli" not in http_source
     assert "researchbase.api" not in cli_source
     for forbidden in ("httpx", "requests", "urllib.request", "subprocess", "os.system"):
         assert forbidden not in cli_source
+
+
+def test_agent_ready_application_writes_share_the_canonical_result_contract() -> None:
+    from researchbase.application.commands import _WRITE_COMMAND_NAMES, ApplicationService
+    from researchbase.application.dto import WriteResult
+
+    for name in _WRITE_COMMAND_NAMES:
+        method = getattr(ApplicationService, name)
+        assert get_type_hints(method)["return"] is WriteResult, name
 
 
 def test_transport_adapters_do_not_own_persistence_or_business_transaction_semantics() -> None:

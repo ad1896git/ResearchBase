@@ -12,9 +12,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
-    ApplicationService,
     CreateActorCommand,
     CreateMetricDefinitionCommand,
     CreateProjectCommand,

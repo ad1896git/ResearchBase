@@ -15,10 +15,12 @@ from researchbase.application.commands import (
     RecordStatisticalResultCommand,
     StartRunCommand,
     StatisticalResultInputCommand,
+    WriteProjectionTarget,
 )
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
 
 from ..common import (
+    application_write,
     enum_value,
     float_or_none,
     int_value,
@@ -68,15 +70,19 @@ def run_create(
             ),
             run_type=run_type,
         )
-        return runtime.services.application.create_run(
-            CreateRunCommand(
-                project_id=uuid_value(values, "project_id", runtime.request_id),
-                experiment_spec_version_id=uuid_value(
-                    values, "experiment_spec_version_id", runtime.request_id
-                ),
-                run_type=optional_text(values, "run_type", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RUN,
+            lambda: runtime.services.application.create_run(
+                CreateRunCommand(
+                    project_id=uuid_value(values, "project_id", runtime.request_id),
+                    experiment_spec_version_id=uuid_value(
+                        values, "experiment_spec_version_id", runtime.request_id
+                    ),
+                    run_type=optional_text(values, "run_type", runtime.request_id),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -110,15 +116,23 @@ def run_add_dataset(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.attach_run_dataset_input(
-            AttachRunDatasetInputCommand(
-                run_id=uuid_value(values, "run_id", runtime.request_id),
-                dataset_snapshot_id=uuid_value(values, "dataset_snapshot_id", runtime.request_id),
-                role=enum_value(values, "role", DatasetInputRole, runtime.request_id),
-                ordinal=int_value(values, "ordinal", runtime.request_id),
-                expected_row_version=int_value(values, "expected_row_version", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RUN,
+            lambda: runtime.services.application.attach_run_dataset_input(
+                AttachRunDatasetInputCommand(
+                    run_id=uuid_value(values, "run_id", runtime.request_id),
+                    dataset_snapshot_id=uuid_value(
+                        values, "dataset_snapshot_id", runtime.request_id
+                    ),
+                    role=enum_value(values, "role", DatasetInputRole, runtime.request_id),
+                    ordinal=int_value(values, "ordinal", runtime.request_id),
+                    expected_row_version=int_value(
+                        values, "expected_row_version", runtime.request_id
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -152,15 +166,23 @@ def run_add_artifact(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.attach_run_artifact_input(
-            AttachRunArtifactInputCommand(
-                run_id=uuid_value(values, "run_id", runtime.request_id),
-                artifact_version_id=uuid_value(values, "artifact_version_id", runtime.request_id),
-                role=enum_value(values, "role", ArtifactInputRole, runtime.request_id),
-                ordinal=int_value(values, "ordinal", runtime.request_id),
-                expected_row_version=int_value(values, "expected_row_version", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RUN,
+            lambda: runtime.services.application.attach_run_artifact_input(
+                AttachRunArtifactInputCommand(
+                    run_id=uuid_value(values, "run_id", runtime.request_id),
+                    artifact_version_id=uuid_value(
+                        values, "artifact_version_id", runtime.request_id
+                    ),
+                    role=enum_value(values, "role", ArtifactInputRole, runtime.request_id),
+                    ordinal=int_value(values, "ordinal", runtime.request_id),
+                    expected_row_version=int_value(
+                        values, "expected_row_version", runtime.request_id
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -186,12 +208,18 @@ def run_start(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.start_run(
-            StartRunCommand(
-                run_id=uuid_value(values, "run_id", runtime.request_id),
-                expected_row_version=int_value(values, "expected_row_version", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RUN,
+            lambda: runtime.services.application.start_run(
+                StartRunCommand(
+                    run_id=uuid_value(values, "run_id", runtime.request_id),
+                    expected_row_version=int_value(
+                        values, "expected_row_version", runtime.request_id
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -223,15 +251,21 @@ def run_finish(
             exit_code=option_int(exit_code, "--exit-code", runtime.request_id),
             failure_reason=failure_reason,
         )
-        return runtime.services.application.finish_run(
-            FinishRunCommand(
-                run_id=uuid_value(values, "run_id", runtime.request_id),
-                outcome=enum_value(values, "outcome", RunStatus, runtime.request_id),
-                exit_code=optional_int(values, "exit_code", runtime),
-                failure_reason=optional_text(values, "failure_reason", runtime.request_id),
-                expected_row_version=int_value(values, "expected_row_version", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RUN,
+            lambda: runtime.services.application.finish_run(
+                FinishRunCommand(
+                    run_id=uuid_value(values, "run_id", runtime.request_id),
+                    outcome=enum_value(values, "outcome", RunStatus, runtime.request_id),
+                    exit_code=optional_int(values, "exit_code", runtime),
+                    failure_reason=optional_text(values, "failure_reason", runtime.request_id),
+                    expected_row_version=int_value(
+                        values, "expected_row_version", runtime.request_id
+                    ),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -294,18 +328,22 @@ def measurement_create(
                 evaluation_scope, "--evaluation-scope", runtime.request_id
             ),
         )
-        return runtime.services.application.record_measurement(
-            RecordMeasurementCommand(
-                run_id=uuid_value(values, "run_id", runtime.request_id),
-                metric_definition_version_id=uuid_value(
-                    values, "metric_definition_version_id", runtime.request_id
-                ),
-                numeric_value=float_or_none(values, "numeric_value", runtime.request_id),
-                structured_value=values.get("structured_value"),
-                unit=optional_text(values, "unit", runtime.request_id),
-                evaluation_scope=values.get("evaluation_scope"),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.MEASUREMENT,
+            lambda: runtime.services.application.record_measurement(
+                RecordMeasurementCommand(
+                    run_id=uuid_value(values, "run_id", runtime.request_id),
+                    metric_definition_version_id=uuid_value(
+                        values, "metric_definition_version_id", runtime.request_id
+                    ),
+                    numeric_value=float_or_none(values, "numeric_value", runtime.request_id),
+                    structured_value=values.get("structured_value"),
+                    unit=optional_text(values, "unit", runtime.request_id),
+                    evaluation_scope=values.get("evaluation_scope"),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -345,15 +383,19 @@ def stats_create(
             )
             for item in list_of_objects(values, "inputs", runtime.request_id)
         )
-        return runtime.services.application.record_statistical_result(
-            RecordStatisticalResultCommand(
-                project_id=uuid_value(values, "project_id", runtime.request_id),
-                analysis_type=text_value(values, "analysis_type", runtime.request_id),
-                result_payload=required(values, "result_payload", runtime.request_id),
-                analysis_definition=required(values, "analysis_definition", runtime.request_id),
-                inputs=input_commands,
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.STATISTICAL_RESULT,
+            lambda: runtime.services.application.record_statistical_result(
+                RecordStatisticalResultCommand(
+                    project_id=uuid_value(values, "project_id", runtime.request_id),
+                    analysis_type=text_value(values, "analysis_type", runtime.request_id),
+                    result_payload=required(values, "result_payload", runtime.request_id),
+                    analysis_definition=required(values, "analysis_definition", runtime.request_id),
+                    inputs=input_commands,
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)

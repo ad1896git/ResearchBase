@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 from typer.testing import CliRunner
 
+from researchbase.application.commands import WriteProjectionTarget
+from researchbase.application.dto import WriteResult
 from researchbase.cli.app import create_app
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
@@ -22,6 +25,10 @@ class ErrorApplication:
             raise self.unexpected
         if self.error is not None:
             raise self.error
+        return WriteResult(id=uuid4(), server_timestamp=datetime.now(UTC))
+
+    def project_write_result(self, result: WriteResult, target: WriteProjectionTarget) -> object:
+        assert target is WriteProjectionTarget.PROJECT
         return {"ok": True}
 
 

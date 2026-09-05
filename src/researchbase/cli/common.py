@@ -10,11 +10,13 @@ import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from time import monotonic
-from typing import TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 import typer
 
+from researchbase.application.commands import ApplicationService, WriteProjectionTarget
+from researchbase.application.dto import WriteResult
 from researchbase.foundation.errors import ResearchBaseError
 from researchbase.foundation.structured_logging import elapsed, emit_event
 
@@ -23,6 +25,16 @@ from .errors import CliTransportError, cli_exit_code
 from .output import emit_error, emit_success
 
 T = TypeVar("T")
+
+
+def application_write(
+    application: ApplicationService,
+    target: WriteProjectionTarget,
+    operation: Callable[[], WriteResult],
+) -> Any:
+    """Project a committed Application write to the accepted CLI payload."""
+
+    return application.project_write_result(operation(), target)
 
 
 def parse_json_value(value: str | None, option: str, request_id: UUID) -> object | None:

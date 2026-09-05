@@ -22,6 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine, make_url
+from tests.application_compat import LegacyApplicationService
 from typer.testing import CliRunner
 
 import researchbase.application.commands as application_commands
@@ -122,7 +123,8 @@ class WorkflowFixture:
     url: str
     engine: Engine
     sessions: Any
-    application: ApplicationService
+    application: LegacyApplicationService
+    transport_application: ApplicationService
     provenance: ProvenanceQueryService
     governance: GovernanceService
     governance_queries: GovernanceQueryService
@@ -135,14 +137,14 @@ class WorkflowFixture:
 
     def services(self) -> ServiceBundle:
         return ServiceBundle(
-            self.application,
+            self.transport_application,
             self.provenance,
             self.governance,
             self.governance_queries,
         )
 
-    def fresh_application(self) -> ApplicationService:
-        return ApplicationService(
+    def fresh_application(self) -> LegacyApplicationService:
+        return LegacyApplicationService(
             lambda: SqlAlchemyUnitOfWork(self.sessions),
             FixedClock(FIXED_NOW),
             self.application._artifact_store,  # noqa: SLF001 - test composition only
@@ -220,6 +222,7 @@ def fresh_fixture(tmp_path: Path, seed: str = "gsas-01") -> Iterator[WorkflowFix
                 return SqlAlchemyUnitOfWork(sessions)
 
             application = ApplicationService(uow_factory, clock, store)
+            legacy_application = LegacyApplicationService(uow_factory, clock, store)
             provenance = ProvenanceQueryService(uow_factory)
             governance = GovernanceService(uow_factory, clock)
             governance_queries = GovernanceQueryService(uow_factory)
@@ -229,6 +232,7 @@ def fresh_fixture(tmp_path: Path, seed: str = "gsas-01") -> Iterator[WorkflowFix
                 url,
                 app_engine,
                 sessions,
+                legacy_application,
                 application,
                 provenance,
                 governance,

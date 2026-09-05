@@ -204,7 +204,8 @@ def _catalog_snapshot(engine: Engine) -> dict[str, tuple[tuple[object, ...], ...
 def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() -> None:
     engine = _reset_to_previous_head()
     try:
-        from researchbase.application.commands import ApplicationService
+        from tests.application_compat import LegacyApplicationService as ApplicationService
+
         from researchbase.foundation.time import FixedClock
         from researchbase.persistence.database import create_session_factory
         from researchbase.persistence.uow import SqlAlchemyUnitOfWork
@@ -252,7 +253,8 @@ def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() ->
 def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() -> None:
     engine = _reset_to_previous_head()
     try:
-        from researchbase.application.commands import ApplicationService
+        from tests.application_compat import LegacyApplicationService as ApplicationService
+
         from researchbase.foundation.time import FixedClock
         from researchbase.persistence.database import create_session_factory
         from researchbase.persistence.uow import SqlAlchemyUnitOfWork

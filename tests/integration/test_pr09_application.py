@@ -11,9 +11,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
-    ApplicationService,
     AttachRunArtifactInputCommand,
     AttachRunDatasetInputCommand,
     CancelRunCommand,
@@ -402,11 +402,11 @@ def test_concurrent_start_and_finish_use_row_version(
     assert started.row_version == current.row_version + 1
 
     finish_commands = [
-        (RunStatus.SUCCEEDED, 0, "writer-a-success"),
+        (RunStatus.SUCCEEDED, 0, None),
         (RunStatus.FAILED, 73, "writer-b-failure"),
     ]
 
-    def finish(outcome: RunStatus, exit_code: int, failure_reason: str) -> RunReadModel:
+    def finish(outcome: RunStatus, exit_code: int, failure_reason: str | None) -> RunReadModel:
         return factory().finish_run(
             FinishRunCommand(
                 run.id, outcome, exit_code, failure_reason, started.row_version, actor_context

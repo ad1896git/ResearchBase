@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from uuid import UUID
 
 import pytest
@@ -29,6 +30,43 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="module")
 def resources() -> Iterator[tuple[Callable[[], ApplicationService], Engine]]:
     yield from postgres_resources()
+
+
+@contextmanager
+def _disabled_exact_triggers(
+    connection: object,
+    table: str,
+    names: tuple[str, ...],
+    constraint_names: tuple[str, ...] = (),
+) -> Iterator[None]:
+    foreign_key_triggers = tuple(
+        row[0]
+        for row in connection.execute(  # type: ignore[attr-defined]
+            text(
+                "SELECT t.tgname "
+                "FROM pg_trigger AS t "
+                "JOIN pg_constraint AS c ON c.oid=t.tgconstraint "
+                "JOIN pg_class AS r ON r.oid=t.tgrelid "
+                "JOIN pg_namespace AS n ON n.oid=r.relnamespace "
+                "WHERE n.nspname='public' AND r.relname=:table "
+                "AND c.conname = ANY(:constraint_names) "
+                "ORDER BY t.tgname"
+            ),
+            {"table": table, "constraint_names": list(constraint_names)},
+        )
+    )
+    exact_names = (*names, *foreign_key_triggers)
+    for name in exact_names:
+        connection.exec_driver_sql(  # type: ignore[attr-defined]
+            f'ALTER TABLE public."{table}" DISABLE TRIGGER "{name}"'
+        )
+    try:
+        yield
+    finally:
+        for name in reversed(exact_names):
+            connection.exec_driver_sql(  # type: ignore[attr-defined]
+                f'ALTER TABLE public."{table}" ENABLE TRIGGER "{name}"'
+            )
 
 
 def test_claim_closure_traverses_mixed_exact_historical_evidence(
@@ -246,17 +284,21 @@ def test_claim_closure_traverses_all_statistical_result_inputs_and_detects_later
 
     missing_measurement_id = MeasurementId(UUID("00000000-0000-0000-0000-000000000099"))
     with engine.begin() as connection:
-        connection.exec_driver_sql("ALTER TABLE statistical_result_inputs DISABLE TRIGGER ALL")
-        for result_id in (statistical_result_a.id, statistical_result_b.id):
-            updated = connection.execute(
-                text(
-                    "UPDATE statistical_result_inputs SET measurement_id=:missing_id "
-                    "WHERE statistical_result_id=:result_id AND ordinal=2"
-                ),
-                {"missing_id": missing_measurement_id, "result_id": result_id},
-            )
-            assert updated.rowcount == 1
-        connection.exec_driver_sql("ALTER TABLE statistical_result_inputs ENABLE TRIGGER ALL")
+        with _disabled_exact_triggers(
+            connection,
+            "statistical_result_inputs",
+            ("pr17d_statistical_result_input_update", "statistical_result_inputs_immutable"),
+            ("statistical_result_inputs_measurement_id_fkey",),
+        ):
+            for result_id in (statistical_result_a.id, statistical_result_b.id):
+                updated = connection.execute(
+                    text(
+                        "UPDATE statistical_result_inputs SET measurement_id=:missing_id "
+                        "WHERE statistical_result_id=:result_id AND ordinal=2"
+                    ),
+                    {"missing_id": missing_measurement_id, "result_id": result_id},
+                )
+                assert updated.rowcount == 1
 
     try:
         negative_reports_a = tuple(service.validate_claim_version(frozen_a.id) for _ in range(3))
@@ -296,17 +338,21 @@ def test_claim_closure_traverses_all_statistical_result_inputs_and_detects_later
         )
     finally:
         with engine.begin() as connection:
-            connection.exec_driver_sql("ALTER TABLE statistical_result_inputs DISABLE TRIGGER ALL")
-            for result_id in (statistical_result_a.id, statistical_result_b.id):
-                restored = connection.execute(
-                    text(
-                        "UPDATE statistical_result_inputs SET measurement_id=:measurement_id "
-                        "WHERE statistical_result_id=:result_id AND ordinal=2"
-                    ),
-                    {"measurement_id": measurement_three, "result_id": result_id},
-                )
-                assert restored.rowcount == 1
-            connection.exec_driver_sql("ALTER TABLE statistical_result_inputs ENABLE TRIGGER ALL")
+            with _disabled_exact_triggers(
+                connection,
+                "statistical_result_inputs",
+                ("pr17d_statistical_result_input_update", "statistical_result_inputs_immutable"),
+                ("statistical_result_inputs_measurement_id_fkey",),
+            ):
+                for result_id in (statistical_result_a.id, statistical_result_b.id):
+                    restored = connection.execute(
+                        text(
+                            "UPDATE statistical_result_inputs SET measurement_id=:measurement_id "
+                            "WHERE statistical_result_id=:result_id AND ordinal=2"
+                        ),
+                        {"measurement_id": measurement_three, "result_id": result_id},
+                    )
+                    assert restored.rowcount == 1
 
 
 def test_claim_closure_detects_support_and_content_hash_tampering(
@@ -406,12 +452,18 @@ def test_claim_closure_reports_missing_historical_measurement_source(
     )
     missing_id = MeasurementId(UUID("00000000-0000-0000-0000-000000000099"))
     with engine.begin() as connection:
-        connection.exec_driver_sql("ALTER TABLE evidence_relations DISABLE TRIGGER ALL")
-        connection.execute(
-            text("UPDATE evidence_relations SET measurement_id=:missing_id WHERE id=:relation_id"),
-            {"missing_id": missing_id, "relation_id": relation.id},
-        )
-        connection.exec_driver_sql("ALTER TABLE evidence_relations ENABLE TRIGGER ALL")
+        with _disabled_exact_triggers(
+            connection,
+            "evidence_relations",
+            ("evidence_relations_draft_only", "pr17d_evidence_relation_update"),
+            ("evidence_relations_measurement_id_fkey",),
+        ):
+            connection.execute(
+                text(
+                    "UPDATE evidence_relations SET measurement_id=:missing_id WHERE id=:relation_id"
+                ),
+                {"missing_id": missing_id, "relation_id": relation.id},
+            )
 
     report = service.validate_claim_version(frozen.id)
     assert report.complete is False
@@ -423,14 +475,19 @@ def test_claim_closure_reports_missing_historical_measurement_source(
     )
 
     with engine.begin() as connection:
-        connection.exec_driver_sql("ALTER TABLE evidence_relations DISABLE TRIGGER ALL")
-        connection.execute(
-            text(
-                "UPDATE evidence_relations SET measurement_id=:measurement_id WHERE id=:relation_id"
-            ),
-            {"measurement_id": measurement_id, "relation_id": relation.id},
-        )
-        connection.exec_driver_sql("ALTER TABLE evidence_relations ENABLE TRIGGER ALL")
+        with _disabled_exact_triggers(
+            connection,
+            "evidence_relations",
+            ("evidence_relations_draft_only", "pr17d_evidence_relation_update"),
+            ("evidence_relations_measurement_id_fkey",),
+        ):
+            connection.execute(
+                text(
+                    "UPDATE evidence_relations SET measurement_id=:measurement_id "
+                    "WHERE id=:relation_id"
+                ),
+                {"measurement_id": measurement_id, "relation_id": relation.id},
+            )
 
 
 def test_claim_closure_rejects_non_final_metric_definition_version(

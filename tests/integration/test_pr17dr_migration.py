@@ -5,6 +5,8 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -109,6 +111,71 @@ def _assert_0015_empty_catalog(engine: Engine) -> None:
     assert triggers == set()
     assert constraints == set()
     assert revision == "0015_governance_audit"
+
+
+def _normalize_snapshot_value(value: object) -> object:
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.astimezone(UTC).isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dict):
+        return tuple(
+            sorted((str(key), _normalize_snapshot_value(item)) for key, item in value.items())
+        )
+    if isinstance(value, list | tuple):
+        return tuple(_normalize_snapshot_value(item) for item in value)
+    if isinstance(value, bytes | bytearray | memoryview):
+        return bytes(value).hex()
+    return value
+
+
+def _scientific_row_snapshot(
+    engine: Engine,
+) -> tuple[tuple[str, tuple[tuple[object, ...], ...]], ...]:
+    """Capture every public application row in deterministic table/column order."""
+
+    with engine.connect() as connection:
+        tables = tuple(
+            row[0]
+            for row in connection.execute(
+                text(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema='public' AND table_type='BASE TABLE' "
+                    "AND table_name <> 'alembic_version' ORDER BY table_name"
+                )
+            )
+        )
+        snapshot: list[tuple[str, tuple[tuple[object, ...], ...]]] = []
+        for table in tables:
+            columns = tuple(
+                row[0]
+                for row in connection.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema='public' AND table_name=:table "
+                        "ORDER BY ordinal_position"
+                    ),
+                    {"table": table},
+                )
+            )
+            quoted_table = '"' + table.replace('"', '""') + '"'
+            quoted_columns = ['"' + column.replace('"', '""') + '"' for column in columns]
+            order_by = ", ".join(quoted_columns)
+            rows = connection.execute(
+                text(
+                    f"SELECT {', '.join(quoted_columns)} FROM public.{quoted_table} "
+                    f"ORDER BY {order_by}"
+                )
+            ).all()
+            snapshot.append(
+                (
+                    table,
+                    tuple(tuple(_normalize_snapshot_value(value) for value in row) for row in rows),
+                )
+            )
+    return tuple(snapshot)
 
 
 def _seed_conforming_0015(engine: Engine) -> None:
@@ -248,10 +315,20 @@ def test_preflight_failure_rolls_back_revision_objects_and_preserves_rows() -> N
     with _temporary_database(base_url) as (database_url, engine):
         _assert_alembic_ok(_run_alembic(database_url, "upgrade", "0015_governance_audit"))
         run_id, before_count = _seed_nonconforming_0015(engine)
+        before_snapshot = _scientific_row_snapshot(engine)
+        with engine.connect() as connection:
+            before_revision = connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one()
         failed = _run_alembic(database_url, "upgrade", "0016_pr17d_history_protection")
         assert failed.returncode != 0
         _assert_0015_empty_catalog(engine)
+        assert _scientific_row_snapshot(engine) == before_snapshot
         with engine.connect() as connection:
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == before_revision
+            )
             assert (
                 connection.execute(text("SELECT count(*) FROM runs")).scalar_one() == before_count
             )

@@ -15,9 +15,9 @@ import pytest
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
-    ApplicationService,
     AttachRunArtifactInputCommand,
     AttachRunDatasetInputCommand,
     CreateActorCommand,

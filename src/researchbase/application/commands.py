@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+# Write methods are decorated at the Application class boundary: their
+# implementation bodies build typed read models, while the public decorated
+# methods return the frozen WriteResult contract.
+# pyright: reportReturnType=false
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from enum import Enum
 from functools import wraps
 from time import monotonic
 from typing import Any
@@ -570,6 +575,86 @@ class SetArtifactCurrentVersionCommand:
 UowFactory = Callable[[], UnitOfWork]
 
 
+class WriteProjectionTarget(str, Enum):
+    """Application-owned legacy projection targets for transport adapters."""
+
+    ACTOR = "actor"
+    PROJECT = "project"
+    WORKSPACE = "workspace"
+    RESEARCH_QUESTION = "research_question"
+    RESEARCH_QUESTION_VERSION = "research_question_version"
+    HYPOTHESIS = "hypothesis"
+    HYPOTHESIS_VERSION = "hypothesis_version"
+    EXPERIMENT_SPEC = "experiment_spec"
+    EXPERIMENT_SPEC_VERSION = "experiment_spec_version"
+    METRIC_DEFINITION = "metric_definition"
+    METRIC_DEFINITION_VERSION = "metric_definition_version"
+    RUN = "run"
+    MEASUREMENT = "measurement"
+    STATISTICAL_RESULT = "statistical_result"
+    CLAIM = "claim"
+    CLAIM_VERSION = "claim_version"
+    EVIDENCE_RELATION = "evidence_relation"
+    DATASET = "dataset"
+    DATASET_SNAPSHOT = "dataset_snapshot"
+    ARTIFACT = "artifact"
+    ARTIFACT_VERSION = "artifact_version"
+
+
+_WRITE_PROJECTION_TARGETS: dict[str, WriteProjectionTarget] = {
+    "create_actor": WriteProjectionTarget.ACTOR,
+    "create_project": WriteProjectionTarget.PROJECT,
+    "create_workspace": WriteProjectionTarget.WORKSPACE,
+    "create_research_question": WriteProjectionTarget.RESEARCH_QUESTION,
+    "revise_research_question": WriteProjectionTarget.RESEARCH_QUESTION,
+    "update_research_question_draft": WriteProjectionTarget.RESEARCH_QUESTION_VERSION,
+    "freeze_research_question": WriteProjectionTarget.RESEARCH_QUESTION_VERSION,
+    "create_hypothesis": WriteProjectionTarget.HYPOTHESIS,
+    "revise_hypothesis": WriteProjectionTarget.HYPOTHESIS,
+    "update_hypothesis_draft": WriteProjectionTarget.HYPOTHESIS_VERSION,
+    "freeze_hypothesis": WriteProjectionTarget.HYPOTHESIS_VERSION,
+    "create_experiment_spec": WriteProjectionTarget.EXPERIMENT_SPEC,
+    "revise_experiment_spec": WriteProjectionTarget.EXPERIMENT_SPEC,
+    "update_experiment_spec_draft": WriteProjectionTarget.EXPERIMENT_SPEC_VERSION,
+    "freeze_experiment_spec": WriteProjectionTarget.EXPERIMENT_SPEC_VERSION,
+    "create_metric_definition": WriteProjectionTarget.METRIC_DEFINITION,
+    "revise_metric_definition": WriteProjectionTarget.METRIC_DEFINITION,
+    "update_metric_definition_draft": WriteProjectionTarget.METRIC_DEFINITION_VERSION,
+    "freeze_metric_definition": WriteProjectionTarget.METRIC_DEFINITION_VERSION,
+    "update_metric_definition_version_draft": WriteProjectionTarget.METRIC_DEFINITION_VERSION,
+    "freeze_metric_definition_version": WriteProjectionTarget.METRIC_DEFINITION_VERSION,
+    "create_run": WriteProjectionTarget.RUN,
+    "attach_run_dataset_input": WriteProjectionTarget.RUN,
+    "attach_run_artifact_input": WriteProjectionTarget.RUN,
+    "start_run": WriteProjectionTarget.RUN,
+    "finish_run": WriteProjectionTarget.RUN,
+    "cancel_run": WriteProjectionTarget.RUN,
+    "abandon_research_question_version": WriteProjectionTarget.RESEARCH_QUESTION_VERSION,
+    "abandon_hypothesis_version": WriteProjectionTarget.HYPOTHESIS_VERSION,
+    "abandon_experiment_spec_version": WriteProjectionTarget.EXPERIMENT_SPEC_VERSION,
+    "abandon_metric_definition_version": WriteProjectionTarget.METRIC_DEFINITION_VERSION,
+    "abandon_artifact_version": WriteProjectionTarget.ARTIFACT_VERSION,
+    "abandon_claim_version": WriteProjectionTarget.CLAIM_VERSION,
+    "record_measurement": WriteProjectionTarget.MEASUREMENT,
+    "record_statistical_result": WriteProjectionTarget.STATISTICAL_RESULT,
+    "create_claim": WriteProjectionTarget.CLAIM,
+    "revise_claim": WriteProjectionTarget.CLAIM,
+    "update_claim_draft": WriteProjectionTarget.CLAIM_VERSION,
+    "link_evidence": WriteProjectionTarget.EVIDENCE_RELATION,
+    "freeze_claim_version": WriteProjectionTarget.CLAIM_VERSION,
+    "register_dataset": WriteProjectionTarget.DATASET,
+    "create_dataset_snapshot": WriteProjectionTarget.DATASET_SNAPSHOT,
+    "create_artifact": WriteProjectionTarget.ARTIFACT,
+    "create_artifact_version": WriteProjectionTarget.ARTIFACT_VERSION,
+    "update_artifact_version_draft": WriteProjectionTarget.ARTIFACT_VERSION,
+    "freeze_artifact_version": WriteProjectionTarget.ARTIFACT_VERSION,
+    "set_artifact_current_version": WriteProjectionTarget.ARTIFACT,
+}
+_WRITE_COMMAND_NAMES = frozenset(_WRITE_PROJECTION_TARGETS) | {
+    "unlink_evidence",
+}
+
+
 def _target_id(command: object) -> object:
     for name in (
         "run_id",
@@ -662,6 +747,8 @@ def _instrument_application_service(cls: type[Any]) -> type[Any]:
                     )
                     raise
                 else:
+                    if __name in _WRITE_COMMAND_NAMES:
+                        result = write_result(result, self._clock.now())
                     emit_application_event(
                         command_name=__name,
                         request_id=getattr(context, "request_id", None),
@@ -691,11 +778,65 @@ class ApplicationService:
         self._artifact_store = artifact_store
 
     def to_write_result(self, value: object) -> WriteResult:
-        """Expose the shared internal write contract without changing adapters."""
+        """Convert a typed value for callers that are migrating to WriteResult."""
 
         return write_result(value, self._clock.now())
 
-    def create_actor(self, command: CreateActorCommand) -> ActorReadModel:
+    def project_write_result(self, result: WriteResult, target: WriteProjectionTarget) -> object:
+        """Project a committed write by its stable result identity.
+
+        This is deliberately a read-after-write operation.  It opens the
+        normal query UoW after the command has committed and never searches
+        for a latest row or infers a business outcome in a transport adapter.
+        """
+
+        if not isinstance(result, WriteResult):
+            raise TypeError("result must be a WriteResult")
+        if target is WriteProjectionTarget.ACTOR:
+            return self.get_actor(ActorId(result.id))
+        if target is WriteProjectionTarget.PROJECT:
+            return self.get_project(ProjectId(result.id))
+        if target is WriteProjectionTarget.WORKSPACE:
+            return self.get_workspace(WorkspaceId(result.id))
+        if target is WriteProjectionTarget.RESEARCH_QUESTION:
+            return self.get_research_question(ResearchQuestionId(result.id))
+        if target is WriteProjectionTarget.RESEARCH_QUESTION_VERSION:
+            return self.get_research_question_version(_version_result_id(result, target))
+        if target is WriteProjectionTarget.HYPOTHESIS:
+            return self.get_hypothesis(HypothesisId(result.id))
+        if target is WriteProjectionTarget.HYPOTHESIS_VERSION:
+            return self.get_hypothesis_version(_version_result_id(result, target))
+        if target is WriteProjectionTarget.EXPERIMENT_SPEC:
+            return self.get_experiment_spec(ExperimentSpecId(result.id))
+        if target is WriteProjectionTarget.EXPERIMENT_SPEC_VERSION:
+            return self.get_experiment_spec_version(_version_result_id(result, target))
+        if target is WriteProjectionTarget.METRIC_DEFINITION:
+            return self.get_metric_definition(MetricDefinitionId(result.id))
+        if target is WriteProjectionTarget.METRIC_DEFINITION_VERSION:
+            return self.get_metric_definition_version(_version_result_id(result, target))
+        if target is WriteProjectionTarget.RUN:
+            return self.get_run(RunId(result.id))
+        if target is WriteProjectionTarget.MEASUREMENT:
+            return self.get_measurement(MeasurementId(result.id))
+        if target is WriteProjectionTarget.STATISTICAL_RESULT:
+            return self.get_statistical_result(StatisticalResultId(result.id))
+        if target is WriteProjectionTarget.CLAIM:
+            return self.get_claim(ClaimId(result.id))
+        if target is WriteProjectionTarget.CLAIM_VERSION:
+            return self.get_claim_version(_version_result_id(result, target))
+        if target is WriteProjectionTarget.EVIDENCE_RELATION:
+            return self.get_evidence_relation(EvidenceRelationId(result.id))
+        if target is WriteProjectionTarget.DATASET:
+            return self.get_dataset(DatasetId(result.id))
+        if target is WriteProjectionTarget.DATASET_SNAPSHOT:
+            return self.get_dataset_snapshot(DatasetSnapshotId(result.id))
+        if target is WriteProjectionTarget.ARTIFACT:
+            return self.get_artifact(ArtifactId(result.id))
+        if target is WriteProjectionTarget.ARTIFACT_VERSION:
+            return self.get_artifact_version(_version_result_id(result, target))
+        raise ValueError(f"unsupported write projection target: {target}")
+
+    def create_actor(self, command: CreateActorCommand) -> WriteResult:
         with self._uow_factory() as uow:
             if (
                 command.external_key is not None
@@ -717,7 +858,7 @@ class ApplicationService:
             uow.commit()
             return _actor_read_model(actor)
 
-    def create_project(self, command: CreateProjectCommand) -> ProjectReadModel:
+    def create_project(self, command: CreateProjectCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -732,7 +873,7 @@ class ApplicationService:
             uow.commit()
             return _project_read_model(project)
 
-    def create_workspace(self, command: CreateWorkspaceCommand) -> WorkspaceReadModel:
+    def create_workspace(self, command: CreateWorkspaceCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -751,9 +892,7 @@ class ApplicationService:
             uow.commit()
             return _workspace_read_model(workspace)
 
-    def create_research_question(
-        self, command: CreateResearchQuestionCommand
-    ) -> ResearchQuestionReadModel:
+    def create_research_question(self, command: CreateResearchQuestionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             project = _require_project(uow, ProjectId(command.project_id))
@@ -779,9 +918,7 @@ class ApplicationService:
             uow.commit()
             return _research_question_read_model(replace(question, current_version_id=version.id))
 
-    def revise_research_question(
-        self, command: ReviseResearchQuestionCommand
-    ) -> ResearchQuestionReadModel:
+    def revise_research_question(self, command: ReviseResearchQuestionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         question_id = ResearchQuestionId(command.research_question_id)
         with self._uow_factory() as uow:
@@ -817,7 +954,7 @@ class ApplicationService:
 
     def update_research_question_draft(
         self, command: UpdateResearchQuestionDraftCommand
-    ) -> ResearchQuestionVersionReadModel:
+    ) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -846,9 +983,7 @@ class ApplicationService:
                 replace(updated, row_version=version.row_version + 1)
             )
 
-    def freeze_research_question(
-        self, command: FreezeResearchQuestionCommand
-    ) -> ResearchQuestionVersionReadModel:
+    def freeze_research_question(self, command: FreezeResearchQuestionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         question_id = ResearchQuestionId(command.research_question_id)
         with self._uow_factory() as uow:
@@ -886,7 +1021,16 @@ class ApplicationService:
                 for version in uow.research_questions.list_history(ResearchQuestionId(question_id))
             ]
 
-    def create_hypothesis(self, command: CreateHypothesisCommand) -> HypothesisReadModel:
+    def get_research_question_version(
+        self, version_id: ResearchQuestionVersionId
+    ) -> ResearchQuestionVersionReadModel:
+        with self._uow_factory() as uow:
+            version = uow.research_questions.get_version(ResearchQuestionVersionId(version_id))
+            if version is None:
+                raise _not_found("research question version", version_id)
+            return _research_question_version_read_model(version)
+
+    def create_hypothesis(self, command: CreateHypothesisCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             project = _require_project(uow, ProjectId(command.project_id))
@@ -919,7 +1063,7 @@ class ApplicationService:
             uow.commit()
             return _hypothesis_read_model(replace(hypothesis, current_version_id=version.id))
 
-    def revise_hypothesis(self, command: ReviseHypothesisCommand) -> HypothesisReadModel:
+    def revise_hypothesis(self, command: ReviseHypothesisCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         hypothesis_id = HypothesisId(command.hypothesis_id)
         with self._uow_factory() as uow:
@@ -956,9 +1100,7 @@ class ApplicationService:
                 )
             )
 
-    def update_hypothesis_draft(
-        self, command: UpdateHypothesisDraftCommand
-    ) -> HypothesisVersionReadModel:
+    def update_hypothesis_draft(self, command: UpdateHypothesisDraftCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -986,7 +1128,7 @@ class ApplicationService:
                 replace(updated, row_version=version.row_version + 1)
             )
 
-    def freeze_hypothesis(self, command: FreezeHypothesisCommand) -> HypothesisVersionReadModel:
+    def freeze_hypothesis(self, command: FreezeHypothesisCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         hypothesis_id = HypothesisId(command.hypothesis_id)
         with self._uow_factory() as uow:
@@ -1020,9 +1162,14 @@ class ApplicationService:
                 for version in uow.hypotheses.list_history(HypothesisId(hypothesis_id))
             ]
 
-    def create_experiment_spec(
-        self, command: CreateExperimentSpecCommand
-    ) -> ExperimentSpecReadModel:
+    def get_hypothesis_version(self, version_id: HypothesisVersionId) -> HypothesisVersionReadModel:
+        with self._uow_factory() as uow:
+            version = uow.hypotheses.get_version(HypothesisVersionId(version_id))
+            if version is None:
+                raise _not_found("hypothesis version", version_id)
+            return _hypothesis_version_read_model(version)
+
+    def create_experiment_spec(self, command: CreateExperimentSpecCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             project = _require_project(uow, ProjectId(command.project_id))
@@ -1052,9 +1199,7 @@ class ApplicationService:
             uow.commit()
             return _experiment_spec_read_model(replace(spec, current_version_id=version.id))
 
-    def revise_experiment_spec(
-        self, command: ReviseExperimentSpecCommand
-    ) -> ExperimentSpecReadModel:
+    def revise_experiment_spec(self, command: ReviseExperimentSpecCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         spec_id = ExperimentSpecId(command.experiment_spec_id)
         with self._uow_factory() as uow:
@@ -1089,7 +1234,7 @@ class ApplicationService:
 
     def update_experiment_spec_draft(
         self, command: UpdateExperimentSpecDraftCommand
-    ) -> ExperimentSpecVersionReadModel:
+    ) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1121,9 +1266,7 @@ class ApplicationService:
                 replace(updated, row_version=version.row_version + 1)
             )
 
-    def freeze_experiment_spec(
-        self, command: FreezeExperimentSpecCommand
-    ) -> ExperimentSpecVersionReadModel:
+    def freeze_experiment_spec(self, command: FreezeExperimentSpecCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         spec_id = ExperimentSpecId(command.experiment_spec_id)
         with self._uow_factory() as uow:
@@ -1159,6 +1302,15 @@ class ApplicationService:
                 raise _not_found("experiment spec", spec_id)
             return _experiment_spec_read_model(spec)
 
+    def get_experiment_spec_version(
+        self, version_id: ExperimentSpecVersionId
+    ) -> ExperimentSpecVersionReadModel:
+        with self._uow_factory() as uow:
+            version = uow.experiment_specs.get_version(ExperimentSpecVersionId(version_id))
+            if version is None:
+                raise _not_found("experiment spec version", version_id)
+            return _experiment_spec_version_read_model(version)
+
     def get_experiment_spec_history(
         self, spec_id: ExperimentSpecId
     ) -> list[ExperimentSpecVersionReadModel]:
@@ -1170,9 +1322,7 @@ class ApplicationService:
                 for version in uow.experiment_specs.list_history(ExperimentSpecId(spec_id))
             ]
 
-    def create_metric_definition(
-        self, command: CreateMetricDefinitionCommand
-    ) -> MetricDefinitionReadModel:
+    def create_metric_definition(self, command: CreateMetricDefinitionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1202,9 +1352,7 @@ class ApplicationService:
             uow.commit()
             return _metric_definition_read_model(replace(metric, current_version_id=version.id))
 
-    def revise_metric_definition(
-        self, command: ReviseMetricDefinitionCommand
-    ) -> MetricDefinitionReadModel:
+    def revise_metric_definition(self, command: ReviseMetricDefinitionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         metric_id = MetricDefinitionId(command.metric_definition_id)
         with self._uow_factory() as uow:
@@ -1238,7 +1386,7 @@ class ApplicationService:
 
     def update_metric_definition_draft(
         self, command: UpdateMetricDefinitionDraftCommand
-    ) -> MetricDefinitionVersionReadModel:
+    ) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         metric_id = MetricDefinitionId(command.metric_definition_id)
         with self._uow_factory() as uow:
@@ -1262,9 +1410,7 @@ class ApplicationService:
                 replace(updated, row_version=version.row_version + 1)
             )
 
-    def freeze_metric_definition(
-        self, command: FreezeMetricDefinitionCommand
-    ) -> MetricDefinitionVersionReadModel:
+    def freeze_metric_definition(self, command: FreezeMetricDefinitionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         metric_id = MetricDefinitionId(command.metric_definition_id)
         with self._uow_factory() as uow:
@@ -1290,12 +1436,12 @@ class ApplicationService:
 
     def update_metric_definition_version_draft(
         self, command: UpdateMetricDefinitionVersionDraftCommand
-    ) -> MetricDefinitionVersionReadModel:
+    ) -> WriteResult:
         return self.update_metric_definition_draft(command)
 
     def freeze_metric_definition_version(
         self, command: FreezeMetricDefinitionVersionCommand
-    ) -> MetricDefinitionVersionReadModel:
+    ) -> WriteResult:
         return self.freeze_metric_definition(command)
 
     def get_metric_definition(self, metric_id: MetricDefinitionId) -> MetricDefinitionReadModel:
@@ -1326,7 +1472,7 @@ class ApplicationService:
                 for version in uow.metric_definition_versions.list_history(metric_id)
             ]
 
-    def create_run(self, command: CreateRunCommand) -> RunReadModel:
+    def create_run(self, command: CreateRunCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         project_id = ProjectId(command.project_id)
         spec_version_id = ExperimentSpecVersionId(command.experiment_spec_version_id)
@@ -1391,7 +1537,7 @@ class ApplicationService:
                 for item in uow.runs.list_artifact_inputs(run.id)
             ]
 
-    def attach_run_dataset_input(self, command: AttachRunDatasetInputCommand) -> RunReadModel:
+    def attach_run_dataset_input(self, command: AttachRunDatasetInputCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1419,7 +1565,7 @@ class ApplicationService:
             uow.commit()
             return _run_read_model(updated)
 
-    def attach_run_artifact_input(self, command: AttachRunArtifactInputCommand) -> RunReadModel:
+    def attach_run_artifact_input(self, command: AttachRunArtifactInputCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1452,7 +1598,7 @@ class ApplicationService:
             uow.commit()
             return _run_read_model(updated)
 
-    def start_run(self, command: StartRunCommand) -> RunReadModel:
+    def start_run(self, command: StartRunCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1472,7 +1618,7 @@ class ApplicationService:
             uow.commit()
             return _run_read_model(replace(started, row_version=run.row_version + 1))
 
-    def finish_run(self, command: FinishRunCommand) -> RunReadModel:
+    def finish_run(self, command: FinishRunCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1488,7 +1634,7 @@ class ApplicationService:
             uow.commit()
             return _run_read_model(replace(finished, row_version=run.row_version + 1))
 
-    def cancel_run(self, command: CancelRunCommand) -> RunReadModel:
+    def cancel_run(self, command: CancelRunCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1503,7 +1649,7 @@ class ApplicationService:
 
     def abandon_research_question_version(
         self, command: AbandonResearchQuestionVersionCommand
-    ) -> ResearchQuestionVersionReadModel:
+    ) -> WriteResult:
         return self._abandon_version(
             command.context,
             command.research_question_id,
@@ -1514,9 +1660,7 @@ class ApplicationService:
             _research_question_version_read_model,
         )
 
-    def abandon_hypothesis_version(
-        self, command: AbandonHypothesisVersionCommand
-    ) -> HypothesisVersionReadModel:
+    def abandon_hypothesis_version(self, command: AbandonHypothesisVersionCommand) -> WriteResult:
         return self._abandon_version(
             command.context,
             command.hypothesis_id,
@@ -1529,7 +1673,7 @@ class ApplicationService:
 
     def abandon_experiment_spec_version(
         self, command: AbandonExperimentSpecVersionCommand
-    ) -> ExperimentSpecVersionReadModel:
+    ) -> WriteResult:
         return self._abandon_version(
             command.context,
             command.experiment_spec_id,
@@ -1542,7 +1686,7 @@ class ApplicationService:
 
     def abandon_metric_definition_version(
         self, command: AbandonMetricDefinitionVersionCommand
-    ) -> MetricDefinitionVersionReadModel:
+    ) -> WriteResult:
         return self._abandon_version(
             command.context,
             command.metric_definition_id,
@@ -1553,9 +1697,7 @@ class ApplicationService:
             _metric_definition_version_read_model,
         )
 
-    def abandon_artifact_version(
-        self, command: AbandonArtifactVersionCommand
-    ) -> ArtifactVersionReadModel:
+    def abandon_artifact_version(self, command: AbandonArtifactVersionCommand) -> WriteResult:
         return self._abandon_version(
             command.context,
             command.artifact_id,
@@ -1566,7 +1708,7 @@ class ApplicationService:
             _artifact_version_read_model,
         )
 
-    def abandon_claim_version(self, command: AbandonClaimVersionCommand) -> ClaimVersionReadModel:
+    def abandon_claim_version(self, command: AbandonClaimVersionCommand) -> WriteResult:
         return self._abandon_version(
             command.context,
             command.claim_id,
@@ -1605,7 +1747,7 @@ class ApplicationService:
             uow.commit()
             return read_model(replace(abandoned, row_version=version.row_version + 1))
 
-    def record_measurement(self, command: RecordMeasurementCommand) -> MeasurementReadModel:
+    def record_measurement(self, command: RecordMeasurementCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         run_id = RunId(command.run_id)
         metric_version_id = MetricDefinitionVersionId(command.metric_definition_version_id)
@@ -1698,9 +1840,7 @@ class ApplicationService:
             uow.commit()
             return _measurement_read_model(measurement)
 
-    def record_statistical_result(
-        self, command: RecordStatisticalResultCommand
-    ) -> StatisticalResultReadModel:
+    def record_statistical_result(self, command: RecordStatisticalResultCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         project_id = ProjectId(command.project_id)
         if not command.inputs:
@@ -1772,7 +1912,7 @@ class ApplicationService:
             uow.commit()
             return _statistical_result_read_model(result)
 
-    def create_claim(self, command: CreateClaimCommand) -> ClaimReadModel:
+    def create_claim(self, command: CreateClaimCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         project_id = ProjectId(command.project_id)
         with self._uow_factory() as uow:
@@ -1822,6 +1962,13 @@ class ApplicationService:
                 raise _not_found("claim version", version_id)
             return _claim_version_read_model(version)
 
+    def get_evidence_relation(self, relation_id: EvidenceRelationId) -> EvidenceRelationReadModel:
+        with self._uow_factory() as uow:
+            relation = uow.claims.get_evidence(EvidenceRelationId(relation_id))
+            if relation is None:
+                raise _not_found("evidence relation", relation_id)
+            return _evidence_relation_read_model(relation)
+
     def get_current_claim_version(self, claim_id: ClaimId) -> ClaimVersionReadModel:
         with self._uow_factory() as uow:
             claim = uow.claims.get(ClaimId(claim_id))
@@ -1835,7 +1982,7 @@ class ApplicationService:
                 )
             return _claim_version_read_model(version)
 
-    def revise_claim(self, command: ReviseClaimCommand) -> ClaimReadModel:
+    def revise_claim(self, command: ReviseClaimCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         claim_id = ClaimId(command.claim_id)
         with self._uow_factory() as uow:
@@ -1878,7 +2025,7 @@ class ApplicationService:
                 replace(claim, current_version_id=version.id, row_version=claim.row_version + 1)
             )
 
-    def update_claim_draft(self, command: UpdateClaimDraftCommand) -> ClaimVersionReadModel:
+    def update_claim_draft(self, command: UpdateClaimDraftCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         claim_id = ClaimId(command.claim_id)
         with self._uow_factory() as uow:
@@ -1899,7 +2046,7 @@ class ApplicationService:
             uow.commit()
             return _claim_version_read_model(replace(updated, row_version=version.row_version + 1))
 
-    def link_evidence(self, command: LinkEvidenceCommand) -> EvidenceRelationReadModel:
+    def link_evidence(self, command: LinkEvidenceCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         claim_id = ClaimId(command.claim_id)
         version_id = ClaimVersionId(command.claim_version_id)
@@ -1940,7 +2087,7 @@ class ApplicationService:
             uow.commit()
             return _evidence_relation_read_model(relation)
 
-    def unlink_evidence(self, command: UnlinkEvidenceCommand) -> EvidenceRelationReadModel:
+    def unlink_evidence(self, command: UnlinkEvidenceCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -1971,7 +2118,7 @@ class ApplicationService:
             uow.commit()
             return _evidence_relation_read_model(relation)
 
-    def freeze_claim_version(self, command: FreezeClaimVersionCommand) -> ClaimVersionReadModel:
+    def freeze_claim_version(self, command: FreezeClaimVersionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         claim_id = ClaimId(command.claim_id)
         version_id = ClaimVersionId(command.version_id)
@@ -2101,7 +2248,7 @@ class ApplicationService:
                 raise _not_found("workspace", workspace_id)
             return _workspace_read_model(workspace)
 
-    def register_dataset(self, command: RegisterDatasetCommand) -> DatasetReadModel:
+    def register_dataset(self, command: RegisterDatasetCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -2132,9 +2279,7 @@ class ApplicationService:
                 raise _not_found("dataset", dataset_id)
             return _dataset_read_model(dataset)
 
-    def create_dataset_snapshot(
-        self, command: CreateDatasetSnapshotCommand
-    ) -> DatasetSnapshotReadModel:
+    def create_dataset_snapshot(self, command: CreateDatasetSnapshotCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         dataset_id = DatasetId(command.dataset_id)
         manifest_hash = _normalize_content_hash(command.manifest_hash, "manifest_hash")
@@ -2195,7 +2340,7 @@ class ApplicationService:
                 raise _not_found("dataset snapshot", snapshot_id)
             return _dataset_snapshot_read_model(snapshot)
 
-    def create_artifact(self, command: CreateArtifactCommand) -> ArtifactReadModel:
+    def create_artifact(self, command: CreateArtifactCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
@@ -2226,9 +2371,7 @@ class ApplicationService:
                 raise _not_found("artifact", artifact_id)
             return _artifact_read_model(artifact)
 
-    def create_artifact_version(
-        self, command: CreateArtifactVersionCommand
-    ) -> ArtifactVersionReadModel:
+    def create_artifact_version(self, command: CreateArtifactVersionCommand) -> WriteResult:
         store = _require_artifact_store(self._artifact_store)
         content_hash, locator, byte_size = _verify_or_store_artifact(
             store,
@@ -2317,7 +2460,7 @@ class ApplicationService:
 
     def update_artifact_version_draft(
         self, command: UpdateArtifactVersionDraftCommand
-    ) -> ArtifactVersionReadModel:
+    ) -> WriteResult:
         store = _require_artifact_store(self._artifact_store)
         actor_id = ActorId(command.context.actor_id)
         artifact_id = ArtifactId(command.artifact_id)
@@ -2352,9 +2495,7 @@ class ApplicationService:
                 replace(updated, row_version=version.row_version + 1)
             )
 
-    def freeze_artifact_version(
-        self, command: FreezeArtifactVersionCommand
-    ) -> ArtifactVersionReadModel:
+    def freeze_artifact_version(self, command: FreezeArtifactVersionCommand) -> WriteResult:
         store = _require_artifact_store(self._artifact_store)
         actor_id = ActorId(command.context.actor_id)
         artifact_id = ArtifactId(command.artifact_id)
@@ -2385,7 +2526,7 @@ class ApplicationService:
 
     def set_artifact_current_version(
         self, command: SetArtifactCurrentVersionCommand
-    ) -> ArtifactReadModel:
+    ) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         artifact_id = ArtifactId(command.artifact_id)
         version_id = ArtifactVersionId(command.version_id)
@@ -2405,6 +2546,15 @@ class ApplicationService:
                     row_version=artifact.row_version + 1,
                 )
             )
+
+
+def _version_result_id(result: WriteResult, target: WriteProjectionTarget) -> Any:
+    if result.version_id is None:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            f"{target.value} projection requires version_id",
+        )
+    return result.version_id
 
 
 def _require_actor(uow: UnitOfWork, actor_id: ActorId) -> Actor:

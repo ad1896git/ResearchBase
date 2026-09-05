@@ -26,6 +26,7 @@ from researchbase.application.commands import (
     FreezeMetricDefinitionCommand,
     RecordMeasurementCommand,
     StartRunCommand,
+    WriteProjectionTarget,
 )
 from researchbase.application.governance import CreateAuditFindingCommand, GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
@@ -459,66 +460,93 @@ def test_real_postgresql_http_golden_flow_uses_application_semantics(
     assert services.governance_queries.get_audit_finding(UUID(audit.json()["id"])) is not None
 
     context = ExecutionContext(actor_id=actor_id, request_id=uuid4(), client_type="test")
-    direct_project = services.application.create_project(
-        CreateProjectCommand(f"PR15-direct-{uuid4()}", None, context)
+    direct_project = services.application.project_write_result(
+        services.application.create_project(
+            CreateProjectCommand(f"PR15-direct-{uuid4()}", None, context)
+        ),
+        WriteProjectionTarget.PROJECT,
     )
-    direct_spec = services.application.create_experiment_spec(
-        CreateExperimentSpecCommand(
-            direct_project.id,
-            None,
-            "HTTP spec",
-            "prove adapter equivalence",
-            {"steps": ["execute"]},
-            None,
-            None,
-            None,
-            context,
-        )
+    direct_spec = services.application.project_write_result(
+        services.application.create_experiment_spec(
+            CreateExperimentSpecCommand(
+                direct_project.id,
+                None,
+                "HTTP spec",
+                "prove adapter equivalence",
+                {"steps": ["execute"]},
+                None,
+                None,
+                None,
+                context,
+            )
+        ),
+        WriteProjectionTarget.EXPERIMENT_SPEC,
     )
-    direct_frozen_spec = services.application.freeze_experiment_spec(
-        FreezeExperimentSpecCommand(direct_spec.id, direct_spec.current_version_id, context, 1)
+    direct_frozen_spec = services.application.project_write_result(
+        services.application.freeze_experiment_spec(
+            FreezeExperimentSpecCommand(direct_spec.id, direct_spec.current_version_id, context, 1)
+        ),
+        WriteProjectionTarget.EXPERIMENT_SPEC_VERSION,
     )
-    direct_run = services.application.create_run(
-        CreateRunCommand(direct_project.id, direct_frozen_spec.id, None, context)
+    direct_run = services.application.project_write_result(
+        services.application.create_run(
+            CreateRunCommand(direct_project.id, direct_frozen_spec.id, None, context)
+        ),
+        WriteProjectionTarget.RUN,
     )
-    direct_started = services.application.start_run(
-        StartRunCommand(direct_run.id, direct_run.row_version, context)
+    direct_started = services.application.project_write_result(
+        services.application.start_run(
+            StartRunCommand(direct_run.id, direct_run.row_version, context)
+        ),
+        WriteProjectionTarget.RUN,
     )
-    direct_finished = services.application.finish_run(
-        FinishRunCommand(
-            direct_run.id,
-            RunStatus.SUCCEEDED,
-            0,
-            None,
-            direct_started.row_version,
-            context,
-        )
+    direct_finished = services.application.project_write_result(
+        services.application.finish_run(
+            FinishRunCommand(
+                direct_run.id,
+                RunStatus.SUCCEEDED,
+                0,
+                None,
+                direct_started.row_version,
+                context,
+            )
+        ),
+        WriteProjectionTarget.RUN,
     )
-    direct_metric = services.application.create_metric_definition(
-        CreateMetricDefinitionCommand(
-            direct_project.id,
-            f"metric-{uuid4()}",
-            {"kind": "mean"},
-            "ms",
-            "mean",
-            context,
-        )
+    direct_metric = services.application.project_write_result(
+        services.application.create_metric_definition(
+            CreateMetricDefinitionCommand(
+                direct_project.id,
+                f"metric-{uuid4()}",
+                {"kind": "mean"},
+                "ms",
+                "mean",
+                context,
+            )
+        ),
+        WriteProjectionTarget.METRIC_DEFINITION,
     )
-    direct_metric_version = services.application.freeze_metric_definition(
-        FreezeMetricDefinitionCommand(
-            direct_metric.id, direct_metric.current_version_id, context, 1
-        )
+    direct_metric_version = services.application.project_write_result(
+        services.application.freeze_metric_definition(
+            FreezeMetricDefinitionCommand(
+                direct_metric.id, direct_metric.current_version_id, context, 1
+            )
+        ),
+        WriteProjectionTarget.METRIC_DEFINITION_VERSION,
     )
-    direct_measurement = services.application.record_measurement(
-        RecordMeasurementCommand(
-            direct_run.id,
-            direct_metric_version.id,
-            None,
-            {"latencies": [1.0, 2.0]},
-            "ms",
-            None,
-            context,
-        )
+    direct_measurement = services.application.project_write_result(
+        services.application.record_measurement(
+            RecordMeasurementCommand(
+                direct_run.id,
+                direct_metric_version.id,
+                None,
+                {"latencies": [1.0, 2.0]},
+                "ms",
+                None,
+                context,
+            )
+        ),
+        WriteProjectionTarget.MEASUREMENT,
     )
     direct_audit = services.governance.create_audit_finding(
         CreateAuditFindingCommand(

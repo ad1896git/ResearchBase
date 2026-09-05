@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.engine import Engine
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
-from researchbase.application.commands import ApplicationService
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork

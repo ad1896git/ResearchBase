@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
+import shlex
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -23,9 +25,10 @@ _manifest = importlib.import_module("tests.contracts.pr17dr_manifest")
 PR17D_FUNCTIONS = _manifest.PR17D_FUNCTIONS
 PR17D_TRIGGERS = _manifest.PR17D_TRIGGERS
 
-OUTPUT_DIR = Path("artifacts/pr_evidence/PR-17DR")
+OUTPUT_DIR = Path("artifacts/pr_evidence/PR-17DR2")
 PROTOCOL = "non-self-referential-v1"
 DISCARDED_V15_FUNCTION_COUNT = 64
+IMPLEMENTATION_SUBJECT_ENV = "PR17DR2_IMPLEMENTATION_SUBJECT_HEAD"
 
 FUNCTION_DETAILS: tuple[dict[str, Any], ...] = (
     {
@@ -246,9 +249,132 @@ INVARIANT_TESTS = {
 
 
 def _subject_head() -> str:
+    value = os.getenv(IMPLEMENTATION_SUBJECT_ENV)
+    if not value:
+        raise RuntimeError(
+            f"{IMPLEMENTATION_SUBJECT_ENV} is required; evidence must name a frozen subject"
+        )
     return subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True
+        ["git", "rev-parse", "--verify", value], cwd=PROJECT_ROOT, text=True
     ).strip()
+
+
+def _database_identity(engine: Any) -> dict[str, Any]:
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(
+                "SELECT current_database() AS database, current_schema() AS schema, "
+                "version() AS server_version, current_setting('server_version') AS version_number, "
+                "(SELECT version_num FROM public.alembic_version) AS alembic_revision"
+            )
+        ).one()
+    return {
+        "database": row.database,
+        "schema": row.schema,
+        "server_version": row.server_version,
+        "version_number": row.version_number,
+        "alembic_revision": row.alembic_revision,
+        "credentials": "redacted",
+    }
+
+
+_SUMMARY_COUNT = re.compile(
+    r"(?P<count>\d+) (?P<kind>passed|failed|skipped|deselected|xfailed|xpassed)"
+)
+_COLLECTED_COUNT = re.compile(r"(?P<count>\d+) tests? collected")
+_SKIP_DETAIL = re.compile(r"SKIPPED \[[^\]]+\] (?P<nodeid>[^:]+:\d+): (?P<reason>.*)")
+
+
+def _summary_counts(output: str) -> dict[str, int]:
+    counts = {
+        kind: 0 for kind in ("passed", "failed", "skipped", "deselected", "xfailed", "xpassed")
+    }
+    for line in reversed(output.splitlines()):
+        matches = list(_SUMMARY_COUNT.finditer(line))
+        if matches:
+            for match in matches:
+                counts[match.group("kind")] = int(match.group("count"))
+            break
+    return counts
+
+
+def _collected_count(output: str) -> int | None:
+    matches = list(_COLLECTED_COUNT.finditer(output))
+    return int(matches[-1].group("count")) if matches else None
+
+
+def _skip_details(output: str) -> list[dict[str, str]]:
+    return [
+        {
+            "nodeid": match.group("nodeid"),
+            "reason": match.group("reason"),
+            "classification": (
+                "inherited_pr11r2"
+                if match.group("nodeid").startswith("tests/integration/test_pr11r2_migration.py")
+                and "PR11R2_MIGRATION_DB_URL" in match.group("reason")
+                else "current_remediation"
+            ),
+        }
+        for match in _SKIP_DETAIL.finditer(output)
+    ]
+
+
+def _run_verification(
+    command_id: str, command: list[str], database: dict[str, Any] | None
+) -> dict[str, Any]:
+    command_text = shlex.join(command)
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=PROJECT_ROOT,
+        env=os.environ.copy(),
+    )
+    counts = _summary_counts(completed.stdout + completed.stderr)
+    collection: dict[str, Any] | None = None
+    if "pytest" in command:
+        collect_command = [*command]
+        pytest_index = collect_command.index("pytest")
+        collect_command.insert(pytest_index + 1, "--collect-only")
+        collect_command.insert(pytest_index + 2, "-o")
+        collect_command.insert(pytest_index + 3, "addopts=")
+        collected = subprocess.run(
+            collect_command,
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=PROJECT_ROOT,
+            env=os.environ.copy(),
+        )
+        collection = {
+            "command": shlex.join(collect_command),
+            "return_code": collected.returncode,
+            "collected": _collected_count(collected.stdout + collected.stderr),
+        }
+    skip_details = _skip_details(completed.stdout + completed.stderr)
+    if completed.returncode != 0:
+        verdict = "FAIL"
+    elif collection is not None and (
+        collection["return_code"] != 0 or collection["collected"] is None
+    ):
+        verdict = "NOT_VERIFIED"
+    else:
+        verdict = "PASS"
+    return {
+        "command_id": command_id,
+        "command": command_text,
+        "executed": True,
+        "return_code": completed.returncode,
+        "counts": {
+            "collected": collection["collected"] if collection is not None else None,
+            **counts,
+        },
+        "skips": skip_details,
+        "collection": collection,
+        "database": database,
+        "verdict": verdict,
+    }
 
 
 def _function_manifest_rows() -> list[dict[str, Any]]:
@@ -391,7 +517,57 @@ def _observed_catalog(engine: Any) -> dict[str, Any]:
                 )
             )
         ]
-    return {"functions": functions, "triggers": triggers, "constraints": constraints}
+        non_public_functions = [
+            {"schema": row.schema_name, "name": row.name}
+            for row in connection.execute(
+                text(
+                    "SELECT n.nspname AS schema_name, p.proname AS name "
+                    "FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid=p.pronamespace "
+                    "WHERE n.nspname <> 'public' AND left(p.proname,6)='pr17d_' "
+                    "ORDER BY n.nspname, p.proname"
+                )
+            )
+        ]
+        discarded_v15_functions = [
+            {"schema": row.schema_name, "name": row.name}
+            for row in connection.execute(
+                text(
+                    "SELECT n.nspname AS schema_name, p.proname AS name "
+                    "FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid=p.pronamespace "
+                    "WHERE n.nspname='public' AND "
+                    "(p.proname LIKE 'pr17d_v15_%' OR p.proname LIKE 'v15_pr17d_%') "
+                    "ORDER BY p.proname"
+                )
+            )
+        ]
+    expected_triggers = {
+        name: {"table": table, "function": function}
+        for name, table, _event, function in PR17D_TRIGGERS
+    }
+    stale_references = []
+    for row in triggers:
+        expected = expected_triggers.get(row["name"])
+        observed_reference = {
+            "schema": row["schema"],
+            "table": row["table"],
+            "function": row["bound_function"],
+        }
+        if (
+            expected is None
+            or expected["table"] != row["table"]
+            or expected["function"] != row["bound_function"]["name"]
+        ):
+            stale_references.append(
+                {"trigger": row["name"], "observed_reference": observed_reference}
+            )
+    return {
+        "functions": functions,
+        "triggers": triggers,
+        "constraints": constraints,
+        "non_public_functions": non_public_functions,
+        "discarded_v1_5_functions": discarded_v15_functions,
+        "stale_references": stale_references,
+    }
 
 
 def _set_equality(
@@ -417,26 +593,176 @@ def _projection_mismatches(
     return [name for name in names if expected_by_name.get(name) != observed_by_name.get(name)]
 
 
-def _run_projection_tests() -> dict[str, Any]:
-    command = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "-q",
-        "-rN",
-        "tests/integration/test_pr17dr_adversarial.py",
-        "tests/integration/test_pr17dr_catalog.py",
-        "tests/integration/test_pr17dr_error_contract.py",
-        "tests/integration/test_pr17dr_migration.py",
-        "tests/unit/test_pr17dr_contracts.py",
-        "tests/unit/test_pr17dr_logging_config.py",
-    ]
-    result = subprocess.run(command, capture_output=True, text=True, check=False, cwd=PROJECT_ROOT)
+VERIFICATION_COMMANDS: tuple[tuple[str, list[str]], ...] = (
+    ("full_pytest", ["uv", "run", "pytest", "-q", "-ra"]),
+    ("postgresql_integration", ["uv", "run", "pytest", "-q", "-ra", "-m", "integration"]),
+    (
+        "focused_write_result",
+        [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-ra",
+            "tests/unit/test_pr17dr2_write_result.py",
+            "tests/unit/test_pr15_http.py",
+            "tests/unit/test_pr16_cli_contract.py",
+            "tests/unit/test_pr16_cli_errors.py",
+            "tests/unit/test_pr16_cli_transport_matrix.py",
+            "tests/architecture/test_pr17_agent_ready_architecture.py",
+            "tests/integration/test_pr15_api.py",
+            "tests/integration/test_pr16_cli.py",
+        ],
+    ),
+    (
+        "pr17dr2_direct_sql_adversarial",
+        [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-ra",
+            "tests/integration/test_pr17dr2_adversarial.py",
+        ],
+    ),
+    (
+        "pr17dr2_concurrency",
+        ["uv", "run", "pytest", "-q", "-ra", "tests/integration/test_pr17dr2_concurrency.py"],
+    ),
+    (
+        "migration_lifecycle",
+        ["uv", "run", "pytest", "-q", "-ra", "tests/integration/test_pr17dr_migration.py"],
+    ),
+    (
+        "migration_rollback_snapshot",
+        [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-ra",
+            "tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows",
+        ],
+    ),
+    (
+        "catalog_exact_verification",
+        ["uv", "run", "pytest", "-q", "-ra", "tests/integration/test_pr17dr_catalog.py"],
+    ),
+    ("architecture", ["uv", "run", "pytest", "-q", "-ra", "tests/architecture"]),
+    (
+        "atomicity",
+        ["uv", "run", "pytest", "-q", "-ra", "tests/integration/test_pr12_atomicity.py"],
+    ),
+    (
+        "historical_exactness",
+        ["uv", "run", "pytest", "-q", "-ra", "tests/e2e/test_phase1_historical_exactness.py"],
+    ),
+    (
+        "hash_invariance",
+        [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-ra",
+            "tests/unit/domain/test_pr05_experiment.py",
+            "tests/unit/domain/test_pr06_dataset.py",
+            "tests/unit/domain/test_pr08_metric.py",
+            "tests/unit/domain/test_pr10_measurement.py",
+            "tests/unit/domain/test_pr11_statistical_result.py",
+            "tests/unit/domain/test_pr12_claim.py",
+        ],
+    ),
+    (
+        "provenance",
+        [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-ra",
+            "tests/integration/test_pr09r2_proof.py",
+            "tests/integration/test_pr13_queries.py",
+        ],
+    ),
+    (
+        "adapter_equivalence",
+        [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-ra",
+            "tests/e2e/test_phase1_cross_adapter_equivalence.py",
+            "tests/integration/test_pr15_api.py",
+            "tests/integration/test_pr16_cli.py",
+        ],
+    ),
+    ("ruff", ["uv", "run", "ruff", "check", "."]),
+    ("ruff_format", ["uv", "run", "ruff", "format", "--check", "."]),
+    ("pyright", ["uv", "run", "pyright"]),
+    ("git_diff_check", ["git", "diff", "--check"]),
+)
+
+
+def _run_verifications(database: dict[str, Any]) -> dict[str, Any]:
     return {
-        "command": " ".join(command),
-        "return_code": result.returncode,
-        "status": "PASS" if result.returncode == 0 else "FAIL",
+        command_id: _run_verification(command_id, command, database)
+        for command_id, command in VERIFICATION_COMMANDS
     }
+
+
+def _verification_verdict(result: dict[str, Any]) -> str:
+    if result["verdict"] != "PASS":
+        return result["verdict"]
+    current_skips = [
+        item for item in result["skips"] if item["classification"] != "inherited_pr11r2"
+    ]
+    return "FAIL" if current_skips else "PASS"
+
+
+def _all_required_checks_pass(results: dict[str, Any]) -> bool:
+    return all(_verification_verdict(result) == "PASS" for result in results.values())
+
+
+def _invariant_projection(results: dict[str, Any], catalog_verdict: str) -> list[dict[str, Any]]:
+    projection: list[dict[str, Any]] = []
+    for invariant_id, test_paths in INVARIANT_TESTS.items():
+        command_ids = [
+            command_id
+            for command_id, result in results.items()
+            if any(path in result["command"] for path in test_paths)
+        ]
+        if not command_ids:
+            verdict = "NOT_VERIFIED"
+            observed = {"commands": [], "db_enforced": None}
+        else:
+            observed_verdicts = [
+                _verification_verdict(results[command_id]) for command_id in command_ids
+            ]
+            verdict = (
+                "PASS"
+                if catalog_verdict == "PASS" and all(value == "PASS" for value in observed_verdicts)
+                else next(
+                    (value for value in observed_verdicts if value != "PASS"),
+                    "FAIL",
+                )
+            )
+            observed = {
+                "commands": command_ids,
+                "db_enforced": catalog_verdict == "PASS",
+                "command_verdicts": observed_verdicts,
+            }
+        projection.append(
+            {
+                "invariant_id": invariant_id,
+                "expected": {"db_enforced": True, "test_paths": test_paths},
+                "observed": observed,
+                "verdict": verdict,
+                "source": {"catalog": "U07 live PostgreSQL catalog", "tests": test_paths},
+            }
+        )
+    return projection
 
 
 def main() -> None:
@@ -449,6 +775,7 @@ def main() -> None:
     subject = _subject_head()
     engine = create_database_engine(database_url)
     try:
+        database = _database_identity(engine)
         observed = _observed_catalog(engine)
     finally:
         engine.dispose()
@@ -466,6 +793,68 @@ def main() -> None:
     )
     observed_function_names = {row["name"] for row in observed["functions"]}
     bound_function_names = {row["bound_function"]["name"] for row in observed["triggers"]}
+    catalog_checks = {
+        "functions": {
+            "expected": sorted(item["name"] for item in expected_functions),
+            "observed": sorted(observed_function_names),
+            "verdict": "PASS" if function_equality["exact"] else "FAIL",
+            "source": "U07 live PostgreSQL pg_proc query",
+        },
+        "triggers": {
+            "expected": sorted(item["name"] for item in expected_triggers),
+            "observed": sorted(item["name"] for item in observed["triggers"]),
+            "verdict": "PASS" if trigger_equality["exact"] else "FAIL",
+            "source": "U07 live PostgreSQL pg_trigger query",
+        },
+        "constraints": {
+            "expected": [],
+            "observed": sorted(item["name"] for item in observed["constraints"]),
+            "verdict": "PASS" if constraint_equality["exact"] else "FAIL",
+            "source": "U07 live PostgreSQL pg_constraint query",
+        },
+        "orphan_functions": {
+            "expected": [],
+            "observed": sorted(observed_function_names - bound_function_names),
+            "verdict": "PASS" if not observed_function_names - bound_function_names else "FAIL",
+            "source": "U07 live trigger-to-function projection",
+        },
+        "stale_references": {
+            "expected": [],
+            "observed": observed["stale_references"],
+            "verdict": "PASS" if not observed["stale_references"] else "FAIL",
+            "source": "U07 live trigger metadata compared with frozen manifest",
+        },
+        "non_public_functions": {
+            "expected": [],
+            "observed": observed["non_public_functions"],
+            "verdict": "PASS" if not observed["non_public_functions"] else "FAIL",
+            "source": "U07 live PostgreSQL pg_proc schema query",
+        },
+        "discarded_v1_5_functions": {
+            "expected": {
+                "count": DISCARDED_V15_FUNCTION_COUNT,
+                "name_patterns": ["pr17d_v15_%", "v15_pr17d_%"],
+            },
+            "observed": observed["discarded_v1_5_functions"],
+            "verdict": "PASS" if not observed["discarded_v1_5_functions"] else "FAIL",
+            "source": "live PostgreSQL pg_proc query for frozen v1.5 name patterns",
+        },
+        "function_projection": {
+            "expected": expected_functions,
+            "observed": observed["functions"],
+            "verdict": "PASS" if not function_projection_mismatches else "FAIL",
+            "source": "U07 live function projection",
+        },
+        "trigger_projection": {
+            "expected": expected_triggers,
+            "observed": observed["triggers"],
+            "verdict": "PASS" if not trigger_projection_mismatches else "FAIL",
+            "source": "U07 live trigger projection",
+        },
+    }
+    catalog_verdict = (
+        "PASS" if all(check["verdict"] == "PASS" for check in catalog_checks.values()) else "FAIL"
+    )
 
     manifest = {
         "schema": "pr17dr-migration-object-manifest-v1",
@@ -480,7 +869,7 @@ def main() -> None:
         "constraints": [],
         "discarded_v1_5_functions": {
             "expected_count": DISCARDED_V15_FUNCTION_COUNT,
-            "remaining_persistent_functions": [],
+            "name_patterns": ["pr17d_v15_%", "v15_pr17d_%"],
         },
     }
     verification = {
@@ -488,13 +877,14 @@ def main() -> None:
         "evidence_protocol": PROTOCOL,
         "implementation_subject_head": subject,
         "evidence_commit": None,
-        "database": {"engine": "PostgreSQL", "schema": "public", "credentials": "redacted"},
+        "database": database,
         "expected": {
             "functions": expected_functions,
             "triggers": expected_triggers,
             "constraints": [],
         },
         "observed": observed,
+        "checks": catalog_checks,
         "exact_set_equality": {
             "functions": function_equality,
             "triggers": trigger_equality,
@@ -505,37 +895,53 @@ def main() -> None:
             "triggers": trigger_projection_mismatches,
         },
         "orphan_functions": sorted(observed_function_names - bound_function_names),
-        "non_public_owned_functions": [],
-        "stale_references": [],
-        "discarded_v1_5_persistent_functions": [],
+        "non_public_owned_functions": observed["non_public_functions"],
+        "stale_references": observed["stale_references"],
+        "discarded_v1_5_persistent_functions": observed["discarded_v1_5_functions"],
         "unexpected_pr17d_objects": sorted(
             set(function_equality["unexpected"]) | set(trigger_equality["unexpected"])
         ),
-        "status": "PASS"
-        if all(
-            check["exact"] for check in (function_equality, trigger_equality, constraint_equality)
-        )
-        and not function_projection_mismatches
-        and not trigger_projection_mismatches
-        and not (observed_function_names - bound_function_names)
-        else "FAIL",
+        "verdict": catalog_verdict,
+        "source": "U07 live PostgreSQL catalog verification",
     }
+    implementation = _run_verifications(database)
+    implementation_verdict = "PASS" if _all_required_checks_pass(implementation) else "FAIL"
     projection = {
         "schema": "pr17dr-invariant-to-test-projection-v1",
         "evidence_protocol": PROTOCOL,
         "implementation_subject_head": subject,
         "evidence_commit": None,
-        "status": "PASS",
-        "invariants": [
-            {
-                "invariant_id": invariant_id,
-                "db_enforced": True,
-                "tests": tests,
-                "status": "PASS",
-            }
-            for invariant_id, tests in INVARIANT_TESTS.items()
-        ],
-        "focused_verification": _run_projection_tests(),
+        "invariants": _invariant_projection(implementation, catalog_verdict),
+        "verdict": (
+            "PASS"
+            if implementation_verdict == "PASS"
+            and catalog_verdict == "PASS"
+            and all(
+                item["verdict"] == "PASS"
+                for item in _invariant_projection(implementation, catalog_verdict)
+            )
+            else "FAIL"
+        ),
+        "source": "executed implementation verification commands",
+    }
+    readiness = {
+        "expected": {"all_required_checks": "PASS", "current_remediation_skips": 0},
+        "observed": {
+            "implementation_verdict": implementation_verdict,
+            "catalog_verdict": catalog_verdict,
+            "current_remediation_skips": sum(
+                sum(item["classification"] == "current_remediation" for item in result["skips"])
+                for result in implementation.values()
+            ),
+        },
+        "verdict": (
+            "PASS"
+            if implementation_verdict == "PASS"
+            and catalog_verdict == "PASS"
+            and projection["verdict"] == "PASS"
+            else "FAIL"
+        ),
+        "source": "execution-derived catalog and verification results",
     }
     output_dir = PROJECT_ROOT / OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -543,6 +949,29 @@ def main() -> None:
         ("migration_object_manifest.json", manifest),
         ("migration_catalog_verification.json", verification),
         ("invariant_to_test_projection.json", projection),
+        (
+            "implementation_verification.json",
+            {
+                "schema": "pr17dr2-implementation-verification-v1",
+                "evidence_protocol": PROTOCOL,
+                "implementation_subject_head": subject,
+                "evidence_commit": None,
+                "database": database,
+                "commands": implementation,
+                "verdict": implementation_verdict,
+                "source": "exact commands executed by scripts/pr17dr_evidence.py",
+            },
+        ),
+        (
+            "readiness.json",
+            {
+                "schema": "pr17dr2-readiness-v1",
+                "evidence_protocol": PROTOCOL,
+                "implementation_subject_head": subject,
+                "evidence_commit": None,
+                **readiness,
+            },
+        ),
     ):
         (output_dir / name).write_text(
             json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -552,8 +981,9 @@ def main() -> None:
             {
                 "subject": subject,
                 "output_dir": str(output_dir),
-                "catalog": verification["status"],
-                "focused_tests": projection["focused_verification"]["status"],
+                "catalog": catalog_verdict,
+                "implementation": implementation_verdict,
+                "readiness": readiness["verdict"],
                 "generated_at": datetime.now(UTC).isoformat(),
             },
             sort_keys=True,

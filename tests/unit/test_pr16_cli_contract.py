@@ -10,7 +10,8 @@ from uuid import uuid4
 
 from typer.testing import CliRunner
 
-from researchbase.application.dto import ProjectReadModel
+from researchbase.application.commands import WriteProjectionTarget
+from researchbase.application.dto import ProjectReadModel, WriteResult, write_result
 from researchbase.cli import context as cli_context
 from researchbase.cli.app import create_app
 from researchbase.domain.organization import LifecycleStatus
@@ -24,9 +25,14 @@ class FakeApplication:
     def __post_init__(self) -> None:
         self.commands = []
 
-    def create_project(self, command: object) -> ProjectReadModel:
+    def create_project(self, command: object) -> WriteResult:
         assert self.commands is not None
         self.commands.append(command)
+        assert self.project is not None
+        return write_result(self.project, self.project.created_at)
+
+    def project_write_result(self, result: WriteResult, target: WriteProjectionTarget) -> object:
+        assert target is WriteProjectionTarget.PROJECT
         assert self.project is not None
         return self.project
 

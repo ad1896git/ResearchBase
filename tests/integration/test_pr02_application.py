@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
-    ApplicationService,
     CreateActorCommand,
     CreateProjectCommand,
     CreateWorkspaceCommand,

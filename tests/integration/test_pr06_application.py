@@ -10,9 +10,9 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.exc import IntegrityError
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
-    ApplicationService,
     CreateActorCommand,
     CreateDatasetSnapshotCommand,
     CreateProjectCommand,

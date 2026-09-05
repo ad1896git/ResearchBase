@@ -17,9 +17,11 @@ from researchbase.application.commands import (
     FreezeMetricDefinitionCommand,
     RegisterDatasetCommand,
     ReviseMetricDefinitionCommand,
+    WriteProjectionTarget,
 )
 
 from ..common import (
+    application_write,
     invoke,
     merged_payload,
     option_base64,
@@ -65,14 +67,18 @@ def dataset_create(
             description=description,
             source_locator=source_locator,
         )
-        return runtime.services.application.register_dataset(
-            RegisterDatasetCommand(
-                project_id=optional_uuid(values, "project_id", runtime),
-                name=text_value(values, "name", runtime.request_id),
-                description=optional_text(values, "description", runtime.request_id),
-                source_locator=optional_text(values, "source_locator", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.DATASET,
+            lambda: runtime.services.application.register_dataset(
+                RegisterDatasetCommand(
+                    project_id=optional_uuid(values, "project_id", runtime),
+                    name=text_value(values, "name", runtime.request_id),
+                    description=optional_text(values, "description", runtime.request_id),
+                    source_locator=optional_text(values, "source_locator", runtime.request_id),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -102,14 +108,20 @@ def dataset_snapshot(
             ),
             manifest_locator=manifest_locator,
         )
-        return runtime.services.application.create_dataset_snapshot(
-            CreateDatasetSnapshotCommand(
-                dataset_id=uuid_value(values, "dataset_id", runtime.request_id),
-                manifest_hash=text_value(values, "manifest_hash", runtime.request_id),
-                selection_definition=required(values, "selection_definition", runtime.request_id),
-                manifest_locator=optional_text(values, "manifest_locator", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.DATASET_SNAPSHOT,
+            lambda: runtime.services.application.create_dataset_snapshot(
+                CreateDatasetSnapshotCommand(
+                    dataset_id=uuid_value(values, "dataset_id", runtime.request_id),
+                    manifest_hash=text_value(values, "manifest_hash", runtime.request_id),
+                    selection_definition=required(
+                        values, "selection_definition", runtime.request_id
+                    ),
+                    manifest_locator=optional_text(values, "manifest_locator", runtime.request_id),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -137,14 +149,18 @@ def artifact_create(
             project_id=option_uuid(project_id, "--project-id", runtime.request_id),
             description=description,
         )
-        return runtime.services.application.create_artifact(
-            CreateArtifactCommand(
-                project_id=optional_uuid(values, "project_id", runtime),
-                artifact_type=text_value(values, "artifact_type", runtime.request_id),
-                name=text_value(values, "name", runtime.request_id),
-                description=optional_text(values, "description", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.ARTIFACT,
+            lambda: runtime.services.application.create_artifact(
+                CreateArtifactCommand(
+                    project_id=optional_uuid(values, "project_id", runtime),
+                    artifact_type=text_value(values, "artifact_type", runtime.request_id),
+                    name=text_value(values, "name", runtime.request_id),
+                    description=optional_text(values, "description", runtime.request_id),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -212,17 +228,21 @@ def artifact_revise(
                     details={"field": "data_base64"},
                 )
             values["data"] = option_base64(payload_data, "data_base64", runtime.request_id)
-        return runtime.services.application.create_artifact_version(
-            CreateArtifactVersionCommand(
-                artifact_id=uuid_value(values, "artifact_id", runtime.request_id),
-                data=bytes_value(values.get("data"), runtime),
-                content_hash=optional_text(values, "content_hash", runtime.request_id),
-                locator=optional_text(values, "locator", runtime.request_id),
-                media_type=optional_text(values, "media_type", runtime.request_id),
-                byte_size=optional_nonnegative_int(values, "byte_size", runtime),
-                metadata=values.get("metadata"),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.ARTIFACT_VERSION,
+            lambda: runtime.services.application.create_artifact_version(
+                CreateArtifactVersionCommand(
+                    artifact_id=uuid_value(values, "artifact_id", runtime.request_id),
+                    data=bytes_value(values.get("data"), runtime),
+                    content_hash=optional_text(values, "content_hash", runtime.request_id),
+                    locator=optional_text(values, "locator", runtime.request_id),
+                    media_type=optional_text(values, "media_type", runtime.request_id),
+                    byte_size=optional_nonnegative_int(values, "byte_size", runtime),
+                    metadata=values.get("metadata"),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -250,13 +270,17 @@ def artifact_freeze(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.freeze_artifact_version(
-            FreezeArtifactVersionCommand(
-                artifact_id=uuid_value(values, "artifact_id", runtime.request_id),
-                version_id=uuid_value(values, "version_id", runtime.request_id),
-                expected_row_version=optional_int(values, "expected_row_version", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.ARTIFACT_VERSION,
+            lambda: runtime.services.application.freeze_artifact_version(
+                FreezeArtifactVersionCommand(
+                    artifact_id=uuid_value(values, "artifact_id", runtime.request_id),
+                    version_id=uuid_value(values, "version_id", runtime.request_id),
+                    expected_row_version=optional_int(values, "expected_row_version", runtime),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -286,15 +310,19 @@ def metric_create(
             unit=unit,
             aggregation=aggregation,
         )
-        return runtime.services.application.create_metric_definition(
-            CreateMetricDefinitionCommand(
-                project_id=optional_uuid(values, "project_id", runtime),
-                name=text_value(values, "name", runtime.request_id),
-                definition=required(values, "definition", runtime.request_id),
-                unit=optional_text(values, "unit", runtime.request_id),
-                aggregation=optional_text(values, "aggregation", runtime.request_id),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.METRIC_DEFINITION,
+            lambda: runtime.services.application.create_metric_definition(
+                CreateMetricDefinitionCommand(
+                    project_id=optional_uuid(values, "project_id", runtime),
+                    name=text_value(values, "name", runtime.request_id),
+                    definition=required(values, "definition", runtime.request_id),
+                    unit=optional_text(values, "unit", runtime.request_id),
+                    aggregation=optional_text(values, "aggregation", runtime.request_id),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -328,15 +356,21 @@ def metric_revise(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.revise_metric_definition(
-            ReviseMetricDefinitionCommand(
-                metric_definition_id=uuid_value(values, "metric_definition_id", runtime.request_id),
-                definition=required(values, "definition", runtime.request_id),
-                unit=optional_text(values, "unit", runtime.request_id),
-                aggregation=optional_text(values, "aggregation", runtime.request_id),
-                expected_row_version=int_value(values, "expected_row_version", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.METRIC_DEFINITION,
+            lambda: runtime.services.application.revise_metric_definition(
+                ReviseMetricDefinitionCommand(
+                    metric_definition_id=uuid_value(
+                        values, "metric_definition_id", runtime.request_id
+                    ),
+                    definition=required(values, "definition", runtime.request_id),
+                    unit=optional_text(values, "unit", runtime.request_id),
+                    aggregation=optional_text(values, "aggregation", runtime.request_id),
+                    expected_row_version=int_value(values, "expected_row_version", runtime),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)
@@ -366,13 +400,19 @@ def metric_freeze(
                 expected_row_version, "--expected-row-version", runtime.request_id
             ),
         )
-        return runtime.services.application.freeze_metric_definition(
-            FreezeMetricDefinitionCommand(
-                metric_definition_id=uuid_value(values, "metric_definition_id", runtime.request_id),
-                version_id=uuid_value(values, "version_id", runtime.request_id),
-                expected_row_version=optional_int(values, "expected_row_version", runtime),
-                context=execution_context(runtime),
-            )
+        return application_write(
+            runtime.services.application,
+            WriteProjectionTarget.METRIC_DEFINITION_VERSION,
+            lambda: runtime.services.application.freeze_metric_definition(
+                FreezeMetricDefinitionCommand(
+                    metric_definition_id=uuid_value(
+                        values, "metric_definition_id", runtime.request_id
+                    ),
+                    version_id=uuid_value(values, "version_id", runtime.request_id),
+                    expected_row_version=optional_int(values, "expected_row_version", runtime),
+                    context=execution_context(runtime),
+                )
+            ),
         )
 
     invoke(runtime, json_mode, operation)

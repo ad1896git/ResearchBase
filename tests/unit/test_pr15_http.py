@@ -10,7 +10,8 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 
 from researchbase.api.app import create_app
-from researchbase.application.dto import ProjectReadModel
+from researchbase.application.commands import WriteProjectionTarget
+from researchbase.application.dto import ProjectReadModel, WriteResult, write_result
 from researchbase.domain.organization import LifecycleStatus
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
@@ -26,6 +27,13 @@ class FakeApplication:
         self.command = command
         if self.error is not None:
             raise self.error
+        assert isinstance(self.result, ProjectReadModel)
+        return write_result(self.result, self.result.created_at)
+
+    def project_write_result(self, result: WriteResult, target: WriteProjectionTarget) -> object:
+        assert target is WriteProjectionTarget.PROJECT
+        assert isinstance(result, WriteResult)
+        assert isinstance(self.result, ProjectReadModel)
         return self.result
 
 
@@ -246,10 +254,13 @@ def test_supplied_request_ids_are_isolated_across_concurrent_success_and_error()
     actor_id = uuid4()
 
     class ConcurrentApplication:
+        def __init__(self) -> None:
+            self.projects: dict[UUID, ProjectReadModel] = {}
+
         def create_project(self, command: object) -> object:
             if cast(Any, command).name.startswith("error"):
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "x")
-            return ProjectReadModel(
+            project = ProjectReadModel(
                 id=uuid4(),
                 name=cast(Any, command).name,
                 description=None,
@@ -260,6 +271,14 @@ def test_supplied_request_ids_are_isolated_across_concurrent_success_and_error()
                 ),
                 row_version=1,
             )
+            self.projects[project.id] = project
+            return write_result(project, project.created_at)
+
+        def project_write_result(
+            self, result: WriteResult, target: WriteProjectionTarget
+        ) -> object:
+            assert target is WriteProjectionTarget.PROJECT
+            return self.projects[result.id]
 
     app = create_app(Services(ConcurrentApplication()))
     cases = [(uuid4(), "ok" if index % 2 == 0 else "error") for index in range(32)]

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, fields, is_dataclass
 from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
@@ -46,6 +47,7 @@ from researchbase.application.commands import (
     ReviseResearchQuestionCommand,
     StartRunCommand,
     StatisticalResultInputCommand,
+    WriteProjectionTarget,
 )
 from researchbase.application.dto import (
     ArtifactReadModel,
@@ -67,6 +69,7 @@ from researchbase.application.dto import (
     ResearchQuestionVersionReadModel,
     RunReadModel,
     StatisticalResultReadModel,
+    WriteResult,
 )
 from researchbase.application.governance import (
     CreateAuditFindingCommand,
@@ -424,14 +427,28 @@ def _json(value: object) -> Any:
     return jsonable_encoder(asdict(value) if is_dataclass(value) else value)
 
 
+def _legacy_write(
+    application: Any,
+    target: WriteProjectionTarget,
+    operation: Callable[[], WriteResult],
+) -> Any:
+    """Adapt a committed Application WriteResult to the accepted HTTP shape."""
+
+    result = operation()
+    return _json(application.project_write_result(result, target))
+
+
 @router.post(
     "/projects", status_code=201, operation_id="create_project", response_model=ProjectReadModel
 )
 def create_project(body: ProjectIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_project(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.PROJECT,
+        lambda: application.create_project(
             CreateProjectCommand(body.name, body.description, context)
-        )
+        ),
     )
 
 
@@ -442,10 +459,13 @@ def create_project(body: ProjectIn, context: Ctx, request: Request) -> Any:
     response_model=ResearchQuestionReadModel,
 )
 def create_research_question(body: ResearchQuestionIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_research_question(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RESEARCH_QUESTION,
+        lambda: application.create_research_question(
             CreateResearchQuestionCommand(**body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -458,12 +478,15 @@ def create_research_question(body: ResearchQuestionIn, context: Ctx, request: Re
 def revise_research_question(
     id: UUID, body: ReviseResearchQuestionIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.revise_research_question(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RESEARCH_QUESTION,
+        lambda: application.revise_research_question(
             ReviseResearchQuestionCommand(
                 research_question_id=id, **body.model_dump(), context=context
             )
-        )
+        ),
     )
 
 
@@ -475,12 +498,15 @@ def revise_research_question(
 def freeze_research_question(
     id: UUID, body: FreezeResearchQuestionIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.freeze_research_question(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RESEARCH_QUESTION_VERSION,
+        lambda: application.freeze_research_question(
             FreezeResearchQuestionCommand(
                 body.research_question_id, id, context, body.expected_row_version
             )
-        )
+        ),
     )
 
 
@@ -491,10 +517,13 @@ def freeze_research_question(
     response_model=HypothesisReadModel,
 )
 def create_hypothesis(body: HypothesisIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_hypothesis(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.HYPOTHESIS,
+        lambda: application.create_hypothesis(
             CreateHypothesisCommand(**body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -505,10 +534,13 @@ def create_hypothesis(body: HypothesisIn, context: Ctx, request: Request) -> Any
     response_model=HypothesisReadModel,
 )
 def revise_hypothesis(id: UUID, body: ReviseHypothesisIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.revise_hypothesis(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.HYPOTHESIS,
+        lambda: application.revise_hypothesis(
             ReviseHypothesisCommand(hypothesis_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -518,10 +550,13 @@ def revise_hypothesis(id: UUID, body: ReviseHypothesisIn, context: Ctx, request:
     response_model=HypothesisVersionReadModel,
 )
 def freeze_hypothesis(id: UUID, body: FreezeHypothesisIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.freeze_hypothesis(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.HYPOTHESIS_VERSION,
+        lambda: application.freeze_hypothesis(
             FreezeHypothesisCommand(body.hypothesis_id, id, context, body.expected_row_version)
-        )
+        ),
     )
 
 
@@ -532,10 +567,13 @@ def freeze_hypothesis(id: UUID, body: FreezeHypothesisIn, context: Ctx, request:
     response_model=ExperimentSpecReadModel,
 )
 def create_experiment_spec(body: ExperimentSpecIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_experiment_spec(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.EXPERIMENT_SPEC,
+        lambda: application.create_experiment_spec(
             CreateExperimentSpecCommand(**body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -548,10 +586,13 @@ def create_experiment_spec(body: ExperimentSpecIn, context: Ctx, request: Reques
 def revise_experiment_spec(
     id: UUID, body: ReviseExperimentSpecIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.revise_experiment_spec(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.EXPERIMENT_SPEC,
+        lambda: application.revise_experiment_spec(
             ReviseExperimentSpecCommand(experiment_spec_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -563,12 +604,15 @@ def revise_experiment_spec(
 def freeze_experiment_spec(
     id: UUID, body: FreezeExperimentSpecIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.freeze_experiment_spec(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.EXPERIMENT_SPEC_VERSION,
+        lambda: application.freeze_experiment_spec(
             FreezeExperimentSpecCommand(
                 body.experiment_spec_id, id, context, body.expected_row_version
             )
-        )
+        ),
     )
 
 
@@ -576,10 +620,13 @@ def freeze_experiment_spec(
     "/datasets", status_code=201, operation_id="register_dataset", response_model=DatasetReadModel
 )
 def register_dataset(body: DatasetIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.register_dataset(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.DATASET,
+        lambda: application.register_dataset(
             RegisterDatasetCommand(**body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -592,10 +639,13 @@ def register_dataset(body: DatasetIn, context: Ctx, request: Request) -> Any:
 def create_dataset_snapshot(
     id: UUID, body: DatasetSnapshotIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.create_dataset_snapshot(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.DATASET_SNAPSHOT,
+        lambda: application.create_dataset_snapshot(
             CreateDatasetSnapshotCommand(dataset_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -603,10 +653,13 @@ def create_dataset_snapshot(
     "/artifacts", status_code=201, operation_id="create_artifact", response_model=ArtifactReadModel
 )
 def create_artifact(body: ArtifactIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_artifact(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.ARTIFACT,
+        lambda: application.create_artifact(
             CreateArtifactCommand(**body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -619,10 +672,13 @@ def create_artifact(body: ArtifactIn, context: Ctx, request: Request) -> Any:
 def create_artifact_version(
     id: UUID, body: ArtifactVersionIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.create_artifact_version(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.ARTIFACT_VERSION,
+        lambda: application.create_artifact_version(
             CreateArtifactVersionCommand(artifact_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -634,10 +690,13 @@ def create_artifact_version(
 def freeze_artifact_version(
     id: UUID, body: FreezeArtifactIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.freeze_artifact_version(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.ARTIFACT_VERSION,
+        lambda: application.freeze_artifact_version(
             FreezeArtifactVersionCommand(body.artifact_id, id, context, body.expected_row_version)
-        )
+        ),
     )
 
 
@@ -648,10 +707,13 @@ def freeze_artifact_version(
     response_model=MetricDefinitionReadModel,
 )
 def create_metric_definition(body: MetricDefinitionIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_metric_definition(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.METRIC_DEFINITION,
+        lambda: application.create_metric_definition(
             CreateMetricDefinitionCommand(**body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -664,12 +726,15 @@ def create_metric_definition(body: MetricDefinitionIn, context: Ctx, request: Re
 def revise_metric_definition(
     id: UUID, body: ReviseMetricDefinitionIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.revise_metric_definition(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.METRIC_DEFINITION,
+        lambda: application.revise_metric_definition(
             ReviseMetricDefinitionCommand(
                 metric_definition_id=id, **body.model_dump(), context=context
             )
-        )
+        ),
     )
 
 
@@ -681,21 +746,25 @@ def revise_metric_definition(
 def freeze_metric_definition(
     id: UUID, body: FreezeMetricDefinitionIn, context: Ctx, request: Request
 ) -> Any:
-    return _json(
-        _services(request).application.freeze_metric_definition(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.METRIC_DEFINITION_VERSION,
+        lambda: application.freeze_metric_definition(
             FreezeMetricDefinitionCommand(
                 body.metric_definition_id, id, context, body.expected_row_version
             )
-        )
+        ),
     )
 
 
 @router.post("/runs", status_code=201, operation_id="create_run", response_model=RunReadModel)
 def create_run(body: RunIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_run(
-            CreateRunCommand(**body.model_dump(), context=context)
-        )
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RUN,
+        lambda: application.create_run(CreateRunCommand(**body.model_dump(), context=context)),
     )
 
 
@@ -705,10 +774,13 @@ def create_run(body: RunIn, context: Ctx, request: Request) -> Any:
     response_model=RunReadModel,
 )
 def attach_dataset(id: UUID, body: DatasetInputIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.attach_run_dataset_input(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RUN,
+        lambda: application.attach_run_dataset_input(
             AttachRunDatasetInputCommand(run_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -718,28 +790,35 @@ def attach_dataset(id: UUID, body: DatasetInputIn, context: Ctx, request: Reques
     response_model=RunReadModel,
 )
 def attach_artifact(id: UUID, body: ArtifactInputIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.attach_run_artifact_input(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RUN,
+        lambda: application.attach_run_artifact_input(
             AttachRunArtifactInputCommand(run_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
 @router.post("/runs/{id}:start", operation_id="start_run", response_model=RunReadModel)
 def start_run(id: UUID, body: TransitionIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.start_run(
-            StartRunCommand(id, body.expected_row_version, context)
-        )
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RUN,
+        lambda: application.start_run(StartRunCommand(id, body.expected_row_version, context)),
     )
 
 
 @router.post("/runs/{id}:finish", operation_id="finish_run", response_model=RunReadModel)
 def finish_run(id: UUID, body: FinishRunIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.finish_run(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.RUN,
+        lambda: application.finish_run(
             FinishRunCommand(run_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -757,10 +836,13 @@ def run_provenance(id: UUID, request: Request) -> Any:
     response_model=MeasurementReadModel,
 )
 def record_measurement(body: MeasurementIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.record_measurement(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.MEASUREMENT,
+        lambda: application.record_measurement(
             RecordMeasurementCommand(**body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -773,19 +855,23 @@ def record_measurement(body: MeasurementIn, context: Ctx, request: Request) -> A
 def record_statistical_result(body: StatisticalResultIn, context: Ctx, request: Request) -> Any:
     values = body.model_dump(exclude={"inputs"})
     inputs = tuple(StatisticalResultInputCommand(**item.model_dump()) for item in body.inputs)
-    return _json(
-        _services(request).application.record_statistical_result(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.STATISTICAL_RESULT,
+        lambda: application.record_statistical_result(
             RecordStatisticalResultCommand(**values, inputs=inputs, context=context)
-        )
+        ),
     )
 
 
 @router.post("/claims", status_code=201, operation_id="create_claim", response_model=ClaimReadModel)
 def create_claim(body: ClaimIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.create_claim(
-            CreateClaimCommand(**body.model_dump(), context=context)
-        )
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.CLAIM,
+        lambda: application.create_claim(CreateClaimCommand(**body.model_dump(), context=context)),
     )
 
 
@@ -796,10 +882,13 @@ def create_claim(body: ClaimIn, context: Ctx, request: Request) -> Any:
     response_model=ClaimReadModel,
 )
 def revise_claim(id: UUID, body: ReviseClaimIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.revise_claim(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.CLAIM,
+        lambda: application.revise_claim(
             ReviseClaimCommand(claim_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -810,10 +899,13 @@ def revise_claim(id: UUID, body: ReviseClaimIn, context: Ctx, request: Request) 
     response_model=EvidenceRelationReadModel,
 )
 def link_evidence(id: UUID, body: EvidenceIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.link_evidence(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.EVIDENCE_RELATION,
+        lambda: application.link_evidence(
             LinkEvidenceCommand(claim_version_id=id, **body.model_dump(), context=context)
-        )
+        ),
     )
 
 
@@ -823,10 +915,13 @@ def link_evidence(id: UUID, body: EvidenceIn, context: Ctx, request: Request) ->
     response_model=ClaimVersionReadModel,
 )
 def freeze_claim(id: UUID, body: FreezeClaimIn, context: Ctx, request: Request) -> Any:
-    return _json(
-        _services(request).application.freeze_claim_version(
+    application = _services(request).application
+    return _legacy_write(
+        application,
+        WriteProjectionTarget.CLAIM_VERSION,
+        lambda: application.freeze_claim_version(
             FreezeClaimVersionCommand(body.claim_id, id, context, body.expected_row_version)
-        )
+        ),
     )
 
 
