@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from researchbase.domain.artifact import ArtifactId, ArtifactVersionId
 from researchbase.domain.claim import (
@@ -34,6 +38,45 @@ from researchbase.domain.statistical_result import StatisticalResultId
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
+
+
+class WriteResult(BaseModel):
+    """Stable internal envelope for Application write consumers."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: UUID
+    version_id: UUID | None = None
+    content_hash: str | None = None
+    row_version: int | None = None
+    server_timestamp: datetime
+
+    @field_validator("server_timestamp")
+    @classmethod
+    def _utc_timestamp(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("server_timestamp must be UTC-aware")
+        return value.astimezone(UTC)
+
+
+def write_result(value: Any, server_timestamp: datetime) -> WriteResult:
+    """Convert a typed Application read model into the shared write envelope."""
+
+    if not hasattr(value, "id"):
+        raise TypeError("write result value must expose an id")
+    version_id = getattr(value, "version_id", None)
+    if version_id is None and hasattr(value, "version_number"):
+        version_id = value.id
+    if version_id is None:
+        version_id = getattr(value, "current_version_id", None)
+    content_hash = getattr(value, "content_hash", None)
+    return WriteResult(
+        id=UUID(str(value.id)),
+        version_id=UUID(str(version_id)) if version_id is not None else None,
+        content_hash=str(content_hash) if content_hash is not None else None,
+        row_version=getattr(value, "row_version", None),
+        server_timestamp=server_timestamp,
+    )
 
 
 @dataclass(frozen=True, slots=True)

@@ -343,7 +343,12 @@ def test_run_terminal_outcomes_and_closure_are_deterministic(
         started = service.start_run(StartRunCommand(run.id, current.row_version, actor_context))
         finished = service.finish_run(
             FinishRunCommand(
-                run.id, outcome, 1, "expected test outcome", started.row_version, actor_context
+                run.id,
+                outcome,
+                1 if outcome is RunStatus.FAILED else None,
+                "expected test outcome" if outcome is RunStatus.FAILED else None,
+                started.row_version,
+                actor_context,
             )
         )
         assert finished.status is outcome

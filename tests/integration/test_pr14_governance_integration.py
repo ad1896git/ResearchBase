@@ -185,12 +185,20 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
             ),
             {"run": ids["run"], "target": ids["snapshot"]},
         )
-        c.execute(text("ALTER TABLE runs DISABLE TRIGGER ALL"))
         c.execute(
-            text("UPDATE runs SET status='SUCCEEDED',inputs_sealed_at=:now WHERE id=:id"),
+            text(
+                "UPDATE runs SET status='RUNNING', inputs_sealed_at=:now, "
+                "started_at=:now, row_version=2 WHERE id=:id"
+            ),
             {"id": ids["run"], "now": now},
         )
-        c.execute(text("ALTER TABLE runs ENABLE TRIGGER ALL"))
+        c.execute(
+            text(
+                "UPDATE runs SET status='SUCCEEDED', finished_at=:now, exit_code=0, "
+                "row_version=3 WHERE id=:id"
+            ),
+            {"id": ids["run"], "now": now},
+        )
         c.execute(
             text(
                 "INSERT INTO metric_definitions(id,project_id,name,created_by,created_at) VALUES (:id,:project,'m',:actor,:now)"
@@ -281,11 +289,10 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
                 "now": now,
             },
         )
-        c.exec_driver_sql("ALTER TABLE claim_versions DISABLE TRIGGER ALL")
         c.execute(
             text(
                 "UPDATE claim_versions SET status='FROZEN',support_set_hash=:support_hash,"
-                "content_hash=:hash,frozen_at=:now WHERE id=:id"
+                "content_hash=:hash,frozen_at=:now,row_version=2 WHERE id=:id"
             ),
             {
                 "id": ids["claim_version"],
@@ -294,7 +301,6 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
                 "now": now,
             },
         )
-        c.exec_driver_sql("ALTER TABLE claim_versions ENABLE TRIGGER ALL")
     return ids
 
 
@@ -718,12 +724,20 @@ def test_downstream_select_count_is_stage_bounded(engine: Engine) -> None:
                     ),
                     {"run": run_id, "artifact": ids["artifact_version"]},
                 )
-                connection.execute(text("ALTER TABLE runs DISABLE TRIGGER ALL"))
                 connection.execute(
-                    text("UPDATE runs SET status='SUCCEEDED',inputs_sealed_at=:now WHERE id=:run"),
+                    text(
+                        "UPDATE runs SET status='RUNNING', inputs_sealed_at=:now, "
+                        "started_at=:now, row_version=2 WHERE id=:run"
+                    ),
                     {"run": run_id, "now": now},
                 )
-                connection.execute(text("ALTER TABLE runs ENABLE TRIGGER ALL"))
+                connection.execute(
+                    text(
+                        "UPDATE runs SET status='SUCCEEDED', finished_at=:now, exit_code=0, "
+                        "row_version=3 WHERE id=:run"
+                    ),
+                    {"run": run_id, "now": now},
+                )
                 connection.execute(
                     text(
                         "INSERT INTO measurements(id,run_id,metric_definition_version_id,numeric_value,content_hash,created_by,created_at) "

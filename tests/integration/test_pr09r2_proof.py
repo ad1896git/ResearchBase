@@ -943,23 +943,52 @@ def test_abandoned_exact_refs_remain_closure_invalid(
         )
     )
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE experiment_spec_versions DISABLE TRIGGER ALL"))
-    try:
-        with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE experiment_spec_versions "
+                "DISABLE TRIGGER pr17d_experiment_spec_version_update"
+            )
+        )
+        try:
             connection.execute(
-                text("UPDATE experiment_spec_versions SET status='ABANDONED' WHERE id=:id"),
+                text(
+                    "UPDATE experiment_spec_versions SET status='ABANDONED', "
+                    "row_version=row_version + 1 WHERE id=:id"
+                ),
                 {"id": spec_v1.id},
             )
-    finally:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE experiment_spec_versions ENABLE TRIGGER ALL"))
+        finally:
+            connection.execute(
+                text(
+                    "ALTER TABLE experiment_spec_versions "
+                    "ENABLE TRIGGER pr17d_experiment_spec_version_update"
+                )
+            )
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE artifact_versions DISABLE TRIGGER ALL"))
         connection.execute(
-            text("UPDATE artifact_versions SET status='ABANDONED' WHERE id=:id"),
-            {"id": artifact_a1.id},
+            text("ALTER TABLE artifact_versions DISABLE TRIGGER artifact_versions_frozen_immutable")
         )
-        connection.execute(text("ALTER TABLE artifact_versions ENABLE TRIGGER ALL"))
+        connection.execute(
+            text("ALTER TABLE artifact_versions DISABLE TRIGGER pr17d_artifact_version_update")
+        )
+        try:
+            connection.execute(
+                text(
+                    "UPDATE artifact_versions SET status='ABANDONED', "
+                    "row_version=row_version + 1 WHERE id=:id"
+                ),
+                {"id": artifact_a1.id},
+            )
+        finally:
+            connection.execute(
+                text("ALTER TABLE artifact_versions ENABLE TRIGGER pr17d_artifact_version_update")
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE artifact_versions "
+                    "ENABLE TRIGGER artifact_versions_frozen_immutable"
+                )
+            )
     report = service.validate_run_closure(run.id)
     assert not report.complete
     assert [violation.object_type for violation in report.violations] == [

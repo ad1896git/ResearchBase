@@ -20,8 +20,8 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event, text
-from sqlalchemy.engine import Engine
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import Engine, make_url
 from typer.testing import CliRunner
 
 import researchbase.application.commands as application_commands
@@ -176,13 +176,9 @@ def deterministic_ids(seed: str) -> Iterator[None]:
         governance_commands.new_typed_id = previous_governance
 
 
-def _schema_url(base_url: str, schema: str) -> str:
-    return f"{base_url.split('?', 1)[0]}?options=-csearch_path={schema}"
-
-
-def _run_clean_install(base_url: str, schema: str) -> None:
+def _run_clean_install(database_url: str) -> None:
     environment = os.environ.copy()
-    environment["DATABASE_URL"] = _schema_url(base_url, schema)
+    environment["DATABASE_URL"] = database_url
     environment.setdefault("UV_CACHE_DIR", "/tmp/researchbase-uv-cache")
     result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
@@ -198,21 +194,23 @@ def _run_clean_install(base_url: str, schema: str) -> None:
 
 @contextmanager
 def fresh_fixture(tmp_path: Path, seed: str = "gsas-01") -> Iterator[WorkflowFixture]:
-    """Create a clean, independently migrated PostgreSQL schema for one workflow."""
+    """Create a clean, independently migrated PostgreSQL database for one workflow."""
 
     base_url = os.getenv("DATABASE_URL")
     if not base_url:
         pytest.skip("DATABASE_URL is not set; PR-17 acceptance requires PostgreSQL 18.x")
 
-    schema = f"pr17_{uuid4().hex}"
-    admin = create_database_engine(base_url)
+    database = f"researchbase_pr17_{uuid4().hex[:16]}"
+    base = make_url(base_url)
+    admin = create_engine(base.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    database_url = base.set(database=database).render_as_string(hide_password=False)
     app_engine: Engine | None = None
     with deterministic_ids(seed):
         try:
-            with admin.begin() as connection:
-                connection.execute(text(f'CREATE SCHEMA "{schema}"'))
-            _run_clean_install(base_url, schema)
-            url = _schema_url(base_url, schema)
+            with admin.connect() as connection:
+                connection.execute(text(f'CREATE DATABASE "{database}"'))
+            _run_clean_install(database_url)
+            url = database_url
             app_engine = create_database_engine(url)
             sessions = create_session_factory(app_engine)
             clock = FixedClock(FIXED_NOW)
@@ -227,7 +225,7 @@ def fresh_fixture(tmp_path: Path, seed: str = "gsas-01") -> Iterator[WorkflowFix
             governance_queries = GovernanceQueryService(uow_factory)
             services = ServiceBundle(application, provenance, governance, governance_queries)
             fixture = WorkflowFixture(
-                schema,
+                "public",
                 url,
                 app_engine,
                 sessions,
@@ -264,13 +262,9 @@ def fresh_fixture(tmp_path: Path, seed: str = "gsas-01") -> Iterator[WorkflowFix
         finally:
             if app_engine is not None:
                 app_engine.dispose()
+            with admin.connect() as connection:
+                connection.execute(text(f'DROP DATABASE IF EXISTS "{database}" WITH (FORCE)'))
             admin.dispose()
-            cleanup = create_database_engine(base_url)
-            try:
-                with cleanup.begin() as connection:
-                    connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
-            finally:
-                cleanup.dispose()
 
 
 def _value(result: Any, name: str) -> Any:

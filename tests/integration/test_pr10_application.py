@@ -366,7 +366,14 @@ def test_run_state_matrix_rejects_planned_running_failed_and_cancelled(
         )
         started = service.start_run(StartRunCommand(started.id, started.row_version, actor_context))
         terminal = service.finish_run(
-            FinishRunCommand(started.id, outcome, 1, "test", started.row_version, actor_context)
+            FinishRunCommand(
+                started.id,
+                outcome,
+                1 if outcome is RunStatus.FAILED else None,
+                "test" if outcome is RunStatus.FAILED else None,
+                started.row_version,
+                actor_context,
+            )
         )
         with pytest.raises(ResearchBaseError) as error:
             record(service, terminal.id, version.id, actor_context, unit=None)
@@ -397,7 +404,7 @@ def test_persisted_incomplete_provenance_closure_is_rejected(
     )
     assert draft_spec.current_version_id is not None
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE runs DISABLE TRIGGER ALL"))
+        connection.execute(text("ALTER TABLE runs DISABLE TRIGGER pr17d_run_update"))
     try:
         with engine.begin() as connection:
             connection.execute(
@@ -408,7 +415,7 @@ def test_persisted_incomplete_provenance_closure_is_rejected(
             )
     finally:
         with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE runs ENABLE TRIGGER ALL"))
+            connection.execute(text("ALTER TABLE runs ENABLE TRIGGER pr17d_run_update"))
 
     closure = service.validate_run_closure(run.id)
     assert closure.complete is False

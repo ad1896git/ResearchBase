@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from functools import wraps
+from time import monotonic
 from typing import Any
 
 from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
@@ -32,6 +34,8 @@ from researchbase.application.dto import (
     StatisticalResultInputReadModel,
     StatisticalResultReadModel,
     WorkspaceReadModel,
+    WriteResult,
+    write_result,
 )
 from researchbase.application.ports import UnitOfWork
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
@@ -97,6 +101,7 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.hashing import ContentHash, sha256_canonical_json
 from researchbase.foundation.ids import ActorId, new_typed_id
+from researchbase.foundation.structured_logging import emit_application_event, operation_context
 from researchbase.foundation.time import Clock
 from researchbase.foundation.versioning import VersionStatus
 
@@ -565,6 +570,118 @@ class SetArtifactCurrentVersionCommand:
 UowFactory = Callable[[], UnitOfWork]
 
 
+def _target_id(command: object) -> object:
+    for name in (
+        "run_id",
+        "version_id",
+        "claim_version_id",
+        "research_question_id",
+        "hypothesis_id",
+        "experiment_spec_id",
+        "metric_definition_id",
+        "artifact_id",
+        "dataset_id",
+        "project_id",
+    ):
+        value = getattr(command, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _instrument_application_service(cls: type[Any]) -> type[Any]:
+    for name, method in tuple(vars(cls).items()):
+        if name.startswith("_") or name == "to_write_result" or not callable(method):
+            continue
+
+        @wraps(method)
+        def logged(
+            self: Any,
+            *args: Any,
+            __method: Any = method,
+            __name: str = name,
+            **kwargs: Any,
+        ) -> Any:
+            command = args[0] if args else kwargs.get("command")
+            context = getattr(command, "context", None)
+            project_id = getattr(command, "project_id", None)
+            target_id = _target_id(command) if command is not None else None
+            started = monotonic()
+            with operation_context(
+                command_name=__name,
+                context=context,
+                project_id=project_id,
+                target_id=target_id,
+            ):
+                try:
+                    result = __method(self, *args, **kwargs)
+                except ResearchBaseError as exc:
+                    emit_application_event(
+                        command_name=__name,
+                        request_id=getattr(context, "request_id", None),
+                        correlation_id=getattr(context, "correlation_id", None),
+                        actor_id=getattr(context, "actor_id", None),
+                        project_id=project_id,
+                        target_id=target_id,
+                        result="failure",
+                        error_code=exc.code.value,
+                        duration_ms=(monotonic() - started) * 1000,
+                        rollback=True,
+                    )
+                    raise
+                except (TypeError, ValueError) as exc:
+                    normalized = ResearchBaseError(
+                        ErrorCode.VALIDATION_ERROR,
+                        str(exc) or "application validation failed",
+                    )
+                    emit_application_event(
+                        command_name=__name,
+                        request_id=getattr(context, "request_id", None),
+                        correlation_id=getattr(context, "correlation_id", None),
+                        actor_id=getattr(context, "actor_id", None),
+                        project_id=project_id,
+                        target_id=target_id,
+                        result="failure",
+                        error_code=normalized.code.value,
+                        duration_ms=(monotonic() - started) * 1000,
+                        rollback=True,
+                    )
+                    raise normalized from exc
+                except Exception:
+                    emit_application_event(
+                        command_name=__name,
+                        request_id=getattr(context, "request_id", None),
+                        correlation_id=getattr(context, "correlation_id", None),
+                        actor_id=getattr(context, "actor_id", None),
+                        project_id=project_id,
+                        target_id=target_id,
+                        result="failure",
+                        error_code="INTERNAL_ERROR",
+                        duration_ms=(monotonic() - started) * 1000,
+                        rollback=True,
+                    )
+                    raise
+                else:
+                    emit_application_event(
+                        command_name=__name,
+                        request_id=getattr(context, "request_id", None),
+                        correlation_id=getattr(context, "correlation_id", None),
+                        actor_id=getattr(context, "actor_id", None),
+                        project_id=project_id,
+                        target_id=target_id,
+                        result="success",
+                        error_code=None,
+                        duration_ms=(monotonic() - started) * 1000,
+                        rollback=False,
+                    )
+                    return result
+
+        setattr(cls, name, logged)
+
+    return cls
+
+
+@_instrument_application_service
 class ApplicationService:
     def __init__(
         self, uow_factory: UowFactory, clock: Clock, artifact_store: ArtifactStore | None = None
@@ -572,6 +689,11 @@ class ApplicationService:
         self._uow_factory = uow_factory
         self._clock = clock
         self._artifact_store = artifact_store
+
+    def to_write_result(self, value: object) -> WriteResult:
+        """Expose the shared internal write contract without changing adapters."""
+
+        return write_result(value, self._clock.now())
 
     def create_actor(self, command: CreateActorCommand) -> ActorReadModel:
         with self._uow_factory() as uow:

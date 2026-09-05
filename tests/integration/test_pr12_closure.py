@@ -325,7 +325,12 @@ def test_claim_closure_detects_support_and_content_hash_tampering(
             {"id": frozen.id},
         ).one()
     with engine.begin() as connection:
-        connection.exec_driver_sql("ALTER TABLE claim_versions DISABLE TRIGGER ALL")
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions DISABLE TRIGGER claim_versions_finalized_immutable"
+        )
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions DISABLE TRIGGER pr17d_claim_version_update"
+        )
         connection.execute(
             text(
                 "UPDATE claim_versions SET support_set_hash=:support_hash, "
@@ -334,7 +339,12 @@ def test_claim_closure_detects_support_and_content_hash_tampering(
             ),
             {"id": frozen.id, "support_hash": "a" * 64, "content_hash": "b" * 64},
         )
-        connection.exec_driver_sql("ALTER TABLE claim_versions ENABLE TRIGGER ALL")
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions ENABLE TRIGGER pr17d_claim_version_update"
+        )
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions ENABLE TRIGGER claim_versions_finalized_immutable"
+        )
 
     report = service.validate_claim_version(frozen.id)
     assert report.complete is False
@@ -348,7 +358,12 @@ def test_claim_closure_detects_support_and_content_hash_tampering(
     ]
 
     with engine.begin() as connection:
-        connection.exec_driver_sql("ALTER TABLE claim_versions DISABLE TRIGGER ALL")
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions DISABLE TRIGGER claim_versions_finalized_immutable"
+        )
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions DISABLE TRIGGER pr17d_claim_version_update"
+        )
         connection.execute(
             text(
                 "UPDATE claim_versions SET support_set_hash=:support_hash, "
@@ -357,7 +372,12 @@ def test_claim_closure_detects_support_and_content_hash_tampering(
             ),
             {"id": frozen.id, "support_hash": original[0], "content_hash": original[1]},
         )
-        connection.exec_driver_sql("ALTER TABLE claim_versions ENABLE TRIGGER ALL")
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions ENABLE TRIGGER pr17d_claim_version_update"
+        )
+        connection.exec_driver_sql(
+            "ALTER TABLE claim_versions ENABLE TRIGGER claim_versions_finalized_immutable"
+        )
 
 
 def test_claim_closure_reports_missing_historical_measurement_source(
@@ -443,12 +463,34 @@ def test_claim_closure_rejects_non_final_metric_definition_version(
             {"measurement_id": measurement_id},
         ).scalar_one()
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE metric_definition_versions DISABLE TRIGGER ALL"))
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "DISABLE TRIGGER metric_definition_versions_frozen_immutable"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "DISABLE TRIGGER pr17d_metric_definition_version_update"
+            )
+        )
         connection.execute(
             text("UPDATE metric_definition_versions SET status='DRAFT' WHERE id=:id"),
             {"id": metric_version_id},
         )
-        connection.execute(text("ALTER TABLE metric_definition_versions ENABLE TRIGGER ALL"))
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "ENABLE TRIGGER pr17d_metric_definition_version_update"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "ENABLE TRIGGER metric_definition_versions_frozen_immutable"
+            )
+        )
 
     report = service.validate_claim_version(frozen.id)
     assert report.complete is False
@@ -459,9 +501,31 @@ def test_claim_closure_rejects_non_final_metric_definition_version(
     )
 
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE metric_definition_versions DISABLE TRIGGER ALL"))
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "DISABLE TRIGGER metric_definition_versions_frozen_immutable"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "DISABLE TRIGGER pr17d_metric_definition_version_update"
+            )
+        )
         connection.execute(
             text("UPDATE metric_definition_versions SET status='FROZEN' WHERE id=:id"),
             {"id": metric_version_id},
         )
-        connection.execute(text("ALTER TABLE metric_definition_versions ENABLE TRIGGER ALL"))
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "ENABLE TRIGGER pr17d_metric_definition_version_update"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE metric_definition_versions "
+                "ENABLE TRIGGER metric_definition_versions_frozen_immutable"
+            )
+        )

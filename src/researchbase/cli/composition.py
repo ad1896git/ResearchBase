@@ -11,6 +11,7 @@ from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
+from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
 from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
@@ -34,6 +35,7 @@ class ServiceBundle:
 
 def build_services() -> ServiceBundle:
     settings = load_settings()
+    configure_logging(settings.log_level, settings.application_env)
     engine = create_database_engine(settings.database_url)
     session_factory = create_session_factory(engine)
 

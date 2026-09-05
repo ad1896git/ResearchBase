@@ -28,6 +28,7 @@ from researchbase.application.ports import (
     WorkspaceRepository,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
@@ -66,6 +67,17 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
             ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
             "parent state does not permit this relation",
         )
+    if sqlstate == "P17D4":
+        return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "database preflight validation failed")
+    if sqlstate == "P17D5":
+        return ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION,
+            "resource was modified concurrently",
+        )
+    if sqlstate == "23514":
+        if "immutable" in str(original).lower():
+            return ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "record is immutable")
+        return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "database check constraint violated")
     if sqlstate == "23503":
         return ResearchBaseError(
             ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "referential integrity violation"
@@ -128,7 +140,18 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
         mapped = duplicate_map.get(constraint) if isinstance(constraint, str) else None
         if mapped is not None:
             code, message = mapped
-            return ResearchBaseError(code, message)
+            details = None
+            if constraint == "uq_actors_external_key":
+                details = {"field": "external_key"}
+            elif constraint in {
+                "uq_research_question_versions_parent_version",
+                "uq_hypothesis_versions_parent_version",
+                "uq_experiment_spec_versions_parent_version",
+                "uq_metric_definition_versions_parent_version",
+                "uq_artifact_versions_artifact_version",
+            }:
+                details = {"field": "version_number"}
+            return ResearchBaseError(code, message, details)
     return None
 
 
@@ -203,6 +226,7 @@ class SqlAlchemyUnitOfWork:
             return
         if exc_type is not None or not self._committed:
             self._session.rollback()
+            emit_uow_rollback(getattr(getattr(exc_value, "code", None), "value", None))
         self._session.close()
         self._session = None
         if exc_value is not None:

@@ -288,10 +288,12 @@ def test_repository_parent_only_commit_is_rejected_and_rolled_back(
     sessions = create_session_factory(engine)
     result = direct_result(uuid4(), project_id, actor_id)
 
-    with pytest.raises(DBAPIError):
+    with pytest.raises(ResearchBaseError) as raised:
         with SqlAlchemyUnitOfWork(sessions) as uow:
             uow.statistical_results.add(result)
             uow.commit()
+
+    assert raised.value.code is ErrorCode.VALIDATION_ERROR
 
     assert factory().list_statistical_results_for_project(project_id) == []
     assert_no_statistical_result_rows(engine, project_id)
