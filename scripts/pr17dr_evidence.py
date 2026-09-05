@@ -217,20 +217,24 @@ FUNCTION_DETAILS: tuple[dict[str, Any], ...] = (
 
 INVARIANT_TESTS = {
     "INV-VERSION-01": [
+        "tests/integration/test_pr17dr2_adversarial.py",
         "tests/integration/test_pr17dr_adversarial.py",
         "tests/e2e/test_phase1_historical_exactness.py",
         "tests/integration/test_pr09r2_proof.py",
     ],
     "INV-RUN-01": [
+        "tests/integration/test_pr17dr2_adversarial.py",
         "tests/integration/test_pr17dr_adversarial.py",
         "tests/integration/test_pr09_application.py",
         "tests/integration/test_pr10_application.py",
     ],
     "INV-RUNINPUT-01": [
+        "tests/integration/test_pr17dr2_concurrency.py",
         "tests/integration/test_pr17dr_adversarial.py",
         "tests/e2e/test_phase1_concurrency_acceptance.py",
     ],
     "INV-EVIDENCE-01": [
+        "tests/integration/test_pr17dr2_adversarial.py",
         "tests/integration/test_pr17dr_adversarial.py",
         "tests/integration/test_pr12_closure.py",
     ],
@@ -239,6 +243,7 @@ INVARIANT_TESTS = {
     "INV-IMMUTABLE-03": ["tests/integration/test_pr11_application.py"],
     "INV-IMMUTABLE-04": ["tests/integration/test_pr11_application.py"],
     "INV-GOV-01": [
+        "tests/integration/test_pr17dr_adversarial.py",
         "tests/integration/test_pr17dr_adversarial.py",
         "tests/integration/test_pr14_governance_integration.py",
     ],
@@ -642,6 +647,23 @@ VERIFICATION_COMMANDS: tuple[tuple[str, list[str]], ...] = (
             "-q",
             "-ra",
             "tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows",
+        ],
+    ),
+    (
+        "regression_db_invariants",
+        [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-ra",
+            "tests/integration/test_pr06_application.py",
+            "tests/integration/test_pr09_application.py",
+            "tests/integration/test_pr10_application.py",
+            "tests/integration/test_pr11_application.py",
+            "tests/integration/test_pr12_closure.py",
+            "tests/integration/test_pr14_governance_integration.py",
+            "tests/integration/test_pr17dr_adversarial.py",
         ],
     ),
     (
