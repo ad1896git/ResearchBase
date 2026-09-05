@@ -1,0 +1,3502 @@
+{
+  "database": {
+    "credentials": "redacted",
+    "engine": "PostgreSQL",
+    "schema": "public"
+  },
+  "discarded_v1_5_persistent_functions": [],
+  "evidence_commit": null,
+  "evidence_protocol": "non-self-referential-v1",
+  "exact_set_equality": {
+    "constraints": {
+      "exact": true,
+      "expected_count": 0,
+      "missing": [],
+      "observed_count": 0,
+      "unexpected": []
+    },
+    "functions": {
+      "exact": true,
+      "expected_count": 18,
+      "missing": [],
+      "observed_count": 18,
+      "unexpected": []
+    },
+    "triggers": {
+      "exact": true,
+      "expected_count": 40,
+      "missing": [],
+      "observed_count": 40,
+      "unexpected": []
+    }
+  },
+  "expected": {
+    "constraints": [],
+    "functions": [
+      {
+        "catalog_query_id": "U07-FN-01",
+        "classification": "version guard",
+        "consumer_triggers": [
+          "pr17d_research_question_version_update",
+          "pr17d_research_question_version_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "research_question_versions"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_research_question_version",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-01",
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "name": "pr17d_guard_research_question_version",
+        "owning_table": "research_question_versions",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.18",
+          "upgrade": "U04.01"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-02",
+        "classification": "version guard",
+        "consumer_triggers": [
+          "pr17d_hypothesis_version_update",
+          "pr17d_hypothesis_version_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "hypothesis_versions"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_hypothesis_version",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-02",
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "name": "pr17d_guard_hypothesis_version",
+        "owning_table": "hypothesis_versions",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.17",
+          "upgrade": "U04.02"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-03",
+        "classification": "version guard",
+        "consumer_triggers": [
+          "pr17d_experiment_spec_version_update",
+          "pr17d_experiment_spec_version_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "experiment_spec_versions"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_experiment_spec_version",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-03",
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "name": "pr17d_guard_experiment_spec_version",
+        "owning_table": "experiment_spec_versions",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.16",
+          "upgrade": "U04.03"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-04",
+        "classification": "version guard",
+        "consumer_triggers": [
+          "pr17d_artifact_version_update",
+          "pr17d_artifact_version_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "artifact_versions"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_artifact_version",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-04",
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "name": "pr17d_guard_artifact_version",
+        "owning_table": "artifact_versions",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.15",
+          "upgrade": "U04.04"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-05",
+        "classification": "version guard",
+        "consumer_triggers": [
+          "pr17d_metric_definition_version_update",
+          "pr17d_metric_definition_version_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "metric_definition_versions"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_metric_definition_version",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-05",
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "name": "pr17d_guard_metric_definition_version",
+        "owning_table": "metric_definition_versions",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.14",
+          "upgrade": "U04.05"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-06",
+        "classification": "version guard",
+        "consumer_triggers": [
+          "pr17d_claim_version_update",
+          "pr17d_claim_version_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "claim_versions"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_claim_version",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-06",
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "name": "pr17d_guard_claim_version",
+        "owning_table": "claim_versions",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.13",
+          "upgrade": "U04.06"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-07",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_dataset_snapshot_update",
+          "pr17d_dataset_snapshot_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "dataset_snapshots"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_dataset_snapshot_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-07",
+        "invariants": [
+          "INV-IMMUTABLE-01"
+        ],
+        "name": "pr17d_reject_dataset_snapshot_mutation",
+        "owning_table": "dataset_snapshots",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.12",
+          "upgrade": "U04.07"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-08",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_measurement_update",
+          "pr17d_measurement_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "measurements"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_measurement_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-08",
+        "invariants": [
+          "INV-IMMUTABLE-02"
+        ],
+        "name": "pr17d_reject_measurement_mutation",
+        "owning_table": "measurements",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.11",
+          "upgrade": "U04.08"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-09",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_statistical_result_update",
+          "pr17d_statistical_result_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "statistical_results"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_statistical_result_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-09",
+        "invariants": [
+          "INV-IMMUTABLE-03"
+        ],
+        "name": "pr17d_reject_statistical_result_mutation",
+        "owning_table": "statistical_results",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.10",
+          "upgrade": "U04.09"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-10",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_statistical_result_input_update",
+          "pr17d_statistical_result_input_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "statistical_result_inputs"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_statistical_result_input_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-10",
+        "invariants": [
+          "INV-IMMUTABLE-04"
+        ],
+        "name": "pr17d_reject_statistical_result_input_mutation",
+        "owning_table": "statistical_result_inputs",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.09",
+          "upgrade": "U04.10"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-11",
+        "classification": "Run guard",
+        "consumer_triggers": [
+          "pr17d_run_update",
+          "pr17d_run_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "runs"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_run",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-11",
+        "invariants": [
+          "INV-RUN-01"
+        ],
+        "name": "pr17d_guard_run",
+        "owning_table": "runs",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.08",
+          "upgrade": "U04.11"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-12",
+        "classification": "parent-state guard",
+        "consumer_triggers": [
+          "pr17d_run_dataset_input_insert",
+          "pr17d_run_dataset_input_update",
+          "pr17d_run_dataset_input_delete",
+          "pr17d_run_artifact_input_insert",
+          "pr17d_run_artifact_input_update",
+          "pr17d_run_artifact_input_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "run_dataset_inputs",
+            "run_artifact_inputs"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_run_input_parent",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-12",
+        "invariants": [
+          "INV-RUNINPUT-01"
+        ],
+        "name": "pr17d_guard_run_input_parent",
+        "owning_table": "run_dataset_inputs, run_artifact_inputs",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D03.07",
+          "upgrade": "U04.12"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-13",
+        "classification": "parent-state guard",
+        "consumer_triggers": [
+          "pr17d_evidence_relation_insert",
+          "pr17d_evidence_relation_update",
+          "pr17d_evidence_relation_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "evidence_relations",
+            "claim_versions"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_evidence_relation_parent",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-13",
+        "invariants": [
+          "INV-EVIDENCE-01"
+        ],
+        "name": "pr17d_guard_evidence_relation_parent",
+        "owning_table": "evidence_relations, claim_versions",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D03.06",
+          "upgrade": "U04.13"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-14",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_audit_finding_update",
+          "pr17d_audit_finding_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "audit_findings"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_audit_finding_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-14",
+        "invariants": [
+          "INV-GOV-01"
+        ],
+        "name": "pr17d_reject_audit_finding_mutation",
+        "owning_table": "audit_findings",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.05",
+          "upgrade": "U04.14"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-15",
+        "classification": "transition guard",
+        "consumer_triggers": [
+          "pr17d_audit_finding_transition"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "audit_findings"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_guard_audit_finding_transition",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-15",
+        "invariants": [
+          "INV-GOV-01"
+        ],
+        "name": "pr17d_guard_audit_finding_transition",
+        "owning_table": "audit_findings",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D03.04",
+          "upgrade": "U04.15"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-16",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_impact_assessment_update",
+          "pr17d_impact_assessment_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "impact_assessments"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_impact_assessment_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-16",
+        "invariants": [
+          "INV-GOV-02"
+        ],
+        "name": "pr17d_reject_impact_assessment_mutation",
+        "owning_table": "impact_assessments",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.03",
+          "upgrade": "U04.16"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-17",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_impact_target_update",
+          "pr17d_impact_target_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "impact_targets"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_impact_target_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-17",
+        "invariants": [
+          "INV-GOV-03"
+        ],
+        "name": "pr17d_reject_impact_target_mutation",
+        "owning_table": "impact_targets",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.02",
+          "upgrade": "U04.17"
+        }
+      },
+      {
+        "catalog_query_id": "U07-FN-18",
+        "classification": "immutable-record guard",
+        "consumer_triggers": [
+          "pr17d_correction_record_update",
+          "pr17d_correction_record_delete"
+        ],
+        "dependencies": {
+          "functions": [],
+          "tables": [
+            "correction_records"
+          ]
+        },
+        "expected_projection": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "name": "pr17d_reject_correction_record_mutation",
+          "result": "trigger",
+          "schema": "public"
+        },
+        "function_id": "FN-18",
+        "invariants": [
+          "INV-GOV-04"
+        ],
+        "name": "pr17d_reject_correction_record_mutation",
+        "owning_table": "correction_records",
+        "schema": "public",
+        "signature": {
+          "identity_arguments": [],
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D03.01",
+          "upgrade": "U04.18"
+        }
+      }
+    ],
+    "triggers": [
+      {
+        "bound_function": {
+          "name": "pr17d_guard_research_question_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-01",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_research_question_version"
+          ],
+          "tables": [
+            "research_question_versions"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_research_question_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_research_question_version_update",
+          "schema": "public",
+          "table": "research_question_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_research_question_version_update",
+        "owning_table": "research_question_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.40",
+          "upgrade": "U05.01"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-01"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_research_question_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-02",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_research_question_version"
+          ],
+          "tables": [
+            "research_question_versions"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_research_question_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_research_question_version_delete",
+          "schema": "public",
+          "table": "research_question_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_research_question_version_delete",
+        "owning_table": "research_question_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.39",
+          "upgrade": "U05.02"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-02"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_hypothesis_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-03",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_hypothesis_version"
+          ],
+          "tables": [
+            "hypothesis_versions"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_hypothesis_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_hypothesis_version_update",
+          "schema": "public",
+          "table": "hypothesis_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_hypothesis_version_update",
+        "owning_table": "hypothesis_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.38",
+          "upgrade": "U05.03"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-03"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_hypothesis_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-04",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_hypothesis_version"
+          ],
+          "tables": [
+            "hypothesis_versions"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_hypothesis_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_hypothesis_version_delete",
+          "schema": "public",
+          "table": "hypothesis_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_hypothesis_version_delete",
+        "owning_table": "hypothesis_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.37",
+          "upgrade": "U05.04"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-04"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_experiment_spec_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-05",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_experiment_spec_version"
+          ],
+          "tables": [
+            "experiment_spec_versions"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_experiment_spec_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_experiment_spec_version_update",
+          "schema": "public",
+          "table": "experiment_spec_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_experiment_spec_version_update",
+        "owning_table": "experiment_spec_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.36",
+          "upgrade": "U05.05"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-05"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_experiment_spec_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-06",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_experiment_spec_version"
+          ],
+          "tables": [
+            "experiment_spec_versions"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_experiment_spec_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_experiment_spec_version_delete",
+          "schema": "public",
+          "table": "experiment_spec_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_experiment_spec_version_delete",
+        "owning_table": "experiment_spec_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.35",
+          "upgrade": "U05.06"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-06"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_artifact_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-07",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_artifact_version"
+          ],
+          "tables": [
+            "artifact_versions"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_artifact_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_artifact_version_update",
+          "schema": "public",
+          "table": "artifact_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_artifact_version_update",
+        "owning_table": "artifact_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.34",
+          "upgrade": "U05.07"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-07"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_artifact_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-08",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_artifact_version"
+          ],
+          "tables": [
+            "artifact_versions"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_artifact_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_artifact_version_delete",
+          "schema": "public",
+          "table": "artifact_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_artifact_version_delete",
+        "owning_table": "artifact_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.33",
+          "upgrade": "U05.08"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-08"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_metric_definition_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-09",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_metric_definition_version"
+          ],
+          "tables": [
+            "metric_definition_versions"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_metric_definition_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_metric_definition_version_update",
+          "schema": "public",
+          "table": "metric_definition_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_metric_definition_version_update",
+        "owning_table": "metric_definition_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.32",
+          "upgrade": "U05.09"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-09"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_metric_definition_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-10",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_metric_definition_version"
+          ],
+          "tables": [
+            "metric_definition_versions"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_metric_definition_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_metric_definition_version_delete",
+          "schema": "public",
+          "table": "metric_definition_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_metric_definition_version_delete",
+        "owning_table": "metric_definition_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.31",
+          "upgrade": "U05.10"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-10"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_claim_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-11",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_claim_version"
+          ],
+          "tables": [
+            "claim_versions"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_claim_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_claim_version_update",
+          "schema": "public",
+          "table": "claim_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_claim_version_update",
+        "owning_table": "claim_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.30",
+          "upgrade": "U05.11"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-11"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_claim_version",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-12",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_claim_version"
+          ],
+          "tables": [
+            "claim_versions"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_claim_version",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_claim_version_delete",
+          "schema": "public",
+          "table": "claim_versions",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-VERSION-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_claim_version_delete",
+        "owning_table": "claim_versions",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.29",
+          "upgrade": "U05.12"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-12"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_dataset_snapshot_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-13",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_dataset_snapshot_mutation"
+          ],
+          "tables": [
+            "dataset_snapshots"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_dataset_snapshot_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_dataset_snapshot_update",
+          "schema": "public",
+          "table": "dataset_snapshots",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_dataset_snapshot_update",
+        "owning_table": "dataset_snapshots",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.28",
+          "upgrade": "U05.13"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-13"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_dataset_snapshot_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-14",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_dataset_snapshot_mutation"
+          ],
+          "tables": [
+            "dataset_snapshots"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_dataset_snapshot_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_dataset_snapshot_delete",
+          "schema": "public",
+          "table": "dataset_snapshots",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_dataset_snapshot_delete",
+        "owning_table": "dataset_snapshots",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.27",
+          "upgrade": "U05.14"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-14"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_measurement_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-15",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_measurement_mutation"
+          ],
+          "tables": [
+            "measurements"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_measurement_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_measurement_update",
+          "schema": "public",
+          "table": "measurements",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-02"
+        ],
+        "level": "ROW",
+        "name": "pr17d_measurement_update",
+        "owning_table": "measurements",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.26",
+          "upgrade": "U05.15"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-15"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_measurement_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-16",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_measurement_mutation"
+          ],
+          "tables": [
+            "measurements"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_measurement_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_measurement_delete",
+          "schema": "public",
+          "table": "measurements",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-02"
+        ],
+        "level": "ROW",
+        "name": "pr17d_measurement_delete",
+        "owning_table": "measurements",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.25",
+          "upgrade": "U05.16"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-16"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-17",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_statistical_result_mutation"
+          ],
+          "tables": [
+            "statistical_results"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_statistical_result_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_statistical_result_update",
+          "schema": "public",
+          "table": "statistical_results",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-03"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_update",
+        "owning_table": "statistical_results",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.24",
+          "upgrade": "U05.17"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-17"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-18",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_statistical_result_mutation"
+          ],
+          "tables": [
+            "statistical_results"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_statistical_result_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_statistical_result_delete",
+          "schema": "public",
+          "table": "statistical_results",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-03"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_delete",
+        "owning_table": "statistical_results",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.23",
+          "upgrade": "U05.18"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-18"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_input_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-19",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_statistical_result_input_mutation"
+          ],
+          "tables": [
+            "statistical_result_inputs"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_statistical_result_input_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_statistical_result_input_update",
+          "schema": "public",
+          "table": "statistical_result_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-04"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_input_update",
+        "owning_table": "statistical_result_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.22",
+          "upgrade": "U05.19"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-19"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_input_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-20",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_statistical_result_input_mutation"
+          ],
+          "tables": [
+            "statistical_result_inputs"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_statistical_result_input_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_statistical_result_input_delete",
+          "schema": "public",
+          "table": "statistical_result_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-IMMUTABLE-04"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_input_delete",
+        "owning_table": "statistical_result_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.21",
+          "upgrade": "U05.20"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-20"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-21",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run"
+          ],
+          "tables": [
+            "runs"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_update",
+          "schema": "public",
+          "table": "runs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUN-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_update",
+        "owning_table": "runs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.20",
+          "upgrade": "U05.21"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-21"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-22",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run"
+          ],
+          "tables": [
+            "runs"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_delete",
+          "schema": "public",
+          "table": "runs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUN-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_delete",
+        "owning_table": "runs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.19",
+          "upgrade": "U05.22"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-22"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-23",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run_input_parent"
+          ],
+          "tables": [
+            "run_dataset_inputs"
+          ]
+        },
+        "events": [
+          "INSERT"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run_input_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "INSERT"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_dataset_input_insert",
+          "schema": "public",
+          "table": "run_dataset_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUNINPUT-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_dataset_input_insert",
+        "owning_table": "run_dataset_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.18",
+          "upgrade": "U05.23"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-23"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-24",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run_input_parent"
+          ],
+          "tables": [
+            "run_dataset_inputs"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run_input_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_dataset_input_update",
+          "schema": "public",
+          "table": "run_dataset_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUNINPUT-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_dataset_input_update",
+        "owning_table": "run_dataset_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.17",
+          "upgrade": "U05.24"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-24"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-25",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run_input_parent"
+          ],
+          "tables": [
+            "run_dataset_inputs"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run_input_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_dataset_input_delete",
+          "schema": "public",
+          "table": "run_dataset_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUNINPUT-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_dataset_input_delete",
+        "owning_table": "run_dataset_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.16",
+          "upgrade": "U05.25"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-25"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-26",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run_input_parent"
+          ],
+          "tables": [
+            "run_artifact_inputs"
+          ]
+        },
+        "events": [
+          "INSERT"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run_input_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "INSERT"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_artifact_input_insert",
+          "schema": "public",
+          "table": "run_artifact_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUNINPUT-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_artifact_input_insert",
+        "owning_table": "run_artifact_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.15",
+          "upgrade": "U05.26"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-26"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-27",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run_input_parent"
+          ],
+          "tables": [
+            "run_artifact_inputs"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run_input_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_artifact_input_update",
+          "schema": "public",
+          "table": "run_artifact_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUNINPUT-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_artifact_input_update",
+        "owning_table": "run_artifact_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.14",
+          "upgrade": "U05.27"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-27"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-28",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_run_input_parent"
+          ],
+          "tables": [
+            "run_artifact_inputs"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_run_input_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_run_artifact_input_delete",
+          "schema": "public",
+          "table": "run_artifact_inputs",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-RUNINPUT-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_artifact_input_delete",
+        "owning_table": "run_artifact_inputs",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.13",
+          "upgrade": "U05.28"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-28"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_evidence_relation_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-29",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_evidence_relation_parent"
+          ],
+          "tables": [
+            "evidence_relations"
+          ]
+        },
+        "events": [
+          "INSERT"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_evidence_relation_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "INSERT"
+          ],
+          "level": "ROW",
+          "name": "pr17d_evidence_relation_insert",
+          "schema": "public",
+          "table": "evidence_relations",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-EVIDENCE-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_evidence_relation_insert",
+        "owning_table": "evidence_relations",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.12",
+          "upgrade": "U05.29"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-29"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_evidence_relation_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-30",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_evidence_relation_parent"
+          ],
+          "tables": [
+            "evidence_relations"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_evidence_relation_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_evidence_relation_update",
+          "schema": "public",
+          "table": "evidence_relations",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-EVIDENCE-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_evidence_relation_update",
+        "owning_table": "evidence_relations",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.11",
+          "upgrade": "U05.30"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-30"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_evidence_relation_parent",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-31",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_evidence_relation_parent"
+          ],
+          "tables": [
+            "evidence_relations"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_evidence_relation_parent",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_evidence_relation_delete",
+          "schema": "public",
+          "table": "evidence_relations",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-EVIDENCE-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_evidence_relation_delete",
+        "owning_table": "evidence_relations",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1",
+          "P17D3"
+        ],
+        "stages": {
+          "downgrade": "D01.10",
+          "upgrade": "U05.31"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-31"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_audit_finding_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-32",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_audit_finding_mutation"
+          ],
+          "tables": [
+            "audit_findings"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_audit_finding_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_audit_finding_update",
+          "schema": "public",
+          "table": "audit_findings",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_audit_finding_update",
+        "owning_table": "audit_findings",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.09",
+          "upgrade": "U05.32"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-32"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_audit_finding_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-33",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_audit_finding_mutation"
+          ],
+          "tables": [
+            "audit_findings"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_audit_finding_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_audit_finding_delete",
+          "schema": "public",
+          "table": "audit_findings",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_audit_finding_delete",
+        "owning_table": "audit_findings",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.08",
+          "upgrade": "U05.33"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-33"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_audit_finding_transition",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-34",
+        "dependencies": {
+          "functions": [
+            "pr17d_guard_audit_finding_transition"
+          ],
+          "tables": [
+            "audit_findings"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_guard_audit_finding_transition",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_audit_finding_transition",
+          "schema": "public",
+          "table": "audit_findings",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-01"
+        ],
+        "level": "ROW",
+        "name": "pr17d_audit_finding_transition",
+        "owning_table": "audit_findings",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D2"
+        ],
+        "stages": {
+          "downgrade": "D01.07",
+          "upgrade": "U05.34"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-34"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_assessment_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-35",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_impact_assessment_mutation"
+          ],
+          "tables": [
+            "impact_assessments"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_impact_assessment_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_impact_assessment_update",
+          "schema": "public",
+          "table": "impact_assessments",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-02"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_assessment_update",
+        "owning_table": "impact_assessments",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.06",
+          "upgrade": "U05.35"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-35"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_assessment_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-36",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_impact_assessment_mutation"
+          ],
+          "tables": [
+            "impact_assessments"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_impact_assessment_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_impact_assessment_delete",
+          "schema": "public",
+          "table": "impact_assessments",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-02"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_assessment_delete",
+        "owning_table": "impact_assessments",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.05",
+          "upgrade": "U05.36"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-36"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_target_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-37",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_impact_target_mutation"
+          ],
+          "tables": [
+            "impact_targets"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_impact_target_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_impact_target_update",
+          "schema": "public",
+          "table": "impact_targets",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-03"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_target_update",
+        "owning_table": "impact_targets",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.04",
+          "upgrade": "U05.37"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-37"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_target_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-38",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_impact_target_mutation"
+          ],
+          "tables": [
+            "impact_targets"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_impact_target_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_impact_target_delete",
+          "schema": "public",
+          "table": "impact_targets",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-03"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_target_delete",
+        "owning_table": "impact_targets",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.03",
+          "upgrade": "U05.38"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-38"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_correction_record_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-39",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_correction_record_mutation"
+          ],
+          "tables": [
+            "correction_records"
+          ]
+        },
+        "events": [
+          "UPDATE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_correction_record_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "UPDATE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_correction_record_update",
+          "schema": "public",
+          "table": "correction_records",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-04"
+        ],
+        "level": "ROW",
+        "name": "pr17d_correction_record_update",
+        "owning_table": "correction_records",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.02",
+          "upgrade": "U05.39"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-39"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_correction_record_mutation",
+          "schema": "public"
+        },
+        "catalog_query_id": "U07-TR-40",
+        "dependencies": {
+          "functions": [
+            "pr17d_reject_correction_record_mutation"
+          ],
+          "tables": [
+            "correction_records"
+          ]
+        },
+        "events": [
+          "DELETE"
+        ],
+        "expected_projection": {
+          "bound_function": {
+            "name": "pr17d_reject_correction_record_mutation",
+            "schema": "public"
+          },
+          "enabled": "O",
+          "events": [
+            "DELETE"
+          ],
+          "level": "ROW",
+          "name": "pr17d_correction_record_delete",
+          "schema": "public",
+          "table": "correction_records",
+          "timing": "BEFORE"
+        },
+        "invariants": [
+          "INV-GOV-04"
+        ],
+        "level": "ROW",
+        "name": "pr17d_correction_record_delete",
+        "owning_table": "correction_records",
+        "schema": "public",
+        "stable_error_identifiers": [
+          "P17D1"
+        ],
+        "stages": {
+          "downgrade": "D01.01",
+          "upgrade": "U05.40"
+        },
+        "timing": "BEFORE",
+        "trigger_id": "TR-40"
+      }
+    ]
+  },
+  "implementation_subject_head": "2c595f8d537815ded64b535b83e60c6f6255cc60",
+  "non_public_owned_functions": [],
+  "observed": {
+    "constraints": [],
+    "functions": [
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_artifact_version",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_audit_finding_transition",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_claim_version",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_evidence_relation_parent",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_experiment_spec_version",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_hypothesis_version",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_metric_definition_version",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_research_question_version",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_run",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_guard_run_input_parent",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_audit_finding_mutation",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_correction_record_mutation",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_dataset_snapshot_mutation",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_impact_assessment_mutation",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_impact_target_mutation",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_measurement_mutation",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_statistical_result_input_mutation",
+        "result": "trigger",
+        "schema": "public"
+      },
+      {
+        "identity_arguments": [],
+        "language": "plpgsql",
+        "name": "pr17d_reject_statistical_result_mutation",
+        "result": "trigger",
+        "schema": "public"
+      }
+    ],
+    "triggers": [
+      {
+        "bound_function": {
+          "name": "pr17d_guard_artifact_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_artifact_version_delete",
+        "schema": "public",
+        "table": "artifact_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_artifact_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_artifact_version_update",
+        "schema": "public",
+        "table": "artifact_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_audit_finding_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_audit_finding_delete",
+        "schema": "public",
+        "table": "audit_findings",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_audit_finding_transition",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_audit_finding_transition",
+        "schema": "public",
+        "table": "audit_findings",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_audit_finding_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_audit_finding_update",
+        "schema": "public",
+        "table": "audit_findings",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_claim_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_claim_version_delete",
+        "schema": "public",
+        "table": "claim_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_claim_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_claim_version_update",
+        "schema": "public",
+        "table": "claim_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_correction_record_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_correction_record_delete",
+        "schema": "public",
+        "table": "correction_records",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_correction_record_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_correction_record_update",
+        "schema": "public",
+        "table": "correction_records",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_dataset_snapshot_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_dataset_snapshot_delete",
+        "schema": "public",
+        "table": "dataset_snapshots",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_dataset_snapshot_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_dataset_snapshot_update",
+        "schema": "public",
+        "table": "dataset_snapshots",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_evidence_relation_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_evidence_relation_delete",
+        "schema": "public",
+        "table": "evidence_relations",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_evidence_relation_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "INSERT"
+        ],
+        "level": "ROW",
+        "name": "pr17d_evidence_relation_insert",
+        "schema": "public",
+        "table": "evidence_relations",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_evidence_relation_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_evidence_relation_update",
+        "schema": "public",
+        "table": "evidence_relations",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_experiment_spec_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_experiment_spec_version_delete",
+        "schema": "public",
+        "table": "experiment_spec_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_experiment_spec_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_experiment_spec_version_update",
+        "schema": "public",
+        "table": "experiment_spec_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_hypothesis_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_hypothesis_version_delete",
+        "schema": "public",
+        "table": "hypothesis_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_hypothesis_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_hypothesis_version_update",
+        "schema": "public",
+        "table": "hypothesis_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_assessment_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_assessment_delete",
+        "schema": "public",
+        "table": "impact_assessments",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_assessment_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_assessment_update",
+        "schema": "public",
+        "table": "impact_assessments",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_target_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_target_delete",
+        "schema": "public",
+        "table": "impact_targets",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_impact_target_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_impact_target_update",
+        "schema": "public",
+        "table": "impact_targets",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_measurement_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_measurement_delete",
+        "schema": "public",
+        "table": "measurements",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_measurement_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_measurement_update",
+        "schema": "public",
+        "table": "measurements",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_metric_definition_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_metric_definition_version_delete",
+        "schema": "public",
+        "table": "metric_definition_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_metric_definition_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_metric_definition_version_update",
+        "schema": "public",
+        "table": "metric_definition_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_research_question_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_research_question_version_delete",
+        "schema": "public",
+        "table": "research_question_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_research_question_version",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_research_question_version_update",
+        "schema": "public",
+        "table": "research_question_versions",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_artifact_input_delete",
+        "schema": "public",
+        "table": "run_artifact_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "INSERT"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_artifact_input_insert",
+        "schema": "public",
+        "table": "run_artifact_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_artifact_input_update",
+        "schema": "public",
+        "table": "run_artifact_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_dataset_input_delete",
+        "schema": "public",
+        "table": "run_dataset_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "INSERT"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_dataset_input_insert",
+        "schema": "public",
+        "table": "run_dataset_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run_input_parent",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_dataset_input_update",
+        "schema": "public",
+        "table": "run_dataset_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_delete",
+        "schema": "public",
+        "table": "runs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_guard_run",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_run_update",
+        "schema": "public",
+        "table": "runs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_delete",
+        "schema": "public",
+        "table": "statistical_results",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_input_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "DELETE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_input_delete",
+        "schema": "public",
+        "table": "statistical_result_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_input_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_input_update",
+        "schema": "public",
+        "table": "statistical_result_inputs",
+        "timing": "BEFORE"
+      },
+      {
+        "bound_function": {
+          "name": "pr17d_reject_statistical_result_mutation",
+          "schema": "public"
+        },
+        "enabled": "O",
+        "events": [
+          "UPDATE"
+        ],
+        "level": "ROW",
+        "name": "pr17d_statistical_result_update",
+        "schema": "public",
+        "table": "statistical_results",
+        "timing": "BEFORE"
+      }
+    ]
+  },
+  "orphan_functions": [],
+  "projection_mismatches": {
+    "functions": [],
+    "triggers": []
+  },
+  "schema": "pr17dr-migration-catalog-verification-v1",
+  "stale_references": [],
+  "status": "PASS",
+  "unexpected_pr17d_objects": []
+}

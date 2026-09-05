@@ -1,0 +1,117 @@
+{
+  "evidence_commit": null,
+  "evidence_protocol": "non-self-referential-v1",
+  "focused_verification": {
+    "command": "/Users/onephone/Documents/Codex/ResearchBase/.worktrees/pr17dr/.venv/bin/python3 -m pytest -q -rN tests/integration/test_pr17dr_adversarial.py tests/integration/test_pr17dr_catalog.py tests/integration/test_pr17dr_error_contract.py tests/integration/test_pr17dr_migration.py tests/unit/test_pr17dr_contracts.py tests/unit/test_pr17dr_logging_config.py",
+    "return_code": 0,
+    "status": "PASS"
+  },
+  "implementation_subject_head": "2c595f8d537815ded64b535b83e60c6f6255cc60",
+  "invariants": [
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-VERSION-01",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr17dr_adversarial.py",
+        "tests/e2e/test_phase1_historical_exactness.py",
+        "tests/integration/test_pr09r2_proof.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-RUN-01",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr17dr_adversarial.py",
+        "tests/integration/test_pr09_application.py",
+        "tests/integration/test_pr10_application.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-RUNINPUT-01",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr17dr_adversarial.py",
+        "tests/e2e/test_phase1_concurrency_acceptance.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-EVIDENCE-01",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr17dr_adversarial.py",
+        "tests/integration/test_pr12_closure.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-IMMUTABLE-01",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr06_application.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-IMMUTABLE-02",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr10_application.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-IMMUTABLE-03",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr11_application.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-IMMUTABLE-04",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr11_application.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-GOV-01",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr17dr_adversarial.py",
+        "tests/integration/test_pr14_governance_integration.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-GOV-02",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr14_governance_integration.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-GOV-03",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr14_governance_integration.py"
+      ]
+    },
+    {
+      "db_enforced": true,
+      "invariant_id": "INV-GOV-04",
+      "status": "PASS",
+      "tests": [
+        "tests/integration/test_pr14_governance_integration.py"
+      ]
+    }
+  ],
+  "schema": "pr17dr-invariant-to-test-projection-v1",
+  "status": "PASS"
+}
