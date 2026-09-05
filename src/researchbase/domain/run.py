@@ -116,6 +116,20 @@ class Run:
         now = to_utc(clock.now())
         return replace(self, status=RunStatus.RUNNING, inputs_sealed_at=now, started_at=now)
 
+    def cancel(self, clock: Clock) -> Run:
+        if self.status is not RunStatus.PLANNED:
+            raise ResearchBaseError(
+                ErrorCode.INVALID_STATE_TRANSITION,
+                "only planned runs can be cancelled",
+            )
+        now = to_utc(clock.now())
+        return replace(
+            self,
+            status=RunStatus.CANCELLED,
+            inputs_sealed_at=now,
+            finished_at=now,
+        )
+
     def finish(self, outcome: RunStatus | str, clock: Clock) -> Run:
         if self.status is not RunStatus.RUNNING:
             raise ResearchBaseError(

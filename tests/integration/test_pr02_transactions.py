@@ -149,27 +149,30 @@ def test_workspace_foreign_keys_are_enforced_by_postgresql(
             uow.projects.add(project(created_actor.id, project_id))
             uow.commit()
         created_by = ActorId(uuid4())
-        with pytest.raises(IntegrityError):
+        with pytest.raises(ResearchBaseError) as error:
             with uow_factory() as uow:
                 uow.workspaces.add(workspace(created_by, project_id))
                 uow.commit()
+        assert error.value.code is ErrorCode.REFERENTIAL_INTEGRITY_ERROR
     else:
         with uow_factory() as uow:
             uow.actors.add(created_actor)
             uow.commit()
-        with pytest.raises(IntegrityError):
+        with pytest.raises(ResearchBaseError) as error:
             with uow_factory() as uow:
                 uow.workspaces.add(workspace(created_actor.id, project_id))
                 uow.commit()
+        assert error.value.code is ErrorCode.REFERENTIAL_INTEGRITY_ERROR
 
 
 def test_project_created_by_foreign_key_is_enforced_by_postgresql(
     uow_factory: Callable[[], SqlAlchemyUnitOfWork],
 ) -> None:
-    with pytest.raises(IntegrityError):
+    with pytest.raises(ResearchBaseError) as error:
         with uow_factory() as uow:
             uow.projects.add(project(ActorId(uuid4())))
             uow.commit()
+    assert error.value.code is ErrorCode.REFERENTIAL_INTEGRITY_ERROR
 
 
 def test_external_key_unique_constraint_is_enforced_by_postgresql(

@@ -9,12 +9,14 @@ import binascii
 import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from time import monotonic
 from typing import TypeVar
 from uuid import UUID
 
 import typer
 
 from researchbase.foundation.errors import ResearchBaseError
+from researchbase.foundation.structured_logging import elapsed, emit_event
 
 from .context import CliRuntime
 from .errors import CliTransportError, cli_exit_code
@@ -273,10 +275,32 @@ def invoke(
     json_mode: bool,
     operation: Callable[[], object],
 ) -> None:
+    started = monotonic()
+    command = getattr(operation, "__qualname__", "command")
     try:
         result = operation()
+        emit_event(
+            "command",
+            {
+                "command": command,
+                "request_id": runtime.request_id,
+                "result": "success",
+                "duration": elapsed(started),
+            },
+        )
         emit_success(result, json_mode)
     except (CliTransportError, ResearchBaseError) as exc:
+        emit_event(
+            "command",
+            {
+                "command": command,
+                "request_id": runtime.request_id,
+                "result": "failure",
+                "semantic_error": getattr(exc, "code", "VALIDATION_ERROR"),
+                "duration": elapsed(started),
+                "rollback": True,
+            },
+        )
         emit_error(exc, runtime.request_id, json_mode)
         raise typer.Exit(code=cli_exit_code(exc)) from None
     except Exception:

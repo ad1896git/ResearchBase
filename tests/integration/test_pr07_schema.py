@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from researchbase.persistence.database import create_database_engine
 
@@ -192,12 +192,14 @@ def test_pr07_restrict_foreign_keys_block_referenced_deletes(engine: Engine) -> 
         with pytest.raises(IntegrityError):
             connection.execute(text("DELETE FROM actors WHERE id = :id"), {"id": actor_id})
         transaction.rollback()
-    with engine.begin() as connection:
+    with engine.connect() as connection:
+        transaction = connection.begin()
         connection.execute(
             text("UPDATE artifacts SET current_version_id = NULL WHERE id = :id"),
             {"id": artifact_id},
         )
-        connection.execute(text("DELETE FROM artifact_versions WHERE id = :id"), {"id": version_id})
-        connection.execute(text("DELETE FROM artifacts WHERE id = :id"), {"id": artifact_id})
-        connection.execute(text("DELETE FROM projects WHERE id = :id"), {"id": project_id})
-        connection.execute(text("DELETE FROM actors WHERE id = :id"), {"id": actor_id})
+        with pytest.raises(DBAPIError):
+            connection.execute(
+                text("DELETE FROM artifact_versions WHERE id = :id"), {"id": version_id}
+            )
+        transaction.rollback()

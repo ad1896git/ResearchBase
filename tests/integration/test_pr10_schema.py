@@ -104,4 +104,8 @@ def test_measurements_expose_database_immutability_triggers(engine: Engine) -> N
                 )
             )
         }
-    assert triggers == {"measurements_immutable"}
+    assert triggers == {
+        "measurements_immutable",
+        "pr17d_measurement_update",
+        "pr17d_measurement_delete",
+    }

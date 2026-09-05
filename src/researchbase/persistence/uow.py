@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from types import TracebackType
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
 
 from researchbase.application.ports import (
@@ -47,6 +47,89 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
     SqlAlchemyWorkspaceRepository,
 )
+
+
+def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
+    """Classify expected PostgreSQL failures from stable driver metadata."""
+    if not isinstance(exc, DBAPIError):
+        return None
+    original = exc.orig
+    sqlstate = getattr(original, "sqlstate", None)
+    diagnostic = getattr(original, "diag", None)
+    constraint = getattr(diagnostic, "constraint_name", None)
+    if sqlstate == "P17D1":
+        return ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "record is immutable")
+    if sqlstate == "P17D2":
+        return ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION, "invalid state transition")
+    if sqlstate == "P17D3":
+        return ResearchBaseError(
+            ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+            "parent state does not permit this relation",
+        )
+    if sqlstate == "23503":
+        return ResearchBaseError(
+            ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "referential integrity violation"
+        )
+    if sqlstate == "23505":
+        duplicate_map = {
+            "uq_research_question_versions_parent_version": (
+                ErrorCode.VALIDATION_ERROR,
+                "version_number is already in use for this parent",
+            ),
+            "uq_hypothesis_versions_parent_version": (
+                ErrorCode.VALIDATION_ERROR,
+                "version_number is already in use for this parent",
+            ),
+            "uq_experiment_spec_versions_parent_version": (
+                ErrorCode.VALIDATION_ERROR,
+                "version_number is already in use for this parent",
+            ),
+            "uq_metric_definition_versions_parent_version": (
+                ErrorCode.VALIDATION_ERROR,
+                "version_number is already in use for this parent",
+            ),
+            "uq_dataset_snapshots_dataset_content_hash": (
+                ErrorCode.DUPLICATE_CONTENT,
+                "dataset snapshot content already exists for this dataset",
+            ),
+            "uq_artifact_versions_artifact_content_hash": (
+                ErrorCode.DUPLICATE_CONTENT,
+                "artifact version content already exists for this artifact",
+            ),
+            "uq_artifact_versions_artifact_version": (
+                ErrorCode.VALIDATION_ERROR,
+                "version number is already in use for this artifact",
+            ),
+            "uq_actors_external_key": (
+                ErrorCode.VALIDATION_ERROR,
+                "external_key is already in use",
+            ),
+            "run_dataset_inputs_pkey": (
+                ErrorCode.VALIDATION_ERROR,
+                "run input is already attached",
+            ),
+            "run_artifact_inputs_pkey": (
+                ErrorCode.VALIDATION_ERROR,
+                "run input is already attached",
+            ),
+            "statistical_result_inputs_pkey": (
+                ErrorCode.VALIDATION_ERROR,
+                "statistical result input is already attached",
+            ),
+            "uq_evidence_measurement": (
+                ErrorCode.VALIDATION_ERROR,
+                "evidence relation is already attached",
+            ),
+            "uq_evidence_stat": (
+                ErrorCode.VALIDATION_ERROR,
+                "evidence relation is already attached",
+            ),
+        }
+        mapped = duplicate_map.get(constraint) if isinstance(constraint, str) else None
+        if mapped is not None:
+            code, message = mapped
+            return ResearchBaseError(code, message)
+    return None
 
 
 class SqlAlchemyUnitOfWork:
@@ -99,57 +182,10 @@ class SqlAlchemyUnitOfWork:
     def commit(self) -> None:
         try:
             self._require_session().commit()
-        except IntegrityError as exc:
-            if "uq_actors_external_key" in str(exc.orig):
-                raise ResearchBaseError(
-                    ErrorCode.VALIDATION_ERROR,
-                    "external_key is already in use",
-                    {"field": "external_key"},
-                ) from exc
-            if (
-                "uq_research_question_versions_parent_version" in str(exc.orig)
-                or "uq_hypothesis_versions_parent_version" in str(exc.orig)
-                or "uq_experiment_spec_versions_parent_version" in str(exc.orig)
-                or "uq_metric_definition_versions_parent_version" in str(exc.orig)
-            ):
-                raise ResearchBaseError(
-                    ErrorCode.VALIDATION_ERROR,
-                    "version_number is already in use for this parent",
-                    {"field": "version_number"},
-                ) from exc
-            if "uq_dataset_snapshots_dataset_content_hash" in str(exc.orig):
-                raise ResearchBaseError(
-                    ErrorCode.DUPLICATE_CONTENT,
-                    "dataset snapshot content already exists for this dataset",
-                ) from exc
-            if "uq_artifact_versions_artifact_content_hash" in str(exc.orig):
-                raise ResearchBaseError(
-                    ErrorCode.DUPLICATE_CONTENT,
-                    "artifact version content already exists for this artifact",
-                ) from exc
-            if "uq_artifact_versions_artifact_version" in str(exc.orig):
-                raise ResearchBaseError(
-                    ErrorCode.VALIDATION_ERROR,
-                    "version number is already in use for this artifact",
-                    {"field": "version_number"},
-                ) from exc
-            if "run_dataset_inputs_pkey" in str(exc.orig) or "run_artifact_inputs_pkey" in str(
-                exc.orig
-            ):
-                raise ResearchBaseError(
-                    ErrorCode.VALIDATION_ERROR,
-                    "run input is already attached",
-                ) from exc
-            if "statistical_result_inputs_pkey" in str(exc.orig):
-                raise ResearchBaseError(
-                    ErrorCode.VALIDATION_ERROR,
-                    "statistical result input is already attached",
-                ) from exc
-            if "uq_evidence_measurement" in str(exc.orig) or "uq_evidence_stat" in str(exc.orig):
-                raise ResearchBaseError(
-                    ErrorCode.VALIDATION_ERROR,
-                    "evidence relation is already attached",
-                ) from exc
+        except DBAPIError as exc:
+            normalized = _normalize_database_error(exc)
+            if normalized is not None:
+                raise normalized from exc
             raise
         self._committed = True
 
@@ -169,6 +205,10 @@ class SqlAlchemyUnitOfWork:
             self._session.rollback()
         self._session.close()
         self._session = None
+        if exc_value is not None:
+            normalized = _normalize_database_error(exc_value)
+            if normalized is not None:
+                raise normalized from exc_value
 
     def _require_session(self) -> Session:
         if self._session is None:

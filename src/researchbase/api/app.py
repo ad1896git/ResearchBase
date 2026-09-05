@@ -15,6 +15,7 @@ from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.time import SystemClock
+from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
@@ -42,14 +43,15 @@ class ServiceBundle:
 
 
 def build_services() -> ServiceBundle:
-    engine = create_database_engine()
+    settings = load_settings()
+    engine = create_database_engine(settings.database_url)
     session_factory = create_session_factory(engine)
 
     def uow_factory() -> SqlAlchemyUnitOfWork:
         return SqlAlchemyUnitOfWork(session_factory)
 
     clock = SystemClock()
-    store = ContentAddressedFilesystemArtifactStore(Path(".researchbase/artifacts"))
+    store = ContentAddressedFilesystemArtifactStore(Path(settings.artifact_store_root))
     return ServiceBundle(
         ApplicationService(uow_factory, clock, store),
         ProvenanceQueryService(uow_factory),

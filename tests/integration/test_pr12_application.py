@@ -826,10 +826,12 @@ def test_direct_sql_superseded_and_abandoned_evidence_mutations_are_rejected(
         )
     )
     with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE claim_versions DISABLE TRIGGER ALL"))
         connection.execute(
             text("UPDATE claim_versions SET status='ABANDONED' WHERE id=:id"),
             {"id": abandoned_version.id},
         )
+        connection.execute(text("ALTER TABLE claim_versions ENABLE TRIGGER ALL"))
     assert_non_draft_matrix(abandoned_version.id, abandoned_relation.id)
 
 

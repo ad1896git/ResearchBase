@@ -163,4 +163,13 @@ def test_pr14_constraints_fks_and_immutability_triggers_are_exact(engine: Engine
         "impact_targets_insert_guard",
         "impact_targets_immutable",
         "correction_records_immutable",
+        "pr17d_audit_finding_update",
+        "pr17d_audit_finding_delete",
+        "pr17d_audit_finding_transition",
+        "pr17d_impact_assessment_update",
+        "pr17d_impact_assessment_delete",
+        "pr17d_impact_target_update",
+        "pr17d_impact_target_delete",
+        "pr17d_correction_record_update",
+        "pr17d_correction_record_delete",
     }

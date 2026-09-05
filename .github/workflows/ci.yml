@@ -35,6 +35,6 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright
-      - run: uv run pytest
       - run: uv run alembic upgrade head
-
+      - run: test "$(uv run alembic current | tail -n 1)" = "0016_pr17d_history_protection (head)"
+      - run: uv run pytest

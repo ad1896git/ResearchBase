@@ -397,10 +397,18 @@ def test_persisted_incomplete_provenance_closure_is_rejected(
     )
     assert draft_spec.current_version_id is not None
     with engine.begin() as connection:
-        connection.execute(
-            text("UPDATE runs SET experiment_spec_version_id=:spec_version_id WHERE id=:run_id"),
-            {"spec_version_id": draft_spec.current_version_id, "run_id": run.id},
-        )
+        connection.execute(text("ALTER TABLE runs DISABLE TRIGGER ALL"))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE runs SET experiment_spec_version_id=:spec_version_id WHERE id=:run_id"
+                ),
+                {"spec_version_id": draft_spec.current_version_id, "run_id": run.id},
+            )
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE runs ENABLE TRIGGER ALL"))
 
     closure = service.validate_run_closure(run.id)
     assert closure.complete is False

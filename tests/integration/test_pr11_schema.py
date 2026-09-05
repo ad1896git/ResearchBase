@@ -180,8 +180,14 @@ def test_statistical_result_tables_expose_immutability_triggers(engine: Engine) 
     assert result_triggers == {
         "statistical_results_immutable",
         "statistical_result_requires_input",
+        "pr17d_statistical_result_update",
+        "pr17d_statistical_result_delete",
     }
-    assert input_triggers == {"statistical_result_inputs_immutable"}
+    assert input_triggers == {
+        "statistical_result_inputs_immutable",
+        "pr17d_statistical_result_input_update",
+        "pr17d_statistical_result_input_delete",
+    }
 
 
 def test_statistical_result_input_guard_is_deferred_and_transaction_safe(engine: Engine) -> None:

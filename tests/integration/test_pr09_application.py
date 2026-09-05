@@ -16,6 +16,7 @@ from researchbase.application.commands import (
     ApplicationService,
     AttachRunArtifactInputCommand,
     AttachRunDatasetInputCommand,
+    CancelRunCommand,
     CreateActorCommand,
     CreateArtifactCommand,
     CreateArtifactVersionCommand,
@@ -232,6 +233,21 @@ def test_run_create_attach_start_finish_and_exact_inputs(
             ).scalar_one()
             == spec_version_id
         )
+
+
+def test_planned_run_can_be_cancelled_without_adapter_surface(
+    resources: tuple[Callable[[], ApplicationService], Engine],
+) -> None:
+    factory, _ = resources
+    service = factory()
+    run, _snapshot, _artifact, actor_context = prepared_run(service)
+
+    cancelled = service.cancel_run(CancelRunCommand(run.id, run.row_version, actor_context))
+
+    assert cancelled.status is RunStatus.CANCELLED
+    assert cancelled.inputs_sealed_at is not None
+    assert cancelled.finished_at is not None
+    assert cancelled.started_at is None
 
 
 def test_run_rejects_unfrozen_spec_and_draft_artifact(

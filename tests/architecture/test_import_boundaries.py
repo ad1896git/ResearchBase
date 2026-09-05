@@ -127,6 +127,7 @@ def test_phase1_has_only_the_authorized_business_migrations() -> None:
         "0013_statistical_result_legacy_input_precheck.py",
         "0014_claim_evidence.py",
         "0015_governance_audit.py",
+        "0016_pr17d_history_protection.py",
     ]
 
 

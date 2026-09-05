@@ -170,5 +170,13 @@ def test_claim_guard_triggers_exist_without_extra_claim_tables(engine: Engine) -
             )
         }
 
-    assert triggers == {"claim_versions_finalized_immutable", "evidence_relations_draft_only"}
+    assert triggers == {
+        "claim_versions_finalized_immutable",
+        "evidence_relations_draft_only",
+        "pr17d_claim_version_update",
+        "pr17d_claim_version_delete",
+        "pr17d_evidence_relation_insert",
+        "pr17d_evidence_relation_update",
+        "pr17d_evidence_relation_delete",
+    }
     assert tables == {"claims", "claim_versions", "evidence_relations"}

@@ -430,12 +430,7 @@ def test_claim_closure_reports_a_real_broken_descendant_deterministically(
         assert valid.complete is True
 
         with fixture.engine.begin() as connection:
-            connection.execute(
-                text(
-                    "ALTER TABLE metric_definition_versions "
-                    "DISABLE TRIGGER metric_definition_versions_frozen_immutable"
-                )
-            )
+            connection.execute(text("ALTER TABLE metric_definition_versions DISABLE TRIGGER ALL"))
             try:
                 connection.execute(
                     text(
@@ -449,10 +444,7 @@ def test_claim_closure_reports_a_real_broken_descendant_deterministically(
                 )
             finally:
                 connection.execute(
-                    text(
-                        "ALTER TABLE metric_definition_versions "
-                        "ENABLE TRIGGER metric_definition_versions_frozen_immutable"
-                    )
+                    text("ALTER TABLE metric_definition_versions ENABLE TRIGGER ALL")
                 )
 
         reports = [

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from typing import Any
 
 from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
 from researchbase.application.dto import (
@@ -163,6 +164,14 @@ class FreezeResearchQuestionCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class AbandonResearchQuestionVersionCommand:
+    research_question_id: ResearchQuestionId
+    version_id: ResearchQuestionVersionId
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
 class CreateHypothesisCommand:
     project_id: ProjectId
     statement: str
@@ -203,6 +212,14 @@ class FreezeHypothesisCommand:
     version_id: HypothesisVersionId
     context: ExecutionContext
     expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AbandonHypothesisVersionCommand:
+    hypothesis_id: HypothesisId
+    version_id: HypothesisVersionId
+    expected_row_version: int
+    context: ExecutionContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +272,14 @@ class FreezeExperimentSpecCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class AbandonExperimentSpecVersionCommand:
+    experiment_spec_id: ExperimentSpecId
+    version_id: ExperimentSpecVersionId
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
 class CreateMetricDefinitionCommand:
     project_id: ProjectId | None
     name: str
@@ -291,6 +316,14 @@ class FreezeMetricDefinitionCommand:
     version_id: MetricDefinitionVersionId
     context: ExecutionContext
     expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AbandonMetricDefinitionVersionCommand:
+    metric_definition_id: MetricDefinitionId
+    version_id: MetricDefinitionVersionId
+    expected_row_version: int
+    context: ExecutionContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,6 +367,13 @@ class FinishRunCommand:
     outcome: RunStatus | str
     exit_code: int | None
     failure_reason: str | None
+    expected_row_version: int
+    context: ExecutionContext
+
+
+@dataclass(frozen=True, slots=True)
+class CancelRunCommand:
+    run_id: RunId
     expected_row_version: int
     context: ExecutionContext
 
@@ -426,6 +466,14 @@ class FreezeClaimVersionCommand:
     expected_row_version: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class AbandonClaimVersionCommand:
+    claim_id: ClaimId
+    version_id: ClaimVersionId
+    expected_row_version: int
+    context: ExecutionContext
+
+
 # Explicit aliases retain the owning-domain vocabulary for callers that spell the
 # version in the command name.
 UpdateClaimVersionDraftCommand = UpdateClaimDraftCommand
@@ -496,6 +544,14 @@ class FreezeArtifactVersionCommand:
     version_id: ArtifactVersionId
     context: ExecutionContext
     expected_row_version: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AbandonArtifactVersionCommand:
+    artifact_id: ArtifactId
+    version_id: ArtifactVersionId
+    expected_row_version: int
+    context: ExecutionContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -1309,6 +1365,123 @@ class ApplicationService:
             uow.runs.update(finished, run.row_version)
             uow.commit()
             return _run_read_model(replace(finished, row_version=run.row_version + 1))
+
+    def cancel_run(self, command: CancelRunCommand) -> RunReadModel:
+        actor_id = ActorId(command.context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            run = uow.runs.get_for_update(RunId(command.run_id))
+            if run is None:
+                raise _not_found("run", command.run_id)
+            _require_expected_row_version(run.row_version, command.expected_row_version)
+            cancelled = run.cancel(self._clock)
+            uow.runs.update(cancelled, run.row_version)
+            uow.commit()
+            return _run_read_model(replace(cancelled, row_version=run.row_version + 1))
+
+    def abandon_research_question_version(
+        self, command: AbandonResearchQuestionVersionCommand
+    ) -> ResearchQuestionVersionReadModel:
+        return self._abandon_version(
+            command.context,
+            command.research_question_id,
+            command.version_id,
+            command.expected_row_version,
+            "research_questions",
+            "research_question_id",
+            _research_question_version_read_model,
+        )
+
+    def abandon_hypothesis_version(
+        self, command: AbandonHypothesisVersionCommand
+    ) -> HypothesisVersionReadModel:
+        return self._abandon_version(
+            command.context,
+            command.hypothesis_id,
+            command.version_id,
+            command.expected_row_version,
+            "hypotheses",
+            "hypothesis_id",
+            _hypothesis_version_read_model,
+        )
+
+    def abandon_experiment_spec_version(
+        self, command: AbandonExperimentSpecVersionCommand
+    ) -> ExperimentSpecVersionReadModel:
+        return self._abandon_version(
+            command.context,
+            command.experiment_spec_id,
+            command.version_id,
+            command.expected_row_version,
+            "experiment_specs",
+            "experiment_spec_id",
+            _experiment_spec_version_read_model,
+        )
+
+    def abandon_metric_definition_version(
+        self, command: AbandonMetricDefinitionVersionCommand
+    ) -> MetricDefinitionVersionReadModel:
+        return self._abandon_version(
+            command.context,
+            command.metric_definition_id,
+            command.version_id,
+            command.expected_row_version,
+            "metric_definition_versions",
+            "metric_definition_id",
+            _metric_definition_version_read_model,
+        )
+
+    def abandon_artifact_version(
+        self, command: AbandonArtifactVersionCommand
+    ) -> ArtifactVersionReadModel:
+        return self._abandon_version(
+            command.context,
+            command.artifact_id,
+            command.version_id,
+            command.expected_row_version,
+            "artifact_versions",
+            "artifact_id",
+            _artifact_version_read_model,
+        )
+
+    def abandon_claim_version(self, command: AbandonClaimVersionCommand) -> ClaimVersionReadModel:
+        return self._abandon_version(
+            command.context,
+            command.claim_id,
+            command.version_id,
+            command.expected_row_version,
+            "claims",
+            "claim_id",
+            _claim_version_read_model,
+        )
+
+    def _abandon_version(
+        self,
+        context: ExecutionContext,
+        parent_id: Any,
+        version_id: Any,
+        expected_row_version: int,
+        repository_name: str,
+        parent_field: str,
+        read_model: Callable[[Any], Any],
+    ) -> Any:
+        actor_id = ActorId(context.actor_id)
+        with self._uow_factory() as uow:
+            _require_actor(uow, actor_id)
+            repository = getattr(uow, repository_name)
+            version = repository.get_for_update(version_id)
+            if version is None:
+                raise _not_found("version", version_id)
+            if getattr(version, parent_field) != parent_id:
+                raise ResearchBaseError(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                    "version does not belong to its parent",
+                )
+            _require_expected_row_version(version.row_version, expected_row_version)
+            abandoned = version.transition_to(VersionStatus.ABANDONED)
+            repository.update_version(abandoned, version.row_version)
+            uow.commit()
+            return read_model(replace(abandoned, row_version=version.row_version + 1))
 
     def record_measurement(self, command: RecordMeasurementCommand) -> MeasurementReadModel:
         actor_id = ActorId(command.context.actor_id)

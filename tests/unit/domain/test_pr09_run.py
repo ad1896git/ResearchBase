@@ -47,6 +47,19 @@ def test_run_starts_and_seals_inputs() -> None:
     assert started.row_version == run.row_version
 
 
+def test_planned_run_cancel_seals_inputs_and_sets_finished_at() -> None:
+    run = make_run()
+
+    cancelled = run.cancel(FixedClock(NOW))
+
+    assert cancelled.status is RunStatus.CANCELLED
+    assert cancelled.inputs_sealed_at == NOW
+    assert cancelled.started_at is None
+    assert cancelled.finished_at == NOW
+    assert cancelled.exit_code is None
+    assert cancelled.failure_reason is None
+
+
 @pytest.mark.parametrize("outcome", [RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED])
 def test_run_finishes_only_from_running(outcome: RunStatus) -> None:
     finished = make_run().start(FixedClock(NOW)).finish(outcome, FixedClock(NOW))
