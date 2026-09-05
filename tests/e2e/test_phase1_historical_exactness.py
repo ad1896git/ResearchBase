@@ -8,7 +8,8 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from tests.e2e.support import fresh_fixture, projection, run_workflow
+from sqlalchemy import text
+from tests.e2e.support import fresh_fixture, projection, refresh_application_queries, run_workflow
 
 from researchbase.application.commands import (
     AttachRunArtifactInputCommand,
@@ -51,8 +52,11 @@ def _original_rows(fixture: object, ids: object) -> dict[str, tuple[object, ...]
     ids_value = ids
     app = fixture_value.fresh_application()  # type: ignore[attr-defined]
     run = app.get_run(ids_value.run_id)  # type: ignore[attr-defined]
+    run_dataset_inputs = app.list_run_dataset_inputs(ids_value.run_id)  # type: ignore[attr-defined]
+    run_artifact_inputs = app.list_run_artifact_inputs(ids_value.run_id)  # type: ignore[attr-defined]
     measurements = [app.get_measurement(item) for item in ids_value.measurement_ids]  # type: ignore[attr-defined]
     statistical = app.get_statistical_result(ids_value.statistical_result_id)  # type: ignore[attr-defined]
+    statistical_inputs = app.list_statistical_result_inputs(ids_value.statistical_result_id)  # type: ignore[attr-defined]
     claim = app.get_claim_version(ids_value.claim_version_id)  # type: ignore[attr-defined]
     evidence = app.list_evidence_relations(ids_value.claim_version_id)  # type: ignore[attr-defined]
     dataset = app.get_dataset_snapshot(ids_value.dataset_snapshot_id)  # type: ignore[attr-defined]
@@ -60,14 +64,66 @@ def _original_rows(fixture: object, ids: object) -> dict[str, tuple[object, ...]
     metric = app.get_metric_definition_version(ids_value.metric_definition_version_id)  # type: ignore[attr-defined]
     specs = app.get_experiment_spec_history(ids_value.experiment_spec_id)  # type: ignore[attr-defined]
     questions = app.get_research_question_history(ids_value.research_question_id)  # type: ignore[attr-defined]
+    original_spec = next(
+        item
+        for item in specs
+        if item.id == ids_value.experiment_spec_version_id  # type: ignore[attr-defined]
+    )
     return {
-        "run": (run.id, run.status, run.row_version, run.experiment_spec_version_id),
+        "run": (
+            run.id,
+            run.status,
+            run.run_type,
+            run.experiment_spec_version_id,
+            run.inputs_sealed_at,
+            run.started_at,
+            run.finished_at,
+            run.exit_code,
+            run.failure_reason,
+            tuple(
+                (item.run_id, item.dataset_snapshot_id, item.role, item.ordinal)
+                for item in run_dataset_inputs
+            ),
+            tuple(
+                (item.run_id, item.artifact_version_id, item.role, item.ordinal)
+                for item in run_artifact_inputs
+            ),
+        ),
         "measurements": tuple(
-            (item.id, item.content_hash, item.numeric_value, item.structured_value)
+            (
+                item.id,
+                item.run_id,
+                item.metric_definition_version_id,
+                item.numeric_value,
+                item.structured_value,
+                item.unit,
+                item.evaluation_scope,
+                item.content_hash,
+            )
             for item in measurements
         ),
-        "statistical": (statistical.id, statistical.content_hash),
-        "claim": (claim.id, claim.status, claim.support_set_hash, claim.content_hash),
+        "statistical": (
+            statistical.id,
+            statistical.analysis_type,
+            statistical.result_payload,
+            statistical.analysis_definition,
+            statistical.content_hash,
+            tuple(
+                (item.statistical_result_id, item.measurement_id, item.input_role, item.ordinal)
+                for item in statistical_inputs
+            ),
+        ),
+        "claim": (
+            claim.id,
+            claim.claim_id,
+            claim.version_number,
+            claim.statement,
+            claim.scope,
+            claim.qualification,
+            claim.status,
+            claim.support_set_hash,
+            claim.content_hash,
+        ),
         "evidence": tuple(
             (
                 item.id,
@@ -79,11 +135,58 @@ def _original_rows(fixture: object, ids: object) -> dict[str, tuple[object, ...]
             )
             for item in evidence
         ),
-        "dataset": (dataset.id, dataset.content_hash, dataset.manifest_hash),
-        "artifact": (artifact.id, artifact.content_hash, artifact.locator, artifact.media_type),
-        "metric": (metric.id, metric.content_hash, metric.definition, metric.unit),
+        "dataset": (
+            dataset.id,
+            dataset.dataset_id,
+            dataset.manifest_hash,
+            dataset.selection_definition,
+            dataset.manifest_locator,
+            dataset.content_hash,
+        ),
+        "artifact": (
+            artifact.id,
+            artifact.artifact_id,
+            artifact.version_number,
+            artifact.content_hash,
+            artifact.locator,
+            artifact.media_type,
+            artifact.byte_size,
+            artifact.metadata,
+        ),
+        "metric": (
+            metric.id,
+            metric.metric_definition_id,
+            metric.version_number,
+            metric.definition,
+            metric.unit,
+            metric.aggregation,
+            metric.content_hash,
+        ),
+        "experiment_spec_version": (
+            original_spec.id,
+            original_spec.experiment_spec_id,
+            original_spec.version_number,
+            original_spec.content_hash,
+            original_spec.title,
+            original_spec.objective,
+            original_spec.protocol,
+            original_spec.planned_metrics,
+            original_spec.seed_policy,
+            original_spec.analysis_plan,
+        ),
         "spec": tuple(
-            (item.id, item.content_hash, item.title, item.objective, item.created_at)
+            (
+                item.id,
+                item.experiment_spec_id,
+                item.version_number,
+                item.content_hash,
+                item.title,
+                item.objective,
+                item.protocol,
+                item.planned_metrics,
+                item.seed_policy,
+                item.analysis_plan,
+            )
             for item in specs
         ),
         "question": tuple(
@@ -98,6 +201,7 @@ def test_historical_advancement_preserves_original_exact_ids_hashes_and_closure(
     with fresh_fixture(tmp_path, "gsas-history") as fixture:
         ids = run_workflow(fixture, "application")
         before = _original_rows(fixture, ids)
+        before_queries = dict(ids.observed_queries)
         before_projection = projection(fixture, ids)
         app = fixture.fresh_application()
         context = fixture.context
@@ -256,9 +360,13 @@ def test_historical_advancement_preserves_original_exact_ids_hashes_and_closure(
         )
 
         after = _original_rows(fixture, ids)
-        after_projection = projection(fixture, ids)
+        refreshed_ids = refresh_application_queries(fixture, ids)
+        after_queries = dict(refreshed_ids.observed_queries)
+        after_projection = projection(fixture, refreshed_ids)
 
     assert before_projection == after_projection
+    for query_name in ("run:provenance", "claim:trace", "fresh:claim_closure", "impact:show"):
+        assert after_queries[query_name] == before_queries[query_name]
     assert before["run"] == after["run"]
     assert before["measurements"] == after["measurements"]
     assert before["statistical"] == after["statistical"]
@@ -267,8 +375,21 @@ def test_historical_advancement_preserves_original_exact_ids_hashes_and_closure(
     assert before["dataset"] == after["dataset"]
     assert before["artifact"] == after["artifact"]
     assert before["metric"] == after["metric"]
+    assert before["experiment_spec_version"] == after["experiment_spec_version"]
     assert [row[0] for row in after["spec"][:-1]] == [row[0] for row in before["spec"]]
     assert [row[0] for row in after["question"][:-1]] == [row[0] for row in before["question"]]
+    assert after_projection["inputs"]["experiment_spec_version"] == str(
+        ids.experiment_spec_version_id
+    )
+    assert after_projection["inputs"]["dataset_inputs"][0]["target_id"] == str(
+        ids.dataset_snapshot_id
+    )
+    assert after_projection["inputs"]["artifact_inputs"][0]["target_id"] == str(
+        ids.artifact_version_id
+    )
+    assert after_projection["inputs"]["metric_definition_version"] == str(
+        ids.metric_definition_version_id
+    )
 
 
 def test_closure_negative_cases_are_deterministic_and_positive_closure_has_no_violations(
@@ -298,6 +419,98 @@ def test_closure_negative_cases_are_deterministic_and_positive_closure_has_no_vi
         (ErrorCode.NOT_FOUND.value, ["claim_version"], "ClaimVersion")
     ]
     assert missing_run_again == missing_run
+
+
+def test_claim_closure_reports_a_real_broken_descendant_deterministically(
+    tmp_path: Path,
+) -> None:
+    with fresh_fixture(tmp_path, "gsas-broken-descendant") as fixture:
+        ids = run_workflow(fixture, "application")
+        valid = fixture.provenance.get_claim_closure_report(ids.claim_version_id)
+        assert valid.complete is True
+
+        with fixture.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE metric_definition_versions "
+                    "DISABLE TRIGGER metric_definition_versions_frozen_immutable"
+                )
+            )
+            try:
+                connection.execute(
+                    text(
+                        "UPDATE metric_definition_versions "
+                        "SET status = 'DRAFT' "
+                        "WHERE id = :metric_version_id"
+                    ),
+                    {
+                        "metric_version_id": ids.metric_definition_version_id,
+                    },
+                )
+            finally:
+                connection.execute(
+                    text(
+                        "ALTER TABLE metric_definition_versions "
+                        "ENABLE TRIGGER metric_definition_versions_frozen_immutable"
+                    )
+                )
+
+        reports = [
+            fixture.provenance.get_claim_closure_report(ids.claim_version_id) for _ in range(3)
+        ]
+
+    signatures = [
+        [
+            (item.code, item.object_type, item.object_id, item.path, item.message)
+            for item in report.violations
+        ]
+        for report in reports
+    ]
+    assert all(report.complete is False for report in reports)
+    assert signatures[0] == signatures[1] == signatures[2]
+    expected_paths = [
+        (
+            "claim_version",
+            "evidence",
+            str(ids.evidence_relation_ids[1]),
+            "statistical_result",
+            "inputs",
+            str(ids.measurement_ids[0]),
+            "measurement",
+            "metric_definition_version",
+            "status",
+        ),
+        (
+            "claim_version",
+            "evidence",
+            str(ids.evidence_relation_ids[1]),
+            "statistical_result",
+            "inputs",
+            str(ids.measurement_ids[1]),
+            "measurement",
+            "metric_definition_version",
+            "status",
+        ),
+        (
+            "claim_version",
+            "evidence",
+            str(ids.evidence_relation_ids[0]),
+            "measurement",
+            "metric_definition_version",
+            "status",
+        ),
+    ]
+    assert [item[3] for item in signatures[0]] == expected_paths
+    assert [item[:3] + item[4:] for item in signatures[0]] == [
+        (
+            ErrorCode.VERSION_NOT_FROZEN.value,
+            "MetricDefinitionVersion",
+            str(ids.metric_definition_version_id),
+            "metric definition version is not finalized",
+        )
+    ] * 3
+    assert all(report.visited_count == reports[0].visited_count for report in reports)
+    assert reports[0].visited_count == 14
 
 
 def test_governance_validity_precedence_dismissal_and_correction_are_non_mutating(

@@ -11,8 +11,9 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
@@ -111,6 +112,8 @@ class WorkflowIds:
     finding_id: UUID
     impact_assessment_id: UUID
     correction_id: UUID
+    observed_commands: tuple[tuple[str, Any], ...] = ()
+    observed_queries: tuple[tuple[str, Any], ...] = ()
 
 
 @dataclass(slots=True)
@@ -281,10 +284,21 @@ def _uuid(result: Any, name: str) -> UUID:
 def _jsonable(value: Any) -> Any:
     if isinstance(value, UUID):
         return str(value)
+    if isinstance(value, datetime):
+        return value.astimezone(UTC).isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if is_dataclass(value):
+        return _jsonable(asdict(value))
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
     if isinstance(value, list | tuple):
         return [_jsonable(item) for item in value]
+    return value
+
+
+def _observe(observations: list[tuple[str, Any]], name: str, value: Any) -> Any:
+    observations.append((name, _jsonable(value)))
     return value
 
 
@@ -355,217 +369,356 @@ def _http_call(
 def _direct_workflow(fixture: WorkflowFixture) -> WorkflowIds:
     service = fixture.application
     context = fixture.context
-    project = service.create_project(CreateProjectCommand("GSAS-01", "golden", context))
+    observed: list[tuple[str, Any]] = []
+    project = _observe(
+        observed,
+        "project:create",
+        service.create_project(CreateProjectCommand("GSAS-01", "golden", context)),
+    )
     project_id = UUID(str(project.id))
 
-    question = service.create_research_question(
-        CreateResearchQuestionCommand(
-            project_id,
-            "Does the protocol improve latency?",
-            {"population": "test"},
-            "GSAS",
-            context,
-        )
+    question = _observe(
+        observed,
+        "rq:create",
+        service.create_research_question(
+            CreateResearchQuestionCommand(
+                project_id,
+                "Does the protocol improve latency?",
+                {"population": "test"},
+                "GSAS",
+                context,
+            )
+        ),
     )
-    question_version = service.freeze_research_question(
-        FreezeResearchQuestionCommand(question.id, question.current_version_id, context, 1)
+    question_version = _observe(
+        observed,
+        "rq:freeze",
+        service.freeze_research_question(
+            FreezeResearchQuestionCommand(question.id, question.current_version_id, context, 1)
+        ),
     )
-    hypothesis = service.create_hypothesis(
-        CreateHypothesisCommand(
-            project_id,
-            "The protocol lowers latency.",
-            "decrease",
-            {"max_ms": 2},
-            "GSAS",
-            context,
-            question.id,
-        )
+    hypothesis = _observe(
+        observed,
+        "hypothesis:create",
+        service.create_hypothesis(
+            CreateHypothesisCommand(
+                project_id,
+                "The protocol lowers latency.",
+                "decrease",
+                {"max_ms": 2},
+                "GSAS",
+                context,
+                question.id,
+            )
+        ),
     )
-    hypothesis_version = service.freeze_hypothesis(
-        FreezeHypothesisCommand(hypothesis.id, hypothesis.current_version_id, context, 1)
+    hypothesis_version = _observe(
+        observed,
+        "hypothesis:freeze",
+        service.freeze_hypothesis(
+            FreezeHypothesisCommand(hypothesis.id, hypothesis.current_version_id, context, 1)
+        ),
     )
-    spec = service.create_experiment_spec(
-        CreateExperimentSpecCommand(
-            project_id,
-            hypothesis.id,
-            "Latency experiment",
-            "Measure latency",
-            {"steps": ["run", "measure"]},
-            [{"metric": "latency"}],
-            {"seed": 7},
-            {"test": "mean"},
-            context,
-        )
+    spec = _observe(
+        observed,
+        "spec:create",
+        service.create_experiment_spec(
+            CreateExperimentSpecCommand(
+                project_id,
+                hypothesis.id,
+                "Latency experiment",
+                "Measure latency",
+                {"steps": ["run", "measure"]},
+                [{"metric": "latency"}],
+                {"seed": 7},
+                {"test": "mean"},
+                context,
+            )
+        ),
     )
-    spec_version = service.freeze_experiment_spec(
-        FreezeExperimentSpecCommand(spec.id, spec.current_version_id, context, 1)
-    )
-
-    dataset = service.register_dataset(
-        RegisterDatasetCommand(project_id, "GSAS dataset", "input", "cas://dataset", context)
-    )
-    snapshot = service.create_dataset_snapshot(
-        CreateDatasetSnapshotCommand(
-            dataset.id, "a" * 64, {"split": "test", "rows": [1, 2]}, "cas://manifest", context
-        )
-    )
-    artifact = service.create_artifact(
-        CreateArtifactCommand(project_id, "source_code", "GSAS code", "code", context)
-    )
-    artifact_version = service.create_artifact_version(
-        CreateArtifactVersionCommand(
-            artifact.id,
-            b"gsas-source-v1",
-            None,
-            None,
-            "text/plain",
-            None,
-            {"language": "python"},
-            context,
-        )
-    )
-    artifact_version = service.freeze_artifact_version(
-        FreezeArtifactVersionCommand(
-            artifact.id, artifact_version.id, context, artifact_version.row_version
-        )
-    )
-    metric = service.create_metric_definition(
-        CreateMetricDefinitionCommand(
-            project_id, "latency", {"kind": "mean", "unit": "ms"}, "ms", "mean", context
-        )
-    )
-    metric_version = service.freeze_metric_definition(
-        FreezeMetricDefinitionCommand(metric.id, metric.current_version_id, context, 1)
+    spec_version = _observe(
+        observed,
+        "spec:freeze",
+        service.freeze_experiment_spec(
+            FreezeExperimentSpecCommand(spec.id, spec.current_version_id, context, 1)
+        ),
     )
 
-    run = service.create_run(CreateRunCommand(project_id, spec_version.id, "golden", context))
-    run = service.attach_run_dataset_input(
-        AttachRunDatasetInputCommand(
-            run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, context
-        )
+    dataset = _observe(
+        observed,
+        "dataset:create",
+        service.register_dataset(
+            RegisterDatasetCommand(project_id, "GSAS dataset", "input", "cas://dataset", context)
+        ),
     )
-    run = service.attach_run_artifact_input(
-        AttachRunArtifactInputCommand(
-            run.id, artifact_version.id, ArtifactInputRole.SOURCE_CODE, 0, run.row_version, context
-        )
+    snapshot = _observe(
+        observed,
+        "dataset:snapshot",
+        service.create_dataset_snapshot(
+            CreateDatasetSnapshotCommand(
+                dataset.id,
+                "a" * 64,
+                {"split": "test", "rows": [1, 2]},
+                "cas://manifest",
+                context,
+            )
+        ),
     )
-    run = service.start_run(StartRunCommand(run.id, run.row_version, context))
-    run = service.finish_run(
-        FinishRunCommand(run.id, RunStatus.SUCCEEDED, 0, None, run.row_version, context)
+    artifact = _observe(
+        observed,
+        "artifact:create",
+        service.create_artifact(
+            CreateArtifactCommand(project_id, "source_code", "GSAS code", "code", context)
+        ),
     )
-    first = service.record_measurement(
-        RecordMeasurementCommand(
-            run.id,
-            metric_version.id,
-            1.25,
-            None,
-            "ms",
-            {"split": "test", "ordinal": 0},
-            context,
-        )
+    artifact_version = _observe(
+        observed,
+        "artifact:revise",
+        service.create_artifact_version(
+            CreateArtifactVersionCommand(
+                artifact.id,
+                b"gsas-source-v1",
+                None,
+                None,
+                "text/plain",
+                None,
+                {"language": "python"},
+                context,
+            )
+        ),
     )
-    second = service.record_measurement(
-        RecordMeasurementCommand(
-            run.id,
-            metric_version.id,
-            1.75,
-            None,
-            "ms",
-            {"split": "test", "ordinal": 1},
-            context,
-        )
+    artifact_version = _observe(
+        observed,
+        "artifact:freeze",
+        service.freeze_artifact_version(
+            FreezeArtifactVersionCommand(
+                artifact.id, artifact_version.id, context, artifact_version.row_version
+            )
+        ),
     )
-    statistical = service.record_statistical_result(
-        RecordStatisticalResultCommand(
-            project_id,
-            "mean",
-            {"mean": 1.5},
-            {"method": "arithmetic"},
-            (
-                StatisticalResultInputCommand(first.id, "primary", 0),
-                StatisticalResultInputCommand(second.id, "replicate", 1),
-            ),
-            context,
-        )
+    metric = _observe(
+        observed,
+        "metric:create",
+        service.create_metric_definition(
+            CreateMetricDefinitionCommand(
+                project_id,
+                "latency",
+                {"kind": "mean", "unit": "ms"},
+                "ms",
+                "mean",
+                context,
+            )
+        ),
     )
-    claim = service.create_claim(
-        CreateClaimCommand(
-            project_id, "The protocol lowers latency.", {"population": "test"}, "bounded", context
-        )
+    metric_version = _observe(
+        observed,
+        "metric:freeze",
+        service.freeze_metric_definition(
+            FreezeMetricDefinitionCommand(metric.id, metric.current_version_id, context, 1)
+        ),
+    )
+
+    run = _observe(
+        observed,
+        "run:create",
+        service.create_run(CreateRunCommand(project_id, spec_version.id, "golden", context)),
+    )
+    run = _observe(
+        observed,
+        "run:add-dataset",
+        service.attach_run_dataset_input(
+            AttachRunDatasetInputCommand(
+                run.id, snapshot.id, DatasetInputRole.TEST, 0, run.row_version, context
+            )
+        ),
+    )
+    run = _observe(
+        observed,
+        "run:add-artifact",
+        service.attach_run_artifact_input(
+            AttachRunArtifactInputCommand(
+                run.id,
+                artifact_version.id,
+                ArtifactInputRole.SOURCE_CODE,
+                0,
+                run.row_version,
+                context,
+            )
+        ),
+    )
+    run = _observe(
+        observed,
+        "run:start",
+        service.start_run(StartRunCommand(run.id, run.row_version, context)),
+    )
+    run = _observe(
+        observed,
+        "run:finish",
+        service.finish_run(
+            FinishRunCommand(run.id, RunStatus.SUCCEEDED, 0, None, run.row_version, context)
+        ),
+    )
+    first = _observe(
+        observed,
+        "measurement:create:0",
+        service.record_measurement(
+            RecordMeasurementCommand(
+                run.id,
+                metric_version.id,
+                1.25,
+                None,
+                "ms",
+                {"split": "test", "ordinal": 0},
+                context,
+            )
+        ),
+    )
+    second = _observe(
+        observed,
+        "measurement:create:1",
+        service.record_measurement(
+            RecordMeasurementCommand(
+                run.id,
+                metric_version.id,
+                1.75,
+                None,
+                "ms",
+                {"split": "test", "ordinal": 1},
+                context,
+            )
+        ),
+    )
+    statistical = _observe(
+        observed,
+        "stats:create",
+        service.record_statistical_result(
+            RecordStatisticalResultCommand(
+                project_id,
+                "mean",
+                {"mean": 1.5},
+                {"method": "arithmetic"},
+                (
+                    StatisticalResultInputCommand(first.id, "primary", 0),
+                    StatisticalResultInputCommand(second.id, "replicate", 1),
+                ),
+                context,
+            )
+        ),
+    )
+    claim = _observe(
+        observed,
+        "claim:create",
+        service.create_claim(
+            CreateClaimCommand(
+                project_id,
+                "The protocol lowers latency.",
+                {"population": "test"},
+                "bounded",
+                context,
+            )
+        ),
     )
     claim_version = service.get_current_claim_version(claim.id)
-    direct_evidence = service.link_evidence(
-        LinkEvidenceCommand(
-            claim.id,
-            claim_version.id,
-            first.id,
-            None,
-            EvidenceRelationType.SUPPORTS,
-            "direct measurement",
-            claim_version.row_version,
-            context,
-        )
+    direct_evidence = _observe(
+        observed,
+        "claim:add-evidence:measurement",
+        service.link_evidence(
+            LinkEvidenceCommand(
+                claim.id,
+                claim_version.id,
+                first.id,
+                None,
+                EvidenceRelationType.SUPPORTS,
+                "direct measurement",
+                claim_version.row_version,
+                context,
+            )
+        ),
     )
     claim_version = service.get_current_claim_version(claim.id)
-    statistical_evidence = service.link_evidence(
-        LinkEvidenceCommand(
-            claim.id,
-            claim_version.id,
-            None,
-            statistical.id,
-            EvidenceRelationType.SUPPORTS,
-            "multi-input statistic",
-            claim_version.row_version,
-            context,
-        )
+    statistical_evidence = _observe(
+        observed,
+        "claim:add-evidence:statistical",
+        service.link_evidence(
+            LinkEvidenceCommand(
+                claim.id,
+                claim_version.id,
+                None,
+                statistical.id,
+                EvidenceRelationType.SUPPORTS,
+                "multi-input statistic",
+                claim_version.row_version,
+                context,
+            )
+        ),
     )
     claim_version = service.get_current_claim_version(claim.id)
-    claim_version = service.freeze_claim_version(
-        FreezeClaimVersionCommand(claim.id, claim_version.id, context, claim_version.row_version)
+    claim_version = _observe(
+        observed,
+        "claim:freeze",
+        service.freeze_claim_version(
+            FreezeClaimVersionCommand(
+                claim.id, claim_version.id, context, claim_version.row_version
+            )
+        ),
     )
-    finding = fixture.governance.create_audit_finding(
-        CreateAuditFindingCommand(
-            project_id,
-            "measurement_audit",
-            AuditFindingSeverity.MAJOR,
-            "GSAS finding",
-            "GSAS controlled finding",
-            GovernanceTargetType.RUN,
-            run.id,
-            context,
-        )
+    finding = _observe(
+        observed,
+        "audit:create",
+        fixture.governance.create_audit_finding(
+            CreateAuditFindingCommand(
+                project_id,
+                "measurement_audit",
+                AuditFindingSeverity.MAJOR,
+                "GSAS finding",
+                "GSAS controlled finding",
+                GovernanceTargetType.RUN,
+                run.id,
+                context,
+            )
+        ),
     )
-    assessment = fixture.governance.create_impact_assessment(
-        CreateImpactAssessmentCommand(
-            project_id,
-            finding.id,
-            {"reason": "controlled"},
-            ImpactAssessmentConclusion.INVALID,
-            (
-                ProposedImpactTarget(GovernanceTargetType.RUN, run.id, ImpactKind.DIRECT),
-                ProposedImpactTarget(
-                    GovernanceTargetType.MEASUREMENT, first.id, ImpactKind.DOWNSTREAM
+    assessment = _observe(
+        observed,
+        "impact:assess",
+        fixture.governance.create_impact_assessment(
+            CreateImpactAssessmentCommand(
+                project_id,
+                finding.id,
+                {"reason": "controlled"},
+                ImpactAssessmentConclusion.INVALID,
+                (
+                    ProposedImpactTarget(GovernanceTargetType.RUN, run.id, ImpactKind.DIRECT),
+                    ProposedImpactTarget(
+                        GovernanceTargetType.MEASUREMENT, first.id, ImpactKind.DOWNSTREAM
+                    ),
+                    ProposedImpactTarget(
+                        GovernanceTargetType.STATISTICAL_RESULT,
+                        statistical.id,
+                        ImpactKind.DOWNSTREAM,
+                    ),
+                    ProposedImpactTarget(
+                        GovernanceTargetType.CLAIM_VERSION, claim_version.id, ImpactKind.DOWNSTREAM
+                    ),
                 ),
-                ProposedImpactTarget(
-                    GovernanceTargetType.STATISTICAL_RESULT, statistical.id, ImpactKind.DOWNSTREAM
-                ),
-                ProposedImpactTarget(
-                    GovernanceTargetType.CLAIM_VERSION, claim_version.id, ImpactKind.DOWNSTREAM
-                ),
-            ),
-            context,
-        )
+                context,
+            )
+        ),
     )
-    correction = fixture.governance.create_correction_record(
-        CreateCorrectionRecordCommand(
-            project_id,
-            GovernanceTargetType.MEASUREMENT,
-            first.id,
-            CorrectionType.COMPUTATIONAL,
-            {"replacement": "new record"},
-            "GSAS correction without mutation",
-            context,
-        )
+    correction = _observe(
+        observed,
+        "correction:create",
+        fixture.governance.create_correction_record(
+            CreateCorrectionRecordCommand(
+                project_id,
+                GovernanceTargetType.MEASUREMENT,
+                first.id,
+                CorrectionType.COMPUTATIONAL,
+                {"replacement": "new record"},
+                "GSAS correction without mutation",
+                context,
+            )
+        ),
     )
     return WorkflowIds(
         UUID(str(fixture.actor_id)),
@@ -591,6 +744,7 @@ def _direct_workflow(fixture: WorkflowFixture) -> WorkflowIds:
         UUID(str(finding.id)),
         UUID(str(assessment.id)),
         UUID(str(correction.id)),
+        tuple(observed),
     )
 
 
@@ -599,12 +753,21 @@ def _adapter_workflow(fixture: WorkflowFixture, mode: str) -> WorkflowIds:
         return _direct_workflow(fixture)
     if mode not in {"http", "cli"}:
         raise ValueError(mode)
+    observed: list[tuple[str, Any]] = []
+    command_counts: dict[str, int] = {}
 
     def call(group: str, command: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        base_name = f"{group}:{command}"
+        occurrence = command_counts.get(base_name, 0)
+        command_counts[base_name] = occurrence + 1
+        observation_name = base_name if occurrence == 0 else f"{base_name}:{occurrence}"
         if mode == "cli":
-            return _cli_call(fixture, group, command, payload)
+            value = _cli_call(fixture, group, command, payload)
+            observed.append((observation_name, value))
+            return value
         value = _http_call(fixture, "POST", path, payload)
         assert isinstance(value, dict)
+        observed.append((observation_name, value))
         return value
 
     def freeze(
@@ -991,118 +1154,382 @@ def _adapter_workflow(fixture: WorkflowFixture, mode: str) -> WorkflowIds:
         finding_id,
         assessment_id,
         correction_id,
+        tuple(observed),
     )
+
+
+def _observed_query_map(ids: WorkflowIds) -> dict[str, Any]:
+    return dict(ids.observed_queries)
+
+
+def _cli_query_call(fixture: WorkflowFixture, group: str, command: str, args: list[str]) -> Any:
+    result = fixture.cli_runner.invoke(
+        fixture.cli_app,
+        [
+            "--actor-id",
+            str(fixture.actor_id),
+            "--request-id",
+            str(uuid4()),
+            "--correlation-id",
+            str(fixture.context.correlation_id),
+            "--causation-id",
+            str(fixture.context.causation_id),
+            "--client-name",
+            "pr17-cli-query",
+            "--client-version",
+            "1",
+            group,
+            command,
+            *args,
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, (group, command, result.stdout, result.stderr)
+    assert result.stderr == ""
+    return json.loads(result.stdout)
+
+
+def _capture_query_observations(
+    fixture: WorkflowFixture, mode: str, ids: WorkflowIds
+) -> tuple[tuple[str, Any], ...]:
+    observed: list[tuple[str, Any]] = []
+    if mode == "application":
+        observed.append(
+            ("run:provenance", _jsonable(fixture.provenance.get_run_provenance(ids.run_id)))
+        )
+        observed.append(
+            ("claim:trace", _jsonable(fixture.provenance.trace_claim_to_runs(ids.claim_version_id)))
+        )
+        observed.append(
+            (
+                "impact:show",
+                _jsonable(
+                    fixture.governance_queries.downstream_impact(
+                        ids.project_id, GovernanceTargetType.RUN, ids.run_id
+                    )
+                ),
+            )
+        )
+    elif mode == "http":
+        observed.append(
+            (
+                "run:provenance",
+                _http_call(fixture, "GET", f"/runs/{ids.run_id}/provenance"),
+            )
+        )
+        observed.append(
+            (
+                "claim:trace",
+                _http_call(fixture, "GET", f"/claim-versions/{ids.claim_version_id}/trace"),
+            )
+        )
+        observed.append(
+            (
+                "impact:show",
+                _http_call(
+                    fixture,
+                    "GET",
+                    f"/impact/run/{ids.run_id}",
+                    params={"project_id": str(ids.project_id)},
+                ),
+            )
+        )
+    elif mode == "cli":
+        observed.append(
+            (
+                "run:provenance",
+                _cli_query_call(fixture, "run", "provenance", ["--run-id", str(ids.run_id)]),
+            )
+        )
+        observed.append(
+            (
+                "claim:trace",
+                _cli_query_call(
+                    fixture,
+                    "claim",
+                    "trace",
+                    ["--claim-version-id", str(ids.claim_version_id)],
+                ),
+            )
+        )
+        observed.append(
+            (
+                "impact:show",
+                _cli_query_call(
+                    fixture,
+                    "impact",
+                    "show",
+                    [
+                        "--project-id",
+                        str(ids.project_id),
+                        "--target-type",
+                        "run",
+                        "--target-id",
+                        str(ids.run_id),
+                    ],
+                ),
+            )
+        )
+    else:
+        raise ValueError(mode)
+
+    app = fixture.fresh_application()
+    observed.extend(
+        [
+            (
+                "fresh:research_question_history",
+                _jsonable(app.get_research_question_history(ids.research_question_id)),
+            ),
+            ("fresh:hypothesis_history", _jsonable(app.get_hypothesis_history(ids.hypothesis_id))),
+            (
+                "fresh:experiment_spec_history",
+                _jsonable(app.get_experiment_spec_history(ids.experiment_spec_id)),
+            ),
+            (
+                "fresh:statistical_inputs",
+                _jsonable(app.list_statistical_result_inputs(ids.statistical_result_id)),
+            ),
+            ("fresh:evidence", _jsonable(app.list_evidence_relations(ids.claim_version_id))),
+            (
+                "fresh:claim_closure",
+                _jsonable(fixture.provenance.get_claim_closure_report(ids.claim_version_id)),
+            ),
+            (
+                "fresh:validity",
+                _jsonable(
+                    fixture.governance_queries.validity_projection(
+                        ids.project_id, GovernanceTargetType.RUN, ids.run_id
+                    )
+                ),
+            ),
+            (
+                "fresh:finding",
+                _jsonable(fixture.governance_queries.get_audit_finding(ids.finding_id)),
+            ),
+            (
+                "fresh:assessment",
+                _jsonable(
+                    fixture.governance_queries.get_impact_assessment(ids.impact_assessment_id)
+                ),
+            ),
+            (
+                "fresh:correction",
+                _jsonable(fixture.governance_queries.get_correction_record(ids.correction_id)),
+            ),
+        ]
+    )
+    return tuple(observed)
 
 
 def run_workflow(fixture: WorkflowFixture, mode: str) -> WorkflowIds:
-    return _adapter_workflow(fixture, mode)
+    ids = _adapter_workflow(fixture, mode)
+    return replace(ids, observed_queries=_capture_query_observations(fixture, mode, ids))
+
+
+def refresh_application_queries(fixture: WorkflowFixture, ids: WorkflowIds) -> WorkflowIds:
+    """Read the original workflow again through fresh accepted Application queries."""
+
+    return replace(
+        ids,
+        observed_queries=_capture_query_observations(fixture, "application", ids),
+    )
 
 
 def projection(fixture: WorkflowFixture, ids: WorkflowIds) -> dict[str, Any]:
-    app = fixture.fresh_application()
-    run = app.get_run(ids.run_id)
-    measurements = [app.get_measurement(item) for item in ids.measurement_ids]
-    statistical = app.get_statistical_result(ids.statistical_result_id)
-    claim = app.get_claim_version(ids.claim_version_id)
-    evidence = app.list_evidence_relations(ids.claim_version_id)
-    provenance = fixture.provenance.get_run_provenance(ids.run_id)
-    trace = fixture.provenance.trace_claim_to_runs(ids.claim_version_id)
-    closure = fixture.provenance.get_claim_closure_report(ids.claim_version_id)
-    impact = fixture.governance_queries.downstream_impact(
-        ids.project_id, GovernanceTargetType.RUN, ids.run_id
+    commands = dict(ids.observed_commands)
+    queries = _observed_query_map(ids)
+    first_measurement = commands.get("measurement:create:0")
+    if first_measurement is None:
+        first_measurement = commands["measurement:create"]
+    assert isinstance(first_measurement, dict)
+    provenance = queries["run:provenance"]
+    trace = queries["claim:trace"]
+    closure = queries["fresh:claim_closure"]
+    statistical_inputs = queries["fresh:statistical_inputs"]
+    evidence = queries["fresh:evidence"]
+    validity = queries["fresh:validity"]
+    finding = queries["fresh:finding"]
+    assessment = queries["fresh:assessment"]
+    correction = queries["fresh:correction"]
+    impact = queries["impact:show"]
+
+    assert isinstance(provenance, dict)
+    assert isinstance(trace, dict)
+    assert isinstance(closure, dict)
+    assert isinstance(validity, dict)
+    assert isinstance(finding, dict)
+    assert isinstance(assessment, dict)
+    assert isinstance(correction, dict)
+
+    def closure_projection(value: dict[str, Any]) -> tuple[Any, ...]:
+        return (
+            value["complete"],
+            value["visited_count"],
+            value["violations"],
+        )
+
+    observed_statistical_inputs = [
+        (item["input_role"], item["ordinal"], item["measurement_id"]) for item in statistical_inputs
+    ]
+    observed_trace_paths = [
+        (
+            item["source_type"],
+            item["relation_type"],
+            item["qualification"],
+            item["statistical_result_input_role"],
+            item["statistical_result_input_ordinal"],
+        )
+        for item in trace["paths"]
+    ]
+    observed_impact_paths = [
+        (
+            path["target_type"],
+            path["target_id"],
+            path["run_id"],
+            path["measurement_id"],
+            path["statistical_result_id"],
+            path["statistical_input_role"],
+            path["statistical_input_ordinal"],
+        )
+        for target in impact
+        for path in target["paths"]
+    ]
+    observed_validity = (
+        validity["state"],
+        len(validity["finding_ids"]),
+        len(validity["assessment_ids"]),
+        len(validity["correction_ids"]),
     )
-    validity = fixture.governance_queries.validity_projection(
-        ids.project_id, GovernanceTargetType.RUN, ids.run_id
-    )
-    finding = fixture.governance_queries.get_audit_finding(ids.finding_id)
-    assessment = fixture.governance_queries.get_impact_assessment(ids.impact_assessment_id)
-    correction = fixture.governance_queries.get_correction_record(ids.correction_id)
-    assert finding is not None and assessment is not None and correction is not None
+
     return {
-        "research": {"rq_status": "FROZEN", "hypothesis_status": "FROZEN", "spec_status": "FROZEN"},
+        "_reference_roles": _reference_roles(ids),
+        "research": {
+            "rq_status": commands["rq:freeze"]["status"],
+            "hypothesis_status": commands["hypothesis:freeze"]["status"],
+            "spec_status": commands["spec:freeze"]["status"],
+        },
         "inputs": {
-            "dataset_snapshot": str(ids.dataset_snapshot_id),
-            "artifact_version": str(ids.artifact_version_id),
-            "metric_definition_version": str(ids.metric_definition_version_id),
-            "experiment_spec_version": str(ids.experiment_spec_version_id),
+            "experiment_spec_version": provenance["experiment_spec_version_id"],
+            "dataset_inputs": provenance["dataset_inputs"],
+            "artifact_inputs": provenance["artifact_inputs"],
+            "metric_definition_version": first_measurement["metric_definition_version_id"],
         },
         "run": {
-            "status": run.status.value,
-            "dataset_input_count": len(provenance.dataset_inputs),
-            "artifact_input_count": len(provenance.artifact_inputs),
-            "measurement_count": len(provenance.measurements),
-            "closure": (provenance.closure.complete, provenance.closure.visited_count),
+            "run_id": provenance["run_id"],
+            "status": provenance["status"],
+            "dataset_inputs": provenance["dataset_inputs"],
+            "artifact_inputs": provenance["artifact_inputs"],
+            "dataset_input_count": len(provenance["dataset_inputs"]),
+            "artifact_input_count": len(provenance["artifact_inputs"]),
+            "measurements": provenance["measurements"],
+            "measurement_count": len(provenance["measurements"]),
+            "closure": closure_projection(provenance["closure"]),
         },
         "observations": {
-            "measurement_count": len(measurements),
-            "measurement_hashes": [str(item.content_hash) for item in measurements],
-            "statistical_result_count": 1,
-            "statistical_hash": str(statistical.content_hash),
-            "statistical_inputs": [
-                (item.input_role, item.ordinal, str(item.measurement_id))
-                for item in app.list_statistical_result_inputs(ids.statistical_result_id)
-            ],
+            "measurement_ids": [item["measurement_id"] for item in provenance["measurements"]],
+            "measurement_count": len(provenance["measurements"]),
+            "measurement_hashes": [item["content_hash"] for item in provenance["measurements"]],
+            "statistical_result_id": commands["stats:create"]["id"],
+            "statistical_hash": commands["stats:create"]["content_hash"],
+            "statistical_result_count": sum(
+                name == "stats:create" or name.startswith("stats:create:") for name in commands
+            ),
+            "statistical_inputs": observed_statistical_inputs,
+            "statistical_input_rows": statistical_inputs,
         },
         "claim": {
-            "status": claim.status.value,
+            "claim_version_id": commands["claim:freeze"]["id"],
+            "status": commands["claim:freeze"]["status"],
+            "evidence_relations": evidence,
             "evidence_count": len(evidence),
-            "support_set_hash": str(claim.support_set_hash),
-            "content_hash": str(claim.content_hash),
-            "closure": (closure.complete, closure.visited_count),
-            "trace_runs": [str(item.run_id) for item in trace.runs],
-            "trace_paths": [
-                (
-                    item.source_type,
-                    item.relation_type,
-                    item.qualification,
-                    item.statistical_result_input_role,
-                    item.statistical_result_input_ordinal,
-                )
-                for item in trace.paths
-            ],
+            "support_set_hash": commands["claim:freeze"]["support_set_hash"],
+            "content_hash": commands["claim:freeze"]["content_hash"],
+            "closure": closure_projection(closure),
+            "trace_runs": [item["run_id"] for item in trace["runs"]],
+            "trace_paths": observed_trace_paths,
+            "trace_path_rows": trace["paths"],
         },
         "governance": {
+            "finding": finding,
             "finding_target": (
-                finding.target_type.value,
-                str(finding.target_id),
-                str(finding.target_content_hash),
+                finding["target_type"],
+                finding["target_id"],
+                finding["target_content_hash"],
             ),
-            "assessment_hash": str(assessment.content_hash),
+            "assessment": assessment,
+            "assessment_hash": assessment["content_hash"],
+            "impact": impact,
             "impact_targets": [
-                (item.target_type.value, str(item.target_id), item.impact_kind.value)
-                for item in assessment.targets
+                (item["target_type"], item["target_id"], item["impact_kind"])
+                for item in assessment["targets"]
             ],
-            "impact_paths": [
-                (
-                    item.target_type.value,
-                    str(item.target_id),
-                    str(item.run_id) if item.run_id else None,
-                    str(item.measurement_id) if item.measurement_id else None,
-                    str(item.statistical_result_id) if item.statistical_result_id else None,
-                    item.statistical_input_role,
-                    item.statistical_input_ordinal,
-                )
-                for target in impact
-                for item in target.paths
-            ],
-            "validity": (
-                validity.state.value,
-                len(validity.finding_ids),
-                len(validity.assessment_ids),
-                len(validity.correction_ids),
-            ),
-            "correction_hash": str(correction.content_hash),
+            "impact_paths": observed_impact_paths,
+            "validity": observed_validity,
+            "validity_projection": validity,
+            "correction": correction,
+            "correction_hash": correction["content_hash"],
         },
     }
 
 
-def normalized_projection(value: dict[str, Any]) -> dict[str, Any]:
-    """Replace generated IDs with stable labels while retaining all scientific hashes."""
+def _reference_roles(ids: WorkflowIds) -> dict[str, str]:
+    return {
+        str(ids.actor_id): "actor",
+        str(ids.project_id): "project",
+        str(ids.research_question_id): "research_question",
+        str(ids.research_question_version_id): "research_question_version",
+        str(ids.hypothesis_id): "hypothesis",
+        str(ids.hypothesis_version_id): "hypothesis_version",
+        str(ids.experiment_spec_id): "experiment_spec",
+        str(ids.experiment_spec_version_id): "experiment_spec_version",
+        str(ids.dataset_id): "dataset",
+        str(ids.dataset_snapshot_id): "dataset_snapshot",
+        str(ids.artifact_id): "artifact",
+        str(ids.artifact_version_id): "artifact_version",
+        str(ids.metric_definition_id): "metric_definition",
+        str(ids.metric_definition_version_id): "metric_definition_version",
+        str(ids.run_id): "run",
+        str(ids.measurement_ids[0]): "measurement:0",
+        str(ids.measurement_ids[1]): "measurement:1",
+        str(ids.statistical_result_id): "statistical_result",
+        str(ids.claim_id): "claim",
+        str(ids.claim_version_id): "claim_version",
+        str(ids.evidence_relation_ids[0]): "evidence_relation:0",
+        str(ids.evidence_relation_ids[1]): "evidence_relation:1",
+        str(ids.finding_id): "audit_finding",
+        str(ids.impact_assessment_id): "impact_assessment",
+        str(ids.correction_id): "correction_record",
+    }
 
-    text_value = json.dumps(value, sort_keys=True)
-    identifiers = sorted({token for token in text_value.replace('"', " ").split() if False})
-    del identifiers
-    return value
+
+def normalized_projection(value: dict[str, Any]) -> dict[str, Any]:
+    """Normalize transport metadata and generated IDs, preserving observed semantics."""
+
+    role_by_id = value.get("_reference_roles", {})
+
+    def normalize(item: Any, key: str | None = None) -> Any:
+        if isinstance(item, dict):
+            return {
+                name: normalize(child, name)
+                for name, child in sorted(item.items())
+                if name
+                not in {
+                    "_reference_roles",
+                    "request_id",
+                    "correlation_id",
+                    "causation_id",
+                    "client_type",
+                    "client_name",
+                    "client_version",
+                }
+            }
+        if isinstance(item, list):
+            return [normalize(child, key) for child in item]
+        if isinstance(item, str) and item in role_by_id:
+            return role_by_id[item]
+        return item
+
+    return normalize(value)
 
 
 def db_statement_counter(engine: Engine) -> list[str]:

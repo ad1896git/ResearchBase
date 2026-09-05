@@ -7,10 +7,13 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic_ns
+from typing import Any
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 from tests.e2e.support import FIXED_NOW, fresh_fixture, run_workflow
 
 from researchbase.application.commands import (
@@ -52,6 +55,17 @@ class _FailingUnitOfWork(SqlAlchemyUnitOfWork):
     def commit(self) -> None:
         self._require_session().flush()
         raise RuntimeError("controlled PR-17 rollback")
+
+
+@dataclass(frozen=True, slots=True)
+class _ClaimRaceOutcome:
+    operation: str
+    backend_pid: int
+    result: object
+
+
+def _backend_pid(connection: Any) -> int:
+    return int(connection.connection.driver_connection.info.backend_pid)
 
 
 def _failing_application(fixture: object) -> ApplicationService:
@@ -117,10 +131,9 @@ def test_representative_commands_rollback_and_retry_without_partial_rows(tmp_pat
         retry_result = app.record_statistical_result(result_command)
         assert _count(fixture, "statistical_results") == result_count + 1
         assert _count(fixture, "statistical_result_inputs") == input_count + 2
-        assert (
-            app.list_statistical_result_inputs(retry_result.id)[0].measurement_id
-            in ids.measurement_ids
-        )
+        retry_inputs = app.list_statistical_result_inputs(retry_result.id)
+        assert len(retry_inputs) == 2
+        assert {item.measurement_id for item in retry_inputs} == set(ids.measurement_ids)
 
         claim = app.create_claim(
             CreateClaimCommand(
@@ -143,13 +156,22 @@ def test_representative_commands_rollback_and_retry_without_partial_rows(tmp_pat
         assert app.list_evidence_relations(version.id) == []
         assert app.get_claim_version(version.id).row_version == version.row_version
         app.link_evidence(link)
+        linked_version = app.get_claim_version(version.id)
+        with pytest.raises(RuntimeError, match="controlled PR-17 rollback"):
+            _failing_application(fixture).freeze_claim_version(
+                FreezeClaimVersionCommand(claim.id, version.id, context, linked_version.row_version)
+            )
+        assert app.get_claim_version(version.id).status.value == "DRAFT"
+        assert app.get_claim_version(version.id).row_version == linked_version.row_version
+        assert len(app.list_evidence_relations(version.id)) == 1
         frozen = app.freeze_claim_version(
-            FreezeClaimVersionCommand(claim.id, version.id, context, version.row_version + 1)
+            FreezeClaimVersionCommand(claim.id, version.id, context, linked_version.row_version)
         )
         assert frozen.status.value == "FROZEN"
         assert len(app.list_evidence_relations(version.id)) == 1
 
         assessments_before = len(fixture.governance_queries.list_impact_assessments(ids.finding_id))
+        assessment_targets_before = _count(fixture, "impact_targets")
         assessment_command = CreateImpactAssessmentCommand(
             ids.project_id,
             ids.finding_id,
@@ -164,12 +186,14 @@ def test_representative_commands_rollback_and_retry_without_partial_rows(tmp_pat
             len(fixture.governance_queries.list_impact_assessments(ids.finding_id))
             == assessments_before
         )
+        assert _count(fixture, "impact_targets") == assessment_targets_before
         retry_assessment = fixture.governance.create_impact_assessment(assessment_command)
         assert retry_assessment.id is not None
         assert (
             len(fixture.governance_queries.list_impact_assessments(ids.finding_id))
             == assessments_before + 1
         )
+        assert _count(fixture, "impact_targets") == assessment_targets_before + 1
 
         run_count = _count(fixture, "runs")
         run_command = CreateRunCommand(
@@ -181,6 +205,23 @@ def test_representative_commands_rollback_and_retry_without_partial_rows(tmp_pat
         retried_run = app.create_run(run_command)
         assert _count(fixture, "runs") == run_count + 1
         assert app.get_run(retried_run.id).id == retried_run.id
+        run_before_attach = app.get_run(retried_run.id)
+        dataset_edges_before = _count(fixture, "run_dataset_inputs")
+        attach_command = AttachRunDatasetInputCommand(
+            retried_run.id,
+            ids.dataset_snapshot_id,
+            DatasetInputRole.TEST,
+            0,
+            run_before_attach.row_version,
+            context,
+        )
+        with pytest.raises(RuntimeError, match="controlled PR-17 rollback"):
+            _failing_application(fixture).attach_run_dataset_input(attach_command)
+        assert _count(fixture, "run_dataset_inputs") == dataset_edges_before
+        assert app.get_run(retried_run.id).row_version == run_before_attach.row_version
+        attached_run = app.attach_run_dataset_input(attach_command)
+        assert _count(fixture, "run_dataset_inputs") == dataset_edges_before + 1
+        assert attached_run.row_version == run_before_attach.row_version + 1
 
 
 def test_concurrent_version_revise_has_one_winner_and_no_partial_history(tmp_path: Path) -> None:
@@ -338,18 +379,117 @@ def test_claim_evidence_link_and_freeze_conflict_has_valid_final_state(tmp_path:
             version.row_version,
             fixture.context,
         )
-        results = _race(
-            lambda: fixture.fresh_application().link_evidence(link),
-            lambda: fixture.fresh_application().freeze_claim_version(
-                FreezeClaimVersionCommand(claim.id, version.id, fixture.context)
-            ),
-        )
-        failures = [item for item in results if isinstance(item, ResearchBaseError)]
-        assert all(
-            error.code in {ErrorCode.CONCURRENT_MODIFICATION, ErrorCode.IMMUTABLE_RECORD}
-            for error in failures
-        )
+        lock_timeline: list[tuple[str, int, int]] = []
+        timeline_lock = threading.Lock()
+        local = threading.local()
+        first_lock_acquired = threading.Event()
+        second_lock_requested = threading.Event()
+        second_lock_acquired = threading.Event()
+        release_first = threading.Event()
+        outcomes: dict[str, _ClaimRaceOutcome] = {}
+
+        def record(label: str, connection: Any) -> None:
+            with timeline_lock:
+                lock_timeline.append((label, monotonic_ns(), _backend_pid(connection)))
+
+        def after_cursor_execute(
+            connection: Any,
+            _cursor: Any,
+            statement: str,
+            _parameters: Any,
+            _context: Any,
+            _executemany: bool,
+        ) -> None:
+            normalized = statement.upper()
+            if "FROM CLAIM_VERSIONS" not in normalized or "FOR UPDATE" not in normalized:
+                return
+            operation = getattr(local, "operation", None)
+            if operation == "freeze":
+                record("freeze_lock_acquired", connection)
+                first_lock_acquired.set()
+                assert release_first.wait(10)
+                record("freeze_released", connection)
+            elif operation == "link":
+                record("link_lock_acquired", connection)
+                second_lock_acquired.set()
+
+        def before_cursor_execute(
+            connection: Any,
+            _cursor: Any,
+            statement: str,
+            _parameters: Any,
+            _context: Any,
+            _executemany: bool,
+        ) -> None:
+            normalized = statement.upper()
+            if (
+                getattr(local, "operation", None) == "link"
+                and "FROM CLAIM_VERSIONS" in normalized
+                and "FOR UPDATE" in normalized
+            ):
+                record("link_lock_requested", connection)
+                second_lock_requested.set()
+
+        def invoke(operation: str, target: Callable[[], object]) -> object:
+            local.operation = operation
+            try:
+                result: object = target()
+            except BaseException as exc:
+                result = exc
+            with timeline_lock:
+                backend_pid = next(
+                    pid for label, _timestamp, pid in lock_timeline if label.startswith(operation)
+                )
+            outcomes[operation] = _ClaimRaceOutcome(operation, backend_pid, result)
+            return result
+
+        event.listen(fixture.engine, "before_cursor_execute", before_cursor_execute)
+        event.listen(fixture.engine, "after_cursor_execute", after_cursor_execute)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                freeze_future = executor.submit(
+                    invoke,
+                    "freeze",
+                    lambda: fixture.fresh_application().freeze_claim_version(
+                        FreezeClaimVersionCommand(claim.id, version.id, fixture.context)
+                    ),
+                )
+                assert first_lock_acquired.wait(10)
+                link_future = executor.submit(
+                    invoke,
+                    "link",
+                    lambda: fixture.fresh_application().link_evidence(link),
+                )
+                assert second_lock_requested.wait(10)
+                with timeline_lock:
+                    lock_timeline.append(("release_requested", monotonic_ns(), -1))
+                release_first.set()
+                freeze_future.result(timeout=20)
+                link_future.result(timeout=20)
+        finally:
+            release_first.set()
+            event.remove(fixture.engine, "before_cursor_execute", before_cursor_execute)
+            event.remove(fixture.engine, "after_cursor_execute", after_cursor_execute)
+
+        assert second_lock_acquired.is_set()
+        assert set(outcomes) == {"freeze", "link"}
+        freeze_outcome = outcomes["freeze"]
+        link_outcome = outcomes["link"]
+        assert freeze_outcome.backend_pid != link_outcome.backend_pid
+        assert not isinstance(freeze_outcome.result, BaseException)
+        assert isinstance(link_outcome.result, ResearchBaseError)
+        assert link_outcome.result.code is ErrorCode.CONCURRENT_MODIFICATION
+
+        labels = [label for label, _timestamp, _pid in lock_timeline]
+        assert labels == [
+            "freeze_lock_acquired",
+            "link_lock_requested",
+            "release_requested",
+            "freeze_released",
+            "link_lock_acquired",
+        ]
         final_version = fixture.application.get_current_claim_version(claim.id)
         assert final_version.status.value == "FROZEN"
-        assert len(fixture.application.list_evidence_relations(final_version.id)) in {0, 1}
+        assert final_version.row_version == version.row_version + 1
+        assert fixture.application.list_evidence_relations(final_version.id) == []
         assert fixture.provenance.get_claim_closure_report(final_version.id).complete is True
