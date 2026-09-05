@@ -1,0 +1,1 @@
+{"command":"DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase UV_CACHE_DIR=/tmp/researchbase-uv-cache uv run pytest","exit_code":0,"collected":644,"passed":642,"skipped":2,"failed":0,"warnings":0,"duration_seconds":53.13}

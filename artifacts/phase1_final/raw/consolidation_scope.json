@@ -1,0 +1,14 @@
+{
+  "accepted_head": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+  "production_changes": 0,
+  "schema_changes": 0,
+  "migration_changes": 0,
+  "test_semantic_changes": 0,
+  "all_original_untracked_paths_preserved": true,
+  "original_untracked_path_count": 110,
+  "allowed_commit_prefix": "artifacts/phase1_final/",
+  "tag_target": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+  "annotated_tag": true,
+  "merge_performed": false,
+  "history_rewritten": false
+}

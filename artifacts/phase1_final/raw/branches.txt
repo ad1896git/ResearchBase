@@ -1,0 +1,4 @@
+  codex/pr-01r-remediation 99e0888 Record PR-01R remediation evidence
+* codex/pr-02              5fe5dd9 docs(evidence): finalize PR-17R acceptance remediation
+  master                   647facf Record PR-01 acceptance evidence
+  pr16-history-backup      e601aa4 docs(evidence): reconcile PR-16 subject head

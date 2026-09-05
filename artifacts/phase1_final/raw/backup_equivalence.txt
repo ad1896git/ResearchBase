@@ -1,0 +1,16 @@
+< 5fe5dd9 docs(evidence): finalize PR-17R acceptance remediation
+< 2d8e2ab test: remediate PR-17 final acceptance gate
+< 03ccba5 docs(evidence): reconcile PR-17 subject head
+< 745de1b test: cover PR-17 run and claim concurrency
+< 298c0ea docs(evidence): record PR-17 golden acceptance
+< 78c6024 test: add PR-17 golden scientific workflow acceptance
+< 0eed8d8 docs(evidence): reconcile PR-16R changed files
+< d5ea060 docs(evidence): reconcile PR-16 inherited format list
+< e937588 docs(evidence): close PR-16 formatting finding
+< 390cbda docs(evidence): reconcile PR-16 subject metadata
+= e9f0700 docs(evidence): reconcile PR-16 subject head
+= abf91e9 docs(evidence): record PR-16 CLI adapter proof
+= fac2093 test: keep PR-16 CLI contract lint-clean
+= e601aa4 docs(evidence): reconcile PR-16 subject head
+= 3659ba3 test: keep PR-16 CLI contract lint-clean
+= c9574d6 docs(evidence): record PR-16 CLI adapter proof

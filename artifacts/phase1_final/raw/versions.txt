@@ -1,0 +1,2 @@
+3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 21.0.0 (clang-2100.1.1.101)]
+{'pytest': '8.4.2', 'ruff': '0.12.12', 'pyright': '1.1.411', 'alembic': '1.19.1', 'sqlalchemy': '2.0.52', 'psycopg': '3.3.4', 'fastapi': '0.141.1', 'typer': '0.27.1'}

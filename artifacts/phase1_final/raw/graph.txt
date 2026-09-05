@@ -1,0 +1,121 @@
+* 5fe5dd9 (HEAD -> codex/pr-02) docs(evidence): finalize PR-17R acceptance remediation
+* 2d8e2ab test: remediate PR-17 final acceptance gate
+* 03ccba5 docs(evidence): reconcile PR-17 subject head
+* 745de1b test: cover PR-17 run and claim concurrency
+* 298c0ea docs(evidence): record PR-17 golden acceptance
+* 78c6024 test: add PR-17 golden scientific workflow acceptance
+* 0eed8d8 docs(evidence): reconcile PR-16R changed files
+* d5ea060 docs(evidence): reconcile PR-16 inherited format list
+* e937588 docs(evidence): close PR-16 formatting finding
+* 390cbda docs(evidence): reconcile PR-16 subject metadata
+* e9f0700 docs(evidence): reconcile PR-16 subject head
+* abf91e9 docs(evidence): record PR-16 CLI adapter proof
+* fac2093 test: keep PR-16 CLI contract lint-clean
+| * e601aa4 (pr16-history-backup) docs(evidence): reconcile PR-16 subject head
+| * 3659ba3 test: keep PR-16 CLI contract lint-clean
+| * c9574d6 docs(evidence): record PR-16 CLI adapter proof
+|/
+* 77d2152 feat: add PR-16 Typer CLI adapter
+* 912f564 docs(evidence): record exact PR-15R forwarding proof
+* f05f33e test: assert exact PR-15R command forwarding
+* bc33022 docs(evidence): update PR-15R closure proofs
+* 8fabea3 test: keep PR-15R behavior matrix lint-clean
+* 7040111 test: close PR-15R scaling and binding gaps
+* 09cf2a6 docs(evidence): record PR-15R remediation
+* 6be2727 test: complete PR-15R error and equivalence proof
+* 71ee20e test: harden PR-15 adapter evidence
+* 1afe984 feat: add PR-15 FastAPI adapter
+* ce94d73 docs(evidence): adopt non-self-referential PR-14 protocol
+* b1a1f16 docs(evidence): remove active mutable ref semantics
+* ba72482 docs(evidence): finalize PR-14R5 immutable head reconciliation
+* c75db39 docs(evidence): record immutable PR-14R4 head
+* 724c67d docs(evidence): finalize PR-14R4 head reconciliation
+* 94536eb docs(evidence): record reviewed PR-14R3 head
+* c4b324a docs(evidence): finalize PR-14R3 reconciliation
+* b6a231a docs(evidence): reconcile PR-14R2 final metadata
+* 3a9cb09 docs: finalize PR-14R2 evidence
+* 1669550 docs: add PR-14 evidence package
+* 701df46 fix: complete PR-14 impact path metadata
+* b979525 Implement PR-14 governance audit and impact
+* e57cc7f docs: finalize PR-13R3 evidence fingerprint
+* 4a232fd docs: add PR-13R3 evidence package
+* 2f6f3b7 fix: handle missing spec closure context
+* 1942902 docs: reconcile PR-13R2 final test evidence
+* 1c8479a test: prove small trace SQL bound
+* 9a312fd docs: finalize PR-13R2 evidence fingerprint
+* cc26b13 docs: add PR-13R2 evidence package
+* 1f71fb1 fix: make contextual closure cache only
+* 96fe5b2 docs: finalize PR-13R evidence fingerprint
+* ad5790c docs: add PR-13R evidence package
+* b6afdb7 test: harden provenance scaling proof
+* 6355b2f fix: bound provenance trace reads
+* d99c215 docs: fix PR-13 evidence whitespace
+* 9229c18 docs: reconcile PR-13 historical trace evidence
+* 9230283 test: prove exact historical provenance isolation
+* 4a4f9da docs: finalize PR-13 evidence fingerprint
+* 4177bd8 docs: add PR-13 evidence package
+* c4c69ab test: record provenance query SQL count
+* 1a1877a feat: add explicit provenance trace queries
+* 5b4d7e1 docs: finalize PR-12R3 evidence metadata
+* 050f4ae docs: reconcile PR-12R2 final head evidence
+* b973356 docs: finalize PR-12R2 fingerprint
+* 16228b9 docs: reconcile PR-12R2 fingerprint metadata
+* 0d9f78c docs: add PR-12R2 evidence payload
+* e95fee5 test: harden PR-12 oracle and closure evidence
+* 3564361 docs: complete PR-12R fingerprint reconciliation
+* 069938e docs: reconcile complete PR-12R inventory
+* 4e01557 docs: complete PR-12R architecture evidence
+* dc37d77 docs: align PR-12R evidence range metadata
+* de00596 docs: finalize PR-12R evidence metadata
+* a92ad01 docs: add PR-12R evidence fingerprint
+* 2aa939b docs: record PR-12R changed-file inventory
+* 298594d docs: add PR-12R remediation evidence payload
+* 054fb27 test: remediate PR-12 review findings
+* 9244ac1 docs: finalize PR-12 evidence fingerprint
+* 4454fe6 docs: add PR-12 evidence payload
+* 019148e test: synchronize claim revise race at lock boundary
+* 14030a2 fix: include PR-12 claim domain and migration regression
+* 4b8442c feat: implement PR-12 claims and evidence
+* 18fb413 docs: record PR-11R7 search evidence
+* c7277b6 docs: finalize PR-11R7 evidence metadata
+* 328fe13 docs: correct PR-11R7 token search evidence
+* adc78c8 docs: finalize PR-11R6 fingerprint metadata
+* a130431 docs: fix PR-11R5 fingerprint placeholder
+* 10a4e76 docs: finalize PR-11R5 evidence metadata
+* 00cf1a5 docs: close PR-11R5 evidence whitespace
+* 5f3626d docs: correct PR-11R4 resolved SHA
+* 713102b docs: finalize PR-11R4 fingerprint metadata
+* be72678 docs: reconcile PR-11R4 evidence
+* 716e316 docs: finalize PR-11R3 fingerprint
+* 3a539a7 docs: add PR-11R3 migration evidence
+* 813aaeb test: assert exact PR-11R3 fixture edge
+* ef8d67a test: harden PR-11R3 migration evidence
+* e62d19f docs: finalize PR-11R2 fingerprints
+* 679efd7 docs: add PR-11R2 migration and evidence package
+* 2304c08 test: include PR-11R2 migration in architecture inventory
+* 1e55781 fix: fail closed on legacy statistical results
+* 6675a74 docs: record final PR-11R verification commits
+* 4aa969e test: strengthen PR-11R proof assertions
+* 5beb20c docs: reconcile PR-11R test counts
+* 7e18e92 docs: finalize PR-11R evidence fingerprint
+* d95a0c1 docs: add PR-11R remediation evidence
+* 1330419 test: correct PR-11R regression typing
+* 6319fda fix: harden PR-11 statistical result invariants
+* 9592b66 docs: correct PR-11 evidence fingerprints
+* 46f2100 docs: reconcile PR-11 evidence metadata
+* 191a485 docs: finalize PR-11 evidence fingerprint
+* f4ccdf8 docs: add PR-11 evidence package
+* 5093639 feat: implement PR-11 statistical results
+* 934e869 docs: finalize PR-10R2 evidence metadata
+* 686402e docs: add PR-10R2 evidence metadata correction
+* bffb95c docs: finalize PR-10R evidence metadata
+* 7db0696 docs: add PR-10R remediation evidence
+* 9c5a87a test: remove production builder from hash oracle
+* 35efe3d test: harden PR-10 remediation proof
+* 41a8863 docs: finalize PR-10 evidence results
+* 3745cbe docs: add PR-10 evidence package
+* 0661a58 test: complete PR-10 measurement attack matrix
+* 733972d test: format PR-10 hash contract coverage
+* 9e04277 fix: harden PR-10 measurement validation
+* 1106702 feat: implement PR-10 measurements
+* fe8027d docs: finalize PR-09R6 evidence fingerprint

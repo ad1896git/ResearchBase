@@ -1,0 +1,13 @@
+tag phase1-final
+Tagger:     swjtu <wf@xnjd.com.cn>
+TaggerDate: Sat Sep 5 11:10:38 2026 +0800
+
+ResearchBase Phase 1 final accepted baseline
+
+commit 5fe5dd90310d68d6df1683307f0d24dd2233c3dd
+Author:     swjtu <wf@xnjd.com.cn>
+AuthorDate: Sat Sep 5 10:27:43 2026 +0800
+Commit:     swjtu <wf@xnjd.com.cn>
+CommitDate: Sat Sep 5 10:34:11 2026 +0800
+
+    docs(evidence): finalize PR-17R acceptance remediation

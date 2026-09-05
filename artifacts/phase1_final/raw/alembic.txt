@@ -1,0 +1,5 @@
+Command: DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase UV_CACHE_DIR=/tmp/researchbase-uv-cache uv run alembic current
+Exit code: 0 (before and after full pytest)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+0015_governance_audit (head)

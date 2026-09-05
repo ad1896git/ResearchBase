@@ -1,0 +1,2032 @@
+[
+  {
+    "pr": "PR-00",
+    "endpoint": "ce4fe585388da7026523473ae01834022277eadc",
+    "implementation_test_head": "565fbc95db53b1c7534bacb41870e941c5d10101",
+    "evidence_head": "ce4fe585388da7026523473ae01834022277eadc",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-00/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "565fbc95db53b1c7534bacb41870e941c5d10101",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr_pack_sha256": "1299a794a05da8174c95a9f25664b050f32a4502ef7b43c2495e7812c75137ec",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": []
+    },
+    "commits": [
+      "565fbc95db53b1c7534bacb41870e941c5d10101 Bootstrap ResearchBase PR-00",
+      "ce4fe585388da7026523473ae01834022277eadc Record PR-00 acceptance evidence"
+    ]
+  },
+  {
+    "pr": "PR-01",
+    "endpoint": "647facf1fc4e6973f131a3e3ff64b49c3f81e349",
+    "implementation_test_head": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+    "evidence_head": "647facf1fc4e6973f131a3e3ff64b49c3f81e349",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-01/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr_pack_sha256": "3829fd504e4bfcad3cfa5c8d47cf31616c246d3e0b2579ab48d7f483ceec96a5",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": []
+    },
+    "commits": [
+      "a517b3174f14ac2f1fb9dd3ead1852404585aa75 Implement PR-01 foundation",
+      "647facf1fc4e6973f131a3e3ff64b49c3f81e349 Record PR-01 acceptance evidence"
+    ]
+  },
+  {
+    "pr": "PR-01R",
+    "endpoint": "99e088812e8ce86ddaceec7f731bc9ae913c33e0",
+    "implementation_test_head": "c3e7497046b5c0213f18c619e7e587a0f18165e6",
+    "evidence_head": "99e088812e8ce86ddaceec7f731bc9ae913c33e0",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-01R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "c3e7497",
+      "pr01_baseline_implementation_commit": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+      "pr01_baseline_evidence_commit": "647facf1fc4e6973f131a3e3ff64b49c3f81e349",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr_pack_sha256": "9107d2321266b355104918652d026b0f939afce1b21252e37a3dfe8fefb92608",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "c3e7497046b5c0213f18c619e7e587a0f18165e6 Remediate PR-01 foundation review findings",
+      "99e088812e8ce86ddaceec7f731bc9ae913c33e0 Record PR-01R remediation evidence"
+    ]
+  },
+  {
+    "pr": "PR-02",
+    "endpoint": "57a8d156fb8cd3a15de16b48b211ef433437fdf9",
+    "implementation_test_head": "dd69bbff27971b9ce4065d06a321f3c278e728a1",
+    "evidence_head": "57a8d156fb8cd3a15de16b48b211ef433437fdf9",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-02/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "dd69bbff27971b9ce4065d06a321f3c278e728a1",
+      "pr01_baseline_implementation_commit": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+      "pr01_baseline_evidence_commit": "647facf1fc4e6973f131a3e3ff64b49c3f81e349",
+      "pr01r_remediation_commit": "c3e7497046b5c0213f18c619e7e587a0f18165e6",
+      "pr01r_evidence_commit": "99e088812e8ce86ddaceec7f731bc9ae913c33e0",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr_pack_sha256": "8572a6f19d47c8c4157b4e705b3f7ae726f5ef8e751069ddf926810f5e5b9f46",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "dd69bbff27971b9ce4065d06a321f3c278e728a1 Implement PR-02 actor project workspace persistence slice",
+      "57a8d156fb8cd3a15de16b48b211ef433437fdf9 Record PR-02 evidence"
+    ]
+  },
+  {
+    "pr": "PR-02R",
+    "endpoint": "99e402cc01bb189925bcfae0db6ba0016b4ccde9",
+    "implementation_test_head": "1fbb4634066cbcd49454590609486dfcebeca30f",
+    "evidence_head": "99e402cc01bb189925bcfae0db6ba0016b4ccde9",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-02R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "baseline_pr01_implementation_commit": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+      "baseline_pr01_evidence_commit": "647facf1fc4e6973f131a3e3ff64b49c3f81e349",
+      "baseline_pr01r_remediation_commit": "c3e7497046b5c0213f18c619e7e587a0f18165e6",
+      "baseline_pr01r_evidence_commit": "99e088812e8ce86ddaceec7f731bc9ae913c33e0",
+      "baseline_pr02_implementation_commit": "dd69bbff27971b9ce4065d06a321f3c278e728a1",
+      "baseline_pr02_evidence_commit": "57a8d156fb8cd3a15de16b48b211ef433437fdf9",
+      "pr02r_remediation_commit": "1fbb4634066cbcd49454590609486dfcebeca30f",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr02r_pack_sha256": "f97b9e634b8933fb1b774552e418adcebc8d8be2aa29baf48968b7d732fa40e3",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "1fbb4634066cbcd49454590609486dfcebeca30f Fix PR-02 review regression gaps",
+      "99e402cc01bb189925bcfae0db6ba0016b4ccde9 Complete PR-02 remediation evidence"
+    ]
+  },
+  {
+    "pr": "PR-03",
+    "endpoint": "4ab6af705aab50af0a13d9289543eb9a21ea2053",
+    "implementation_test_head": "9929df67f7b8c296c25ff680faec257048b5a050",
+    "evidence_head": "4ab6af705aab50af0a13d9289543eb9a21ea2053",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-03/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "9929df67f7b8c296c25ff680faec257048b5a050",
+      "parent_pr02_final_baseline_commit": "99e402cc01bb189925bcfae0db6ba0016b4ccde9",
+      "pr01_baseline_implementation_commit": "a517b3174f14ac2f1fb9dd3ead1852404585aa75",
+      "pr01_baseline_evidence_commit": "647facf1fc4e6973f131a3e3ff64b49c3f81e349",
+      "pr01r_remediation_commit": "c3e7497046b5c0213f18c619e7e587a0f18165e6",
+      "pr01r_evidence_commit": "99e088812e8ce86ddaceec7f731bc9ae913c33e0",
+      "pr02_implementation_commit": "dd69bbff27971b9ce4065d06a321f3c278e728a1",
+      "pr02_evidence_commit": "57a8d156fb8cd3a15de16b48b211ef433437fdf9",
+      "pr02r_remediation_commit": "1fbb4634066cbcd49454590609486dfcebeca30f",
+      "pr02r_evidence_commit": "99e402cc01bb189925bcfae0db6ba0016b4ccde9",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr_pack_sha256": "26a40b43d301a9e90799e9e1e2197d4ceacd2e1e0e4afb3991122b50672d1537",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "9929df67f7b8c296c25ff680faec257048b5a050 Implement PR-03 generic version semantics harness",
+      "4ab6af705aab50af0a13d9289543eb9a21ea2053 Record PR-03 evidence"
+    ]
+  },
+  {
+    "pr": "PR-03R",
+    "endpoint": "4dfffd882dd103f292474af2431d9ec42ff82618",
+    "implementation_test_head": "49fcf2feca35ea8c07832f7eaeed856b141004ed",
+    "evidence_head": "4dfffd882dd103f292474af2431d9ec42ff82618",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-03R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "49fcf2feca35ea8c07832f7eaeed856b141004ed",
+      "pr03_baseline_commit": "4ab6af705aab50af0a13d9289543eb9a21ea2053",
+      "pr03_implementation_commit": "9929df67f7b8c296c25ff680faec257048b5a050",
+      "pr02_final_baseline_commit": "99e402cc01bb189925bcfae0db6ba0016b4ccde9",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr_pack_sha256": "e1b4a6c8c1420aaceb3669196082833006a6fb450be4bb110bee054082b8d561",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "49fcf2feca35ea8c07832f7eaeed856b141004ed Remediate PR-03 version contract findings",
+      "4dfffd882dd103f292474af2431d9ec42ff82618 Record PR-03R remediation evidence"
+    ]
+  },
+  {
+    "pr": "PR-04",
+    "endpoint": "059641c8445749ebdac11786be40185ba8644004",
+    "implementation_test_head": "4c738660f7f46995ef32c413715ecce73a1028da",
+    "evidence_head": "059641c8445749ebdac11786be40185ba8644004",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-04/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "4c738660f7f46995ef32c413715ecce73a1028da",
+      "pr03_implementation_commit": "9929df67f7b8c296c25ff680faec257048b5a050",
+      "pr03r_accepted_evidence_commit": "4dfffd882dd103f292474af2431d9ec42ff82618",
+      "pr04_plan_commit": "ae8d0559c0e3258b26524f3f6fb688dcfc8efaf0",
+      "pr04_implementation_commit": "def1361ac7803a81893429ce3f1fce694bbf102c",
+      "pr04_rollback_test_commit": "4c738660f7f46995ef32c413715ecce73a1028da",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr_pack_sha256": "13b16b9a9e476b399dc9969574d6564c2e868729268c564d42a3b6714c8dd823",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "ae8d0559c0e3258b26524f3f6fb688dcfc8efaf0 Document PR-04 implementation plan",
+      "def1361ac7803a81893429ce3f1fce694bbf102c Implement PR-04 research question and hypothesis flows",
+      "4c738660f7f46995ef32c413715ecce73a1028da Add PR-04 PostgreSQL rollback coverage",
+      "059641c8445749ebdac11786be40185ba8644004 Record PR-04 evidence package"
+    ]
+  },
+  {
+    "pr": "PR-04R",
+    "endpoint": "0573fa5ee0886e1a2bdaa1026ccfb548b3523980",
+    "implementation_test_head": "c6be24bc27e32d0e16452e7a79195e3b09609d5a",
+    "evidence_head": "0573fa5ee0886e1a2bdaa1026ccfb548b3523980",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-04R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "researchbase_git_commit": "c6be24bc27e32d0e16452e7a79195e3b09609d5a",
+      "pr04_baseline_commit": "059641c8445749ebdac11786be40185ba8644004",
+      "pr04r_remediation_commit": "c6be24bc27e32d0e16452e7a79195e3b09609d5a",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "harness_lock_sha256": "ea5f054ae10cba2832d869df763f82a56aa3fb0bb3f04ba77d8d643b40a71c6a",
+      "target_pr04r_pack_sha256": "241964ab50ce2ca5e5b1de9ba883c242091e47501c3047de652298018aa3237d",
+      "codex_runtime_version": "unknown",
+      "model_identifier": "unknown",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "c6be24bc27e32d0e16452e7a79195e3b09609d5a Add PR-04R atomicity and concurrency verification",
+      "0573fa5ee0886e1a2bdaa1026ccfb548b3523980 Record PR-04R remediation evidence"
+    ]
+  },
+  {
+    "pr": "PR-04R2",
+    "endpoint": "eda94d650a66bc693a21a2948200aae60ee357d7",
+    "implementation_test_head": "8dd77d39c0962439003667083120fa7a81395020",
+    "evidence_head": "eda94d650a66bc693a21a2948200aae60ee357d7",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-04R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "starting_commit": "0573fa5ee0886e1a2bdaa1026ccfb548b3523980",
+      "verification_commit": "e1af27e2a7057cc26b68e6d0192bd05cdd541303",
+      "pr04_baseline_commit": "059641c8445749ebdac11786be40185ba8644004",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "target_pack": "execution/phase1/PR-04R2_Remediation_Execution_Pack_v1.0.md",
+      "target_pack_sha256": "cbd56d51ddf8dbeaea0077575969d190d30fdc63ff75453eac4dfa389d2d7f7d",
+      "postgresql_version": "18.6",
+      "external_harness_used": [
+        "superpowers@v6.2.0"
+      ]
+    },
+    "commits": [
+      "8dd77d39c0962439003667083120fa7a81395020 test: close PR-04R2 proof gaps",
+      "e1af27e2a7057cc26b68e6d0192bd05cdd541303 docs: record PR-04R2 evidence",
+      "eda94d650a66bc693a21a2948200aae60ee357d7 docs: finalize PR-04R2 fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-05",
+    "endpoint": "1ab60334f261b0e11f98e76d8416bc7ef5afa7d6",
+    "implementation_test_head": "f11f3eec619daaff0761bd1911e3f29aab838330",
+    "evidence_head": "1ab60334f261b0e11f98e76d8416bc7ef5afa7d6",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-05/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-05",
+      "execution_date": "2026-08-27",
+      "baseline_head": "eda94d650a66bc693a21a2948200aae60ee357d7",
+      "implementation_commit": "f11f3eec619daaff0761bd1911e3f29aab838330",
+      "plan_commit": "32b5cbf86dcf0b1a142610de6a8676d450c726ed",
+      "database": "PostgreSQL",
+      "migration_head": "0004_experiment_spec",
+      "tests": 171,
+      "integration_tests": 43,
+      "architecture_tests": 27,
+      "unauthorized_scope_detected": false
+    },
+    "commits": [
+      "32b5cbf86dcf0b1a142610de6a8676d450c726ed docs: plan PR-05 experiment spec",
+      "f11f3eec619daaff0761bd1911e3f29aab838330 feat: implement PR-05 experiment specifications",
+      "1ab60334f261b0e11f98e76d8416bc7ef5afa7d6 docs: record PR-05 evidence package"
+    ]
+  },
+  {
+    "pr": "PR-05R",
+    "endpoint": "5ca4dd8c9e083b5370014d86789e82c6e9c5b8ac",
+    "implementation_test_head": "da7a81f1c9dd0da8d0dab619eac6e80c54aa1444",
+    "evidence_head": "5ca4dd8c9e083b5370014d86789e82c6e9c5b8ac",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-05R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-05R",
+      "execution_date": "2026-08-27",
+      "baseline_commit": "1ab60334f261b0e11f98e76d8416bc7ef5afa7d6",
+      "remediation_commit": "da7a81f1c9dd0da8d0dab619eac6e80c54aa1444",
+      "database": "PostgreSQL disposable/test and persistent development head",
+      "persistent_migration_head": "0004_experiment_spec",
+      "pytest": 182,
+      "integration_tests": 47,
+      "architecture_tests": 27,
+      "open_p0": 0,
+      "open_p1": 0,
+      "pr06_implementation_detected": false
+    },
+    "commits": [
+      "da7a81f1c9dd0da8d0dab619eac6e80c54aa1444 fix: remediate PR-05 experiment validation proofs",
+      "5ca4dd8c9e083b5370014d86789e82c6e9c5b8ac docs: record PR-05R remediation evidence"
+    ]
+  },
+  {
+    "pr": "PR-05R2",
+    "endpoint": "66c4f3d4a4e11a349f2b99aca21cb27c16f82494",
+    "implementation_test_head": "20e3b0fe18e1759e1615ada0047b683cc49b3132",
+    "evidence_head": "66c4f3d4a4e11a349f2b99aca21cb27c16f82494",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-05R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-05R2",
+      "execution_date": "2026-08-27",
+      "baseline_commit": "5ca4dd8c9e083b5370014d86789e82c6e9c5b8ac",
+      "new_test_commit": "20e3b0fe18e1759e1615ada0047b683cc49b3132",
+      "database": "PostgreSQL persistent development head",
+      "migration_head": "0004_experiment_spec",
+      "pytest": 185,
+      "integration_tests": 47,
+      "architecture_tests": 27,
+      "new_migration": false,
+      "pr06_implementation_detected": false
+    },
+    "commits": [
+      "20e3b0fe18e1759e1615ada0047b683cc49b3132 test: complete PR-05 excluded metadata hash proof",
+      "66c4f3d4a4e11a349f2b99aca21cb27c16f82494 docs: record PR-05R2 hash proof evidence"
+    ]
+  },
+  {
+    "pr": "PR-05R3",
+    "endpoint": "403a26ca3ca24f837c736d69ef1eac6002fda075",
+    "implementation_test_head": "0269e69b59a1153ccf4f7dbb9acdb6b4c135061b",
+    "evidence_head": "f9affdcda22e207e2249dcd2180ba4463a8d4e13",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-05R3/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "baseline_commit": "66c4f3d",
+      "test_commit": "0269e69",
+      "scope": "PR-05R3 single-variable material hash differential proof",
+      "production_code_changed": false,
+      "schema_or_migration_changed": false,
+      "pytest_passed": 193,
+      "postgresql_integration_passed": 47,
+      "architecture_tests_passed": 27,
+      "alembic_head": "0004_experiment_spec",
+      "new_migration": false,
+      "pr06_implementation_detected": false
+    },
+    "commits": [
+      "0269e69b59a1153ccf4f7dbb9acdb6b4c135061b test: isolate PR-05 hash differentials",
+      "f9affdcda22e207e2249dcd2180ba4463a8d4e13 docs: record PR-05R3 hash proof evidence",
+      "403a26ca3ca24f837c736d69ef1eac6002fda075 docs: reconcile PR-05R2 evidence"
+    ]
+  },
+  {
+    "pr": "PR-06",
+    "endpoint": "c92f11993c675764f0f93fe30017ad312e535cb0",
+    "implementation_test_head": "a5c53e2c7e11a79b8e6cd38f0b301d2271ce3764",
+    "evidence_head": "c92f11993c675764f0f93fe30017ad312e535cb0",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-06/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "phase": "Phase 1",
+      "pr": "PR-06",
+      "execution_pack": "PR-06_Execution_Pack_v1.0.md",
+      "baseline": "403a26c",
+      "python": "3.12",
+      "dependency_manager": "uv",
+      "database": "PostgreSQL",
+      "hash_schemes": [
+        "canonical-json-v1",
+        "sha256-cjson-v1",
+        "sha256-bytes-v1"
+      ],
+      "external_harness_dependency": false,
+      "pr07_started": false
+    },
+    "commits": [
+      "a5c53e2c7e11a79b8e6cd38f0b301d2271ce3764 feat: implement PR-06 datasets and immutable snapshots",
+      "c92f11993c675764f0f93fe30017ad312e535cb0 docs: record PR-06 final git state"
+    ]
+  },
+  {
+    "pr": "PR-06R",
+    "endpoint": "f2edf4766838c3678b58536f5ee60306664d8894",
+    "implementation_test_head": "f2edf4766838c3678b58536f5ee60306664d8894",
+    "evidence_head": "0514df0d5c8bc38b3cda86d0afe29ffd50758df2",
+    "evidence_kind": "mixed implementation/test + evidence",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-06R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "phase": "Phase 1",
+      "pr": "PR-06R",
+      "execution_pack": "PR-06R_Remediation_Execution_Pack_v1.0.md",
+      "baseline": "c92f119",
+      "python": "3.12",
+      "dependency_manager": "uv",
+      "database": "PostgreSQL",
+      "postgresql_version": "18.6",
+      "new_migration": false,
+      "production_semantic_changes": false,
+      "pr07_started": false
+    },
+    "commits": [
+      "0514df0d5c8bc38b3cda86d0afe29ffd50758df2 test: remediate PR-06 verification evidence",
+      "f2edf4766838c3678b58536f5ee60306664d8894 test: prove PR-06 retry persistence"
+    ]
+  },
+  {
+    "pr": "PR-07",
+    "endpoint": "52a962ab751119c906ba77e87108273574d334b6",
+    "implementation_test_head": "4e2327b1cd292a887175f78a2f4b713b05e5511d",
+    "evidence_head": "52a962ab751119c906ba77e87108273574d334b6",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-07/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "execution_pack": "PR-07_Execution_Pack_v1.0.md",
+      "phase": "Phase 1",
+      "scope": "Artifact + ArtifactVersion",
+      "implementation_commit": "4e2327b",
+      "external_harness_dependency": false,
+      "evidence_generated_at_utc": "2026-08-27T13:27:12Z",
+      "status": "PASS"
+    },
+    "commits": [
+      "4e2327b1cd292a887175f78a2f4b713b05e5511d feat: implement PR-07 artifacts and versions",
+      "52a962ab751119c906ba77e87108273574d334b6 docs: add PR-07 evidence package"
+    ]
+  },
+  {
+    "pr": "PR-07R",
+    "endpoint": "82196727b0357797442454b94505af0615b60269",
+    "implementation_test_head": "fe888f334fe6e80a74a17c06d22e18e03f6f68d5",
+    "evidence_head": "82196727b0357797442454b94505af0615b60269",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-07R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "execution_pack": "PR-07R_Remediation_Execution_Pack_v1.0.md",
+      "phase": "Phase 1",
+      "scope": "PR-07 remediation only",
+      "baseline": "52a962a",
+      "remediation_commit": "fe888f3",
+      "shared_contract_helper": "tests.contracts.version_contract.assert_version_contract",
+      "external_harness_dependency": false,
+      "status": "PASS"
+    },
+    "commits": [
+      "fe888f334fe6e80a74a17c06d22e18e03f6f68d5 fix: remediate PR-07 byte size and contract gates",
+      "82196727b0357797442454b94505af0615b60269 docs: add PR-07R remediation evidence"
+    ]
+  },
+  {
+    "pr": "PR-07R2",
+    "endpoint": "f965abb3f2223d84690b597541d6bba316365423",
+    "implementation_test_head": "b7e7a537c17bd7e35cc19bb52da618054b19da0f",
+    "evidence_head": "f965abb3f2223d84690b597541d6bba316365423",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-07R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "execution_pack": "PR-07R2_Micro_Remediation_Execution_Pack_v1.0.md",
+      "phase": "Phase 1",
+      "scope": "PR-07R2 evidence and test-quality remediation only",
+      "baseline": "8219672",
+      "implementation_commit": "b7e7a53",
+      "prior_remediation_commit": "fe888f3",
+      "shared_contract_helper": "tests.contracts.version_contract.assert_version_contract",
+      "external_harness_dependency": false,
+      "status": "PASS"
+    },
+    "commits": [
+      "b7e7a537c17bd7e35cc19bb52da618054b19da0f test: strengthen PR-07R2 evidence proofs",
+      "f965abb3f2223d84690b597541d6bba316365423 docs: reconcile PR-07R2 evidence"
+    ]
+  },
+  {
+    "pr": "PR-08",
+    "endpoint": "275de4151f2843e096b8cf036d5451fe0a4b23e8",
+    "implementation_test_head": "9a7ff99292bd7b1fef3d819ced8d5ea098069040",
+    "evidence_head": "275de4151f2843e096b8cf036d5451fe0a4b23e8",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-08/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-08",
+      "shared_contract": "tests.contracts.version_contract.assert_version_contract",
+      "canonical_json_scheme": "canonical-json-v1",
+      "hash_scheme": "sha256-cjson-v1",
+      "verification": {
+        "pytest": "283 passed",
+        "ruff_check": "pass",
+        "pyright": "0 errors",
+        "postgresql": "18.6",
+        "alembic_head": "0007_metric_definition"
+      }
+    },
+    "commits": [
+      "e0bae7d1b09766ce2d6920e80dc5cb82a7977359 feat: implement PR-08 metric definitions",
+      "9a7ff99292bd7b1fef3d819ced8d5ea098069040 test: format PR-08 integration coverage",
+      "275de4151f2843e096b8cf036d5451fe0a4b23e8 docs: add PR-08 evidence package"
+    ]
+  },
+  {
+    "pr": "PR-09",
+    "endpoint": "8e67b4890a55740f73728ab40f08e8543f177dba",
+    "implementation_test_head": "17a5f66b10e9ca2eef7bcf1bfa1f9831584d2149",
+    "evidence_head": "8e67b4890a55740f73728ab40f08e8543f177dba",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-09/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-09",
+      "shared_contract": "ProvenanceClosureValidator v1; no test-only production dependency",
+      "canonical_json_scheme": "canonical-json-v1",
+      "hash_scheme": "sha256-cjson-v1",
+      "verification": {
+        "pytest": "300 passed",
+        "ruff_check": "pass",
+        "pyright": "0 errors",
+        "postgresql": "18.6",
+        "alembic_head": "0008_run_core"
+      }
+    },
+    "commits": [
+      "532a350538a6697c8e6d3b3ca12370a37624063a feat: implement PR-09 run core",
+      "17a5f66b10e9ca2eef7bcf1bfa1f9831584d2149 test: cover PR-09 schema races and rollback",
+      "2b7e810a967795707172914e7374886547d0309b docs: add PR-09 evidence package",
+      "af47f045c432227737647f2215f048b82acf31a3 chore: normalize PR-09 evidence formatting",
+      "8e67b4890a55740f73728ab40f08e8543f177dba chore: finalize PR-09 evidence whitespace"
+    ]
+  },
+  {
+    "pr": "PR-09R",
+    "endpoint": "9a35f9f460dd20e1b4660d3b8103f1531b489398",
+    "implementation_test_head": "e879ad852ad81737a3b440729d285f506eaff41b",
+    "evidence_head": "9a35f9f460dd20e1b4660d3b8103f1531b489398",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-09R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-09R",
+      "baseline": "8e67b48",
+      "remediation_commit": "e879ad8",
+      "migration_head": "0009_run_input_seal_fix",
+      "verification": {
+        "pytest": "304 passed",
+        "ruff_check": "pass",
+        "pyright": "0 errors",
+        "postgresql": "18.6",
+        "owned_format_files": 15,
+        "repository_format_inherited_failures": 8
+      },
+      "unauthorized_scope": {
+        "pr10_measurement": false,
+        "run_version": false,
+        "phase2_plus": false
+      }
+    },
+    "commits": [
+      "e879ad852ad81737a3b440729d285f506eaff41b fix: harden PR-09 run input sealing",
+      "ddbd2cf46b4ae297f8aaf080add009a2ddcca8b6 docs: reconcile PR-09 review findings",
+      "9a35f9f460dd20e1b4660d3b8103f1531b489398 docs: add PR-09R remediation evidence"
+    ]
+  },
+  {
+    "pr": "PR-09R2",
+    "endpoint": "9c473814877c10c440c2ca11f194dbfb58cd2403",
+    "implementation_test_head": "89c033096eb8295e4e46dbe3bdbea003b86498a9",
+    "evidence_head": "9c473814877c10c440c2ca11f194dbfb58cd2403",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-09R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-09R2",
+      "baseline": "9a35f9f",
+      "implementation_test_commit": "89c0330",
+      "evidence_commits": [
+        "9913feb",
+        "4f2e911"
+      ],
+      "migration_head": "0009_run_input_seal_fix",
+      "postgresql": "18.6",
+      "verification": {
+        "pytest": "312 passed",
+        "targeted_pr09_pr09r2": "23 passed",
+        "architecture_contracts": "29 passed",
+        "ruff_check": "pass",
+        "pyright": "0 errors, 0 warnings, 0 informations",
+        "scoped_format": "pass",
+        "repository_format": "8 inherited baseline failures"
+      },
+      "unauthorized_scope": {
+        "pr10_measurement": false,
+        "run_version": false,
+        "new_migration": false,
+        "phase2_plus": false
+      }
+    },
+    "commits": [
+      "89c033096eb8295e4e46dbe3bdbea003b86498a9 test: add PR-09R2 proof-quality regressions",
+      "9913febf246d0b16a362a26990c11c7079362445 docs: add PR-09R2 evidence package",
+      "4f2e91198705c21c177fdcf51a629b0543fd69de docs: complete PR-09R2 evidence reconciliation",
+      "9c473814877c10c440c2ca11f194dbfb58cd2403 docs: reconcile PR-09R2 evidence inventory"
+    ]
+  },
+  {
+    "pr": "PR-09R3",
+    "endpoint": "0feba305ce8d798e1257b93c7695a768ded72899",
+    "implementation_test_head": "197bd2da996c55c09b2cad0ff66ebe97dd632623",
+    "evidence_head": "0feba305ce8d798e1257b93c7695a768ded72899",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-09R3/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-09R3",
+      "baseline": "9c47381",
+      "implementation_test_commits": [
+        "197bd2d"
+      ],
+      "prior_evidence_commits": [
+        "9913feb",
+        "4f2e911",
+        "9c47381"
+      ],
+      "migration_head": "0009_run_input_seal_fix",
+      "postgresql": "18.6",
+      "verification": {
+        "pytest": "315 passed",
+        "targeted_pr09_r3": "pass",
+        "ruff_check": "pass",
+        "pyright": "0 errors, 0 warnings, 0 informations",
+        "owned_scoped_format": "pass",
+        "repository_format": "8 inherited baseline failures"
+      },
+      "unauthorized_scope": {
+        "pr10_measurement": false,
+        "run_version": false,
+        "generic_version_orm": false,
+        "new_migration": false,
+        "phase2_plus": false
+      },
+      "evidence_commits": [
+        "9e1bb85"
+      ],
+      "all_pr09r3_commits": [
+        "197bd2d",
+        "9e1bb85"
+      ],
+      "final_head": "9e1bb85",
+      "final_head_definition": "last fully recorded R3 implementation/evidence HEAD; a later fingerprint-only metadata commit, if any, cannot self-reference its own hash and is reported separately"
+    },
+    "commits": [
+      "197bd2da996c55c09b2cad0ff66ebe97dd632623 fix: apply PR-09R3 closure semantics",
+      "9e1bb857af0a1958a0e46609068e38355e06642e docs: add PR-09R3 remediation evidence",
+      "0feba305ce8d798e1257b93c7695a768ded72899 docs: finalize PR-09R3 evidence fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-09R4",
+    "endpoint": "602f22478c6919f2611ff436b4199a81fa6b8297",
+    "implementation_test_head": "8a57413145d27864d41ffb3c8596a205a7cb4fb8",
+    "evidence_head": "602f22478c6919f2611ff436b4199a81fa6b8297",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-09R4/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-09R4",
+      "baseline": "0feba30",
+      "chain": {
+        "accepted_pr09r2_baseline": "9c47381",
+        "pr09r3_implementation_test": [
+          "197bd2d"
+        ],
+        "pr09r3_evidence": [
+          "9e1bb85",
+          "0feba30"
+        ],
+        "pr09r4_implementation_test": [
+          "8a57413"
+        ],
+        "pr09r4_evidence": [
+          "044c72a"
+        ]
+      },
+      "commit_classification": {
+        "9c47381": "accepted PR-09R3 evidence baseline",
+        "197bd2d": "PR-09R3 implementation/test",
+        "9e1bb85": "PR-09R3 evidence-only",
+        "0feba30": "PR-09R3 evidence-only; independently proven by 9e1bb85..0feba30",
+        "8a57413": "PR-09R4 test-only"
+      },
+      "migration_head": "0009_run_input_seal_fix",
+      "postgresql": "18.6",
+      "verification": {
+        "pytest": "315 passed",
+        "ruff_check": "pass",
+        "pyright": "0 errors, 0 warnings, 0 informations",
+        "owned_scoped_format": "pass",
+        "repository_format": "8 inherited baseline failures"
+      },
+      "unauthorized_scope": {
+        "pr10_measurement": false,
+        "statistical_result": false,
+        "claim": false,
+        "run_version": false,
+        "generic_version_orm": false,
+        "new_migration": false,
+        "phase2_plus": false
+      },
+      "final_head": "044c72a",
+      "final_head_definition": "final PR-09R4 evidence-package HEAD; any later fingerprint-only metadata commit is evidence-only and cannot self-reference its own hash"
+    },
+    "commits": [
+      "8a57413145d27864d41ffb3c8596a205a7cb4fb8 test: prove concurrent finish winner metadata",
+      "044c72aacf46fb24c288ab187bf5b16a0067089b docs: add PR-09R4 remediation evidence",
+      "602f22478c6919f2611ff436b4199a81fa6b8297 docs: finalize PR-09R4 evidence chain"
+    ]
+  },
+  {
+    "pr": "PR-09R5",
+    "endpoint": "ecb9adaf6aebef73fb45d344197ea9e18ad37d9c",
+    "implementation_test_head": "8a57413145d27864d41ffb3c8596a205a7cb4fb8",
+    "evidence_head": "ecb9adaf6aebef73fb45d344197ea9e18ad37d9c",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-09R5/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-09R5",
+      "review_baseline_head": "602f22478c6919f2611ff436b4199a81fa6b8297",
+      "historical_chain": {
+        "accepted_baseline": "9c473814877c10c440c2ca11f194dbfb58cd2403",
+        "pr09r3_implementation_test": [
+          "197bd2da996c55c09b2cad0ff66ebe97dd632623"
+        ],
+        "pr09r3_evidence": [
+          "9e1bb857af0a1958a0e46609068e38355e06642e",
+          "0feba305ce8d798e1257b93c7695a768ded72899"
+        ],
+        "pr09r4_test": [
+          "8a57413145d27864d41ffb3c8596a205a7cb4fb8"
+        ],
+        "pr09r4_evidence": [
+          "044c72aacf46fb24c288ab187bf5b16a0067089b"
+        ],
+        "pr09r4_final_evidence_only": "602f22478c6919f2611ff436b4199a81fa6b8297"
+      },
+      "evidence_payload_commit": "9c35e6a26bf0cdecf69081aa609f3a1aa54778ce",
+      "current_head_at_review": "9c35e6a26bf0cdecf69081aa609f3a1aa54778ce",
+      "final_head_definition": "R4 historical final HEAD is 602f224; R5 evidence payload is 9c35e6a; any later fingerprint-only metadata commit is tracked separately to avoid false self-reference",
+      "classification": {
+        "044c72a..602f224": {
+          "production": 0,
+          "tests": 0,
+          "migrations": 0,
+          "evidence": 5
+        }
+      },
+      "migration_head": "0009_run_input_seal_fix",
+      "postgresql": "18.6",
+      "unauthorized_scope": {
+        "production_code": false,
+        "tests": false,
+        "migrations": false,
+        "pr10": false,
+        "phase2_plus": false
+      }
+    },
+    "commits": [
+      "9c35e6a26bf0cdecf69081aa609f3a1aa54778ce docs: close PR-09R5 evidence chain",
+      "ecb9adaf6aebef73fb45d344197ea9e18ad37d9c docs: finalize PR-09R5 evidence fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-09R6",
+    "endpoint": "fe8027dfef4f585566a60f467f66fdd8116e0964",
+    "implementation_test_head": "8a57413145d27864d41ffb3c8596a205a7cb4fb8",
+    "evidence_head": "fe8027dfef4f585566a60f467f66fdd8116e0964",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-09R6/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "harness": "external engineering Harness",
+      "phase": "Phase 1",
+      "pr": "PR-09R6",
+      "reviewed_repository_head": "ecb9adaf6aebef73fb45d344197ea9e18ad37d9c",
+      "r4_final_head": "602f22478c6919f2611ff436b4199a81fa6b8297",
+      "r5_payload_commit": "9c35e6a26bf0cdecf69081aa609f3a1aa54778ce",
+      "r5_current_head_at_review": "ecb9adaf6aebef73fb45d344197ea9e18ad37d9c",
+      "r6_scope": "evidence metadata only",
+      "r6_evidence_payload_commit": "e3112223544a87668edfa3ea1558da07d01af1dd",
+      "post_evidence_current_head": "reported by final Git verification; not encoded as R5 current_head_at_review",
+      "migration_head": "0009_run_input_seal_fix",
+      "postgresql": "18.6",
+      "unauthorized_scope": {
+        "production_code": false,
+        "tests": false,
+        "migrations": false,
+        "architecture": false,
+        "pr10": false,
+        "phase2_plus": false
+      }
+    },
+    "commits": [
+      "e3112223544a87668edfa3ea1558da07d01af1dd docs: correct PR-09R6 evidence metadata",
+      "fe8027dfef4f585566a60f467f66fdd8116e0964 docs: finalize PR-09R6 evidence fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-10",
+    "endpoint": "41a886344f277e84c7d63891c5b4351262329e30",
+    "implementation_test_head": "0661a584aff47537c24e537edcef7946f8f0129b",
+    "evidence_head": "41a886344f277e84c7d63891c5b4351262329e30",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-10/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-10",
+      "scope": "Measurement only",
+      "accepted_pr09_baseline": "fe8027dfef4f585566a60f467f66fdd8116e0964",
+      "implementation_commits": [
+        "1106702",
+        "9e04277",
+        "733972d",
+        "0661a58"
+      ],
+      "migration_head": "0010_measurement",
+      "postgresql": "18.6",
+      "full_pytest": "356 passed",
+      "targeted_postgresql_tests": "20 passed",
+      "ruff_check": "PASS",
+      "pyright": "PASS",
+      "pr10_scoped_format": "PASS",
+      "repository_wide_format": "FAIL: eight inherited non-PR-10 files",
+      "pr11_implemented": false,
+      "evidence_generated_at_code_head": "0661a584aff47537c24e537edcef7946f8f0129b",
+      "evidence_payload_follows_implementation_head": true
+    },
+    "commits": [
+      "1106702d0bba3e72a742a141b1e61a22fde91003 feat: implement PR-10 measurements",
+      "9e04277c8337f322a17f3dad6485686e6fbaf3a6 fix: harden PR-10 measurement validation",
+      "733972d9ec7b7bfc24c7b72241bad902480d1993 test: format PR-10 hash contract coverage",
+      "0661a584aff47537c24e537edcef7946f8f0129b test: complete PR-10 measurement attack matrix",
+      "3745cbe1df79c8d041e189f363d7bb1d09fcb8e5 docs: add PR-10 evidence package",
+      "41a886344f277e84c7d63891c5b4351262329e30 docs: finalize PR-10 evidence results"
+    ]
+  },
+  {
+    "pr": "PR-10R",
+    "endpoint": "bffb95c3dc239219ec4c288eaa3c9991f7733f6c",
+    "implementation_test_head": "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d",
+    "evidence_head": "bffb95c3dc239219ec4c288eaa3c9991f7733f6c",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-10R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-10R",
+      "scope": "PR-10 proof and evidence remediation only",
+      "accepted_pr10_baseline": "41a886344f277e84c7d63891c5b4351262329e30",
+      "reviewed_implementation_head": "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d",
+      "remediation_commits": [
+        "35efe3dcc5970d0668c75863ce0dbea20560a480",
+        "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d"
+      ],
+      "migration_head": "0010_measurement",
+      "postgresql": "18.6",
+      "full_pytest": "356 passed",
+      "targeted_pr10_integration": "20 passed",
+      "targeted_pr10_domain": "17 passed",
+      "ruff_check": "PASS",
+      "pyright": "PASS",
+      "owned_scoped_format": "PASS",
+      "repository_wide_format": "FAIL: eight inherited non-PR-10 files",
+      "independent_hash_oracle": true,
+      "real_persisted_invalid_closure": true,
+      "historical_full_row_proof": true,
+      "pr11_implemented": false,
+      "phase2_plus_implemented": false,
+      "measurement_version_added": false,
+      "generic_version_orm_added": false,
+      "evidence_payload_commit": "7db0696e0be713b38d5627f1a1072f7d95d88f0c",
+      "current_head_at_review": "7db0696e0be713b38d5627f1a1072f7d95d88f0c",
+      "fingerprint_finalized": true
+    },
+    "commits": [
+      "35efe3dcc5970d0668c75863ce0dbea20560a480 test: harden PR-10 remediation proof",
+      "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d test: remove production builder from hash oracle",
+      "7db0696f4e687fe07c2f603ab37a24f620fd1281 docs: add PR-10R remediation evidence",
+      "bffb95c3dc239219ec4c288eaa3c9991f7733f6c docs: finalize PR-10R evidence metadata"
+    ]
+  },
+  {
+    "pr": "PR-10R2",
+    "endpoint": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
+    "implementation_test_head": "9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d",
+    "evidence_head": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-10R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-10R2",
+      "scope": "evidence metadata only",
+      "baseline_pr10r_current_head_at_review": "bffb95c3dc239219ec4c288eaa3c9991f7733f6c",
+      "corrected_pr10r_evidence_payload_commit": "7db0696f4e687fe07c2f603ab37a24f620fd1281",
+      "pr10r2_evidence_payload_commit": "686402e3082424260c9a52b5636c45fbc00e38a5",
+      "post_pr10r2_current_head": "reported by final Git verification; not encoded as a self-reference",
+      "allowed_paths": [
+        "artifacts/pr_evidence/PR-10R/",
+        "artifacts/pr_evidence/PR-10R2/"
+      ],
+      "forbidden_scope": {
+        "production_code": false,
+        "tests": false,
+        "migrations": false,
+        "architecture": false,
+        "dependencies": false,
+        "pr11": false
+      },
+      "evidence_only_range_7db0696_to_bffb95c": true,
+      "fingerprint_correction_verified": true
+    },
+    "commits": [
+      "686402e3082424260c9a52b5636c45fbc00e38a5 docs: add PR-10R2 evidence metadata correction",
+      "934e8690fc3f8459b1632e896f5c3be01abf8c1f docs: finalize PR-10R2 evidence metadata"
+    ]
+  },
+  {
+    "pr": "PR-11",
+    "endpoint": "9592b66dc3372fae18fdd66555203f0788e407e2",
+    "implementation_test_head": "5093639b7ebdfa205c0304aa9914603fb6f13d11",
+    "evidence_head": "9592b66dc3372fae18fdd66555203f0788e407e2",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11",
+      "scope": "StatisticalResult only",
+      "accepted_pr10_final_baseline": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
+      "implementation_commit": "5093639b7ebdfa205c0304aa9914603fb6f13d11",
+      "evidence_payload_commit": "f4ccdf843adfd56b79c5229b4304bd77a238f104",
+      "evidence_metadata_followup_commit": "reported by final Git verification; not encoded as a self-reference",
+      "post_evidence_current_head": "reported by final Git verification; not encoded as a self-reference",
+      "expected_alembic_head": "0011_statistical_result",
+      "allowed_scope": [
+        "src/researchbase/application/commands.py",
+        "src/researchbase/application/dto.py",
+        "src/researchbase/application/ports.py",
+        "src/researchbase/domain/statistical_result.py",
+        "src/researchbase/persistence/models.py",
+        "src/researchbase/persistence/repositories.py",
+        "src/researchbase/persistence/uow.py",
+        "migrations/versions/0011_statistical_result.py",
+        "tests/",
+        "artifacts/pr_evidence/PR-11/"
+      ],
+      "forbidden_scope": {
+        "statistical_result_version": false,
+        "generic_version_orm": false,
+        "claim": false,
+        "evidence_relation": false,
+        "pr12": false,
+        "phase2_plus": false,
+        "sqlite": false
+      },
+      "verification": {
+        "full_pytest": "396 passed",
+        "ruff": "PASS",
+        "pyright": "PASS",
+        "pr11_owned_format": "PASS",
+        "postgresql": "18.6",
+        "alembic": "0011_statistical_result (head)"
+      }
+    },
+    "commits": [
+      "5093639b7ebdfa205c0304aa9914603fb6f13d11 feat: implement PR-11 statistical results",
+      "f4ccdf843adfd56b79c5229b4304bd77a238f104 docs: add PR-11 evidence package",
+      "191a48545330fdf46198f45a4ad6b96e84b06c18 docs: finalize PR-11 evidence fingerprint",
+      "46f21001edb8532faf0a81dc0a35352e1e6c9b28 docs: reconcile PR-11 evidence metadata",
+      "9592b66dc3372fae18fdd66555203f0788e407e2 docs: correct PR-11 evidence fingerprints"
+    ]
+  },
+  {
+    "pr": "PR-11R",
+    "endpoint": "6675a7444cdb897d1bf810a55b32b6d88015ea15",
+    "implementation_test_head": "4aa969e7781dd6fd36e7d98999153098af264095",
+    "evidence_head": "6675a7444cdb897d1bf810a55b32b6d88015ea15",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11R",
+      "scope": "StatisticalResult provenance hardening only",
+      "accepted_pr10_final_baseline": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
+      "reviewed_pr11_baseline": "9592b66dc3372fae18fdd66555203f0788e407e2",
+      "pr11_implementation_commit": "5093639b7ebdfa205c0304aa9914603fb6f13d11",
+      "pr11_evidence_commits": [
+        "f4ccdf843adfd56b79c5229b4304bd77a238f104",
+        "191a48545330fdf46198f45a4ad6b96e84b06c18",
+        "46f21001edb8532faf0a81dc0a35352e1e6c9b28",
+        "9592b66dc3372fae18fdd66555203f0788e407e2"
+      ],
+      "pr11r_implementation_test_commits": [
+        "6319fda96e573e27ceca2afe1b45b03fcba5e628",
+        "13304196ba1f8d7044b92e1393a843debf35f974",
+        "4aa969e7781dd6fd36e7d98999153098af264095"
+      ],
+      "pr11r_evidence_payload_commit": "d95a0c15b63e848aaa7676832b11f400d932a85f",
+      "post_evidence_current_head_at_payload_verification": "d95a0c15b63e848aaa7676832b11f400d932a85f",
+      "fingerprint_note": "The final metadata commit is reported by final Git verification; this file records the post-payload reviewed head to avoid a self-referential Git SHA.",
+      "expected_alembic_head": "0012_statistical_result_input_guard",
+      "forbidden_scope": {
+        "0011_rewritten": false,
+        "statistical_result_version": false,
+        "generic_version_orm": false,
+        "claim": false,
+        "evidence_relation": false,
+        "pr12": false,
+        "phase2_plus": false,
+        "sqlite": false
+      },
+      "verification": {
+        "full_pytest": "408 passed",
+        "ruff": "PASS",
+        "pyright": "PASS",
+        "architecture": "34 passed",
+        "pr11r_owned_format": "PASS",
+        "postgresql": "18.6",
+        "alembic": "0012_statistical_result_input_guard (head)",
+        "changed_file_inventory_set_equality": "PASS"
+      }
+    },
+    "commits": [
+      "6319fda96e573e27ceca2afe1b45b03fcba5e628 fix: harden PR-11 statistical result invariants",
+      "13304196ba1f8d7044b92e1393a843debf35f974 test: correct PR-11R regression typing",
+      "d95a0c15b63e848aaa7676832b11f400d932a85f docs: add PR-11R remediation evidence",
+      "7e18e9283e4b416ccab250e9829eecf5f3e6f65f docs: finalize PR-11R evidence fingerprint",
+      "5beb20c2ef0d75ff62eb7772b95289c84e57bff0 docs: reconcile PR-11R test counts",
+      "4aa969e7781dd6fd36e7d98999153098af264095 test: strengthen PR-11R proof assertions",
+      "6675a7444cdb897d1bf810a55b32b6d88015ea15 docs: record final PR-11R verification commits"
+    ]
+  },
+  {
+    "pr": "PR-11R2",
+    "endpoint": "e62d19f97c965003492648df84a220a25b3ebffa",
+    "implementation_test_head": "2304c081f668a01a7663624a271728431a9ba745",
+    "evidence_head": "e62d19f97c965003492648df84a220a25b3ebffa",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11R2",
+      "scope": "legacy StatisticalResult input precheck and PR-11R evidence fingerprint closure",
+      "accepted_pr10_final_baseline": "934e8690fc3f8459b1632e896f5c3be01abf8c1f",
+      "reviewed_pr11_baseline": "9592b66dc3372fae18fdd66555203f0788e407e2",
+      "reviewed_pr11r_baseline": "6675a7444cdb897d1bf810a55b32b6d88015ea15",
+      "pr11r_implementation_test_commits": [
+        "6319fda96e573e27ceca2afe1b45b03fcba5e628",
+        "13304196ba1f8d7044b92e1393a843debf35f974",
+        "4aa969e7781dd6fd36e7d98999153098af264095"
+      ],
+      "pr11r_evidence_commits": [
+        "d95a0c15b63e848aaa7676832b11f400d932a85f",
+        "7e18e9283e4b416ccab250e9829eecf5f3e6f65f",
+        "5beb20c2ef0d75ff62eb7772b95289c84e57bff0",
+        "6675a7444cdb897d1bf810a55b32b6d88015ea15"
+      ],
+      "pr11r2_implementation_test_commits": [
+        "1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5",
+        "2304c081f668a01a7663624a271728431a9ba745"
+      ],
+      "pr11r2_evidence_commits": [
+        "679efd79b42b911567d885b780ab7c64caa8226e"
+      ],
+      "pr11r2_evidence_payload_commit": "679efd79b42b911567d885b780ab7c64caa8226e",
+      "pr11r2_evidence_finalization_parent": "679efd79b42b911567d885b780ab7c64caa8226e",
+      "post_pr11r2_current_head_at_payload_verification": "679efd79b42b911567d885b780ab7c64caa8226e",
+      "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+      "verification": {
+        "postgresql": "18.6",
+        "migration_matrix": "2 passed",
+        "architecture": "PASS",
+        "sqlite_used": false
+      },
+      "forbidden_scope": {
+        "0011_rewritten": false,
+        "claim": false,
+        "claim_version": false,
+        "evidence_relation": false,
+        "support_set_hash": false,
+        "statistical_result_version": false,
+        "generic_version_orm": false,
+        "pr12": false,
+        "phase2_plus": false,
+        "sqlite": false
+      },
+      "fingerprint_note": "This final metadata is committed in a follow-on commit whose parent is the recorded evidence payload; a Git commit cannot contain its own SHA. The post-metadata current HEAD is resolved directly from Git and reported separately."
+    },
+    "commits": [
+      "1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5 fix: fail closed on legacy statistical results",
+      "2304c081f668a01a7663624a271728431a9ba745 test: include PR-11R2 migration in architecture inventory",
+      "679efd79b42b911567d885b780ab7c64caa8226e docs: add PR-11R2 migration and evidence package",
+      "e62d19f97c965003492648df84a220a25b3ebffa docs: finalize PR-11R2 fingerprints"
+    ]
+  },
+  {
+    "pr": "PR-11R3",
+    "endpoint": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+    "implementation_test_head": "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+    "evidence_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11R3/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11R3",
+      "scope": "final evidence and migration test hardening only",
+      "reviewed_pr11_head": "9592b66dc3372fae18fdd66555203f0788e407e2",
+      "reviewed_pr11r_head": "6675a7444cdb897d1bf810a55b32b6d88015ea15",
+      "reviewed_pr11r2_head": "e62d19f97c965003492648df84a220a25b3ebffa",
+      "pr11r2_implementation_test_commits": [
+        "1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5",
+        "2304c081f668a01a7663624a271728431a9ba745",
+        "679efd79b42b911567d885b780ab7c64caa8226e"
+      ],
+      "pr11r2_finalization_evidence_commit": "e62d19f97c965003492648df84a220a25b3ebffa",
+      "pr11r3_test_commits": [
+        "ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa",
+        "813aaebd8749e6ca1553802f0930dca04a0f21d0"
+      ],
+      "pr11r3_evidence_payload_commit": "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
+      "pr11r3_finalization_parent": "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
+      "post_pr11r3_current_head_at_payload_verification": "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
+      "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+      "verification": {
+        "postgresql": "18.6",
+        "full_pytest": "410 passed",
+        "migration_matrix": "2 passed",
+        "architecture": "PASS",
+        "owned_format": "PASS",
+        "sqlite_used": false
+      },
+      "semantic_drift": {
+        "production": false,
+        "migration": false
+      },
+      "forbidden_scope": {
+        "claim": false,
+        "claim_version": false,
+        "evidence_relation": false,
+        "support_set_hash": false,
+        "statistical_result_version": false,
+        "generic_version_orm": false,
+        "pr12": false,
+        "phase2_plus": false,
+        "sqlite": false
+      },
+      "fingerprint_note": "Historical reviewed heads and all known prior commits are Git-resolved. The evidence payload and final metadata commit are added after this test head; their resolved identities are recorded in the follow-up metadata finalization without self-referential SHA claims. Final current HEAD is reported separately."
+    },
+    "commits": [
+      "ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa test: harden PR-11R3 migration evidence",
+      "813aaebd8749e6ca1553802f0930dca04a0f21d0 test: assert exact PR-11R3 fixture edge",
+      "3a539a7b623f6599e50f9080343f2b5cf4a74e63 docs: add PR-11R3 migration evidence",
+      "716e316d57d4dc40b4c13586f3dfafebdc17caba docs: finalize PR-11R3 fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-11R4",
+    "endpoint": "5f3626d97ba129ab8487d5ce134fa87bba3312bb",
+    "implementation_test_head": "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+    "evidence_head": "5f3626d97ba129ab8487d5ce134fa87bba3312bb",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11R4/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11R4",
+      "scope": "evidence-only final PR-11R3 reconciliation",
+      "reviewed_pr11r2_head": "e62d19f97c965003492648df84a220a25b3ebffa",
+      "pr11r3_commits": [
+        "ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa",
+        "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+        "3a539a7b623f6599e50f9080343f2b5cf4a74e63",
+        "716e316d57d4dc40b4c13586f3dfafebdc17caba"
+      ],
+      "pr11r3_reviewed_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+      "target_range": "e62d19f..716e316",
+      "target_range_file_count": 15,
+      "target_range_set_equal": true,
+      "pr11r4_payload_commit": "be726787c8b6e6a3f475bb00759f35061fa299fd",
+      "pr11r4_prior_finalization_commit": "713102bfc887fcfdd005aafc2fed2c5da3a9d382",
+      "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+      "verification": {
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "pr12_implementation": false,
+        "placeholders": false,
+        "sqlite_used": false
+      },
+      "fingerprint_note": "Historical PR-11R3 reviewed HEAD is preserved exactly. PR-11R4 payload and finalization SHAs are added only after their commits are resolved from Git; the final current HEAD is reported separately to avoid self-reference."
+    },
+    "commits": [
+      "be726787c8b6e6a3f475bb00759f35061fa299fd docs: reconcile PR-11R4 evidence",
+      "713102bfc887fcfdd005aafc2fed2c5da3a9d382 docs: finalize PR-11R4 fingerprint metadata",
+      "5f3626d97ba129ab8487d5ce134fa87bba3312bb docs: correct PR-11R4 resolved SHA"
+    ]
+  },
+  {
+    "pr": "PR-11R5",
+    "endpoint": "10a4e761eecda6e2a2b44b06d60400b43265e458",
+    "implementation_test_head": "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+    "evidence_head": "10a4e761eecda6e2a2b44b06d60400b43265e458",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11R5/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11R5",
+      "scope": "evidence-whitespace-only",
+      "reviewed_pr11r3_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+      "reviewed_pr11r4_head": "5f3626d97ba129ab8487d5ce134fa87bba3312bb",
+      "pr11r5_cleanup_commit": "00cf1a5b37c9f6e7ae339406ae2fcb68c7fb24c6",
+      "target_range": "5f3626d..PR11R5_FINAL_HEAD",
+      "target_range_file_count": 20,
+      "target_range_evidence_only": true,
+      "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+      "verification": {
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "pr12_implementation": false,
+        "open_pr11_p0": false,
+        "open_pr11_p1": false,
+        "open_pr11_p2": false,
+        "open_pr11_p3": false,
+        "sqlite_used": false
+      },
+      "fingerprint_note": "PR-11R3 and PR-11R4 reviewed HEADs are historical facts. PR-11R5 cleanup and finalization commit identities are added only after Git resolves them; the final current HEAD is reported separately to avoid self-reference."
+    },
+    "commits": [
+      "00cf1a5b37c9f6e7ae339406ae2fcb68c7fb24c6 docs: close PR-11R5 evidence whitespace",
+      "10a4e761eecda6e2a2b44b06d60400b43265e458 docs: finalize PR-11R5 evidence metadata"
+    ]
+  },
+  {
+    "pr": "PR-11R6",
+    "endpoint": "adc78c84516c5779b46db103d35221afc810add3",
+    "implementation_test_head": "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+    "evidence_head": "adc78c84516c5779b46db103d35221afc810add3",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11R6/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11R6",
+      "scope": "evidence-metadata-only final PR-11R5 fingerprint fix",
+      "reviewed_pr11r3_head": "716e316d57d4dc40b4c13586f3dfafebdc17caba",
+      "reviewed_pr11r4_head": "5f3626d97ba129ab8487d5ce134fa87bba3312bb",
+      "reviewed_pr11r5_head": "10a4e761eecda6e2a2b44b06d60400b43265e458",
+      "pr11r5_commits": [
+        "00cf1a5b37c9f6e7ae339406ae2fcb68c7fb24c6",
+        "10a4e761eecda6e2a2b44b06d60400b43265e458"
+      ],
+      "pr11r6_payload_commit": "a130431bc09c87b7d16f141f9736db3dcec35388",
+      "target_range_base": "10a4e761eecda6e2a2b44b06d60400b43265e458",
+      "target_range_file_count": 8,
+      "target_range_evidence_only": true,
+      "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+      "verification": {
+        "placeholder_search": false,
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "architecture_changes": false,
+        "pr12_implementation": false,
+        "sqlite_used": false
+      },
+      "fingerprint_note": "PR-11R3, PR-11R4, and PR-11R5 reviewed HEADs are historical facts. PR-11R6 evidence commits are separate; the final current HEAD is reported in the status output rather than copied into its own content."
+    },
+    "commits": [
+      "a130431bc09c87b7d16f141f9736db3dcec35388 docs: fix PR-11R5 fingerprint placeholder",
+      "adc78c84516c5779b46db103d35221afc810add3 docs: finalize PR-11R6 fingerprint metadata"
+    ]
+  },
+  {
+    "pr": "PR-11R7",
+    "endpoint": "18fb4138e7ccb57809ea54b916f52d8b801b8bec",
+    "implementation_test_head": "813aaebd8749e6ca1553802f0930dca04a0f21d0",
+    "evidence_head": "18fb4138e7ccb57809ea54b916f52d8b801b8bec",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-11R7/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-11R7",
+      "scope": "evidence-only final PR-11R6 command reproducibility fix",
+      "reviewed_pr11r5_head": "10a4e761eecda6e2a2b44b06d60400b43265e458",
+      "reviewed_pr11r6_head": "adc78c84516c5779b46db103d35221afc810add3",
+      "pr11r7_evidence_commits": [
+        "328fe1378ebca5aa2880df020c4b50250bf43410"
+      ],
+      "target_range_base": "adc78c84516c5779b46db103d35221afc810add3",
+      "target_range_file_count": 8,
+      "target_range_evidence_only": true,
+      "expected_alembic_head": "0013_statistical_result_legacy_input_precheck",
+      "verification": {
+        "exact_placeholder_token_search": true,
+        "exact_placeholder_token_absent": true,
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "architecture_changes": false,
+        "pr12_implementation": false,
+        "sqlite_used": false,
+        "git_diff_check": true,
+        "changed_file_set_equality": true
+      },
+      "fingerprint_note": "PR-11R5 and PR-11R6 reviewed HEADs are historical facts. The resolved PR-11R7 payload commit is recorded separately from those reviewed heads. Any later R7 finalization commit and the post-R7 current HEAD are reported separately to avoid self-reference. Descriptive prose searches are not the exact-token acceptance check."
+    },
+    "commits": [
+      "328fe1378ebca5aa2880df020c4b50250bf43410 docs: correct PR-11R7 token search evidence",
+      "c7277b6cfd6d264425bb8e86236c38a401a505b5 docs: finalize PR-11R7 evidence metadata",
+      "18fb4138e7ccb57809ea54b916f52d8b801b8bec docs: record PR-11R7 search evidence"
+    ]
+  },
+  {
+    "pr": "PR-12",
+    "endpoint": "9244ac1ca920c2a7d8777e7f1fbbdcab0fda27e2",
+    "implementation_test_head": "019148ed853c480f056975c2fa156a35abeea735",
+    "evidence_head": "9244ac1ca920c2a7d8777e7f1fbbdcab0fda27e2",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-12/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "phase": "Phase 1",
+      "pr": "PR-12",
+      "execution_pack": "PR-12_Execution_Pack_v1.0.md",
+      "accepted_pr11_final_reviewed_baseline": "18fb4138e7ccb57809ea54b916f52d8b801b8bec",
+      "pr12_implementation_commit": "4b8442c1e3e0a302d70c490c5a907467833bc73a",
+      "pr12_test_migration_commit": "14030a288d7eb2b4d90b0652871c32448466abe6",
+      "pr12_lock_boundary_test_commit": "019148ed853c480f056975c2fa156a35abeea735",
+      "pr12_evidence_payload_commit": "4454fe6f2afed551e076e25a7bd75020200e3e7f",
+      "current_head_at_reporting": "4454fe6f2afed551e076e25a7bd75020200e3e7f",
+      "database": "PostgreSQL 18.6",
+      "alembic_head": "0014_claim_evidence",
+      "agents_md_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "execution_pack_sha256": "e1cfea00d7d125f7b1dd458673c777f59e2f66eb62098afc91725fe0a19f3b2f",
+      "sqlite_used": false,
+      "pr13_implementation_detected": false
+    },
+    "commits": [
+      "4b8442c1e3e0a302d70c490c5a907467833bc73a feat: implement PR-12 claims and evidence",
+      "14030a288d7eb2b4d90b0652871c32448466abe6 fix: include PR-12 claim domain and migration regression",
+      "019148ed853c480f056975c2fa156a35abeea735 test: synchronize claim revise race at lock boundary",
+      "4454fe6f2afed551e076e25a7bd75020200e3e7f docs: add PR-12 evidence payload",
+      "9244ac1ca920c2a7d8777e7f1fbbdcab0fda27e2 docs: finalize PR-12 evidence fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-12R",
+    "endpoint": "3564361bb3b80a9302b48ed61b1b0b1fa773de26",
+    "implementation_test_head": "054fb27f7007abf38a42b8dc674996e86b8038eb",
+    "evidence_head": "3564361bb3b80a9302b48ed61b1b0b1fa773de26",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-12R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr11_final_baseline": "18fb4138e7ccb57809ea54b916f52d8b801b8bec",
+      "pr12_reviewed_head": "9244ac1ca920c2a7d8777e7f1fbbdcab0fda27e2",
+      "pr12_original_evidence_payload_commit": "4454fe6f2afed551e076e25a7bd75020200e3e7f",
+      "pr12r_remediation_implementation_test_commit": "054fb27f7007abf38a42b8dc674996e86b8038eb",
+      "pr12r_evidence_payload_commit": "298594d0c988fd0d19b05aadddff60ac027d98bf",
+      "pr12r_changed_files_inventory_commit": "2aa939be55c1fdaed326b9888a5bb966b88e9aa9",
+      "current_head_at_fingerprint_generation": "2aa939be55c1fdaed326b9888a5bb966b88e9aa9",
+      "pr12r_fingerprint_commit": "a92ad0186266248ae4d1f9f91da8eb33b5d7bd26",
+      "current_head_after_fingerprint_commit": "a92ad0186266248ae4d1f9f91da8eb33b5d7bd26",
+      "pr12r_evidence_metadata_commit": "de00596817269fd10cad27fc00cb998318ce73ef",
+      "pr12r_architecture_evidence_commit": "4e0155731a0f3f681aef1eec77b438fbad843f9e",
+      "pr12r_inventory_reconciliation_commit": "069938e7cd2f3072d83fff6630902be5d3a768d0",
+      "current_head_before_final_metadata_commit": "069938e7cd2f3072d83fff6630902be5d3a768d0",
+      "shared_database": "researchbase",
+      "shared_database_revision": "0014_claim_evidence",
+      "disposable_migration_database": "researchbase_pr12r_migration_20260830",
+      "disposable_migration_database_revision": "0014_claim_evidence",
+      "old_state_reproduction_database": "researchbase_pr12r_oldstate_20260830",
+      "old_state_reproduction_revision": "0013_statistical_result_legacy_input_precheck",
+      "production_semantic_drift": false,
+      "migration_semantic_drift": false,
+      "sqlite_used": false
+    },
+    "commits": [
+      "054fb27f7007abf38a42b8dc674996e86b8038eb test: remediate PR-12 review findings",
+      "298594d0c988fd0d19b05aadddff60ac027d98bf docs: add PR-12R remediation evidence payload",
+      "2aa939be55c1fdaed326b9888a5bb966b88e9aa9 docs: record PR-12R changed-file inventory",
+      "a92ad0186266248ae4d1f9f91da8eb33b5d7bd26 docs: add PR-12R evidence fingerprint",
+      "de00596817269fd10cad27fc00cb998318ce73ef docs: finalize PR-12R evidence metadata",
+      "dc37d7773d67a65f7afb5273a6d9b8bea3f693f7 docs: align PR-12R evidence range metadata",
+      "4e0155731a0f3f681aef1eec77b438fbad843f9e docs: complete PR-12R architecture evidence",
+      "069938e7cd2f3072d83fff6630902be5d3a768d0 docs: reconcile complete PR-12R inventory",
+      "3564361bb3b80a9302b48ed61b1b0b1fa773de26 docs: complete PR-12R fingerprint reconciliation"
+    ]
+  },
+  {
+    "pr": "PR-12R2",
+    "endpoint": "b973356f494bb75a2f324be8455a9f54934e9f5d",
+    "implementation_test_head": "e95fee5e59c97d78cf4ebe6c86f195c86b3ab759",
+    "evidence_head": "b973356f494bb75a2f324be8455a9f54934e9f5d",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-12R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr11_final_baseline": "18fb4138e7ccb57809ea54b916f52d8b801b8bec",
+      "pr12_reviewed_head": "9244ac1ca920c2a7d8777e7f1fbbdcab0fda27e2",
+      "pr12r_implementation_test_commit": "054fb27f7007abf38a42b8dc674996e86b8038eb",
+      "pr12r_evidence_commits": [
+        "298594d0c988fd0d19b05aadddff60ac027d98bf",
+        "2aa939be55c1fdaed326b9888a5bb966b88e9aa9",
+        "a92ad0186266248ae4d1f9f91da8eb33b5d7bd26",
+        "de00596817269fd10cad27fc00cb998318ce73ef",
+        "dc37d7773d67a65f7afb5273a6d9b8bea3f693f7",
+        "4e0155731a0f3f681aef1eec77b438fbad843f9e",
+        "069938e7cd2f3072d83fff6630902be5d3a768d0",
+        "3564361bb3b80a9302b48ed61b1b0b1fa773de26"
+      ],
+      "pr12r_independently_reviewed_head": "3564361bb3b80a9302b48ed61b1b0b1fa773de26",
+      "pr12r2_implementation_test_commit": "e95fee5e59c97d78cf4ebe6c86f195c86b3ab759",
+      "pr12r2_evidence_payload_commit": "0d9f78ce5055987f448ef64c4b43fb8c635f0465",
+      "current_head_at_fingerprint_generation": "0d9f78ce5055987f448ef64c4b43fb8c635f0465",
+      "pr12r2_fingerprint_inventory_commit": "16228b935c9c87053b97f574a2c57e4c181b372a",
+      "current_head_before_final_fingerprint_commit": "16228b935c9c87053b97f574a2c57e4c181b372a",
+      "shared_database_revision": "0014_claim_evidence",
+      "disposable_migration_database_revision": "0014_claim_evidence",
+      "production_semantic_drift": false,
+      "migration_semantic_drift": false,
+      "pr13_implementation": false,
+      "sqlite_used": false
+    },
+    "commits": [
+      "e95fee5e59c97d78cf4ebe6c86f195c86b3ab759 test: harden PR-12 oracle and closure evidence",
+      "0d9f78ce5055987f448ef64c4b43fb8c635f0465 docs: add PR-12R2 evidence payload",
+      "16228b935c9c87053b97f574a2c57e4c181b372a docs: reconcile PR-12R2 fingerprint metadata",
+      "b973356f494bb75a2f324be8455a9f54934e9f5d docs: finalize PR-12R2 fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-12R3",
+    "endpoint": "5b4d7e1ffa3509adbb2f324d2fb82df9883780cb",
+    "implementation_test_head": "e95fee5e59c97d78cf4ebe6c86f195c86b3ab759",
+    "evidence_head": "5b4d7e1ffa3509adbb2f324d2fb82df9883780cb",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-12R3/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr12r_reviewed_head": "3564361bb3b80a9302b48ed61b1b0b1fa773de26",
+      "pr12r2_evidence_payload_pre_final_head": "16228b935c9c87053b97f574a2c57e4c181b372a",
+      "pr12r2_reviewed_head": "b973356f494bb75a2f324be8455a9f54934e9f5d",
+      "post_pr12r2_current_head": "b973356f494bb75a2f324be8455a9f54934e9f5d",
+      "pr12r2_final_metadata_range_file_count": 3,
+      "pr12r2_final_metadata_range_evidence_only": true,
+      "pr12r2_final_metadata_range_set_equal": true,
+      "pr12r3_evidence_commits": [
+        "050f4ae94210810740a4c25fe9ca71708a3e87a6"
+      ],
+      "post_pr12r3_current_head_at_metadata_generation": "050f4ae94210810740a4c25fe9ca71708a3e87a6",
+      "production_changes": false,
+      "test_changes": false,
+      "migration_changes": false,
+      "architecture_changes": false,
+      "pr13_implementation": false
+    },
+    "commits": [
+      "050f4ae94210810740a4c25fe9ca71708a3e87a6 docs: reconcile PR-12R2 final head evidence",
+      "5b4d7e1ffa3509adbb2f324d2fb82df9883780cb docs: finalize PR-12R3 evidence metadata"
+    ]
+  },
+  {
+    "pr": "PR-13",
+    "endpoint": "d99c215c5d06153da334de88021393588f177a1e",
+    "implementation_test_head": "92302831438bec7db163e5ec4de8e6f63dc97d6b",
+    "evidence_head": "d99c215c5d06153da334de88021393588f177a1e",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-13/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "accepted_pr12_final_baseline": "5b4d7e1ffa3509adbb2f324d2fb82df9883780cb",
+      "pr13_implementation_commit": "1a1877a26e1362d1c67270380855a5098eaea4f6",
+      "pr13_test_commit": "c4c69ab752e390ac5ab84323c927d392c59f4a40",
+      "pr13_evidence_payload_commit": "4177bd80a981d78621f3fa116cb88f5b9886e569",
+      "pr13_historical_isolation_test_commit": "92302831438bec7db163e5ec4de8e6f63dc97d6b",
+      "current_head_at_reporting": "92302831438bec7db163e5ec4de8e6f63dc97d6b",
+      "alembic_head": "0014_claim_evidence",
+      "postgresql_version": "18.6",
+      "new_migration_count": 0,
+      "new_business_table_count": 0
+    },
+    "commits": [
+      "1a1877a26e1362d1c67270380855a5098eaea4f6 feat: add explicit provenance trace queries",
+      "c4c69ab752e390ac5ab84323c927d392c59f4a40 test: record provenance query SQL count",
+      "4177bd80a981d78621f3fa116cb88f5b9886e569 docs: add PR-13 evidence package",
+      "4a4f9daedd98ce57c7b0b021630d6fb18dd45c7d docs: finalize PR-13 evidence fingerprint",
+      "92302831438bec7db163e5ec4de8e6f63dc97d6b test: prove exact historical provenance isolation",
+      "9229c1882fa14a1896b4839b885d9d060f24920e docs: reconcile PR-13 historical trace evidence",
+      "d99c215c5d06153da334de88021393588f177a1e docs: fix PR-13 evidence whitespace"
+    ]
+  },
+  {
+    "pr": "PR-13R",
+    "endpoint": "96fe5b203e23ed07fd212eb2be56dcc6e5318cc8",
+    "implementation_test_head": "b6afdb78a08ae29070291d73959098a9f11087a9",
+    "evidence_head": "96fe5b203e23ed07fd212eb2be56dcc6e5318cc8",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-13R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "accepted_pr12_final_baseline": "5b4d7e1ffa3509adbb2f324d2fb82df9883780cb",
+      "pr13_implementation_commits": [
+        "1a1877a26e1362d1c67270380855a5098eaea4f6",
+        "c4c69ab752e390ac5ab84323c927d392c59f4a40",
+        "92302831438bec7db163e5ec4de8e6f63dc97d6b"
+      ],
+      "pr13_evidence_payload_commits": [
+        "4177bd80a981d78621f3fa116cb88f5b9886e569",
+        "4a4f9daedd98ce57c7b0b021630d6fb18dd45c7d",
+        "9229c1882fa14a1896b4839b885d9d060f24920e",
+        "d99c215c5d06153da334de88021393588f177a1e"
+      ],
+      "pr13_reviewed_head": "d99c215c5d06153da334de88021393588f177a1e",
+      "pr13r_remediation_commits": [
+        "6355b2f724e766b33aa7b07cdbfd965d02e449eb",
+        "b6afdb78a08ae29070291d73959098a9f11087a9"
+      ],
+      "pr13r_evidence_commits": [
+        "ad5790c26dd26ef374ac96e36eb9283fc5604002"
+      ],
+      "post_pr13r_current_head_at_evidence_capture": "ad5790c26dd26ef374ac96e36eb9283fc5604002",
+      "alembic_head": "0014_claim_evidence",
+      "postgresql_version": "18.6",
+      "new_migration_count": 0,
+      "new_business_table_count": 0
+    },
+    "commits": [
+      "6355b2f724e766b33aa7b07cdbfd965d02e449eb fix: bound provenance trace reads",
+      "b6afdb78a08ae29070291d73959098a9f11087a9 test: harden provenance scaling proof",
+      "ad5790c26dd26ef374ac96e36eb9283fc5604002 docs: add PR-13R evidence package",
+      "96fe5b203e23ed07fd212eb2be56dcc6e5318cc8 docs: finalize PR-13R evidence fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-13R2",
+    "endpoint": "19429024924469cf37b7e3ac31de53e72130c632",
+    "implementation_test_head": "1c8479aa8f36b3820796c42152b1b5ebeb6e3162",
+    "evidence_head": "19429024924469cf37b7e3ac31de53e72130c632",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-13R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "accepted_pr12_final_baseline": "5b4d7e1ffa3509adbb2f324d2fb82df9883780cb",
+      "pr13_reviewed_head": "d99c215c5d06153da334de88021393588f177a1e",
+      "pr13r_reviewed_head": "96fe5b203e23ed07fd212eb2be56dcc6e5318cc8",
+      "pr13r2_implementation_head": "1f71fb10158fe88dd448fbfccad770721ca4bf32",
+      "pr13r2_evidence_payload_head": "cc26b1319240dbb35307e7aef3422f6f9bedd102",
+      "pr13r2_metadata_finalization_commit": "9a312fd287d38c10473d6593e6e69f26492f2fdf",
+      "pr13r2_small_fixture_test_commit": "1c8479aa8f36b3820796c42152b1b5ebeb6e3162",
+      "post_pr13r2_current_head_at_metadata_capture": "1c8479aa8f36b3820796c42152b1b5ebeb6e3162",
+      "historical_pr13r_finalization_range": "ad5790c26dd26ef374ac96e36eb9283fc5604002..96fe5b203e23ed07fd212eb2be56dcc6e5318cc8",
+      "postgresql_version": "18.6",
+      "alembic_head": "0014_claim_evidence",
+      "new_migration_count": 0,
+      "new_business_table_count": 0,
+      "persistent_cache_count": 0
+    },
+    "commits": [
+      "1f71fb10158fe88dd448fbfccad770721ca4bf32 fix: make contextual closure cache only",
+      "cc26b1319240dbb35307e7aef3422f6f9bedd102 docs: add PR-13R2 evidence package",
+      "9a312fd287d38c10473d6593e6e69f26492f2fdf docs: finalize PR-13R2 evidence fingerprint",
+      "1c8479aa8f36b3820796c42152b1b5ebeb6e3162 test: prove small trace SQL bound",
+      "19429024924469cf37b7e3ac31de53e72130c632 docs: reconcile PR-13R2 final test evidence"
+    ]
+  },
+  {
+    "pr": "PR-13R3",
+    "endpoint": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+    "implementation_test_head": "2f6f3b7f1f49eece5231af1aab4ef6e81527e0c3",
+    "evidence_head": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-13R3/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr13_reviewed_head": "d99c215c5d06153da334de88021393588f177a1e",
+      "pr13r_reviewed_head": "96fe5b203e23ed07fd212eb2be56dcc6e5318cc8",
+      "pr13r2_reviewed_head": "19429024924469cf37b7e3ac31de53e72130c632",
+      "pr13r2_finalization_range": "1c8479aa8f36b3820796c42152b1b5ebeb6e3162..19429024924469cf37b7e3ac31de53e72130c632",
+      "pr13r2_finalization_file_count": 5,
+      "pr13r3_implementation_head": "2f6f3b7f1f49eece5231af1aab4ef6e81527e0c3",
+      "pr13r3_evidence_payload_head": "4a232fd80e9a57cfb660544d864b5e189eaafef6",
+      "post_pr13r3_current_head_at_metadata_capture": "4a232fd80e9a57cfb660544d864b5e189eaafef6",
+      "postgresql_version": "18.6",
+      "alembic_head": "0014_claim_evidence",
+      "new_migration_count": 0,
+      "new_business_table_count": 0,
+      "persistent_cache_count": 0
+    },
+    "commits": [
+      "2f6f3b7f1f49eece5231af1aab4ef6e81527e0c3 fix: handle missing spec closure context",
+      "4a232fd80e9a57cfb660544d864b5e189eaafef6 docs: add PR-13R3 evidence package",
+      "e57cc7f47250a2c5156387cc1e04bb7888537e6c docs: finalize PR-13R3 evidence fingerprint"
+    ]
+  },
+  {
+    "pr": "PR-14",
+    "endpoint": "16695506f285fe015eb15948bb5b07f95f5944aa",
+    "implementation_test_head": "701df464c55d8993c7b14690bcea75594d553553",
+    "evidence_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-14/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "baseline": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+      "pr14_implementation_commits": [
+        "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+        "701df464c55d8993c7b14690bcea75594d553553"
+      ],
+      "pr14_test_commits": [
+        "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+        "701df464c55d8993c7b14690bcea75594d553553"
+      ],
+      "pr14_evidence_payload_commits": [],
+      "current_head_at_reporting": "701df464c55d8993c7b14690bcea75594d553553",
+      "changed_files_range": "e57cc7f47250a2c5156387cc1e04bb7888537e6c..701df464c55d8993c7b14690bcea75594d553553",
+      "postgresql": "18.6",
+      "alembic_head": "0015_governance_audit",
+      "status": "BLOCKED"
+    },
+    "commits": [
+      "b979525a97318aa85a1934f4872b208c1e9ef7b3 Implement PR-14 governance audit and impact",
+      "701df464c55d8993c7b14690bcea75594d553553 fix: complete PR-14 impact path metadata",
+      "16695506f285fe015eb15948bb5b07f95f5944aa docs: add PR-14 evidence package"
+    ]
+  },
+  {
+    "pr": "PR-14R2",
+    "endpoint": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+    "implementation_test_head": "701df464c55d8993c7b14690bcea75594d553553",
+    "evidence_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-14R2/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr13_final_baseline": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+      "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+      "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+      "pr14r2_evidence_payload_commits": [],
+      "pr14r2_evidence_payload_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+      "pr14r2_final_current_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+      "pr14r2_post_finalization_commit": "none",
+      "status": "EVIDENCE_ONLY_FINALIZATION"
+    },
+    "commits": [
+      "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449 docs: finalize PR-14R2 evidence"
+    ]
+  },
+  {
+    "pr": "PR-14R3",
+    "endpoint": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+    "implementation_test_head": "701df464c55d8993c7b14690bcea75594d553553",
+    "evidence_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-14R3/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-14R3",
+      "scope": "strictly evidence-only PR-14R2 commit remediation",
+      "pr13_final": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+      "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+      "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+      "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+      "pr14r3_evidence_payload_commit": "b6a231ab22df7903628963d93bcae76c5ecf0bdd",
+      "post_pr14r3_current_head": null,
+      "post_pr14r3_current_head_reporting": "resolved directly from Git in the required final status; intentionally not self-embedded",
+      "pr14r2_range": "16695506f285fe015eb15948bb5b07f95f5944aa..3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+      "pr14r2_range_file_count": 13,
+      "pr14r2_range_set_equal": true,
+      "pr14r3_range_base": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+      "pr14r3_range_file_count": 12,
+      "pr14r3_range_evidence_only": true,
+      "verification": {
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "architecture_changes": false,
+        "pr15_implementation": false,
+        "phase2_plus_implementation": false,
+        "changed_file_set_equality": true,
+        "active_unresolved_placeholder": false
+      },
+      "alembic_head": "0015_governance_audit",
+      "fingerprint_note": "The payload SHA is Git-resolved. The final commit and post-PR-14R3 current HEAD are reported after commit to avoid impossible self-reference."
+    },
+    "commits": [
+      "b6a231ab22df7903628963d93bcae76c5ecf0bdd docs(evidence): reconcile PR-14R2 final metadata",
+      "c4b324ab5d29a71fce999c2a801e62c8a124a77d docs(evidence): finalize PR-14R3 reconciliation"
+    ]
+  },
+  {
+    "pr": "PR-14R4",
+    "endpoint": "724c67d4411fac7904470301cef80af18f1507a0",
+    "implementation_test_head": "701df464c55d8993c7b14690bcea75594d553553",
+    "evidence_head": "724c67d4411fac7904470301cef80af18f1507a0",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-14R4/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-14R4",
+      "scope": "strictly evidence-only final-head reconciliation",
+      "pr13_final": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+      "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+      "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+      "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+      "pr14r3_reviewed_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+      "pr14r4_evidence_payload_commit": "94536ebbbaa6719de7d38238ee12f4192c09d526",
+      "post_pr14r4_current_head": "refs/heads/codex/pr-02",
+      "post_pr14r4_current_head_semantics": "live Git ref resolved to an exact commit after finalization and reported in PR-14R4 STATUS",
+      "pr14r4_range_base": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+      "pr14r4_range_file_count": 10,
+      "pr14r4_range_evidence_only": true,
+      "verification": {
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "architecture_changes": false,
+        "pr15_implementation": false,
+        "phase2_plus_implementation": false,
+        "changed_file_set_equality": true,
+        "null_final_head_fields": false,
+        "unresolved_tokens": false
+      },
+      "alembic_head": "0015_governance_audit",
+      "fingerprint_note": "All literal SHAs are Git-resolved. The post-R4 current state uses a non-null live ref so the final commit does not falsely self-reference a pre-finalization SHA."
+    },
+    "commits": [
+      "94536ebbbaa6719de7d38238ee12f4192c09d526 docs(evidence): record reviewed PR-14R3 head",
+      "724c67d4411fac7904470301cef80af18f1507a0 docs(evidence): finalize PR-14R4 head reconciliation"
+    ]
+  },
+  {
+    "pr": "PR-14R5",
+    "endpoint": "b1a1f16e9972618b8115488baceb293279f901f7",
+    "implementation_test_head": "701df464c55d8993c7b14690bcea75594d553553",
+    "evidence_head": "b1a1f16e9972618b8115488baceb293279f901f7",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-14R5/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-14R5",
+      "scope": "strictly evidence-only immutable final-SHA reconciliation",
+      "pr13_final": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+      "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+      "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+      "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+      "pr14r3_reviewed_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+      "pr14r4_reviewed_head": "724c67d4411fac7904470301cef80af18f1507a0",
+      "pr14r5_evidence_payload_commit": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
+      "post_pr14r5_current_head": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
+      "post_pr14r5_current_head_semantics": "immutable current commit SHA at evidence payload capture; later R5 finalization commit is recorded separately",
+      "pr14r5_range_base": "724c67d4411fac7904470301cef80af18f1507a0",
+      "pr14r5_range_file_count": 11,
+      "pr14r5_range_evidence_only": true,
+      "verification": {
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "architecture_changes": false,
+        "pr15_implementation": false,
+        "phase2_plus_implementation": false,
+        "changed_file_set_equality": true,
+        "authoritative_mutable_ref_matches": 0,
+        "null_final_head_fields": false,
+        "unresolved_tokens": false
+      },
+      "alembic_head": "0015_governance_audit",
+      "fingerprint_note": "All authoritative reviewed/final/current identities are immutable full Git commit SHAs."
+    },
+    "commits": [
+      "c75db39a3f712b39b7e8ce47eea3eb920bb30b86 docs(evidence): record immutable PR-14R4 head",
+      "ba724825bb592021abca821b88099758ff30e10b docs(evidence): finalize PR-14R5 immutable head reconciliation",
+      "b1a1f16e9972618b8115488baceb293279f901f7 docs(evidence): remove active mutable ref semantics"
+    ]
+  },
+  {
+    "pr": "PR-14R7",
+    "endpoint": "ce94d738129fee584744c1a7e1eef8fd334ea225",
+    "implementation_test_head": "701df464c55d8993c7b14690bcea75594d553553",
+    "evidence_head": "ce94d738129fee584744c1a7e1eef8fd334ea225",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-14R7/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "pr": "PR-14R7",
+      "scope": "evidence and process metadata protocol correction only",
+      "evidence_protocol": "non-self-referential-v1",
+      "reviewed_subject_head": "b1a1f16e9972618b8115488baceb293279f901f7",
+      "evidence_parent_head": "b1a1f16e9972618b8115488baceb293279f901f7",
+      "evidence_scope": "evidence-only",
+      "self_commit_sha_policy": "resolved-by-independent-reviewer-from-git",
+      "self_commit_sha_in_payload": false,
+      "pr13_final": "e57cc7f47250a2c5156387cc1e04bb7888537e6c",
+      "pr14_implementation_baseline": "b979525a97318aa85a1934f4872b208c1e9ef7b3",
+      "pr14r_reviewed_head": "16695506f285fe015eb15948bb5b07f95f5944aa",
+      "pr14r2_reviewed_head": "3a9cb09ca0c7a84a43c6c12e752c5e41892c3449",
+      "pr14r3_reviewed_head": "c4b324ab5d29a71fce999c2a801e62c8a124a77d",
+      "pr14r4_reviewed_head": "724c67d4411fac7904470301cef80af18f1507a0",
+      "pr14r5_reviewed_head": "b1a1f16e9972618b8115488baceb293279f901f7",
+      "pr14r5_evidence_payload_commit": "c75db39a3f712b39b7e8ce47eea3eb920bb30b86",
+      "pr14r5_finalization_commit": "ba724825bb592021abca821b88099758ff30e10b",
+      "pr14r5_range_base": "724c67d4411fac7904470301cef80af18f1507a0",
+      "pr14r5_range_end": "b1a1f16e9972618b8115488baceb293279f901f7",
+      "verification": {
+        "production_changes": false,
+        "test_changes": false,
+        "migration_changes": false,
+        "architecture_business_changes": false,
+        "pr15_implementation": false,
+        "phase2_plus_implementation": false,
+        "r5_changed_file_count": 11,
+        "r5_changed_file_set_equality": true
+      },
+      "alembic_head": "0015_governance_audit"
+    },
+    "commits": [
+      "ce94d738129fee584744c1a7e1eef8fd334ea225 docs(evidence): adopt non-self-referential PR-14 protocol"
+    ]
+  },
+  {
+    "pr": "PR-15",
+    "endpoint": "71ee20e65f45dc5e2fd413371d23836fc10fd6a7",
+    "implementation_test_head": "71ee20e65f45dc5e2fd413371d23836fc10fd6a7",
+    "evidence_head": "1afe9845fb04cbbb243b290aecea84e6b74f1b0c",
+    "evidence_kind": "mixed implementation/test + evidence",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-15/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "evidence_protocol": "non-self-referential-v1",
+      "reviewed_subject_head": "b1a1f16e9972618b8115488baceb293279f901f7",
+      "evidence_parent_head": "ce94d738129fee584744c1a7e1eef8fd334ea225",
+      "self_commit_sha_in_payload": false,
+      "files": {
+        "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+        "execution/phase1/PR-15_Architecture_Freeze_v1.0.md": "6992d16c00834bcfae16c8280d6d7e0bd54aa490038b230b7760ab9ef5832525",
+        "pyproject.toml": "25b492a67f124df3fb1715e1e81bf534c83e972d93e697c1fa3051bdd384f66e",
+        "uv.lock": "ec8bb1204bcf6da23573f414f8a64b7d7cab12d314a13ff4bd166f0292874137"
+      }
+    },
+    "commits": [
+      "1afe9845fb04cbbb243b290aecea84e6b74f1b0c feat: add PR-15 FastAPI adapter",
+      "71ee20e65f45dc5e2fd413371d23836fc10fd6a7 test: harden PR-15 adapter evidence"
+    ]
+  },
+  {
+    "pr": "PR-15R",
+    "endpoint": "912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1",
+    "implementation_test_head": "f05f33e6e16f6d7159fc0b3a93e5440f227d860a",
+    "evidence_head": "912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-15R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "evidence_protocol": "non-self-referential-v1",
+      "reviewed_subject_head": "f05f33e6e16f6d7159fc0b3a93e5440f227d860a",
+      "evidence_parent_head": "f05f33e6e16f6d7159fc0b3a93e5440f227d860a",
+      "self_commit_sha_in_payload": false,
+      "files": {
+        "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+        "execution/phase1/PR-15_Architecture_Freeze_v1.0.md": "6992d16c00834bcfae16c8280d6d7e0bd54aa490038b230b7760ab9ef5832525",
+        "execution/phase1/PR-15R_Test_Evidence_Remediation_Pack_v1.0.md": "442249b4d89c70e15096abf2aabc44d3ef27af1d24d06d46d65843a05b8afa83",
+        "pyproject.toml": "25b492a67f124df3fb1715e1e81bf534c83e972d93e697c1fa3051bdd384f66e",
+        "uv.lock": "ec8bb1204bcf6da23573f414f8a64b7d7cab12d314a13ff4bd166f0292874137"
+      }
+    },
+    "commits": [
+      "6be2727669864da0e3a0d7b73dc2073068234d1f test: complete PR-15R error and equivalence proof",
+      "09cf2a6b15ce5f67ad29ed681d86825b5d2e3824 docs(evidence): record PR-15R remediation",
+      "7040111ce453e9626148cb5aa8339d8579ccde06 test: close PR-15R scaling and binding gaps",
+      "8fabea3817a7480db71908eedaf630982e2671d2 test: keep PR-15R behavior matrix lint-clean",
+      "bc33022a6b070fa61e433b632ae39c636d5451e4 docs(evidence): update PR-15R closure proofs",
+      "f05f33e6e16f6d7159fc0b3a93e5440f227d860a test: assert exact PR-15R command forwarding",
+      "912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1 docs(evidence): record exact PR-15R forwarding proof"
+    ]
+  },
+  {
+    "pr": "PR-16",
+    "endpoint": "390cbda614215c439766ce805947d339772dc55a",
+    "implementation_test_head": "fac20936a462167eb652dee07ad8a5c0a3612b27",
+    "evidence_head": "390cbda614215c439766ce805947d339772dc55a",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-16/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "evidence_protocol": "non-self-referential-v1",
+      "reviewed_subject_head": "fac20936a462167eb652dee07ad8a5c0a3612b27",
+      "evidence_parent_head": "fac20936a462167eb652dee07ad8a5c0a3612b27",
+      "self_commit_sha_in_payload": false,
+      "subject_changed_files_source": "git diff --name-only 912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1 fac20936a462167eb652dee07ad8a5c0a3612b27",
+      "governing_files": {
+        "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+        "execution/phase1/PR-16_Architecture_Freeze_v1.0.md": "49e692136e29662ba4eb865cecd90707aa27283bbce215f718661f4d526852b3",
+        "pyproject.toml": "25b492a67f124df3fb1715e1e81bf534c83e972d93e697c1fa3051bdd384f66e",
+        "uv.lock": "ec8bb1204bcf6da23573f414f8a64b7d7cab12d314a13ff4bd166f0292874137"
+      }
+    },
+    "commits": [
+      "77d2152bd5d2d354d4b6089b5379fe3e97af9540 feat: add PR-16 Typer CLI adapter",
+      "fac20936a462167eb652dee07ad8a5c0a3612b27 test: keep PR-16 CLI contract lint-clean",
+      "abf91e949c33682589f0f1e82fcaf9b092efa981 docs(evidence): record PR-16 CLI adapter proof",
+      "e9f070013afefe7af00dd69506d4d9c71d93ea73 docs(evidence): reconcile PR-16 subject head",
+      "390cbda614215c439766ce805947d339772dc55a docs(evidence): reconcile PR-16 subject metadata"
+    ]
+  },
+  {
+    "pr": "PR-16R",
+    "endpoint": "0eed8d85f4009a4f5265a697476423b7cdaf8ea4",
+    "implementation_test_head": "fac20936a462167eb652dee07ad8a5c0a3612b27",
+    "evidence_head": "0eed8d85f4009a4f5265a697476423b7cdaf8ea4",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-16R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "evidence_protocol": "non-self-referential-v1",
+      "reviewed_subject_head": "390cbda614215c439766ce805947d339772dc55a",
+      "evidence_parent_head": "390cbda614215c439766ce805947d339772dc55a",
+      "evidence_scope": "evidence-only",
+      "self_commit_sha_in_payload": false,
+      "active_pr16_inventory": "artifacts/pr_evidence/PR-16/unresolved_findings.md",
+      "fresh_repository_format_result": "8 inherited files would be reformatted; 150 files already formatted",
+      "pr16_owned_format_result": "PASS; 22 files already formatted",
+      "evidence_head_resolution": "resolve directly from Git after commit"
+    },
+    "commits": [
+      "e937588537e951dbe9b485799ee9a64246974b78 docs(evidence): close PR-16 formatting finding",
+      "d5ea060185ae3f0b70892af1cf9a5d62866e3682 docs(evidence): reconcile PR-16 inherited format list",
+      "0eed8d85f4009a4f5265a697476423b7cdaf8ea4 docs(evidence): reconcile PR-16R changed files"
+    ]
+  },
+  {
+    "pr": "PR-17",
+    "endpoint": "03ccba54b8c983815f74d08a2390e0dfa45f8551",
+    "implementation_test_head": "745de1b0cb90e6f590fc28f2da1e0317809e3e5a",
+    "evidence_head": "03ccba54b8c983815f74d08a2390e0dfa45f8551",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-17/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "evidence_protocol": "non-self-referential-v1",
+      "reviewed_subject_head": "745de1b0cb90e6f590fc28f2da1e0317809e3e5a",
+      "evidence_parent_head": "745de1b0cb90e6f590fc28f2da1e0317809e3e5a",
+      "evidence_scope": "evidence/process",
+      "self_commit_sha_in_payload": false,
+      "subject_changed_files_source": "git diff --name-only 0eed8d85f4009a4f5265a697476423b7cdaf8ea4 745de1b0cb90e6f590fc28f2da1e0317809e3e5a",
+      "evidence_metadata_head_resolution": "independent reviewer resolves final evidence HEAD from Git",
+      "governing_files": {
+        "AGENTS.md": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+        "execution/phase1/PR-17_Architecture_Freeze_and_Acceptance_Pack_v1.0.md": "e1928ff5383cec6808dc9da5323fa74dc4f043c07437de2d142a97743cf3e5ab",
+        "pyproject.toml": "25b492a67f124df3fb1715e1e81bf534c83e972d93e697c1fa3051bdd384f66e",
+        "uv.lock": "ec8bb1204bcf6da23573f414f8a64b7d7cab12d314a13ff4bd166f0292874137"
+      }
+    },
+    "commits": [
+      "78c6024555e4ff1f1175bbe93f87a4797d1ef1ee test: add PR-17 golden scientific workflow acceptance",
+      "298c0eaa3c8cd533ea0490e92e31fc7d1e4385c6 docs(evidence): record PR-17 golden acceptance",
+      "745de1b0cb90e6f590fc28f2da1e0317809e3e5a test: cover PR-17 run and claim concurrency",
+      "03ccba54b8c983815f74d08a2390e0dfa45f8551 docs(evidence): reconcile PR-17 subject head"
+    ]
+  },
+  {
+    "pr": "PR-17R",
+    "endpoint": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+    "implementation_test_head": "2d8e2abe31d0410717412c182d3cf7bd0811cced",
+    "evidence_head": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+    "evidence_kind": "evidence-only",
+    "ancestor": true,
+    "source": "artifacts/pr_evidence/PR-17R/harness_fingerprint.json",
+    "fingerprint_at_endpoint": {
+      "evidence_protocol": "non-self-referential-v1",
+      "pr17_base": "03ccba54b8c983815f74d08a2390e0dfa45f8551",
+      "reviewed_subject_head": "2d8e2abe31d0410717412c182d3cf7bd0811cced",
+      "evidence_parent_head": "2d8e2abe31d0410717412c182d3cf7bd0811cced",
+      "self_commit_sha_in_payload": false,
+      "alembic_head": "0015_governance_audit",
+      "postgresql_version": "18.6",
+      "subject_source_test_changes_after_head": false,
+      "phase2_authorized": false,
+      "pr18_authorized": false
+    },
+    "commits": [
+      "2d8e2abe31d0410717412c182d3cf7bd0811cced test: remediate PR-17 final acceptance gate",
+      "5fe5dd90310d68d6df1683307f0d24dd2233c3dd docs(evidence): finalize PR-17R acceptance remediation"
+    ]
+  }
+]

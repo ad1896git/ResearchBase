@@ -1,0 +1,187 @@
+5fe5dd90310d68d6df1683307f0d24dd2233c3dd docs(evidence): finalize PR-17R acceptance remediation
+2d8e2abe31d0410717412c182d3cf7bd0811cced test: remediate PR-17 final acceptance gate
+03ccba54b8c983815f74d08a2390e0dfa45f8551 docs(evidence): reconcile PR-17 subject head
+745de1b0cb90e6f590fc28f2da1e0317809e3e5a test: cover PR-17 run and claim concurrency
+298c0eaa3c8cd533ea0490e92e31fc7d1e4385c6 docs(evidence): record PR-17 golden acceptance
+78c6024555e4ff1f1175bbe93f87a4797d1ef1ee test: add PR-17 golden scientific workflow acceptance
+0eed8d85f4009a4f5265a697476423b7cdaf8ea4 docs(evidence): reconcile PR-16R changed files
+d5ea060185ae3f0b70892af1cf9a5d62866e3682 docs(evidence): reconcile PR-16 inherited format list
+e937588537e951dbe9b485799ee9a64246974b78 docs(evidence): close PR-16 formatting finding
+390cbda614215c439766ce805947d339772dc55a docs(evidence): reconcile PR-16 subject metadata
+e9f070013afefe7af00dd69506d4d9c71d93ea73 docs(evidence): reconcile PR-16 subject head
+abf91e949c33682589f0f1e82fcaf9b092efa981 docs(evidence): record PR-16 CLI adapter proof
+fac20936a462167eb652dee07ad8a5c0a3612b27 test: keep PR-16 CLI contract lint-clean
+e601aa42532700194f54e578e829e44bbf434101 docs(evidence): reconcile PR-16 subject head
+3659ba35303930e35c225632a4d383b0d3dfa257 test: keep PR-16 CLI contract lint-clean
+c9574d68bad0a896dc9ae0ed757e50c9aff0b0ca docs(evidence): record PR-16 CLI adapter proof
+77d2152bd5d2d354d4b6089b5379fe3e97af9540 feat: add PR-16 Typer CLI adapter
+912f564ff3f8a5e9d4be562f2ed5734eaeaed8f1 docs(evidence): record exact PR-15R forwarding proof
+f05f33e6e16f6d7159fc0b3a93e5440f227d860a test: assert exact PR-15R command forwarding
+bc33022a6b070fa61e433b632ae39c636d5451e4 docs(evidence): update PR-15R closure proofs
+8fabea3817a7480db71908eedaf630982e2671d2 test: keep PR-15R behavior matrix lint-clean
+7040111ce453e9626148cb5aa8339d8579ccde06 test: close PR-15R scaling and binding gaps
+09cf2a6b15ce5f67ad29ed681d86825b5d2e3824 docs(evidence): record PR-15R remediation
+6be2727669864da0e3a0d7b73dc2073068234d1f test: complete PR-15R error and equivalence proof
+71ee20e65f45dc5e2fd413371d23836fc10fd6a7 test: harden PR-15 adapter evidence
+1afe9845fb04cbbb243b290aecea84e6b74f1b0c feat: add PR-15 FastAPI adapter
+ce94d738129fee584744c1a7e1eef8fd334ea225 docs(evidence): adopt non-self-referential PR-14 protocol
+b1a1f16e9972618b8115488baceb293279f901f7 docs(evidence): remove active mutable ref semantics
+ba724825bb592021abca821b88099758ff30e10b docs(evidence): finalize PR-14R5 immutable head reconciliation
+c75db39a3f712b39b7e8ce47eea3eb920bb30b86 docs(evidence): record immutable PR-14R4 head
+724c67d4411fac7904470301cef80af18f1507a0 docs(evidence): finalize PR-14R4 head reconciliation
+94536ebbbaa6719de7d38238ee12f4192c09d526 docs(evidence): record reviewed PR-14R3 head
+c4b324ab5d29a71fce999c2a801e62c8a124a77d docs(evidence): finalize PR-14R3 reconciliation
+b6a231ab22df7903628963d93bcae76c5ecf0bdd docs(evidence): reconcile PR-14R2 final metadata
+3a9cb09ca0c7a84a43c6c12e752c5e41892c3449 docs: finalize PR-14R2 evidence
+16695506f285fe015eb15948bb5b07f95f5944aa docs: add PR-14 evidence package
+701df464c55d8993c7b14690bcea75594d553553 fix: complete PR-14 impact path metadata
+b979525a97318aa85a1934f4872b208c1e9ef7b3 Implement PR-14 governance audit and impact
+e57cc7f47250a2c5156387cc1e04bb7888537e6c docs: finalize PR-13R3 evidence fingerprint
+4a232fd80e9a57cfb660544d864b5e189eaafef6 docs: add PR-13R3 evidence package
+2f6f3b7f1f49eece5231af1aab4ef6e81527e0c3 fix: handle missing spec closure context
+19429024924469cf37b7e3ac31de53e72130c632 docs: reconcile PR-13R2 final test evidence
+1c8479aa8f36b3820796c42152b1b5ebeb6e3162 test: prove small trace SQL bound
+9a312fd287d38c10473d6593e6e69f26492f2fdf docs: finalize PR-13R2 evidence fingerprint
+cc26b1319240dbb35307e7aef3422f6f9bedd102 docs: add PR-13R2 evidence package
+1f71fb10158fe88dd448fbfccad770721ca4bf32 fix: make contextual closure cache only
+96fe5b203e23ed07fd212eb2be56dcc6e5318cc8 docs: finalize PR-13R evidence fingerprint
+ad5790c26dd26ef374ac96e36eb9283fc5604002 docs: add PR-13R evidence package
+b6afdb78a08ae29070291d73959098a9f11087a9 test: harden provenance scaling proof
+6355b2f724e766b33aa7b07cdbfd965d02e449eb fix: bound provenance trace reads
+d99c215c5d06153da334de88021393588f177a1e docs: fix PR-13 evidence whitespace
+9229c1882fa14a1896b4839b885d9d060f24920e docs: reconcile PR-13 historical trace evidence
+92302831438bec7db163e5ec4de8e6f63dc97d6b test: prove exact historical provenance isolation
+4a4f9daedd98ce57c7b0b021630d6fb18dd45c7d docs: finalize PR-13 evidence fingerprint
+4177bd80a981d78621f3fa116cb88f5b9886e569 docs: add PR-13 evidence package
+c4c69ab752e390ac5ab84323c927d392c59f4a40 test: record provenance query SQL count
+1a1877a26e1362d1c67270380855a5098eaea4f6 feat: add explicit provenance trace queries
+5b4d7e1ffa3509adbb2f324d2fb82df9883780cb docs: finalize PR-12R3 evidence metadata
+050f4ae94210810740a4c25fe9ca71708a3e87a6 docs: reconcile PR-12R2 final head evidence
+b973356f494bb75a2f324be8455a9f54934e9f5d docs: finalize PR-12R2 fingerprint
+16228b935c9c87053b97f574a2c57e4c181b372a docs: reconcile PR-12R2 fingerprint metadata
+0d9f78ce5055987f448ef64c4b43fb8c635f0465 docs: add PR-12R2 evidence payload
+e95fee5e59c97d78cf4ebe6c86f195c86b3ab759 test: harden PR-12 oracle and closure evidence
+3564361bb3b80a9302b48ed61b1b0b1fa773de26 docs: complete PR-12R fingerprint reconciliation
+069938e7cd2f3072d83fff6630902be5d3a768d0 docs: reconcile complete PR-12R inventory
+4e0155731a0f3f681aef1eec77b438fbad843f9e docs: complete PR-12R architecture evidence
+dc37d7773d67a65f7afb5273a6d9b8bea3f693f7 docs: align PR-12R evidence range metadata
+de00596817269fd10cad27fc00cb998318ce73ef docs: finalize PR-12R evidence metadata
+a92ad0186266248ae4d1f9f91da8eb33b5d7bd26 docs: add PR-12R evidence fingerprint
+2aa939be55c1fdaed326b9888a5bb966b88e9aa9 docs: record PR-12R changed-file inventory
+298594d0c988fd0d19b05aadddff60ac027d98bf docs: add PR-12R remediation evidence payload
+054fb27f7007abf38a42b8dc674996e86b8038eb test: remediate PR-12 review findings
+9244ac1ca920c2a7d8777e7f1fbbdcab0fda27e2 docs: finalize PR-12 evidence fingerprint
+4454fe6f2afed551e076e25a7bd75020200e3e7f docs: add PR-12 evidence payload
+019148ed853c480f056975c2fa156a35abeea735 test: synchronize claim revise race at lock boundary
+14030a288d7eb2b4d90b0652871c32448466abe6 fix: include PR-12 claim domain and migration regression
+4b8442c1e3e0a302d70c490c5a907467833bc73a feat: implement PR-12 claims and evidence
+18fb4138e7ccb57809ea54b916f52d8b801b8bec docs: record PR-11R7 search evidence
+c7277b6cfd6d264425bb8e86236c38a401a505b5 docs: finalize PR-11R7 evidence metadata
+328fe1378ebca5aa2880df020c4b50250bf43410 docs: correct PR-11R7 token search evidence
+adc78c84516c5779b46db103d35221afc810add3 docs: finalize PR-11R6 fingerprint metadata
+a130431bc09c87b7d16f141f9736db3dcec35388 docs: fix PR-11R5 fingerprint placeholder
+10a4e761eecda6e2a2b44b06d60400b43265e458 docs: finalize PR-11R5 evidence metadata
+00cf1a5b37c9f6e7ae339406ae2fcb68c7fb24c6 docs: close PR-11R5 evidence whitespace
+5f3626d97ba129ab8487d5ce134fa87bba3312bb docs: correct PR-11R4 resolved SHA
+713102bfc887fcfdd005aafc2fed2c5da3a9d382 docs: finalize PR-11R4 fingerprint metadata
+be726787c8b6e6a3f475bb00759f35061fa299fd docs: reconcile PR-11R4 evidence
+716e316d57d4dc40b4c13586f3dfafebdc17caba docs: finalize PR-11R3 fingerprint
+3a539a7b623f6599e50f9080343f2b5cf4a74e63 docs: add PR-11R3 migration evidence
+813aaebd8749e6ca1553802f0930dca04a0f21d0 test: assert exact PR-11R3 fixture edge
+ef8d67a0100bf48c9d1b9ee2da2a9df49191f6aa test: harden PR-11R3 migration evidence
+e62d19f97c965003492648df84a220a25b3ebffa docs: finalize PR-11R2 fingerprints
+679efd79b42b911567d885b780ab7c64caa8226e docs: add PR-11R2 migration and evidence package
+2304c081f668a01a7663624a271728431a9ba745 test: include PR-11R2 migration in architecture inventory
+1e557818d1a2baa3f1929a7c2eb3c8f20a9a64e5 fix: fail closed on legacy statistical results
+6675a7444cdb897d1bf810a55b32b6d88015ea15 docs: record final PR-11R verification commits
+4aa969e7781dd6fd36e7d98999153098af264095 test: strengthen PR-11R proof assertions
+5beb20c2ef0d75ff62eb7772b95289c84e57bff0 docs: reconcile PR-11R test counts
+7e18e9283e4b416ccab250e9829eecf5f3e6f65f docs: finalize PR-11R evidence fingerprint
+d95a0c15b63e848aaa7676832b11f400d932a85f docs: add PR-11R remediation evidence
+13304196ba1f8d7044b92e1393a843debf35f974 test: correct PR-11R regression typing
+6319fda96e573e27ceca2afe1b45b03fcba5e628 fix: harden PR-11 statistical result invariants
+9592b66dc3372fae18fdd66555203f0788e407e2 docs: correct PR-11 evidence fingerprints
+46f21001edb8532faf0a81dc0a35352e1e6c9b28 docs: reconcile PR-11 evidence metadata
+191a48545330fdf46198f45a4ad6b96e84b06c18 docs: finalize PR-11 evidence fingerprint
+f4ccdf843adfd56b79c5229b4304bd77a238f104 docs: add PR-11 evidence package
+5093639b7ebdfa205c0304aa9914603fb6f13d11 feat: implement PR-11 statistical results
+934e8690fc3f8459b1632e896f5c3be01abf8c1f docs: finalize PR-10R2 evidence metadata
+686402e3082424260c9a52b5636c45fbc00e38a5 docs: add PR-10R2 evidence metadata correction
+bffb95c3dc239219ec4c288eaa3c9991f7733f6c docs: finalize PR-10R evidence metadata
+7db0696f4e687fe07c2f603ab37a24f620fd1281 docs: add PR-10R remediation evidence
+9c5a87a4567f4fb1c09b4dcd1d3c337f3d827e7d test: remove production builder from hash oracle
+35efe3dcc5970d0668c75863ce0dbea20560a480 test: harden PR-10 remediation proof
+41a886344f277e84c7d63891c5b4351262329e30 docs: finalize PR-10 evidence results
+3745cbe1df79c8d041e189f363d7bb1d09fcb8e5 docs: add PR-10 evidence package
+0661a584aff47537c24e537edcef7946f8f0129b test: complete PR-10 measurement attack matrix
+733972d9ec7b7bfc24c7b72241bad902480d1993 test: format PR-10 hash contract coverage
+9e04277c8337f322a17f3dad6485686e6fbaf3a6 fix: harden PR-10 measurement validation
+1106702d0bba3e72a742a141b1e61a22fde91003 feat: implement PR-10 measurements
+fe8027dfef4f585566a60f467f66fdd8116e0964 docs: finalize PR-09R6 evidence fingerprint
+e3112223544a87668edfa3ea1558da07d01af1dd docs: correct PR-09R6 evidence metadata
+ecb9adaf6aebef73fb45d344197ea9e18ad37d9c docs: finalize PR-09R5 evidence fingerprint
+9c35e6a26bf0cdecf69081aa609f3a1aa54778ce docs: close PR-09R5 evidence chain
+602f22478c6919f2611ff436b4199a81fa6b8297 docs: finalize PR-09R4 evidence chain
+044c72aacf46fb24c288ab187bf5b16a0067089b docs: add PR-09R4 remediation evidence
+8a57413145d27864d41ffb3c8596a205a7cb4fb8 test: prove concurrent finish winner metadata
+0feba305ce8d798e1257b93c7695a768ded72899 docs: finalize PR-09R3 evidence fingerprint
+9e1bb857af0a1958a0e46609068e38355e06642e docs: add PR-09R3 remediation evidence
+197bd2da996c55c09b2cad0ff66ebe97dd632623 fix: apply PR-09R3 closure semantics
+9c473814877c10c440c2ca11f194dbfb58cd2403 docs: reconcile PR-09R2 evidence inventory
+4f2e91198705c21c177fdcf51a629b0543fd69de docs: complete PR-09R2 evidence reconciliation
+9913febf246d0b16a362a26990c11c7079362445 docs: add PR-09R2 evidence package
+89c033096eb8295e4e46dbe3bdbea003b86498a9 test: add PR-09R2 proof-quality regressions
+9a35f9f460dd20e1b4660d3b8103f1531b489398 docs: add PR-09R remediation evidence
+ddbd2cf46b4ae297f8aaf080add009a2ddcca8b6 docs: reconcile PR-09 review findings
+e879ad852ad81737a3b440729d285f506eaff41b fix: harden PR-09 run input sealing
+8e67b4890a55740f73728ab40f08e8543f177dba chore: finalize PR-09 evidence whitespace
+af47f045c432227737647f2215f048b82acf31a3 chore: normalize PR-09 evidence formatting
+2b7e810a967795707172914e7374886547d0309b docs: add PR-09 evidence package
+17a5f66b10e9ca2eef7bcf1bfa1f9831584d2149 test: cover PR-09 schema races and rollback
+532a350538a6697c8e6d3b3ca12370a37624063a feat: implement PR-09 run core
+275de4151f2843e096b8cf036d5451fe0a4b23e8 docs: add PR-08 evidence package
+9a7ff99292bd7b1fef3d819ced8d5ea098069040 test: format PR-08 integration coverage
+e0bae7d1b09766ce2d6920e80dc5cb82a7977359 feat: implement PR-08 metric definitions
+f965abb3f2223d84690b597541d6bba316365423 docs: reconcile PR-07R2 evidence
+b7e7a537c17bd7e35cc19bb52da618054b19da0f test: strengthen PR-07R2 evidence proofs
+82196727b0357797442454b94505af0615b60269 docs: add PR-07R remediation evidence
+fe888f334fe6e80a74a17c06d22e18e03f6f68d5 fix: remediate PR-07 byte size and contract gates
+52a962ab751119c906ba77e87108273574d334b6 docs: add PR-07 evidence package
+4e2327b1cd292a887175f78a2f4b713b05e5511d feat: implement PR-07 artifacts and versions
+f2edf4766838c3678b58536f5ee60306664d8894 test: prove PR-06 retry persistence
+0514df0d5c8bc38b3cda86d0afe29ffd50758df2 test: remediate PR-06 verification evidence
+c92f11993c675764f0f93fe30017ad312e535cb0 docs: record PR-06 final git state
+a5c53e2c7e11a79b8e6cd38f0b301d2271ce3764 feat: implement PR-06 datasets and immutable snapshots
+403a26ca3ca24f837c736d69ef1eac6002fda075 docs: reconcile PR-05R2 evidence
+f9affdcda22e207e2249dcd2180ba4463a8d4e13 docs: record PR-05R3 hash proof evidence
+0269e69b59a1153ccf4f7dbb9acdb6b4c135061b test: isolate PR-05 hash differentials
+66c4f3d4a4e11a349f2b99aca21cb27c16f82494 docs: record PR-05R2 hash proof evidence
+20e3b0fe18e1759e1615ada0047b683cc49b3132 test: complete PR-05 excluded metadata hash proof
+5ca4dd8c9e083b5370014d86789e82c6e9c5b8ac docs: record PR-05R remediation evidence
+da7a81f1c9dd0da8d0dab619eac6e80c54aa1444 fix: remediate PR-05 experiment validation proofs
+1ab60334f261b0e11f98e76d8416bc7ef5afa7d6 docs: record PR-05 evidence package
+f11f3eec619daaff0761bd1911e3f29aab838330 feat: implement PR-05 experiment specifications
+32b5cbf86dcf0b1a142610de6a8676d450c726ed docs: plan PR-05 experiment spec
+eda94d650a66bc693a21a2948200aae60ee357d7 docs: finalize PR-04R2 fingerprint
+e1af27e2a7057cc26b68e6d0192bd05cdd541303 docs: record PR-04R2 evidence
+8dd77d39c0962439003667083120fa7a81395020 test: close PR-04R2 proof gaps
+0573fa5ee0886e1a2bdaa1026ccfb548b3523980 Record PR-04R remediation evidence
+c6be24bc27e32d0e16452e7a79195e3b09609d5a Add PR-04R atomicity and concurrency verification
+059641c8445749ebdac11786be40185ba8644004 Record PR-04 evidence package
+4c738660f7f46995ef32c413715ecce73a1028da Add PR-04 PostgreSQL rollback coverage
+def1361ac7803a81893429ce3f1fce694bbf102c Implement PR-04 research question and hypothesis flows
+ae8d0559c0e3258b26524f3f6fb688dcfc8efaf0 Document PR-04 implementation plan
+4dfffd882dd103f292474af2431d9ec42ff82618 Record PR-03R remediation evidence
+49fcf2feca35ea8c07832f7eaeed856b141004ed Remediate PR-03 version contract findings
+4ab6af705aab50af0a13d9289543eb9a21ea2053 Record PR-03 evidence
+9929df67f7b8c296c25ff680faec257048b5a050 Implement PR-03 generic version semantics harness
+99e402cc01bb189925bcfae0db6ba0016b4ccde9 Complete PR-02 remediation evidence
+1fbb4634066cbcd49454590609486dfcebeca30f Fix PR-02 review regression gaps
+57a8d156fb8cd3a15de16b48b211ef433437fdf9 Record PR-02 evidence
+dd69bbff27971b9ce4065d06a321f3c278e728a1 Implement PR-02 actor project workspace persistence slice
+99e088812e8ce86ddaceec7f731bc9ae913c33e0 Record PR-01R remediation evidence
+c3e7497046b5c0213f18c619e7e587a0f18165e6 Remediate PR-01 foundation review findings
+647facf1fc4e6973f131a3e3ff64b49c3f81e349 Record PR-01 acceptance evidence
+a517b3174f14ac2f1fb9dd3ead1852404585aa75 Implement PR-01 foundation
+ce4fe585388da7026523473ae01834022277eadc Record PR-00 acceptance evidence
+565fbc95db53b1c7534bacb41870e941c5d10101 Bootstrap ResearchBase PR-00

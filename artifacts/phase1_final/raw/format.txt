@@ -1,0 +1,9 @@
+Would reformat: migrations/versions/0004_experiment_spec.py
+Would reformat: tests/integration/test_pr04_application.py
+Would reformat: tests/integration/test_pr04_schema.py
+Would reformat: tests/integration/test_pr05_application.py
+Would reformat: tests/integration/test_pr05_schema.py
+Would reformat: tests/integration/test_pr06_application.py
+Would reformat: tests/integration/test_pr06_schema.py
+Would reformat: tests/unit/domain/test_pr05_experiment.py
+8 files would be reformatted, 158 files already formatted
