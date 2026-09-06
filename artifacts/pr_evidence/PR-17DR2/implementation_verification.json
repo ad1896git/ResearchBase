@@ -1,19 +1,41 @@
 {
+  "command_consistency": {
+    "exact_token_matches": 18,
+    "generated": 18,
+    "mismatches": [],
+    "stored": 18
+  },
   "commands": {
     "adapter_equivalence": {
       "collection": {
         "collected": 17,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/e2e/test_phase1_cross_adapter_equivalence.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 17
       },
-      "command": "uv run pytest -q -ra tests/e2e/test_phase1_cross_adapter_equivalence.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
+      "command": "uv run pytest -q -ra tests/e2e/test_phase1_cross_adapter_equivalence.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py --junitxml=.pr17dr_evidence_results/adapter_equivalence.xml",
+      "command_fingerprint": "64c70dab2753f2b566d326c400ca591046bb4b540dd33535ae92364790f72a32",
       "command_id": "adapter_equivalence",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/e2e/test_phase1_cross_adapter_equivalence.py",
+        "tests/integration/test_pr15_api.py",
+        "tests/integration/test_pr16_cli.py",
+        "--junitxml=.pr17dr_evidence_results/adapter_equivalence.xml"
+      ],
       "counts": {
         "collected": 17,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 17,
         "skipped": 0,
+        "total_discovered": 17,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -34,16 +56,30 @@
       "collection": {
         "collected": 47,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/architecture",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 47
       },
-      "command": "uv run pytest -q -ra tests/architecture",
+      "command": "uv run pytest -q -ra tests/architecture --junitxml=.pr17dr_evidence_results/architecture.xml",
+      "command_fingerprint": "d41c706522b24439b0d48d748701d8cce923b19bfbe419707a1bb03ea15826a6",
       "command_id": "architecture",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/architecture",
+        "--junitxml=.pr17dr_evidence_results/architecture.xml"
+      ],
       "counts": {
         "collected": 47,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 47,
         "skipped": 0,
+        "total_discovered": 47,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -64,16 +100,30 @@
       "collection": {
         "collected": 5,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr12_atomicity.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 5
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr12_atomicity.py",
+      "command": "uv run pytest -q -ra tests/integration/test_pr12_atomicity.py --junitxml=.pr17dr_evidence_results/atomicity.xml",
+      "command_fingerprint": "9d0d3ac6738182cab794a51b3228e68e1153ba3da355e9c072131cb93e185bc9",
       "command_id": "atomicity",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr12_atomicity.py",
+        "--junitxml=.pr17dr_evidence_results/atomicity.xml"
+      ],
       "counts": {
         "collected": 5,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 5,
         "skipped": 0,
+        "total_discovered": 5,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -94,16 +144,30 @@
       "collection": {
         "collected": 2,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr_catalog.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 2
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_catalog.py",
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_catalog.py --junitxml=.pr17dr_evidence_results/catalog_exact_verification.xml",
+      "command_fingerprint": "64c42323b815bc0e367e45765f190c4fd5e93d481f62fb2d41cb850b08e8a1b5",
       "command_id": "catalog_exact_verification",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr17dr_catalog.py",
+        "--junitxml=.pr17dr_evidence_results/catalog_exact_verification.xml"
+      ],
       "counts": {
         "collected": 2,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 2,
         "skipped": 0,
+        "total_discovered": 2,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -124,16 +188,37 @@
       "collection": {
         "collected": 44,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/unit/test_pr17dr2_write_result.py tests/unit/test_pr15_http.py tests/unit/test_pr16_cli_contract.py tests/unit/test_pr16_cli_errors.py tests/unit/test_pr16_cli_transport_matrix.py tests/architecture/test_pr17_agent_ready_architecture.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 44
       },
-      "command": "uv run pytest -q -ra tests/unit/test_pr17dr2_write_result.py tests/unit/test_pr15_http.py tests/unit/test_pr16_cli_contract.py tests/unit/test_pr16_cli_errors.py tests/unit/test_pr16_cli_transport_matrix.py tests/architecture/test_pr17_agent_ready_architecture.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py",
+      "command": "uv run pytest -q -ra tests/unit/test_pr17dr2_write_result.py tests/unit/test_pr15_http.py tests/unit/test_pr16_cli_contract.py tests/unit/test_pr16_cli_errors.py tests/unit/test_pr16_cli_transport_matrix.py tests/architecture/test_pr17_agent_ready_architecture.py tests/integration/test_pr15_api.py tests/integration/test_pr16_cli.py --junitxml=.pr17dr_evidence_results/focused_write_result.xml",
+      "command_fingerprint": "398944ec78e9978b90b522cfe3e011f5c15a95acc5971a2884e470d27c68070b",
       "command_id": "focused_write_result",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/unit/test_pr17dr2_write_result.py",
+        "tests/unit/test_pr15_http.py",
+        "tests/unit/test_pr16_cli_contract.py",
+        "tests/unit/test_pr16_cli_errors.py",
+        "tests/unit/test_pr16_cli_transport_matrix.py",
+        "tests/architecture/test_pr17_agent_ready_architecture.py",
+        "tests/integration/test_pr15_api.py",
+        "tests/integration/test_pr16_cli.py",
+        "--junitxml=.pr17dr_evidence_results/focused_write_result.xml"
+      ],
       "counts": {
         "collected": 44,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 44,
         "skipped": 0,
+        "total_discovered": 44,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -152,18 +237,31 @@
     },
     "full_pytest": {
       "collection": {
-        "collected": 723,
+        "collected": 728,
         "command": "uv run pytest --collect-only -o addopts= -q -ra",
-        "return_code": 0
-      },
-      "command": "uv run pytest -q -ra",
-      "command_id": "full_pytest",
-      "counts": {
-        "collected": 723,
         "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 728
+      },
+      "command": "uv run pytest -q -ra --junitxml=.pr17dr_evidence_results/full_pytest.xml",
+      "command_fingerprint": "9f3f509206a2b737b9e63d990aeeb35ba90cc6a5a97374e3481f19db629e4e33",
+      "command_id": "full_pytest",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "--junitxml=.pr17dr_evidence_results/full_pytest.xml"
+      ],
+      "counts": {
+        "collected": 728,
+        "deselected": 0,
+        "error": 0,
         "failed": 0,
-        "passed": 721,
+        "passed": 726,
         "skipped": 2,
+        "total_discovered": 728,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -196,16 +294,14 @@
     "git_diff_check": {
       "collection": null,
       "command": "git diff --check",
+      "command_fingerprint": "4f52a06f45cbf16520b8045533f643b165fc38a9b1e512e36c0ccb4d498be852",
       "command_id": "git_diff_check",
-      "counts": {
-        "collected": null,
-        "deselected": 0,
-        "failed": 0,
-        "passed": 0,
-        "skipped": 0,
-        "xfailed": 0,
-        "xpassed": 0
-      },
+      "command_tokens": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "counts": null,
       "database": {
         "alembic_revision": "0016_pr17d_history_protection",
         "credentials": "redacted",
@@ -223,16 +319,35 @@
       "collection": {
         "collected": 117,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/unit/domain/test_pr05_experiment.py tests/unit/domain/test_pr06_dataset.py tests/unit/domain/test_pr08_metric.py tests/unit/domain/test_pr10_measurement.py tests/unit/domain/test_pr11_statistical_result.py tests/unit/domain/test_pr12_claim.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 117
       },
-      "command": "uv run pytest -q -ra tests/unit/domain/test_pr05_experiment.py tests/unit/domain/test_pr06_dataset.py tests/unit/domain/test_pr08_metric.py tests/unit/domain/test_pr10_measurement.py tests/unit/domain/test_pr11_statistical_result.py tests/unit/domain/test_pr12_claim.py",
+      "command": "uv run pytest -q -ra tests/unit/domain/test_pr05_experiment.py tests/unit/domain/test_pr06_dataset.py tests/unit/domain/test_pr08_metric.py tests/unit/domain/test_pr10_measurement.py tests/unit/domain/test_pr11_statistical_result.py tests/unit/domain/test_pr12_claim.py --junitxml=.pr17dr_evidence_results/hash_invariance.xml",
+      "command_fingerprint": "22442f278352bc1770a4aa20a2d93bdb5bbb1fa6f298ec3494ed8653a96d4661",
       "command_id": "hash_invariance",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/unit/domain/test_pr05_experiment.py",
+        "tests/unit/domain/test_pr06_dataset.py",
+        "tests/unit/domain/test_pr08_metric.py",
+        "tests/unit/domain/test_pr10_measurement.py",
+        "tests/unit/domain/test_pr11_statistical_result.py",
+        "tests/unit/domain/test_pr12_claim.py",
+        "--junitxml=.pr17dr_evidence_results/hash_invariance.xml"
+      ],
       "counts": {
         "collected": 117,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 117,
         "skipped": 0,
+        "total_discovered": 117,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -253,16 +368,30 @@
       "collection": {
         "collected": 4,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/e2e/test_phase1_historical_exactness.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 4
       },
-      "command": "uv run pytest -q -ra tests/e2e/test_phase1_historical_exactness.py",
+      "command": "uv run pytest -q -ra tests/e2e/test_phase1_historical_exactness.py --junitxml=.pr17dr_evidence_results/historical_exactness.xml",
+      "command_fingerprint": "e65ec6493b1a393e8d8e3121ade7fe9129905243a6f8ae5ab3ba1e7ae3019bf3",
       "command_id": "historical_exactness",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/e2e/test_phase1_historical_exactness.py",
+        "--junitxml=.pr17dr_evidence_results/historical_exactness.xml"
+      ],
       "counts": {
         "collected": 4,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 4,
         "skipped": 0,
+        "total_discovered": 4,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -283,16 +412,30 @@
       "collection": {
         "collected": 6,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr_migration.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 6
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_migration.py",
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_migration.py --junitxml=.pr17dr_evidence_results/migration_lifecycle.xml",
+      "command_fingerprint": "bd58a5c4107de9e598fc4cc35a6a02d9af000131fe1bed540d5648ce2e03a72f",
       "command_id": "migration_lifecycle",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr17dr_migration.py",
+        "--junitxml=.pr17dr_evidence_results/migration_lifecycle.xml"
+      ],
       "counts": {
         "collected": 6,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 6,
         "skipped": 0,
+        "total_discovered": 6,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -313,16 +456,30 @@
       "collection": {
         "collected": 1,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 1
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows",
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows --junitxml=.pr17dr_evidence_results/migration_rollback_snapshot.xml",
+      "command_fingerprint": "955a0e0412c27c0091a456b5560266f6d9ed824fb3ab1d9611c217789becbbba",
       "command_id": "migration_rollback_snapshot",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr17dr_migration.py::test_preflight_failure_rolls_back_revision_objects_and_preserves_rows",
+        "--junitxml=.pr17dr_evidence_results/migration_rollback_snapshot.xml"
+      ],
       "counts": {
         "collected": 1,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 1,
         "skipped": 0,
+        "total_discovered": 1,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -341,18 +498,33 @@
     },
     "postgresql_integration": {
       "collection": {
-        "collected": 723,
+        "collected": 332,
         "command": "uv run pytest --collect-only -o addopts= -q -ra -m integration",
-        "return_code": 0
+        "deselected": 396,
+        "return_code": 0,
+        "total_discovered": 728
       },
-      "command": "uv run pytest -q -ra -m integration",
+      "command": "uv run pytest -q -ra -m integration --junitxml=.pr17dr_evidence_results/postgresql_integration.xml",
+      "command_fingerprint": "7383ebeb4bd459a1478847023e873ee3de6a6f4c5210aabc64cb9be8a3d842bd",
       "command_id": "postgresql_integration",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "-m",
+        "integration",
+        "--junitxml=.pr17dr_evidence_results/postgresql_integration.xml"
+      ],
       "counts": {
-        "collected": 723,
-        "deselected": 0,
+        "collected": 332,
+        "deselected": 396,
+        "error": 0,
         "failed": 0,
-        "passed": 721,
+        "passed": 330,
         "skipped": 2,
+        "total_discovered": 728,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -386,16 +558,30 @@
       "collection": {
         "collected": 1,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr2_concurrency.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 1
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr17dr2_concurrency.py",
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr2_concurrency.py --junitxml=.pr17dr_evidence_results/pr17dr2_concurrency.xml",
+      "command_fingerprint": "89ed5d89411df6d66790add7abbbde5b5e24c2ab5d73b8d57347f7b9edf58dc6",
       "command_id": "pr17dr2_concurrency",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr17dr2_concurrency.py",
+        "--junitxml=.pr17dr_evidence_results/pr17dr2_concurrency.xml"
+      ],
       "counts": {
         "collected": 1,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 1,
         "skipped": 0,
+        "total_discovered": 1,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -416,16 +602,30 @@
       "collection": {
         "collected": 22,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr17dr2_adversarial.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 22
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr17dr2_adversarial.py",
+      "command": "uv run pytest -q -ra tests/integration/test_pr17dr2_adversarial.py --junitxml=.pr17dr_evidence_results/pr17dr2_direct_sql_adversarial.xml",
+      "command_fingerprint": "8ab3b56fb8df3d9ec7a894e077f0ce8fd1212dd8b50dc633d0ca84955c6e1939",
       "command_id": "pr17dr2_direct_sql_adversarial",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr17dr2_adversarial.py",
+        "--junitxml=.pr17dr_evidence_results/pr17dr2_direct_sql_adversarial.xml"
+      ],
       "counts": {
         "collected": 22,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 22,
         "skipped": 0,
+        "total_discovered": 22,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -446,16 +646,31 @@
       "collection": {
         "collected": 25,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr09r2_proof.py tests/integration/test_pr13_queries.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 25
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr09r2_proof.py tests/integration/test_pr13_queries.py",
+      "command": "uv run pytest -q -ra tests/integration/test_pr09r2_proof.py tests/integration/test_pr13_queries.py --junitxml=.pr17dr_evidence_results/provenance.xml",
+      "command_fingerprint": "19b1debb2b2aa23677ef09efbb7e977382a01bc221288266ee82080597ea1da2",
       "command_id": "provenance",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr09r2_proof.py",
+        "tests/integration/test_pr13_queries.py",
+        "--junitxml=.pr17dr_evidence_results/provenance.xml"
+      ],
       "counts": {
         "collected": 25,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 25,
         "skipped": 0,
+        "total_discovered": 25,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -475,16 +690,14 @@
     "pyright": {
       "collection": null,
       "command": "uv run pyright",
+      "command_fingerprint": "51eb97d9d1d4ebe9052add7b67852367d0e51a5ed6fb2c7dbe09953fc10d1271",
       "command_id": "pyright",
-      "counts": {
-        "collected": null,
-        "deselected": 0,
-        "failed": 0,
-        "passed": 0,
-        "skipped": 0,
-        "xfailed": 0,
-        "xpassed": 0
-      },
+      "command_tokens": [
+        "uv",
+        "run",
+        "pyright"
+      ],
+      "counts": null,
       "database": {
         "alembic_revision": "0016_pr17d_history_protection",
         "credentials": "redacted",
@@ -502,16 +715,36 @@
       "collection": {
         "collected": 113,
         "command": "uv run pytest --collect-only -o addopts= -q -ra tests/integration/test_pr06_application.py tests/integration/test_pr09_application.py tests/integration/test_pr10_application.py tests/integration/test_pr11_application.py tests/integration/test_pr12_closure.py tests/integration/test_pr14_governance_integration.py tests/integration/test_pr17dr_adversarial.py",
-        "return_code": 0
+        "deselected": 0,
+        "return_code": 0,
+        "total_discovered": 113
       },
-      "command": "uv run pytest -q -ra tests/integration/test_pr06_application.py tests/integration/test_pr09_application.py tests/integration/test_pr10_application.py tests/integration/test_pr11_application.py tests/integration/test_pr12_closure.py tests/integration/test_pr14_governance_integration.py tests/integration/test_pr17dr_adversarial.py",
+      "command": "uv run pytest -q -ra tests/integration/test_pr06_application.py tests/integration/test_pr09_application.py tests/integration/test_pr10_application.py tests/integration/test_pr11_application.py tests/integration/test_pr12_closure.py tests/integration/test_pr14_governance_integration.py tests/integration/test_pr17dr_adversarial.py --junitxml=.pr17dr_evidence_results/regression_db_invariants.xml",
+      "command_fingerprint": "146e670e00418ca3ba1b76b963ee78f94fa2f1ad4cda092a1383fe81c606db59",
       "command_id": "regression_db_invariants",
+      "command_tokens": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "-ra",
+        "tests/integration/test_pr06_application.py",
+        "tests/integration/test_pr09_application.py",
+        "tests/integration/test_pr10_application.py",
+        "tests/integration/test_pr11_application.py",
+        "tests/integration/test_pr12_closure.py",
+        "tests/integration/test_pr14_governance_integration.py",
+        "tests/integration/test_pr17dr_adversarial.py",
+        "--junitxml=.pr17dr_evidence_results/regression_db_invariants.xml"
+      ],
       "counts": {
         "collected": 113,
         "deselected": 0,
+        "error": 0,
         "failed": 0,
         "passed": 113,
         "skipped": 0,
+        "total_discovered": 113,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -531,16 +764,16 @@
     "ruff": {
       "collection": null,
       "command": "uv run ruff check .",
+      "command_fingerprint": "c67ecfeb69257aac000eccb06bba1c01baf7f143f083eff357470c7bc54f3f84",
       "command_id": "ruff",
-      "counts": {
-        "collected": null,
-        "deselected": 0,
-        "failed": 0,
-        "passed": 0,
-        "skipped": 0,
-        "xfailed": 0,
-        "xpassed": 0
-      },
+      "command_tokens": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "."
+      ],
+      "counts": null,
       "database": {
         "alembic_revision": "0016_pr17d_history_protection",
         "credentials": "redacted",
@@ -566,6 +799,19 @@
   "evidence_commit": null,
   "evidence_protocol": "non-self-referential-v1",
   "implementation_subject_head": "5794b405eca1b4804475d20eb3bc978797bdc777",
+  "pytest_count_semantics": {
+    "collected": "tests selected for this invocation",
+    "deselected": "discovered tests excluded by marker or filter",
+    "outcomes": [
+      "passed",
+      "failed",
+      "skipped",
+      "xfailed",
+      "xpassed",
+      "error"
+    ],
+    "total_discovered": "all tests discovered before selection"
+  },
   "schema": "pr17dr2-implementation-verification-v1",
   "source": "exact commands executed by scripts/pr17dr_evidence.py",
   "verdict": "PASS"
