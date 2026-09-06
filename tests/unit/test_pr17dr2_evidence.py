@@ -1,8 +1,150 @@
 from __future__ import annotations
 
+import json
 import shlex
+from pathlib import Path
 
+import pytest
 from scripts import pr17dr_evidence
+
+
+def _stored_artifact() -> dict[str, object]:
+    commands = {}
+    for command_id, command in pr17dr_evidence.VERIFICATION_COMMANDS:
+        tokens = pr17dr_evidence._authoritative_command_tokens(command_id, command)
+        commands[command_id] = {
+            "command": shlex.join(tokens),
+            "command_tokens": tokens,
+            "command_fingerprint": pr17dr_evidence._command_fingerprint(tokens),
+        }
+    return {"commands": commands}
+
+
+def _run_main_until_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, artifact: dict[str, object] | None
+) -> tuple[Path, bytes | None, list[str]]:
+    output_dir = tmp_path / "evidence"
+    artifact_path = output_dir / "implementation_verification.json"
+    original = None
+    if artifact is not None:
+        output_dir.mkdir()
+        original = (json.dumps(artifact, sort_keys=True) + "\n").encode()
+        artifact_path.write_bytes(original)
+    events: list[str] = []
+
+    def stop_at_database(_url: str) -> object:
+        events.append("database")
+        raise RuntimeError("reached database")
+
+    monkeypatch.setattr(pr17dr_evidence, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(pr17dr_evidence, "OUTPUT_DIR", Path("evidence"))
+    monkeypatch.setattr(pr17dr_evidence, "create_database_engine", stop_at_database)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://redacted")
+    monkeypatch.setenv(pr17dr_evidence.IMPLEMENTATION_SUBJECT_ENV, "subject")
+    monkeypatch.setattr(pr17dr_evidence, "_subject_head", lambda: "subject")
+
+    return artifact_path, original, events
+
+
+def test_authoritative_main_audits_matching_stored_commands_before_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    artifact_path, original, events = _run_main_until_database(
+        monkeypatch, tmp_path, _stored_artifact()
+    )
+
+    with pytest.raises(RuntimeError, match="reached database"):
+        pr17dr_evidence.main()
+
+    assert events == ["database"]
+    assert artifact_path.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "drift",
+    [
+        "executable",
+        "argument",
+        "missing",
+        "extra",
+        "malformed_commands",
+        "malformed_entry",
+        "missing_tokens",
+    ],
+)
+def test_authoritative_main_rejects_stored_command_drift_before_database_or_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, drift: str
+) -> None:
+    artifact = _stored_artifact()
+    commands = artifact["commands"]
+    assert isinstance(commands, dict)
+    if drift == "executable":
+        commands["postgresql_integration"]["command_tokens"][2] = "not-pytest"
+    elif drift == "argument":
+        commands["postgresql_integration"]["command_tokens"][6] = "not-integration"
+    elif drift == "missing":
+        del commands["postgresql_integration"]
+    elif drift == "extra":
+        commands["extra"] = commands["ruff"]
+    elif drift == "malformed_commands":
+        artifact["commands"] = []
+    elif drift == "malformed_entry":
+        commands["postgresql_integration"] = []
+    else:
+        del commands["postgresql_integration"]["command_tokens"]
+    artifact_path, original, events = _run_main_until_database(
+        monkeypatch, tmp_path, artifact
+    )
+
+    with pytest.raises(RuntimeError, match="stored command evidence"):
+        pr17dr_evidence.main()
+
+    assert events == []
+    assert artifact_path.read_bytes() == original
+
+
+def test_authoritative_main_explicitly_allows_first_generation_before_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    artifact_path, _, events = _run_main_until_database(monkeypatch, tmp_path, None)
+
+    with pytest.raises(RuntimeError, match="reached database"):
+        pr17dr_evidence.main()
+
+    assert events == ["database"]
+    assert not artifact_path.exists()
+
+
+def test_authoritative_main_rejects_duplicate_json_keys_before_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    artifact_path, _, events = _run_main_until_database(monkeypatch, tmp_path, None)
+    artifact_path.parent.mkdir()
+    commands = json.dumps(_stored_artifact()["commands"], sort_keys=True)
+    original = f'{{"commands": [], "commands": {commands}}}\n'.encode()
+    artifact_path.write_bytes(original)
+
+    with pytest.raises(RuntimeError, match="stored command evidence"):
+        pr17dr_evidence.main()
+
+    assert events == []
+    assert artifact_path.read_bytes() == original
+
+
+def test_authoritative_main_rejects_dangling_artifact_symlink_before_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    artifact_path, _, events = _run_main_until_database(monkeypatch, tmp_path, None)
+    artifact_path.parent.mkdir()
+    target = tmp_path / "missing-artifact"
+    artifact_path.symlink_to(target)
+
+    with pytest.raises(RuntimeError, match="stored command evidence"):
+        pr17dr_evidence.main()
+
+    assert events == []
+    assert artifact_path.is_symlink()
+    assert artifact_path.readlink() == target
 
 
 def test_authoritative_verification_commands_are_reproducible() -> None:

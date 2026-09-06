@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -852,6 +853,82 @@ def _stored_command_mismatches(stored: dict[str, dict[str, Any]]) -> list[str]:
     )
 
 
+def _strict_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key: {key}")
+        value[key] = item
+    return value
+
+
+def _audit_preexisting_implementation_artifact() -> dict[str, Any]:
+    artifact_path = PROJECT_ROOT / OUTPUT_DIR / "implementation_verification.json"
+    try:
+        artifact_mode = artifact_path.lstat().st_mode
+    except FileNotFoundError:
+        return {
+            "prior_artifact": "absent_first_generation",
+            "stored": 0,
+            "current": len(VERIFICATION_COMMANDS),
+            "exact_token_matches": 0,
+            "mismatches": [],
+            "verdict": "PASS",
+        }
+    if not stat.S_ISREG(artifact_mode):
+        raise RuntimeError("stored command evidence is not a regular file")
+
+    try:
+        artifact = json.loads(
+            artifact_path.read_bytes(), object_pairs_hook=_strict_json_object
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise RuntimeError("stored command evidence is unreadable or invalid JSON") from error
+    if not isinstance(artifact, dict) or not isinstance(artifact.get("commands"), dict):
+        raise RuntimeError("stored command evidence has malformed commands")
+
+    stored = artifact["commands"]
+    current = {
+        command_id: _authoritative_command_tokens(command_id, command)
+        for command_id, command in VERIFICATION_COMMANDS
+    }
+    if set(stored) != set(current):
+        mismatches = sorted(set(stored) ^ set(current))
+        raise RuntimeError(f"stored command evidence has missing or extra commands: {mismatches}")
+
+    validated: dict[str, dict[str, Any]] = {}
+    for command_id, entry in stored.items():
+        if not isinstance(entry, dict):
+            raise RuntimeError(f"stored command evidence entry is malformed: {command_id}")
+        tokens = entry.get("command_tokens")
+        command_text = entry.get("command")
+        fingerprint = entry.get("command_fingerprint")
+        if (
+            not isinstance(tokens, list)
+            or not all(isinstance(token, str) for token in tokens)
+            or not isinstance(command_text, str)
+            or not isinstance(fingerprint, str)
+        ):
+            raise RuntimeError(f"stored command evidence entry is incomplete: {command_id}")
+        validated[command_id] = {
+            "command_tokens": tokens,
+            "command": command_text,
+            "command_fingerprint": fingerprint,
+        }
+
+    mismatches = _stored_command_mismatches(validated)
+    if mismatches:
+        raise RuntimeError(f"stored command evidence differs from current generator: {mismatches}")
+    return {
+        "prior_artifact": "loaded",
+        "stored": len(validated),
+        "current": len(current),
+        "exact_token_matches": len(current),
+        "mismatches": [],
+        "verdict": "PASS",
+    }
+
+
 def _audit_verification_commands() -> dict[str, Any]:
     duplicated_executables: list[str] = []
     invalid_executable_sequences: list[str] = []
@@ -978,6 +1055,7 @@ def _invariant_projection(results: dict[str, Any], catalog_verdict: str) -> list
 
 
 def main() -> None:
+    stored_command_audit = _audit_preexisting_implementation_artifact()
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise SystemExit(
@@ -1175,6 +1253,7 @@ def main() -> None:
                     "stored": len(implementation),
                     "exact_token_matches": len(implementation),
                     "mismatches": [],
+                    "preexisting_artifact_audit": stored_command_audit,
                 },
                 "pytest_count_semantics": {
                     "total_discovered": "all tests discovered before selection",
