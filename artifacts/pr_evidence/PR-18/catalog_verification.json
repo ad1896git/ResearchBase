@@ -1,0 +1,32 @@
+{
+  "database": "researchbase_pr18_baseline",
+  "alembic_revision": "0016_pr17d_history_protection",
+  "migration_added": false,
+  "migration_decision": "Required catalog/index invariants passed; no migration is justified.",
+  "required_indexes": {
+    "uq_actors_external_key": {"table": "actors", "columns": ["external_key"], "unique": true, "predicate": "(external_key IS NOT NULL)"},
+    "uq_research_question_versions_parent_version": {"table": "research_question_versions", "columns": ["research_question_id", "version_number"], "unique": true},
+    "uq_hypothesis_versions_parent_version": {"table": "hypothesis_versions", "columns": ["hypothesis_id", "version_number"], "unique": true},
+    "uq_experiment_spec_versions_parent_version": {"table": "experiment_spec_versions", "columns": ["experiment_spec_id", "version_number"], "unique": true},
+    "uq_artifact_versions_artifact_version": {"table": "artifact_versions", "columns": ["artifact_id", "version_number"], "unique": true},
+    "uq_metric_definition_versions_parent_version": {"table": "metric_definition_versions", "columns": ["metric_definition_id", "version_number"], "unique": true},
+    "uq_claim_versions_parent_version": {"table": "claim_versions", "columns": ["claim_id", "version_number"], "unique": true},
+    "uq_artifact_versions_artifact_content_hash": {"table": "artifact_versions", "columns": ["artifact_id", "content_hash"], "unique": true},
+    "uq_dataset_snapshots_dataset_content_hash": {"table": "dataset_snapshots", "columns": ["dataset_id", "content_hash"], "unique": true},
+    "uq_evidence_measurement": {"table": "evidence_relations", "columns": ["claim_version_id", "measurement_id", "relation_type"], "unique": true, "predicate": "(measurement_id IS NOT NULL)"},
+    "uq_evidence_stat": {"table": "evidence_relations", "columns": ["claim_version_id", "statistical_result_id", "relation_type"], "unique": true, "predicate": "(statistical_result_id IS NOT NULL)"},
+    "ix_audit_findings_project": {"table": "audit_findings", "columns": ["project_id"], "unique": false},
+    "ix_audit_findings_target": {"table": "audit_findings", "columns": ["project_id", "target_type", "target_id"], "unique": false},
+    "ix_impact_assessments_project": {"table": "impact_assessments", "columns": ["project_id"], "unique": false},
+    "ix_impact_assessments_finding": {"table": "impact_assessments", "columns": ["audit_finding_id"], "unique": false},
+    "ix_impact_targets_target": {"table": "impact_targets", "columns": ["target_type", "target_id"], "unique": false},
+    "ix_correction_records_target": {"table": "correction_records", "columns": ["project_id", "target_type", "target_id", "created_at", "id"], "unique": false}
+  },
+  "focused_verification": {
+    "selector": "tests/integration/test_pr18_hardening.py::test_required_phase1_indexes_match_live_catalog",
+    "result": "PASS",
+    "required_index_count": 18,
+    "missing": [],
+    "incorrect": []
+  }
+}

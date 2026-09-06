@@ -1,0 +1,36 @@
+{
+  "database": "researchbase_pr18_baseline",
+  "alembic_revision": "0016_pr17d_history_protection",
+  "queries": {
+    "claim_evidence": {
+      "statement": "SELECT id, measurement_id, statistical_result_id FROM evidence_relations WHERE claim_version_id = '00000000-0000-0000-0000-000000000000'",
+      "node_type": "Seq Scan",
+      "relation": "evidence_relations",
+      "index": null,
+      "plan_rows": 1,
+      "startup_cost": 0.0,
+      "total_cost": 12.4
+    },
+    "governance_target": {
+      "statement": "SELECT id FROM audit_findings WHERE project_id = '00000000-0000-0000-0000-000000000000' AND target_type = 'artifact_version' AND target_id = '00000000-0000-0000-0000-000000000000'",
+      "node_type": "Seq Scan",
+      "relation": "audit_findings",
+      "index": null,
+      "plan_rows": 1,
+      "startup_cost": 0.0,
+      "total_cost": 2.74
+    },
+    "correction_target": {
+      "statement": "SELECT id FROM correction_records WHERE project_id = '00000000-0000-0000-0000-000000000000' AND target_type = 'artifact_version' AND target_id = '00000000-0000-0000-0000-000000000000' ORDER BY created_at, id",
+      "node_type": "Index Only Scan",
+      "relation": "correction_records",
+      "index": "ix_correction_records_target",
+      "plan_rows": 1,
+      "startup_cost": 0.14,
+      "total_cost": 8.16
+    }
+  },
+  "focused_selector": "tests/integration/test_pr18_hardening.py::test_phase1_query_explain_baselines_are_json_and_bounded",
+  "result": "PASS",
+  "interpretation": "The sparse audit database produces sequential scans for two empty-table probes and an index-only scan for the correction-record ordering probe. No frozen invariant requires a proactive index solely to alter these sparse-data plans."
+}
