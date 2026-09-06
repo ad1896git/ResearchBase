@@ -17,10 +17,15 @@ _application_env = "development"
 _operation_context: ContextVar[dict[str, Any] | None] = ContextVar(
     "researchbase_operation_context", default=None
 )
-_SENSITIVE_KEY = re.compile(r"(?:database_url|password|passwd|token|credential)", re.IGNORECASE)
+_SENSITIVE_KEY = re.compile(
+    r"(?:database_url|password|passwd|secret|token|credential|api[_-]?key|access_token|authorization)",
+    re.IGNORECASE,
+)
 _SENSITIVE_TEXT = re.compile(
-    r"(?i)(postgres(?:ql)?(?:\+[^:/\s]+)?://[^:\s/]+:)[^@\s]+@"
-    r"|(password|passwd|token|credentials?)\s*[:=]\s*[^\s,;}]+"
+    r"(?i)(?P<dsn>(?:postgres(?:ql)?|psycopg)(?:\+[^:/\s]+)?://[^:\s/]+:)[^@\s]+@"
+    r"|(?P<key>(?:password|passwd|secret|token|credential|credentials|api[_-]?key|"
+    r"access_token|authorization)\b\s*[:=]\s*)[^\s,;}]+"
+    r"|(?P<bearer>\bbearer\s+)[^\s,;}]+"
 )
 
 
@@ -67,7 +72,13 @@ def _redact_value(key: str, value: Any) -> Any:
         return [_redact_value(key, item) for item in value]
     if isinstance(value, str):
         return _SENSITIVE_TEXT.sub(
-            lambda match: "[REDACTED]" if match.group(1) else f"{match.group(2)}=[REDACTED]",
+            lambda match: (
+                f"{match.group('dsn')}[REDACTED]@"
+                if match.group("dsn")
+                else f"{match.group('key')}[REDACTED]"
+                if match.group("key")
+                else f"{match.group('bearer')}[REDACTED]"
+            ),
             value,
         )
     return value

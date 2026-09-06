@@ -1,15 +1,18 @@
+# pyright: reportArgumentType=false, reportOptionalSubscript=false, reportIndexIssue=false, reportAttributeAccessIssue=false
+
 """PR-18 catalog and query-plan hardening checks."""
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Iterator
-from typing import Any
+from pathlib import Path
 
 import pytest
+from scripts import pr18_evidence
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from tests.contracts.pr18_manifest import FROZEN_REQUIRED_INDEXES
 
 from researchbase.persistence.database import create_database_engine
 
@@ -28,99 +31,26 @@ def engine() -> Iterator[Engine]:
 
 
 EXPECTED_INDEXES: dict[str, tuple[str, tuple[str, ...], bool, str | None]] = {
-    "uq_actors_external_key": ("actors", ("external_key",), True, "(external_key IS NOT NULL)"),
-    "uq_research_question_versions_parent_version": (
-        "research_question_versions",
-        ("research_question_id", "version_number"),
-        True,
-        None,
-    ),
-    "uq_hypothesis_versions_parent_version": (
-        "hypothesis_versions",
-        ("hypothesis_id", "version_number"),
-        True,
-        None,
-    ),
-    "uq_experiment_spec_versions_parent_version": (
-        "experiment_spec_versions",
-        ("experiment_spec_id", "version_number"),
-        True,
-        None,
-    ),
-    "uq_artifact_versions_artifact_version": (
-        "artifact_versions",
-        ("artifact_id", "version_number"),
-        True,
-        None,
-    ),
-    "uq_metric_definition_versions_parent_version": (
-        "metric_definition_versions",
-        ("metric_definition_id", "version_number"),
-        True,
-        None,
-    ),
-    "uq_claim_versions_parent_version": (
-        "claim_versions",
-        ("claim_id", "version_number"),
-        True,
-        None,
-    ),
-    "uq_artifact_versions_artifact_content_hash": (
-        "artifact_versions",
-        ("artifact_id", "content_hash"),
-        True,
-        None,
-    ),
-    "uq_dataset_snapshots_dataset_content_hash": (
-        "dataset_snapshots",
-        ("dataset_id", "content_hash"),
-        True,
-        None,
-    ),
-    "uq_evidence_measurement": (
-        "evidence_relations",
-        ("claim_version_id", "measurement_id", "relation_type"),
-        True,
-        "(measurement_id IS NOT NULL)",
-    ),
-    "uq_evidence_stat": (
-        "evidence_relations",
-        ("claim_version_id", "statistical_result_id", "relation_type"),
-        True,
-        "(statistical_result_id IS NOT NULL)",
-    ),
-    "ix_audit_findings_project": ("audit_findings", ("project_id",), False, None),
-    "ix_audit_findings_target": (
-        "audit_findings",
-        ("project_id", "target_type", "target_id"),
-        False,
-        None,
-    ),
-    "ix_impact_assessments_project": (
-        "impact_assessments",
-        ("project_id",),
-        False,
-        None,
-    ),
-    "ix_impact_assessments_finding": (
-        "impact_assessments",
-        ("audit_finding_id",),
-        False,
-        None,
-    ),
-    "ix_impact_targets_target": (
-        "impact_targets",
-        ("target_type", "target_id"),
-        False,
-        None,
-    ),
-    "ix_correction_records_target": (
-        "correction_records",
-        ("project_id", "target_type", "target_id", "created_at", "id"),
-        False,
-        None,
-    ),
+    name: (
+        str(definition["table"]),
+        tuple(definition["columns"]),  # type: ignore[arg-type]
+        bool(definition["unique"]),
+        definition["predicate"],  # type: ignore[return-value]
+    )
+    for name, definition in FROZEN_REQUIRED_INDEXES.items()
 }
+
+
+def test_frozen_manifest_includes_workspace_name_uniqueness() -> None:
+    assert EXPECTED_INDEXES["uq_workspaces_project_name"] == (
+        "workspaces",
+        ("project_id", "name"),
+        True,
+        None,
+    )
+    assert FROZEN_REQUIRED_INDEXES["uq_workspaces_project_name"]["source"].endswith(
+        "0002_actor_project_workspace.py"
+    )
 
 
 def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
@@ -148,50 +78,54 @@ def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
     }
     assert actual == EXPECTED_INDEXES
 
-
-def _plan_shape(connection: Any, statement: str) -> dict[str, object]:
-    raw = connection.execute(text(f"EXPLAIN (FORMAT JSON) {statement}")).scalar_one()
-    document = raw[0] if isinstance(raw, list) else raw
-    assert isinstance(document, dict)
-    plan = document["Plan"]
-    assert isinstance(plan, dict)
-    return {
-        "node_type": plan["Node Type"],
-        "relation": plan.get("Relation Name"),
-        "index": plan.get("Index Name"),
-        "plan_rows": plan["Plan Rows"],
-        "total_cost": plan["Total Cost"],
-    }
-
-
-def test_phase1_query_explain_baselines_are_json_and_bounded(engine: Engine) -> None:
-    queries = {
-        "claim_evidence": (
-            "SELECT id, measurement_id, statistical_result_id FROM evidence_relations "
-            "WHERE claim_version_id = '00000000-0000-0000-0000-000000000000'"
-        ),
-        "governance_target": (
-            "SELECT id FROM audit_findings WHERE project_id = "
-            "'00000000-0000-0000-0000-000000000000' "
-            "AND target_type = 'artifact_version' AND target_id = "
-            "'00000000-0000-0000-0000-000000000000'"
-        ),
-        "correction_target": (
-            "SELECT id FROM correction_records WHERE project_id = "
-            "'00000000-0000-0000-0000-000000000000' "
-            "AND target_type = 'artifact_version' AND target_id = "
-            "'00000000-0000-0000-0000-000000000000' "
-            "ORDER BY created_at, id"
-        ),
-    }
     with engine.connect() as connection:
-        shapes = {name: _plan_shape(connection, statement) for name, statement in queries.items()}
+        critical_names = {
+            row.index_name
+            for row in connection.execute(
+                text(
+                    "SELECT c.relname AS index_name "
+                    "FROM pg_class AS c "
+                    "JOIN pg_namespace AS n ON n.oid = c.relnamespace "
+                    "WHERE n.nspname = 'public' AND c.relkind = 'i' "
+                    "AND (c.relname LIKE 'uq_%' OR c.relname LIKE 'ix_%')"
+                )
+            ).all()
+        }
+    assert critical_names == set(EXPECTED_INDEXES)
 
-    assert set(shapes) == set(queries)
-    assert all(isinstance(shape["node_type"], str) for shape in shapes.values())
-    assert all(isinstance(shape["plan_rows"], int) for shape in shapes.values())
-    assert all(
-        isinstance(shape["total_cost"], int | float) and shape["total_cost"] >= 0
-        for shape in shapes.values()
-    )
-    assert json.dumps(shapes, sort_keys=True)
+
+def test_catalog_projection_is_independent_and_exact(engine: Engine) -> None:
+    projection = pr18_evidence.collect_catalog_verification(engine)
+    assert projection["exact_required_coverage"] is True
+    assert projection["missing_required"] == []
+    assert projection["mismatches"] == {}
+    assert projection["unexpected_critical_names"] == []
+    assert projection["migration_required"] is False
+    assert all(Path(source["source"]).exists() for source in projection["expected_manifest"])
+
+
+def test_actual_query_service_explain_paths_are_structurally_audited(engine: Engine) -> None:
+    collector = getattr(pr18_evidence, "collect_query_explain_baselines", None)
+    assert callable(collector)
+
+    baselines = collector(engine)
+    assert set(baselines) == {
+        "run_provenance",
+        "claim_trace",
+        "downstream_impact",
+        "audit_findings",
+    }
+    for baseline in baselines.values():
+        assert baseline["production_operation"]
+        assert baseline["statements"]
+        assert baseline["required_relations"]
+        assert baseline["representative_rows"] >= 100
+        assert baseline["structural_assertions"]["select_only"] is True
+        assert baseline["structural_assertions"]["no_cartesian_product"] is True
+        assert baseline["structural_assertions"]["no_write_or_lock"] is True
+        assert all(
+            item["sql"].lstrip().upper().startswith("SELECT") for item in baseline["statements"]
+        )
+        assert all(item["plan"]["node_types"] for item in baseline["statements"])
+
+    assert baselines["audit_findings"]["index_usable"] is True
