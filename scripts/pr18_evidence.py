@@ -843,6 +843,9 @@ def execute_authoritative_commands(
     validate_current_command_registry()
     result_path = result_dir or PROJECT_ROOT / ".pr18r_evidence_results"
     result_path.mkdir(parents=True, exist_ok=True)
+    if result_dir is not None:
+        for stale_result in result_path.glob("*.xml"):
+            stale_result.unlink()
     entries: dict[str, dict[str, Any]] = {}
     try:
         for command_id, _base in AUTHORITATIVE_COMMANDS:
@@ -913,7 +916,10 @@ def run_authoritative_evidence(
     if current_head != resolved_subject:
         raise PR18EvidenceError("evidence must run at the frozen implementation subject HEAD")
     database = _database_identity()
-    commands = execute_authoritative_commands(implementation_subject=resolved_subject)
+    commands = execute_authoritative_commands(
+        implementation_subject=resolved_subject,
+        result_dir=PROJECT_ROOT / "artifacts/pr_evidence/PR-18/junit",
+    )
     from researchbase.persistence.database import create_database_engine
 
     engine = create_database_engine()
