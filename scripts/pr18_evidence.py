@@ -30,8 +30,21 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.pr17dr_evidence import VERIFICATION_COMMANDS as _PR17_COMMANDS  # noqa: E402
 
+_PR18_BASE_COMMANDS: tuple[tuple[str, list[str]], ...] = tuple(
+    (
+        command_id,
+        [
+            *command,
+            "tests/integration/test_pr18_hardening.py",
+        ],
+    )
+    if command_id == "catalog_exact_verification"
+    else (command_id, command)
+    for command_id, command in _PR17_COMMANDS
+)
+
 AUTHORITATIVE_COMMANDS: tuple[tuple[str, list[str]], ...] = (
-    *_PR17_COMMANDS,
+    *_PR18_BASE_COMMANDS,
     (
         "pr18_focused_and_evidence_tool",
         [
