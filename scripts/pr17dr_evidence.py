@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 import os
@@ -9,6 +10,7 @@ import re
 import shlex
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -284,28 +286,105 @@ def _database_identity(engine: Any) -> dict[str, Any]:
 
 
 _SUMMARY_COUNT = re.compile(
-    r"(?P<count>\d+) (?P<kind>passed|failed|skipped|deselected|xfailed|xpassed)"
+    r"(?P<count>\d+) (?P<kind>passed|failed|skipped|deselected|xfailed|xpassed|errors?)"
 )
-_COLLECTED_COUNT = re.compile(r"(?P<count>\d+) tests? collected")
+_COLLECTION_COUNT = re.compile(
+    r"(?:(?P<selected>\d+)/)?(?P<total>\d+) tests? collected"
+    r"(?: \((?P<deselected>\d+) deselected\))?"
+)
 _SKIP_DETAIL = re.compile(r"SKIPPED \[(?P<count>\d+)\] (?P<nodeid>[^:]+:\d+): (?P<reason>.*)")
 
 
 def _summary_counts(output: str) -> dict[str, int]:
     counts = {
-        kind: 0 for kind in ("passed", "failed", "skipped", "deselected", "xfailed", "xpassed")
+        kind: 0
+        for kind in ("passed", "failed", "skipped", "deselected", "xfailed", "xpassed", "error")
     }
     for line in reversed(output.splitlines()):
         matches = list(_SUMMARY_COUNT.finditer(line))
         if matches:
             for match in matches:
-                counts[match.group("kind")] = int(match.group("count"))
+                kind = (
+                    "error"
+                    if match.group("kind") in {"error", "errors"}
+                    else match.group("kind")
+                )
+                counts[kind] = int(match.group("count"))
             break
     return counts
 
 
-def _collected_count(output: str) -> int | None:
-    matches = list(_COLLECTED_COUNT.finditer(output))
-    return int(matches[-1].group("count")) if matches else None
+def _collection_counts(output: str) -> dict[str, int] | None:
+    matches = list(_COLLECTION_COUNT.finditer(output))
+    if not matches:
+        return None
+    match = matches[-1]
+    total = int(match.group("total"))
+    selected = int(match.group("selected") or total)
+    deselected = int(match.group("deselected") or 0)
+    if total != selected + deselected:
+        return None
+    return {"total_discovered": total, "collected": selected, "deselected": deselected}
+
+
+def _validated_pytest_counts(
+    output: str, collection_output: str, junit_xml: str | None
+) -> dict[str, int] | None:
+    collection = _collection_counts(collection_output)
+    if collection is None or junit_xml is None:
+        return None
+    try:
+        root = ET.fromstring(junit_xml)
+    except ET.ParseError:
+        return None
+    suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+    if not suites:
+        return None
+    try:
+        junit = {
+            key: sum(int(suite.attrib.get(attribute, "0")) for suite in suites)
+            for key, attribute in (
+                ("collected", "tests"),
+                ("failed", "failures"),
+                ("error", "errors"),
+                ("junit_skipped", "skipped"),
+            )
+        }
+    except ValueError:
+        return None
+
+    summary = _summary_counts(output)
+    xfailed = summary["xfailed"]
+    xpassed = summary["xpassed"]
+    skipped = junit["junit_skipped"] - xfailed
+    passed = (
+        junit["collected"]
+        - junit["failed"]
+        - junit["error"]
+        - junit["junit_skipped"]
+        - xpassed
+    )
+    counts = {
+        **collection,
+        "passed": passed,
+        "failed": junit["failed"],
+        "skipped": skipped,
+        "xfailed": xfailed,
+        "xpassed": xpassed,
+        "error": junit["error"],
+    }
+    if min(counts.values()) < 0 or junit["collected"] != collection["collected"]:
+        return None
+    if collection["collected"] != sum(
+        counts[key] for key in ("passed", "failed", "skipped", "xfailed", "xpassed", "error")
+    ):
+        return None
+    for key in ("passed", "failed", "skipped", "xfailed", "xpassed", "error"):
+        if summary[key] and summary[key] != counts[key]:
+            return None
+    if summary["deselected"] and summary["deselected"] != counts["deselected"]:
+        return None
+    return counts
 
 
 def _skip_details(output: str) -> list[dict[str, Any]]:
@@ -325,52 +404,26 @@ def _skip_details(output: str) -> list[dict[str, Any]]:
     ]
 
 
-def _reconcile_success_counts(
-    counts: dict[str, int], output: str, collected: int | None, return_code: int
-) -> dict[str, int]:
-    """Fill exact outcome totals when pytest omits its terminal summary.
-
-    The repository's quiet pytest output can contain only progress and skip
-    reports.  In that form, a successful execution plus its independent
-    collection result and skip report provides the exact remaining passed
-    count.  Explicit pytest summary counts always remain authoritative.
-    """
-    if return_code != 0 or collected is None:
-        return counts
-    if _SUMMARY_COUNT.search(output):
-        return counts
-
-    skipped = sum(detail["count"] for detail in _skip_details(output))
-    reconciled = dict(counts)
-    reconciled["skipped"] = skipped
-    reconciled["passed"] = max(
-        0,
-        collected
-        - skipped
-        - reconciled["failed"]
-        - reconciled["deselected"]
-        - reconciled["xfailed"]
-        - reconciled["xpassed"],
-    )
-    return reconciled
-
-
 def _run_verification(
     command_id: str, command: list[str], database: dict[str, Any] | None
 ) -> dict[str, Any]:
-    command_text = shlex.join(command)
+    command_tokens = _authoritative_command_tokens(command_id, command)
+    command_text = shlex.join(command_tokens)
+    junit_path = PROJECT_ROOT / ".pr17dr_evidence_results" / f"{command_id}.xml"
+    if "pytest" in command_tokens:
+        junit_path.parent.mkdir(exist_ok=True)
     completed = subprocess.run(
-        command,
+        command_tokens,
         capture_output=True,
         text=True,
         check=False,
         cwd=PROJECT_ROOT,
         env=os.environ.copy(),
     )
-    counts = _summary_counts(completed.stdout + completed.stderr)
     collection: dict[str, Any] | None = None
-    if "pytest" in command:
-        collect_command = [*command]
+    counts: dict[str, int] | None = None
+    if "pytest" in command_tokens:
+        collect_command = [token for token in command_tokens if not token.startswith("--junitxml=")]
         pytest_index = collect_command.index("pytest")
         collect_command.insert(pytest_index + 1, "--collect-only")
         collect_command.insert(pytest_index + 2, "-o")
@@ -386,29 +439,38 @@ def _run_verification(
         collection = {
             "command": shlex.join(collect_command),
             "return_code": collected.returncode,
-            "collected": _collected_count(collected.stdout + collected.stderr),
+            **(_collection_counts(collected.stdout + collected.stderr) or {}),
         }
+        junit_xml = junit_path.read_text(encoding="utf-8") if junit_path.exists() else None
+        counts = _validated_pytest_counts(
+            completed.stdout + completed.stderr,
+            collected.stdout + collected.stderr,
+            junit_xml,
+        )
+        if junit_path.exists():
+            junit_path.unlink()
+        if junit_path.parent.exists() and not any(junit_path.parent.iterdir()):
+            junit_path.parent.rmdir()
     output = completed.stdout + completed.stderr
-    collected_count = collection["collected"] if collection is not None else None
-    counts = _reconcile_success_counts(counts, output, collected_count, completed.returncode)
     skip_details = _skip_details(output)
     if completed.returncode != 0:
         verdict = "FAIL"
     elif collection is not None and (
-        collection["return_code"] != 0 or collection["collected"] is None
+        collection["return_code"] != 0 or counts is None
     ):
         verdict = "NOT_VERIFIED"
+    elif counts is not None and (counts["failed"] or counts["error"]):
+        verdict = "FAIL"
     else:
         verdict = "PASS"
     return {
         "command_id": command_id,
         "command": command_text,
+        "command_tokens": command_tokens,
+        "command_fingerprint": _command_fingerprint(command_tokens),
         "executed": True,
         "return_code": completed.returncode,
-        "counts": {
-            "collected": collection["collected"] if collection is not None else None,
-            **counts,
-        },
+        "counts": counts if counts is not None else None,
         "skips": skip_details,
         "collection": collection,
         "database": database,
@@ -760,6 +822,36 @@ VERIFICATION_COMMANDS: tuple[tuple[str, list[str]], ...] = (
 )
 
 
+def _authoritative_command_tokens(command_id: str, command: list[str]) -> list[str]:
+    tokens = [*command]
+    if "pytest" in tokens:
+        tokens.append(f"--junitxml=.pr17dr_evidence_results/{command_id}.xml")
+    return tokens
+
+
+def _command_fingerprint(command_tokens: list[str]) -> str:
+    normalized = json.dumps(command_tokens, ensure_ascii=True, separators=(",", ":"))
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _stored_command_mismatches(stored: dict[str, dict[str, Any]]) -> list[str]:
+    generated = {
+        command_id: _authoritative_command_tokens(command_id, command)
+        for command_id, command in VERIFICATION_COMMANDS
+    }
+    return sorted(
+        command_id
+        for command_id in set(generated) | set(stored)
+        if (
+            stored.get(command_id, {}).get("command_tokens") != generated.get(command_id)
+            or shlex.split(stored.get(command_id, {}).get("command", ""))
+            != generated.get(command_id)
+            or stored.get(command_id, {}).get("command_fingerprint")
+            != _command_fingerprint(generated.get(command_id, []))
+        )
+    )
+
+
 def _audit_verification_commands() -> dict[str, Any]:
     duplicated_executables: list[str] = []
     invalid_executable_sequences: list[str] = []
@@ -767,7 +859,8 @@ def _audit_verification_commands() -> dict[str, Any]:
     absolute_paths: list[str] = []
     credential_bearing_tokens: list[str] = []
 
-    for command_id, command in VERIFICATION_COMMANDS:
+    for command_id, base_command in VERIFICATION_COMMANDS:
+        command = _authoritative_command_tokens(command_id, base_command)
         if command[:3] == ["uv", "run", "pytest"]:
             executable = "pytest"
             targets = [token.split("::", 1)[0] for token in command if token.startswith("tests/")]
@@ -821,10 +914,14 @@ def _run_verifications(database: dict[str, Any]) -> dict[str, Any]:
         "credential_bearing_tokens": [],
     }:
         raise RuntimeError(f"invalid authoritative verification commands: {audit}")
-    return {
+    results = {
         command_id: _run_verification(command_id, command, database)
         for command_id, command in VERIFICATION_COMMANDS
     }
+    mismatches = _stored_command_mismatches(results)
+    if mismatches:
+        raise RuntimeError(f"stored command differs from current generator: {mismatches}")
+    return results
 
 
 def _verification_verdict(result: dict[str, Any]) -> str:
@@ -1073,6 +1170,25 @@ def main() -> None:
                 "evidence_commit": None,
                 "database": database,
                 "commands": implementation,
+                "command_consistency": {
+                    "generated": len(VERIFICATION_COMMANDS),
+                    "stored": len(implementation),
+                    "exact_token_matches": len(implementation),
+                    "mismatches": [],
+                },
+                "pytest_count_semantics": {
+                    "total_discovered": "all tests discovered before selection",
+                    "collected": "tests selected for this invocation",
+                    "deselected": "discovered tests excluded by marker or filter",
+                    "outcomes": [
+                        "passed",
+                        "failed",
+                        "skipped",
+                        "xfailed",
+                        "xpassed",
+                        "error",
+                    ],
+                },
                 "verdict": implementation_verdict,
                 "source": "exact commands executed by scripts/pr17dr_evidence.py",
             },
