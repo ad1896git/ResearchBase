@@ -3,6 +3,14 @@
     "exact_token_matches": 18,
     "generated": 18,
     "mismatches": [],
+    "preexisting_artifact_audit": {
+      "current": 18,
+      "exact_token_matches": 18,
+      "mismatches": [],
+      "prior_artifact": "loaded",
+      "stored": 18,
+      "verdict": "PASS"
+    },
     "stored": 18
   },
   "commands": {
@@ -237,11 +245,11 @@
     },
     "full_pytest": {
       "collection": {
-        "collected": 728,
+        "collected": 739,
         "command": "uv run pytest --collect-only -o addopts= -q -ra",
         "deselected": 0,
         "return_code": 0,
-        "total_discovered": 728
+        "total_discovered": 739
       },
       "command": "uv run pytest -q -ra --junitxml=.pr17dr_evidence_results/full_pytest.xml",
       "command_fingerprint": "9f3f509206a2b737b9e63d990aeeb35ba90cc6a5a97374e3481f19db629e4e33",
@@ -255,13 +263,13 @@
         "--junitxml=.pr17dr_evidence_results/full_pytest.xml"
       ],
       "counts": {
-        "collected": 728,
+        "collected": 739,
         "deselected": 0,
         "error": 0,
         "failed": 0,
-        "passed": 726,
+        "passed": 737,
         "skipped": 2,
-        "total_discovered": 728,
+        "total_discovered": 739,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -500,9 +508,9 @@
       "collection": {
         "collected": 332,
         "command": "uv run pytest --collect-only -o addopts= -q -ra -m integration",
-        "deselected": 396,
+        "deselected": 407,
         "return_code": 0,
-        "total_discovered": 728
+        "total_discovered": 739
       },
       "command": "uv run pytest -q -ra -m integration --junitxml=.pr17dr_evidence_results/postgresql_integration.xml",
       "command_fingerprint": "7383ebeb4bd459a1478847023e873ee3de6a6f4c5210aabc64cb9be8a3d842bd",
@@ -519,12 +527,12 @@
       ],
       "counts": {
         "collected": 332,
-        "deselected": 396,
+        "deselected": 407,
         "error": 0,
         "failed": 0,
         "passed": 330,
         "skipped": 2,
-        "total_discovered": 728,
+        "total_discovered": 739,
         "xfailed": 0,
         "xpassed": 0
       },
