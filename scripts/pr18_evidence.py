@@ -271,6 +271,8 @@ def audit_repository_markers(root: Path = PROJECT_ROOT) -> dict[str, Any]:
             if "junit" in path.parts or ".pytest_cache" in path.parts:
                 continue
             relative = path.relative_to(root)
+            if relative.parts[:3] == ("artifacts", "pr_evidence", "PR-18"):
+                continue
             category = _marker_category(relative)
             try:
                 lines = path.read_text(encoding="utf-8").splitlines()
