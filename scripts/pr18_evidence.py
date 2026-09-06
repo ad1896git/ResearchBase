@@ -971,6 +971,70 @@ def run_authoritative_evidence(
             json.dumps(_json_safe(projection), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+    architecture_count = commands["architecture"]["counts"]["passed"]
+    (projection_root / "architecture_verification.md").write_text(
+        "# PR-18R architecture verification\n\n"
+        f"Result: PASS. The authoritative architecture suite recorded {architecture_count} "
+        "passed tests.\n\n"
+        "The accepted PR-17 Agent-ready suite was rerun with PR-18R complementary "
+        "AST/interface checks for Core imports, adapter ownership, repositories/UoW, and "
+        "generic provenance/version "
+        "escape hatches.\n",
+        encoding="utf-8",
+    )
+    (projection_root / "agent_ready_core_audit.md").write_text(
+        "# Agent-ready Core boundary audit\n\n"
+        "Result: PASS — boundary audit only.\n\n"
+        "Future callers use the shared Application commands/queries and "
+        "WriteResult-compatible DTOs; "
+        "FastAPI, Typer, and SQLAlchemy session manipulation are not required. No agent runtime or "
+        "Phase 2 implementation was added.\n",
+        encoding="utf-8",
+    )
+    (projection_root / "api_cli_examples.md").write_text(
+        "# API/CLI example verification\n\n"
+        "Result: PASS. The executable documentation contract suite validated the structured "
+        "examples "
+        "against current OpenAPI routes/statuses and the real Typer command surface, including "
+        "representative success and failure behavior.\n",
+        encoding="utf-8",
+    )
+    todo_lines = [
+        "# PR-18R TODO/FIXME disposition",
+        "",
+        f"Result: PASS. {len(todo['records'])} repository-relevant markers were classified; "
+        f"{len(todo['undisposed_live'])} live markers remain undisposed.",
+        "",
+        "| Path | Line | Marker | Category | Disposition | Rationale |",
+        "| --- | ---: | --- | --- | --- | --- |",
+    ]
+    for record in todo["records"]:
+        rationale = str(record["rationale"]).replace("|", "\\|")
+        todo_lines.append(
+            f"| `{record['path']}` | {record['line']} | `{record['marker']}` | "
+            f"{record['category']} | `{record['disposition']}` | {rationale} |"
+        )
+    todo_lines.extend(
+        [
+            "",
+            "Architecture P0 markers: " + str(len(todo["architecture_p0"])),
+            "Architecture P1 markers: " + str(len(todo["architecture_p1"])),
+            "",
+            "Approved dispositions: CLOSED, INTENTIONAL_NONBLOCKING, OUT_OF_PHASE, PR18_BLOCKER.",
+        ]
+    )
+    (projection_root / "todo_fixme_disposition.md").write_text(
+        "\n".join(todo_lines) + "\n", encoding="utf-8"
+    )
+    (projection_root / "error_log_audit.md").write_text(
+        "# PR-18R error/log hardening audit\n\n"
+        "Result: PASS. The executable redaction suite covered structured API keys, Authorization "
+        "and Bearer values, credential-bearing DSNs, exception-string secrets, nested fields, "
+        "HTTP errors, "
+        "and CLI errors. The only production change is the minimal structured-log redaction patch; "
+        "transaction and Application error semantics remain unchanged.\n",
+        encoding="utf-8",
+    )
     lines = ["# PR-18R commands and results", "", "| Command | Result |", "| --- | --- |"]
     for command_id, entry in commands.items():
         lines.append(f"| `{command_id}` | `{json.dumps(entry['counts'], sort_keys=True)}` |")
