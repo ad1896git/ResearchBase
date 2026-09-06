@@ -866,6 +866,10 @@ def execute_authoritative_commands(
                 )
                 if not junit_path.exists():
                     raise PR18EvidenceError(f"missing JUnit result: {command_id}")
+                junit_xml = junit_path.read_text(encoding="utf-8")
+                junit_xml = junit_xml.replace(f"{PROJECT_ROOT}/", "")
+                junit_xml = junit_xml.replace(str(PROJECT_ROOT), "")
+                junit_path.write_text(junit_xml, encoding="utf-8")
                 collection = runner(
                     _collection_command(tokens),
                     cwd=PROJECT_ROOT,
@@ -876,10 +880,10 @@ def execute_authoritative_commands(
                 counts = parse_pytest_counts(
                     output=result.stdout,
                     collection_output=collection.stdout,
-                    junit_xml=junit_path.read_text(encoding="utf-8"),
+                    junit_xml=junit_xml,
                     return_code=return_code,
                 )
-                skipped = _pytest_skip_identities(junit_path.read_text(encoding="utf-8"))
+                skipped = _pytest_skip_identities(junit_xml)
                 unexpected = skipped - INHERITED_PR11R2_SKIP_IDENTITIES
                 if unexpected:
                     raise PR18EvidenceError(
