@@ -210,7 +210,7 @@ def validate_current_command_registry() -> int:
 
 
 def authoritative_command_tokens(
-    command_id: str, *, result_dir: str = ".pr18r_evidence_results"
+    command_id: str, *, result_dir: str = "artifacts/pr_evidence/PR-18/junit"
 ) -> list[str]:
     for current_id, command in AUTHORITATIVE_COMMANDS:
         if current_id == command_id:
