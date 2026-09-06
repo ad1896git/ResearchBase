@@ -760,7 +760,67 @@ VERIFICATION_COMMANDS: tuple[tuple[str, list[str]], ...] = (
 )
 
 
+def _audit_verification_commands() -> dict[str, Any]:
+    duplicated_executables: list[str] = []
+    invalid_executable_sequences: list[str] = []
+    missing_targets: list[str] = []
+    absolute_paths: list[str] = []
+    credential_bearing_tokens: list[str] = []
+
+    for command_id, command in VERIFICATION_COMMANDS:
+        if command[:3] == ["uv", "run", "pytest"]:
+            executable = "pytest"
+            targets = [token.split("::", 1)[0] for token in command if token.startswith("tests/")]
+        elif command[:3] in (["uv", "run", "ruff"], ["uv", "run", "pyright"]):
+            executable = command[2]
+            targets = []
+        elif command == ["git", "diff", "--check"]:
+            executable = "git"
+            targets = []
+        else:
+            executable = (
+                command[2]
+                if command[:2] == ["uv", "run"] and len(command) > 2
+                else command[0]
+            )
+            targets = []
+            invalid_executable_sequences.append(command_id)
+
+        if command.count(executable) != 1:
+            duplicated_executables.append(command_id)
+        for token in command:
+            path_token = token.split("::", 1)[0]
+            if Path(path_token).is_absolute() or ".worktrees/" in path_token:
+                absolute_paths.append(f"{command_id}:{token}")
+            if "://" in token and "@" in token.split("://", 1)[1]:
+                credential_bearing_tokens.append(f"{command_id}:{token}")
+        for target in targets:
+            if not (PROJECT_ROOT / target).exists():
+                missing_targets.append(f"{command_id}:{target}")
+
+    return {
+        "expected": 18,
+        "audited": len(VERIFICATION_COMMANDS),
+        "duplicated_executables": duplicated_executables,
+        "invalid_executable_sequences": invalid_executable_sequences,
+        "missing_targets": missing_targets,
+        "absolute_paths": absolute_paths,
+        "credential_bearing_tokens": credential_bearing_tokens,
+    }
+
+
 def _run_verifications(database: dict[str, Any]) -> dict[str, Any]:
+    audit = _audit_verification_commands()
+    if audit != {
+        "expected": 18,
+        "audited": 18,
+        "duplicated_executables": [],
+        "invalid_executable_sequences": [],
+        "missing_targets": [],
+        "absolute_paths": [],
+        "credential_bearing_tokens": [],
+    }:
+        raise RuntimeError(f"invalid authoritative verification commands: {audit}")
     return {
         command_id: _run_verification(command_id, command, database)
         for command_id, command in VERIFICATION_COMMANDS

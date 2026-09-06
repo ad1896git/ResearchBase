@@ -3,6 +3,20 @@ from __future__ import annotations
 from scripts import pr17dr_evidence
 
 
+def test_authoritative_verification_commands_are_reproducible() -> None:
+    audit = pr17dr_evidence._audit_verification_commands()
+
+    assert audit == {
+        "expected": 18,
+        "audited": 18,
+        "duplicated_executables": [],
+        "invalid_executable_sequences": [],
+        "missing_targets": [],
+        "absolute_paths": [],
+        "credential_bearing_tokens": [],
+    }
+
+
 def test_evidence_counts_are_parsed_from_executed_output() -> None:
     result = pr17dr_evidence._summary_counts("7 passed, 2 skipped, 1 deselected")
 
