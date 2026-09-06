@@ -152,17 +152,17 @@
     },
     "full_pytest": {
       "collection": {
-        "collected": 722,
+        "collected": 723,
         "command": "uv run pytest --collect-only -o addopts= -q -ra",
         "return_code": 0
       },
       "command": "uv run pytest -q -ra",
       "command_id": "full_pytest",
       "counts": {
-        "collected": 722,
+        "collected": 723,
         "deselected": 0,
         "failed": 0,
-        "passed": 720,
+        "passed": 721,
         "skipped": 2,
         "xfailed": 0,
         "xpassed": 0
@@ -341,17 +341,17 @@
     },
     "postgresql_integration": {
       "collection": {
-        "collected": 722,
+        "collected": 723,
         "command": "uv run pytest --collect-only -o addopts= -q -ra -m integration",
         "return_code": 0
       },
       "command": "uv run pytest -q -ra -m integration",
       "command_id": "postgresql_integration",
       "counts": {
-        "collected": 722,
+        "collected": 723,
         "deselected": 0,
         "failed": 0,
-        "passed": 720,
+        "passed": 721,
         "skipped": 2,
         "xfailed": 0,
         "xpassed": 0
