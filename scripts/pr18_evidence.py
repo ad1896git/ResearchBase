@@ -210,7 +210,7 @@ _LOCKING_SEQUENCES = (
     ("FOR", "SHARE"),
     ("FOR", "KEY", "SHARE"),
 )
-_SQL_OPERATOR_CHARS = frozenset(".,:%=+-*/<>!|&~^[]{}?$#")
+_SQL_OPERATOR_CHARS = frozenset(".,:%=+-*/<>!|&~^[]{}?$#@")
 _GRAMMAR_CLAUSE_BOUNDARIES = frozenset(
     {
         "FROM",
@@ -555,6 +555,35 @@ def _is_expression_token(token: _SQLToken) -> bool:
     )
 
 
+def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
+    """Reject expression segments that end in an operator or comma."""
+
+    for index, token in enumerate(tokens):
+        if token.kind != "operator" or token.text == "*":
+            continue
+        next_index = index + 1
+        while (
+            next_index < len(tokens)
+            and tokens[next_index].kind == "operator"
+            and tokens[next_index].text != ","
+        ):
+            next_index += 1
+        if next_index >= len(tokens):
+            return False
+        next_token = tokens[next_index]
+        if token.text == ",":
+            if next_token.depth < token.depth or (
+                next_token.kind == "symbol" and next_token.text == ")"
+            ):
+                return False
+            continue
+        if next_token.depth < token.depth or (
+            next_token.kind == "symbol" and next_token.text == ")"
+        ) or (next_token.kind == "operator" and next_token.text == ","):
+            return False
+    return True
+
+
 def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) -> bool:
     depth = tokens[select_index].depth
     end = _scope_end(tokens, select_index)
@@ -567,7 +596,8 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
     ]
     first_boundary = boundaries[0][0] if boundaries else end
     projection = tokens[select_index + 1 : first_boundary]
-    if not any(_is_expression_token(token) for token in projection):
+    projection_has_expression = any(_is_expression_token(token) for token in projection)
+    if not projection_has_expression or not _expression_segment_supported(projection):
         return False
 
     for boundary_position, boundary in boundaries:
@@ -581,7 +611,8 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             if not clause or clause[0].kind != "word" or clause[0].text != "BY":
                 return False
             clause = clause[1:]
-        if not any(_is_expression_token(token) for token in clause):
+        clause_has_expression = any(_is_expression_token(token) for token in clause)
+        if not clause_has_expression or not _expression_segment_supported(clause):
             return False
 
     same_depth_tokens = [
@@ -802,9 +833,20 @@ def validate_statement_purity(statements: object) -> dict[str, object]:
                 "lexical_valid",
                 "grammar_supported",
                 "statement_complete",
+                "mutating_cte_detected",
+                "select_into_detected",
+                "locking_detected",
+                "multi_statement_detected",
+                "ambiguity_detected",
+                "unknown_detected",
+                "read_write_verdict",
+                "locking_verdict",
                 "purity_verdict",
             ):
-                if field in statement and statement[field] != projection[field]:
+                if field in statement and (
+                    type(statement[field]) is not type(projection[field])
+                    or statement[field] != projection[field]
+                ):
                     raise PR18EvidenceError(
                         f"inconsistent purity evidence: {field} does not match execution"
                     )

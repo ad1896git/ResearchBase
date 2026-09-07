@@ -581,6 +581,41 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
     assert statement["purity_verdict"] == "NOT_VERIFIED"
 
 
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 1 +",
+        "SELECT 1::",
+        "SELECT 1,",
+        "SELECT 1 FROM t WHERE x =",
+        "SELECT (1 +)",
+        "SELECT func(1,)",
+    ],
+)
+def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
+    projection = _validate_statement_purity([{"sql": sql}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "UNKNOWN"
+    assert statement["lexical_valid"] is True
+    assert statement["grammar_supported"] is False
+    assert statement["statement_complete"] is False
+    assert statement["purity_verdict"] == "NOT_VERIFIED"
+
+
+def test_r6_supported_postgresql_operator_remains_read_only() -> None:
+    projection = _validate_statement_purity(
+        [{"sql": "SELECT payload @> :filter FROM records"}]
+    )
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT"
+    assert statement["lexical_valid"] is True
+    assert statement["grammar_supported"] is True
+    assert statement["statement_complete"] is True
+    assert statement["purity_verdict"] == "PASS"
+
+
 def test_r6_impossible_pass_projection_is_rejected() -> None:
     statement = {
         "sql": "SELECT 1",
@@ -588,6 +623,29 @@ def test_r6_impossible_pass_projection_is_rejected() -> None:
         "grammar_supported": True,
         "statement_complete": True,
         "statement_class": "READ_SELECT",
+        "purity_verdict": "PASS",
+    }
+
+    with pytest.raises(PR18EvidenceError, match="inconsistent purity evidence"):
+        pr18_evidence.validate_statement_purity([statement])
+
+
+def test_r6_contradictory_rejection_reason_fields_are_rejected() -> None:
+    statement = {
+        "sql": "SELECT 1",
+        "classification": "READ_SELECT",
+        "statement_class": "READ_SELECT",
+        "lexical_valid": True,
+        "grammar_supported": True,
+        "statement_complete": True,
+        "mutating_cte_detected": True,
+        "select_into_detected": False,
+        "locking_detected": False,
+        "multi_statement_detected": False,
+        "ambiguity_detected": True,
+        "unknown_detected": True,
+        "read_write_verdict": "FAIL",
+        "locking_verdict": "PASS",
         "purity_verdict": "PASS",
     }
 
