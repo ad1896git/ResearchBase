@@ -137,6 +137,10 @@ def test_actual_query_service_explain_paths_are_structurally_audited(engine: Eng
         assert baseline["verification_status"] == "VERIFIED"
         assert all(
             item["statement_class"] == "READ_SELECT"
+            and item["classification"] == "READ_SELECT"
+            and item["lexical_valid"] is True
+            and item["grammar_supported"] is True
+            and item["statement_complete"] is True
             and item["read_write_verdict"] == "PASS"
             and item["locking_verdict"] == "PASS"
             and item["mutating_cte_detected"] is False

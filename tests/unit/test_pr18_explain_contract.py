@@ -473,6 +473,128 @@ def test_statement_purity_projection_marks_every_read_only_reason_false() -> Non
     assert statement["purity_verdict"] == "PASS"
 
 
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 1",
+        "SELECT 1;",
+        "/* comment */ SELECT 1",
+        "SELECT 'UPDATE x SET y = 1'",
+        "SELECT 'value; still one statement'",
+        "SELECT $$DELETE FROM x;$$",
+        'SELECT "UPDATE" FROM "select"',
+        'SELECT "value; still one statement"',
+    ],
+)
+def test_r6_valid_selects_have_positive_proof(sql: str) -> None:
+    projection = _validate_statement_purity([{"sql": sql}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT"
+    assert statement["lexical_valid"] is True
+    assert statement["grammar_supported"] is True
+    assert statement["statement_complete"] is True
+    assert statement["mutating_cte_detected"] is False
+    assert statement["select_into_detected"] is False
+    assert statement["locking_detected"] is False
+    assert statement["multi_statement_detected"] is False
+    assert statement["unknown_detected"] is False
+    assert statement["purity_verdict"] == "PASS"
+    assert projection["overall_verdict"] == "PASS"
+
+
+@pytest.mark.parametrize(
+    ("sql", "expected_lexical", "expected_complete"),
+    [
+        ("SELECT;", True, False),
+        ("SELECT", True, False),
+        ("SELECT FROM t", True, False),
+        ("SELECT WHERE true", True, False),
+        ("WITH x AS (SELECT 1) SELECT", True, False),
+        ("SELECT `x`", False, False),
+        ("SELECT a FROM `table`", False, False),
+        ("*/ SELECT 1", False, False),
+        ("/* unterminated SELECT 1", False, False),
+        ("SELECT 'unterminated", False, False),
+        ('SELECT "unterminated', False, False),
+        ("SELECT $$unterminated", False, False),
+        ("SELECT (1", False, False),
+        ("SELECT 1)", False, False),
+        ("WITH x AS ((SELECT 1) SELECT 1", False, False),
+        ("; SELECT 1", True, False),
+        ("SELECT 1;;", True, False),
+        ("SELECT 1; UPDATE t SET x = 1", True, False),
+    ],
+)
+def test_r6_malformed_or_incomplete_sql_never_passes(
+    sql: str, expected_lexical: bool, expected_complete: bool
+) -> None:
+    projection = _validate_statement_purity([{"sql": sql}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "UNKNOWN"
+    assert statement["lexical_valid"] is expected_lexical
+    assert statement["grammar_supported"] is False
+    assert statement["statement_complete"] is expected_complete
+    assert statement["purity_verdict"] == "NOT_VERIFIED"
+    assert projection["overall_verdict"] == "FAIL"
+    assert projection["verification_status"] == "NOT_VERIFIED"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 1 /* comment; */",
+        "SELECT '-- not a comment; UPDATE x'",
+        "SELECT $$-- not a comment; DELETE FROM x$$",
+    ],
+)
+def test_r6_semicolons_inside_lexical_regions_do_not_split_statements(sql: str) -> None:
+    projection = _validate_statement_purity([{"sql": sql}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT"
+    assert statement["multi_statement_detected"] is False
+    assert statement["purity_verdict"] == "PASS"
+
+
+def test_r6_nested_block_comment_state_fails_closed() -> None:
+    projection = _validate_statement_purity([{"sql": "/* outer /* inner */ SELECT 1"}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "UNKNOWN"
+    assert statement["lexical_valid"] is False
+    assert statement["grammar_supported"] is False
+    assert statement["statement_complete"] is False
+    assert statement["purity_verdict"] == "NOT_VERIFIED"
+
+
+def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
+    projection = _validate_statement_purity([{"sql": "EXPLAIN SELECT 1"}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "UNKNOWN"
+    assert statement["lexical_valid"] is True
+    assert statement["grammar_supported"] is False
+    assert statement["statement_complete"] is True
+    assert statement["unknown_detected"] is True
+    assert statement["purity_verdict"] == "NOT_VERIFIED"
+
+
+def test_r6_impossible_pass_projection_is_rejected() -> None:
+    statement = {
+        "sql": "SELECT 1",
+        "lexical_valid": False,
+        "grammar_supported": True,
+        "statement_complete": True,
+        "statement_class": "READ_SELECT",
+        "purity_verdict": "PASS",
+    }
+
+    with pytest.raises(PR18EvidenceError, match="inconsistent purity evidence"):
+        pr18_evidence.validate_statement_purity([statement])
+
+
 def test_query_contract_rejects_missing_required_relation() -> None:
     expectation = FROZEN_QUERY_EXPECTATIONS["audit_findings"]
     statements = [

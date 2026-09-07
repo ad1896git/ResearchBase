@@ -169,11 +169,15 @@ class _LexedSQL:
     tokens: tuple[_SQLToken, ...]
     valid: bool
     multi_statement: bool
+    statement_complete: bool
 
 
 @dataclass(frozen=True)
 class _StatementAnalysis:
     statement_class: str
+    lexical_valid: bool
+    grammar_supported: bool
+    statement_complete: bool
     mutating_cte_detected: bool
     select_into_detected: bool
     locking_detected: bool
@@ -206,6 +210,28 @@ _LOCKING_SEQUENCES = (
     ("FOR", "SHARE"),
     ("FOR", "KEY", "SHARE"),
 )
+_SQL_OPERATOR_CHARS = frozenset(".,:%=+-*/<>!|&~^[]{}?$#")
+_GRAMMAR_CLAUSE_BOUNDARIES = frozenset(
+    {
+        "FROM",
+        "WHERE",
+        "GROUP",
+        "HAVING",
+        "WINDOW",
+        "ORDER",
+        "LIMIT",
+        "OFFSET",
+        "FETCH",
+        "INTO",
+        "UNION",
+        "INTERSECT",
+        "EXCEPT",
+        "RETURNING",
+    }
+)
+_INCOMPLETE_CLAUSE_WORDS = frozenset(
+    {"AS", "FROM", "WHERE", "GROUP", "HAVING", "WINDOW", "ORDER", "BY", "ON"}
+)
 
 
 def _lex_sql(statement: str) -> _LexedSQL:
@@ -227,29 +253,50 @@ def _lex_sql(statement: str) -> _LexedSQL:
             index = length if newline == -1 else newline + 1
             continue
         if statement.startswith("/*", index):
-            end = statement.find("*/", index + 2)
-            if end == -1:
+            cursor = index + 2
+            closed = False
+            while cursor < length:
+                if statement.startswith("/*", cursor):
+                    invalid = True
+                    break
+                if statement.startswith("*/", cursor):
+                    index = cursor + 2
+                    closed = True
+                    break
+                cursor += 1
+            if invalid:
+                break
+            if not closed:
                 invalid = True
                 break
-            index = end + 2
             continue
-        if character in {"'", '"', "`"}:
+        if statement.startswith("*/", index):
+            invalid = True
+            break
+        if character == "`":
+            invalid = True
+            break
+        if character in {"'", '"'}:
             quote = character
+            token_kind = "literal" if quote == "'" else "identifier"
             index += 1
+            closed = False
             while index < length:
                 if statement[index] == quote:
                     if index + 1 < length and statement[index + 1] == quote:
                         index += 2
                         continue
                     index += 1
+                    closed = True
                     break
                 if quote == "'" and statement[index] == "\\" and index + 1 < length:
                     index += 2
                     continue
                 index += 1
-            else:
+            if not closed:
                 invalid = True
                 break
+            tokens.append(_SQLToken("<literal>", depth, token_kind))
             continue
         if character == "$":
             tag_match = _DOLLAR_QUOTE_TAG.match(statement, index)
@@ -260,6 +307,7 @@ def _lex_sql(statement: str) -> _LexedSQL:
                     invalid = True
                     break
                 index = end + len(tag)
+                tokens.append(_SQLToken("<literal>", depth, "literal"))
                 continue
         if character == "(":
             tokens.append(_SQLToken("(", depth, "symbol"))
@@ -295,7 +343,12 @@ def _lex_sql(statement: str) -> _LexedSQL:
             tokens.append(_SQLToken("<literal>", depth, "literal"))
             index = end
             continue
-        index += 1
+        if character in _SQL_OPERATOR_CHARS:
+            tokens.append(_SQLToken(character, depth, "operator"))
+            index += 1
+            continue
+        invalid = True
+        break
 
     if depth != 0:
         invalid = True
@@ -308,9 +361,15 @@ def _lex_sql(statement: str) -> _LexedSQL:
     multi_statement = False
     if semicolon_indexes:
         first_semicolon = semicolon_indexes[0]
-        multi_statement = len(semicolon_indexes) > 1 or first_semicolon != len(tokens) - 1
+        multi_statement = (
+            first_semicolon == 0
+            or len(semicolon_indexes) > 1
+            or first_semicolon != len(tokens) - 1
+        )
 
-    return _LexedSQL(tuple(tokens), not invalid, multi_statement)
+    valid = not invalid
+    statement_complete = valid and bool(tokens) and not multi_statement
+    return _LexedSQL(tuple(tokens), valid, multi_statement, statement_complete)
 
 
 def _sql_tokens(statement: str) -> list[tuple[str, int]]:
@@ -377,75 +436,256 @@ def _has_locking_clause(tokens: tuple[_SQLToken, ...]) -> bool:
 
 
 def _has_mutating_cte(tokens: tuple[_SQLToken, ...]) -> bool:
-    for index, token in enumerate(tokens):
-        if token.kind != "word" or token.text != "AS":
-            continue
-        body_open_index: int | None = None
-        for candidate_index in range(index + 1, len(tokens)):
-            candidate = tokens[candidate_index]
-            if candidate.depth != token.depth:
-                break
-            if candidate.kind == "symbol" and candidate.text == "(":
-                body_open_index = candidate_index
-                break
-            if candidate.kind != "word" or candidate.text not in {"MATERIALIZED", "NOT"}:
-                break
-        if body_open_index is None:
-            continue
+    _command, bodies, supported = _parse_with_structure(tokens)
+    return supported and any(body_command in _MUTATING_COMMANDS for body_command in bodies)
 
-        body_depth = tokens[body_open_index].depth + 1
-        for candidate in tokens[body_open_index + 1 :]:
-            if candidate.depth < body_depth:
-                break
-            if candidate.depth == body_depth and candidate.kind == "word":
-                if candidate.text in _MUTATING_COMMANDS:
-                    return True
-                break
-    return False
+
+def _matching_close(tokens: tuple[_SQLToken, ...], open_index: int) -> int | None:
+    opening = tokens[open_index]
+    if opening.kind != "symbol" or opening.text != "(":
+        return None
+    for index in range(open_index + 1, len(tokens)):
+        candidate = tokens[index]
+        if (
+            candidate.kind == "symbol"
+            and candidate.text == ")"
+            and candidate.depth == opening.depth
+        ):
+            return index
+    return None
+
+
+def _parse_with_structure(
+    tokens: tuple[_SQLToken, ...],
+) -> tuple[str, tuple[str, ...], bool]:
+    """Parse only the bounded WITH shape needed for purity classification."""
+
+    if not tokens or tokens[0].kind != "word" or tokens[0].text != "WITH":
+        return UNKNOWN, (), False
+    cursor = 1
+    if (
+        cursor < len(tokens)
+        and tokens[cursor].kind == "word"
+        and tokens[cursor].text == "RECURSIVE"
+    ):
+        cursor += 1
+    body_commands: list[str] = []
+    while True:
+        if cursor >= len(tokens) or tokens[cursor].depth != 0:
+            return UNKNOWN, tuple(body_commands), False
+        name = tokens[cursor]
+        if name.kind not in {"word", "identifier"}:
+            return UNKNOWN, tuple(body_commands), False
+        cursor += 1
+
+        if cursor < len(tokens) and tokens[cursor].text == "(":
+            close = _matching_close(tokens, cursor)
+            if close is None or close == cursor + 1:
+                return UNKNOWN, tuple(body_commands), False
+            cursor = close + 1
+
+        if (
+            cursor >= len(tokens)
+            or tokens[cursor].kind != "word"
+            or tokens[cursor].text != "AS"
+        ):
+            return UNKNOWN, tuple(body_commands), False
+        cursor += 1
+        if cursor < len(tokens) and tokens[cursor].kind == "word":
+            if tokens[cursor].text == "MATERIALIZED":
+                cursor += 1
+            elif tokens[cursor].text == "NOT":
+                if (
+                    cursor + 1 >= len(tokens)
+                    or tokens[cursor + 1].kind != "word"
+                    or tokens[cursor + 1].text != "MATERIALIZED"
+                ):
+                    return UNKNOWN, tuple(body_commands), False
+                cursor += 2
+
+        if cursor >= len(tokens) or tokens[cursor].text != "(":
+            return UNKNOWN, tuple(body_commands), False
+        close = _matching_close(tokens, cursor)
+        if close is None or close == cursor + 1:
+            return UNKNOWN, tuple(body_commands), False
+        body_depth = tokens[cursor].depth + 1
+        body_command = next(
+            (
+                token.text
+                for token in tokens[cursor + 1 : close]
+                if token.kind == "word" and token.depth == body_depth
+            ),
+            UNKNOWN,
+        )
+        if body_command not in {"SELECT", *_MUTATING_COMMANDS}:
+            return UNKNOWN, tuple(body_commands), False
+        body_commands.append(body_command)
+        cursor = close + 1
+        if (
+            cursor < len(tokens)
+            and tokens[cursor].kind == "operator"
+            and tokens[cursor].text == ","
+        ):
+            cursor += 1
+            continue
+        break
+
+    if cursor >= len(tokens):
+        return UNKNOWN, tuple(body_commands), False
+    outer = tokens[cursor]
+    if outer.depth != 0 or outer.kind != "word" or outer.text not in _STATEMENT_KEYWORDS:
+        return UNKNOWN, tuple(body_commands), False
+    return outer.text, tuple(body_commands), True
+
+
+def _scope_end(tokens: tuple[_SQLToken, ...], select_index: int) -> int:
+    depth = tokens[select_index].depth
+    for index in range(select_index + 1, len(tokens)):
+        token = tokens[index]
+        if token.depth < depth:
+            return index
+        if token.kind == "symbol" and token.text == ";" and token.depth == depth:
+            return index
+    return len(tokens)
+
+
+def _is_expression_token(token: _SQLToken) -> bool:
+    return token.kind in {"word", "literal", "identifier"} or (
+        token.kind == "operator" and token.text == "*"
+    )
+
+
+def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) -> bool:
+    depth = tokens[select_index].depth
+    end = _scope_end(tokens, select_index)
+    boundaries = [
+        (index, token.text)
+        for index, token in enumerate(tokens[select_index + 1 : end], start=select_index + 1)
+        if token.depth == depth
+        and token.kind == "word"
+        and token.text in _GRAMMAR_CLAUSE_BOUNDARIES
+    ]
+    first_boundary = boundaries[0][0] if boundaries else end
+    projection = tokens[select_index + 1 : first_boundary]
+    if not any(_is_expression_token(token) for token in projection):
+        return False
+
+    for boundary_position, boundary in boundaries:
+        next_boundary = next(
+            (index for index, _name in boundaries if index > boundary_position), end
+        )
+        clause = tokens[boundary_position + 1 : next_boundary]
+        if boundary in {"UNION", "INTERSECT", "EXCEPT", "RETURNING"}:
+            return False
+        if boundary in {"GROUP", "ORDER"}:
+            if not clause or clause[0].kind != "word" or clause[0].text != "BY":
+                return False
+            clause = clause[1:]
+        if not any(_is_expression_token(token) for token in clause):
+            return False
+
+    same_depth_tokens = [
+        token
+        for token in tokens[select_index + 1 : end]
+        if token.depth == depth
+        and (token.kind in {"word", "literal", "identifier"} or token.text == "*")
+    ]
+    if not same_depth_tokens:
+        return False
+    last_token = same_depth_tokens[-1]
+    return not (last_token.kind == "word" and last_token.text in _INCOMPLETE_CLAUSE_WORDS)
+
+
+def _select_grammar_supported(
+    tokens: tuple[_SQLToken, ...], command: str, with_supported: bool
+) -> bool:
+    if command != "SELECT":
+        return command in _STATEMENT_KEYWORDS and command != UNKNOWN
+    if tokens and tokens[0].text == "WITH" and not with_supported:
+        return False
+    select_indexes = [
+        index
+        for index, token in enumerate(tokens)
+        if token.kind == "word" and token.text == "SELECT"
+    ]
+    return bool(select_indexes) and all(
+        _select_scope_supported(tokens, select_index) for select_index in select_indexes
+    )
 
 
 def _analyze_statement(statement: object) -> _StatementAnalysis:
     sql = _statement_sql(statement)
     if sql is None or not sql.strip():
-        return _StatementAnalysis(UNKNOWN, False, False, False, False, True)
+        return _StatementAnalysis(
+            statement_class=UNKNOWN,
+            lexical_valid=False,
+            grammar_supported=False,
+            statement_complete=False,
+            mutating_cte_detected=False,
+            select_into_detected=False,
+            locking_detected=False,
+            multi_statement_detected=False,
+            unknown_detected=True,
+        )
 
     lexed = _lex_sql(sql)
     tokens = lexed.tokens
     locking_detected = _has_locking_clause(tokens)
-    if not lexed.valid or lexed.multi_statement:
+    if not lexed.valid:
         return _StatementAnalysis(
-            UNKNOWN,
-            False,
-            False,
-            locking_detected,
-            lexed.multi_statement,
-            True,
+            statement_class=UNKNOWN,
+            lexical_valid=False,
+            grammar_supported=False,
+            statement_complete=False,
+            mutating_cte_detected=False,
+            select_into_detected=False,
+            locking_detected=locking_detected,
+            multi_statement_detected=lexed.multi_statement,
+            unknown_detected=True,
+        )
+    if lexed.multi_statement:
+        return _StatementAnalysis(
+            statement_class=UNKNOWN,
+            lexical_valid=True,
+            grammar_supported=False,
+            statement_complete=False,
+            mutating_cte_detected=False,
+            select_into_detected=False,
+            locking_detected=locking_detected,
+            multi_statement_detected=True,
+            unknown_detected=True,
         )
 
-    top_level_words = [
-        token.text for token in tokens if token.depth == 0 and token.kind == "word"
+    top_level_word_tokens = [
+        token for token in tokens if token.depth == 0 and token.kind == "word"
     ]
-    if not top_level_words:
+    if not top_level_word_tokens or (
+        tokens[0].kind == "symbol" and tokens[0].text == ";"
+    ):
         return _StatementAnalysis(
-            UNKNOWN,
-            False,
-            False,
-            locking_detected,
-            False,
-            True,
+            statement_class=UNKNOWN,
+            lexical_valid=True,
+            grammar_supported=False,
+            statement_complete=False,
+            mutating_cte_detected=False,
+            select_into_detected=False,
+            locking_detected=locking_detected,
+            multi_statement_detected=False,
+            unknown_detected=True,
         )
 
-    first_word = top_level_words[0]
+    first_word = top_level_word_tokens[0].text
+    with_command, _body_commands, with_supported = _parse_with_structure(tokens)
     mutating_cte_detected = first_word == "WITH" and _has_mutating_cte(tokens)
     command = first_word
     if first_word == "WITH":
-        command = next(
-            (word for word in top_level_words[1:] if word in _STATEMENT_KEYWORDS),
-            UNKNOWN,
-        )
+        command = with_command
 
     select_into_detected = _has_select_into(tokens)
-    if command == UNKNOWN:
+    grammar_supported = _select_grammar_supported(tokens, command, with_supported)
+    if command == "SELECT" and not grammar_supported:
+        statement_class = UNKNOWN
+    elif command == UNKNOWN:
         statement_class = UNKNOWN
     elif mutating_cte_detected:
         statement_class = DATA_MODIFYING_CTE
@@ -470,8 +710,17 @@ def _analyze_statement(statement: object) -> _StatementAnalysis:
     else:
         statement_class = UNKNOWN
 
+    if statement_class == UNKNOWN:
+        grammar_supported = False
+    statement_complete = lexed.statement_complete and not (
+        (command == "SELECT" and not grammar_supported)
+        or (first_word == "WITH" and not with_supported)
+    )
     return _StatementAnalysis(
         statement_class,
+        True,
+        grammar_supported,
+        statement_complete,
         mutating_cte_detected,
         select_into_detected,
         locking_detected,
@@ -491,7 +740,18 @@ def _purity_statement_projection(statement: object) -> dict[str, object]:
     analysis = _analyze_statement(statement)
     statement_class = analysis.statement_class
     safe_sql = _safe_sql_projection(sql) if sql is not None else "<unavailable>"
-    if statement_class == READ_SELECT:
+    positive_proof = (
+        analysis.lexical_valid
+        and analysis.grammar_supported
+        and analysis.statement_complete
+        and statement_class == READ_SELECT
+        and not analysis.mutating_cte_detected
+        and not analysis.select_into_detected
+        and not analysis.locking_detected
+        and not analysis.multi_statement_detected
+        and not analysis.unknown_detected
+    )
+    if positive_proof:
         read_write_verdict = "PASS"
         locking_verdict = "PASS"
         purity_verdict = "PASS"
@@ -511,6 +771,10 @@ def _purity_statement_projection(statement: object) -> dict[str, object]:
         "sql": safe_sql,
         "normalized_sql": safe_sql,
         "statement_class": statement_class,
+        "classification": statement_class,
+        "lexical_valid": analysis.lexical_valid,
+        "grammar_supported": analysis.grammar_supported,
+        "statement_complete": analysis.statement_complete,
         "read_write_verdict": read_write_verdict,
         "locking_verdict": locking_verdict,
         "mutating_cte_detected": analysis.mutating_cte_detected,
@@ -528,7 +792,30 @@ def validate_statement_purity(statements: object) -> dict[str, object]:
 
     if not isinstance(statements, list) or not statements:
         raise PR18EvidenceError("NOT_VERIFIED: captured statement set is unavailable")
-    projected = [_purity_statement_projection(statement) for statement in statements]
+    projected = []
+    for statement in statements:
+        projection = _purity_statement_projection(statement)
+        if isinstance(statement, dict):
+            for field in (
+                "classification",
+                "statement_class",
+                "lexical_valid",
+                "grammar_supported",
+                "statement_complete",
+                "purity_verdict",
+            ):
+                if field in statement and statement[field] != projection[field]:
+                    raise PR18EvidenceError(
+                        f"inconsistent purity evidence: {field} does not match execution"
+                    )
+        if projection["purity_verdict"] == "PASS" and not all(
+            projection[field] is True
+            for field in ("lexical_valid", "grammar_supported", "statement_complete")
+        ):
+            raise PR18EvidenceError("inconsistent purity evidence: PASS lacks positive proof")
+        if projection["purity_verdict"] == "PASS" and projection["statement_class"] != READ_SELECT:
+            raise PR18EvidenceError("inconsistent purity evidence: PASS is not READ_SELECT")
+        projected.append(projection)
     unknown_count = sum(item["statement_class"] == UNKNOWN for item in projected)
     forbidden_count = sum(item["statement_class"] != READ_SELECT for item in projected)
     verdict = "PASS" if forbidden_count == 0 else "FAIL"
