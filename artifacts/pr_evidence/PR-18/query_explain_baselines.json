@@ -562,8 +562,7 @@
         {
           "plan": {
             "index_names": [
-              "claim_versions_pkey",
-              "claims_pkey",
+              "uq_claim_versions_parent_version",
               "uq_evidence_stat"
             ],
             "join_types": [
@@ -571,7 +570,8 @@
             ],
             "node_types": [
               "Index Scan",
-              "Nested Loop"
+              "Nested Loop",
+              "Seq Scan"
             ],
             "relations": [
               "claim_versions",
