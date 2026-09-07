@@ -45,17 +45,17 @@ Result: PASS. 61 repository-relevant markers were classified; 0 live markers rem
 | `scripts/pr18_evidence.py` | 98 | `XXX` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
 | `scripts/pr18_evidence.py` | 98 | `HACK` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
 | `scripts/pr18_evidence.py` | 98 | `TBD` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1413 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1421 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1421 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1437 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1493 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1493 | `FIXME` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1495 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1496 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1501 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1510 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
-| `scripts/pr18_evidence.py` | 1511 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1681 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1689 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1689 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1705 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1761 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1761 | `FIXME` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1763 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1764 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1769 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1778 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
+| `scripts/pr18_evidence.py` | 1779 | `TODO` | evidence/tooling | `INTENTIONAL_NONBLOCKING` | marker names are data used by the deterministic audit itself and do not describe a deferred runtime action |
 | `execution/phase1/PR-17D_Design_Specification_v1.6.md` | 148 | `TODO` | historical evidence | `OUT_OF_PHASE` | archived execution/evidence text records prior review history |
 | `execution/phase1/PR-17D_Design_Specification_v1.6.md` | 148 | `FIXME` | historical evidence | `OUT_OF_PHASE` | archived execution/evidence text records prior review history |
 | `execution/phase1/PR-17D_Design_Specification_v1.6.md` | 148 | `TODO` | historical evidence | `OUT_OF_PHASE` | archived execution/evidence text records prior review history |
