@@ -119,10 +119,32 @@ def test_actual_query_service_explain_paths_are_structurally_audited(engine: Eng
         assert baseline["production_operation"]
         assert baseline["statements"]
         assert baseline["required_relations"]
+        assert baseline["allowed_relations"]
+        assert baseline["observed_relations"]
+        assert baseline["missing_relations"] == []
+        assert baseline["unexpected_relations"] == []
+        assert baseline["predicate_verdict"] == "PASS"
+        assert baseline["expected_topology"]
+        assert baseline["observed_topology"]
+        assert baseline["cartesian_verdict"] == "PASS"
+        assert baseline["write_or_lock_verdict"] == "PASS"
+        assert baseline["overall_verdict"] == "PASS"
+        assert baseline["verification_status"] == "VERIFIED"
+        assertions = baseline["structural_assertions"]
+        assert assertions["allowed_relations"]
+        assert assertions["observed_relations"]
+        assert assertions["missing_relations"] == []
+        assert assertions["unexpected_relations"] == []
+        assert assertions["predicate_verdict"] == "PASS"
+        assert assertions["expected_topology"]
+        assert assertions["observed_topology"]
+        assert assertions["cartesian_verdict"] == "PASS"
+        assert assertions["verification_status"] == "VERIFIED"
+        assert assertions["overall_verdict"] == "PASS"
         assert baseline["representative_rows"] >= 100
-        assert baseline["structural_assertions"]["select_only"] is True
-        assert baseline["structural_assertions"]["no_cartesian_product"] is True
-        assert baseline["structural_assertions"]["no_write_or_lock"] is True
+        assert assertions["select_only"] is True
+        assert assertions["no_cartesian_product"] is True
+        assert assertions["no_write_or_lock"] is True
         assert all(
             item["sql"].lstrip().upper().startswith("SELECT") for item in baseline["statements"]
         )

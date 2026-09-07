@@ -270,6 +270,134 @@ def _string_items(value: object, *, label: str) -> tuple[str, ...]:
     return tuple(item for item in items if isinstance(item, str))
 
 
+_SQL_RELATION = r"(?:[A-Za-z_][A-Za-z0-9_]*\.)?([A-Za-z_][A-Za-z0-9_]*)"
+_JOIN_PREFIX = r"(?:(?:LEFT|RIGHT|FULL|INNER|OUTER|CROSS)\s+)?JOIN"
+_JOIN_CLAUSE = re.compile(
+    rf"\b(?P<kind>{_JOIN_PREFIX})\s+(?P<relation>{_SQL_RELATION})"
+    r"(?P<tail>.*?)(?=\s+(?:(?:LEFT|RIGHT|FULL|INNER|OUTER|CROSS)\s+)?JOIN\b"
+    r"|\s+WHERE\b|\s+GROUP\s+BY\b|\s+ORDER\s+BY\b|\s+LIMIT\b|$)",
+    re.IGNORECASE | re.DOTALL,
+)
+_FROM_CLAUSE = re.compile(
+    r"\bFROM\s+(?P<body>.*?)(?=\s+(?:(?:LEFT|RIGHT|FULL|INNER|OUTER|CROSS)\s+)?JOIN\b"
+    r"|\s+WHERE\b|\s+GROUP\s+BY\b|\s+ORDER\s+BY\b|\s+LIMIT\b|$)",
+    re.IGNORECASE | re.DOTALL,
+)
+_RELATION_NAME = re.compile(rf"^\s*{_SQL_RELATION}", re.IGNORECASE)
+_RELATION_REFERENCE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*", re.IGNORECASE)
+_CARTESIAN_PREDICATE = re.compile(r"^(?:TRUE|1\s*=\s*1)$", re.IGNORECASE)
+
+
+def _sql_relations(sql: str) -> list[str]:
+    """Extract base relation names needed for logical topology checks."""
+
+    relations: list[str] = []
+    from_match = _FROM_CLAUSE.search(sql)
+    if from_match:
+        for part in from_match.group("body").split(","):
+            relation_match = _RELATION_NAME.match(part)
+            if relation_match:
+                relations.append(relation_match.group(1))
+    relations.extend(match.group("relation") for match in _JOIN_CLAUSE.finditer(sql))
+    return relations
+
+
+def _join_contracts(
+    topology: dict[str, object], key: str
+) -> tuple[tuple[str, tuple[str, str], str], ...]:
+    raw = topology.get(key)
+    if raw == "required_join_edges":
+        raw = topology.get("required_join_edges")
+    items = _tuple_items(raw)
+    contracts: list[tuple[str, tuple[str, str], str]] = []
+    for item in items:
+        if not isinstance(item, list | tuple) or len(item) != 3:
+            raise PR18EvidenceError("query contract has invalid join edges")
+        name, relations, pattern = item
+        relation_items = _tuple_items(relations)
+        if (
+            not isinstance(name, str)
+            or len(relation_items) != 2
+            or any(not isinstance(value, str) for value in relation_items)
+            or not isinstance(pattern, str)
+        ):
+            raise PR18EvidenceError("query contract has invalid join edges")
+        contracts.append(
+            (name, (str(relation_items[0]), str(relation_items[1])), pattern)
+        )
+    return tuple(contracts)
+
+
+def _extract_join_edges(
+    sql: str, *, plan_relations: set[str]
+) -> tuple[list[dict[str, object]], bool]:
+    """Extract logical JOIN edges and reject syntax too ambiguous to verify."""
+
+    sql_relations = _sql_relations(sql)
+    joins = list(_JOIN_CLAUSE.finditer(sql))
+    if len(sql_relations) < len(joins):
+        raise PR18EvidenceError("INVALID_JOIN_TOPOLOGY: SQL relation topology is ambiguous")
+    edges: list[dict[str, object]] = []
+    cartesian = False
+    for index, match in enumerate(joins):
+        right = match.group("relation")
+        left_index = index
+        if left_index >= len(sql_relations):
+            raise PR18EvidenceError("INVALID_JOIN_TOPOLOGY: JOIN has no left relation")
+        left = sql_relations[left_index]
+        kind = match.group("kind").upper()
+        tail = match.group("tail").strip()
+        on_match = re.match(r"ON\s+(?P<predicate>.*)\Z", tail, re.IGNORECASE | re.DOTALL)
+        predicate = on_match.group("predicate").strip() if on_match else ""
+        is_cartesian = "CROSS" in kind or not predicate or bool(
+            _CARTESIAN_PREDICATE.fullmatch(predicate)
+        )
+        if is_cartesian:
+            cartesian = True
+        references = {
+            name
+            for name in _RELATION_REFERENCE.findall(predicate)
+            if name in plan_relations
+        }
+        edge_relations = tuple(sorted(references)) if len(references) == 2 else (left, right)
+        edges.append(
+            {
+                "left": edge_relations[0],
+                "right": edge_relations[1],
+                "predicate": predicate,
+                "cartesian": is_cartesian,
+                "relation_references": sorted(references),
+            }
+        )
+    return edges, cartesian
+
+
+def _edge_key(relations: tuple[str, str]) -> tuple[str, str]:
+    return min(relations), max(relations)
+
+
+def _join_graph_connected(relations: set[str], edges: list[dict[str, object]]) -> bool:
+    if len(relations) <= 1:
+        return True
+    adjacency = {relation: set() for relation in relations}
+    for edge in edges:
+        if edge.get("cartesian"):
+            continue
+        left = edge.get("left")
+        right = edge.get("right")
+        if isinstance(left, str) and isinstance(right, str):
+            adjacency.setdefault(left, set()).add(right)
+            adjacency.setdefault(right, set()).add(left)
+    seen = {next(iter(relations))}
+    pending = list(seen)
+    while pending:
+        current = pending.pop()
+        for neighbor in adjacency.get(current, set()) - seen:
+            seen.add(neighbor)
+            pending.append(neighbor)
+    return seen == relations
+
+
 def validate_query_contract(
     expectation: dict[str, object], statements: object
 ) -> dict[str, object]:
@@ -283,16 +411,50 @@ def validate_query_contract(
     ):
         raise PR18EvidenceError("query contract has no valid required relations")
     required_relations = tuple(item for item in required_relation_items if isinstance(item, str))
+    topology = expectation.get("topology")
+    if not isinstance(topology, dict):
+        raise PR18EvidenceError("NOT_VERIFIED: query contract has no topology constraints")
+    allowed_relation_items = _tuple_items(topology.get("allowed_relations"))
+    if not allowed_relation_items or any(
+        not isinstance(item, str) for item in allowed_relation_items
+    ):
+        raise PR18EvidenceError("NOT_VERIFIED: query contract has no allowed relation set")
+    allowed_relations = tuple(item for item in allowed_relation_items if isinstance(item, str))
+    closed_relation_set = topology.get("closed_relation_set") is True
+    if not closed_relation_set:
+        raise PR18EvidenceError("NOT_VERIFIED: query contract relation set is not explicit")
+    if not all(
+        isinstance(topology.get(key), bool)
+        for key in (
+            "allow_single_relation_reads",
+            "allow_cartesian_joins",
+            "forbidden_cartesian_joins",
+        )
+    ):
+        raise PR18EvidenceError("NOT_VERIFIED: query contract topology booleans are incomplete")
     actual_relations: set[str] = set()
+    statement_plans: list[tuple[dict[str, object], str, set[str]]] = []
     for statement in statements:
         if not isinstance(statement, dict):
-            continue
+            raise PR18EvidenceError("NOT_VERIFIED: malformed captured query statement")
         plan = statement.get("plan")
-        if isinstance(plan, dict):
-            actual_relations.update(_string_items(plan.get("relations"), label="relations"))
+        if not isinstance(plan, dict):
+            raise PR18EvidenceError("NOT_VERIFIED: query contract statement has no plan")
+        plan_relations = set(_string_items(plan.get("relations"), label="relations"))
+        if not _string_items(plan.get("node_types"), label="node types"):
+            raise PR18EvidenceError("NOT_VERIFIED: query plan has no node types")
+        actual_relations.update(plan_relations)
+        statement_plans.append((plan, str(statement.get("sql", "")), plan_relations))
     missing_relations = sorted(set(required_relations) - actual_relations)
     if missing_relations:
-        raise PR18EvidenceError(f"required relation(s) absent: {', '.join(missing_relations)}")
+        raise PR18EvidenceError(
+            f"MISSING_REQUIRED_RELATION: {', '.join(missing_relations)}"
+        )
+    unexpected_relations = sorted(actual_relations - set(allowed_relations))
+    if closed_relation_set and unexpected_relations:
+        raise PR18EvidenceError(
+            f"UNEXPECTED_RELATION: {', '.join(unexpected_relations)}"
+        )
 
     sql_text = "\n".join(
         str(statement.get("sql", "")) for statement in statements if isinstance(statement, dict)
@@ -306,38 +468,79 @@ def validate_query_contract(
         if not re.search(str(pattern), sql_text, re.IGNORECASE | re.DOTALL):
             missing_predicates.append(str(name))
     if missing_predicates:
-        raise PR18EvidenceError(f"required predicate(s) absent: {', '.join(missing_predicates)}")
-
-    topology = expectation.get("topology")
-    if not isinstance(topology, dict):
-        raise PR18EvidenceError("query contract has no topology constraints")
+        raise PR18EvidenceError(
+            f"MISSING_REQUIRED_PREDICATE: {', '.join(missing_predicates)}"
+        )
     forbidden_nodes = set(_string_items(topology.get("forbidden_node_types"), label="node types"))
     forbidden_fragments = _string_items(
         topology.get("forbidden_sql_fragments"), label="SQL fragments"
     )
-    for statement in statements:
-        if not isinstance(statement, dict):
-            raise PR18EvidenceError("malformed captured query statement")
-        sql = str(statement.get("sql", ""))
+    required_edges = _join_contracts(topology, "required_join_edges")
+    allowed_edges = _join_contracts(topology, "allowed_join_edges")
+    if topology.get("allowed_join_edges") == "required_join_edges":
+        allowed_edges = required_edges
+    allowed_edge_keys = {_edge_key(item[1]) for item in allowed_edges}
+    if any(_edge_key(edge[1]) not in allowed_edge_keys for edge in required_edges):
+        raise PR18EvidenceError("NOT_VERIFIED: required topology edge is not allowed")
+    observed_edges: list[dict[str, object]] = []
+    observed_edge_names: set[str] = set()
+    invalid_edges: list[str] = []
+    cartesian_join = False
+    for plan, sql, plan_relations in statement_plans:
         if not sql.lstrip().upper().startswith("SELECT"):
-            raise PR18EvidenceError("query contract captured a non-SELECT statement")
-        plan = statement.get("plan")
-        if not isinstance(plan, dict):
-            raise PR18EvidenceError("query contract statement has no plan")
+            raise PR18EvidenceError(
+                "WRITE_OR_LOCK_VIOLATION: query captured a non-SELECT statement"
+            )
         node_types = set(_string_items(plan.get("node_types"), label="node types"))
         forbidden = sorted(node_types & forbidden_nodes)
         if forbidden:
-            raise PR18EvidenceError(f"forbidden query topology: {', '.join(forbidden)}")
+            raise PR18EvidenceError(
+                f"WRITE_OR_LOCK_VIOLATION: forbidden query topology: {', '.join(forbidden)}"
+            )
         upper_sql = sql.upper()
         if any(fragment.upper() in upper_sql for fragment in forbidden_fragments):
-            raise PR18EvidenceError("forbidden query lock/write topology")
-        if "Nested Loop" in node_types and not plan.get("join_types"):
-            raise PR18EvidenceError("query topology contains an unconstrained nested loop")
+            raise PR18EvidenceError("WRITE_OR_LOCK_VIOLATION: forbidden query lock/write topology")
+        sql_relations = set(_sql_relations(sql))
+        if not sql_relations and plan_relations:
+            raise PR18EvidenceError("NOT_VERIFIED: SQL relation topology could not be parsed")
         if topology.get("mode") == "batched_single_relation_selects":
-            if len(_tuple_items(plan.get("relations"))) > 1 or any(
-                node_type in {"Nested Loop", "Hash Join", "Merge Join"} for node_type in node_types
-            ):
-                raise PR18EvidenceError("query topology is not a single-relation batch read")
+            if not topology.get("allow_single_relation_reads") or len(plan_relations) != 1:
+                raise PR18EvidenceError("INVALID_JOIN_TOPOLOGY: expected a single relation read")
+            if sql_relations != plan_relations:
+                raise PR18EvidenceError("INVALID_JOIN_TOPOLOGY: SQL and plan relations disagree")
+        edges, statement_cartesian = _extract_join_edges(sql, plan_relations=plan_relations)
+        cartesian_join = cartesian_join or statement_cartesian
+        if (
+            statement_cartesian
+            and topology.get("forbidden_cartesian_joins") is True
+            and topology.get("allow_cartesian_joins") is not True
+        ):
+            raise PR18EvidenceError("CARTESIAN_JOIN: Cartesian join is not authorized")
+        if len(plan_relations) > 1 and not topology.get("allow_single_relation_reads"):
+            raise PR18EvidenceError("INVALID_JOIN_TOPOLOGY: multi-relation read is not authorized")
+        if len(plan_relations) > 1 and not _join_graph_connected(plan_relations, edges):
+            raise PR18EvidenceError("INVALID_JOIN_TOPOLOGY: join graph is disconnected")
+        for edge in edges:
+            pair = (str(edge["left"]), str(edge["right"]))
+            matching = [item for item in allowed_edges if _edge_key(item[1]) == pair]
+            if not matching:
+                invalid_edges.append(f"{pair[0]}--{pair[1]}")
+                continue
+            matching_contract = next(
+                (item for item in matching if re.search(item[2], sql, re.IGNORECASE | re.DOTALL)),
+                None,
+            )
+            if matching_contract is None:
+                invalid_edges.append(f"{pair[0]}--{pair[1]}")
+                continue
+            edge["name"] = matching_contract[0]
+            observed_edge_names.add(matching_contract[0])
+            observed_edges.append(edge)
+    if invalid_edges:
+        raise PR18EvidenceError(
+            "INVALID_JOIN_TOPOLOGY: unauthorized or wrong join edge(s): "
+            f"{', '.join(sorted(invalid_edges))}"
+        )
 
     missing_join_patterns: list[str] = []
     for item in _tuple_items(topology.get("required_join_patterns")):
@@ -348,20 +551,70 @@ def validate_query_contract(
             missing_join_patterns.append(str(name))
     if missing_join_patterns:
         raise PR18EvidenceError(
-            f"required query topology absent: {', '.join(missing_join_patterns)}"
+            "INVALID_JOIN_TOPOLOGY: required query topology absent: "
+            f"{', '.join(missing_join_patterns)}"
         )
+    missing_edges = sorted({item[0] for item in required_edges} - observed_edge_names)
+    if missing_edges:
+        raise PR18EvidenceError(
+            f"INVALID_JOIN_TOPOLOGY: required join edge(s) absent: {', '.join(missing_edges)}"
+        )
+    expected_topology = {
+        "mode": topology.get("mode"),
+        "closed_relation_set": closed_relation_set,
+        "allow_single_relation_reads": topology.get("allow_single_relation_reads") is True,
+        "forbidden_cartesian_joins": topology.get("forbidden_cartesian_joins") is True,
+        "required_join_edges": [
+            {"name": name, "relations": list(relations), "predicate": pattern}
+            for name, relations, pattern in required_edges
+        ],
+        "allowed_join_edges": [
+            {"name": name, "relations": list(relations), "predicate": pattern}
+            for name, relations, pattern in allowed_edges
+        ],
+        "forbidden_join_edges": topology.get("forbidden_join_edges"),
+    }
+    observed_topology = {
+        "join_edges": sorted(
+            observed_edges,
+            key=lambda edge: (
+                str(edge.get("left")),
+                str(edge.get("right")),
+                str(edge.get("predicate")),
+            ),
+        ),
+        "connected": all(
+            _join_graph_connected(
+                set(plan_relations),
+                _extract_join_edges(sql, plan_relations=plan_relations)[0],
+            )
+            for _plan, sql, plan_relations in statement_plans
+        ),
+    }
     return {
         "required_relations": list(required_relations),
+        "allowed_relations": list(allowed_relations),
+        "observed_relations": sorted(actual_relations),
         "actual_relations": sorted(actual_relations),
+        "missing_relations": missing_relations,
+        "unexpected_relations": unexpected_relations,
         "required_predicates": [
             str(item[0])
             for item in predicate_items
             if isinstance(item, list | tuple) and len(item) == 2
         ],
+        "missing_predicates": missing_predicates,
+        "predicate_verdict": "PASS",
         "topology_mode": topology["mode"],
+        "expected_topology": expected_topology,
+        "observed_topology": observed_topology,
+        "cartesian_verdict": "PASS" if not cartesian_join else "FAIL",
+        "topology_verdict": "PASS",
         "select_only": True,
         "no_cartesian_product": True,
         "no_write_or_lock": True,
+        "verification_status": "VERIFIED",
+        "overall_verdict": "PASS",
     }
 
 
@@ -753,7 +1006,20 @@ def _captured_query_plans(
         "production_operation": operation,
         "repository_methods": list(_tuple_items(expectation["repository_methods"])),
         "required_relations": structural_assertions["required_relations"],
+        "allowed_relations": structural_assertions["allowed_relations"],
+        "observed_relations": structural_assertions["observed_relations"],
+        "missing_relations": structural_assertions["missing_relations"],
+        "unexpected_relations": structural_assertions["unexpected_relations"],
         "required_predicates": structural_assertions["required_predicates"],
+        "predicate_verdict": structural_assertions["predicate_verdict"],
+        "expected_topology": structural_assertions["expected_topology"],
+        "observed_topology": structural_assertions["observed_topology"],
+        "cartesian_verdict": structural_assertions["cartesian_verdict"],
+        "write_or_lock_verdict": (
+            "PASS" if structural_assertions["no_write_or_lock"] else "FAIL"
+        ),
+        "overall_verdict": structural_assertions["overall_verdict"],
+        "verification_status": structural_assertions["verification_status"],
         "representative_rows": representative_rows,
         "statements": statements,
         "structural_assertions": structural_assertions,
