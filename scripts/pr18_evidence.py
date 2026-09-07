@@ -53,6 +53,7 @@ AUTHORITATIVE_COMMANDS: tuple[tuple[str, list[str]], ...] = (
             "pytest",
             "-q",
             "-ra",
+            "tests/unit/test_pr18_explain_contract.py",
             "tests/unit/test_pr18_evidence.py",
             "tests/unit/test_pr18_error_log_hardening.py",
             "tests/unit/test_pr18_docs_examples.py",

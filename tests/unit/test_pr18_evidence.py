@@ -229,6 +229,12 @@ def test_authoritative_registry_has_no_absolute_or_credential_tokens() -> None:
     )
 
 
+def test_authoritative_focused_command_includes_explain_topology_contracts() -> None:
+    focused = dict(AUTHORITATIVE_COMMANDS)["pr18_focused_and_evidence_tool"]
+
+    assert "tests/unit/test_pr18_explain_contract.py" in focused
+
+
 def test_stored_commands_are_bound_to_the_current_registry() -> None:
     entries: dict[str, dict[str, object]] = {}
     for command_id, _command in AUTHORITATIVE_COMMANDS:
