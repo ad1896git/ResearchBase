@@ -606,6 +606,11 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT DISTINCT ON () 1 FROM t",
         "SELECT 1 FROM t JOIN u USING ()",
         "SELECT 1 ORDER BY x NULLS",
+        "SELECT 1 FROM t WHERE x IS NOT",
+        "SELECT 1 FROM t WHERE x LIKE",
+        "SELECT 1 FROM t WHERE x IN (1) OR",
+        "SELECT 1 FROM t FOR NO KEY",
+        "SELECT 1 FROM t FOR",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -623,6 +628,26 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
     projection = _validate_statement_purity(
         [{"sql": "SELECT payload @> :filter FROM records"}]
     )
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT"
+    assert statement["lexical_valid"] is True
+    assert statement["grammar_supported"] is True
+    assert statement["statement_complete"] is True
+    assert statement["purity_verdict"] == "PASS"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT COUNT(*) FROM t",
+        "SELECT t.* FROM t",
+        "SELECT 1 UNION SELECT 2",
+        "SELECT 1 UNION ALL SELECT 2",
+    ],
+)
+def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:
+    projection = _validate_statement_purity([{"sql": sql}])
     statement = projection["statements"][0]
 
     assert statement["statement_class"] == "READ_SELECT"

@@ -244,6 +244,11 @@ _INCOMPLETE_CLAUSE_WORDS = frozenset(
         "WHEN",
         "THEN",
         "ELSE",
+        "AND",
+        "IS",
+        "LIKE",
+        "NOT",
+        "OR",
         "NULLS",
     }
 )
@@ -319,6 +324,7 @@ _SUPPORTED_OPERATOR_RUNS = frozenset(
         "->",
         "->>",
         "=>",
+        ".*",
     }
 )
 
@@ -523,6 +529,24 @@ def _has_locking_clause(tokens: tuple[_SQLToken, ...]) -> bool:
     )
 
 
+def _locking_clause_supported(tokens: tuple[_SQLToken, ...], depth: int) -> bool:
+    words = [token.text for token in tokens if token.depth == depth and token.kind == "word"]
+    valid_prefixes = {
+        ("FOR", "UPDATE"),
+        ("FOR", "NO", "KEY", "UPDATE"),
+        ("FOR", "SHARE"),
+        ("FOR", "KEY", "SHARE"),
+    }
+    for index, word in enumerate(words):
+        if word != "FOR":
+            continue
+        if not any(
+            tuple(words[index : index + len(prefix)]) == prefix for prefix in valid_prefixes
+        ):
+            return False
+    return True
+
+
 def _has_mutating_cte(tokens: tuple[_SQLToken, ...]) -> bool:
     for index, token in enumerate(tokens):
         if token.kind != "word" or token.text != "WITH":
@@ -715,6 +739,13 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             index += 1
             continue
 
+        if token.text == "*" and previous is not None and previous.text == "(":
+            if index + 1 >= len(tokens) or tokens[index + 1].text != ")":
+                return False
+            previous = token
+            index += 1
+            continue
+
         if token.text == ",":
             next_index = index + 1
             if next_index >= len(tokens):
@@ -751,6 +782,8 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             next_index += 1
         run = "".join(token.text for token in tokens[index:next_index])
         if next_index >= len(tokens):
+            if run == ".*":
+                return True
             return False
         next_token = tokens[next_index]
         if next_token.depth < token.depth or (
@@ -804,6 +837,8 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
 def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) -> bool:
     depth = tokens[select_index].depth
     end = _scope_end(tokens, select_index)
+    if not _locking_clause_supported(tokens[select_index:end], depth):
+        return False
     boundaries = [
         (index, token.text)
         for index, token in enumerate(tokens[select_index + 1 : end], start=select_index + 1)
@@ -829,7 +864,23 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
         )
         clause = tokens[boundary_position + 1 : next_boundary]
         if boundary in {"UNION", "INTERSECT", "EXCEPT", "RETURNING"}:
-            return False
+            set_operator_end = boundary_position + 1
+            if (
+                set_operator_end < end
+                and tokens[set_operator_end].depth == depth
+                and tokens[set_operator_end].kind == "word"
+                and tokens[set_operator_end].text == "ALL"
+            ):
+                set_operator_end += 1
+            if (
+                boundary == "RETURNING"
+                or set_operator_end >= end
+                or tokens[set_operator_end].depth != depth
+                or tokens[set_operator_end].kind != "word"
+                or tokens[set_operator_end].text != "SELECT"
+            ):
+                return False
+            continue
         if boundary in {"GROUP", "ORDER"}:
             if not clause or clause[0].kind != "word" or clause[0].text != "BY":
                 return False
