@@ -484,6 +484,11 @@ def test_statement_purity_projection_marks_every_read_only_reason_false() -> Non
         "SELECT $$DELETE FROM x;$$",
         'SELECT "UPDATE" FROM "select"',
         'SELECT "value; still one statement"',
+        (
+            "SELECT id FROM evidence_relations "
+            "ORDER BY CASE WHEN measurement_id IS NOT NULL THEN :first "
+            "ELSE :second END, qualification ASC NULLS FIRST"
+        ),
     ],
 )
 def test_r6_valid_selects_have_positive_proof(sql: str) -> None:
@@ -590,6 +595,12 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 FROM t WHERE x =",
         "SELECT (1 +)",
         "SELECT func(1,)",
+        "SELECT 1 * / 2",
+        "SELECT 1,,2",
+        "SELECT 1 FROM t WHERE x = (1 2)",
+        "SELECT DISTINCT FROM t",
+        "SELECT CASE",
+        "SELECT 1 FROM t JOIN u",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -614,6 +625,20 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
     assert statement["grammar_supported"] is True
     assert statement["statement_complete"] is True
     assert statement["purity_verdict"] == "PASS"
+
+
+def test_r6_nested_data_modifying_cte_is_rejected() -> None:
+    sql = (
+        "SELECT 1 FROM (WITH changed AS "
+        "(UPDATE t SET x = 1 RETURNING x) SELECT x FROM changed) q"
+    )
+    projection = _validate_statement_purity([{"sql": sql}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "DATA_MODIFYING_CTE"
+    assert statement["mutating_cte_detected"] is True
+    assert statement["purity_verdict"] == "FAIL"
+    assert projection["overall_verdict"] == "FAIL"
 
 
 def test_r6_impossible_pass_projection_is_rejected() -> None:
@@ -767,5 +792,8 @@ def test_query_contract_rejects_unparseable_topology_fail_closed() -> None:
         "AND runs.project_id = :project"
     )
 
-    with pytest.raises(PR18EvidenceError, match="CARTESIAN_JOIN|INVALID_JOIN_TOPOLOGY"):
+    with pytest.raises(
+        PR18EvidenceError,
+        match="CARTESIAN_JOIN|INVALID_JOIN_TOPOLOGY|NOT_VERIFIED",
+    ):
         validate_query_contract(expectation, statements)
