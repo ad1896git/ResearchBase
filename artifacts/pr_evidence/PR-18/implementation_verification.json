@@ -166,11 +166,11 @@
         "deselected": 0,
         "errors": 0,
         "failed": 0,
-        "passed": 815,
+        "passed": 845,
         "return_code": 0,
-        "selected": 817,
+        "selected": 847,
         "skipped": 2,
-        "total_discovered": 817,
+        "total_discovered": 847,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -313,14 +313,14 @@
         "--junitxml=artifacts/pr_evidence/PR-18/junit/postgresql_integration.xml"
       ],
       "counts": {
-        "deselected": 481,
+        "deselected": 511,
         "errors": 0,
         "failed": 0,
         "passed": 334,
         "return_code": 0,
         "selected": 336,
         "skipped": 2,
-        "total_discovered": 817,
+        "total_discovered": 847,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -401,11 +401,11 @@
         "deselected": 0,
         "errors": 0,
         "failed": 0,
-        "passed": 97,
+        "passed": 127,
         "return_code": 0,
-        "selected": 97,
+        "selected": 127,
         "skipped": 0,
-        "total_discovered": 97,
+        "total_discovered": 127,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -503,9 +503,9 @@
   },
   "evidence_binding": {
     "mode": "separate-evidence-only-commit",
-    "parent": "c7446a8df1368d712c021de21b4901c562f21927"
+    "parent": "d1b85f8b43e30133762d22d675a23cc50700c786"
   },
-  "implementation_subject": "c7446a8df1368d712c021de21b4901c562f21927",
+  "implementation_subject": "d1b85f8b43e30133762d22d675a23cc50700c786",
   "metadata": {
     "catalog": {
       "exact_required_coverage": true,
@@ -1099,23 +1099,41 @@
         "statement_count": 2,
         "statement_purity": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT audit_findings.id FROM audit_findings WHERE audit_findings.project_id = %(project_id_1)s::UUID AND audit_findings.target_type = %(target_type_1)s::VARCHAR AND audit_findings.target_id = %(target_id_1)s::UUID ORDER BY audit_findings.created_at, audit_findings.id",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT audit_findings.id FROM audit_findings WHERE audit_findings.project_id = %(project_id_1)s::UUID AND audit_findings.target_type = %(target_type_1)s::VARCHAR AND audit_findings.target_id = %(target_id_1)s::UUID ORDER BY audit_findings.created_at, audit_findings.id",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT audit_findings.id AS audit_findings_id, audit_findings.project_id AS audit_findings_project_id, audit_findings.finding_type AS audit_findings_finding_type, audit_findings.severity AS audit_findings_severity, audit_findings.title AS audit_findings_title, audit_findings.description AS audit_findings_description, audit_findings.target_type AS audit_findings_target_type, audit_findings.target_id AS audit_findings_target_id, audit_findings.target_content_hash AS audit_findings_target_content_hash, audit_findings.status AS audit_findings_status, audit_findings.created_by AS audit_findings_created_by, audit_findings.created_at AS audit_findings_created_at, audit_findings.row_version AS audit_findings_row_version FROM audit_findings WHERE audit_findings.id = %(pk_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT audit_findings.id AS audit_findings_id, audit_findings.project_id AS audit_findings_project_id, audit_findings.finding_type AS audit_findings_finding_type, audit_findings.severity AS audit_findings_severity, audit_findings.title AS audit_findings_title, audit_findings.description AS audit_findings_description, audit_findings.target_type AS audit_findings_target_type, audit_findings.target_id AS audit_findings_target_id, audit_findings.target_content_hash AS audit_findings_target_content_hash, audit_findings.status AS audit_findings_status, audit_findings.created_by AS audit_findings_created_by, audit_findings.created_at AS audit_findings_created_at, audit_findings.row_version AS audit_findings_row_version FROM audit_findings WHERE audit_findings.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "statements": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT audit_findings.id FROM audit_findings WHERE audit_findings.project_id = %(project_id_1)s::UUID AND audit_findings.target_type = %(target_type_1)s::VARCHAR AND audit_findings.target_id = %(target_id_1)s::UUID ORDER BY audit_findings.created_at, audit_findings.id",
             "plan": {
               "index_names": [
@@ -1130,12 +1148,19 @@
                 "audit_findings"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT audit_findings.id FROM audit_findings WHERE audit_findings.project_id = %(project_id_1)s::UUID AND audit_findings.target_type = %(target_type_1)s::VARCHAR AND audit_findings.target_id = %(target_id_1)s::UUID ORDER BY audit_findings.created_at, audit_findings.id",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT audit_findings.id AS audit_findings_id, audit_findings.project_id AS audit_findings_project_id, audit_findings.finding_type AS audit_findings_finding_type, audit_findings.severity AS audit_findings_severity, audit_findings.title AS audit_findings_title, audit_findings.description AS audit_findings_description, audit_findings.target_type AS audit_findings_target_type, audit_findings.target_id AS audit_findings_target_id, audit_findings.target_content_hash AS audit_findings_target_content_hash, audit_findings.status AS audit_findings_status, audit_findings.created_by AS audit_findings_created_by, audit_findings.created_at AS audit_findings_created_at, audit_findings.row_version AS audit_findings_row_version FROM audit_findings WHERE audit_findings.id = %(pk_1)s::UUID",
             "plan": {
               "index_names": [
@@ -1149,9 +1174,12 @@
                 "audit_findings"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT audit_findings.id AS audit_findings_id, audit_findings.project_id AS audit_findings_project_id, audit_findings.finding_type AS audit_findings_finding_type, audit_findings.severity AS audit_findings_severity, audit_findings.title AS audit_findings_title, audit_findings.description AS audit_findings_description, audit_findings.target_type AS audit_findings_target_type, audit_findings.target_id AS audit_findings_target_id, audit_findings.target_content_hash AS audit_findings_target_content_hash, audit_findings.status AS audit_findings_status, audit_findings.created_by AS audit_findings_created_by, audit_findings.created_at AS audit_findings_created_at, audit_findings.row_version AS audit_findings_row_version FROM audit_findings WHERE audit_findings.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "structural_assertions": {
@@ -1197,18 +1225,32 @@
           "statement_count": 2,
           "statement_evidence": [
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT audit_findings.id FROM audit_findings WHERE audit_findings.project_id = %(project_id_1)s::UUID AND audit_findings.target_type = %(target_type_1)s::VARCHAR AND audit_findings.target_id = %(target_id_1)s::UUID ORDER BY audit_findings.created_at, audit_findings.id",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT audit_findings.id FROM audit_findings WHERE audit_findings.project_id = %(project_id_1)s::UUID AND audit_findings.target_type = %(target_type_1)s::VARCHAR AND audit_findings.target_id = %(target_id_1)s::UUID ORDER BY audit_findings.created_at, audit_findings.id",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT audit_findings.id AS audit_findings_id, audit_findings.project_id AS audit_findings_project_id, audit_findings.finding_type AS audit_findings_finding_type, audit_findings.severity AS audit_findings_severity, audit_findings.title AS audit_findings_title, audit_findings.description AS audit_findings_description, audit_findings.target_type AS audit_findings_target_type, audit_findings.target_id AS audit_findings_target_id, audit_findings.target_content_hash AS audit_findings_target_content_hash, audit_findings.status AS audit_findings_status, audit_findings.created_by AS audit_findings_created_by, audit_findings.created_at AS audit_findings_created_at, audit_findings.row_version AS audit_findings_row_version FROM audit_findings WHERE audit_findings.id = %(pk_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT audit_findings.id AS audit_findings_id, audit_findings.project_id AS audit_findings_project_id, audit_findings.finding_type AS audit_findings_finding_type, audit_findings.severity AS audit_findings_severity, audit_findings.title AS audit_findings_title, audit_findings.description AS audit_findings_description, audit_findings.target_type AS audit_findings_target_type, audit_findings.target_id AS audit_findings_target_id, audit_findings.target_content_hash AS audit_findings_target_content_hash, audit_findings.status AS audit_findings_status, audit_findings.created_by AS audit_findings_created_by, audit_findings.created_at AS audit_findings_created_at, audit_findings.row_version AS audit_findings_row_version FROM audit_findings WHERE audit_findings.id = %(pk_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             }
           ],
           "topology_mode": "batched_single_relation_selects",
@@ -1325,128 +1367,251 @@
         "statement_count": 17,
         "statement_purity": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT statistical_results.id, statistical_results.project_id, statistical_results.analysis_type, statistical_results.result_payload, statistical_results.analysis_definition, statistical_results.content_hash, statistical_results.created_by, statistical_results.created_at FROM statistical_results WHERE statistical_results.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT statistical_results.id, statistical_results.project_id, statistical_results.analysis_type, statistical_results.result_payload, statistical_results.analysis_definition, statistical_results.content_hash, statistical_results.created_by, statistical_results.created_at FROM statistical_results WHERE statistical_results.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT statistical_result_inputs.statistical_result_id, statistical_result_inputs.measurement_id, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs WHERE statistical_result_inputs.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT statistical_result_inputs.statistical_result_id, statistical_result_inputs.measurement_id, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs WHERE statistical_result_inputs.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "statements": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
             "plan": {
               "index_names": [
@@ -1460,12 +1625,19 @@
                 "claim_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
             "plan": {
               "index_names": [
@@ -1479,12 +1651,19 @@
                 "claims"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
             "plan": {
               "index_names": [],
@@ -1497,12 +1676,19 @@
                 "evidence_relations"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT statistical_results.id, statistical_results.project_id, statistical_results.analysis_type, statistical_results.result_payload, statistical_results.analysis_definition, statistical_results.content_hash, statistical_results.created_by, statistical_results.created_at FROM statistical_results WHERE statistical_results.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1516,12 +1702,19 @@
                 "statistical_results"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT statistical_results.id, statistical_results.project_id, statistical_results.analysis_type, statistical_results.result_payload, statistical_results.analysis_definition, statistical_results.content_hash, statistical_results.created_by, statistical_results.created_at FROM statistical_results WHERE statistical_results.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT statistical_result_inputs.statistical_result_id, statistical_result_inputs.measurement_id, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs WHERE statistical_result_inputs.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1535,12 +1728,19 @@
                 "statistical_result_inputs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT statistical_result_inputs.statistical_result_id, statistical_result_inputs.measurement_id, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs WHERE statistical_result_inputs.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1554,12 +1754,19 @@
                 "measurements"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1573,12 +1780,19 @@
                 "runs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1592,12 +1806,19 @@
                 "run_dataset_inputs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1611,12 +1832,19 @@
                 "run_artifact_inputs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1630,12 +1858,19 @@
                 "experiment_spec_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1649,12 +1884,19 @@
                 "dataset_snapshots"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1668,12 +1910,19 @@
                 "artifact_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
             "plan": {
               "index_names": [],
@@ -1685,12 +1934,19 @@
                 "measurements"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -1704,12 +1960,19 @@
                 "metric_definition_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
             "plan": {
               "index_names": [
@@ -1723,12 +1986,19 @@
                 "claim_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
             "plan": {
               "index_names": [
@@ -1742,12 +2012,19 @@
                 "claims"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
             "plan": {
               "index_names": [],
@@ -1760,9 +2037,12 @@
                 "evidence_relations"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "structural_assertions": {
@@ -1867,123 +2147,242 @@
           "statement_count": 17,
           "statement_evidence": [
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT statistical_results.id, statistical_results.project_id, statistical_results.analysis_type, statistical_results.result_payload, statistical_results.analysis_definition, statistical_results.content_hash, statistical_results.created_by, statistical_results.created_at FROM statistical_results WHERE statistical_results.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT statistical_results.id, statistical_results.project_id, statistical_results.analysis_type, statistical_results.result_payload, statistical_results.analysis_definition, statistical_results.content_hash, statistical_results.created_by, statistical_results.created_at FROM statistical_results WHERE statistical_results.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT statistical_result_inputs.statistical_result_id, statistical_result_inputs.measurement_id, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs WHERE statistical_result_inputs.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT statistical_result_inputs.statistical_result_id, statistical_result_inputs.measurement_id, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs WHERE statistical_result_inputs.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version FROM claim_versions WHERE claim_versions.id = %(pk_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version FROM claims WHERE claims.id = %(pk_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at FROM evidence_relations WHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             }
           ],
           "topology_mode": "batched_single_relation_selects",
@@ -2262,51 +2661,97 @@
         "statement_count": 6,
         "statement_purity": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT artifacts.project_id, artifact_versions.content_hash FROM artifacts JOIN artifact_versions ON artifact_versions.artifact_id = artifacts.id WHERE artifact_versions.id = %(id_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT artifacts.project_id, artifact_versions.content_hash FROM artifacts JOIN artifact_versions ON artifact_versions.artifact_id = artifacts.id WHERE artifact_versions.id = %(id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_artifact_inputs.run_id FROM run_artifact_inputs JOIN runs ON runs.id = run_artifact_inputs.run_id WHERE run_artifact_inputs.artifact_version_id = %(artifact_version_id_1)s::UUID AND runs.project_id = %(project_id_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_artifact_inputs.run_id FROM run_artifact_inputs JOIN runs ON runs.id = run_artifact_inputs.run_id WHERE run_artifact_inputs.artifact_version_id = %(artifact_version_id_1)s::UUID AND runs.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.run_id, measurements.id, measurements.content_hash FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.run_id, measurements.id, measurements.content_hash FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.run_id, statistical_result_inputs.measurement_id, statistical_result_inputs.statistical_result_id, statistical_results.content_hash, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs JOIN measurements ON measurements.id = statistical_result_inputs.measurement_id JOIN statistical_results ON statistical_results.id = statistical_result_inputs.statistical_result_id WHERE statistical_result_inputs.measurement_id IN (%(measurement_id_1_1)s::UUID) AND statistical_results.project_id = %(project_id_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.run_id, statistical_result_inputs.measurement_id, statistical_result_inputs.statistical_result_id, statistical_results.content_hash, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs JOIN measurements ON measurements.id = statistical_result_inputs.measurement_id JOIN statistical_results ON statistical_results.id = statistical_result_inputs.statistical_result_id WHERE statistical_result_inputs.measurement_id IN (%(measurement_id_1_1)s::UUID) AND statistical_results.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.measurement_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.measurement_id IN (%(measurement_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.measurement_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.measurement_id IN (%(measurement_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.statistical_result_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.statistical_result_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "statements": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT artifacts.project_id, artifact_versions.content_hash FROM artifacts JOIN artifact_versions ON artifact_versions.artifact_id = artifacts.id WHERE artifact_versions.id = %(id_1)s::UUID",
             "plan": {
               "index_names": [
@@ -2325,12 +2770,19 @@
                 "artifacts"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT artifacts.project_id, artifact_versions.content_hash FROM artifacts JOIN artifact_versions ON artifact_versions.artifact_id = artifacts.id WHERE artifact_versions.id = %(id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_artifact_inputs.run_id FROM run_artifact_inputs JOIN runs ON runs.id = run_artifact_inputs.run_id WHERE run_artifact_inputs.artifact_version_id = %(artifact_version_id_1)s::UUID AND runs.project_id = %(project_id_1)s::UUID",
             "plan": {
               "index_names": [
@@ -2349,12 +2801,19 @@
                 "runs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_artifact_inputs.run_id FROM run_artifact_inputs JOIN runs ON runs.id = run_artifact_inputs.run_id WHERE run_artifact_inputs.artifact_version_id = %(artifact_version_id_1)s::UUID AND runs.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.run_id, measurements.id, measurements.content_hash FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
             "plan": {
               "index_names": [],
@@ -2366,12 +2825,19 @@
                 "measurements"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.run_id, measurements.id, measurements.content_hash FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.run_id, statistical_result_inputs.measurement_id, statistical_result_inputs.statistical_result_id, statistical_results.content_hash, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs JOIN measurements ON measurements.id = statistical_result_inputs.measurement_id JOIN statistical_results ON statistical_results.id = statistical_result_inputs.statistical_result_id WHERE statistical_result_inputs.measurement_id IN (%(measurement_id_1_1)s::UUID) AND statistical_results.project_id = %(project_id_1)s::UUID",
             "plan": {
               "index_names": [
@@ -2392,12 +2858,19 @@
                 "statistical_results"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.run_id, statistical_result_inputs.measurement_id, statistical_result_inputs.statistical_result_id, statistical_results.content_hash, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs JOIN measurements ON measurements.id = statistical_result_inputs.measurement_id JOIN statistical_results ON statistical_results.id = statistical_result_inputs.statistical_result_id WHERE statistical_result_inputs.measurement_id IN (%(measurement_id_1_1)s::UUID) AND statistical_results.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.measurement_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.measurement_id IN (%(measurement_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
             "plan": {
               "index_names": [
@@ -2418,17 +2891,23 @@
                 "evidence_relations"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.measurement_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.measurement_id IN (%(measurement_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT evidence_relations.id, evidence_relations.statistical_result_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
             "plan": {
               "index_names": [
-                "claim_versions_pkey",
-                "claims_pkey",
+                "uq_claim_versions_parent_version",
                 "uq_evidence_stat"
               ],
               "join_types": [
@@ -2436,7 +2915,8 @@
               ],
               "node_types": [
                 "Index Scan",
-                "Nested Loop"
+                "Nested Loop",
+                "Seq Scan"
               ],
               "relations": [
                 "claim_versions",
@@ -2444,9 +2924,12 @@
                 "evidence_relations"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT evidence_relations.id, evidence_relations.statistical_result_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "structural_assertions": {
@@ -2722,46 +3205,88 @@
           "statement_count": 6,
           "statement_evidence": [
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT artifacts.project_id, artifact_versions.content_hash FROM artifacts JOIN artifact_versions ON artifact_versions.artifact_id = artifacts.id WHERE artifact_versions.id = %(id_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT artifacts.project_id, artifact_versions.content_hash FROM artifacts JOIN artifact_versions ON artifact_versions.artifact_id = artifacts.id WHERE artifact_versions.id = %(id_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT run_artifact_inputs.run_id FROM run_artifact_inputs JOIN runs ON runs.id = run_artifact_inputs.run_id WHERE run_artifact_inputs.artifact_version_id = %(artifact_version_id_1)s::UUID AND runs.project_id = %(project_id_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT run_artifact_inputs.run_id FROM run_artifact_inputs JOIN runs ON runs.id = run_artifact_inputs.run_id WHERE run_artifact_inputs.artifact_version_id = %(artifact_version_id_1)s::UUID AND runs.project_id = %(project_id_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT measurements.run_id, measurements.id, measurements.content_hash FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT measurements.run_id, measurements.id, measurements.content_hash FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT measurements.run_id, statistical_result_inputs.measurement_id, statistical_result_inputs.statistical_result_id, statistical_results.content_hash, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs JOIN measurements ON measurements.id = statistical_result_inputs.measurement_id JOIN statistical_results ON statistical_results.id = statistical_result_inputs.statistical_result_id WHERE statistical_result_inputs.measurement_id IN (%(measurement_id_1_1)s::UUID) AND statistical_results.project_id = %(project_id_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT measurements.run_id, statistical_result_inputs.measurement_id, statistical_result_inputs.statistical_result_id, statistical_results.content_hash, statistical_result_inputs.input_role, statistical_result_inputs.ordinal FROM statistical_result_inputs JOIN measurements ON measurements.id = statistical_result_inputs.measurement_id JOIN statistical_results ON statistical_results.id = statistical_result_inputs.statistical_result_id WHERE statistical_result_inputs.measurement_id IN (%(measurement_id_1_1)s::UUID) AND statistical_results.project_id = %(project_id_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT evidence_relations.id, evidence_relations.measurement_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.measurement_id IN (%(measurement_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT evidence_relations.id, evidence_relations.measurement_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.measurement_id IN (%(measurement_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT evidence_relations.id, evidence_relations.statistical_result_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT evidence_relations.id, evidence_relations.statistical_result_id, evidence_relations.claim_version_id, claim_versions.content_hash FROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id WHERE evidence_relations.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             }
           ],
           "topology_mode": "explicit_join_graph",
@@ -2853,72 +3378,139 @@
         "statement_count": 9,
         "statement_purity": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT runs.id AS runs_id, runs.project_id AS runs_project_id, runs.experiment_spec_version_id AS runs_experiment_spec_version_id, runs.run_type AS runs_run_type, runs.status AS runs_status, runs.inputs_sealed_at AS runs_inputs_sealed_at, runs.started_at AS runs_started_at, runs.finished_at AS runs_finished_at, runs.exit_code AS runs_exit_code, runs.failure_reason AS runs_failure_reason, runs.created_by AS runs_created_by, runs.created_at AS runs_created_at, runs.row_version AS runs_row_version FROM runs WHERE runs.id = %(pk_1)s::UUID",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT runs.id AS runs_id, runs.project_id AS runs_project_id, runs.experiment_spec_version_id AS runs_experiment_spec_version_id, runs.run_type AS runs_run_type, runs.status AS runs_status, runs.inputs_sealed_at AS runs_inputs_sealed_at, runs.started_at AS runs_started_at, runs.finished_at AS runs_finished_at, runs.exit_code AS runs_exit_code, runs.failure_reason AS runs_failure_reason, runs.created_by AS runs_created_by, runs.created_at AS runs_created_at, runs.row_version AS runs_row_version FROM runs WHERE runs.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "statements": [
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT runs.id AS runs_id, runs.project_id AS runs_project_id, runs.experiment_spec_version_id AS runs_experiment_spec_version_id, runs.run_type AS runs_run_type, runs.status AS runs_status, runs.inputs_sealed_at AS runs_inputs_sealed_at, runs.started_at AS runs_started_at, runs.finished_at AS runs_finished_at, runs.exit_code AS runs_exit_code, runs.failure_reason AS runs_failure_reason, runs.created_by AS runs_created_by, runs.created_at AS runs_created_at, runs.row_version AS runs_row_version FROM runs WHERE runs.id = %(pk_1)s::UUID",
             "plan": {
               "index_names": [
@@ -2932,12 +3524,19 @@
                 "runs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT runs.id AS runs_id, runs.project_id AS runs_project_id, runs.experiment_spec_version_id AS runs_experiment_spec_version_id, runs.run_type AS runs_run_type, runs.status AS runs_status, runs.inputs_sealed_at AS runs_inputs_sealed_at, runs.started_at AS runs_started_at, runs.finished_at AS runs_finished_at, runs.exit_code AS runs_exit_code, runs.failure_reason AS runs_failure_reason, runs.created_by AS runs_created_by, runs.created_at AS runs_created_at, runs.row_version AS runs_row_version FROM runs WHERE runs.id = %(pk_1)s::UUID",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -2951,12 +3550,19 @@
                 "runs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -2970,12 +3576,19 @@
                 "run_dataset_inputs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -2989,12 +3602,19 @@
                 "run_artifact_inputs"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -3008,12 +3628,19 @@
                 "experiment_spec_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -3027,12 +3654,19 @@
                 "dataset_snapshots"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -3046,12 +3680,19 @@
                 "artifact_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
             "plan": {
               "index_names": [],
@@ -3063,12 +3704,19 @@
                 "measurements"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           },
           {
+            "ambiguity_detected": false,
+            "locking_detected": false,
             "locking_verdict": "PASS",
+            "multi_statement_detected": false,
+            "mutating_cte_detected": false,
             "normalized_sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
             "plan": {
               "index_names": [
@@ -3082,9 +3730,12 @@
                 "metric_definition_versions"
               ]
             },
+            "purity_verdict": "PASS",
             "read_write_verdict": "PASS",
+            "select_into_detected": false,
             "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
-            "statement_class": "READ_SELECT"
+            "statement_class": "READ_SELECT",
+            "unknown_detected": false
           }
         ],
         "structural_assertions": {
@@ -3164,67 +3815,130 @@
           "statement_count": 9,
           "statement_evidence": [
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT runs.id AS runs_id, runs.project_id AS runs_project_id, runs.experiment_spec_version_id AS runs_experiment_spec_version_id, runs.run_type AS runs_run_type, runs.status AS runs_status, runs.inputs_sealed_at AS runs_inputs_sealed_at, runs.started_at AS runs_started_at, runs.finished_at AS runs_finished_at, runs.exit_code AS runs_exit_code, runs.failure_reason AS runs_failure_reason, runs.created_by AS runs_created_by, runs.created_at AS runs_created_at, runs.row_version AS runs_row_version FROM runs WHERE runs.id = %(pk_1)s::UUID",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT runs.id AS runs_id, runs.project_id AS runs_project_id, runs.experiment_spec_version_id AS runs_experiment_spec_version_id, runs.run_type AS runs_run_type, runs.status AS runs_status, runs.inputs_sealed_at AS runs_inputs_sealed_at, runs.started_at AS runs_started_at, runs.finished_at AS runs_finished_at, runs.exit_code AS runs_exit_code, runs.failure_reason AS runs_failure_reason, runs.created_by AS runs_created_by, runs.created_at AS runs_created_at, runs.row_version AS runs_row_version FROM runs WHERE runs.id = %(pk_1)s::UUID",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version FROM runs WHERE runs.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal FROM run_dataset_inputs WHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal FROM run_artifact_inputs WHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version FROM experiment_spec_versions WHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at FROM dataset_snapshots WHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version FROM artifact_versions WHERE artifact_versions.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at FROM measurements WHERE measurements.run_id IN (%(run_id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             },
             {
+              "ambiguity_detected": false,
+              "locking_detected": false,
               "locking_verdict": "PASS",
+              "multi_statement_detected": false,
+              "mutating_cte_detected": false,
               "normalized_sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
+              "purity_verdict": "PASS",
               "read_write_verdict": "PASS",
+              "select_into_detected": false,
               "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version FROM metric_definition_versions WHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)",
-              "statement_class": "READ_SELECT"
+              "statement_class": "READ_SELECT",
+              "unknown_detected": false
             }
           ],
           "topology_mode": "batched_single_relation_selects",
@@ -3597,7 +4311,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 95,
+          "line": 96,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3608,7 +4322,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 95,
+          "line": 96,
           "marker": "FIXME",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3619,7 +4333,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 95,
+          "line": 96,
           "marker": "XXX",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3630,7 +4344,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 95,
+          "line": 96,
           "marker": "HACK",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3641,7 +4355,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 95,
+          "line": 96,
           "marker": "TBD",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3652,7 +4366,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 98,
+          "line": 99,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3663,7 +4377,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 98,
+          "line": 99,
           "marker": "FIXME",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3674,7 +4388,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 98,
+          "line": 99,
           "marker": "XXX",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3685,7 +4399,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 98,
+          "line": 99,
           "marker": "HACK",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3696,7 +4410,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 98,
+          "line": 99,
           "marker": "TBD",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3707,7 +4421,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1681,
+          "line": 1898,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3718,7 +4432,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1689,
+          "line": 1906,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3729,7 +4443,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1689,
+          "line": 1906,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3740,7 +4454,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1705,
+          "line": 1922,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3751,7 +4465,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1761,
+          "line": 1978,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3762,7 +4476,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1761,
+          "line": 1978,
           "marker": "FIXME",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3773,7 +4487,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1763,
+          "line": 1980,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3784,7 +4498,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1764,
+          "line": 1981,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3795,7 +4509,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1769,
+          "line": 1986,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3806,7 +4520,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1778,
+          "line": 1995,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -3817,7 +4531,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1779,
+          "line": 1996,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
