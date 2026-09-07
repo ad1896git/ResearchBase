@@ -166,11 +166,11 @@
         "deselected": 0,
         "errors": 0,
         "failed": 0,
-        "passed": 786,
+        "passed": 792,
         "return_code": 0,
-        "selected": 788,
+        "selected": 794,
         "skipped": 2,
-        "total_discovered": 788,
+        "total_discovered": 794,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -313,14 +313,14 @@
         "--junitxml=artifacts/pr_evidence/PR-18/junit/postgresql_integration.xml"
       ],
       "counts": {
-        "deselected": 452,
+        "deselected": 458,
         "errors": 0,
         "failed": 0,
         "passed": 334,
         "return_code": 0,
         "selected": 336,
         "skipped": 2,
-        "total_discovered": 788,
+        "total_discovered": 794,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -502,9 +502,9 @@
   },
   "evidence_binding": {
     "mode": "separate-evidence-only-commit",
-    "parent": "483e85b057af3912ed8ff475255933fd0b84d062"
+    "parent": "20c59099bcbe126559038fec6711edbc5ae9ddce"
   },
-  "implementation_subject": "483e85b057af3912ed8ff475255933fd0b84d062",
+  "implementation_subject": "20c59099bcbe126559038fec6711edbc5ae9ddce",
   "metadata": {
     "catalog": {
       "exact_required_coverage": true,
@@ -1056,7 +1056,30 @@
     "fresh_execution": true,
     "query_explain": {
       "audit_findings": {
+        "allowed_relations": [
+          "audit_findings"
+        ],
+        "cartesian_verdict": "PASS",
+        "expected_topology": {
+          "allow_single_relation_reads": true,
+          "allowed_join_edges": [],
+          "closed_relation_set": true,
+          "forbidden_cartesian_joins": true,
+          "forbidden_join_edges": "all_unlisted",
+          "mode": "batched_single_relation_selects",
+          "required_join_edges": []
+        },
         "index_usable": true,
+        "missing_relations": [],
+        "observed_relations": [
+          "audit_findings"
+        ],
+        "observed_topology": {
+          "connected": true,
+          "join_edges": []
+        },
+        "overall_verdict": "PASS",
+        "predicate_verdict": "PASS",
         "production_operation": "GovernanceQueryService.list_audit_findings",
         "repository_methods": [
           "governance.list_audit_findings"
@@ -1107,8 +1130,32 @@
           "actual_relations": [
             "audit_findings"
           ],
+          "allowed_relations": [
+            "audit_findings"
+          ],
+          "cartesian_verdict": "PASS",
+          "expected_topology": {
+            "allow_single_relation_reads": true,
+            "allowed_join_edges": [],
+            "closed_relation_set": true,
+            "forbidden_cartesian_joins": true,
+            "forbidden_join_edges": "all_unlisted",
+            "mode": "batched_single_relation_selects",
+            "required_join_edges": []
+          },
+          "missing_predicates": [],
+          "missing_relations": [],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
+          "observed_relations": [
+            "audit_findings"
+          ],
+          "observed_topology": {
+            "connected": true,
+            "join_edges": []
+          },
+          "overall_verdict": "PASS",
+          "predicate_verdict": "PASS",
           "required_predicates": [
             "finding project scope",
             "finding target type scope",
@@ -1118,10 +1165,63 @@
             "audit_findings"
           ],
           "select_only": true,
-          "topology_mode": "batched_single_relation_selects"
-        }
+          "topology_mode": "batched_single_relation_selects",
+          "topology_verdict": "PASS",
+          "unexpected_relations": [],
+          "verification_status": "VERIFIED"
+        },
+        "unexpected_relations": [],
+        "verification_status": "VERIFIED",
+        "write_or_lock_verdict": "PASS"
       },
       "claim_trace": {
+        "allowed_relations": [
+          "claim_versions",
+          "claims",
+          "evidence_relations",
+          "statistical_results",
+          "statistical_result_inputs",
+          "measurements",
+          "runs",
+          "run_dataset_inputs",
+          "run_artifact_inputs",
+          "experiment_spec_versions",
+          "dataset_snapshots",
+          "artifact_versions",
+          "metric_definition_versions"
+        ],
+        "cartesian_verdict": "PASS",
+        "expected_topology": {
+          "allow_single_relation_reads": true,
+          "allowed_join_edges": [],
+          "closed_relation_set": true,
+          "forbidden_cartesian_joins": true,
+          "forbidden_join_edges": "all_unlisted",
+          "mode": "batched_single_relation_selects",
+          "required_join_edges": []
+        },
+        "missing_relations": [],
+        "observed_relations": [
+          "artifact_versions",
+          "claim_versions",
+          "claims",
+          "dataset_snapshots",
+          "evidence_relations",
+          "experiment_spec_versions",
+          "measurements",
+          "metric_definition_versions",
+          "run_artifact_inputs",
+          "run_dataset_inputs",
+          "runs",
+          "statistical_result_inputs",
+          "statistical_results"
+        ],
+        "observed_topology": {
+          "connected": true,
+          "join_edges": []
+        },
+        "overall_verdict": "PASS",
+        "predicate_verdict": "PASS",
         "production_operation": "ProvenanceQueryService.trace_claim_to_runs",
         "repository_methods": [
           "claim_versions.get",
@@ -1440,8 +1540,56 @@
             "statistical_result_inputs",
             "statistical_results"
           ],
+          "allowed_relations": [
+            "claim_versions",
+            "claims",
+            "evidence_relations",
+            "statistical_results",
+            "statistical_result_inputs",
+            "measurements",
+            "runs",
+            "run_dataset_inputs",
+            "run_artifact_inputs",
+            "experiment_spec_versions",
+            "dataset_snapshots",
+            "artifact_versions",
+            "metric_definition_versions"
+          ],
+          "cartesian_verdict": "PASS",
+          "expected_topology": {
+            "allow_single_relation_reads": true,
+            "allowed_join_edges": [],
+            "closed_relation_set": true,
+            "forbidden_cartesian_joins": true,
+            "forbidden_join_edges": "all_unlisted",
+            "mode": "batched_single_relation_selects",
+            "required_join_edges": []
+          },
+          "missing_predicates": [],
+          "missing_relations": [],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
+          "observed_relations": [
+            "artifact_versions",
+            "claim_versions",
+            "claims",
+            "dataset_snapshots",
+            "evidence_relations",
+            "experiment_spec_versions",
+            "measurements",
+            "metric_definition_versions",
+            "run_artifact_inputs",
+            "run_dataset_inputs",
+            "runs",
+            "statistical_result_inputs",
+            "statistical_results"
+          ],
+          "observed_topology": {
+            "connected": true,
+            "join_edges": []
+          },
+          "overall_verdict": "PASS",
+          "predicate_verdict": "PASS",
           "required_predicates": [
             "claim version identity",
             "claim identity",
@@ -1474,10 +1622,244 @@
             "metric_definition_versions"
           ],
           "select_only": true,
-          "topology_mode": "batched_single_relation_selects"
-        }
+          "topology_mode": "batched_single_relation_selects",
+          "topology_verdict": "PASS",
+          "unexpected_relations": [],
+          "verification_status": "VERIFIED"
+        },
+        "unexpected_relations": [],
+        "verification_status": "VERIFIED",
+        "write_or_lock_verdict": "PASS"
       },
       "downstream_impact": {
+        "allowed_relations": [
+          "artifacts",
+          "artifact_versions",
+          "run_artifact_inputs",
+          "runs",
+          "measurements",
+          "statistical_result_inputs",
+          "statistical_results",
+          "evidence_relations",
+          "claim_versions",
+          "claims"
+        ],
+        "cartesian_verdict": "PASS",
+        "expected_topology": {
+          "allow_single_relation_reads": true,
+          "allowed_join_edges": [
+            {
+              "name": "artifact belongs to project",
+              "predicate": "\\bartifact_versions\\.artifact_id\\s*=\\s*artifacts\\.id\\b",
+              "relations": [
+                "artifacts",
+                "artifact_versions"
+              ]
+            },
+            {
+              "name": "run input reaches run",
+              "predicate": "\\bruns\\.id\\s*=\\s*run_artifact_inputs\\.run_id\\b",
+              "relations": [
+                "run_artifact_inputs",
+                "runs"
+              ]
+            },
+            {
+              "name": "measurement reaches statistical input",
+              "predicate": "\\bmeasurements\\.id\\s*=\\s*statistical_result_inputs\\.measurement_id\\b",
+              "relations": [
+                "measurements",
+                "statistical_result_inputs"
+              ]
+            },
+            {
+              "name": "statistical input reaches result",
+              "predicate": "\\bstatistical_results\\.id\\s*=\\s*statistical_result_inputs\\.statistical_result_id\\b",
+              "relations": [
+                "statistical_result_inputs",
+                "statistical_results"
+              ]
+            },
+            {
+              "name": "measurement reaches claim evidence",
+              "predicate": "\\bclaim_versions\\.id\\s*=\\s*evidence_relations\\.claim_version_id\\b",
+              "relations": [
+                "evidence_relations",
+                "claim_versions"
+              ]
+            },
+            {
+              "name": "claim version reaches claim",
+              "predicate": "\\bclaims\\.id\\s*=\\s*claim_versions\\.claim_id\\b",
+              "relations": [
+                "claim_versions",
+                "claims"
+              ]
+            }
+          ],
+          "closed_relation_set": true,
+          "forbidden_cartesian_joins": true,
+          "forbidden_join_edges": "all_unlisted",
+          "mode": "explicit_join_graph",
+          "required_join_edges": [
+            {
+              "name": "artifact belongs to project",
+              "predicate": "\\bartifact_versions\\.artifact_id\\s*=\\s*artifacts\\.id\\b",
+              "relations": [
+                "artifacts",
+                "artifact_versions"
+              ]
+            },
+            {
+              "name": "run input reaches run",
+              "predicate": "\\bruns\\.id\\s*=\\s*run_artifact_inputs\\.run_id\\b",
+              "relations": [
+                "run_artifact_inputs",
+                "runs"
+              ]
+            },
+            {
+              "name": "measurement reaches statistical input",
+              "predicate": "\\bmeasurements\\.id\\s*=\\s*statistical_result_inputs\\.measurement_id\\b",
+              "relations": [
+                "measurements",
+                "statistical_result_inputs"
+              ]
+            },
+            {
+              "name": "statistical input reaches result",
+              "predicate": "\\bstatistical_results\\.id\\s*=\\s*statistical_result_inputs\\.statistical_result_id\\b",
+              "relations": [
+                "statistical_result_inputs",
+                "statistical_results"
+              ]
+            },
+            {
+              "name": "measurement reaches claim evidence",
+              "predicate": "\\bclaim_versions\\.id\\s*=\\s*evidence_relations\\.claim_version_id\\b",
+              "relations": [
+                "evidence_relations",
+                "claim_versions"
+              ]
+            },
+            {
+              "name": "claim version reaches claim",
+              "predicate": "\\bclaims\\.id\\s*=\\s*claim_versions\\.claim_id\\b",
+              "relations": [
+                "claim_versions",
+                "claims"
+              ]
+            }
+          ]
+        },
+        "missing_relations": [],
+        "observed_relations": [
+          "artifact_versions",
+          "artifacts",
+          "claim_versions",
+          "claims",
+          "evidence_relations",
+          "measurements",
+          "run_artifact_inputs",
+          "runs",
+          "statistical_result_inputs",
+          "statistical_results"
+        ],
+        "observed_topology": {
+          "connected": true,
+          "join_edges": [
+            {
+              "cartesian": false,
+              "left": "artifact_versions",
+              "name": "artifact belongs to project",
+              "predicate": "artifact_versions.artifact_id = artifacts.id",
+              "relation_references": [
+                "artifact_versions",
+                "artifacts"
+              ],
+              "right": "artifacts"
+            },
+            {
+              "cartesian": false,
+              "left": "claim_versions",
+              "name": "claim version reaches claim",
+              "predicate": "claims.id = claim_versions.claim_id",
+              "relation_references": [
+                "claim_versions",
+                "claims"
+              ],
+              "right": "claims"
+            },
+            {
+              "cartesian": false,
+              "left": "claim_versions",
+              "name": "claim version reaches claim",
+              "predicate": "claims.id = claim_versions.claim_id",
+              "relation_references": [
+                "claim_versions",
+                "claims"
+              ],
+              "right": "claims"
+            },
+            {
+              "cartesian": false,
+              "left": "claim_versions",
+              "name": "measurement reaches claim evidence",
+              "predicate": "claim_versions.id = evidence_relations.claim_version_id",
+              "relation_references": [
+                "claim_versions",
+                "evidence_relations"
+              ],
+              "right": "evidence_relations"
+            },
+            {
+              "cartesian": false,
+              "left": "claim_versions",
+              "name": "measurement reaches claim evidence",
+              "predicate": "claim_versions.id = evidence_relations.claim_version_id",
+              "relation_references": [
+                "claim_versions",
+                "evidence_relations"
+              ],
+              "right": "evidence_relations"
+            },
+            {
+              "cartesian": false,
+              "left": "measurements",
+              "name": "measurement reaches statistical input",
+              "predicate": "measurements.id = statistical_result_inputs.measurement_id",
+              "relation_references": [
+                "measurements",
+                "statistical_result_inputs"
+              ],
+              "right": "statistical_result_inputs"
+            },
+            {
+              "cartesian": false,
+              "left": "run_artifact_inputs",
+              "name": "run input reaches run",
+              "predicate": "runs.id = run_artifact_inputs.run_id",
+              "relation_references": [
+                "run_artifact_inputs",
+                "runs"
+              ],
+              "right": "runs"
+            },
+            {
+              "cartesian": false,
+              "left": "statistical_result_inputs",
+              "name": "statistical input reaches result",
+              "predicate": "statistical_results.id = statistical_result_inputs.statistical_result_id",
+              "relation_references": [
+                "statistical_result_inputs",
+                "statistical_results"
+              ],
+              "right": "statistical_results"
+            }
+          ]
+        },
+        "overall_verdict": "PASS",
+        "predicate_verdict": "PASS",
         "production_operation": "GovernanceQueryService.downstream_impact",
         "repository_methods": [
           "governance.resolve_artifact_version",
@@ -1609,7 +1991,8 @@
           {
             "plan": {
               "index_names": [
-                "uq_claim_versions_parent_version",
+                "claim_versions_pkey",
+                "claims_pkey",
                 "uq_evidence_stat"
               ],
               "join_types": [
@@ -1617,8 +2000,7 @@
               ],
               "node_types": [
                 "Index Scan",
-                "Nested Loop",
-                "Seq Scan"
+                "Nested Loop"
               ],
               "relations": [
                 "claim_versions",
@@ -1642,8 +2024,237 @@
             "statistical_result_inputs",
             "statistical_results"
           ],
+          "allowed_relations": [
+            "artifacts",
+            "artifact_versions",
+            "run_artifact_inputs",
+            "runs",
+            "measurements",
+            "statistical_result_inputs",
+            "statistical_results",
+            "evidence_relations",
+            "claim_versions",
+            "claims"
+          ],
+          "cartesian_verdict": "PASS",
+          "expected_topology": {
+            "allow_single_relation_reads": true,
+            "allowed_join_edges": [
+              {
+                "name": "artifact belongs to project",
+                "predicate": "\\bartifact_versions\\.artifact_id\\s*=\\s*artifacts\\.id\\b",
+                "relations": [
+                  "artifacts",
+                  "artifact_versions"
+                ]
+              },
+              {
+                "name": "run input reaches run",
+                "predicate": "\\bruns\\.id\\s*=\\s*run_artifact_inputs\\.run_id\\b",
+                "relations": [
+                  "run_artifact_inputs",
+                  "runs"
+                ]
+              },
+              {
+                "name": "measurement reaches statistical input",
+                "predicate": "\\bmeasurements\\.id\\s*=\\s*statistical_result_inputs\\.measurement_id\\b",
+                "relations": [
+                  "measurements",
+                  "statistical_result_inputs"
+                ]
+              },
+              {
+                "name": "statistical input reaches result",
+                "predicate": "\\bstatistical_results\\.id\\s*=\\s*statistical_result_inputs\\.statistical_result_id\\b",
+                "relations": [
+                  "statistical_result_inputs",
+                  "statistical_results"
+                ]
+              },
+              {
+                "name": "measurement reaches claim evidence",
+                "predicate": "\\bclaim_versions\\.id\\s*=\\s*evidence_relations\\.claim_version_id\\b",
+                "relations": [
+                  "evidence_relations",
+                  "claim_versions"
+                ]
+              },
+              {
+                "name": "claim version reaches claim",
+                "predicate": "\\bclaims\\.id\\s*=\\s*claim_versions\\.claim_id\\b",
+                "relations": [
+                  "claim_versions",
+                  "claims"
+                ]
+              }
+            ],
+            "closed_relation_set": true,
+            "forbidden_cartesian_joins": true,
+            "forbidden_join_edges": "all_unlisted",
+            "mode": "explicit_join_graph",
+            "required_join_edges": [
+              {
+                "name": "artifact belongs to project",
+                "predicate": "\\bartifact_versions\\.artifact_id\\s*=\\s*artifacts\\.id\\b",
+                "relations": [
+                  "artifacts",
+                  "artifact_versions"
+                ]
+              },
+              {
+                "name": "run input reaches run",
+                "predicate": "\\bruns\\.id\\s*=\\s*run_artifact_inputs\\.run_id\\b",
+                "relations": [
+                  "run_artifact_inputs",
+                  "runs"
+                ]
+              },
+              {
+                "name": "measurement reaches statistical input",
+                "predicate": "\\bmeasurements\\.id\\s*=\\s*statistical_result_inputs\\.measurement_id\\b",
+                "relations": [
+                  "measurements",
+                  "statistical_result_inputs"
+                ]
+              },
+              {
+                "name": "statistical input reaches result",
+                "predicate": "\\bstatistical_results\\.id\\s*=\\s*statistical_result_inputs\\.statistical_result_id\\b",
+                "relations": [
+                  "statistical_result_inputs",
+                  "statistical_results"
+                ]
+              },
+              {
+                "name": "measurement reaches claim evidence",
+                "predicate": "\\bclaim_versions\\.id\\s*=\\s*evidence_relations\\.claim_version_id\\b",
+                "relations": [
+                  "evidence_relations",
+                  "claim_versions"
+                ]
+              },
+              {
+                "name": "claim version reaches claim",
+                "predicate": "\\bclaims\\.id\\s*=\\s*claim_versions\\.claim_id\\b",
+                "relations": [
+                  "claim_versions",
+                  "claims"
+                ]
+              }
+            ]
+          },
+          "missing_predicates": [],
+          "missing_relations": [],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
+          "observed_relations": [
+            "artifact_versions",
+            "artifacts",
+            "claim_versions",
+            "claims",
+            "evidence_relations",
+            "measurements",
+            "run_artifact_inputs",
+            "runs",
+            "statistical_result_inputs",
+            "statistical_results"
+          ],
+          "observed_topology": {
+            "connected": true,
+            "join_edges": [
+              {
+                "cartesian": false,
+                "left": "artifact_versions",
+                "name": "artifact belongs to project",
+                "predicate": "artifact_versions.artifact_id = artifacts.id",
+                "relation_references": [
+                  "artifact_versions",
+                  "artifacts"
+                ],
+                "right": "artifacts"
+              },
+              {
+                "cartesian": false,
+                "left": "claim_versions",
+                "name": "claim version reaches claim",
+                "predicate": "claims.id = claim_versions.claim_id",
+                "relation_references": [
+                  "claim_versions",
+                  "claims"
+                ],
+                "right": "claims"
+              },
+              {
+                "cartesian": false,
+                "left": "claim_versions",
+                "name": "claim version reaches claim",
+                "predicate": "claims.id = claim_versions.claim_id",
+                "relation_references": [
+                  "claim_versions",
+                  "claims"
+                ],
+                "right": "claims"
+              },
+              {
+                "cartesian": false,
+                "left": "claim_versions",
+                "name": "measurement reaches claim evidence",
+                "predicate": "claim_versions.id = evidence_relations.claim_version_id",
+                "relation_references": [
+                  "claim_versions",
+                  "evidence_relations"
+                ],
+                "right": "evidence_relations"
+              },
+              {
+                "cartesian": false,
+                "left": "claim_versions",
+                "name": "measurement reaches claim evidence",
+                "predicate": "claim_versions.id = evidence_relations.claim_version_id",
+                "relation_references": [
+                  "claim_versions",
+                  "evidence_relations"
+                ],
+                "right": "evidence_relations"
+              },
+              {
+                "cartesian": false,
+                "left": "measurements",
+                "name": "measurement reaches statistical input",
+                "predicate": "measurements.id = statistical_result_inputs.measurement_id",
+                "relation_references": [
+                  "measurements",
+                  "statistical_result_inputs"
+                ],
+                "right": "statistical_result_inputs"
+              },
+              {
+                "cartesian": false,
+                "left": "run_artifact_inputs",
+                "name": "run input reaches run",
+                "predicate": "runs.id = run_artifact_inputs.run_id",
+                "relation_references": [
+                  "run_artifact_inputs",
+                  "runs"
+                ],
+                "right": "runs"
+              },
+              {
+                "cartesian": false,
+                "left": "statistical_result_inputs",
+                "name": "statistical input reaches result",
+                "predicate": "statistical_results.id = statistical_result_inputs.statistical_result_id",
+                "relation_references": [
+                  "statistical_result_inputs",
+                  "statistical_results"
+                ],
+                "right": "statistical_results"
+              }
+            ]
+          },
+          "overall_verdict": "PASS",
+          "predicate_verdict": "PASS",
           "required_predicates": [
             "artifact identity",
             "artifact project scope",
@@ -1669,10 +2280,53 @@
             "claims"
           ],
           "select_only": true,
-          "topology_mode": "explicit_join_graph"
-        }
+          "topology_mode": "explicit_join_graph",
+          "topology_verdict": "PASS",
+          "unexpected_relations": [],
+          "verification_status": "VERIFIED"
+        },
+        "unexpected_relations": [],
+        "verification_status": "VERIFIED",
+        "write_or_lock_verdict": "PASS"
       },
       "run_provenance": {
+        "allowed_relations": [
+          "runs",
+          "run_dataset_inputs",
+          "run_artifact_inputs",
+          "experiment_spec_versions",
+          "dataset_snapshots",
+          "artifact_versions",
+          "measurements",
+          "metric_definition_versions"
+        ],
+        "cartesian_verdict": "PASS",
+        "expected_topology": {
+          "allow_single_relation_reads": true,
+          "allowed_join_edges": [],
+          "closed_relation_set": true,
+          "forbidden_cartesian_joins": true,
+          "forbidden_join_edges": "all_unlisted",
+          "mode": "batched_single_relation_selects",
+          "required_join_edges": []
+        },
+        "missing_relations": [],
+        "observed_relations": [
+          "artifact_versions",
+          "dataset_snapshots",
+          "experiment_spec_versions",
+          "measurements",
+          "metric_definition_versions",
+          "run_artifact_inputs",
+          "run_dataset_inputs",
+          "runs"
+        ],
+        "observed_topology": {
+          "connected": true,
+          "join_edges": []
+        },
+        "overall_verdict": "PASS",
+        "predicate_verdict": "PASS",
         "production_operation": "ProvenanceQueryService.get_run_provenance",
         "repository_methods": [
           "runs.get",
@@ -1853,8 +2507,46 @@
             "run_dataset_inputs",
             "runs"
           ],
+          "allowed_relations": [
+            "runs",
+            "run_dataset_inputs",
+            "run_artifact_inputs",
+            "experiment_spec_versions",
+            "dataset_snapshots",
+            "artifact_versions",
+            "measurements",
+            "metric_definition_versions"
+          ],
+          "cartesian_verdict": "PASS",
+          "expected_topology": {
+            "allow_single_relation_reads": true,
+            "allowed_join_edges": [],
+            "closed_relation_set": true,
+            "forbidden_cartesian_joins": true,
+            "forbidden_join_edges": "all_unlisted",
+            "mode": "batched_single_relation_selects",
+            "required_join_edges": []
+          },
+          "missing_predicates": [],
+          "missing_relations": [],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
+          "observed_relations": [
+            "artifact_versions",
+            "dataset_snapshots",
+            "experiment_spec_versions",
+            "measurements",
+            "metric_definition_versions",
+            "run_artifact_inputs",
+            "run_dataset_inputs",
+            "runs"
+          ],
+          "observed_topology": {
+            "connected": true,
+            "join_edges": []
+          },
+          "overall_verdict": "PASS",
+          "predicate_verdict": "PASS",
           "required_predicates": [
             "run identity",
             "run batch identity",
@@ -1877,8 +2569,14 @@
             "metric_definition_versions"
           ],
           "select_only": true,
-          "topology_mode": "batched_single_relation_selects"
-        }
+          "topology_mode": "batched_single_relation_selects",
+          "topology_verdict": "PASS",
+          "unexpected_relations": [],
+          "verification_status": "VERIFIED"
+        },
+        "unexpected_relations": [],
+        "verification_status": "VERIFIED",
+        "write_or_lock_verdict": "PASS"
       }
     },
     "todo": {
@@ -2348,7 +3046,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1146,
+          "line": 1412,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2359,7 +3057,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1154,
+          "line": 1420,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2370,7 +3068,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1154,
+          "line": 1420,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2381,7 +3079,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1170,
+          "line": 1436,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2392,7 +3090,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1226,
+          "line": 1492,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2403,7 +3101,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1226,
+          "line": 1492,
           "marker": "FIXME",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2414,7 +3112,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1228,
+          "line": 1494,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2425,7 +3123,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1229,
+          "line": 1495,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2436,7 +3134,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1234,
+          "line": 1500,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2447,7 +3145,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1243,
+          "line": 1509,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
@@ -2458,7 +3156,7 @@
           "category": "evidence/tooling",
           "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1244,
+          "line": 1510,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
           "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
