@@ -1,0 +1,9 @@
+{
+  "result": "PASS",
+  "selectors": [
+    "tests/unit/test_pr18_error_log_hardening.py",
+    "tests/unit/test_pr15_http.py",
+    "tests/unit/test_pr16_cli_errors.py"
+  ],
+  "source_command": "pr18_focused_and_evidence_tool"
+}

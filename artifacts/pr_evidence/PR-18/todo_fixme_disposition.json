@@ -1,0 +1,572 @@
+{
+  "architecture_p0": [],
+  "architecture_p1": [],
+  "markers_searched": [
+    "TODO",
+    "FIXME",
+    "XXX",
+    "HACK",
+    "TBD"
+  ],
+  "records": [
+    {
+      "architecture_priority": null,
+      "category": "tests",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 11,
+      "marker": "TODO",
+      "path": "tests/unit/test_pr18_todo_audit.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "tests",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 11,
+      "marker": "FIXME",
+      "path": "tests/unit/test_pr18_todo_audit.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "tests",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 11,
+      "marker": "XXX",
+      "path": "tests/unit/test_pr18_todo_audit.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "tests",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 11,
+      "marker": "HACK",
+      "path": "tests/unit/test_pr18_todo_audit.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "tests",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 11,
+      "marker": "TBD",
+      "path": "tests/unit/test_pr18_todo_audit.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 2011,
+      "marker": "TODO",
+      "path": "docs/architecture/04_Phase1_Development_Specification_v1.2_Harness_Integrated.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 2148,
+      "marker": "TODO",
+      "path": "docs/architecture/04_Phase1_Development_Specification_v1.2_Harness_Integrated.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 30,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 30,
+      "marker": "FIXME",
+      "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 56,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 56,
+      "marker": "FIXME",
+      "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 62,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 75,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 75,
+      "marker": "FIXME",
+      "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 37,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 47,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 110,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 120,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 120,
+      "marker": "FIXME",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 124,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 132,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 132,
+      "marker": "FIXME",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 132,
+      "marker": "XXX",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 132,
+      "marker": "HACK",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 132,
+      "marker": "TBD",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 142,
+      "marker": "TODO",
+      "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 23,
+      "marker": "TODO",
+      "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 23,
+      "marker": "FIXME",
+      "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 24,
+      "marker": "TODO",
+      "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 61,
+      "marker": "TODO",
+      "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "documentation",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 61,
+      "marker": "FIXME",
+      "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 93,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 93,
+      "marker": "FIXME",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 93,
+      "marker": "XXX",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 93,
+      "marker": "HACK",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 93,
+      "marker": "TBD",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 96,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 96,
+      "marker": "FIXME",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 96,
+      "marker": "XXX",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 96,
+      "marker": "HACK",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 96,
+      "marker": "TBD",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 935,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 943,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 943,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 959,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 1015,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 1015,
+      "marker": "FIXME",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 1017,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 1018,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 1023,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 1032,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 1033,
+      "marker": "TODO",
+      "path": "scripts/pr18_evidence.py",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 148,
+      "marker": "TODO",
+      "path": "execution/phase1/PR-17D_Design_Specification_v1.6.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 148,
+      "marker": "FIXME",
+      "path": "execution/phase1/PR-17D_Design_Specification_v1.6.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 148,
+      "marker": "TODO",
+      "path": "execution/phase1/PR-17D_Design_Specification_v1.6.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 52,
+      "marker": "TODO",
+      "path": "execution/phase1/PR-17D_Implementation_Plan_v1.6.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 52,
+      "marker": "FIXME",
+      "path": "execution/phase1/PR-17D_Implementation_Plan_v1.6.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 52,
+      "marker": "TODO",
+      "path": "execution/phase1/PR-17D_Implementation_Plan_v1.6.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 3,
+      "marker": "TODO",
+      "path": "artifacts/pr_evidence/PR-17D/phase1_exit_criteria_reconciliation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 3,
+      "marker": "FIXME",
+      "path": "artifacts/pr_evidence/PR-17D/phase1_exit_criteria_reconciliation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    },
+    {
+      "architecture_priority": null,
+      "category": "evidence/tooling",
+      "disposition": "INTENTIONAL_NONBLOCKING",
+      "line": 3,
+      "marker": "TODO",
+      "path": "artifacts/pr_evidence/PR-17D/phase1_exit_criteria_reconciliation.md",
+      "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+    }
+  ],
+  "scope_roots": [
+    "src",
+    "migrations",
+    "tests",
+    "docs",
+    "scripts",
+    "execution",
+    "artifacts"
+  ],
+  "undisposed_live": []
+}

@@ -1,32 +1,539 @@
 {
-  "database": "researchbase_pr18_baseline",
-  "alembic_revision": "0016_pr17d_history_protection",
-  "migration_added": false,
-  "migration_decision": "Required catalog/index invariants passed; no migration is justified.",
-  "required_indexes": {
-    "uq_actors_external_key": {"table": "actors", "columns": ["external_key"], "unique": true, "predicate": "(external_key IS NOT NULL)"},
-    "uq_research_question_versions_parent_version": {"table": "research_question_versions", "columns": ["research_question_id", "version_number"], "unique": true},
-    "uq_hypothesis_versions_parent_version": {"table": "hypothesis_versions", "columns": ["hypothesis_id", "version_number"], "unique": true},
-    "uq_experiment_spec_versions_parent_version": {"table": "experiment_spec_versions", "columns": ["experiment_spec_id", "version_number"], "unique": true},
-    "uq_artifact_versions_artifact_version": {"table": "artifact_versions", "columns": ["artifact_id", "version_number"], "unique": true},
-    "uq_metric_definition_versions_parent_version": {"table": "metric_definition_versions", "columns": ["metric_definition_id", "version_number"], "unique": true},
-    "uq_claim_versions_parent_version": {"table": "claim_versions", "columns": ["claim_id", "version_number"], "unique": true},
-    "uq_artifact_versions_artifact_content_hash": {"table": "artifact_versions", "columns": ["artifact_id", "content_hash"], "unique": true},
-    "uq_dataset_snapshots_dataset_content_hash": {"table": "dataset_snapshots", "columns": ["dataset_id", "content_hash"], "unique": true},
-    "uq_evidence_measurement": {"table": "evidence_relations", "columns": ["claim_version_id", "measurement_id", "relation_type"], "unique": true, "predicate": "(measurement_id IS NOT NULL)"},
-    "uq_evidence_stat": {"table": "evidence_relations", "columns": ["claim_version_id", "statistical_result_id", "relation_type"], "unique": true, "predicate": "(statistical_result_id IS NOT NULL)"},
-    "ix_audit_findings_project": {"table": "audit_findings", "columns": ["project_id"], "unique": false},
-    "ix_audit_findings_target": {"table": "audit_findings", "columns": ["project_id", "target_type", "target_id"], "unique": false},
-    "ix_impact_assessments_project": {"table": "impact_assessments", "columns": ["project_id"], "unique": false},
-    "ix_impact_assessments_finding": {"table": "impact_assessments", "columns": ["audit_finding_id"], "unique": false},
-    "ix_impact_targets_target": {"table": "impact_targets", "columns": ["target_type", "target_id"], "unique": false},
-    "ix_correction_records_target": {"table": "correction_records", "columns": ["project_id", "target_type", "target_id", "created_at", "id"], "unique": false}
+  "exact_required_coverage": true,
+  "expected_manifest": [
+    {
+      "columns": [
+        "external_key"
+      ],
+      "constraint_backed": false,
+      "name": "uq_actors_external_key",
+      "predicate": "(external_key IS NOT NULL)",
+      "source": "migrations/versions/0002_actor_project_workspace.py",
+      "table": "actors",
+      "unique": true
+    },
+    {
+      "columns": [
+        "project_id",
+        "name"
+      ],
+      "constraint_backed": true,
+      "name": "uq_workspaces_project_name",
+      "predicate": null,
+      "source": "migrations/versions/0002_actor_project_workspace.py",
+      "table": "workspaces",
+      "unique": true
+    },
+    {
+      "columns": [
+        "research_question_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "name": "uq_research_question_versions_parent_version",
+      "predicate": null,
+      "source": "migrations/versions/0003_research_question_hypothesis.py",
+      "table": "research_question_versions",
+      "unique": true
+    },
+    {
+      "columns": [
+        "hypothesis_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "name": "uq_hypothesis_versions_parent_version",
+      "predicate": null,
+      "source": "migrations/versions/0003_research_question_hypothesis.py",
+      "table": "hypothesis_versions",
+      "unique": true
+    },
+    {
+      "columns": [
+        "experiment_spec_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "name": "uq_experiment_spec_versions_parent_version",
+      "predicate": null,
+      "source": "migrations/versions/0004_experiment_spec.py",
+      "table": "experiment_spec_versions",
+      "unique": true
+    },
+    {
+      "columns": [
+        "artifact_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "name": "uq_artifact_versions_artifact_version",
+      "predicate": null,
+      "source": "migrations/versions/0006_artifact_version.py",
+      "table": "artifact_versions",
+      "unique": true
+    },
+    {
+      "columns": [
+        "metric_definition_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "name": "uq_metric_definition_versions_parent_version",
+      "predicate": null,
+      "source": "migrations/versions/0007_metric_definition.py",
+      "table": "metric_definition_versions",
+      "unique": true
+    },
+    {
+      "columns": [
+        "claim_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "name": "uq_claim_versions_parent_version",
+      "predicate": null,
+      "source": "migrations/versions/0014_claim_evidence.py",
+      "table": "claim_versions",
+      "unique": true
+    },
+    {
+      "columns": [
+        "artifact_id",
+        "content_hash"
+      ],
+      "constraint_backed": true,
+      "name": "uq_artifact_versions_artifact_content_hash",
+      "predicate": null,
+      "source": "migrations/versions/0006_artifact_version.py",
+      "table": "artifact_versions",
+      "unique": true
+    },
+    {
+      "columns": [
+        "dataset_id",
+        "content_hash"
+      ],
+      "constraint_backed": true,
+      "name": "uq_dataset_snapshots_dataset_content_hash",
+      "predicate": null,
+      "source": "migrations/versions/0005_dataset_snapshot.py",
+      "table": "dataset_snapshots",
+      "unique": true
+    },
+    {
+      "columns": [
+        "claim_version_id",
+        "measurement_id",
+        "relation_type"
+      ],
+      "constraint_backed": false,
+      "name": "uq_evidence_measurement",
+      "predicate": "(measurement_id IS NOT NULL)",
+      "source": "migrations/versions/0014_claim_evidence.py",
+      "table": "evidence_relations",
+      "unique": true
+    },
+    {
+      "columns": [
+        "claim_version_id",
+        "statistical_result_id",
+        "relation_type"
+      ],
+      "constraint_backed": false,
+      "name": "uq_evidence_stat",
+      "predicate": "(statistical_result_id IS NOT NULL)",
+      "source": "migrations/versions/0014_claim_evidence.py",
+      "table": "evidence_relations",
+      "unique": true
+    },
+    {
+      "columns": [
+        "project_id"
+      ],
+      "constraint_backed": false,
+      "name": "ix_audit_findings_project",
+      "predicate": null,
+      "source": "migrations/versions/0015_governance_audit.py",
+      "table": "audit_findings",
+      "unique": false
+    },
+    {
+      "columns": [
+        "project_id",
+        "target_type",
+        "target_id"
+      ],
+      "constraint_backed": false,
+      "name": "ix_audit_findings_target",
+      "predicate": null,
+      "source": "migrations/versions/0015_governance_audit.py",
+      "table": "audit_findings",
+      "unique": false
+    },
+    {
+      "columns": [
+        "project_id"
+      ],
+      "constraint_backed": false,
+      "name": "ix_impact_assessments_project",
+      "predicate": null,
+      "source": "migrations/versions/0015_governance_audit.py",
+      "table": "impact_assessments",
+      "unique": false
+    },
+    {
+      "columns": [
+        "audit_finding_id"
+      ],
+      "constraint_backed": false,
+      "name": "ix_impact_assessments_finding",
+      "predicate": null,
+      "source": "migrations/versions/0015_governance_audit.py",
+      "table": "impact_assessments",
+      "unique": false
+    },
+    {
+      "columns": [
+        "target_type",
+        "target_id"
+      ],
+      "constraint_backed": false,
+      "name": "ix_impact_targets_target",
+      "predicate": null,
+      "source": "migrations/versions/0015_governance_audit.py",
+      "table": "impact_targets",
+      "unique": false
+    },
+    {
+      "columns": [
+        "project_id",
+        "target_type",
+        "target_id",
+        "created_at",
+        "id"
+      ],
+      "constraint_backed": false,
+      "name": "ix_correction_records_target",
+      "predicate": null,
+      "source": "migrations/versions/0015_governance_audit.py",
+      "table": "correction_records",
+      "unique": false
+    }
+  ],
+  "migration_required": false,
+  "mismatches": {},
+  "missing_required": [],
+  "observed": {
+    "ix_audit_findings_project": {
+      "access_method": "btree",
+      "columns": [
+        "project_id"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "uuid_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "audit_findings",
+      "unique": false,
+      "valid": true
+    },
+    "ix_audit_findings_target": {
+      "access_method": "btree",
+      "columns": [
+        "project_id",
+        "target_type",
+        "target_id"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "uuid_ops",
+        "text_ops",
+        "uuid_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "audit_findings",
+      "unique": false,
+      "valid": true
+    },
+    "ix_correction_records_target": {
+      "access_method": "btree",
+      "columns": [
+        "project_id",
+        "target_type",
+        "target_id",
+        "created_at",
+        "id"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "uuid_ops",
+        "text_ops",
+        "uuid_ops",
+        "timestamptz_ops",
+        "uuid_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "correction_records",
+      "unique": false,
+      "valid": true
+    },
+    "ix_impact_assessments_finding": {
+      "access_method": "btree",
+      "columns": [
+        "audit_finding_id"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "uuid_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "impact_assessments",
+      "unique": false,
+      "valid": true
+    },
+    "ix_impact_assessments_project": {
+      "access_method": "btree",
+      "columns": [
+        "project_id"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "uuid_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "impact_assessments",
+      "unique": false,
+      "valid": true
+    },
+    "ix_impact_targets_target": {
+      "access_method": "btree",
+      "columns": [
+        "target_type",
+        "target_id"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "text_ops",
+        "uuid_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "impact_targets",
+      "unique": false,
+      "valid": true
+    },
+    "uq_actors_external_key": {
+      "access_method": "btree",
+      "columns": [
+        "external_key"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "text_ops"
+      ],
+      "predicate": "(external_key IS NOT NULL)",
+      "ready": true,
+      "table": "actors",
+      "unique": true,
+      "valid": true
+    },
+    "uq_artifact_versions_artifact_content_hash": {
+      "access_method": "btree",
+      "columns": [
+        "artifact_id",
+        "content_hash"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "bpchar_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "artifact_versions",
+      "unique": true,
+      "valid": true
+    },
+    "uq_artifact_versions_artifact_version": {
+      "access_method": "btree",
+      "columns": [
+        "artifact_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "int4_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "artifact_versions",
+      "unique": true,
+      "valid": true
+    },
+    "uq_claim_versions_parent_version": {
+      "access_method": "btree",
+      "columns": [
+        "claim_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "int4_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "claim_versions",
+      "unique": true,
+      "valid": true
+    },
+    "uq_dataset_snapshots_dataset_content_hash": {
+      "access_method": "btree",
+      "columns": [
+        "dataset_id",
+        "content_hash"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "bpchar_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "dataset_snapshots",
+      "unique": true,
+      "valid": true
+    },
+    "uq_evidence_measurement": {
+      "access_method": "btree",
+      "columns": [
+        "claim_version_id",
+        "measurement_id",
+        "relation_type"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "uuid_ops",
+        "uuid_ops",
+        "text_ops"
+      ],
+      "predicate": "(measurement_id IS NOT NULL)",
+      "ready": true,
+      "table": "evidence_relations",
+      "unique": true,
+      "valid": true
+    },
+    "uq_evidence_stat": {
+      "access_method": "btree",
+      "columns": [
+        "claim_version_id",
+        "statistical_result_id",
+        "relation_type"
+      ],
+      "constraint_backed": false,
+      "operator_classes": [
+        "uuid_ops",
+        "uuid_ops",
+        "text_ops"
+      ],
+      "predicate": "(statistical_result_id IS NOT NULL)",
+      "ready": true,
+      "table": "evidence_relations",
+      "unique": true,
+      "valid": true
+    },
+    "uq_experiment_spec_versions_parent_version": {
+      "access_method": "btree",
+      "columns": [
+        "experiment_spec_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "int4_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "experiment_spec_versions",
+      "unique": true,
+      "valid": true
+    },
+    "uq_hypothesis_versions_parent_version": {
+      "access_method": "btree",
+      "columns": [
+        "hypothesis_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "int4_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "hypothesis_versions",
+      "unique": true,
+      "valid": true
+    },
+    "uq_metric_definition_versions_parent_version": {
+      "access_method": "btree",
+      "columns": [
+        "metric_definition_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "int4_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "metric_definition_versions",
+      "unique": true,
+      "valid": true
+    },
+    "uq_research_question_versions_parent_version": {
+      "access_method": "btree",
+      "columns": [
+        "research_question_id",
+        "version_number"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "int4_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "research_question_versions",
+      "unique": true,
+      "valid": true
+    },
+    "uq_workspaces_project_name": {
+      "access_method": "btree",
+      "columns": [
+        "project_id",
+        "name"
+      ],
+      "constraint_backed": true,
+      "operator_classes": [
+        "uuid_ops",
+        "text_ops"
+      ],
+      "predicate": null,
+      "ready": true,
+      "table": "workspaces",
+      "unique": true,
+      "valid": true
+    }
   },
-  "focused_verification": {
-    "selector": "tests/integration/test_pr18_hardening.py::test_required_phase1_indexes_match_live_catalog",
-    "result": "PASS",
-    "required_index_count": 18,
-    "missing": [],
-    "incorrect": []
-  }
+  "unexpected_critical_names": []
 }

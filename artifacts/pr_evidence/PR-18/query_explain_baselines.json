@@ -1,36 +1,615 @@
 {
-  "database": "researchbase_pr18_baseline",
-  "alembic_revision": "0016_pr17d_history_protection",
+  "database": {
+    "alembic_revision": "0016_pr17d_history_protection",
+    "credentials": "redacted",
+    "database": "researchbase_pr18_baseline",
+    "schema": "public",
+    "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "version_number": "18.6"
+  },
   "queries": {
-    "claim_evidence": {
-      "statement": "SELECT id, measurement_id, statistical_result_id FROM evidence_relations WHERE claim_version_id = '00000000-0000-0000-0000-000000000000'",
-      "node_type": "Seq Scan",
-      "relation": "evidence_relations",
-      "index": null,
-      "plan_rows": 1,
-      "startup_cost": 0.0,
-      "total_cost": 12.4
+    "audit_findings": {
+      "index_usable": true,
+      "missing_required_relations": [],
+      "production_operation": "GovernanceQueryService.list_audit_findings",
+      "representative_rows": 1200,
+      "required_relations": [
+        "audit_findings"
+      ],
+      "statements": [
+        {
+          "plan": {
+            "index_names": [
+              "ix_audit_findings_target"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan",
+              "Sort"
+            ],
+            "relations": [
+              "audit_findings"
+            ]
+          },
+          "sql": "SELECT audit_findings.id \nFROM audit_findings \nWHERE audit_findings.project_id = %(project_id_1)s::UUID AND audit_findings.target_type = %(target_type_1)s::VARCHAR AND audit_findings.target_id = %(target_id_1)s::UUID ORDER BY audit_findings.created_at, audit_findings.id"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "audit_findings_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "audit_findings"
+            ]
+          },
+          "sql": "SELECT audit_findings.id AS audit_findings_id, audit_findings.project_id AS audit_findings_project_id, audit_findings.finding_type AS audit_findings_finding_type, audit_findings.severity AS audit_findings_severity, audit_findings.title AS audit_findings_title, audit_findings.description AS audit_findings_description, audit_findings.target_type AS audit_findings_target_type, audit_findings.target_id AS audit_findings_target_id, audit_findings.target_content_hash AS audit_findings_target_content_hash, audit_findings.status AS audit_findings_status, audit_findings.created_by AS audit_findings_created_by, audit_findings.created_at AS audit_findings_created_at, audit_findings.row_version AS audit_findings_row_version \nFROM audit_findings \nWHERE audit_findings.id = %(pk_1)s::UUID"
+        }
+      ],
+      "structural_assertions": {
+        "no_cartesian_product": true,
+        "no_write_or_lock": true,
+        "select_only": true
+      }
     },
-    "governance_target": {
-      "statement": "SELECT id FROM audit_findings WHERE project_id = '00000000-0000-0000-0000-000000000000' AND target_type = 'artifact_version' AND target_id = '00000000-0000-0000-0000-000000000000'",
-      "node_type": "Seq Scan",
-      "relation": "audit_findings",
-      "index": null,
-      "plan_rows": 1,
-      "startup_cost": 0.0,
-      "total_cost": 2.74
+    "claim_trace": {
+      "missing_required_relations": [],
+      "production_operation": "ProvenanceQueryService.trace_claim_to_runs",
+      "representative_rows": 1200,
+      "required_relations": [
+        "claim_versions",
+        "claims",
+        "evidence_relations",
+        "runs"
+      ],
+      "statements": [
+        {
+          "plan": {
+            "index_names": [
+              "claim_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "claim_versions"
+            ]
+          },
+          "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version \nFROM claim_versions \nWHERE claim_versions.id = %(pk_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "claims_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "claims"
+            ]
+          },
+          "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version \nFROM claims \nWHERE claims.id = %(pk_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [],
+            "join_types": [],
+            "node_types": [
+              "Seq Scan",
+              "Sort"
+            ],
+            "relations": [
+              "evidence_relations"
+            ]
+          },
+          "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at \nFROM evidence_relations \nWHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "statistical_results_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "statistical_results"
+            ]
+          },
+          "sql": "SELECT statistical_results.id, statistical_results.project_id, statistical_results.analysis_type, statistical_results.result_payload, statistical_results.analysis_definition, statistical_results.content_hash, statistical_results.created_by, statistical_results.created_at \nFROM statistical_results \nWHERE statistical_results.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "statistical_result_inputs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "statistical_result_inputs"
+            ]
+          },
+          "sql": "SELECT statistical_result_inputs.statistical_result_id, statistical_result_inputs.measurement_id, statistical_result_inputs.input_role, statistical_result_inputs.ordinal \nFROM statistical_result_inputs \nWHERE statistical_result_inputs.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "measurements_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "measurements"
+            ]
+          },
+          "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at \nFROM measurements \nWHERE measurements.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "runs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "runs"
+            ]
+          },
+          "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version \nFROM runs \nWHERE runs.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "run_dataset_inputs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "run_dataset_inputs"
+            ]
+          },
+          "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal \nFROM run_dataset_inputs \nWHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "run_artifact_inputs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "run_artifact_inputs"
+            ]
+          },
+          "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal \nFROM run_artifact_inputs \nWHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "experiment_spec_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "experiment_spec_versions"
+            ]
+          },
+          "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version \nFROM experiment_spec_versions \nWHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "dataset_snapshots_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "dataset_snapshots"
+            ]
+          },
+          "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at \nFROM dataset_snapshots \nWHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "artifact_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "artifact_versions"
+            ]
+          },
+          "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version \nFROM artifact_versions \nWHERE artifact_versions.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [],
+            "join_types": [],
+            "node_types": [
+              "Seq Scan"
+            ],
+            "relations": [
+              "measurements"
+            ]
+          },
+          "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at \nFROM measurements \nWHERE measurements.run_id IN (%(run_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "metric_definition_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "metric_definition_versions"
+            ]
+          },
+          "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version \nFROM metric_definition_versions \nWHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "claim_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "claim_versions"
+            ]
+          },
+          "sql": "SELECT claim_versions.id AS claim_versions_id, claim_versions.claim_id AS claim_versions_claim_id, claim_versions.version_number AS claim_versions_version_number, claim_versions.status AS claim_versions_status, claim_versions.statement AS claim_versions_statement, claim_versions.scope AS claim_versions_scope, claim_versions.qualification AS claim_versions_qualification, claim_versions.support_set_hash AS claim_versions_support_set_hash, claim_versions.content_hash AS claim_versions_content_hash, claim_versions.created_by AS claim_versions_created_by, claim_versions.created_at AS claim_versions_created_at, claim_versions.frozen_at AS claim_versions_frozen_at, claim_versions.row_version AS claim_versions_row_version \nFROM claim_versions \nWHERE claim_versions.id = %(pk_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "claims_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "claims"
+            ]
+          },
+          "sql": "SELECT claims.id AS claims_id, claims.project_id AS claims_project_id, claims.current_version_id AS claims_current_version_id, claims.created_by AS claims_created_by, claims.created_at AS claims_created_at, claims.row_version AS claims_row_version \nFROM claims \nWHERE claims.id = %(pk_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [],
+            "join_types": [],
+            "node_types": [
+              "Seq Scan",
+              "Sort"
+            ],
+            "relations": [
+              "evidence_relations"
+            ]
+          },
+          "sql": "SELECT evidence_relations.id, evidence_relations.claim_version_id, evidence_relations.measurement_id, evidence_relations.statistical_result_id, evidence_relations.relation_type, evidence_relations.qualification, evidence_relations.created_by, evidence_relations.created_at \nFROM evidence_relations \nWHERE evidence_relations.claim_version_id = %(claim_version_id_1)s::UUID ORDER BY CASE WHEN (evidence_relations.measurement_id IS NOT NULL) THEN %(param_1)s::VARCHAR ELSE %(param_2)s::VARCHAR END, coalesce(evidence_relations.measurement_id, evidence_relations.statistical_result_id), evidence_relations.relation_type, evidence_relations.qualification ASC NULLS FIRST, evidence_relations.id"
+        }
+      ],
+      "structural_assertions": {
+        "no_cartesian_product": true,
+        "no_write_or_lock": true,
+        "select_only": true
+      }
     },
-    "correction_target": {
-      "statement": "SELECT id FROM correction_records WHERE project_id = '00000000-0000-0000-0000-000000000000' AND target_type = 'artifact_version' AND target_id = '00000000-0000-0000-0000-000000000000' ORDER BY created_at, id",
-      "node_type": "Index Only Scan",
-      "relation": "correction_records",
-      "index": "ix_correction_records_target",
-      "plan_rows": 1,
-      "startup_cost": 0.14,
-      "total_cost": 8.16
+    "downstream_impact": {
+      "missing_required_relations": [],
+      "production_operation": "GovernanceQueryService.downstream_impact",
+      "representative_rows": 1200,
+      "required_relations": [
+        "run_artifact_inputs",
+        "runs",
+        "measurements"
+      ],
+      "statements": [
+        {
+          "plan": {
+            "index_names": [
+              "artifact_versions_pkey",
+              "artifacts_pkey"
+            ],
+            "join_types": [
+              "Inner"
+            ],
+            "node_types": [
+              "Index Scan",
+              "Nested Loop"
+            ],
+            "relations": [
+              "artifact_versions",
+              "artifacts"
+            ]
+          },
+          "sql": "SELECT artifacts.project_id, artifact_versions.content_hash \nFROM artifacts JOIN artifact_versions ON artifact_versions.artifact_id = artifacts.id \nWHERE artifact_versions.id = %(id_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "runs_pkey"
+            ],
+            "join_types": [
+              "Inner"
+            ],
+            "node_types": [
+              "Index Scan",
+              "Nested Loop",
+              "Seq Scan"
+            ],
+            "relations": [
+              "run_artifact_inputs",
+              "runs"
+            ]
+          },
+          "sql": "SELECT run_artifact_inputs.run_id \nFROM run_artifact_inputs JOIN runs ON runs.id = run_artifact_inputs.run_id \nWHERE run_artifact_inputs.artifact_version_id = %(artifact_version_id_1)s::UUID AND runs.project_id = %(project_id_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [],
+            "join_types": [],
+            "node_types": [
+              "Seq Scan"
+            ],
+            "relations": [
+              "measurements"
+            ]
+          },
+          "sql": "SELECT measurements.run_id, measurements.id, measurements.content_hash \nFROM measurements \nWHERE measurements.run_id IN (%(run_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "measurements_pkey",
+              "statistical_result_inputs_pkey"
+            ],
+            "join_types": [
+              "Inner"
+            ],
+            "node_types": [
+              "Index Scan",
+              "Nested Loop",
+              "Seq Scan"
+            ],
+            "relations": [
+              "measurements",
+              "statistical_result_inputs",
+              "statistical_results"
+            ]
+          },
+          "sql": "SELECT measurements.run_id, statistical_result_inputs.measurement_id, statistical_result_inputs.statistical_result_id, statistical_results.content_hash, statistical_result_inputs.input_role, statistical_result_inputs.ordinal \nFROM statistical_result_inputs JOIN measurements ON measurements.id = statistical_result_inputs.measurement_id JOIN statistical_results ON statistical_results.id = statistical_result_inputs.statistical_result_id \nWHERE statistical_result_inputs.measurement_id IN (%(measurement_id_1_1)s::UUID) AND statistical_results.project_id = %(project_id_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "uq_claim_versions_parent_version",
+              "uq_evidence_measurement"
+            ],
+            "join_types": [
+              "Inner"
+            ],
+            "node_types": [
+              "Index Scan",
+              "Nested Loop",
+              "Seq Scan"
+            ],
+            "relations": [
+              "claim_versions",
+              "claims",
+              "evidence_relations"
+            ]
+          },
+          "sql": "SELECT evidence_relations.id, evidence_relations.measurement_id, evidence_relations.claim_version_id, claim_versions.content_hash \nFROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id \nWHERE evidence_relations.measurement_id IN (%(measurement_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "uq_claim_versions_parent_version",
+              "uq_evidence_stat"
+            ],
+            "join_types": [
+              "Inner"
+            ],
+            "node_types": [
+              "Index Scan",
+              "Nested Loop",
+              "Seq Scan"
+            ],
+            "relations": [
+              "claim_versions",
+              "claims",
+              "evidence_relations"
+            ]
+          },
+          "sql": "SELECT evidence_relations.id, evidence_relations.statistical_result_id, evidence_relations.claim_version_id, claim_versions.content_hash \nFROM evidence_relations JOIN claim_versions ON claim_versions.id = evidence_relations.claim_version_id JOIN claims ON claims.id = claim_versions.claim_id \nWHERE evidence_relations.statistical_result_id IN (%(statistical_result_id_1_1)s::UUID) AND claims.project_id = %(project_id_1)s::UUID"
+        }
+      ],
+      "structural_assertions": {
+        "no_cartesian_product": true,
+        "no_write_or_lock": true,
+        "select_only": true
+      }
+    },
+    "run_provenance": {
+      "missing_required_relations": [],
+      "production_operation": "ProvenanceQueryService.get_run_provenance",
+      "representative_rows": 1200,
+      "required_relations": [
+        "runs",
+        "experiment_spec_versions",
+        "measurements"
+      ],
+      "statements": [
+        {
+          "plan": {
+            "index_names": [
+              "runs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "runs"
+            ]
+          },
+          "sql": "SELECT runs.id AS runs_id, runs.project_id AS runs_project_id, runs.experiment_spec_version_id AS runs_experiment_spec_version_id, runs.run_type AS runs_run_type, runs.status AS runs_status, runs.inputs_sealed_at AS runs_inputs_sealed_at, runs.started_at AS runs_started_at, runs.finished_at AS runs_finished_at, runs.exit_code AS runs_exit_code, runs.failure_reason AS runs_failure_reason, runs.created_by AS runs_created_by, runs.created_at AS runs_created_at, runs.row_version AS runs_row_version \nFROM runs \nWHERE runs.id = %(pk_1)s::UUID"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "runs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "runs"
+            ]
+          },
+          "sql": "SELECT runs.id, runs.project_id, runs.experiment_spec_version_id, runs.run_type, runs.status, runs.inputs_sealed_at, runs.started_at, runs.finished_at, runs.exit_code, runs.failure_reason, runs.created_by, runs.created_at, runs.row_version \nFROM runs \nWHERE runs.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "run_dataset_inputs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "run_dataset_inputs"
+            ]
+          },
+          "sql": "SELECT run_dataset_inputs.run_id, run_dataset_inputs.dataset_snapshot_id, run_dataset_inputs.role, run_dataset_inputs.ordinal \nFROM run_dataset_inputs \nWHERE run_dataset_inputs.run_id IN (%(run_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "run_artifact_inputs_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "run_artifact_inputs"
+            ]
+          },
+          "sql": "SELECT run_artifact_inputs.run_id, run_artifact_inputs.artifact_version_id, run_artifact_inputs.role, run_artifact_inputs.ordinal \nFROM run_artifact_inputs \nWHERE run_artifact_inputs.run_id IN (%(run_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "experiment_spec_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "experiment_spec_versions"
+            ]
+          },
+          "sql": "SELECT experiment_spec_versions.id, experiment_spec_versions.experiment_spec_id, experiment_spec_versions.version_number, experiment_spec_versions.status, experiment_spec_versions.title, experiment_spec_versions.objective, experiment_spec_versions.protocol, experiment_spec_versions.planned_metrics, experiment_spec_versions.seed_policy, experiment_spec_versions.analysis_plan, experiment_spec_versions.content_hash, experiment_spec_versions.created_by, experiment_spec_versions.created_at, experiment_spec_versions.frozen_at, experiment_spec_versions.row_version \nFROM experiment_spec_versions \nWHERE experiment_spec_versions.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "dataset_snapshots_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "dataset_snapshots"
+            ]
+          },
+          "sql": "SELECT dataset_snapshots.id, dataset_snapshots.dataset_id, dataset_snapshots.manifest_hash, dataset_snapshots.selection_definition, dataset_snapshots.manifest_locator, dataset_snapshots.content_hash, dataset_snapshots.created_by, dataset_snapshots.created_at \nFROM dataset_snapshots \nWHERE dataset_snapshots.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "artifact_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "artifact_versions"
+            ]
+          },
+          "sql": "SELECT artifact_versions.id, artifact_versions.artifact_id, artifact_versions.version_number, artifact_versions.status, artifact_versions.locator, artifact_versions.media_type, artifact_versions.byte_size, artifact_versions.content_hash, artifact_versions.metadata, artifact_versions.created_by, artifact_versions.created_at, artifact_versions.frozen_at, artifact_versions.row_version \nFROM artifact_versions \nWHERE artifact_versions.id IN (%(id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [],
+            "join_types": [],
+            "node_types": [
+              "Seq Scan"
+            ],
+            "relations": [
+              "measurements"
+            ]
+          },
+          "sql": "SELECT measurements.id, measurements.run_id, measurements.metric_definition_version_id, measurements.numeric_value, measurements.structured_value, measurements.unit, measurements.evaluation_scope, measurements.content_hash, measurements.created_by, measurements.created_at \nFROM measurements \nWHERE measurements.run_id IN (%(run_id_1_1)s::UUID)"
+        },
+        {
+          "plan": {
+            "index_names": [
+              "metric_definition_versions_pkey"
+            ],
+            "join_types": [],
+            "node_types": [
+              "Index Scan"
+            ],
+            "relations": [
+              "metric_definition_versions"
+            ]
+          },
+          "sql": "SELECT metric_definition_versions.id, metric_definition_versions.metric_definition_id, metric_definition_versions.version_number, metric_definition_versions.status, metric_definition_versions.definition, metric_definition_versions.unit, metric_definition_versions.aggregation, metric_definition_versions.content_hash, metric_definition_versions.created_by, metric_definition_versions.created_at, metric_definition_versions.frozen_at, metric_definition_versions.row_version \nFROM metric_definition_versions \nWHERE metric_definition_versions.id IN (%(id_1_1)s::UUID)"
+        }
+      ],
+      "structural_assertions": {
+        "no_cartesian_product": true,
+        "no_write_or_lock": true,
+        "select_only": true
+      }
     }
   },
-  "focused_selector": "tests/integration/test_pr18_hardening.py::test_phase1_query_explain_baselines_are_json_and_bounded",
-  "result": "PASS",
-  "interpretation": "The sparse audit database produces sequential scans for two empty-table probes and an index-only scan for the correction-record ordering probe. No frozen invariant requires a proactive index solely to alter these sparse-data plans."
+  "result": "PASS"
 }
