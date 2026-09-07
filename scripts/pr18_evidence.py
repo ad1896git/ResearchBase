@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -114,6 +115,8 @@ NOT_VERIFIED = "NOT_VERIFIED"
 
 READ_SELECT = "READ_SELECT"
 READ_SELECT_LOCKING = "READ_SELECT_LOCKING"
+DATA_MODIFYING_CTE = "DATA_MODIFYING_CTE"
+SELECT_INTO_WRITE = "SELECT_INTO_WRITE"
 WRITE_INSERT = "WRITE_INSERT"
 WRITE_UPDATE = "WRITE_UPDATE"
 WRITE_DELETE = "WRITE_DELETE"
@@ -154,16 +157,66 @@ _DDL_KEYWORDS = frozenset({"CREATE", "ALTER", "DROP", "TRUNCATE"})
 _TRANSACTION_KEYWORDS = frozenset(
     {"BEGIN", "START", "COMMIT", "ROLLBACK", "SAVEPOINT", "RELEASE", "END", "ABORT"}
 )
-_LOCKING_PATTERN = re.compile(r"\bFOR\s+(?:NO\s+KEY\s+UPDATE|KEY\s+SHARE|UPDATE|SHARE)\b")
+@dataclass(frozen=True)
+class _SQLToken:
+    text: str
+    depth: int
+    kind: str
 
 
-def _sql_tokens(statement: str) -> list[tuple[str, int]]:
-    """Tokenize SQL keywords outside comments/literals for fail-closed classification."""
+@dataclass(frozen=True)
+class _LexedSQL:
+    tokens: tuple[_SQLToken, ...]
+    valid: bool
+    multi_statement: bool
 
-    tokens: list[tuple[str, int]] = []
+
+@dataclass(frozen=True)
+class _StatementAnalysis:
+    statement_class: str
+    mutating_cte_detected: bool
+    select_into_detected: bool
+    locking_detected: bool
+    multi_statement_detected: bool
+    unknown_detected: bool
+
+
+_DOLLAR_QUOTE_TAG = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
+_MUTATING_COMMANDS = frozenset({"INSERT", "UPDATE", "DELETE", "MERGE"})
+_SELECT_SCOPE_BOUNDARIES = frozenset(
+    {
+        "FROM",
+        "WHERE",
+        "GROUP",
+        "HAVING",
+        "WINDOW",
+        "ORDER",
+        "LIMIT",
+        "OFFSET",
+        "FETCH",
+        "UNION",
+        "INTERSECT",
+        "EXCEPT",
+        "RETURNING",
+    }
+)
+_LOCKING_SEQUENCES = (
+    ("FOR", "UPDATE"),
+    ("FOR", "NO", "KEY", "UPDATE"),
+    ("FOR", "SHARE"),
+    ("FOR", "KEY", "SHARE"),
+)
+
+
+def _lex_sql(statement: str) -> _LexedSQL:
+    """Lex enough PostgreSQL syntax to classify a complete captured statement."""
+
+    tokens: list[_SQLToken] = []
     index = 0
     depth = 0
     length = len(statement)
+    invalid = False
+
     while index < length:
         character = statement[index]
         if character.isspace():
@@ -176,7 +229,8 @@ def _sql_tokens(statement: str) -> list[tuple[str, int]]:
         if statement.startswith("/*", index):
             end = statement.find("*/", index + 2)
             if end == -1:
-                return []
+                invalid = True
+                break
             index = end + 2
             continue
         if character in {"'", '"', "`"}:
@@ -189,44 +243,87 @@ def _sql_tokens(statement: str) -> list[tuple[str, int]]:
                         continue
                     index += 1
                     break
+                if quote == "'" and statement[index] == "\\" and index + 1 < length:
+                    index += 2
+                    continue
                 index += 1
             else:
-                return []
+                invalid = True
+                break
             continue
         if character == "$":
-            tag_match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", statement[index:])
+            tag_match = _DOLLAR_QUOTE_TAG.match(statement, index)
             if tag_match:
                 tag = tag_match.group(0)
-                end = statement.find(tag, index + len(tag))
+                end = statement.find(tag, tag_match.end())
                 if end == -1:
-                    return []
+                    invalid = True
+                    break
                 index = end + len(tag)
                 continue
         if character == "(":
+            tokens.append(_SQLToken("(", depth, "symbol"))
             depth += 1
             index += 1
             continue
         if character == ")":
             if depth == 0:
-                return []
+                invalid = True
+                break
             depth -= 1
+            tokens.append(_SQLToken(")", depth, "symbol"))
             index += 1
             continue
-        if character == ";" and depth == 0:
-            tokens.append((";", depth))
+        if character == ";":
+            if depth != 0:
+                invalid = True
+                break
+            tokens.append(_SQLToken(";", depth, "symbol"))
             index += 1
             continue
         if character.isalpha() or character == "_":
             end = index + 1
             while end < length and (statement[end].isalnum() or statement[end] == "_"):
                 end += 1
-            tokens.append((statement[index:end].upper(), depth))
+            tokens.append(_SQLToken(statement[index:end].upper(), depth, "word"))
+            index = end
+            continue
+        if character.isdigit():
+            end = index + 1
+            while end < length and (statement[end].isalnum() or statement[end] in {".", "_"}):
+                end += 1
+            tokens.append(_SQLToken("<literal>", depth, "literal"))
             index = end
             continue
         index += 1
+
     if depth != 0:
+        invalid = True
+
+    semicolon_indexes = [
+        position
+        for position, token in enumerate(tokens)
+        if token.kind == "symbol" and token.text == ";"
+    ]
+    multi_statement = False
+    if semicolon_indexes:
+        first_semicolon = semicolon_indexes[0]
+        multi_statement = len(semicolon_indexes) > 1 or first_semicolon != len(tokens) - 1
+
+    return _LexedSQL(tuple(tokens), not invalid, multi_statement)
+
+
+def _sql_tokens(statement: str) -> list[tuple[str, int]]:
+    """Compatibility view of significant SQL words outside comments/literals."""
+
+    lexed = _lex_sql(statement)
+    if not lexed.valid:
         return []
-    return tokens
+    return [
+        (token.text, token.depth)
+        for token in lexed.tokens
+        if token.kind == "word" or token.text == ";"
+    ]
 
 
 def _statement_sql(statement: object) -> str | None:
@@ -248,71 +345,181 @@ def _safe_sql_projection(statement: str) -> str:
     return re.sub(r"\s+", " ", normalized.strip())
 
 
-def classify_statement(statement: object) -> str:
-    """Classify one captured SQL statement; unsupported input is UNKNOWN."""
+def _has_select_into(tokens: tuple[_SQLToken, ...]) -> bool:
+    for index, token in enumerate(tokens):
+        if token.kind != "word" or token.text != "SELECT":
+            continue
+        for candidate in tokens[index + 1 :]:
+            if candidate.depth < token.depth:
+                break
+            if candidate.depth != token.depth or candidate.kind != "word":
+                continue
+            if candidate.text == "INTO":
+                return True
+            if candidate.text in _SELECT_SCOPE_BOUNDARIES:
+                break
+    return False
 
+
+def _has_locking_clause(tokens: tuple[_SQLToken, ...]) -> bool:
+    words_by_depth: dict[int, list[str]] = {}
+    for token in tokens:
+        if token.kind == "word":
+            words_by_depth.setdefault(token.depth, []).append(token.text)
+    return any(
+        any(
+            tuple(words[index : index + len(sequence)]) == sequence
+            for index in range(len(words) - len(sequence) + 1)
+        )
+        for words in words_by_depth.values()
+        for sequence in _LOCKING_SEQUENCES
+    )
+
+
+def _has_mutating_cte(tokens: tuple[_SQLToken, ...]) -> bool:
+    for index, token in enumerate(tokens):
+        if token.kind != "word" or token.text != "AS":
+            continue
+        body_open_index: int | None = None
+        for candidate_index in range(index + 1, len(tokens)):
+            candidate = tokens[candidate_index]
+            if candidate.depth != token.depth:
+                break
+            if candidate.kind == "symbol" and candidate.text == "(":
+                body_open_index = candidate_index
+                break
+            if candidate.kind != "word" or candidate.text not in {"MATERIALIZED", "NOT"}:
+                break
+        if body_open_index is None:
+            continue
+
+        body_depth = tokens[body_open_index].depth + 1
+        for candidate in tokens[body_open_index + 1 :]:
+            if candidate.depth < body_depth:
+                break
+            if candidate.depth == body_depth and candidate.kind == "word":
+                if candidate.text in _MUTATING_COMMANDS:
+                    return True
+                break
+    return False
+
+
+def _analyze_statement(statement: object) -> _StatementAnalysis:
     sql = _statement_sql(statement)
     if sql is None or not sql.strip():
-        return UNKNOWN
-    tokens = _sql_tokens(sql)
-    if not tokens:
-        return UNKNOWN
-    top_level = [token for token, depth in tokens if depth == 0]
-    if ";" in top_level:
-        separator = top_level.index(";")
-        if any(token != ";" for token in top_level[separator + 1 :]):
-            return UNKNOWN
-        top_level = top_level[:separator]
-    if not top_level:
-        return UNKNOWN
-    keyword = top_level[0]
-    if keyword == "WITH":
-        keyword = next(
-            (token for token in top_level[1:] if token in _STATEMENT_KEYWORDS),
+        return _StatementAnalysis(UNKNOWN, False, False, False, False, True)
+
+    lexed = _lex_sql(sql)
+    tokens = lexed.tokens
+    locking_detected = _has_locking_clause(tokens)
+    if not lexed.valid or lexed.multi_statement:
+        return _StatementAnalysis(
+            UNKNOWN,
+            False,
+            False,
+            locking_detected,
+            lexed.multi_statement,
+            True,
+        )
+
+    top_level_words = [
+        token.text for token in tokens if token.depth == 0 and token.kind == "word"
+    ]
+    if not top_level_words:
+        return _StatementAnalysis(
+            UNKNOWN,
+            False,
+            False,
+            locking_detected,
+            False,
+            True,
+        )
+
+    first_word = top_level_words[0]
+    mutating_cte_detected = first_word == "WITH" and _has_mutating_cte(tokens)
+    command = first_word
+    if first_word == "WITH":
+        command = next(
+            (word for word in top_level_words[1:] if word in _STATEMENT_KEYWORDS),
             UNKNOWN,
         )
-    if keyword == "SELECT":
-        lexical_sql = " ".join(token for token, _depth in tokens if token != ";")
-        return READ_SELECT_LOCKING if _LOCKING_PATTERN.search(lexical_sql) else READ_SELECT
-    if keyword == "INSERT":
-        return WRITE_INSERT
-    if keyword == "UPDATE":
-        return WRITE_UPDATE
-    if keyword == "DELETE":
-        return WRITE_DELETE
-    if keyword == "MERGE":
-        return WRITE_MERGE
-    if keyword in _DDL_KEYWORDS:
-        return DDL
-    if keyword in _TRANSACTION_KEYWORDS:
-        return TRANSACTION_CONTROL
-    if keyword in {"SET", "RESET", "DISCARD", "USE", "PRAGMA", "SHOW"}:
-        return SESSION_OR_CONFIG_CHANGE
-    return UNKNOWN
+
+    select_into_detected = _has_select_into(tokens)
+    if command == UNKNOWN:
+        statement_class = UNKNOWN
+    elif mutating_cte_detected:
+        statement_class = DATA_MODIFYING_CTE
+    elif command == "SELECT" and select_into_detected:
+        statement_class = SELECT_INTO_WRITE
+    elif command == "SELECT":
+        statement_class = READ_SELECT_LOCKING if locking_detected else READ_SELECT
+    elif command == "INSERT":
+        statement_class = WRITE_INSERT
+    elif command == "UPDATE":
+        statement_class = WRITE_UPDATE
+    elif command == "DELETE":
+        statement_class = WRITE_DELETE
+    elif command == "MERGE":
+        statement_class = WRITE_MERGE
+    elif command in _DDL_KEYWORDS:
+        statement_class = DDL
+    elif command in _TRANSACTION_KEYWORDS:
+        statement_class = TRANSACTION_CONTROL
+    elif command in {"SET", "RESET", "DISCARD", "USE", "PRAGMA", "SHOW"}:
+        statement_class = SESSION_OR_CONFIG_CHANGE
+    else:
+        statement_class = UNKNOWN
+
+    return _StatementAnalysis(
+        statement_class,
+        mutating_cte_detected,
+        select_into_detected,
+        locking_detected,
+        False,
+        statement_class == UNKNOWN,
+    )
 
 
-def _purity_statement_projection(statement: object) -> dict[str, str]:
+def classify_statement(statement: object) -> str:
+    """Classify the complete captured SQL statement; unsupported input is UNKNOWN."""
+
+    return _analyze_statement(statement).statement_class
+
+
+def _purity_statement_projection(statement: object) -> dict[str, object]:
     sql = _statement_sql(statement)
-    statement_class = classify_statement(statement)
+    analysis = _analyze_statement(statement)
+    statement_class = analysis.statement_class
     safe_sql = _safe_sql_projection(sql) if sql is not None else "<unavailable>"
     if statement_class == READ_SELECT:
         read_write_verdict = "PASS"
         locking_verdict = "PASS"
+        purity_verdict = "PASS"
     elif statement_class == READ_SELECT_LOCKING:
         read_write_verdict = "PASS"
         locking_verdict = "FAIL"
+        purity_verdict = "FAIL"
     elif statement_class == UNKNOWN:
         read_write_verdict = NOT_VERIFIED
         locking_verdict = NOT_VERIFIED
+        purity_verdict = NOT_VERIFIED
     else:
         read_write_verdict = "FAIL"
         locking_verdict = "PASS"
+        purity_verdict = "FAIL"
     return {
         "sql": safe_sql,
         "normalized_sql": safe_sql,
         "statement_class": statement_class,
         "read_write_verdict": read_write_verdict,
         "locking_verdict": locking_verdict,
+        "mutating_cte_detected": analysis.mutating_cte_detected,
+        "select_into_detected": analysis.select_into_detected,
+        "locking_detected": analysis.locking_detected,
+        "multi_statement_detected": analysis.multi_statement_detected,
+        "ambiguity_detected": analysis.multi_statement_detected or statement_class == UNKNOWN,
+        "unknown_detected": analysis.unknown_detected,
+        "purity_verdict": purity_verdict,
     }
 
 
@@ -1249,10 +1456,20 @@ def _captured_query_plans(
             "PRODUCTION_QUERY_PURITY_DEFECT_DISCOVERED = YES: "
             f"{operation} emitted a forbidden write or locking statement"
         )
+    purity_statements = purity_projection.get("statements")
+    if not isinstance(purity_statements, list) or len(purity_statements) != len(captured):
+        raise PR18EvidenceError(
+            f"NOT_VERIFIED: {operation} purity statement count does not reconcile"
+        )
     statements: list[dict[str, Any]] = []
     with engine.connect() as connection:
         for index, (statement, parameters) in enumerate(captured):
-            if purity_projection["statements"][index]["statement_class"] != READ_SELECT:
+            projected_statement = purity_statements[index]
+            if not isinstance(projected_statement, dict):
+                raise PR18EvidenceError(
+                    f"NOT_VERIFIED: {operation} has malformed purity statement evidence"
+                )
+            if projected_statement.get("statement_class") != READ_SELECT:
                 raise PR18EvidenceError(
                     f"{operation} has a non-ordinary SELECT after purity validation"
                 )
@@ -1261,7 +1478,7 @@ def _captured_query_plans(
                 {
                     "sql": statement,
                     "plan": plan,
-                    **purity_projection["statements"][index],
+                    **projected_statement,
                 }
             )
 

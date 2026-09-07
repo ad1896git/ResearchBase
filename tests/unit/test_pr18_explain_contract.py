@@ -182,10 +182,18 @@ def test_each_production_query_has_an_explicit_topology_contract() -> None:
     ("sql", "expected_class"),
     [
         ("SELECT id FROM audit_findings", "READ_SELECT"),
+        (
+            "WITH x AS (SELECT id FROM audit_findings) SELECT id FROM x",
+            "READ_SELECT",
+        ),
         ("SELECT id FROM audit_findings FOR UPDATE", "READ_SELECT_LOCKING"),
         ("SELECT id FROM audit_findings FOR NO KEY UPDATE", "READ_SELECT_LOCKING"),
         ("SELECT id FROM audit_findings FOR SHARE", "READ_SELECT_LOCKING"),
         ("SELECT id FROM audit_findings FOR KEY SHARE", "READ_SELECT_LOCKING"),
+        (
+            "WITH x AS (SELECT id FROM audit_findings FOR UPDATE) SELECT id FROM x",
+            "READ_SELECT_LOCKING",
+        ),
         ("INSERT INTO audit_findings (id) VALUES (:id)", "WRITE_INSERT"),
         ("UPDATE audit_findings SET title = :title", "WRITE_UPDATE"),
         (
@@ -193,6 +201,38 @@ def test_each_production_query_has_an_explicit_topology_contract() -> None:
             "UPDATE audit_findings SET title = :title",
             "WRITE_UPDATE",
         ),
+        (
+            "WITH changed AS (UPDATE audit_findings SET title = :title RETURNING id) "
+            "SELECT id FROM changed",
+            "DATA_MODIFYING_CTE",
+        ),
+        (
+            "WITH inserted AS (INSERT INTO audit_findings (id) VALUES (:id) RETURNING id) "
+            "SELECT id FROM inserted",
+            "DATA_MODIFYING_CTE",
+        ),
+        (
+            "WITH removed AS (DELETE FROM audit_findings RETURNING id) "
+            "SELECT id FROM removed",
+            "DATA_MODIFYING_CTE",
+        ),
+        (
+            "/* audit */ WITH changed AS (UPDATE audit_findings SET title = :title RETURNING id) "
+            "SELECT id FROM changed",
+            "DATA_MODIFYING_CTE",
+        ),
+        (
+            "with removed as (delete from audit_findings returning id) "
+            "select id from removed",
+            "DATA_MODIFYING_CTE",
+        ),
+        (
+            "WITH first_read AS (SELECT id FROM audit_findings), "
+            "changed AS (UPDATE audit_findings SET title = :title RETURNING id) "
+            "SELECT id FROM changed",
+            "DATA_MODIFYING_CTE",
+        ),
+        ("SELECT id INTO new_table FROM audit_findings", "SELECT_INTO_WRITE"),
         ("DELETE FROM audit_findings", "WRITE_DELETE"),
         (
             "MERGE INTO audit_findings USING source ON true "
@@ -321,6 +361,116 @@ def test_statement_purity_rejects_unknown_statement_fail_closed() -> None:
     assert projection["overall_verdict"] == "FAIL"
     assert projection["verification_status"] == "NOT_VERIFIED"
     assert projection["statements"][0]["statement_class"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "/* UPDATE audit_findings SET title = 'ignored' */ SELECT id FROM audit_findings",
+        "-- DELETE FROM audit_findings\nSELECT id FROM audit_findings",
+        "SELECT 'UPDATE audit_findings SET title = 1' FROM audit_findings",
+        "SELECT $$DELETE FROM audit_findings$$ FROM audit_findings",
+        'SELECT "INSERT" FROM "UPDATE"',
+        "/* UPDATE */ WITH x AS (SELECT id FROM audit_findings) SELECT id FROM x",
+    ],
+)
+def test_statement_classifier_ignores_sql_words_outside_executable_syntax(sql: str) -> None:
+    assert _classify_statement(sql) == "READ_SELECT"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "/* unterminated SELECT id FROM audit_findings",
+        "SELECT 'unterminated FROM audit_findings",
+        'SELECT "unterminated FROM audit_findings',
+        "SELECT $$unterminated UPDATE audit_findings",
+        "WITH x AS (SELECT id FROM audit_findings SELECT id FROM x",
+    ],
+)
+def test_statement_classifier_rejects_unterminated_or_unbalanced_sql(sql: str) -> None:
+    assert _classify_statement(sql) == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    ("sql", "expected_class", "reason_field"),
+    [
+        (
+            "WITH changed AS (UPDATE audit_findings SET title = :title RETURNING id) "
+            "SELECT id FROM changed",
+            "DATA_MODIFYING_CTE",
+            "mutating_cte_detected",
+        ),
+        (
+            "WITH inserted AS (INSERT INTO audit_findings (id) VALUES (:id) RETURNING id) "
+            "SELECT id FROM inserted",
+            "DATA_MODIFYING_CTE",
+            "mutating_cte_detected",
+        ),
+        (
+            "WITH removed AS (DELETE FROM audit_findings RETURNING id) "
+            "SELECT id FROM removed",
+            "DATA_MODIFYING_CTE",
+            "mutating_cte_detected",
+        ),
+        (
+            "SELECT id INTO new_table FROM audit_findings",
+            "SELECT_INTO_WRITE",
+            "select_into_detected",
+        ),
+        (
+            "SELECT id FROM audit_findings FOR UPDATE",
+            "READ_SELECT_LOCKING",
+            "locking_detected",
+        ),
+        (
+            "SELECT id FROM audit_findings FOR SHARE",
+            "READ_SELECT_LOCKING",
+            "locking_detected",
+        ),
+        (
+            "SELECT id FROM audit_findings; UPDATE audit_findings SET title = :title",
+            "UNKNOWN",
+            "multi_statement_detected",
+        ),
+        (
+            "UPDATE audit_findings SET title = :title; SELECT id FROM audit_findings",
+            "UNKNOWN",
+            "multi_statement_detected",
+        ),
+        ("VACUUM audit_findings", "UNKNOWN", "unknown_detected"),
+    ],
+)
+def test_statement_purity_projection_exposes_intended_rejection_reason(
+    sql: str, expected_class: str, reason_field: str
+) -> None:
+    projection = _validate_statement_purity([{"sql": sql}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == expected_class
+    assert statement[reason_field] is True
+    assert statement["purity_verdict"] == (
+        "NOT_VERIFIED" if expected_class == "UNKNOWN" else "FAIL"
+    )
+    assert projection["overall_verdict"] == "FAIL"
+    assert projection["verification_status"] == (
+        "NOT_VERIFIED" if expected_class == "UNKNOWN" else "VERIFIED"
+    )
+
+
+def test_statement_purity_projection_marks_every_read_only_reason_false() -> None:
+    projection = _validate_statement_purity(
+        [{"sql": "WITH x AS (SELECT id FROM audit_findings) SELECT id FROM x"}]
+    )
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT"
+    assert statement["mutating_cte_detected"] is False
+    assert statement["select_into_detected"] is False
+    assert statement["locking_detected"] is False
+    assert statement["multi_statement_detected"] is False
+    assert statement["unknown_detected"] is False
+    assert statement["purity_verdict"] == "PASS"
 
 
 def test_query_contract_rejects_missing_required_relation() -> None:

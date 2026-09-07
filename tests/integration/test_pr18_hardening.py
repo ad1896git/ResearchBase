@@ -139,6 +139,12 @@ def test_actual_query_service_explain_paths_are_structurally_audited(engine: Eng
             item["statement_class"] == "READ_SELECT"
             and item["read_write_verdict"] == "PASS"
             and item["locking_verdict"] == "PASS"
+            and item["mutating_cte_detected"] is False
+            and item["select_into_detected"] is False
+            and item["locking_detected"] is False
+            and item["multi_statement_detected"] is False
+            and item["unknown_detected"] is False
+            and item["purity_verdict"] == "PASS"
             for item in baseline["statement_purity"]
         )
         assertions = baseline["structural_assertions"]
