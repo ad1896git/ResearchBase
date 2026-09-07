@@ -15,9 +15,23 @@ from typer.testing import CliRunner
 
 from researchbase.api.app import create_app as create_http_app
 from researchbase.application.commands import WriteProjectionTarget
-from researchbase.application.dto import ProjectReadModel, WriteResult, write_result
+from researchbase.application.dto import (
+    ArtifactVersionReadModel,
+    ProjectReadModel,
+    WriteResult,
+    write_result,
+)
+from researchbase.application.governance_queries import DownstreamImpactTarget
+from researchbase.application.provenance_queries import (
+    ClaimToRunsTraceDTO,
+    ClosureReportDTO,
+    RunProvenanceDTO,
+)
 from researchbase.cli.app import create_app
 from researchbase.domain.organization import LifecycleStatus
+from researchbase.domain.run import RunStatus
+from researchbase.foundation.hashing import ContentHash
+from researchbase.foundation.versioning import VersionStatus
 
 
 def test_phase1_examples_use_only_registered_routes_and_commands() -> None:
@@ -86,6 +100,14 @@ def test_documented_api_contracts_are_structured_and_cover_frozen_operations() -
         assert example["method"] in {"GET", "POST"}
         assert example["path"].startswith("/v1/")
         assert isinstance(example["success" if "failure" not in example["id"] else "failure"], dict)
+        contract = example.get("success") or example.get("failure")
+        assert isinstance(contract, dict)
+        assert isinstance(contract.get("status"), int)
+        assert "request" in example or "query" in example
+        if "success" in example:
+            assert contract.get("response_keys") or contract.get("response_type")
+        else:
+            assert contract.get("error_code")
 
 
 def test_documented_api_contracts_match_openapi_and_execute_success_and_failure() -> None:
@@ -96,6 +118,7 @@ def test_documented_api_contracts_match_openapi_and_execute_success_and_failure(
     class FakeApplication:
         project: ProjectReadModel
         error: Exception | None = None
+        artifact_version: ArtifactVersionReadModel | None = None
 
         def create_project(self, command: object) -> WriteResult:
             if self.error is not None:
@@ -105,15 +128,38 @@ def test_documented_api_contracts_match_openapi_and_execute_success_and_failure(
         def project_write_result(
             self, result: WriteResult, target: WriteProjectionTarget
         ) -> object:
-            assert target is WriteProjectionTarget.PROJECT
-            return self.project
+            if target is WriteProjectionTarget.PROJECT:
+                return self.project
+            assert target is WriteProjectionTarget.ARTIFACT_VERSION
+            assert self.artifact_version is not None
+            return self.artifact_version
+
+        def freeze_artifact_version(self, command: object) -> WriteResult:
+            assert self.artifact_version is not None
+            return write_result(self.artifact_version, self.artifact_version.created_at)
+
+    @dataclass
+    class FakeProvenance:
+        run: RunProvenanceDTO
+        trace: ClaimToRunsTraceDTO
+
+        def get_run_provenance(self, _run_id: object) -> RunProvenanceDTO:
+            return self.run
+
+        def trace_claim_to_runs(self, _claim_version_id: object) -> ClaimToRunsTraceDTO:
+            return self.trace
+
+    @dataclass
+    class FakeGovernanceQueries:
+        def downstream_impact(self, *_args: object) -> tuple[DownstreamImpactTarget, ...]:
+            return ()
 
     @dataclass
     class Services:
         application: Any
-        provenance: Any = object()
+        provenance: Any
+        governance_queries: Any
         governance: Any = object()
-        governance_queries: Any = object()
 
     actor_id = uuid4()
     project = ProjectReadModel(
@@ -125,7 +171,55 @@ def test_documented_api_contracts_match_openapi_and_execute_success_and_failure(
         created_at=datetime(2026, 9, 1, tzinfo=UTC),
         row_version=1,
     )
-    client = TestClient(create_http_app(Services(FakeApplication(project))))
+    artifact_id = uuid4()
+    artifact_version = ArtifactVersionReadModel(
+        id=uuid4(),
+        artifact_id=artifact_id,
+        version_number=1,
+        status=VersionStatus.FROZEN,
+        locator=None,
+        media_type="text/plain",
+        byte_size=3,
+        content_hash=ContentHash("0" * 64),
+        metadata=None,
+        created_by=actor_id,
+        created_at=project.created_at,
+        frozen_at=project.created_at,
+        row_version=2,
+    )
+    closure = ClosureReportDTO(complete=True, visited_count=0, violations=())
+    run = RunProvenanceDTO(
+        run_id=str(uuid4()),
+        project_id=str(project.id),
+        run_type="example",
+        status=RunStatus.SUCCEEDED.value,
+        inputs_sealed_at=project.created_at,
+        started_at=project.created_at,
+        finished_at=project.created_at,
+        experiment_spec_version_id=str(uuid4()),
+        experiment_spec_content_hash=None,
+        dataset_inputs=(),
+        artifact_inputs=(),
+        measurements=(),
+        closure=closure,
+    )
+    trace = ClaimToRunsTraceDTO(
+        claim_version_id=str(uuid4()),
+        project_id=str(project.id),
+        runs=(run,),
+        paths=(),
+        closure=closure,
+    )
+    application = FakeApplication(project, artifact_version=artifact_version)
+    client = TestClient(
+        create_http_app(
+            Services(
+                application=application,
+                provenance=FakeProvenance(run, trace),
+                governance_queries=FakeGovernanceQueries(),
+            )
+        )
+    )
     openapi = client.get("/openapi.json").json()
 
     for example in examples:
@@ -144,6 +238,29 @@ def test_documented_api_contracts_match_openapi_and_execute_success_and_failure(
             )
             assert response.status_code == expected["status"]
             assert set(expected["response_keys"]) <= response.json().keys()
+        elif example["id"] == "freeze_artifact_version":
+            response = client.post(
+                path,
+                json={
+                    "artifact_id": str(artifact_id),
+                    "expected_row_version": 1,
+                },
+                headers={"X-Actor-ID": str(actor_id)},
+            )
+            assert response.status_code == expected["status"]
+            assert set(expected["response_keys"]) <= response.json().keys()
+        elif example["id"] == "read_run_provenance":
+            response = client.get(path)
+            assert response.status_code == expected["status"]
+            assert set(expected["response_keys"]) <= response.json().keys()
+        elif example["id"] == "trace_claim":
+            response = client.get(path)
+            assert response.status_code == expected["status"]
+            assert set(expected["response_keys"]) <= response.json().keys()
+        elif example["id"] == "downstream_impact":
+            response = client.get(path)
+            assert response.status_code == expected["status"]
+            assert isinstance(response.json(), list)
         elif example["id"] == "create_project_failure":
             response = client.post(
                 path,
@@ -152,6 +269,7 @@ def test_documented_api_contracts_match_openapi_and_execute_success_and_failure(
             )
             assert response.status_code == expected["status"]
             assert response.json()["error"]["code"] == expected["error_code"]
+            assert set(expected["error_response_keys"]) <= response.json().keys()
 
 
 def test_documented_cli_contracts_execute_against_the_real_typer_app() -> None:
@@ -171,11 +289,24 @@ def test_documented_cli_contracts_execute_against_the_real_typer_app() -> None:
             return self.project
 
     @dataclass
+    class FakeProvenance:
+        def get_run_provenance(self, run_id: object) -> dict[str, object]:
+            return {"run_id": str(run_id), "status": "SUCCEEDED"}
+
+        def trace_claim_to_runs(self, claim_version_id: object) -> dict[str, object]:
+            return {"claim_version_id": str(claim_version_id), "runs": [], "paths": []}
+
+    @dataclass
+    class FakeGovernanceQueries:
+        def downstream_impact(self, *_args: object) -> list[object]:
+            return []
+
+    @dataclass
     class Services:
         application: Any
-        provenance: Any = None
+        provenance: Any
+        governance_queries: Any
         governance: Any = None
-        governance_queries: Any = None
 
     actor_id = uuid4()
     project = ProjectReadModel(
@@ -188,10 +319,20 @@ def test_documented_cli_contracts_execute_against_the_real_typer_app() -> None:
         row_version=1,
     )
     runner = CliRunner()
-    app = create_app(Services(FakeApplication(project)))
+    app = create_app(
+        Services(
+            application=FakeApplication(project),
+            provenance=FakeProvenance(),
+            governance_queries=FakeGovernanceQueries(),
+        )
+    )
     for example in examples:
         tokens = [
-            token.replace("ACTOR_ID", str(actor_id)).replace("PROJECT_ID", str(project.id))
+            token.replace("ACTOR_ID", str(actor_id))
+            .replace("PROJECT_ID", str(project.id))
+            .replace("RUN_ID", str(uuid4()))
+            .replace("CLAIM_VERSION_ID", str(uuid4()))
+            .replace("ARTIFACT_VERSION_ID", str(uuid4()))
             for token in example["command"]
         ]
         expected = example.get("success", example.get("failure"))
@@ -202,7 +343,17 @@ def test_documented_cli_contracts_execute_against_the_real_typer_app() -> None:
         if example["id"] == "project_create_failure":
             result = runner.invoke(app, tokens)
             assert result.exit_code == expected["exit_code"]
-            assert "VALIDATION_ERROR" in result.output or "Missing option" in result.output
-        if example["id"] not in {"project_create", "project_create_failure"}:
-            help_result = runner.invoke(app, [*tokens[:-1], "--help"])
-            assert help_result.exit_code == expected["exit_code"]
+            assert "VALIDATION_ERROR" in result.output
+            assert "error" in result.output
+        if example["id"] == "run_provenance":
+            result = runner.invoke(app, tokens)
+            assert result.exit_code == expected["exit_code"]
+            assert json.loads(result.stdout)["status"] == "SUCCEEDED"
+        if example["id"] == "claim_trace":
+            result = runner.invoke(app, tokens)
+            assert result.exit_code == expected["exit_code"]
+            assert json.loads(result.stdout)["runs"] == []
+        if example["id"] == "impact_show":
+            result = runner.invoke(app, tokens)
+            assert result.exit_code == expected["exit_code"]
+            assert json.loads(result.stdout) == []

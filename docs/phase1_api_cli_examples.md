@@ -18,7 +18,7 @@ are placeholders; replace them with identifiers from the same project.
   "method": "POST",
   "path": "/v1/projects",
   "request": {"name": "example-project", "description": "Phase 1 example"},
-  "success": {"status": 201, "response_keys": ["id", "name", "created_at", "row_version"]}
+  "success": {"status": 201, "response_keys": ["id", "name", "created_at", "row_version"], "identifier_semantics": "canonical project id"}
 }
 ```
 
@@ -37,7 +37,7 @@ curl -sS -X POST http://localhost:8000/v1/projects \
   "method": "POST",
   "path": "/v1/artifact-versions/ARTIFACT_VERSION_ID:freeze",
   "request": {"artifact_id": "ARTIFACT_ID", "expected_row_version": 1},
-  "success": {"status": 200}
+  "success": {"status": 200, "response_keys": ["id", "artifact_id", "status", "content_hash", "row_version"], "identifier_semantics": "the path id is the frozen artifact-version id"}
 }
 ```
 
@@ -48,7 +48,8 @@ curl -sS -X POST http://localhost:8000/v1/projects \
   "id": "read_run_provenance",
   "method": "GET",
   "path": "/v1/runs/RUN_ID/provenance",
-  "success": {"status": 200}
+  "request": {},
+  "success": {"status": 200, "response_keys": ["run_id", "project_id", "status", "closure"], "identifier_semantics": "RUN_ID is the canonical run id"}
 }
 ```
 
@@ -57,7 +58,8 @@ curl -sS -X POST http://localhost:8000/v1/projects \
   "id": "trace_claim",
   "method": "GET",
   "path": "/v1/claim-versions/CLAIM_VERSION_ID/trace",
-  "success": {"status": 200}
+  "request": {},
+  "success": {"status": 200, "response_keys": ["claim_version_id", "project_id", "runs", "paths", "closure"], "identifier_semantics": "CLAIM_VERSION_ID is the frozen claim-version id"}
 }
 ```
 
@@ -66,7 +68,8 @@ curl -sS -X POST http://localhost:8000/v1/projects \
   "id": "downstream_impact",
   "method": "GET",
   "path": "/v1/impact/artifact_version/ARTIFACT_VERSION_ID?project_id=PROJECT_ID",
-  "success": {"status": 200}
+  "query": {"project_id": "PROJECT_ID"},
+  "success": {"status": 200, "response_type": "array", "identifier_semantics": "PROJECT_ID scopes ARTIFACT_VERSION_ID to one project"}
 }
 ```
 
@@ -86,7 +89,7 @@ curl -sS 'http://localhost:8000/v1/impact/artifact_version/ARTIFACT_VERSION_ID?p
   "method": "POST",
   "path": "/v1/projects",
   "request": {"description": "missing required name"},
-  "failure": {"status": 422, "error_code": "VALIDATION_ERROR"}
+  "failure": {"status": 422, "error_code": "VALIDATION_ERROR", "error_response_keys": ["error"], "error_shape": ["code", "message", "details"]}
 }
 ```
 

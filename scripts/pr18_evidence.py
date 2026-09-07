@@ -105,6 +105,11 @@ _CREDENTIAL_TOKEN = re.compile(
 class PR18EvidenceError(ValueError):
     """Raised when PR-18 evidence is incomplete, stale, or unsafe."""
 
+    status = "NOT_VERIFIED"
+
+
+NOT_VERIFIED = "NOT_VERIFIED"
+
 
 def _summary_counts(output: str) -> dict[str, int]:
     counts = {
@@ -126,7 +131,9 @@ def _summary_counts(output: str) -> dict[str, int]:
 def _collection_counts(output: str) -> tuple[int, int, int] | None:
     matches = list(_COLLECTION_COUNT.finditer(output))
     if not matches:
-        return None
+        raise PR18EvidenceError("pytest collection metadata is missing")
+    if len(matches) != 1:
+        raise PR18EvidenceError("pytest collection metadata is ambiguous")
     match = matches[-1]
     total = int(match.group("total"))
     selected = int(match.group("selected") or total)
@@ -141,6 +148,8 @@ def parse_pytest_counts(
 ) -> dict[str, int]:
     """Reconcile pytest terminal, collection, and JUnit machine results."""
 
+    if not isinstance(return_code, int) or isinstance(return_code, bool) or return_code < 0:
+        raise PR18EvidenceError("pytest return code is malformed")
     if junit_xml is None:
         raise PR18EvidenceError("pytest JUnit result is missing")
     try:
@@ -151,24 +160,68 @@ def parse_pytest_counts(
     if not suites:
         raise PR18EvidenceError("pytest JUnit result has no test suites")
     try:
-        selected = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
-        failed = sum(int(suite.attrib.get("failures", "0")) for suite in suites)
-        errors = sum(int(suite.attrib.get("errors", "0")) for suite in suites)
-        junit_skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
+        selected = 0
+        failed = 0
+        errors = 0
+        junit_skipped = 0
+        xfailed = 0
+        xpassed = 0
+        for suite in suites:
+            required_attrs = ("tests", "failures", "errors", "skipped")
+            if any(name not in suite.attrib for name in required_attrs):
+                raise PR18EvidenceError("pytest JUnit outcome data is incomplete")
+            suite_selected = int(suite.attrib["tests"])
+            suite_failed = int(suite.attrib["failures"])
+            suite_errors = int(suite.attrib["errors"])
+            suite_skipped = int(suite.attrib["skipped"])
+            testcases = list(suite.findall("testcase"))
+            if len(testcases) != suite_selected:
+                raise PR18EvidenceError("pytest JUnit testcase data is incomplete")
+            child_failed = 0
+            child_errors = 0
+            child_skipped = 0
+            for testcase in testcases:
+                failure = testcase.find("failure")
+                error = testcase.find("error")
+                skipped = testcase.find("skipped")
+                if failure is not None:
+                    child_failed += 1
+                    if failure.attrib.get("type") == "pytest.xpass":
+                        xpassed += 1
+                if error is not None:
+                    child_errors += 1
+                if skipped is not None:
+                    child_skipped += 1
+                    if skipped.attrib.get("type") == "pytest.xfail":
+                        xfailed += 1
+            if (suite_failed, suite_errors, suite_skipped) != (
+                child_failed,
+                child_errors,
+                child_skipped,
+            ):
+                raise PR18EvidenceError("pytest JUnit suite and testcase outcomes differ")
+            selected += suite_selected
+            failed += child_failed - sum(
+                1
+                for testcase in testcases
+                if (failure := testcase.find("failure")) is not None
+                and failure.attrib.get("type") == "pytest.xpass"
+            )
+            errors += child_errors
+            junit_skipped += child_skipped
     except ValueError as error:
         raise PR18EvidenceError("pytest JUnit counts are malformed") from error
     collection = _collection_counts(collection_output)
     if collection is None:
-        total_discovered, collection_selected, deselected = selected, selected, 0
-    else:
-        total_discovered, collection_selected, deselected = collection
+        raise PR18EvidenceError("pytest collection metadata is missing")
+    total_discovered, collection_selected, deselected = collection
     if collection_selected != selected:
         raise PR18EvidenceError("pytest JUnit and collection selected counts differ")
     terminal = _summary_counts(output)
-    xfailed = terminal["xfailed"]
-    xpassed = terminal["xpassed"]
+    xfailed = max(xfailed, terminal["xfailed"])
+    xpassed = max(xpassed, terminal["xpassed"])
     skipped = junit_skipped - xfailed
-    passed = selected - failed - errors - junit_skipped - xpassed
+    passed = selected - failed - errors - skipped - xfailed - xpassed
     counts = {
         "total_discovered": total_discovered,
         "selected": selected,
@@ -189,6 +242,126 @@ def parse_pytest_counts(
         if terminal[key] and terminal[key] != counts[key]:
             raise PR18EvidenceError(f"pytest terminal/JUnit count differs for {key}")
     return counts
+
+
+def assess_evidence_readiness(artifact: object) -> str:
+    """Return READY only when the stored evidence contains verified counts."""
+
+    try:
+        if not isinstance(artifact, dict):
+            raise PR18EvidenceError("evidence must be an object")
+        validate_command_entries(artifact.get("commands"))
+    except PR18EvidenceError:
+        return NOT_VERIFIED
+    return "READY"
+
+
+def _tuple_items(value: object) -> tuple[object, ...]:
+    if isinstance(value, list | tuple):
+        return tuple(value)
+    return ()
+
+
+def _string_items(value: object, *, label: str) -> tuple[str, ...]:
+    items = _tuple_items(value)
+    if any(not isinstance(item, str) for item in items):
+        raise PR18EvidenceError(f"query contract has invalid {label}")
+    return tuple(item for item in items if isinstance(item, str))
+
+
+def validate_query_contract(
+    expectation: dict[str, object], statements: object
+) -> dict[str, object]:
+    """Enforce an independent frozen query contract against captured SQL/plans."""
+
+    if not isinstance(statements, list) or not statements:
+        raise PR18EvidenceError("query contract captured no statements")
+    required_relation_items = _tuple_items(expectation.get("required_relations"))
+    if not required_relation_items or any(
+        not isinstance(item, str) for item in required_relation_items
+    ):
+        raise PR18EvidenceError("query contract has no valid required relations")
+    required_relations = tuple(item for item in required_relation_items if isinstance(item, str))
+    actual_relations: set[str] = set()
+    for statement in statements:
+        if not isinstance(statement, dict):
+            continue
+        plan = statement.get("plan")
+        if isinstance(plan, dict):
+            actual_relations.update(_string_items(plan.get("relations"), label="relations"))
+    missing_relations = sorted(set(required_relations) - actual_relations)
+    if missing_relations:
+        raise PR18EvidenceError(f"required relation(s) absent: {', '.join(missing_relations)}")
+
+    sql_text = "\n".join(
+        str(statement.get("sql", "")) for statement in statements if isinstance(statement, dict)
+    )
+    missing_predicates: list[str] = []
+    predicate_items = _tuple_items(expectation.get("required_predicates"))
+    for item in predicate_items:
+        if not isinstance(item, list | tuple) or len(item) != 2:
+            raise PR18EvidenceError("query contract has invalid required predicates")
+        name, pattern = item
+        if not re.search(str(pattern), sql_text, re.IGNORECASE | re.DOTALL):
+            missing_predicates.append(str(name))
+    if missing_predicates:
+        raise PR18EvidenceError(f"required predicate(s) absent: {', '.join(missing_predicates)}")
+
+    topology = expectation.get("topology")
+    if not isinstance(topology, dict):
+        raise PR18EvidenceError("query contract has no topology constraints")
+    forbidden_nodes = set(_string_items(topology.get("forbidden_node_types"), label="node types"))
+    forbidden_fragments = _string_items(
+        topology.get("forbidden_sql_fragments"), label="SQL fragments"
+    )
+    for statement in statements:
+        if not isinstance(statement, dict):
+            raise PR18EvidenceError("malformed captured query statement")
+        sql = str(statement.get("sql", ""))
+        if not sql.lstrip().upper().startswith("SELECT"):
+            raise PR18EvidenceError("query contract captured a non-SELECT statement")
+        plan = statement.get("plan")
+        if not isinstance(plan, dict):
+            raise PR18EvidenceError("query contract statement has no plan")
+        node_types = set(_string_items(plan.get("node_types"), label="node types"))
+        forbidden = sorted(node_types & forbidden_nodes)
+        if forbidden:
+            raise PR18EvidenceError(f"forbidden query topology: {', '.join(forbidden)}")
+        upper_sql = sql.upper()
+        if any(fragment.upper() in upper_sql for fragment in forbidden_fragments):
+            raise PR18EvidenceError("forbidden query lock/write topology")
+        if "Nested Loop" in node_types and not plan.get("join_types"):
+            raise PR18EvidenceError("query topology contains an unconstrained nested loop")
+        if topology.get("mode") == "batched_single_relation_selects":
+            if len(_tuple_items(plan.get("relations"))) > 1 or any(
+                node_type in {"Nested Loop", "Hash Join", "Merge Join"} for node_type in node_types
+            ):
+                raise PR18EvidenceError("query topology is not a single-relation batch read")
+
+    missing_join_patterns: list[str] = []
+    for item in _tuple_items(topology.get("required_join_patterns")):
+        if not isinstance(item, list | tuple) or len(item) != 2:
+            raise PR18EvidenceError("query contract has invalid join patterns")
+        name, pattern = item
+        if not re.search(str(pattern), sql_text, re.IGNORECASE | re.DOTALL):
+            missing_join_patterns.append(str(name))
+    if missing_join_patterns:
+        raise PR18EvidenceError(
+            f"required query topology absent: {', '.join(missing_join_patterns)}"
+        )
+    return {
+        "required_relations": list(required_relations),
+        "actual_relations": sorted(actual_relations),
+        "required_predicates": [
+            str(item[0])
+            for item in predicate_items
+            if isinstance(item, list | tuple) and len(item) == 2
+        ],
+        "topology_mode": topology["mode"],
+        "select_only": True,
+        "no_cartesian_product": True,
+        "no_write_or_lock": True,
+    }
 
 
 def _validate_registry_tokens(command_id: str, tokens: list[str]) -> None:
@@ -242,7 +415,7 @@ def validate_stored_command_registry(entries: object) -> None:
 
 def _marker_category(path: Path) -> str:
     parts = path.parts
-    if "artifacts" in parts and "phase1_final" in parts:
+    if "artifacts" in parts or "execution" in parts:
         return "historical evidence"
     if "vendor" in parts or "generated" in parts:
         return "vendor/generated"
@@ -281,23 +454,45 @@ def audit_repository_markers(root: Path = PROJECT_ROOT) -> dict[str, Any]:
             for line_number, line in enumerate(lines, 1):
                 for match in _TODO_PATTERN.finditer(line):
                     marker = match.group(1).upper()
+                    relative_text = str(relative)
+                    is_scanner_vocabulary = relative_text in {
+                        "scripts/pr18_evidence.py",
+                        "tests/unit/test_pr18_todo_audit.py",
+                    }
+                    is_normative_criterion = relative_text == (
+                        "docs/architecture/04_Phase1_Development_Specification_v1.2_Harness_Integrated.md"
+                    )
                     if category == "historical evidence" or category == "vendor/generated":
                         disposition = "OUT_OF_PHASE"
+                        class_group_id = "historical-evidence-text"
+                        rationale = "archived execution/evidence text records prior review history"
+                    elif is_normative_criterion:
+                        disposition = "CLOSED"
+                        class_group_id = "normative-phase1-criteria"
                         rationale = (
-                            "preserved historical/generated material is not a live Phase 1 "
-                            "implementation marker"
+                            "normative Phase 1 criterion is recorded as specification text, "
+                            "not an open implementation task"
+                        )
+                    elif is_scanner_vocabulary:
+                        disposition = "INTENTIONAL_NONBLOCKING"
+                        class_group_id = "marker-audit-vocabulary"
+                        rationale = (
+                            "marker names are data used by the deterministic audit itself and "
+                            "do not describe a deferred runtime action"
                         )
                     elif category in {"production", "migration"}:
                         disposition = "PR18_BLOCKER"
+                        class_group_id = "live-runtime-marker"
                         rationale = (
                             "live production or migration marker requires explicit closure "
                             "before Phase 1 completion"
                         )
                     else:
                         disposition = "INTENTIONAL_NONBLOCKING"
+                        class_group_id = "reviewed-transport-documentation"
                         rationale = (
-                            "marker is part of a contract, test, documentation, or evidence "
-                            "audit rather than live runtime behavior"
+                            "reviewed contract/documentation marker describes an audit criterion "
+                            "or example rather than a deferred runtime action"
                         )
                     architecture_sensitive = category in {"production", "migration"} and bool(
                         re.search(
@@ -312,8 +507,10 @@ def audit_repository_markers(root: Path = PROJECT_ROOT) -> dict[str, Any]:
                             "line": line_number,
                             "marker": marker,
                             "category": category,
+                            "surrounding_intent": line.strip(),
                             "disposition": disposition,
                             "rationale": rationale,
+                            "class_group_id": class_group_id,
                             "architecture_priority": "P1" if architecture_sensitive else None,
                         }
                     )
@@ -405,7 +602,7 @@ def collect_catalog_verification(engine: Engine) -> dict[str, Any]:
             continue
         expected = {
             "table": definition["table"],
-            "columns": tuple(definition["columns"]),
+            "columns": _tuple_items(definition["columns"]),
             "unique": definition["unique"],
             "predicate": definition["predicate"],
             "constraint_backed": definition["constraint_backed"],
@@ -511,7 +708,7 @@ def _captured_query_plans(
     operation: str,
     callback: Any,
     *,
-    required_relations: tuple[str, ...],
+    expectation: dict[str, object],
     representative_rows: int,
 ) -> dict[str, Any]:
     captured: list[tuple[str, object]] = []
@@ -536,32 +733,22 @@ def _captured_query_plans(
             plan = _plan_structure(connection, statement, parameters)
             statements.append({"sql": statement, "plan": plan})
 
-    all_relations = {relation for item in statements for relation in item["plan"]["relations"]}
-    all_nodes = {node_type for item in statements for node_type in item["plan"]["node_types"]}
-    has_write_or_lock = bool(all_nodes & {"ModifyTable", "LockRows", "Update", "Delete", "Insert"})
-    has_cartesian = any(
-        "Nested Loop" in item["plan"]["node_types"] and not set(item["plan"]["join_types"])
-        for item in statements
-    )
+    structural_assertions = validate_query_contract(expectation, statements)
     return {
         "production_operation": operation,
-        "required_relations": list(required_relations),
-        "missing_required_relations": sorted(set(required_relations) - all_relations),
+        "repository_methods": list(_tuple_items(expectation["repository_methods"])),
+        "required_relations": structural_assertions["required_relations"],
+        "required_predicates": structural_assertions["required_predicates"],
         "representative_rows": representative_rows,
         "statements": statements,
-        "structural_assertions": {
-            "select_only": all(
-                statement.lstrip().upper().startswith("SELECT") for statement, _ in captured
-            ),
-            "no_cartesian_product": not has_cartesian,
-            "no_write_or_lock": not has_write_or_lock
-            and all("FOR UPDATE" not in statement.upper() for statement, _ in captured),
-        },
+        "structural_assertions": structural_assertions,
     }
 
 
 def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]:
     """Capture EXPLAIN plans for real Phase 1 provenance/governance query services."""
+
+    from tests.contracts.pr18_manifest import FROZEN_QUERY_EXPECTATIONS
 
     from researchbase.application.governance_queries import GovernanceQueryService
     from researchbase.application.provenance_queries import ProvenanceQueryService
@@ -582,14 +769,14 @@ def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]
             engine,
             "ProvenanceQueryService.get_run_provenance",
             lambda: provenance.get_run_provenance(ids["run"]),
-            required_relations=("runs", "experiment_spec_versions", "measurements"),
+            expectation=FROZEN_QUERY_EXPECTATIONS["run_provenance"],
             representative_rows=representative_rows,
         ),
         "claim_trace": _captured_query_plans(
             engine,
             "ProvenanceQueryService.trace_claim_to_runs",
             lambda: provenance.trace_claim_to_runs(ids["claim_version"]),
-            required_relations=("claim_versions", "claims", "evidence_relations", "runs"),
+            expectation=FROZEN_QUERY_EXPECTATIONS["claim_trace"],
             representative_rows=representative_rows,
         ),
         "downstream_impact": _captured_query_plans(
@@ -598,7 +785,7 @@ def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]
             lambda: governance.downstream_impact(
                 ids["project"], GovernanceTargetType.ARTIFACT_VERSION, ids["artifact_version"]
             ),
-            required_relations=("run_artifact_inputs", "runs", "measurements"),
+            expectation=FROZEN_QUERY_EXPECTATIONS["downstream_impact"],
             representative_rows=representative_rows,
         ),
         "audit_findings": _captured_query_plans(
@@ -607,7 +794,7 @@ def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]
             lambda: governance.list_audit_findings(
                 ids["project"], GovernanceTargetType.ARTIFACT_VERSION, ids["artifact_version"]
             ),
-            required_relations=("audit_findings",),
+            expectation=FROZEN_QUERY_EXPECTATIONS["audit_findings"],
             representative_rows=representative_rows,
         ),
     }
@@ -661,11 +848,20 @@ def validate_command_entries(entries: object) -> dict[str, int]:
         if not isinstance(counts, dict):
             raise PR18EvidenceError(f"missing counts: {command_id}")
         return_code = entry.get("return_code")
-        if not isinstance(return_code, int) or counts.get("return_code") != return_code:
+        if (
+            not isinstance(return_code, int)
+            or isinstance(return_code, bool)
+            or counts.get("return_code") != return_code
+        ):
             raise PR18EvidenceError(f"return-code accounting mismatch: {command_id}")
         if "pytest" in tokens:
             if set(PYTEST_COUNT_FIELDS) - set(counts):
                 raise PR18EvidenceError(f"incomplete pytest count schema: {command_id}")
+            if any(
+                not isinstance(counts[key], int) or isinstance(counts[key], bool) or counts[key] < 0
+                for key in PYTEST_COUNT_FIELDS
+            ):
+                raise PR18EvidenceError(f"malformed pytest count values: {command_id}")
             if counts["total_discovered"] != counts["selected"] + counts["deselected"]:
                 raise PR18EvidenceError(f"pytest discovery counts do not reconcile: {command_id}")
             outcomes = ("passed", "failed", "skipped", "xfailed", "xpassed", "errors")
@@ -1070,7 +1266,7 @@ def write_evidence_artifact(path: Path, artifact: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    run_authoritative_evidence(implementation_subject=None)
+    run_authoritative_evidence(implementation_subject=resolve_implementation_subject())
     return 0
 
 

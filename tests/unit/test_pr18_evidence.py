@@ -6,6 +6,7 @@ import pytest
 from scripts.pr18_evidence import (
     AUTHORITATIVE_COMMANDS,
     PR18EvidenceError,
+    assess_evidence_readiness,
     authoritative_command_tokens,
     build_evidence_artifact,
     command_fingerprint,
@@ -150,6 +151,59 @@ def test_pytest_count_parser_fails_closed_on_missing_machine_results() -> None:
             junit_xml=None,
             return_code=0,
         )
+
+
+@pytest.mark.parametrize(
+    ("collection_output", "junit_xml"),
+    [
+        ("", "<testsuite tests='1' failures='0' errors='0' skipped='0'><testcase/></testsuite>"),
+        (
+            "1/2 tests collected (1 deselected)\n2/3 tests collected (1 deselected)",
+            "<testsuite tests='1' failures='0' errors='0' skipped='0'><testcase/></testsuite>",
+        ),
+        (
+            "1 test collected",
+            "<testsuite failures='0' errors='0' skipped='0'></testsuite>",
+        ),
+        (
+            "1 test collected",
+            "<testsuite tests='2' failures='0' errors='0' skipped='0'><testcase/></testsuite>",
+        ),
+        (
+            "1 test collected",
+            "<testsuite tests='1' failures='bad' errors='0' skipped='0'><testcase/></testsuite>",
+        ),
+    ],
+)
+def test_pytest_count_parser_is_not_verified_for_missing_or_ambiguous_data(
+    collection_output: str, junit_xml: str
+) -> None:
+    with pytest.raises(PR18EvidenceError):
+        parse_pytest_counts(
+            output="1 passed",
+            collection_output=collection_output,
+            junit_xml=junit_xml,
+            return_code=0,
+        )
+
+
+def test_missing_count_data_blocks_readiness_as_not_verified() -> None:
+    entry = _entry(["uv", "run", "pytest", "-q", "tests/unit"])
+    del entry["counts"]["selected"]  # type: ignore[index]
+
+    assert assess_evidence_readiness({"commands": {"focused": entry}}) == "NOT_VERIFIED"
+
+
+@pytest.mark.parametrize(
+    "field_value",
+    [None, "1", -1, True],
+)
+def test_command_validation_rejects_malformed_pytest_count_values(field_value: object) -> None:
+    entry = _entry(["uv", "run", "pytest", "-q", "tests/unit"])
+    entry["counts"]["passed"] = field_value  # type: ignore[index]
+
+    with pytest.raises(PR18EvidenceError):
+        validate_command_entries({"focused": entry})
 
 
 def test_authoritative_registry_has_no_absolute_or_credential_tokens() -> None:
