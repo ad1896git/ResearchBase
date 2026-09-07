@@ -166,11 +166,11 @@
         "deselected": 0,
         "errors": 0,
         "failed": 0,
-        "passed": 770,
+        "passed": 786,
         "return_code": 0,
-        "selected": 772,
+        "selected": 788,
         "skipped": 2,
-        "total_discovered": 772,
+        "total_discovered": 788,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -313,14 +313,14 @@
         "--junitxml=artifacts/pr_evidence/PR-18/junit/postgresql_integration.xml"
       ],
       "counts": {
-        "deselected": 436,
+        "deselected": 452,
         "errors": 0,
         "failed": 0,
         "passed": 334,
         "return_code": 0,
         "selected": 336,
         "skipped": 2,
-        "total_discovered": 772,
+        "total_discovered": 788,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -400,11 +400,11 @@
         "deselected": 0,
         "errors": 0,
         "failed": 0,
-        "passed": 53,
+        "passed": 64,
         "return_code": 0,
-        "selected": 53,
+        "selected": 64,
         "skipped": 0,
-        "total_discovered": 53,
+        "total_discovered": 64,
         "xfailed": 0,
         "xpassed": 0
       },
@@ -502,9 +502,9 @@
   },
   "evidence_binding": {
     "mode": "separate-evidence-only-commit",
-    "parent": "64f3fb510a927898c4eb1f39a66dbdfe5a0df980"
+    "parent": "42c62bae411f1a1ce03bb4c955e8b7dcfc276e11"
   },
-  "implementation_subject": "64f3fb510a927898c4eb1f39a66dbdfe5a0df980",
+  "implementation_subject": "42c62bae411f1a1ce03bb4c955e8b7dcfc276e11",
   "metadata": {
     "catalog": {
       "exact_required_coverage": true,
@@ -1048,7 +1048,7 @@
     "database": {
       "alembic_revision": "0016_pr17d_history_protection",
       "credentials": "redacted",
-      "database": "researchbase_pr18_baseline",
+      "database": "researchbase",
       "schema": "public",
       "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
       "version_number": "18.6"
@@ -1057,9 +1057,16 @@
     "query_explain": {
       "audit_findings": {
         "index_usable": true,
-        "missing_required_relations": [],
         "production_operation": "GovernanceQueryService.list_audit_findings",
+        "repository_methods": [
+          "governance.list_audit_findings"
+        ],
         "representative_rows": 1200,
+        "required_predicates": [
+          "finding project scope",
+          "finding target type scope",
+          "finding target identity scope"
+        ],
         "required_relations": [
           "audit_findings"
         ],
@@ -1097,20 +1104,72 @@
           }
         ],
         "structural_assertions": {
+          "actual_relations": [
+            "audit_findings"
+          ],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
-          "select_only": true
+          "required_predicates": [
+            "finding project scope",
+            "finding target type scope",
+            "finding target identity scope"
+          ],
+          "required_relations": [
+            "audit_findings"
+          ],
+          "select_only": true,
+          "topology_mode": "batched_single_relation_selects"
         }
       },
       "claim_trace": {
-        "missing_required_relations": [],
         "production_operation": "ProvenanceQueryService.trace_claim_to_runs",
+        "repository_methods": [
+          "claim_versions.get",
+          "claims.get",
+          "claims.list_evidence",
+          "statistical_results.get_many",
+          "statistical_result_inputs.list_by_results",
+          "measurements.get_many",
+          "runs.get_many",
+          "runs.list_dataset_inputs_for_runs",
+          "runs.list_artifact_inputs_for_runs",
+          "experiment_spec_versions.get_many",
+          "dataset_snapshots.get_many",
+          "artifact_versions.get_many",
+          "measurements.list_by_runs",
+          "metric_definition_versions.get_many"
+        ],
         "representative_rows": 1200,
+        "required_predicates": [
+          "claim version identity",
+          "claim identity",
+          "evidence scoped to claim version",
+          "statistical result identity batch",
+          "statistical inputs identity batch",
+          "measurement identity batch",
+          "run identity batch",
+          "dataset inputs scoped to run",
+          "artifact inputs scoped to run",
+          "spec identity batch",
+          "dataset snapshot identity batch",
+          "artifact identity batch",
+          "measurements scoped to run",
+          "metric version identity batch"
+        ],
         "required_relations": [
           "claim_versions",
           "claims",
           "evidence_relations",
-          "runs"
+          "statistical_results",
+          "statistical_result_inputs",
+          "measurements",
+          "runs",
+          "run_dataset_inputs",
+          "run_artifact_inputs",
+          "experiment_spec_versions",
+          "dataset_snapshots",
+          "artifact_versions",
+          "metric_definition_versions"
         ],
         "statements": [
           {
@@ -1366,19 +1425,88 @@
           }
         ],
         "structural_assertions": {
+          "actual_relations": [
+            "artifact_versions",
+            "claim_versions",
+            "claims",
+            "dataset_snapshots",
+            "evidence_relations",
+            "experiment_spec_versions",
+            "measurements",
+            "metric_definition_versions",
+            "run_artifact_inputs",
+            "run_dataset_inputs",
+            "runs",
+            "statistical_result_inputs",
+            "statistical_results"
+          ],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
-          "select_only": true
+          "required_predicates": [
+            "claim version identity",
+            "claim identity",
+            "evidence scoped to claim version",
+            "statistical result identity batch",
+            "statistical inputs identity batch",
+            "measurement identity batch",
+            "run identity batch",
+            "dataset inputs scoped to run",
+            "artifact inputs scoped to run",
+            "spec identity batch",
+            "dataset snapshot identity batch",
+            "artifact identity batch",
+            "measurements scoped to run",
+            "metric version identity batch"
+          ],
+          "required_relations": [
+            "claim_versions",
+            "claims",
+            "evidence_relations",
+            "statistical_results",
+            "statistical_result_inputs",
+            "measurements",
+            "runs",
+            "run_dataset_inputs",
+            "run_artifact_inputs",
+            "experiment_spec_versions",
+            "dataset_snapshots",
+            "artifact_versions",
+            "metric_definition_versions"
+          ],
+          "select_only": true,
+          "topology_mode": "batched_single_relation_selects"
         }
       },
       "downstream_impact": {
-        "missing_required_relations": [],
         "production_operation": "GovernanceQueryService.downstream_impact",
+        "repository_methods": [
+          "governance.resolve_artifact_version",
+          "governance.downstream_impact_rows"
+        ],
         "representative_rows": 1200,
+        "required_predicates": [
+          "artifact identity",
+          "artifact project scope",
+          "run artifact target scope",
+          "run project scope",
+          "measurement run batch",
+          "statistical input measurement batch",
+          "statistical result project scope",
+          "measurement evidence batch",
+          "claim project scope",
+          "statistical evidence batch"
+        ],
         "required_relations": [
+          "artifacts",
+          "artifact_versions",
           "run_artifact_inputs",
           "runs",
-          "measurements"
+          "measurements",
+          "statistical_result_inputs",
+          "statistical_results",
+          "evidence_relations",
+          "claim_versions",
+          "claims"
         ],
         "statements": [
           {
@@ -1481,7 +1609,8 @@
           {
             "plan": {
               "index_names": [
-                "uq_claim_versions_parent_version",
+                "claim_versions_pkey",
+                "claims_pkey",
                 "uq_evidence_stat"
               ],
               "join_types": [
@@ -1489,8 +1618,7 @@
               ],
               "node_types": [
                 "Index Scan",
-                "Nested Loop",
-                "Seq Scan"
+                "Nested Loop"
               ],
               "relations": [
                 "claim_versions",
@@ -1502,19 +1630,82 @@
           }
         ],
         "structural_assertions": {
+          "actual_relations": [
+            "artifact_versions",
+            "artifacts",
+            "claim_versions",
+            "claims",
+            "evidence_relations",
+            "measurements",
+            "run_artifact_inputs",
+            "runs",
+            "statistical_result_inputs",
+            "statistical_results"
+          ],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
-          "select_only": true
+          "required_predicates": [
+            "artifact identity",
+            "artifact project scope",
+            "run artifact target scope",
+            "run project scope",
+            "measurement run batch",
+            "statistical input measurement batch",
+            "statistical result project scope",
+            "measurement evidence batch",
+            "claim project scope",
+            "statistical evidence batch"
+          ],
+          "required_relations": [
+            "artifacts",
+            "artifact_versions",
+            "run_artifact_inputs",
+            "runs",
+            "measurements",
+            "statistical_result_inputs",
+            "statistical_results",
+            "evidence_relations",
+            "claim_versions",
+            "claims"
+          ],
+          "select_only": true,
+          "topology_mode": "explicit_join_graph"
         }
       },
       "run_provenance": {
-        "missing_required_relations": [],
         "production_operation": "ProvenanceQueryService.get_run_provenance",
+        "repository_methods": [
+          "runs.get",
+          "runs.get_many",
+          "runs.list_dataset_inputs_for_runs",
+          "runs.list_artifact_inputs_for_runs",
+          "experiment_spec_versions.get_many",
+          "dataset_snapshots.get_many",
+          "artifact_versions.get_many",
+          "measurements.list_by_runs",
+          "metric_definition_versions.get_many"
+        ],
         "representative_rows": 1200,
+        "required_predicates": [
+          "run identity",
+          "run batch identity",
+          "dataset inputs scoped to run",
+          "artifact inputs scoped to run",
+          "spec identity batch",
+          "dataset snapshot identity batch",
+          "artifact identity batch",
+          "measurements scoped to run",
+          "metric version identity batch"
+        ],
         "required_relations": [
           "runs",
+          "run_dataset_inputs",
+          "run_artifact_inputs",
           "experiment_spec_versions",
-          "measurements"
+          "dataset_snapshots",
+          "artifact_versions",
+          "measurements",
+          "metric_definition_versions"
         ],
         "statements": [
           {
@@ -1652,9 +1843,41 @@
           }
         ],
         "structural_assertions": {
+          "actual_relations": [
+            "artifact_versions",
+            "dataset_snapshots",
+            "experiment_spec_versions",
+            "measurements",
+            "metric_definition_versions",
+            "run_artifact_inputs",
+            "run_dataset_inputs",
+            "runs"
+          ],
           "no_cartesian_product": true,
           "no_write_or_lock": true,
-          "select_only": true
+          "required_predicates": [
+            "run identity",
+            "run batch identity",
+            "dataset inputs scoped to run",
+            "artifact inputs scoped to run",
+            "spec identity batch",
+            "dataset snapshot identity batch",
+            "artifact identity batch",
+            "measurements scoped to run",
+            "metric version identity batch"
+          ],
+          "required_relations": [
+            "runs",
+            "run_dataset_inputs",
+            "run_artifact_inputs",
+            "experiment_spec_versions",
+            "dataset_snapshots",
+            "artifact_versions",
+            "measurements",
+            "metric_definition_versions"
+          ],
+          "select_only": true,
+          "topology_mode": "batched_single_relation_selects"
         }
       }
     },
@@ -1672,551 +1895,673 @@
         {
           "architecture_priority": null,
           "category": "tests",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 11,
           "marker": "TODO",
           "path": "tests/unit/test_pr18_todo_audit.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "assert audit[\"markers_searched\"] == [\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\"]"
         },
         {
           "architecture_priority": null,
           "category": "tests",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 11,
           "marker": "FIXME",
           "path": "tests/unit/test_pr18_todo_audit.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "assert audit[\"markers_searched\"] == [\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\"]"
         },
         {
           "architecture_priority": null,
           "category": "tests",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 11,
           "marker": "XXX",
           "path": "tests/unit/test_pr18_todo_audit.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "assert audit[\"markers_searched\"] == [\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\"]"
         },
         {
           "architecture_priority": null,
           "category": "tests",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 11,
           "marker": "HACK",
           "path": "tests/unit/test_pr18_todo_audit.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "assert audit[\"markers_searched\"] == [\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\"]"
         },
         {
           "architecture_priority": null,
           "category": "tests",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 11,
           "marker": "TBD",
           "path": "tests/unit/test_pr18_todo_audit.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "assert audit[\"markers_searched\"] == [\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\"]"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "class_group_id": "normative-phase1-criteria",
+          "disposition": "CLOSED",
           "line": 2011,
           "marker": "TODO",
           "path": "docs/architecture/04_Phase1_Development_Specification_v1.2_Harness_Integrated.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "normative Phase 1 criterion is recorded as specification text, not an open implementation task",
+          "surrounding_intent": "- unresolved TODO \u6e05\u96f6\u6216\u8f6c Phase 2 issue\u3002"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "class_group_id": "normative-phase1-criteria",
+          "disposition": "CLOSED",
           "line": 2148,
           "marker": "TODO",
           "path": "docs/architecture/04_Phase1_Development_Specification_v1.2_Harness_Integrated.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "normative Phase 1 criterion is recorded as specification text, not an open implementation task",
+          "surrounding_intent": "[ ] \u65e0 P0/P1 \u67b6\u6784 TODO"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 30,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "| TODO/FIXME disposition | Task 4 marker audit and gate test | Every relevant marker is classified as `RESOLVED_IN_PR18`, `ACCEPTED_NON_BLOCKING`, `DEFERRED_WITH_EXPLICIT_FUTURE_OWNER`, or `OUT_OF_SCOPE`; no unexplained architecture-critical marker remains |"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 30,
           "marker": "FIXME",
           "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "| TODO/FIXME disposition | Task 4 marker audit and gate test | Every relevant marker is classified as `RESOLVED_IN_PR18`, `ACCEPTED_NON_BLOCKING`, `DEFERRED_WITH_EXPLICIT_FUTURE_OWNER`, or `OUT_OF_SCOPE`; no unexplained architecture-critical marker remains |"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 56,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "## Task 4: Add architecture, Agent-ready Core, and TODO/FIXME gate coverage"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 56,
           "marker": "FIXME",
           "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "## Task 4: Add architecture, Agent-ready Core, and TODO/FIXME gate coverage"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 62,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Make the final architecture-TODO gate fail on unexplained architecture-critical markers."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 75,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Generate `artifacts/pr_evidence/PR-18/` artifacts for catalog verification, EXPLAIN baselines, error/log audit, architecture verification, Agent-ready Core audit, API/CLI examples, TODO/FIXME disposition, commands/results, and implementation verification."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 75,
           "marker": "FIXME",
           "path": "docs/superpowers/plans/2026-09-06-pr18-hardening.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Generate `artifacts/pr_evidence/PR-18/` artifacts for catalog verification, EXPLAIN baselines, error/log audit, architecture verification, Agent-ready Core audit, API/CLI examples, TODO/FIXME disposition, commands/results, and implementation verification."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 37,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- Tests define the required behavior for later catalog, EXPLAIN, redaction, docs, architecture, TODO, and evidence implementations."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 47,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Add failing TODO tests for repository-relevant marker categories, independent expected scope, disposition vocabulary, and architecture-critical zero counts."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 110,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- `build_evidence_artifact(...)` requires the actual implementation subject, evidence parent/HEAD, current registry, parsed results, catalog/EXPLAIN/TODO projections, and explicit audit outcomes."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 120,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "### Task 6: Implement repository-wide TODO/FIXME classification"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 120,
           "marker": "FIXME",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "### Task 6: Implement repository-wide TODO/FIXME classification"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 124,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- Create: deterministic TODO audit helper or extend `scripts/pr18_evidence.py`"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 132,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Add failing tests covering `TODO`, `FIXME`, `XXX`, `HACK`, and `TBD` across authorized repository scope."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 132,
           "marker": "FIXME",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Add failing tests covering `TODO`, `FIXME`, `XXX`, `HACK`, and `TBD` across authorized repository scope."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 132,
           "marker": "XXX",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Add failing tests covering `TODO`, `FIXME`, `XXX`, `HACK`, and `TBD` across authorized repository scope."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 132,
           "marker": "HACK",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Add failing tests covering `TODO`, `FIXME`, `XXX`, `HACK`, and `TBD` across authorized repository scope."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 132,
           "marker": "TBD",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Add failing tests covering `TODO`, `FIXME`, `XXX`, `HACK`, and `TBD` across authorized repository scope."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 142,
           "marker": "TODO",
           "path": "docs/superpowers/plans/2026-09-06-pr18r-hardening-remediation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- [ ] Reconcile exact full, integration, focused, regression, catalog, EXPLAIN, redaction, docs, architecture, Agent-ready, TODO, and evidence counts."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 23,
           "marker": "TODO",
           "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- Classification and disposition of relevant TODO/FIXME markers."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 23,
           "marker": "FIXME",
           "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- Classification and disposition of relevant TODO/FIXME markers."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 24,
           "marker": "TODO",
           "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "- Final architecture-TODO gate with no unexplained architecture-critical marker."
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 61,
           "marker": "TODO",
           "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "| Every relevant TODO/FIXME has an explicit disposition | Repository marker audit and final gate test | `todo_fixme_disposition.md` |"
         },
         {
           "architecture_priority": null,
           "category": "documentation",
+          "class_group_id": "reviewed-transport-documentation",
           "disposition": "INTENTIONAL_NONBLOCKING",
           "line": 61,
           "marker": "FIXME",
           "path": "docs/superpowers/specs/2026-09-06-pr18-hardening-design.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "reviewed contract/documentation marker describes an audit criterion or example rather than a deferred runtime action",
+          "surrounding_intent": "| Every relevant TODO/FIXME has an explicit disposition | Repository marker audit and final gate test | `todo_fixme_disposition.md` |"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 93,
+          "line": 94,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "TODO_MARKERS = (\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\")"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 93,
+          "line": 94,
           "marker": "FIXME",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "TODO_MARKERS = (\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\")"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 93,
+          "line": 94,
           "marker": "XXX",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "TODO_MARKERS = (\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\")"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 93,
+          "line": 94,
           "marker": "HACK",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "TODO_MARKERS = (\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\")"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 93,
+          "line": 94,
           "marker": "TBD",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "TODO_MARKERS = (\"TODO\", \"FIXME\", \"XXX\", \"HACK\", \"TBD\")"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 96,
+          "line": 97,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "_TODO_PATTERN = re.compile(r\"\\b(TODO|FIXME|XXX|HACK|TBD)\\b\", re.IGNORECASE)"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 96,
+          "line": 97,
           "marker": "FIXME",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "_TODO_PATTERN = re.compile(r\"\\b(TODO|FIXME|XXX|HACK|TBD)\\b\", re.IGNORECASE)"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 96,
+          "line": 97,
           "marker": "XXX",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "_TODO_PATTERN = re.compile(r\"\\b(TODO|FIXME|XXX|HACK|TBD)\\b\", re.IGNORECASE)"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 96,
+          "line": 97,
           "marker": "HACK",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "_TODO_PATTERN = re.compile(r\"\\b(TODO|FIXME|XXX|HACK|TBD)\\b\", re.IGNORECASE)"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 96,
+          "line": 97,
           "marker": "TBD",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "_TODO_PATTERN = re.compile(r\"\\b(TODO|FIXME|XXX|HACK|TBD)\\b\", re.IGNORECASE)"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 935,
+          "line": 1132,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "todo = audit_repository_markers()"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 943,
+          "line": 1140,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "\"todo\": todo,"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 943,
+          "line": 1140,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "\"todo\": todo,"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 959,
+          "line": 1156,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "\"todo_fixme_disposition.json\": todo,"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1015,
+          "line": 1212,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "\"# PR-18R TODO/FIXME disposition\","
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1015,
+          "line": 1212,
           "marker": "FIXME",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "\"# PR-18R TODO/FIXME disposition\","
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1017,
+          "line": 1214,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "f\"Result: PASS. {len(todo['records'])} repository-relevant markers were classified; \""
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1018,
+          "line": 1215,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "f\"{len(todo['undisposed_live'])} live markers remain undisposed.\","
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1023,
+          "line": 1220,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "for record in todo[\"records\"]:"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1032,
+          "line": 1229,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "\"Architecture P0 markers: \" + str(len(todo[\"architecture_p0\"])),"
         },
         {
           "architecture_priority": null,
           "category": "evidence/tooling",
+          "class_group_id": "marker-audit-vocabulary",
           "disposition": "INTENTIONAL_NONBLOCKING",
-          "line": 1033,
+          "line": 1230,
           "marker": "TODO",
           "path": "scripts/pr18_evidence.py",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "marker names are data used by the deterministic audit itself and do not describe a deferred runtime action",
+          "surrounding_intent": "\"Architecture P1 markers: \" + str(len(todo[\"architecture_p1\"])),"
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 148,
           "marker": "TODO",
           "path": "execution/phase1/PR-17D_Design_Specification_v1.6.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "RunInput, AuditFinding, Run lifecycle, semantic error normalization, WriteResult, configuration, logging, CI, chronology, evidence protocol, and PR-18/Phase 2 boundaries remain unchanged. `PHASE1_REMAINING_PR18` remains index verification, query EXPLAIN baselines, docs/API examples, TODO/FIXME disposition, and the final no-P0/P1 architecture-TODO gate. These do not block PR-17D TDD and do block Phase 1 final closure."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 148,
           "marker": "FIXME",
           "path": "execution/phase1/PR-17D_Design_Specification_v1.6.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "RunInput, AuditFinding, Run lifecycle, semantic error normalization, WriteResult, configuration, logging, CI, chronology, evidence protocol, and PR-18/Phase 2 boundaries remain unchanged. `PHASE1_REMAINING_PR18` remains index verification, query EXPLAIN baselines, docs/API examples, TODO/FIXME disposition, and the final no-P0/P1 architecture-TODO gate. These do not block PR-17D TDD and do block Phase 1 final closure."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 148,
           "marker": "TODO",
           "path": "execution/phase1/PR-17D_Design_Specification_v1.6.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "RunInput, AuditFinding, Run lifecycle, semantic error normalization, WriteResult, configuration, logging, CI, chronology, evidence protocol, and PR-18/Phase 2 boundaries remain unchanged. `PHASE1_REMAINING_PR18` remains index verification, query EXPLAIN baselines, docs/API examples, TODO/FIXME disposition, and the final no-P0/P1 architecture-TODO gate. These do not block PR-17D TDD and do block Phase 1 final closure."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 52,
           "marker": "TODO",
           "path": "execution/phase1/PR-17D_Implementation_Plan_v1.6.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "`PHASE1_REMAINING_PR18` remains separate and unchanged: index verification, query EXPLAIN baselines, docs/API examples, TODO/FIXME disposition, and the final no-P0/P1 architecture-TODO gate. These do not block PR-17D TDD and block Phase 1 final closure."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 52,
           "marker": "FIXME",
           "path": "execution/phase1/PR-17D_Implementation_Plan_v1.6.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "`PHASE1_REMAINING_PR18` remains separate and unchanged: index verification, query EXPLAIN baselines, docs/API examples, TODO/FIXME disposition, and the final no-P0/P1 architecture-TODO gate. These do not block PR-17D TDD and block Phase 1 final closure."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 52,
           "marker": "TODO",
           "path": "execution/phase1/PR-17D_Implementation_Plan_v1.6.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "`PHASE1_REMAINING_PR18` remains separate and unchanged: index verification, query EXPLAIN baselines, docs/API examples, TODO/FIXME disposition, and the final no-P0/P1 architecture-TODO gate. These do not block PR-17D TDD and block Phase 1 final closure."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 3,
           "marker": "TODO",
           "path": "artifacts/pr_evidence/PR-17D/phase1_exit_criteria_reconciliation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "PR-18 remaining hardening is separate: index verification, EXPLAIN baselines, docs/examples, TODO/FIXME disposition, and final architecture-TODO gate. PR-17D does not authorize PR-18."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 3,
           "marker": "FIXME",
           "path": "artifacts/pr_evidence/PR-17D/phase1_exit_criteria_reconciliation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "PR-18 remaining hardening is separate: index verification, EXPLAIN baselines, docs/examples, TODO/FIXME disposition, and final architecture-TODO gate. PR-17D does not authorize PR-18."
         },
         {
           "architecture_priority": null,
-          "category": "evidence/tooling",
-          "disposition": "INTENTIONAL_NONBLOCKING",
+          "category": "historical evidence",
+          "class_group_id": "historical-evidence-text",
+          "disposition": "OUT_OF_PHASE",
           "line": 3,
           "marker": "TODO",
           "path": "artifacts/pr_evidence/PR-17D/phase1_exit_criteria_reconciliation.md",
-          "rationale": "marker is part of a contract, test, documentation, or evidence audit rather than live runtime behavior"
+          "rationale": "archived execution/evidence text records prior review history",
+          "surrounding_intent": "PR-18 remaining hardening is separate: index verification, EXPLAIN baselines, docs/examples, TODO/FIXME disposition, and final architecture-TODO gate. PR-17D does not authorize PR-18."
         }
       ],
       "scope_roots": [

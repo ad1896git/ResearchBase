@@ -2,8 +2,8 @@
 
 | Command | Result |
 | --- | --- |
-| `full_pytest` | `{"deselected": 0, "errors": 0, "failed": 0, "passed": 770, "return_code": 0, "selected": 772, "skipped": 2, "total_discovered": 772, "xfailed": 0, "xpassed": 0}` |
-| `postgresql_integration` | `{"deselected": 436, "errors": 0, "failed": 0, "passed": 334, "return_code": 0, "selected": 336, "skipped": 2, "total_discovered": 772, "xfailed": 0, "xpassed": 0}` |
+| `full_pytest` | `{"deselected": 0, "errors": 0, "failed": 0, "passed": 786, "return_code": 0, "selected": 788, "skipped": 2, "total_discovered": 788, "xfailed": 0, "xpassed": 0}` |
+| `postgresql_integration` | `{"deselected": 452, "errors": 0, "failed": 0, "passed": 334, "return_code": 0, "selected": 336, "skipped": 2, "total_discovered": 788, "xfailed": 0, "xpassed": 0}` |
 | `focused_write_result` | `{"deselected": 0, "errors": 0, "failed": 0, "passed": 44, "return_code": 0, "selected": 44, "skipped": 0, "total_discovered": 44, "xfailed": 0, "xpassed": 0}` |
 | `pr17dr2_direct_sql_adversarial` | `{"deselected": 0, "errors": 0, "failed": 0, "passed": 22, "return_code": 0, "selected": 22, "skipped": 0, "total_discovered": 22, "xfailed": 0, "xpassed": 0}` |
 | `pr17dr2_concurrency` | `{"deselected": 0, "errors": 0, "failed": 0, "passed": 1, "return_code": 0, "selected": 1, "skipped": 0, "total_discovered": 1, "xfailed": 0, "xpassed": 0}` |
@@ -20,4 +20,4 @@
 | `ruff` | `{"return_code": 0, "status": "PASS"}` |
 | `pyright` | `{"return_code": 0, "status": "PASS"}` |
 | `git_diff_check` | `{"return_code": 0, "status": "PASS"}` |
-| `pr18_focused_and_evidence_tool` | `{"deselected": 0, "errors": 0, "failed": 0, "passed": 53, "return_code": 0, "selected": 53, "skipped": 0, "total_discovered": 53, "xfailed": 0, "xpassed": 0}` |
+| `pr18_focused_and_evidence_tool` | `{"deselected": 0, "errors": 0, "failed": 0, "passed": 64, "return_code": 0, "selected": 64, "skipped": 0, "total_discovered": 64, "xfailed": 0, "xpassed": 0}` |

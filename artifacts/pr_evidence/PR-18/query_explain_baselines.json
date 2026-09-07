@@ -2,7 +2,7 @@
   "database": {
     "alembic_revision": "0016_pr17d_history_protection",
     "credentials": "redacted",
-    "database": "researchbase_pr18_baseline",
+    "database": "researchbase",
     "schema": "public",
     "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
     "version_number": "18.6"
@@ -10,9 +10,16 @@
   "queries": {
     "audit_findings": {
       "index_usable": true,
-      "missing_required_relations": [],
       "production_operation": "GovernanceQueryService.list_audit_findings",
+      "repository_methods": [
+        "governance.list_audit_findings"
+      ],
       "representative_rows": 1200,
+      "required_predicates": [
+        "finding project scope",
+        "finding target type scope",
+        "finding target identity scope"
+      ],
       "required_relations": [
         "audit_findings"
       ],
@@ -50,20 +57,72 @@
         }
       ],
       "structural_assertions": {
+        "actual_relations": [
+          "audit_findings"
+        ],
         "no_cartesian_product": true,
         "no_write_or_lock": true,
-        "select_only": true
+        "required_predicates": [
+          "finding project scope",
+          "finding target type scope",
+          "finding target identity scope"
+        ],
+        "required_relations": [
+          "audit_findings"
+        ],
+        "select_only": true,
+        "topology_mode": "batched_single_relation_selects"
       }
     },
     "claim_trace": {
-      "missing_required_relations": [],
       "production_operation": "ProvenanceQueryService.trace_claim_to_runs",
+      "repository_methods": [
+        "claim_versions.get",
+        "claims.get",
+        "claims.list_evidence",
+        "statistical_results.get_many",
+        "statistical_result_inputs.list_by_results",
+        "measurements.get_many",
+        "runs.get_many",
+        "runs.list_dataset_inputs_for_runs",
+        "runs.list_artifact_inputs_for_runs",
+        "experiment_spec_versions.get_many",
+        "dataset_snapshots.get_many",
+        "artifact_versions.get_many",
+        "measurements.list_by_runs",
+        "metric_definition_versions.get_many"
+      ],
       "representative_rows": 1200,
+      "required_predicates": [
+        "claim version identity",
+        "claim identity",
+        "evidence scoped to claim version",
+        "statistical result identity batch",
+        "statistical inputs identity batch",
+        "measurement identity batch",
+        "run identity batch",
+        "dataset inputs scoped to run",
+        "artifact inputs scoped to run",
+        "spec identity batch",
+        "dataset snapshot identity batch",
+        "artifact identity batch",
+        "measurements scoped to run",
+        "metric version identity batch"
+      ],
       "required_relations": [
         "claim_versions",
         "claims",
         "evidence_relations",
-        "runs"
+        "statistical_results",
+        "statistical_result_inputs",
+        "measurements",
+        "runs",
+        "run_dataset_inputs",
+        "run_artifact_inputs",
+        "experiment_spec_versions",
+        "dataset_snapshots",
+        "artifact_versions",
+        "metric_definition_versions"
       ],
       "statements": [
         {
@@ -319,19 +378,88 @@
         }
       ],
       "structural_assertions": {
+        "actual_relations": [
+          "artifact_versions",
+          "claim_versions",
+          "claims",
+          "dataset_snapshots",
+          "evidence_relations",
+          "experiment_spec_versions",
+          "measurements",
+          "metric_definition_versions",
+          "run_artifact_inputs",
+          "run_dataset_inputs",
+          "runs",
+          "statistical_result_inputs",
+          "statistical_results"
+        ],
         "no_cartesian_product": true,
         "no_write_or_lock": true,
-        "select_only": true
+        "required_predicates": [
+          "claim version identity",
+          "claim identity",
+          "evidence scoped to claim version",
+          "statistical result identity batch",
+          "statistical inputs identity batch",
+          "measurement identity batch",
+          "run identity batch",
+          "dataset inputs scoped to run",
+          "artifact inputs scoped to run",
+          "spec identity batch",
+          "dataset snapshot identity batch",
+          "artifact identity batch",
+          "measurements scoped to run",
+          "metric version identity batch"
+        ],
+        "required_relations": [
+          "claim_versions",
+          "claims",
+          "evidence_relations",
+          "statistical_results",
+          "statistical_result_inputs",
+          "measurements",
+          "runs",
+          "run_dataset_inputs",
+          "run_artifact_inputs",
+          "experiment_spec_versions",
+          "dataset_snapshots",
+          "artifact_versions",
+          "metric_definition_versions"
+        ],
+        "select_only": true,
+        "topology_mode": "batched_single_relation_selects"
       }
     },
     "downstream_impact": {
-      "missing_required_relations": [],
       "production_operation": "GovernanceQueryService.downstream_impact",
+      "repository_methods": [
+        "governance.resolve_artifact_version",
+        "governance.downstream_impact_rows"
+      ],
       "representative_rows": 1200,
+      "required_predicates": [
+        "artifact identity",
+        "artifact project scope",
+        "run artifact target scope",
+        "run project scope",
+        "measurement run batch",
+        "statistical input measurement batch",
+        "statistical result project scope",
+        "measurement evidence batch",
+        "claim project scope",
+        "statistical evidence batch"
+      ],
       "required_relations": [
+        "artifacts",
+        "artifact_versions",
         "run_artifact_inputs",
         "runs",
-        "measurements"
+        "measurements",
+        "statistical_result_inputs",
+        "statistical_results",
+        "evidence_relations",
+        "claim_versions",
+        "claims"
       ],
       "statements": [
         {
@@ -434,7 +562,8 @@
         {
           "plan": {
             "index_names": [
-              "uq_claim_versions_parent_version",
+              "claim_versions_pkey",
+              "claims_pkey",
               "uq_evidence_stat"
             ],
             "join_types": [
@@ -442,8 +571,7 @@
             ],
             "node_types": [
               "Index Scan",
-              "Nested Loop",
-              "Seq Scan"
+              "Nested Loop"
             ],
             "relations": [
               "claim_versions",
@@ -455,19 +583,82 @@
         }
       ],
       "structural_assertions": {
+        "actual_relations": [
+          "artifact_versions",
+          "artifacts",
+          "claim_versions",
+          "claims",
+          "evidence_relations",
+          "measurements",
+          "run_artifact_inputs",
+          "runs",
+          "statistical_result_inputs",
+          "statistical_results"
+        ],
         "no_cartesian_product": true,
         "no_write_or_lock": true,
-        "select_only": true
+        "required_predicates": [
+          "artifact identity",
+          "artifact project scope",
+          "run artifact target scope",
+          "run project scope",
+          "measurement run batch",
+          "statistical input measurement batch",
+          "statistical result project scope",
+          "measurement evidence batch",
+          "claim project scope",
+          "statistical evidence batch"
+        ],
+        "required_relations": [
+          "artifacts",
+          "artifact_versions",
+          "run_artifact_inputs",
+          "runs",
+          "measurements",
+          "statistical_result_inputs",
+          "statistical_results",
+          "evidence_relations",
+          "claim_versions",
+          "claims"
+        ],
+        "select_only": true,
+        "topology_mode": "explicit_join_graph"
       }
     },
     "run_provenance": {
-      "missing_required_relations": [],
       "production_operation": "ProvenanceQueryService.get_run_provenance",
+      "repository_methods": [
+        "runs.get",
+        "runs.get_many",
+        "runs.list_dataset_inputs_for_runs",
+        "runs.list_artifact_inputs_for_runs",
+        "experiment_spec_versions.get_many",
+        "dataset_snapshots.get_many",
+        "artifact_versions.get_many",
+        "measurements.list_by_runs",
+        "metric_definition_versions.get_many"
+      ],
       "representative_rows": 1200,
+      "required_predicates": [
+        "run identity",
+        "run batch identity",
+        "dataset inputs scoped to run",
+        "artifact inputs scoped to run",
+        "spec identity batch",
+        "dataset snapshot identity batch",
+        "artifact identity batch",
+        "measurements scoped to run",
+        "metric version identity batch"
+      ],
       "required_relations": [
         "runs",
+        "run_dataset_inputs",
+        "run_artifact_inputs",
         "experiment_spec_versions",
-        "measurements"
+        "dataset_snapshots",
+        "artifact_versions",
+        "measurements",
+        "metric_definition_versions"
       ],
       "statements": [
         {
@@ -605,9 +796,41 @@
         }
       ],
       "structural_assertions": {
+        "actual_relations": [
+          "artifact_versions",
+          "dataset_snapshots",
+          "experiment_spec_versions",
+          "measurements",
+          "metric_definition_versions",
+          "run_artifact_inputs",
+          "run_dataset_inputs",
+          "runs"
+        ],
         "no_cartesian_product": true,
         "no_write_or_lock": true,
-        "select_only": true
+        "required_predicates": [
+          "run identity",
+          "run batch identity",
+          "dataset inputs scoped to run",
+          "artifact inputs scoped to run",
+          "spec identity batch",
+          "dataset snapshot identity batch",
+          "artifact identity batch",
+          "measurements scoped to run",
+          "metric version identity batch"
+        ],
+        "required_relations": [
+          "runs",
+          "run_dataset_inputs",
+          "run_artifact_inputs",
+          "experiment_spec_versions",
+          "dataset_snapshots",
+          "artifact_versions",
+          "measurements",
+          "metric_definition_versions"
+        ],
+        "select_only": true,
+        "topology_mode": "batched_single_relation_selects"
       }
     }
   },
