@@ -153,6 +153,21 @@ def test_pytest_count_parser_fails_closed_on_missing_machine_results() -> None:
         )
 
 
+def test_pytest_count_parser_ignores_collection_text_inside_test_identifiers() -> None:
+    counts = parse_pytest_counts(
+        output="1 passed",
+        collection_output=(
+            "tests/unit/test_parser.py::test_case[1 test collected]\n1 test collected in 0.01s"
+        ),
+        junit_xml=(
+            "<testsuite tests='1' failures='0' errors='0' skipped='0'><testcase/></testsuite>"
+        ),
+        return_code=0,
+    )
+
+    assert counts["selected"] == 1
+
+
 @pytest.mark.parametrize(
     ("collection_output", "junit_xml"),
     [

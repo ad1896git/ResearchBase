@@ -80,8 +80,9 @@ _SUMMARY_COUNT = re.compile(
     r"(?P<count>\d+) (?P<kind>passed|failed|skipped|deselected|xfailed|xpassed|errors?)"
 )
 _COLLECTION_COUNT = re.compile(
-    r"(?:(?P<selected>\d+)/)?(?P<total>\d+) tests? collected"
-    r"(?: \((?P<deselected>\d+) deselected\))?"
+    r"^[ \t]*(?:(?P<selected>\d+)/)?(?P<total>\d+) tests? collected"
+    r"(?: \((?P<deselected>\d+) deselected\))?",
+    re.MULTILINE,
 )
 INHERITED_PR11R2_SKIP_IDENTITIES = frozenset(
     {
