@@ -601,6 +601,11 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT DISTINCT FROM t",
         "SELECT CASE",
         "SELECT 1 FROM t JOIN u",
+        "SELECT 1 FROM t WHERE x = ()",
+        "SELECT 1 FROM t WHERE x IN",
+        "SELECT DISTINCT ON () 1 FROM t",
+        "SELECT 1 FROM t JOIN u USING ()",
+        "SELECT 1 ORDER BY x NULLS",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -625,6 +630,16 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
     assert statement["grammar_supported"] is True
     assert statement["statement_complete"] is True
     assert statement["purity_verdict"] == "PASS"
+
+
+def test_r6_select_into_after_from_is_rejected_as_write() -> None:
+    projection = _validate_statement_purity([{"sql": "SELECT 1 FROM t INTO new_table"}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "SELECT_INTO_WRITE"
+    assert statement["select_into_detected"] is True
+    assert statement["purity_verdict"] == "FAIL"
+    assert projection["overall_verdict"] == "FAIL"
 
 
 def test_r6_nested_data_modifying_cte_is_rejected() -> None:

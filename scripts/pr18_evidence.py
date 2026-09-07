@@ -244,6 +244,7 @@ _INCOMPLETE_CLAUSE_WORDS = frozenset(
         "WHEN",
         "THEN",
         "ELSE",
+        "NULLS",
     }
 )
 _STRUCTURAL_WORDS = frozenset(
@@ -496,15 +497,14 @@ def _has_select_into(tokens: tuple[_SQLToken, ...]) -> bool:
     for index, token in enumerate(tokens):
         if token.kind != "word" or token.text != "SELECT":
             continue
-        for candidate in tokens[index + 1 :]:
-            if candidate.depth < token.depth:
-                break
-            if candidate.depth != token.depth or candidate.kind != "word":
-                continue
-            if candidate.text == "INTO":
-                return True
-            if candidate.text in _SELECT_SCOPE_BOUNDARIES:
-                break
+        end = _scope_end(tokens, index)
+        if any(
+            candidate.depth == token.depth
+            and candidate.kind == "word"
+            and candidate.text == "INTO"
+            for candidate in tokens[index + 1 : end]
+        ):
+            return True
     return False
 
 
@@ -681,6 +681,18 @@ def _adjacent_expression_allowed(previous: _SQLToken, current: _SQLToken) -> boo
 
 def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     """Reject expression segments with unsupported or incomplete token shapes."""
+
+    if tokens and tokens[-1].kind == "word" and tokens[-1].text in {"IN", "USING"}:
+        return False
+    if any(
+        token.kind == "symbol"
+        and token.text == "("
+        and index + 1 < len(tokens)
+        and tokens[index + 1].kind == "symbol"
+        and tokens[index + 1].text == ")"
+        for index, token in enumerate(tokens)
+    ):
+        return False
 
     previous: _SQLToken | None = None
     index = 0
