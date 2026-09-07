@@ -278,7 +278,7 @@ subject. Run the authoritative generator against PostgreSQL 18 and verify:
 - catalog 18/18;
 - four production EXPLAIN projections;
 - four production purity projections;
-- 61-marker TODO disposition input;
+- 61-marker disposition input;
 - zero stale reuse.
 
 - [ ] **Step 5: Commit evidence separately and stop.**
