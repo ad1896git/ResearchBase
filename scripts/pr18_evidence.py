@@ -112,6 +112,250 @@ class PR18EvidenceError(ValueError):
 
 NOT_VERIFIED = "NOT_VERIFIED"
 
+READ_SELECT = "READ_SELECT"
+READ_SELECT_LOCKING = "READ_SELECT_LOCKING"
+WRITE_INSERT = "WRITE_INSERT"
+WRITE_UPDATE = "WRITE_UPDATE"
+WRITE_DELETE = "WRITE_DELETE"
+WRITE_MERGE = "WRITE_MERGE"
+DDL = "DDL"
+TRANSACTION_CONTROL = "TRANSACTION_CONTROL"
+SESSION_OR_CONFIG_CHANGE = "SESSION_OR_CONFIG_CHANGE"
+UNKNOWN = "UNKNOWN"
+
+_STATEMENT_KEYWORDS = frozenset(
+    {
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "MERGE",
+        "CREATE",
+        "ALTER",
+        "DROP",
+        "TRUNCATE",
+        "BEGIN",
+        "START",
+        "COMMIT",
+        "ROLLBACK",
+        "SAVEPOINT",
+        "RELEASE",
+        "END",
+        "ABORT",
+        "SET",
+        "RESET",
+        "DISCARD",
+        "USE",
+        "PRAGMA",
+        "SHOW",
+    }
+)
+_DDL_KEYWORDS = frozenset({"CREATE", "ALTER", "DROP", "TRUNCATE"})
+_TRANSACTION_KEYWORDS = frozenset(
+    {"BEGIN", "START", "COMMIT", "ROLLBACK", "SAVEPOINT", "RELEASE", "END", "ABORT"}
+)
+_LOCKING_PATTERN = re.compile(r"\bFOR\s+(?:NO\s+KEY\s+UPDATE|KEY\s+SHARE|UPDATE|SHARE)\b")
+
+
+def _sql_tokens(statement: str) -> list[tuple[str, int]]:
+    """Tokenize SQL keywords outside comments/literals for fail-closed classification."""
+
+    tokens: list[tuple[str, int]] = []
+    index = 0
+    depth = 0
+    length = len(statement)
+    while index < length:
+        character = statement[index]
+        if character.isspace():
+            index += 1
+            continue
+        if statement.startswith("--", index):
+            newline = statement.find("\n", index + 2)
+            index = length if newline == -1 else newline + 1
+            continue
+        if statement.startswith("/*", index):
+            end = statement.find("*/", index + 2)
+            if end == -1:
+                return []
+            index = end + 2
+            continue
+        if character in {"'", '"', "`"}:
+            quote = character
+            index += 1
+            while index < length:
+                if statement[index] == quote:
+                    if index + 1 < length and statement[index + 1] == quote:
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                index += 1
+            else:
+                return []
+            continue
+        if character == "$":
+            tag_match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", statement[index:])
+            if tag_match:
+                tag = tag_match.group(0)
+                end = statement.find(tag, index + len(tag))
+                if end == -1:
+                    return []
+                index = end + len(tag)
+                continue
+        if character == "(":
+            depth += 1
+            index += 1
+            continue
+        if character == ")":
+            if depth == 0:
+                return []
+            depth -= 1
+            index += 1
+            continue
+        if character == ";" and depth == 0:
+            tokens.append((";", depth))
+            index += 1
+            continue
+        if character.isalpha() or character == "_":
+            end = index + 1
+            while end < length and (statement[end].isalnum() or statement[end] == "_"):
+                end += 1
+            tokens.append((statement[index:end].upper(), depth))
+            index = end
+            continue
+        index += 1
+    if depth != 0:
+        return []
+    return tokens
+
+
+def _statement_sql(statement: object) -> str | None:
+    if isinstance(statement, str):
+        return statement
+    if isinstance(statement, dict):
+        value = statement.get("sql")
+        return value if isinstance(value, str) else None
+    if isinstance(statement, tuple) and statement and isinstance(statement[0], str):
+        return statement[0]
+    return None
+
+
+def _safe_sql_projection(statement: str) -> str:
+    """Normalize SQL without recording bound values or execution parameters."""
+
+    normalized = re.sub(r"'(?:''|[^'])*'", "'<redacted>'", statement)
+    normalized = re.sub(r"\b\d+(?:\.\d+)?\b", "<number>", normalized)
+    return re.sub(r"\s+", " ", normalized.strip())
+
+
+def classify_statement(statement: object) -> str:
+    """Classify one captured SQL statement; unsupported input is UNKNOWN."""
+
+    sql = _statement_sql(statement)
+    if sql is None or not sql.strip():
+        return UNKNOWN
+    tokens = _sql_tokens(sql)
+    if not tokens:
+        return UNKNOWN
+    top_level = [token for token, depth in tokens if depth == 0]
+    if ";" in top_level:
+        separator = top_level.index(";")
+        if any(token != ";" for token in top_level[separator + 1 :]):
+            return UNKNOWN
+        top_level = top_level[:separator]
+    if not top_level:
+        return UNKNOWN
+    keyword = top_level[0]
+    if keyword == "WITH":
+        keyword = next(
+            (token for token in top_level[1:] if token in _STATEMENT_KEYWORDS),
+            UNKNOWN,
+        )
+    if keyword == "SELECT":
+        lexical_sql = " ".join(token for token, _depth in tokens if token != ";")
+        return READ_SELECT_LOCKING if _LOCKING_PATTERN.search(lexical_sql) else READ_SELECT
+    if keyword == "INSERT":
+        return WRITE_INSERT
+    if keyword == "UPDATE":
+        return WRITE_UPDATE
+    if keyword == "DELETE":
+        return WRITE_DELETE
+    if keyword == "MERGE":
+        return WRITE_MERGE
+    if keyword in _DDL_KEYWORDS:
+        return DDL
+    if keyword in _TRANSACTION_KEYWORDS:
+        return TRANSACTION_CONTROL
+    if keyword in {"SET", "RESET", "DISCARD", "USE", "PRAGMA", "SHOW"}:
+        return SESSION_OR_CONFIG_CHANGE
+    return UNKNOWN
+
+
+def _purity_statement_projection(statement: object) -> dict[str, str]:
+    sql = _statement_sql(statement)
+    statement_class = classify_statement(statement)
+    safe_sql = _safe_sql_projection(sql) if sql is not None else "<unavailable>"
+    if statement_class == READ_SELECT:
+        read_write_verdict = "PASS"
+        locking_verdict = "PASS"
+    elif statement_class == READ_SELECT_LOCKING:
+        read_write_verdict = "PASS"
+        locking_verdict = "FAIL"
+    elif statement_class == UNKNOWN:
+        read_write_verdict = NOT_VERIFIED
+        locking_verdict = NOT_VERIFIED
+    else:
+        read_write_verdict = "FAIL"
+        locking_verdict = "PASS"
+    return {
+        "sql": safe_sql,
+        "normalized_sql": safe_sql,
+        "statement_class": statement_class,
+        "read_write_verdict": read_write_verdict,
+        "locking_verdict": locking_verdict,
+    }
+
+
+def validate_statement_purity(statements: object) -> dict[str, object]:
+    """Project and validate the complete captured statement set fail-closed."""
+
+    if not isinstance(statements, list) or not statements:
+        raise PR18EvidenceError("NOT_VERIFIED: captured statement set is unavailable")
+    projected = [_purity_statement_projection(statement) for statement in statements]
+    unknown_count = sum(item["statement_class"] == UNKNOWN for item in projected)
+    forbidden_count = sum(item["statement_class"] != READ_SELECT for item in projected)
+    verdict = "PASS" if forbidden_count == 0 else "FAIL"
+    return {
+        "statement_count": len(projected),
+        "statements": projected,
+        "forbidden_statement_count": forbidden_count,
+        "unknown_statement_count": unknown_count,
+        "write_or_lock_verdict": verdict,
+        "overall_verdict": verdict,
+        "verification_status": "VERIFIED" if unknown_count == 0 else NOT_VERIFIED,
+    }
+
+
+def _capture_sql_statements(engine: Engine, callback: Any) -> list[tuple[str, object]]:
+    """Capture every SQL statement emitted while ``callback`` executes."""
+
+    captured: list[tuple[str, object]] = []
+
+    def observe(
+        _connection: Any, _cursor: Any, statement: str, parameters: object, *_args: Any
+    ) -> None:
+        if isinstance(statement, str):
+            captured.append((statement, parameters))
+        else:
+            captured.append(("<unavailable>", parameters))
+
+    event.listen(engine, "before_cursor_execute", observe)
+    try:
+        callback()
+    finally:
+        event.remove(engine, "before_cursor_execute", observe)
+    return captured
+
 
 def _summary_counts(output: str) -> dict[str, int]:
     counts = {
@@ -404,6 +648,11 @@ def validate_query_contract(
 ) -> dict[str, object]:
     """Enforce an independent frozen query contract against captured SQL/plans."""
 
+    purity_projection = validate_statement_purity(statements)
+    if purity_projection["overall_verdict"] != "PASS":
+        if purity_projection["unknown_statement_count"]:
+            raise PR18EvidenceError("NOT_VERIFIED: query contract has unknown statement purity")
+        raise PR18EvidenceError("WRITE_OR_LOCK_VIOLATION: query contract is not read-only")
     if not isinstance(statements, list) or not statements:
         raise PR18EvidenceError("query contract captured no statements")
     required_relation_items = _tuple_items(expectation.get("required_relations"))
@@ -488,7 +737,7 @@ def validate_query_contract(
     invalid_edges: list[str] = []
     cartesian_join = False
     for plan, sql, plan_relations in statement_plans:
-        if not sql.lstrip().upper().startswith("SELECT"):
+        if classify_statement(sql) != READ_SELECT:
             raise PR18EvidenceError(
                 "WRITE_OR_LOCK_VIOLATION: query captured a non-SELECT statement"
             )
@@ -593,6 +842,11 @@ def validate_query_contract(
         ),
     }
     return {
+        "statement_count": purity_projection["statement_count"],
+        "statement_evidence": purity_projection["statements"],
+        "forbidden_statement_count": purity_projection["forbidden_statement_count"],
+        "unknown_statement_count": purity_projection["unknown_statement_count"],
+        "write_or_lock_verdict": purity_projection["write_or_lock_verdict"],
         "required_relations": list(required_relations),
         "allowed_relations": list(allowed_relations),
         "observed_relations": sorted(actual_relations),
@@ -980,32 +1234,48 @@ def _captured_query_plans(
     expectation: dict[str, object],
     representative_rows: int,
 ) -> dict[str, Any]:
-    captured: list[tuple[str, object]] = []
-
-    def observe(
-        _connection: Any, _cursor: Any, statement: str, parameters: object, *_args: Any
-    ) -> None:
-        if statement.lstrip().upper().startswith("SELECT"):
-            captured.append((statement, parameters))
-
-    event.listen(engine, "before_cursor_execute", observe)
-    try:
-        callback()
-    finally:
-        event.remove(engine, "before_cursor_execute", observe)
+    captured = _capture_sql_statements(engine, callback)
 
     if not captured:
-        raise PR18EvidenceError(f"{operation} emitted no SELECT statements")
+        raise PR18EvidenceError(f"{operation} emitted no SQL statements")
+    purity_projection = validate_statement_purity(captured)
+    if purity_projection["overall_verdict"] != "PASS":
+        if purity_projection["unknown_statement_count"]:
+            raise PR18EvidenceError(
+                "PRODUCTION_QUERY_PURITY_DEFECT_DISCOVERED = YES: "
+                f"{operation} emitted an unknown statement"
+            )
+        raise PR18EvidenceError(
+            "PRODUCTION_QUERY_PURITY_DEFECT_DISCOVERED = YES: "
+            f"{operation} emitted a forbidden write or locking statement"
+        )
     statements: list[dict[str, Any]] = []
     with engine.connect() as connection:
-        for statement, parameters in captured:
+        for index, (statement, parameters) in enumerate(captured):
+            if purity_projection["statements"][index]["statement_class"] != READ_SELECT:
+                raise PR18EvidenceError(
+                    f"{operation} has a non-ordinary SELECT after purity validation"
+                )
             plan = _plan_structure(connection, statement, parameters)
-            statements.append({"sql": statement, "plan": plan})
+            statements.append(
+                {
+                    "sql": statement,
+                    "plan": plan,
+                    **purity_projection["statements"][index],
+                }
+            )
 
     structural_assertions = validate_query_contract(expectation, statements)
+    if structural_assertions["statement_count"] != len(statements):
+        raise PR18EvidenceError("NOT_VERIFIED: captured statement count does not reconcile")
     return {
         "production_operation": operation,
+        "query_path": operation,
         "repository_methods": list(_tuple_items(expectation["repository_methods"])),
+        "statement_count": structural_assertions["statement_count"],
+        "forbidden_statement_count": structural_assertions["forbidden_statement_count"],
+        "unknown_statement_count": structural_assertions["unknown_statement_count"],
+        "statement_purity": structural_assertions["statement_evidence"],
         "required_relations": structural_assertions["required_relations"],
         "allowed_relations": structural_assertions["allowed_relations"],
         "observed_relations": structural_assertions["observed_relations"],
@@ -1016,9 +1286,7 @@ def _captured_query_plans(
         "expected_topology": structural_assertions["expected_topology"],
         "observed_topology": structural_assertions["observed_topology"],
         "cartesian_verdict": structural_assertions["cartesian_verdict"],
-        "write_or_lock_verdict": (
-            "PASS" if structural_assertions["no_write_or_lock"] else "FAIL"
-        ),
+        "write_or_lock_verdict": structural_assertions["write_or_lock_verdict"],
         "overall_verdict": structural_assertions["overall_verdict"],
         "verification_status": structural_assertions["verification_status"],
         "representative_rows": representative_rows,

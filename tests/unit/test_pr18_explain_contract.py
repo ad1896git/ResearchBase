@@ -1,11 +1,27 @@
+# pyright: reportReturnType=false, reportGeneralTypeIssues=false, reportIndexIssue=false
+
 from __future__ import annotations
 
 from copy import deepcopy
 from typing import cast
 
 import pytest
+from scripts import pr18_evidence
 from scripts.pr18_evidence import PR18EvidenceError, validate_query_contract
+from sqlalchemy import create_engine
 from tests.contracts.pr18_manifest import FROZEN_QUERY_EXPECTATIONS
+
+
+def _classify_statement(sql: str) -> str:
+    classifier = getattr(pr18_evidence, "classify_statement", None)
+    assert callable(classifier)
+    return classifier(sql)
+
+
+def _validate_statement_purity(statements: object) -> dict[str, object]:
+    validator = getattr(pr18_evidence, "validate_statement_purity", None)
+    assert callable(validator)
+    return validator(statements)
 
 
 def _statement(
@@ -160,6 +176,151 @@ def test_each_production_query_has_an_explicit_topology_contract() -> None:
         assert topology["forbidden_join_edges"] == "all_unlisted"
         assert topology["allow_cartesian_joins"] is False
         assert topology["forbidden_cartesian_joins"] is True
+
+
+@pytest.mark.parametrize(
+    ("sql", "expected_class"),
+    [
+        ("SELECT id FROM audit_findings", "READ_SELECT"),
+        ("SELECT id FROM audit_findings FOR UPDATE", "READ_SELECT_LOCKING"),
+        ("SELECT id FROM audit_findings FOR NO KEY UPDATE", "READ_SELECT_LOCKING"),
+        ("SELECT id FROM audit_findings FOR SHARE", "READ_SELECT_LOCKING"),
+        ("SELECT id FROM audit_findings FOR KEY SHARE", "READ_SELECT_LOCKING"),
+        ("INSERT INTO audit_findings (id) VALUES (:id)", "WRITE_INSERT"),
+        ("UPDATE audit_findings SET title = :title", "WRITE_UPDATE"),
+        (
+            "WITH changed AS (SELECT id FROM audit_findings) "
+            "UPDATE audit_findings SET title = :title",
+            "WRITE_UPDATE",
+        ),
+        ("DELETE FROM audit_findings", "WRITE_DELETE"),
+        (
+            "MERGE INTO audit_findings USING source ON true "
+            "WHEN MATCHED THEN UPDATE SET title = :title",
+            "WRITE_MERGE",
+        ),
+        ("CREATE TABLE temporary_evidence (id integer)", "DDL"),
+        ("BEGIN", "TRANSACTION_CONTROL"),
+        ("SET LOCAL statement_timeout = '1s'", "SESSION_OR_CONFIG_CHANGE"),
+        ("VACUUM audit_findings", "UNKNOWN"),
+    ],
+)
+def test_statement_classifier_is_explicit_and_fail_closed(sql: str, expected_class: str) -> None:
+    assert _classify_statement(sql) == expected_class
+
+
+def test_statement_capture_observes_update_before_valid_select() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.exec_driver_sql("CREATE TABLE evidence (id integer, title text)")
+        connection.exec_driver_sql("INSERT INTO evidence (id, title) VALUES (1, 'ok')")
+
+    def callback() -> None:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("UPDATE evidence SET title = 'changed' WHERE id = 1")
+            connection.exec_driver_sql("SELECT id, title FROM evidence WHERE id = 1")
+
+    capture = getattr(pr18_evidence, "_capture_sql_statements", None)
+    assert callable(capture)
+    captured = capture(engine, callback)
+
+    assert [_classify_statement(statement) for statement, _parameters in captured] == [
+        "WRITE_UPDATE",
+        "READ_SELECT",
+    ]
+
+
+def test_statement_purity_positive_control_allows_only_read_selects() -> None:
+    projection = _validate_statement_purity(
+        [
+            {"sql": "SELECT id FROM audit_findings WHERE project_id = :project"},
+            {"sql": "SELECT id FROM audit_findings WHERE target_id = :target"},
+        ]
+    )
+
+    assert projection["statement_count"] == 2
+    assert projection["forbidden_statement_count"] == 0
+    assert projection["unknown_statement_count"] == 0
+    assert projection["write_or_lock_verdict"] == "PASS"
+    assert projection["overall_verdict"] == "PASS"
+    assert projection["verification_status"] == "VERIFIED"
+    assert [item["statement_class"] for item in projection["statements"]] == [
+        "READ_SELECT",
+        "READ_SELECT",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("name", "forbidden_sql", "expected_class"),
+    [
+        ("update", "UPDATE audit_findings SET title = :title", "WRITE_UPDATE"),
+        ("insert", "INSERT INTO audit_findings (id) VALUES (:id)", "WRITE_INSERT"),
+        ("delete", "DELETE FROM audit_findings WHERE id = :id", "WRITE_DELETE"),
+    ],
+)
+def test_statement_purity_rejects_write_with_valid_select(
+    name: str, forbidden_sql: str, expected_class: str
+) -> None:
+    projection = _validate_statement_purity(
+        [
+            {"sql": forbidden_sql},
+            {"sql": "SELECT id FROM audit_findings WHERE project_id = :project"},
+        ]
+    )
+
+    assert name
+    assert projection["statement_count"] == 2
+    assert projection["forbidden_statement_count"] == 1
+    assert projection["unknown_statement_count"] == 0
+    assert projection["write_or_lock_verdict"] == "FAIL"
+    assert projection["overall_verdict"] == "FAIL"
+    assert projection["verification_status"] == "VERIFIED"
+    assert projection["statements"][0]["statement_class"] == expected_class
+
+
+def test_statement_purity_rejects_prohibited_locking_select() -> None:
+    projection = _validate_statement_purity(
+        [{"sql": ("SELECT id FROM audit_findings WHERE project_id = :project FOR UPDATE")}]
+    )
+
+    assert projection["forbidden_statement_count"] == 1
+    assert projection["unknown_statement_count"] == 0
+    assert projection["write_or_lock_verdict"] == "FAIL"
+    assert projection["overall_verdict"] == "FAIL"
+    assert projection["statements"][0]["statement_class"] == "READ_SELECT_LOCKING"
+    assert projection["statements"][0]["locking_verdict"] == "FAIL"
+
+
+def test_statement_purity_rejects_ddl_even_with_valid_select() -> None:
+    projection = _validate_statement_purity(
+        [
+            {"sql": "CREATE TABLE temporary_evidence (id integer)"},
+            {"sql": "SELECT id FROM audit_findings WHERE project_id = :project"},
+        ]
+    )
+
+    assert projection["forbidden_statement_count"] == 1
+    assert projection["unknown_statement_count"] == 0
+    assert projection["write_or_lock_verdict"] == "FAIL"
+    assert projection["overall_verdict"] == "FAIL"
+    assert projection["verification_status"] == "VERIFIED"
+    assert projection["statements"][0]["statement_class"] == "DDL"
+
+
+def test_statement_purity_rejects_unknown_statement_fail_closed() -> None:
+    projection = _validate_statement_purity(
+        [
+            {"sql": "VACUUM audit_findings"},
+            {"sql": "SELECT id FROM audit_findings WHERE project_id = :project"},
+        ]
+    )
+
+    assert projection["forbidden_statement_count"] == 1
+    assert projection["unknown_statement_count"] == 1
+    assert projection["write_or_lock_verdict"] == "FAIL"
+    assert projection["overall_verdict"] == "FAIL"
+    assert projection["verification_status"] == "NOT_VERIFIED"
+    assert projection["statements"][0]["statement_class"] == "UNKNOWN"
 
 
 def test_query_contract_rejects_missing_required_relation() -> None:

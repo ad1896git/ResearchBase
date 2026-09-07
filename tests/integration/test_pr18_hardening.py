@@ -117,7 +117,12 @@ def test_actual_query_service_explain_paths_are_structurally_audited(engine: Eng
     }
     for baseline in baselines.values():
         assert baseline["production_operation"]
+        assert baseline["query_path"] == baseline["production_operation"]
         assert baseline["statements"]
+        assert baseline["statement_count"] == len(baseline["statements"])
+        assert baseline["statement_purity"]
+        assert baseline["forbidden_statement_count"] == 0
+        assert baseline["unknown_statement_count"] == 0
         assert baseline["required_relations"]
         assert baseline["allowed_relations"]
         assert baseline["observed_relations"]
@@ -130,6 +135,12 @@ def test_actual_query_service_explain_paths_are_structurally_audited(engine: Eng
         assert baseline["write_or_lock_verdict"] == "PASS"
         assert baseline["overall_verdict"] == "PASS"
         assert baseline["verification_status"] == "VERIFIED"
+        assert all(
+            item["statement_class"] == "READ_SELECT"
+            and item["read_write_verdict"] == "PASS"
+            and item["locking_verdict"] == "PASS"
+            for item in baseline["statement_purity"]
+        )
         assertions = baseline["structural_assertions"]
         assert assertions["allowed_relations"]
         assert assertions["observed_relations"]
