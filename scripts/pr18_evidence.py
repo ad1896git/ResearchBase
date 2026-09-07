@@ -481,6 +481,20 @@ def audit_repository_markers(root: Path = PROJECT_ROOT) -> dict[str, Any]:
                             "marker names are data used by the deterministic audit itself and "
                             "do not describe a deferred runtime action"
                         )
+                    elif relative_text.startswith("docs/superpowers/plans/"):
+                        disposition = "OUT_OF_PHASE"
+                        class_group_id = "phase1-plan-checklist"
+                        rationale = (
+                            "all markers in the archived implementation-plan class are checklist "
+                            "text for review work, not live runtime TODOs"
+                        )
+                    elif relative_text.startswith("docs/superpowers/specs/"):
+                        disposition = "CLOSED"
+                        class_group_id = "pr18-specification-criteria"
+                        rationale = (
+                            "all markers in the PR-18 design-spec class are acceptance criteria "
+                            "documented by the frozen specification, not deferred implementation"
+                        )
                     elif category in {"production", "migration"}:
                         disposition = "PR18_BLOCKER"
                         class_group_id = "live-runtime-marker"
