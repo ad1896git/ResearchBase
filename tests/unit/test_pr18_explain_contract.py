@@ -212,8 +212,7 @@ def test_each_production_query_has_an_explicit_topology_contract() -> None:
             "DATA_MODIFYING_CTE",
         ),
         (
-            "WITH removed AS (DELETE FROM audit_findings RETURNING id) "
-            "SELECT id FROM removed",
+            "WITH removed AS (DELETE FROM audit_findings RETURNING id) SELECT id FROM removed",
             "DATA_MODIFYING_CTE",
         ),
         (
@@ -222,8 +221,7 @@ def test_each_production_query_has_an_explicit_topology_contract() -> None:
             "DATA_MODIFYING_CTE",
         ),
         (
-            "with removed as (delete from audit_findings returning id) "
-            "select id from removed",
+            "with removed as (delete from audit_findings returning id) select id from removed",
             "DATA_MODIFYING_CTE",
         ),
         (
@@ -408,8 +406,7 @@ def test_statement_classifier_rejects_unterminated_or_unbalanced_sql(sql: str) -
             "mutating_cte_detected",
         ),
         (
-            "WITH removed AS (DELETE FROM audit_findings RETURNING id) "
-            "SELECT id FROM removed",
+            "WITH removed AS (DELETE FROM audit_findings RETURNING id) SELECT id FROM removed",
             "DATA_MODIFYING_CTE",
             "mutating_cte_detected",
         ),
@@ -671,6 +668,18 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT func(SELECT x WHERE y) FROM t",
         "SELECT DISTINCT ON (AND x) 1 FROM t",
         "SELECT DISTINCT ON (OR x) 1 FROM t",
+        "SELECT func(x, = 1) FROM t",
+        "SELECT ARRAY[1, = 2]",
+        "SELECT 1 FROM t WHERE x = ANY (ARRAY[,1])",
+        "SELECT COUNT(*) FILTER (WHERE)",
+        "SELECT COUNT(*) FILTER (WHERE AND x)",
+        "SELECT array_agg(x ORDER BY)",
+        "SELECT func(x FILTER (WHERE y)) FROM t",
+        "SELECT 1 FROM t WHERE NOT AND x",
+        "SELECT 1 FROM t WHERE x NOT AND y",
+        "SELECT 1 FROM t WHERE x IS AND y",
+        "SELECT 1 FROM t WHERE x LIKE AND y",
+        "SELECT 1 FROM t WHERE x BETWEEN 1 AND AND 2",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -685,9 +694,26 @@ def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
 
 
 def test_r6_supported_postgresql_operator_remains_read_only() -> None:
-    projection = _validate_statement_purity(
-        [{"sql": "SELECT payload @> :filter FROM records"}]
-    )
+    projection = _validate_statement_purity([{"sql": "SELECT payload @> :filter FROM records"}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT"
+    assert statement["lexical_valid"] is True
+    assert statement["grammar_supported"] is True
+    assert statement["statement_complete"] is True
+    assert statement["purity_verdict"] == "PASS"
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 1 FROM t WHERE (x = 1)",
+        "SELECT 1 FROM t WHERE (x = :a)",
+        "SELECT 1 FROM t WHERE (x = %(a)s)",
+    ],
+)
+def test_r6_parenthesized_predicates_remain_supported(sql: str) -> None:
+    projection = _validate_statement_purity([{"sql": sql}])
     statement = projection["statements"][0]
 
     assert statement["statement_class"] == "READ_SELECT"
@@ -710,6 +736,8 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
         "SELECT CASE WHEN true THEN 1 ELSE 2 END FROM t",
         "SELECT 1 FETCH FIRST 1 ROWS ONLY",
         "SELECT 1 FROM t WHERE x = ANY (ARRAY[1, 2])",
+        "SELECT 1 FROM t WHERE x NOT IN (1)",
+        "SELECT 1 FROM t WHERE x NOT LIKE y",
         "SELECT COUNT(*) FILTER (WHERE x) FROM t",
         "SELECT array_agg(x ORDER BY y) FROM t",
     ],
@@ -747,10 +775,7 @@ def test_r6_nested_locking_read_remains_locking_classification() -> None:
 
 
 def test_r6_nested_data_modifying_cte_is_rejected() -> None:
-    sql = (
-        "SELECT 1 FROM (WITH changed AS "
-        "(UPDATE t SET x = 1 RETURNING x) SELECT x FROM changed) q"
-    )
+    sql = "SELECT 1 FROM (WITH changed AS (UPDATE t SET x = 1 RETURNING x) SELECT x FROM changed) q"
     projection = _validate_statement_purity([{"sql": sql}])
     statement = projection["statements"][0]
 

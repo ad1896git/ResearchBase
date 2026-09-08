@@ -157,6 +157,8 @@ _DDL_KEYWORDS = frozenset({"CREATE", "ALTER", "DROP", "TRUNCATE"})
 _TRANSACTION_KEYWORDS = frozenset(
     {"BEGIN", "START", "COMMIT", "ROLLBACK", "SAVEPOINT", "RELEASE", "END", "ABORT"}
 )
+
+
 @dataclass(frozen=True)
 class _SQLToken:
     text: str
@@ -477,9 +479,7 @@ def _lex_sql(statement: str) -> _LexedSQL:
     if semicolon_indexes:
         first_semicolon = semicolon_indexes[0]
         multi_statement = (
-            first_semicolon == 0
-            or len(semicolon_indexes) > 1
-            or first_semicolon != len(tokens) - 1
+            first_semicolon == 0 or len(semicolon_indexes) > 1 or first_semicolon != len(tokens) - 1
         )
 
     valid = not invalid
@@ -525,9 +525,7 @@ def _has_select_into(tokens: tuple[_SQLToken, ...]) -> bool:
             continue
         end = _scope_end(tokens, index)
         if any(
-            candidate.depth == token.depth
-            and candidate.kind == "word"
-            and candidate.text == "INTO"
+            candidate.depth == token.depth and candidate.kind == "word" and candidate.text == "INTO"
             for candidate in tokens[index + 1 : end]
         ):
             return True
@@ -650,11 +648,7 @@ def _parse_with_structure(
                 return UNKNOWN, tuple(body_commands), False
             cursor = close + 1
 
-        if (
-            cursor >= len(tokens)
-            or tokens[cursor].kind != "word"
-            or tokens[cursor].text != "AS"
-        ):
+        if cursor >= len(tokens) or tokens[cursor].kind != "word" or tokens[cursor].text != "AS":
             return UNKNOWN, tuple(body_commands), False
         cursor += 1
         if cursor < len(tokens) and tokens[cursor].kind == "word":
@@ -699,11 +693,7 @@ def _parse_with_structure(
     if cursor >= len(tokens):
         return UNKNOWN, tuple(body_commands), False
     outer = tokens[cursor]
-    if (
-        outer.depth != base_depth
-        or outer.kind != "word"
-        or outer.text not in _STATEMENT_KEYWORDS
-    ):
+    if outer.depth != base_depth or outer.kind != "word" or outer.text not in _STATEMENT_KEYWORDS:
         return UNKNOWN, tuple(body_commands), False
     return outer.text, tuple(body_commands), True
 
@@ -744,15 +734,124 @@ def _adjacent_expression_allowed(previous: _SQLToken, current: _SQLToken) -> boo
         return True
     if previous.kind == "word" and previous.text in _STRUCTURAL_WORDS:
         return True
-    if (
-        previous.kind == "word"
-        and previous.text == "SELECT"
-        and current.depth == previous.depth
-    ):
+    if previous.kind == "word" and previous.text == "SELECT" and current.depth == previous.depth:
         return True
     if previous.kind == "word" and current.kind == "word":
         return previous.text in _STRUCTURAL_WORDS or current.text in _STRUCTURAL_WORDS
     return previous.kind == "word" and current.kind == "symbol" and current.text == "("
+
+
+def _is_value_token(token: _SQLToken) -> bool:
+    if not _is_expression_token(token):
+        return False
+    if token.kind != "word":
+        return True
+    return token.text not in _STRUCTURAL_WORDS or token.text in {"FALSE", "NULL", "TRUE"}
+
+
+def _is_value_end(token: _SQLToken) -> bool:
+    return (
+        _is_value_token(token)
+        or (token.kind == "symbol" and token.text == ")")
+        or (token.kind == "operator" and token.text == "]")
+    )
+
+
+def _is_value_start(tokens: tuple[_SQLToken, ...], index: int) -> bool:
+    if index >= len(tokens):
+        return False
+    token = tokens[index]
+    if _is_value_token(token) or (token.kind == "symbol" and token.text == "("):
+        return True
+    if token.kind == "operator" and token.text in {"+", "-", "~", "!", ":"}:
+        return index + 1 < len(tokens) and _is_value_start(tokens, index + 1)
+    if (
+        token.kind == "operator"
+        and token.text == "%"
+        and index + 1 < len(tokens)
+        and tokens[index + 1].kind == "symbol"
+        and tokens[index + 1].text == "("
+    ):
+        return True
+    if token.kind == "word" and token.text == "NOT":
+        return _is_value_start(tokens, index + 1)
+    return False
+
+
+def _predicate_structure_supported(tokens: tuple[_SQLToken, ...]) -> bool:
+    for index, token in enumerate(tokens):
+        if token.kind != "word":
+            continue
+        next_index = index + 1
+        next_token = tokens[next_index] if next_index < len(tokens) else None
+        previous_token = tokens[index - 1] if index else None
+        if token.text in {"AND", "OR"}:
+            if (
+                previous_token is None
+                or not _is_value_end(previous_token)
+                or not _is_value_start(tokens, next_index)
+            ):
+                return False
+        elif token.text == "NOT":
+            if next_token is None or not _is_value_start(tokens, next_index):
+                if not (
+                    previous_token is not None
+                    and previous_token.kind == "word"
+                    and previous_token.text in {"IS"}
+                    and next_token is not None
+                    and next_token.text == "DISTINCT"
+                ) and not (
+                    previous_token is not None
+                    and _is_value_end(previous_token)
+                    and next_token is not None
+                    and next_token.kind == "word"
+                    and next_token.text in {"BETWEEN", "IN", "LIKE"}
+                ):
+                    return False
+            if (
+                previous_token is not None
+                and _is_value_end(previous_token)
+                and not (
+                    next_token is not None
+                    and next_token.kind == "word"
+                    and next_token.text in {"BETWEEN", "IN", "LIKE"}
+                )
+            ):
+                return False
+        elif token.text in {"IS", "LIKE", "BETWEEN"}:
+            operand_token = previous_token
+            if (
+                token.text in {"LIKE", "BETWEEN"}
+                and previous_token is not None
+                and previous_token.kind == "word"
+                and previous_token.text == "NOT"
+                and index >= 2
+            ):
+                operand_token = tokens[index - 2]
+            if operand_token is None or not _is_value_end(operand_token):
+                return False
+            if token.text == "IS":
+                if next_token is None or next_token.text in {"AND", "OR", ")"}:
+                    return False
+            elif not _is_value_start(tokens, next_index):
+                return False
+        elif token.text == "IN":
+            operand_token = previous_token
+            if (
+                previous_token is not None
+                and previous_token.kind == "word"
+                and previous_token.text == "NOT"
+                and index >= 2
+            ):
+                operand_token = tokens[index - 2]
+            if operand_token is None or not _is_value_end(operand_token):
+                return False
+            if next_token is None or next_token.kind != "symbol" or next_token.text != "(":
+                return False
+        elif token.text in {"ANY", "ALL", "SOME"}:
+            if previous_token is None or next_token is None or next_token.text != "(":
+                return False
+    return True
 
 
 def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
@@ -795,6 +894,8 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             if bracket_depth < 0:
                 return False
     if bracket_depth != 0:
+        return False
+    if not _predicate_structure_supported(tokens):
         return False
     for index, token in enumerate(tokens):
         if token.kind != "word":
@@ -857,6 +958,57 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     index = 0
     while index < len(tokens):
         token = tokens[index]
+        if token.kind == "word" and token.text == "FILTER":
+            if not (
+                index + 1 < len(tokens)
+                and tokens[index + 1].kind == "symbol"
+                and tokens[index + 1].text == "("
+            ):
+                if previous is None or previous.kind != "operator" or previous.text != ":":
+                    return False
+                previous = token
+                index += 1
+                continue
+            if (
+                previous is None
+                or previous.kind != "symbol"
+                or previous.text != ")"
+                or previous.depth != token.depth
+                or index + 2 >= len(tokens)
+                or tokens[index + 1].kind != "symbol"
+                or tokens[index + 1].text != "("
+                or tokens[index + 2].kind != "word"
+                or tokens[index + 2].text != "WHERE"
+            ):
+                return False
+            close = _matching_close(tokens, index + 1)
+            if close is None or close == index + 3:
+                return False
+            if not _expression_segment_supported(tokens[index + 3 : close]):
+                return False
+        if token.kind == "word" and token.text == "ORDER" and token.depth > 0:
+            if index + 1 >= len(tokens) or tokens[index + 1].text != "BY":
+                return False
+            close = next(
+                (
+                    position
+                    for position in range(index + 2, len(tokens))
+                    if tokens[position].kind == "symbol"
+                    and tokens[position].text == ")"
+                    and tokens[position].depth < token.depth
+                ),
+                len(tokens),
+            )
+            order_clause = tokens[index + 2 : close]
+            if (
+                not order_clause
+                or any(
+                    item.kind == "word" and item.text in _GRAMMAR_CLAUSE_BOUNDARIES
+                    for item in order_clause
+                )
+                or not _order_clause_supported(order_clause, token.depth)
+            ):
+                return False
         if _is_expression_token(token) and previous is not None:
             if previous.depth == token.depth and _is_expression_token(previous):
                 if not _adjacent_expression_allowed(previous, token):
@@ -885,11 +1037,15 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
                 return False
             opening_index = index - 1
             before_open = tokens[opening_index - 1] if opening_index else None
-            if before_open is None or (
-                before_open.kind == "word"
-                and before_open.text not in {"EXISTS", "IN", "SELECT"}
-                and before_open.text not in _STRUCTURAL_WORDS
-            ) or before_open.kind not in {"word", "operator"}:
+            if (
+                before_open is None
+                or (
+                    before_open.kind == "word"
+                    and before_open.text not in {"EXISTS", "IN", "SELECT"}
+                    and before_open.text not in _STRUCTURAL_WORDS
+                )
+                or before_open.kind not in {"word", "operator"}
+            ):
                 return False
         if token.kind != "operator":
             previous = token
@@ -906,6 +1062,8 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
         if token.text == ",":
             next_index = index + 1
             if next_index >= len(tokens):
+                return False
+            if index == 0 or tokens[index - 1].text in {"(", "["}:
                 return False
             next_token = tokens[next_index]
             if next_token.kind == "operator" and next_token.text == ",":
@@ -924,7 +1082,10 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             ):
                 return False
             run = "".join(token.text for token in tokens[index + 1 : next_index])
-            if run and not _operator_run_supported(run, next_token):
+            if run and (
+                run not in {"+", "-", "~", "!", ":"}
+                and not (run == "%" and next_token.kind == "symbol" and next_token.text == "(")
+            ):
                 return False
             previous = tokens[next_index - 1]
             index = next_index
@@ -1067,10 +1228,7 @@ def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
                 return False
         for index, token in enumerate(top_level):
             if token.kind == "word" and token.text in {"FIRST", "LAST"}:
-                if (
-                    index == 0
-                    or top_level[index - 1].text not in {"NULLS", ":"}
-                ):
+                if index == 0 or top_level[index - 1].text not in {"NULLS", ":"}:
                     return False
         nulls_index = next(
             (index for index, token in enumerate(top_level) if token.text == "NULLS"),
@@ -1111,16 +1269,20 @@ def _fetch_clause_supported(clause: tuple[_SQLToken, ...]) -> bool:
 
 def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
     base = next((token for token in clause if token.depth == depth), None)
-    if base is None or base.kind not in {"word", "identifier"} or base.text in {
-        "JOIN",
-        "AS",
-        "ON",
-        "USING",
-    }:
+    if (
+        base is None
+        or base.kind not in {"word", "identifier"}
+        or base.text
+        in {
+            "JOIN",
+            "AS",
+            "ON",
+            "USING",
+        }
+    ):
         return False
     if any(
-        token.depth == depth and token.kind == "operator" and token.text == ","
-        for token in clause
+        token.depth == depth and token.kind == "operator" and token.text == "," for token in clause
     ):
         return False
     join_indexes = [
@@ -1130,9 +1292,7 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
     ]
     first_join = min(join_indexes, default=len(clause))
     if any(
-        token.depth == depth
-        and token.kind == "word"
-        and token.text in {"ON", "USING"}
+        token.depth == depth and token.kind == "word" and token.text in {"ON", "USING"}
         for token in clause[:first_join]
     ):
         return False
@@ -1204,8 +1364,7 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
                 or not _case_expressions_supported(projection[2:close])
                 or not _expression_segment_supported(projection[2:close])
                 or any(
-                    token.kind == "word"
-                    and token.text in _GRAMMAR_CLAUSE_BOUNDARIES
+                    token.kind == "word" and token.text in _GRAMMAR_CLAUSE_BOUNDARIES
                     for token in projection[2:close]
                 )
                 or close + 1 >= len(projection)
@@ -1263,15 +1422,12 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
         ):
             return False
 
-    same_depth_tokens = [
-        token
-        for token in tokens[select_index + 1 : end]
-        if token.depth == depth
-        and (token.kind in {"word", "literal", "identifier"} or token.text == "*")
+    expression_tokens = [
+        token for token in tokens[select_index + 1 : end] if _is_expression_token(token)
     ]
-    if not same_depth_tokens:
+    if not expression_tokens:
         return False
-    last_token = same_depth_tokens[-1]
+    last_token = expression_tokens[-1]
     return not (last_token.kind == "word" and last_token.text in _INCOMPLETE_CLAUSE_WORDS)
 
 
@@ -1345,12 +1501,8 @@ def _analyze_statement(statement: object) -> _StatementAnalysis:
             unknown_detected=True,
         )
 
-    top_level_word_tokens = [
-        token for token in tokens if token.depth == 0 and token.kind == "word"
-    ]
-    if not top_level_word_tokens or (
-        tokens[0].kind == "symbol" and tokens[0].text == ";"
-    ):
+    top_level_word_tokens = [token for token in tokens if token.depth == 0 and token.kind == "word"]
+    if not top_level_word_tokens or (tokens[0].kind == "symbol" and tokens[0].text == ";"):
         return _StatementAnalysis(
             statement_class=UNKNOWN,
             lexical_valid=True,
@@ -1761,9 +1913,7 @@ def _join_contracts(
             or not isinstance(pattern, str)
         ):
             raise PR18EvidenceError("query contract has invalid join edges")
-        contracts.append(
-            (name, (str(relation_items[0]), str(relation_items[1])), pattern)
-        )
+        contracts.append((name, (str(relation_items[0]), str(relation_items[1])), pattern))
     return tuple(contracts)
 
 
@@ -1788,15 +1938,13 @@ def _extract_join_edges(
         tail = match.group("tail").strip()
         on_match = re.match(r"ON\s+(?P<predicate>.*)\Z", tail, re.IGNORECASE | re.DOTALL)
         predicate = on_match.group("predicate").strip() if on_match else ""
-        is_cartesian = "CROSS" in kind or not predicate or bool(
-            _CARTESIAN_PREDICATE.fullmatch(predicate)
+        is_cartesian = (
+            "CROSS" in kind or not predicate or bool(_CARTESIAN_PREDICATE.fullmatch(predicate))
         )
         if is_cartesian:
             cartesian = True
         references = {
-            name
-            for name in _RELATION_REFERENCE.findall(predicate)
-            if name in plan_relations
+            name for name in _RELATION_REFERENCE.findall(predicate) if name in plan_relations
         }
         edge_relations = tuple(sorted(references)) if len(references) == 2 else (left, right)
         edges.append(
@@ -1891,14 +2039,10 @@ def validate_query_contract(
         statement_plans.append((plan, str(statement.get("sql", "")), plan_relations))
     missing_relations = sorted(set(required_relations) - actual_relations)
     if missing_relations:
-        raise PR18EvidenceError(
-            f"MISSING_REQUIRED_RELATION: {', '.join(missing_relations)}"
-        )
+        raise PR18EvidenceError(f"MISSING_REQUIRED_RELATION: {', '.join(missing_relations)}")
     unexpected_relations = sorted(actual_relations - set(allowed_relations))
     if closed_relation_set and unexpected_relations:
-        raise PR18EvidenceError(
-            f"UNEXPECTED_RELATION: {', '.join(unexpected_relations)}"
-        )
+        raise PR18EvidenceError(f"UNEXPECTED_RELATION: {', '.join(unexpected_relations)}")
 
     sql_text = "\n".join(
         str(statement.get("sql", "")) for statement in statements if isinstance(statement, dict)
@@ -1912,9 +2056,7 @@ def validate_query_contract(
         if not re.search(str(pattern), sql_text, re.IGNORECASE | re.DOTALL):
             missing_predicates.append(str(name))
     if missing_predicates:
-        raise PR18EvidenceError(
-            f"MISSING_REQUIRED_PREDICATE: {', '.join(missing_predicates)}"
-        )
+        raise PR18EvidenceError(f"MISSING_REQUIRED_PREDICATE: {', '.join(missing_predicates)}")
     forbidden_nodes = set(_string_items(topology.get("forbidden_node_types"), label="node types"))
     forbidden_fragments = _string_items(
         topology.get("forbidden_sql_fragments"), label="SQL fragments"
