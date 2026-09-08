@@ -849,7 +849,22 @@ def _predicate_structure_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             if next_token is None or next_token.kind != "symbol" or next_token.text != "(":
                 return False
         elif token.text in {"ANY", "ALL", "SOME"}:
-            if previous_token is None or next_token is None or next_token.text != "(":
+            operator_start = index - 1
+            while (
+                operator_start >= 0
+                and tokens[operator_start].kind == "operator"
+                and tokens[operator_start].text not in {",", "[", "]"}
+            ):
+                operator_start -= 1
+            operator_run = "".join(item.text for item in tokens[operator_start + 1 : index])
+            if (
+                next_token is None
+                or next_token.text != "("
+                or operator_start < 0
+                or not _is_value_end(tokens[operator_start])
+                or operator_run
+                not in {"=", "!=", "<>", "<", "<=", ">", ">=", "@>", "<@", "&&", "~", "!~"}
+            ):
                 return False
     return True
 
@@ -936,6 +951,8 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             continue
         if token.depth == 0:
             continue
+        if token.text == "FROM" and _is_is_distinct_from(tokens, index, token.depth):
+            continue
         prior_words = [
             item.text
             for item in tokens[:index]
@@ -959,6 +976,11 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     while index < len(tokens):
         token = tokens[index]
         if token.kind == "word" and token.text == "FILTER":
+            if any(
+                prior.kind == "word" and prior.text == "FILTER" and prior.depth == token.depth
+                for prior in tokens[:index]
+            ):
+                return False
             if not (
                 index + 1 < len(tokens)
                 and tokens[index + 1].kind == "symbol"
@@ -1198,6 +1220,25 @@ def _case_expressions_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     return not stack
 
 
+def _order_term_expression_supported(term: list[_SQLToken], depth: int) -> bool:
+    top_positions = [index for index, token in enumerate(term) if token.depth == depth]
+    if not top_positions:
+        return False
+    end = len(term)
+    last_index = top_positions[-1]
+    last = term[last_index]
+    if last.kind == "word" and last.text in {"ASC", "DESC"}:
+        end = last_index
+    elif last.kind == "word" and last.text in {"FIRST", "LAST"}:
+        if len(top_positions) < 2:
+            return False
+        modifier = term[top_positions[-2]]
+        if modifier.kind != "word" or modifier.text != "NULLS":
+            return False
+        end = top_positions[-2]
+    return bool(term[:end]) and _expression_segment_supported(tuple(term[:end]))
+
+
 def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
     terms: list[list[_SQLToken]] = [[]]
     for token in clause:
@@ -1208,6 +1249,8 @@ def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
     for term in terms:
         top_level = [token for token in term if token.depth == depth]
         if not top_level or (top_level[0].kind == "word" and top_level[0].text == "NULLS"):
+            return False
+        if not _order_term_expression_supported(term, depth):
             return False
         directions = 0
         nulls_modifiers = 0
@@ -1314,6 +1357,18 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
     return True
 
 
+def _is_is_distinct_from(tokens: tuple[_SQLToken, ...], index: int, depth: int) -> bool:
+    prior = [token for token in tokens[:index] if token.depth == depth and token.kind == "word"]
+    return bool(
+        len(prior) >= 2
+        and prior[-1].text == "DISTINCT"
+        and (
+            prior[-2].text == "IS"
+            or (len(prior) >= 3 and prior[-3].text == "IS" and prior[-2].text == "NOT")
+        )
+    )
+
+
 def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) -> bool:
     depth = tokens[select_index].depth
     end = _scope_end(tokens, select_index)
@@ -1325,6 +1380,7 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
         if token.depth == depth
         and token.kind == "word"
         and token.text in _GRAMMAR_CLAUSE_BOUNDARIES
+        and not (token.text == "FROM" and _is_is_distinct_from(tokens, index, depth))
     ]
     clause_order = {
         "INTO": 0,

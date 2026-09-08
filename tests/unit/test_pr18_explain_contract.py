@@ -680,6 +680,12 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 FROM t WHERE x IS AND y",
         "SELECT 1 FROM t WHERE x LIKE AND y",
         "SELECT 1 FROM t WHERE x BETWEEN 1 AND AND 2",
+        "SELECT 1 FROM t WHERE NOT ANY (ARRAY[1])",
+        "SELECT 1 FROM t WHERE x + ANY (ARRAY[1])",
+        "SELECT 1 FROM t WHERE x = NOT ANY (ARRAY[1])",
+        "SELECT array_agg(x ORDER BY = 1)",
+        "SELECT array_agg(x ORDER BY @> y)",
+        "SELECT COUNT(*) FILTER (WHERE x) FILTER (WHERE y)",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -740,6 +746,8 @@ def test_r6_parenthesized_predicates_remain_supported(sql: str) -> None:
         "SELECT 1 FROM t WHERE x NOT LIKE y",
         "SELECT COUNT(*) FILTER (WHERE x) FROM t",
         "SELECT array_agg(x ORDER BY y) FROM t",
+        "SELECT 1 FROM t WHERE x IS DISTINCT FROM y",
+        "SELECT 1 FROM t WHERE x IS NOT DISTINCT FROM y",
     ],
 )
 def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:
