@@ -664,6 +664,13 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT func(x GROUP) FROM t",
         "SELECT func(x ORDER) FROM t",
         "SELECT func(x USING) FROM t",
+        "SELECT 1 FROM t WHERE AND x",
+        "SELECT 1 FROM t WHERE OR x",
+        "SELECT 1 FROM t WHERE (= 1) AND y",
+        "SELECT 1 FROM t WHERE (@> x) AND y",
+        "SELECT func(SELECT x WHERE y) FROM t",
+        "SELECT DISTINCT ON (AND x) 1 FROM t",
+        "SELECT DISTINCT ON (OR x) 1 FROM t",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -703,6 +710,8 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
         "SELECT CASE WHEN true THEN 1 ELSE 2 END FROM t",
         "SELECT 1 FETCH FIRST 1 ROWS ONLY",
         "SELECT 1 FROM t WHERE x = ANY (ARRAY[1, 2])",
+        "SELECT COUNT(*) FILTER (WHERE x) FROM t",
+        "SELECT array_agg(x ORDER BY y) FROM t",
     ],
 )
 def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:

@@ -198,6 +198,7 @@ _SELECT_SCOPE_BOUNDARIES = frozenset(
         "LIMIT",
         "OFFSET",
         "FETCH",
+        "FILTER",
         "UNION",
         "INTERSECT",
         "EXCEPT",
@@ -270,6 +271,7 @@ _STRUCTURAL_WORDS = frozenset(
         "END",
         "EXCEPT",
         "FETCH",
+        "FILTER",
         "FIRST",
         "FROM",
         "GROUP",
@@ -838,6 +840,16 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             for item in tokens[:index]
             if item.depth == token.depth and item.kind == "word"
         ]
+        prior_any_words = [item.text for item in tokens[:index] if item.kind == "word"]
+        if token.text == "WHERE" and (
+            (prior_words and prior_words[-1] == "FILTER")
+            or (prior_any_words and prior_any_words[-1] == "FILTER")
+        ):
+            continue
+        if token.text == "ORDER" and prior_words:
+            if index + 1 >= len(tokens) or tokens[index + 1].text != "BY":
+                return False
+            continue
         if "SELECT" not in prior_words:
             return False
 
@@ -865,6 +877,20 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             and previous.text in {"AND", "OR", "IS", "NOT", "LIKE", "IN"}
         ):
             return False
+        if token.kind == "word" and token.text in {"AND", "OR"}:
+            if previous is None or (previous.kind == "symbol" and previous.text == "("):
+                return False
+        if token.kind == "word" and token.text == "SELECT" and token.depth > 0:
+            if previous is None or previous.kind != "symbol" or previous.text != "(":
+                return False
+            opening_index = index - 1
+            before_open = tokens[opening_index - 1] if opening_index else None
+            if before_open is None or (
+                before_open.kind == "word"
+                and before_open.text not in {"EXISTS", "IN", "SELECT"}
+                and before_open.text not in _STRUCTURAL_WORDS
+            ) or before_open.kind not in {"word", "operator"}:
+                return False
         if token.kind != "operator":
             previous = token
             index += 1
@@ -912,7 +938,16 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
         ):
             next_index += 1
         run = "".join(token.text for token in tokens[index:next_index])
-        if previous is None and run not in {"*", "+", "-", "~", "!"}:
+        if (
+            (previous is None or (previous.kind == "symbol" and previous.text == "("))
+            and run not in {"*", "+", "-", "~", "!", ":"}
+            and not (
+                run == "%"
+                and next_index < len(tokens)
+                and tokens[next_index].kind == "symbol"
+                and tokens[next_index].text == "("
+            )
+        ):
             return False
         if next_index >= len(tokens):
             if (
