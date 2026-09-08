@@ -833,6 +833,25 @@ def _predicate_structure_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             if token.text == "IS":
                 if next_token is None or next_token.text in {"AND", "OR", ")"}:
                     return False
+                if next_token.text == "NOT":
+                    rhs = tokens[index + 2] if index + 2 < len(tokens) else None
+                    if rhs is None or rhs.text not in {"DISTINCT", "FALSE", "NULL", "TRUE"}:
+                        return False
+                    if rhs.text == "DISTINCT" and (
+                        index + 3 >= len(tokens) or tokens[index + 3].text != "FROM"
+                    ):
+                        return False
+                elif next_token.text == "DISTINCT":
+                    if (
+                        index + 1 >= len(tokens)
+                        or index + 2 >= len(tokens)
+                        or tokens[index + 2].text != "FROM"
+                    ):
+                        return False
+                elif next_token.text not in {"FALSE", "NULL", "TRUE"}:
+                    return False
+            elif next_token is not None and next_token.text == "NOT":
+                return False
             elif not _is_value_start(tokens, next_index):
                 return False
         elif token.text == "IN":
@@ -849,24 +868,77 @@ def _predicate_structure_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             if next_token is None or next_token.kind != "symbol" or next_token.text != "(":
                 return False
         elif token.text in {"ANY", "ALL", "SOME"}:
-            operator_start = index - 1
-            while (
-                operator_start >= 0
-                and tokens[operator_start].kind == "operator"
-                and tokens[operator_start].text not in {",", "[", "]"}
-            ):
-                operator_start -= 1
-            operator_run = "".join(item.text for item in tokens[operator_start + 1 : index])
+            valid_left_operand = False
             if (
-                next_token is None
-                or next_token.text != "("
-                or operator_start < 0
-                or not _is_value_end(tokens[operator_start])
-                or operator_run
-                not in {"=", "!=", "<>", "<", "<=", ">", ">=", "@>", "<@", "&&", "~", "!~"}
+                previous_token is not None
+                and previous_token.kind == "word"
+                and previous_token.text == "LIKE"
             ):
+                left_index = index - 2
+                if left_index >= 0 and tokens[left_index].text == "NOT":
+                    left_index -= 1
+                valid_left_operand = left_index >= 0 and _is_value_end(tokens[left_index])
+            else:
+                operator_start = index - 1
+                while (
+                    operator_start >= 0
+                    and tokens[operator_start].kind == "operator"
+                    and tokens[operator_start].text not in {",", "[", "]"}
+                ):
+                    operator_start -= 1
+                operator_run = "".join(item.text for item in tokens[operator_start + 1 : index])
+                valid_left_operand = (
+                    operator_start >= 0
+                    and _is_value_end(tokens[operator_start])
+                    and operator_run
+                    in {"=", "!=", "<>", "<", "<=", ">", ">=", "@>", "<@", "&&", "~", "!~"}
+                )
+            if next_token is None or next_token.text != "(" or not valid_left_operand:
                 return False
     return True
+
+
+def _function_owner_before_close(
+    tokens: tuple[_SQLToken, ...], close_index: int
+) -> _SQLToken | None:
+    close = tokens[close_index]
+    open_index = next(
+        (
+            index
+            for index in range(close_index - 1, -1, -1)
+            if tokens[index].kind == "symbol"
+            and tokens[index].text == "("
+            and tokens[index].depth == close.depth
+        ),
+        None,
+    )
+    if open_index is None or open_index == 0:
+        return None
+    owner = tokens[open_index - 1]
+    if owner.kind != "word" or owner.text in _STRUCTURAL_WORDS | _STATEMENT_KEYWORDS:
+        return None
+    return owner
+
+
+def _function_owner_at_depth(
+    tokens: tuple[_SQLToken, ...], index: int, open_depth: int
+) -> _SQLToken | None:
+    open_index = next(
+        (
+            position
+            for position in range(index - 1, -1, -1)
+            if tokens[position].kind == "symbol"
+            and tokens[position].text == "("
+            and tokens[position].depth == open_depth
+        ),
+        None,
+    )
+    if open_index is None or open_index == 0:
+        return None
+    owner = tokens[open_index - 1]
+    if owner.kind != "word" or owner.text in _STRUCTURAL_WORDS | _STATEMENT_KEYWORDS:
+        return None
+    return owner
 
 
 def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
@@ -941,6 +1013,12 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             and_index = tokens.index(same_depth_and, index + 1)
             if not any(_is_expression_token(item) for item in tokens[index + 1 : and_index]):
                 return False
+            if (
+                and_index + 1 >= len(tokens)
+                or tokens[and_index + 1].kind == "word"
+                and tokens[and_index + 1].text == "NOT"
+            ):
+                return False
             if not any(_is_expression_token(item) for item in tokens[and_index + 1 :]):
                 return False
     for index, token in enumerate(tokens):
@@ -996,6 +1074,7 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
                 or previous.kind != "symbol"
                 or previous.text != ")"
                 or previous.depth != token.depth
+                or _function_owner_before_close(tokens, index - 1) is None
                 or index + 2 >= len(tokens)
                 or tokens[index + 1].kind != "symbol"
                 or tokens[index + 1].text != "("
@@ -1009,7 +1088,11 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             if not _expression_segment_supported(tokens[index + 3 : close]):
                 return False
         if token.kind == "word" and token.text == "ORDER" and token.depth > 0:
-            if index + 1 >= len(tokens) or tokens[index + 1].text != "BY":
+            if (
+                index + 1 >= len(tokens)
+                or tokens[index + 1].text != "BY"
+                or _function_owner_at_depth(tokens, index, token.depth - 1) is None
+            ):
                 return False
             close = next(
                 (
