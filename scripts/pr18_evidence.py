@@ -574,12 +574,23 @@ def _has_mutating_cte(tokens: tuple[_SQLToken, ...]) -> bool:
     return False
 
 
+def _is_locking_mutation_word(tokens: tuple[_SQLToken, ...], index: int) -> bool:
+    token = tokens[index]
+    same_depth_before = [item.text for item in tokens[:index] if item.depth == token.depth]
+    return bool(
+        same_depth_before
+        and (
+            tuple(same_depth_before[-1:]) == ("FOR",)
+            or tuple(same_depth_before[-3:]) == ("FOR", "NO", "KEY")
+        )
+    )
+
+
 def _has_nested_mutating_command(tokens: tuple[_SQLToken, ...]) -> bool:
     for index, token in enumerate(tokens):
         if token.depth == 0 or token.kind != "word" or token.text not in _MUTATING_COMMANDS:
             continue
-        previous = tokens[index - 1] if index else None
-        if previous is not None and previous.depth == token.depth and previous.text == "FOR":
+        if _is_locking_mutation_word(tokens, index):
             continue
         return True
     return False
@@ -951,6 +962,13 @@ def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
                 or top_level[index + 1].text not in {"FIRST", "LAST"}
             ):
                 return False
+        for index, token in enumerate(top_level):
+            if token.kind == "word" and token.text in {"FIRST", "LAST"}:
+                if (
+                    index == 0
+                    or top_level[index - 1].text not in {"NULLS", ":"}
+                ):
+                    return False
         if directions > 1 or nulls_modifiers > 1:
             return False
     return True
@@ -966,13 +984,19 @@ def _fetch_clause_supported(clause: tuple[_SQLToken, ...]) -> bool:
     )
     if row_index is None or row_index == len(words) - 1:
         return False
-    return words[row_index + 1] == "ONLY" or words[row_index + 1 : row_index + 3] == [
-        "WITH",
-        "TIES",
-    ]
+    suffix = words[row_index + 1 :]
+    return suffix == ["ONLY"] or suffix == ["WITH", "TIES"]
 
 
 def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
+    base = next((token for token in clause if token.depth == depth), None)
+    if base is None or base.kind not in {"word", "identifier"} or base.text in {
+        "JOIN",
+        "AS",
+        "ON",
+        "USING",
+    }:
+        return False
     join_indexes = [
         index
         for index, token in enumerate(clause)
@@ -990,7 +1014,8 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
             for token in clause[relation_index + 1 : next_join]
             if token.depth == depth and token.kind == "word"
         ]
-        if not any(token.text in {"ON", "USING"} for token in qualifiers):
+        qualifier_count = sum(token.text in {"ON", "USING"} for token in qualifiers)
+        if qualifier_count != 1:
             return False
     return True
 
@@ -1007,6 +1032,27 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
         and token.kind == "word"
         and token.text in _GRAMMAR_CLAUSE_BOUNDARIES
     ]
+    clause_order = {
+        "INTO": 0,
+        "FROM": 1,
+        "WHERE": 2,
+        "GROUP": 3,
+        "HAVING": 4,
+        "WINDOW": 5,
+        "ORDER": 6,
+        "LIMIT": 7,
+        "OFFSET": 8,
+        "FETCH": 9,
+    }
+    previous_order = -1
+    for _position, boundary in boundaries:
+        if boundary in {"UNION", "INTERSECT", "EXCEPT"}:
+            previous_order = -1
+            continue
+        current_order = clause_order.get(boundary)
+        if current_order is None or current_order <= previous_order:
+            return False
+        previous_order = current_order
     first_boundary = boundaries[0][0] if boundaries else end
     projection = tokens[select_index + 1 : first_boundary]
     if projection and projection[0].kind == "word" and projection[0].text == "DISTINCT":
@@ -1096,6 +1142,14 @@ def _select_grammar_supported(
     if tokens and tokens[0].text == "WITH" and not with_supported:
         return False
     if _has_nested_mutating_command(tokens):
+        return False
+    if any(
+        token.depth == 0
+        and token.kind == "word"
+        and token.text in _MUTATING_COMMANDS
+        and not _is_locking_mutation_word(tokens, index)
+        for index, token in enumerate(tokens)
+    ):
         return False
     select_indexes = [
         index

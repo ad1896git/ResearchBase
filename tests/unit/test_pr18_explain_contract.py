@@ -627,6 +627,16 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 ORDER BY x COLLATE",
         "SELECT 1 ORDER BY x ASC DESC",
         "SELECT 1 ORDER BY x NULLS FIRST NULLS LAST",
+        "SELECT 1 ORDER BY x ASC FIRST",
+        "SELECT 1 FETCH FIRST ROWS ONLY ASC",
+        "SELECT 1 FROM JOIN u ON x",
+        "SELECT 1 FROM AS x",
+        "SELECT 1 FROM t JOIN u ON x USING (id)",
+        "SELECT 1 ORDER BY x WHERE y",
+        "SELECT 1 GROUP BY x WHERE y",
+        "SELECT 1 LIMIT 1 WHERE y",
+        "SELECT 1 UPDATE t",
+        "SELECT 1 FROM t UPDATE",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -682,10 +692,21 @@ def test_r6_select_into_after_from_is_rejected_as_write() -> None:
     projection = _validate_statement_purity([{"sql": "SELECT 1 FROM t INTO new_table"}])
     statement = projection["statements"][0]
 
-    assert statement["statement_class"] == "SELECT_INTO_WRITE"
+    assert statement["statement_class"] == "UNKNOWN"
     assert statement["select_into_detected"] is True
-    assert statement["purity_verdict"] == "FAIL"
+    assert statement["purity_verdict"] == "NOT_VERIFIED"
     assert projection["overall_verdict"] == "FAIL"
+
+
+def test_r6_nested_locking_read_remains_locking_classification() -> None:
+    projection = _validate_statement_purity(
+        [{"sql": "SELECT EXISTS (SELECT 1 FROM t FOR NO KEY UPDATE)"}]
+    )
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT_LOCKING"
+    assert statement["locking_detected"] is True
+    assert statement["purity_verdict"] == "FAIL"
 
 
 def test_r6_nested_data_modifying_cte_is_rejected() -> None:
