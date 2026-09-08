@@ -835,7 +835,13 @@ def _predicate_structure_supported(tokens: tuple[_SQLToken, ...]) -> bool:
                     return False
                 if next_token.text == "NOT":
                     rhs = tokens[index + 2] if index + 2 < len(tokens) else None
-                    if rhs is None or rhs.text not in {"DISTINCT", "FALSE", "NULL", "TRUE"}:
+                    if rhs is None or rhs.text not in {
+                        "DISTINCT",
+                        "FALSE",
+                        "NULL",
+                        "TRUE",
+                        "UNKNOWN",
+                    }:
                         return False
                     if rhs.text == "DISTINCT" and (
                         index + 3 >= len(tokens) or tokens[index + 3].text != "FROM"
@@ -848,7 +854,7 @@ def _predicate_structure_supported(tokens: tuple[_SQLToken, ...]) -> bool:
                         or tokens[index + 2].text != "FROM"
                     ):
                         return False
-                elif next_token.text not in {"FALSE", "NULL", "TRUE"}:
+                elif next_token.text not in {"FALSE", "NULL", "TRUE", "UNKNOWN"}:
                     return False
             elif next_token is not None and next_token.text == "NOT":
                 return False
@@ -1510,6 +1516,13 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             ):
                 return False
             projection = projection[close + 1 :]
+    if any(
+        token.depth == depth
+        and token.kind == "word"
+        and token.text in {"ASC", "BY", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}
+        for token in projection
+    ):
+        return False
     projection_has_expression = any(_is_expression_token(token) for token in projection)
     if (
         not projection_has_expression
@@ -1524,6 +1537,14 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             (index for index, _name in boundaries if index > boundary_position), end
         )
         clause = tokens[boundary_position + 1 : next_boundary]
+        if boundary == "WINDOW":
+            return False
+        if boundary in {"WHERE", "HAVING"} and any(
+            token.kind == "word"
+            and token.text in {"AS", "ASC", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}
+            for token in clause
+        ):
+            return False
         if boundary in {"UNION", "INTERSECT", "EXCEPT", "RETURNING"}:
             set_operator_end = boundary_position + 1
             if (

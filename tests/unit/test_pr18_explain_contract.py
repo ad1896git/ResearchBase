@@ -686,6 +686,15 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT array_agg(x ORDER BY = 1)",
         "SELECT array_agg(x ORDER BY @> y)",
         "SELECT COUNT(*) FILTER (WHERE x) FILTER (WHERE y)",
+        "SELECT 1 FROM t WHERE x AS y",
+        "SELECT 1 FROM t WHERE x NULLS FIRST",
+        "SELECT 1 FROM t WHERE (x ONLY)",
+        "SELECT 1 HAVING NULLS FIRST",
+        "SELECT 1 WINDOW x",
+        "SELECT 1 NULLS FIRST",
+        "SELECT x ONLY",
+        "SELECT x DESC",
+        "SELECT x BY y",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -748,6 +757,8 @@ def test_r6_parenthesized_predicates_remain_supported(sql: str) -> None:
         "SELECT array_agg(x ORDER BY y) FROM t",
         "SELECT 1 FROM t WHERE x IS DISTINCT FROM y",
         "SELECT 1 FROM t WHERE x IS NOT DISTINCT FROM y",
+        "SELECT 1 FROM t WHERE x IS UNKNOWN",
+        "SELECT 1 FROM t WHERE x IS NOT UNKNOWN",
     ],
 )
 def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:
