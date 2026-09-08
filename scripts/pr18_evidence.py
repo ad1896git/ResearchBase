@@ -232,6 +232,7 @@ _GRAMMAR_CLAUSE_BOUNDARIES = frozenset(
 _INCOMPLETE_CLAUSE_WORDS = frozenset(
     {
         "AS",
+        "BETWEEN",
         "FROM",
         "WHERE",
         "GROUP",
@@ -755,7 +756,14 @@ def _adjacent_expression_allowed(previous: _SQLToken, current: _SQLToken) -> boo
 def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     """Reject expression segments with unsupported or incomplete token shapes."""
 
-    if tokens and tokens[-1].kind == "word" and tokens[-1].text in {"IN", "USING"}:
+    if (
+        tokens
+        and tokens[-1].kind == "word"
+        and (
+            tokens[-1].text in {"IN", "USING", "ANY", "ALL"}
+            or tokens[-1].text in _INCOMPLETE_CLAUSE_WORDS
+        )
+    ):
         return False
     if any(
         token.kind == "symbol"
@@ -786,6 +794,42 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
                 return False
     if bracket_depth != 0:
         return False
+    for index, token in enumerate(tokens):
+        if token.kind != "word":
+            continue
+        if token.text in {"ANY", "ALL"}:
+            if index + 1 >= len(tokens) or tokens[index + 1].text != "(":
+                return False
+        if token.text == "BETWEEN":
+            same_depth_and = next(
+                (
+                    candidate
+                    for candidate in tokens[index + 1 :]
+                    if candidate.depth == token.depth
+                    and candidate.kind == "word"
+                    and candidate.text == "AND"
+                ),
+                None,
+            )
+            if same_depth_and is None:
+                return False
+            and_index = tokens.index(same_depth_and, index + 1)
+            if not any(_is_expression_token(item) for item in tokens[index + 1 : and_index]):
+                return False
+            if not any(_is_expression_token(item) for item in tokens[and_index + 1 :]):
+                return False
+    for index, token in enumerate(tokens):
+        if token.kind != "word" or token.text not in _GRAMMAR_CLAUSE_BOUNDARIES:
+            continue
+        if token.depth == 0:
+            continue
+        prior_words = [
+            item.text
+            for item in tokens[:index]
+            if item.depth == token.depth and item.kind == "word"
+        ]
+        if token.text == "FROM" and "SELECT" not in prior_words:
+            return False
 
     previous: _SQLToken | None = None
     index = 0

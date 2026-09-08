@@ -646,6 +646,14 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 ORDER BY x UNION SELECT 2",
         "SELECT 1 LIMIT 1 UNION SELECT 2",
         "SELECT 1 FETCH FIRST 1 ROW ONLY UNION SELECT 2",
+        "SELECT 1 FROM t WHERE x BETWEEN",
+        "SELECT 1 FROM t WHERE x BETWEEN 1",
+        "SELECT 1 FROM t WHERE x = ANY",
+        "SELECT 1 FROM t WHERE (x BETWEEN 1) AND y",
+        "SELECT func(x FROM) FROM t",
+        "SELECT DISTINCT ON (x AND) 1 FROM t",
+        "SELECT DISTINCT ON (x BETWEEN) 1 FROM t",
+        "SELECT DISTINCT ON (x = ANY) 1 FROM t",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
