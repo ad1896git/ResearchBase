@@ -611,6 +611,13 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 FROM t WHERE x IN (1) OR",
         "SELECT 1 FROM t FOR NO KEY",
         "SELECT 1 FROM t FOR",
+        "SELECT 1 FROM t WHERE x IS DISTINCT",
+        "SELECT 1 FROM t WHERE x IS NOT DISTINCT",
+        "SELECT 1 ORDER BY NULLS FIRST",
+        "SELECT 1 FETCH FIRST",
+        "SELECT DISTINCT ON (x) FROM t",
+        "SELECT CASE WHEN x THEN END FROM t",
+        "SELECT 1 . * FROM t",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -644,6 +651,9 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
         "SELECT t.* FROM t",
         "SELECT 1 UNION SELECT 2",
         "SELECT 1 UNION ALL SELECT 2",
+        "SELECT EXISTS (SELECT 1 FROM t)",
+        "SELECT ARRAY[1, 2]",
+        "SELECT DISTINCT ON (x) x FROM t",
     ],
 )
 def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:
