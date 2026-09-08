@@ -242,6 +242,7 @@ _INCOMPLETE_CLAUSE_WORDS = frozenset(
         "DISTINCT",
         "ON",
         "CASE",
+        "COLLATE",
         "WHEN",
         "THEN",
         "ELSE",
@@ -288,6 +289,8 @@ _STRUCTURAL_WORDS = frozenset(
         "OR",
         "ORDER",
         "OFFSET",
+        "ONLY",
+        "ROWS",
         "S",
         "SHARE",
         "THEN",
@@ -571,6 +574,17 @@ def _has_mutating_cte(tokens: tuple[_SQLToken, ...]) -> bool:
     return False
 
 
+def _has_nested_mutating_command(tokens: tuple[_SQLToken, ...]) -> bool:
+    for index, token in enumerate(tokens):
+        if token.depth == 0 or token.kind != "word" or token.text not in _MUTATING_COMMANDS:
+            continue
+        previous = tokens[index - 1] if index else None
+        if previous is not None and previous.depth == token.depth and previous.text == "FOR":
+            continue
+        return True
+    return False
+
+
 def _matching_close(tokens: tuple[_SQLToken, ...], open_index: int) -> int | None:
     opening = tokens[open_index]
     if opening.kind != "symbol" or opening.text != "(":
@@ -714,6 +728,8 @@ def _operator_run_supported(run: str, next_token: _SQLToken | None = None) -> bo
 def _adjacent_expression_allowed(previous: _SQLToken, current: _SQLToken) -> bool:
     if current.kind == "word" and current.text in _STRUCTURAL_WORDS:
         return True
+    if previous.kind == "word" and previous.text in _STRUCTURAL_WORDS:
+        return True
     if (
         previous.kind == "word"
         and previous.text == "SELECT"
@@ -824,7 +840,12 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             next_index += 1
         run = "".join(token.text for token in tokens[index:next_index])
         if next_index >= len(tokens):
-            if run == ".*" and previous is not None and previous.kind in {"word", "identifier"}:
+            if (
+                run == ".*"
+                and previous is not None
+                and previous.kind in {"word", "identifier"}
+                and previous.text not in {"TRUE", "FALSE", "NULL"} | _STATEMENT_KEYWORDS
+            ):
                 return True
             if run == "]":
                 return True
@@ -856,27 +877,50 @@ def _case_expressions_balanced(tokens: tuple[_SQLToken, ...]) -> bool:
 
 
 def _case_expressions_supported(tokens: tuple[_SQLToken, ...]) -> bool:
-    for index, token in enumerate(tokens):
-        if token.kind != "word" or token.text not in {"WHEN", "THEN", "ELSE"}:
+    stack: list[dict[str, object]] = []
+    for _index, token in enumerate(tokens):
+        if token.kind != "word":
+            if stack:
+                stack[-1]["content"] = True
             continue
-        next_index = index + 1
-        if next_index >= len(tokens):
+        if token.text == "CASE":
+            for frame in stack:
+                frame["content"] = True
+            stack.append({"last": None, "content": False})
+            continue
+        if token.text not in {"WHEN", "THEN", "ELSE", "END"}:
+            if stack:
+                stack[-1]["content"] = True
+            continue
+        if not stack:
             return False
-        next_token = tokens[next_index]
-        if token.text == "WHEN" and next_token.kind == "word" and next_token.text in {
-            "THEN",
-            "ELSE",
-            "END",
-        }:
-            return False
-        if token.text == "THEN" and next_token.kind == "word" and next_token.text in {
-            "ELSE",
-            "END",
-        }:
-            return False
-        if token.text == "ELSE" and next_token.kind == "word" and next_token.text == "END":
-            return False
-    return True
+        for frame in stack[:-1]:
+            frame["content"] = True
+        frame = stack[-1]
+        last = frame["last"]
+        content = bool(frame["content"])
+        if token.text == "WHEN":
+            if last not in {None, "THEN"} or (last == "THEN" and not content):
+                return False
+            frame["last"] = "WHEN"
+            frame["content"] = False
+        elif token.text == "THEN":
+            if last != "WHEN" or not content:
+                return False
+            frame["last"] = "THEN"
+            frame["content"] = False
+        elif token.text == "ELSE":
+            if last != "THEN" or not content:
+                return False
+            frame["last"] = "ELSE"
+            frame["content"] = False
+        else:
+            if last not in {"THEN", "ELSE"} or not content:
+                return False
+            stack.pop()
+            if stack:
+                stack[-1]["content"] = True
+    return not stack
 
 
 def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
@@ -890,9 +934,16 @@ def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
         top_level = [token for token in term if token.depth == depth]
         if not top_level or (top_level[0].kind == "word" and top_level[0].text == "NULLS"):
             return False
+        directions = 0
+        nulls_modifiers = 0
         for index, token in enumerate(top_level):
+            if token.kind == "word" and token.text in {"ASC", "DESC"}:
+                directions += 1
+                if index == 0:
+                    return False
             if token.kind != "word" or token.text != "NULLS":
                 continue
+            nulls_modifiers += 1
             if (
                 index == 0
                 or index + 1 >= len(top_level)
@@ -900,6 +951,8 @@ def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
                 or top_level[index + 1].text not in {"FIRST", "LAST"}
             ):
                 return False
+        if directions > 1 or nulls_modifiers > 1:
+            return False
     return True
 
 
@@ -962,7 +1015,14 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             if len(projection) < 3 or projection[1].text != "(":
                 return False
             close = _matching_close(projection, 1)
-            if close is None or close == 2 or close + 1 >= len(projection):
+            if (
+                close is None
+                or close == 2
+                or not _case_expressions_balanced(projection[2:close])
+                or not _case_expressions_supported(projection[2:close])
+                or not _expression_segment_supported(projection[2:close])
+                or close + 1 >= len(projection)
+            ):
                 return False
             projection = projection[close + 1 :]
     projection_has_expression = any(_is_expression_token(token) for token in projection)
@@ -1034,6 +1094,8 @@ def _select_grammar_supported(
     if command != "SELECT":
         return command in _STATEMENT_KEYWORDS and command != UNKNOWN
     if tokens and tokens[0].text == "WITH" and not with_supported:
+        return False
+    if _has_nested_mutating_command(tokens):
         return False
     select_indexes = [
         index

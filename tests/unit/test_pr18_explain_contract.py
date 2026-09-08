@@ -618,6 +618,15 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT DISTINCT ON (x) FROM t",
         "SELECT CASE WHEN x THEN END FROM t",
         "SELECT 1 . * FROM t",
+        "SELECT TRUE.* FROM t",
+        "SELECT EXISTS (DELETE FROM t)",
+        "SELECT 1 FROM t WHERE x = (DELETE FROM t)",
+        "SELECT CASE x THEN :v END FROM t",
+        "SELECT CASE WHEN x THEN 1 ELSE 2 ELSE 3 END FROM t",
+        "SELECT CASE ELSE 1 END FROM t",
+        "SELECT 1 ORDER BY x COLLATE",
+        "SELECT 1 ORDER BY x ASC DESC",
+        "SELECT 1 ORDER BY x NULLS FIRST NULLS LAST",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -654,6 +663,8 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
         "SELECT EXISTS (SELECT 1 FROM t)",
         "SELECT ARRAY[1, 2]",
         "SELECT DISTINCT ON (x) x FROM t",
+        "SELECT CASE WHEN true THEN 1 ELSE 2 END FROM t",
+        "SELECT 1 FETCH FIRST 1 ROWS ONLY",
     ],
 )
 def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:
