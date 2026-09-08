@@ -760,7 +760,7 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
         tokens
         and tokens[-1].kind == "word"
         and (
-            tokens[-1].text in {"IN", "USING", "ANY", "ALL"}
+            tokens[-1].text in {"IN", "USING", "ANY", "ALL", "SOME"}
             or tokens[-1].text in _INCOMPLETE_CLAUSE_WORDS
         )
     ):
@@ -797,8 +797,15 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     for index, token in enumerate(tokens):
         if token.kind != "word":
             continue
-        if token.text in {"ANY", "ALL"}:
-            if index + 1 >= len(tokens) or tokens[index + 1].text != "(":
+        if token.text in {"IN", "IS", "BETWEEN", "LIKE"}:
+            prior_token = tokens[index - 1] if index else None
+            if prior_token is None or not (
+                _is_expression_token(prior_token)
+                or (prior_token.kind == "symbol" and prior_token.text == ")")
+            ):
+                return False
+        if token.text in {"ANY", "ALL", "SOME"}:
+            if index == 0 or index + 1 >= len(tokens) or tokens[index + 1].text != "(":
                 return False
         if token.text == "BETWEEN":
             same_depth_and = next(
@@ -819,7 +826,10 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             if not any(_is_expression_token(item) for item in tokens[and_index + 1 :]):
                 return False
     for index, token in enumerate(tokens):
-        if token.kind != "word" or token.text not in _GRAMMAR_CLAUSE_BOUNDARIES:
+        if token.kind != "word" or (
+            token.text not in _GRAMMAR_CLAUSE_BOUNDARIES
+            and token.text not in {"JOIN", "ON", "USING"}
+        ):
             continue
         if token.depth == 0:
             continue
@@ -828,7 +838,7 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             for item in tokens[:index]
             if item.depth == token.depth and item.kind == "word"
         ]
-        if token.text == "FROM" and "SELECT" not in prior_words:
+        if "SELECT" not in prior_words:
             return False
 
     previous: _SQLToken | None = None
@@ -902,6 +912,8 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
         ):
             next_index += 1
         run = "".join(token.text for token in tokens[index:next_index])
+        if previous is None and run not in {"*", "+", "-", "~", "!"}:
+            return False
         if next_index >= len(tokens):
             if (
                 run == ".*"
@@ -917,6 +929,10 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
         if next_token.depth < token.depth or (
             next_token.kind == "symbol" and next_token.text == ")"
         ):
+            if run == "]" and next_token.kind == "symbol" and next_token.text == ")":
+                previous = tokens[next_index - 1]
+                index = next_index
+                continue
             return False
         if not _operator_run_supported(run, next_token):
             return False

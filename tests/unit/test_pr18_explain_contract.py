@@ -654,6 +654,16 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT DISTINCT ON (x AND) 1 FROM t",
         "SELECT DISTINCT ON (x BETWEEN) 1 FROM t",
         "SELECT DISTINCT ON (x = ANY) 1 FROM t",
+        "SELECT 1 FROM t WHERE = 1",
+        "SELECT 1 FROM t WHERE @> x",
+        "SELECT 1 FROM t WHERE IN (1)",
+        "SELECT 1 FROM t WHERE IS TRUE",
+        "SELECT 1 FROM t WHERE BETWEEN 1 AND 2",
+        "SELECT 1 FROM t WHERE x = SOME",
+        "SELECT func(x WHERE) FROM t",
+        "SELECT func(x GROUP) FROM t",
+        "SELECT func(x ORDER) FROM t",
+        "SELECT func(x USING) FROM t",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -692,6 +702,7 @@ def test_r6_supported_postgresql_operator_remains_read_only() -> None:
         "SELECT DISTINCT ON (x) x FROM t",
         "SELECT CASE WHEN true THEN 1 ELSE 2 END FROM t",
         "SELECT 1 FETCH FIRST 1 ROWS ONLY",
+        "SELECT 1 FROM t WHERE x = ANY (ARRAY[1, 2])",
     ],
 )
 def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:
