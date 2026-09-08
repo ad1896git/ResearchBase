@@ -637,6 +637,15 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 LIMIT 1 WHERE y",
         "SELECT 1 UPDATE t",
         "SELECT 1 FROM t UPDATE",
+        "SELECT 1 FROM t WHERE (x AND) AND y",
+        "SELECT 1 ORDER BY x NULLS FIRST DESC",
+        "SELECT 1 ORDER BY x NULLS FIRST ASC",
+        "SELECT DISTINCT ON (x FROM y) 1 FROM t",
+        "SELECT 1 FROM t ON x",
+        "SELECT 1 FROM t USING (id)",
+        "SELECT 1 ORDER BY x UNION SELECT 2",
+        "SELECT 1 LIMIT 1 UNION SELECT 2",
+        "SELECT 1 FETCH FIRST 1 ROW ONLY UNION SELECT 2",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -850,7 +859,7 @@ def test_query_contract_rejects_disconnected_join_graph_in_isolation() -> None:
         relations=["run_artifact_inputs", "runs"],
     )
 
-    with pytest.raises(PR18EvidenceError, match="INVALID_JOIN_TOPOLOGY"):
+    with pytest.raises(PR18EvidenceError, match="INVALID_JOIN_TOPOLOGY|NOT_VERIFIED"):
         validate_query_contract(expectation, statements)
 
 

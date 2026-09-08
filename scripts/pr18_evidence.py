@@ -803,6 +803,14 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
                 and token.text not in _STRUCTURAL_WORDS
             ):
                 return False
+        if (
+            token.kind == "symbol"
+            and token.text == ")"
+            and previous is not None
+            and previous.kind == "word"
+            and previous.text in {"AND", "OR", "IS", "NOT", "LIKE", "IN"}
+        ):
+            return False
         if token.kind != "operator":
             previous = token
             index += 1
@@ -969,6 +977,24 @@ def _order_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
                     or top_level[index - 1].text not in {"NULLS", ":"}
                 ):
                     return False
+        nulls_index = next(
+            (index for index, token in enumerate(top_level) if token.text == "NULLS"),
+            None,
+        )
+        direction_index = next(
+            (
+                index
+                for index, token in enumerate(top_level)
+                if token.kind == "word" and token.text in {"ASC", "DESC"}
+            ),
+            None,
+        )
+        if (
+            nulls_index is not None
+            and direction_index is not None
+            and direction_index > nulls_index
+        ):
+            return False
         if directions > 1 or nulls_modifiers > 1:
             return False
     return True
@@ -997,11 +1023,24 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
         "USING",
     }:
         return False
+    if any(
+        token.depth == depth and token.kind == "operator" and token.text == ","
+        for token in clause
+    ):
+        return False
     join_indexes = [
         index
         for index, token in enumerate(clause)
         if token.depth == depth and token.kind == "word" and token.text == "JOIN"
     ]
+    first_join = min(join_indexes, default=len(clause))
+    if any(
+        token.depth == depth
+        and token.kind == "word"
+        and token.text in {"ON", "USING"}
+        for token in clause[:first_join]
+    ):
+        return False
     for join_index in join_indexes:
         relation_index = join_index + 1
         if relation_index >= len(clause) or clause[relation_index].depth != depth:
@@ -1047,6 +1086,8 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
     previous_order = -1
     for _position, boundary in boundaries:
         if boundary in {"UNION", "INTERSECT", "EXCEPT"}:
+            if previous_order >= 6:
+                return False
             previous_order = -1
             continue
         current_order = clause_order.get(boundary)
@@ -1067,6 +1108,11 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
                 or not _case_expressions_balanced(projection[2:close])
                 or not _case_expressions_supported(projection[2:close])
                 or not _expression_segment_supported(projection[2:close])
+                or any(
+                    token.kind == "word"
+                    and token.text in _GRAMMAR_CLAUSE_BOUNDARIES
+                    for token in projection[2:close]
+                )
                 or close + 1 >= len(projection)
             ):
                 return False
