@@ -1400,6 +1400,9 @@ def _fetch_clause_supported(clause: tuple[_SQLToken, ...]) -> bool:
 
 
 def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
+    top_level_as = [token for token in clause if token.depth == depth and token.text == "AS"]
+    if len(top_level_as) > 1:
+        return False
     base = next((token for token in clause if token.depth == depth), None)
     if (
         base is None
@@ -1435,6 +1438,13 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
         if clause[relation_index].kind not in {"word", "identifier"}:
             return False
         next_join = next((index for index in join_indexes if index > join_index), len(clause))
+        qualifier_words = {
+            token.text
+            for token in clause[relation_index + 1 : next_join]
+            if token.depth == depth and token.kind == "word"
+        }
+        if qualifier_words & {"AS", "ASC", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}:
+            return False
         qualifiers = [
             token
             for token in clause[relation_index + 1 : next_join]
@@ -1535,6 +1545,17 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
         for token in projection
     ):
         return False
+    projection_terms: list[list[_SQLToken]] = [[]]
+    for token in projection:
+        if token.depth == depth and token.kind == "operator" and token.text == ",":
+            projection_terms.append([])
+        else:
+            projection_terms[-1].append(token)
+    if any(
+        sum(token.depth == depth and token.text == "AS" for token in term) > 1
+        for term in projection_terms
+    ):
+        return False
     projection_has_expression = any(_is_expression_token(token) for token in projection)
     if (
         not projection_has_expression
@@ -1567,6 +1588,15 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
                 "USING",
             }
             for token in clause
+        ):
+            return False
+        if boundary in {"WHERE", "HAVING", "LIMIT", "OFFSET", "FETCH"} and any(
+            token.depth == depth and token.kind == "operator" and token.text == ","
+            for token in clause
+        ):
+            return False
+        if boundary in {"GROUP", "ORDER"} and any(
+            token.depth == depth and token.kind == "word" and token.text == "AS" for token in clause
         ):
             return False
         if boundary in {"UNION", "INTERSECT", "EXCEPT", "RETURNING"}:

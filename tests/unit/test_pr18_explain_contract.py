@@ -701,6 +701,16 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT x JOIN y",
         "SELECT x ON y",
         "SELECT x USING y",
+        "SELECT x AS y AS z FROM t",
+        "SELECT 1 FROM t AS x AS y",
+        "SELECT 1 FROM t JOIN u ON x AS y",
+        "SELECT 1 GROUP BY x AS y",
+        "SELECT 1 ORDER BY x AS y",
+        "SELECT 1 FROM t JOIN u ON NULLS FIRST",
+        "SELECT 1 FROM t WHERE x, y",
+        "SELECT 1 LIMIT 1, 2",
+        "SELECT 1 OFFSET 1, 2",
+        "SELECT 1 FETCH FIRST 1, 2 ROWS ONLY",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
