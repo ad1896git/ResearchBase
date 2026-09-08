@@ -695,6 +695,12 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT x ONLY",
         "SELECT x DESC",
         "SELECT x BY y",
+        "SELECT 1 FROM t WHERE x JOIN y",
+        "SELECT 1 FROM t WHERE x ON y",
+        "SELECT 1 FROM t WHERE x USING y",
+        "SELECT x JOIN y",
+        "SELECT x ON y",
+        "SELECT x USING y",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:

@@ -1519,7 +1519,19 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
     if any(
         token.depth == depth
         and token.kind == "word"
-        and token.text in {"ASC", "BY", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}
+        and token.text
+        in {
+            "ASC",
+            "BY",
+            "DESC",
+            "FIRST",
+            "JOIN",
+            "LAST",
+            "NULLS",
+            "ON",
+            "ONLY",
+            "USING",
+        }
         for token in projection
     ):
         return False
@@ -1541,7 +1553,19 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             return False
         if boundary in {"WHERE", "HAVING"} and any(
             token.kind == "word"
-            and token.text in {"AS", "ASC", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}
+            and token.text
+            in {
+                "AS",
+                "ASC",
+                "DESC",
+                "FIRST",
+                "JOIN",
+                "LAST",
+                "NULLS",
+                "ON",
+                "ONLY",
+                "USING",
+            }
             for token in clause
         ):
             return False
