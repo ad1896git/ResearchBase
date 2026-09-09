@@ -1314,17 +1314,37 @@ def _order_term_expression_supported(term: list[_SQLToken], depth: int) -> bool:
     if not top_positions:
         return False
     end = len(term)
-    last_index = top_positions[-1]
-    last = term[last_index]
-    if last.kind == "word" and last.text in {"ASC", "DESC"}:
-        end = last_index
-    elif last.kind == "word" and last.text in {"FIRST", "LAST"}:
-        if len(top_positions) < 2:
+    while True:
+        top_positions = [index for index, token in enumerate(term[:end]) if token.depth == depth]
+        if not top_positions:
             return False
-        modifier = term[top_positions[-2]]
-        if modifier.kind != "word" or modifier.text != "NULLS":
-            return False
-        end = top_positions[-2]
+        last_index = top_positions[-1]
+        last = term[last_index]
+        if last.kind == "word" and last.text in {"ASC", "DESC"}:
+            end = last_index
+            continue
+        if last.kind == "word" and last.text in {"FIRST", "LAST"}:
+            if len(top_positions) < 2:
+                return False
+            modifier = term[top_positions[-2]]
+            if modifier.kind != "word" or modifier.text != "NULLS":
+                return False
+            end = top_positions[-2]
+            continue
+        break
+    if any(
+        token.depth == depth
+        and token.kind == "word"
+        and token.text in {"AS", "BY", "FIRST", "JOIN", "LAST", "NULLS", "ON", "ONLY", "USING"}
+        and not (
+            token.text in {"FIRST", "LAST"}
+            and token_index > 0
+            and term[token_index - 1].kind == "operator"
+            and term[token_index - 1].text == ":"
+        )
+        for token_index, token in enumerate(term[:end])
+    ):
+        return False
     return bool(term[:end]) and _expression_segment_supported(tuple(term[:end]))
 
 
@@ -1400,32 +1420,32 @@ def _fetch_clause_supported(clause: tuple[_SQLToken, ...]) -> bool:
 
 
 def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
-    top_level_as = [token for token in clause if token.depth == depth and token.text == "AS"]
-    if len(top_level_as) > 1:
-        return False
-    base = next((token for token in clause if token.depth == depth), None)
-    if (
-        base is None
-        or base.kind not in {"word", "identifier"}
-        or base.text
-        in {
-            "JOIN",
-            "AS",
-            "ON",
-            "USING",
-        }
-    ):
-        return False
-    if any(
-        token.depth == depth and token.kind == "operator" and token.text == "," for token in clause
-    ):
-        return False
+    forbidden_relation_words = {"ASC", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}
     join_indexes = [
         index
         for index, token in enumerate(clause)
         if token.depth == depth and token.kind == "word" and token.text == "JOIN"
     ]
     first_join = min(join_indexes, default=len(clause))
+    base_segment = clause[:first_join]
+    if sum(token.depth == depth and token.text == "AS" for token in base_segment) > 1:
+        return False
+    if any(
+        token.depth == depth and token.kind == "word" and token.text in forbidden_relation_words
+        for token in base_segment
+    ):
+        return False
+    base = next((token for token in base_segment if token.depth == depth), None)
+    if (
+        base is None
+        or base.kind not in {"word", "identifier"}
+        or (base.kind == "word" and base.text in _STRUCTURAL_WORDS | _STATEMENT_KEYWORDS)
+    ):
+        return False
+    if any(
+        token.depth == depth and token.kind == "operator" and token.text == "," for token in clause
+    ):
+        return False
     if any(
         token.depth == depth and token.kind == "word" and token.text in {"ON", "USING"}
         for token in clause[:first_join]
@@ -1433,17 +1453,49 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
         return False
     for join_index in join_indexes:
         relation_index = join_index + 1
-        if relation_index >= len(clause) or clause[relation_index].depth != depth:
-            return False
-        if clause[relation_index].kind not in {"word", "identifier"}:
-            return False
         next_join = next((index for index in join_indexes if index > join_index), len(clause))
+        qualifier_index = next(
+            (
+                index
+                for index in range(relation_index, next_join)
+                if clause[index].depth == depth
+                and clause[index].kind == "word"
+                and clause[index].text in {"ON", "USING"}
+            ),
+            next_join,
+        )
+        relation_segment = clause[relation_index:qualifier_index]
+        if (
+            relation_index >= len(clause)
+            or clause[relation_index].depth != depth
+            or sum(token.depth == depth and token.text == "AS" for token in relation_segment) > 1
+            or any(
+                token.depth == depth
+                and token.kind == "word"
+                and token.text in forbidden_relation_words
+                for token in relation_segment
+            )
+        ):
+            return False
+        if clause[relation_index].kind not in {"word", "identifier"} or (
+            clause[relation_index].kind == "word"
+            and clause[relation_index].text in _STRUCTURAL_WORDS | _STATEMENT_KEYWORDS
+        ):
+            return False
         qualifier_words = {
             token.text
-            for token in clause[relation_index + 1 : next_join]
+            for token in clause[qualifier_index + 1 : next_join]
             if token.depth == depth and token.kind == "word"
         }
-        if qualifier_words & {"AS", "ASC", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}:
+        if qualifier_words & {
+            "AS",
+            "ASC",
+            "DESC",
+            "FIRST",
+            "LAST",
+            "NULLS",
+            "ONLY",
+        }:
             return False
         qualifiers = [
             token
@@ -1452,6 +1504,37 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
         ]
         qualifier_count = sum(token.text in {"ON", "USING"} for token in qualifiers)
         if qualifier_count != 1:
+            return False
+    return True
+
+
+def _projection_aliases_supported(projection: tuple[_SQLToken, ...], depth: int) -> bool:
+    terms: list[list[_SQLToken]] = [[]]
+    for token in projection:
+        if token.depth == depth and token.kind == "operator" and token.text == ",":
+            terms.append([])
+        else:
+            terms[-1].append(token)
+    for term in terms:
+        top_positions = [index for index, token in enumerate(term) if token.depth == depth]
+        alias_positions = [
+            index
+            for index in top_positions
+            if term[index].kind == "word" and term[index].text == "AS"
+        ]
+        if not alias_positions:
+            continue
+        if len(alias_positions) != 1:
+            return False
+        alias_position = alias_positions[0]
+        position_index = top_positions.index(alias_position)
+        if position_index == 0 or position_index + 1 >= len(top_positions):
+            return False
+        previous = term[top_positions[position_index - 1]]
+        alias = term[top_positions[position_index + 1]]
+        if not _is_value_end(previous) or alias.kind not in {"word", "identifier"}:
+            return False
+        if position_index + 2 != len(top_positions):
             return False
     return True
 
@@ -1526,6 +1609,8 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             ):
                 return False
             projection = projection[close + 1 :]
+    if not _projection_aliases_supported(projection, depth):
+        return False
     if any(
         token.depth == depth
         and token.kind == "word"
@@ -1597,6 +1682,28 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             return False
         if boundary in {"GROUP", "ORDER"} and any(
             token.depth == depth and token.kind == "word" and token.text == "AS" for token in clause
+        ):
+            return False
+        if boundary == "GROUP" and any(
+            token.depth == depth
+            and token.kind == "word"
+            and token.text in {"ASC", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}
+            for token in clause
+        ):
+            return False
+        if boundary in {"LIMIT", "OFFSET"} and any(
+            token.depth == depth
+            and token.kind == "word"
+            and token.text
+            in {"AS", "ASC", "BY", "DESC", "FIRST", "JOIN", "LAST", "NULLS", "ON", "ONLY", "USING"}
+            for token in clause
+        ):
+            return False
+        if boundary == "FETCH" and any(
+            token.depth == depth
+            and token.kind == "word"
+            and token.text in {"AS", "ASC", "BY", "DESC", "JOIN", "LAST", "NULLS", "ON", "USING"}
+            for token in clause
         ):
             return False
         if boundary in {"UNION", "INTERSECT", "EXCEPT", "RETURNING"}:

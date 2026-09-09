@@ -711,6 +711,17 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 LIMIT 1, 2",
         "SELECT 1 OFFSET 1, 2",
         "SELECT 1 FETCH FIRST 1, 2 ROWS ONLY",
+        "SELECT AS x FROM t",
+        "SELECT x, AS y FROM t",
+        "SELECT x AS (y) FROM t",
+        "SELECT 1 GROUP BY NULLS FIRST",
+        "SELECT 1 ORDER BY x ONLY",
+        "SELECT 1 LIMIT NULLS FIRST",
+        "SELECT 1 OFFSET NULLS FIRST",
+        "SELECT 1 FETCH FIRST NULLS FIRST ROWS ONLY",
+        "SELECT 1 FROM t NULLS FIRST",
+        "SELECT 1 FROM t JOIN AS u ON x",
+        "SELECT 1 FROM t JOIN USING (x) ON y",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -775,6 +786,7 @@ def test_r6_parenthesized_predicates_remain_supported(sql: str) -> None:
         "SELECT 1 FROM t WHERE x IS NOT DISTINCT FROM y",
         "SELECT 1 FROM t WHERE x IS UNKNOWN",
         "SELECT 1 FROM t WHERE x IS NOT UNKNOWN",
+        "SELECT a.id FROM a AS a JOIN b AS b ON b.id = a.id",
     ],
 )
 def test_r6_common_read_select_shapes_remain_supported(sql: str) -> None:
