@@ -947,14 +947,56 @@ def _function_owner_at_depth(
     return owner
 
 
+def _inside_nested_select_scope(
+    tokens: tuple[_SQLToken, ...], index: int, minimum_depth: int
+) -> bool:
+    """Identify tokens owned by a nested SELECT validated independently."""
+
+    token = tokens[index]
+    return any(
+        prior.kind == "word"
+        and prior.text == "SELECT"
+        and prior.depth == token.depth
+        and prior.depth > minimum_depth
+        for prior in tokens[:index]
+    )
+
+
 def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     """Reject expression segments with unsupported or incomplete token shapes."""
 
     minimum_depth = min((token.depth for token in tokens), default=0)
-    if any(
-        token.kind == "word" and token.text == "AS" and token.depth > minimum_depth
-        for token in tokens
-    ):
+    nested_structural_words = {
+        "AS",
+        "ASC",
+        "BY",
+        "DESC",
+        "FIRST",
+        "LAST",
+        "NULLS",
+        "ON",
+        "ONLY",
+        "USING",
+    }
+    for index, token in enumerate(tokens):
+        if (
+            token.kind != "word"
+            or token.depth <= minimum_depth
+            or token.text not in nested_structural_words
+            or _inside_nested_select_scope(tokens, index, minimum_depth)
+        ):
+            continue
+        if token.text == "BY":
+            prior = next(
+                (
+                    candidate
+                    for candidate in reversed(tokens[:index])
+                    if candidate.depth == token.depth and candidate.kind == "word"
+                ),
+                None,
+            )
+            if prior is not None and prior.text in {"GROUP", "ORDER"}:
+                continue
         return False
     if (
         tokens

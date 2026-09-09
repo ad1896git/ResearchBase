@@ -722,6 +722,17 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 FROM t NULLS FIRST",
         "SELECT 1 FROM t JOIN AS u ON x",
         "SELECT 1 FROM t JOIN USING (x) ON y",
+        "SELECT (x ASC) FROM t",
+        "SELECT f(x BY y) FROM t",
+        "SELECT 1 GROUP BY (x ASC)",
+        "SELECT 1 ORDER BY (x ASC)",
+        "SELECT 1 OFFSET (x ASC)",
+        "SELECT 1 FETCH FIRST (x ASC) ROWS ONLY",
+        "SELECT array_agg(x ORDER BY (y ASC)) FROM t",
+        "SELECT 1 ORDER BY (x NULLS FIRST)",
+        "SELECT 1 FROM t JOIN u ON (x NULLS FIRST)",
+        "SELECT 1 FROM t JOIN u USING (x NULLS FIRST)",
+        "SELECT array_agg(x ORDER BY (y NULLS FIRST)) FROM t",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -733,6 +744,17 @@ def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
     assert statement["grammar_supported"] is False
     assert statement["statement_complete"] is False
     assert statement["purity_verdict"] == "NOT_VERIFIED"
+
+
+def test_r6_nested_subquery_projection_alias_remains_supported() -> None:
+    projection = _validate_statement_purity([{"sql": "SELECT EXISTS (SELECT x AS y FROM t)"}])
+    statement = projection["statements"][0]
+
+    assert statement["statement_class"] == "READ_SELECT"
+    assert statement["lexical_valid"] is True
+    assert statement["grammar_supported"] is True
+    assert statement["statement_complete"] is True
+    assert statement["purity_verdict"] == "PASS"
 
 
 def test_r6_supported_postgresql_operator_remains_read_only() -> None:
