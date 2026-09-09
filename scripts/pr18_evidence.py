@@ -950,6 +950,12 @@ def _function_owner_at_depth(
 def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     """Reject expression segments with unsupported or incomplete token shapes."""
 
+    minimum_depth = min((token.depth for token in tokens), default=0)
+    if any(
+        token.kind == "word" and token.text == "AS" and token.depth > minimum_depth
+        for token in tokens
+    ):
+        return False
     if (
         tokens
         and tokens[-1].kind == "word"
@@ -1427,6 +1433,15 @@ def _from_clause_supported(clause: tuple[_SQLToken, ...], depth: int) -> bool:
         if token.depth == depth and token.kind == "word" and token.text == "JOIN"
     ]
     first_join = min(join_indexes, default=len(clause))
+    if any(
+        token.kind == "word"
+        and token.text == "AS"
+        and index + 1 < len(clause)
+        and clause[index + 1].kind == "symbol"
+        and clause[index + 1].text == "("
+        for index, token in enumerate(clause)
+    ):
+        return False
     base_segment = clause[:first_join]
     if sum(token.depth == depth and token.text == "AS" for token in base_segment) > 1:
         return False
@@ -1611,6 +1626,10 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             projection = projection[close + 1 :]
     if not _projection_aliases_supported(projection, depth):
         return False
+    if any(token.kind == "word" and token.text == "NULLS" for token in projection) and not any(
+        token.kind == "word" and token.text == "ORDER" for token in projection
+    ):
+        return False
     if any(
         token.depth == depth
         and token.kind == "word"
@@ -1689,6 +1708,10 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
             and token.kind == "word"
             and token.text in {"ASC", "DESC", "FIRST", "LAST", "NULLS", "ONLY"}
             for token in clause
+        ):
+            return False
+        if boundary in {"GROUP", "LIMIT", "OFFSET", "FETCH"} and any(
+            token.kind == "word" and token.text == "NULLS" for token in clause
         ):
             return False
         if boundary in {"LIMIT", "OFFSET"} and any(
