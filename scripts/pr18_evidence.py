@@ -288,7 +288,6 @@ _STRUCTURAL_WORDS = frozenset(
         "LIKE",
         "NO",
         "NOT",
-        "NULL",
         "NULLS",
         "ON",
         "OR",
@@ -962,6 +961,27 @@ def _inside_nested_select_scope(
     )
 
 
+def _inside_aggregate_order(tokens: tuple[_SQLToken, ...], index: int, minimum_depth: int) -> bool:
+    """Identify modifiers owned by a supported aggregate ORDER BY clause."""
+
+    token = tokens[index]
+    if token.depth <= minimum_depth:
+        return False
+    for order_index in range(index - 1, -1, -1):
+        order = tokens[order_index]
+        if order.kind != "word" or order.text != "ORDER" or order.depth != token.depth:
+            continue
+        if (
+            order_index + 1 < len(tokens)
+            and tokens[order_index + 1].kind == "word"
+            and tokens[order_index + 1].text == "BY"
+            and _function_owner_at_depth(tokens, order_index, order.depth - 1) is not None
+        ):
+            return token.depth == order.depth
+        return False
+    return False
+
+
 def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
     """Reject expression segments with unsupported or incomplete token shapes."""
 
@@ -972,18 +992,25 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
         "BY",
         "DESC",
         "FIRST",
+        "KEY",
         "LAST",
+        "NO",
         "NULLS",
         "ON",
         "ONLY",
+        "ROWS",
+        "SHARE",
         "USING",
     }
     for index, token in enumerate(tokens):
+        if token.kind == "word" and token.text == "AT":
+            return False
         if (
             token.kind != "word"
             or token.depth <= minimum_depth
             or token.text not in nested_structural_words
             or _inside_nested_select_scope(tokens, index, minimum_depth)
+            or _inside_aggregate_order(tokens, index, minimum_depth)
         ):
             continue
         if token.text == "BY":

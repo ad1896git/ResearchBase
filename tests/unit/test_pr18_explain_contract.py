@@ -733,6 +733,13 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT 1 FROM t JOIN u ON (x NULLS FIRST)",
         "SELECT 1 FROM t JOIN u USING (x NULLS FIRST)",
         "SELECT array_agg(x ORDER BY (y NULLS FIRST)) FROM t",
+        "SELECT f(x AT y) FROM t",
+        "SELECT f(x NULL y) FROM t",
+        "SELECT f(x ROWS y) FROM t",
+        "SELECT f(x NO KEY y) FROM t",
+        "SELECT f(x KEY SHARE y) FROM t",
+        "SELECT 1 FROM t WHERE x AT y",
+        "SELECT 1 ORDER BY (x AT y)",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
@@ -804,6 +811,8 @@ def test_r6_parenthesized_predicates_remain_supported(sql: str) -> None:
         "SELECT 1 FROM t WHERE x NOT LIKE y",
         "SELECT COUNT(*) FILTER (WHERE x) FROM t",
         "SELECT array_agg(x ORDER BY y) FROM t",
+        "SELECT array_agg(x ORDER BY y ASC) FROM t",
+        "SELECT array_agg(x ORDER BY y DESC NULLS LAST) FROM t",
         "SELECT 1 FROM t WHERE x IS DISTINCT FROM y",
         "SELECT 1 FROM t WHERE x IS NOT DISTINCT FROM y",
         "SELECT 1 FROM t WHERE x IS UNKNOWN",
