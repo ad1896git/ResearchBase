@@ -1010,7 +1010,10 @@ def _expression_segment_supported(tokens: tuple[_SQLToken, ...]) -> bool:
             or token.depth <= minimum_depth
             or token.text not in nested_structural_words
             or _inside_nested_select_scope(tokens, index, minimum_depth)
-            or _inside_aggregate_order(tokens, index, minimum_depth)
+            or (
+                token.text in {"ASC", "DESC", "FIRST", "LAST", "NULLS"}
+                and _inside_aggregate_order(tokens, index, minimum_depth)
+            )
         ):
             continue
         if token.text == "BY":

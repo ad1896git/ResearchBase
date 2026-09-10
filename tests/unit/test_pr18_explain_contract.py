@@ -740,6 +740,9 @@ def test_r6_unsupported_complete_syntax_is_not_verified() -> None:
         "SELECT f(x KEY SHARE y) FROM t",
         "SELECT 1 FROM t WHERE x AT y",
         "SELECT 1 ORDER BY (x AT y)",
+        "SELECT array_agg(x ORDER BY y NO KEY) FROM t",
+        "SELECT array_agg(x ORDER BY y ROWS) FROM t",
+        "SELECT array_agg(x ORDER BY y KEY SHARE) FROM t",
     ],
 )
 def test_r6_incomplete_expression_tokens_fail_closed(sql: str) -> None:
