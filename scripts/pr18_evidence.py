@@ -1733,11 +1733,30 @@ def _select_scope_supported(tokens: tuple[_SQLToken, ...], select_index: int) ->
     ):
         return False
     projection_has_expression = any(_is_expression_token(token) for token in projection)
+    bare_wildcard_projection = (
+        len(projection) == 1
+        and projection[0].kind == "operator"
+        and projection[0].text == "*"
+        and bool(boundaries)
+        and boundaries[0][1] == "FROM"
+    )
+    if not bare_wildcard_projection:
+        for index, token in enumerate(projection):
+            if token.kind != "operator" or token.text != "*":
+                continue
+            if index == 0 or projection[index - 1].text == ",":
+                return False
+            if projection[index - 1].text == "(" and (
+                index < 2
+                or projection[index - 2].kind not in {"word", "identifier"}
+                or projection[index - 2].text in _STRUCTURAL_WORDS | _STATEMENT_KEYWORDS
+            ):
+                return False
     if (
         not projection_has_expression
         or not _case_expressions_balanced(projection)
         or not _case_expressions_supported(projection)
-        or not _expression_segment_supported(projection)
+        or (not bare_wildcard_projection and not _expression_segment_supported(projection))
     ):
         return False
 
