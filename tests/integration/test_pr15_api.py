@@ -233,7 +233,7 @@ def test_trace_and_impact_sql_counts_are_bounded_across_fixture_cardinality(
                 text(
                     "INSERT INTO evidence_relations "
                     "(id,claim_version_id,measurement_id,relation_type,created_by,created_at) "
-                    "VALUES (:id,:claim,:measurement,'supports',:actor,:now)"
+                    "VALUES (:id,:claim,:measurement,'SUPPORTS',:actor,:now)"
                 ),
                 {
                     "id": ids["small_evidence"],
@@ -299,7 +299,7 @@ def test_real_postgresql_http_golden_flow_uses_application_semantics(
         connection.execute(
             text(
                 "INSERT INTO actors(id,actor_type,display_name,created_at) "
-                "VALUES (:id,'human','pr15-http',:now)"
+                "VALUES (:id,'HUMAN','pr15-http',:now)"
             ),
             {"id": actor_id, "now": datetime.now(UTC)},
         )

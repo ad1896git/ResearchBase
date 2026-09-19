@@ -128,6 +128,7 @@ def test_phase1_has_only_the_authorized_business_migrations() -> None:
         "0014_claim_evidence.py",
         "0015_governance_audit.py",
         "0016_pr17d_history_protection.py",
+        "0017_persisted_canonical_enum_normalization.py",
     ]
 
 

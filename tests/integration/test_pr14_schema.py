@@ -131,6 +131,7 @@ def test_pr14_constraints_fks_and_immutability_triggers_are_exact(engine: Engine
         "audit_findings_project_id_fkey",
         "audit_findings_created_by_fkey",
         "ck_audit_findings_severity",
+        "ck_audit_findings_target_type",
         "ck_audit_findings_status",
     }
     assert set(constraints["impact_assessments"]) == {
@@ -144,12 +145,14 @@ def test_pr14_constraints_fks_and_immutability_triggers_are_exact(engine: Engine
         "impact_targets_pkey",
         "impact_targets_impact_assessment_id_fkey",
         "ck_impact_targets_kind",
+        "ck_impact_targets_target_type",
     }
     assert set(constraints["correction_records"]) == {
         "correction_records_pkey",
         "correction_records_project_id_fkey",
         "correction_records_created_by_fkey",
         "ck_correction_records_type",
+        "ck_correction_records_target_type",
     }
     assert all(
         "ON DELETE RESTRICT" in definition

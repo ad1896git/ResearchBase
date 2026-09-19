@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
+from researchbase.application.config import application_dto_dataclass
 from researchbase.application.ports import GovernanceRepository, UnitOfWork
 from researchbase.domain.governance import (
     AuditFinding,
@@ -183,7 +184,7 @@ class TargetResolverRegistry:
         return resolved
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateAuditFindingCommand:
     project_id: UUID
     finding_type: str
@@ -195,7 +196,7 @@ class CreateAuditFindingCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class TransitionAuditFindingCommand:
     finding_id: UUID
     status: AuditFindingStatus | str
@@ -203,14 +204,14 @@ class TransitionAuditFindingCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ProposedImpactTarget:
     target_type: GovernanceTargetType | str
     target_id: UUID
     impact_kind: ImpactKind | str
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateImpactAssessmentCommand:
     project_id: UUID
     audit_finding_id: UUID | None
@@ -220,7 +221,7 @@ class CreateImpactAssessmentCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateCorrectionRecordCommand:
     project_id: UUID
     target_type: GovernanceTargetType | str

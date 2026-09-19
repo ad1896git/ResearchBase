@@ -105,6 +105,14 @@ def _assert_0016_catalog(engine: Engine) -> None:
     assert revision == "0016_pr17d_history_protection"
 
 
+def _assert_0017_catalog(engine: Engine) -> None:
+    functions, triggers, constraints, revision = _catalog(engine)
+    assert functions == set(PR17D_FUNCTIONS)
+    assert triggers == {name for name, _table, _event, _function in PR17D_TRIGGERS}
+    assert constraints == set()
+    assert revision == "0017_persisted_canonical_enum_normalization"
+
+
 def _assert_0015_empty_catalog(engine: Engine) -> None:
     functions, triggers, constraints, revision = _catalog(engine)
     assert functions == set()
@@ -243,13 +251,13 @@ def _seed_nonconforming_0015(engine: Engine) -> tuple[UUID, int]:
     return run_id, count
 
 
-def test_fresh_install_reaches_0016_with_exact_catalog() -> None:
+def test_fresh_install_reaches_0017_with_exact_catalog() -> None:
     base_url = os.getenv("DATABASE_URL")
     if not base_url:
         pytest.skip("DATABASE_URL is not set; run against PostgreSQL 18")
     with _temporary_database(base_url) as (database_url, engine):
         _assert_alembic_ok(_run_alembic(database_url, "upgrade", "head"))
-        _assert_0016_catalog(engine)
+        _assert_0017_catalog(engine)
 
 
 def test_populated_0015_upgrade_preserves_rows_and_installs_catalog() -> None:
@@ -305,7 +313,7 @@ def test_upgrade_downgrade_upgrade_has_same_semantic_catalog() -> None:
         _assert_alembic_ok(_run_alembic(database_url, "downgrade", "0015_governance_audit"))
         _assert_alembic_ok(_run_alembic(database_url, "upgrade", "head"))
         assert _catalog(engine)[:3] == first
-        _assert_0016_catalog(engine)
+        _assert_0017_catalog(engine)
 
 
 def test_preflight_failure_rolls_back_revision_objects_and_preserves_rows() -> None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -13,6 +12,7 @@ from researchbase.application.closure import (
     ClosureReport,
     ProvenanceClosureValidator,
 )
+from researchbase.application.config import application_dto_dataclass
 from researchbase.application.ports import UnitOfWork
 from researchbase.domain.claim import ClaimVersionId, EvidenceRelation
 from researchbase.domain.measurement import Measurement
@@ -20,7 +20,7 @@ from researchbase.domain.run import Run, RunId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ClosureViolationDTO:
     code: str
     object_type: str
@@ -29,14 +29,14 @@ class ClosureViolationDTO:
     message: str
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ClosureReportDTO:
     complete: bool
     visited_count: int
     violations: tuple[ClosureViolationDTO, ...]
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RunInputDTO:
     target_id: str
     role: str
@@ -44,14 +44,14 @@ class RunInputDTO:
     content_hash: str | None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class MeasurementRefDTO:
     measurement_id: str
     metric_definition_version_id: str
     content_hash: str
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RunInputsDTO:
     run_id: str
     project_id: str
@@ -62,7 +62,7 @@ class RunInputsDTO:
     closure: ClosureReportDTO
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RunProvenanceDTO:
     run_id: str
     project_id: str
@@ -79,7 +79,7 @@ class RunProvenanceDTO:
     closure: ClosureReportDTO
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ClaimEvidencePathDTO:
     claim_version_id: str
     evidence_relation_id: str
@@ -94,7 +94,7 @@ class ClaimEvidencePathDTO:
     run_id: str
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ClaimToRunsTraceDTO:
     claim_version_id: str
     project_id: str

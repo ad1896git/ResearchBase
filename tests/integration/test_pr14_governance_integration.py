@@ -96,7 +96,7 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
     with engine.begin() as c:
         c.execute(
             text(
-                "INSERT INTO actors(id,actor_type,display_name,created_at) VALUES (:id,'human','auditor',:now)"
+                "INSERT INTO actors(id,actor_type,display_name,created_at) VALUES (:id,'HUMAN','auditor',:now)"
             ),
             {"id": ids["actor"], "now": now},
         )
@@ -267,7 +267,7 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO evidence_relations(id,claim_version_id,measurement_id,relation_type,created_by,created_at) VALUES (:id,:claim,:measurement,'supports',:actor,:now)"
+                "INSERT INTO evidence_relations(id,claim_version_id,measurement_id,relation_type,created_by,created_at) VALUES (:id,:claim,:measurement,'SUPPORTS',:actor,:now)"
             ),
             {
                 "id": ids["evidence_direct"],
@@ -279,7 +279,7 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO evidence_relations(id,claim_version_id,statistical_result_id,relation_type,created_by,created_at) VALUES (:id,:claim,:stat,'supports',:actor,:now)"
+                "INSERT INTO evidence_relations(id,claim_version_id,statistical_result_id,relation_type,created_by,created_at) VALUES (:id,:claim,:stat,'SUPPORTS',:actor,:now)"
             ),
             {
                 "id": ids["evidence_stat"],
@@ -856,7 +856,7 @@ def test_governance_foreign_keys_restrict_deletes(engine: Engine) -> None:
         ),
         (
             "INSERT INTO impact_targets(impact_assessment_id,target_type,target_id,impact_kind) "
-            "VALUES (:id,'measurement',:target,'downstream')",
+            "VALUES (:id,'MEASUREMENT',:target,'DOWNSTREAM')",
             {"id": assessment.id, "target": ids["measurement"]},
         ),
     ):

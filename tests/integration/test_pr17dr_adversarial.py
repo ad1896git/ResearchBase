@@ -34,7 +34,7 @@ def _seed_research_question_version(engine: Engine) -> tuple[UUID, UUID]:
         connection.execute(
             text(
                 "INSERT INTO actors(id, actor_type, display_name, created_at) "
-                "VALUES (:id, 'human', 'test', :now)"
+                "VALUES (:id, 'HUMAN', 'test', :now)"
             ),
             {"id": actor_id, "now": now},
         )
@@ -77,7 +77,7 @@ def _seed_running_run(engine: Engine) -> UUID:
         connection.execute(
             text(
                 "INSERT INTO actors(id, actor_type, display_name, created_at) "
-                "VALUES (:id, 'human', 'test', :now)"
+                "VALUES (:id, 'HUMAN', 'test', :now)"
             ),
             {"id": actor_id, "now": now},
         )
@@ -138,7 +138,7 @@ def _seed_planned_run_with_snapshot(engine: Engine) -> tuple[UUID, UUID]:
         connection.execute(
             text(
                 "INSERT INTO actors(id, actor_type, display_name, created_at) "
-                "VALUES (:id, 'human', 'test', :now)"
+                "VALUES (:id, 'HUMAN', 'test', :now)"
             ),
             {"id": actor_id, "now": now},
         )
@@ -190,7 +190,7 @@ def _seed_planned_run_with_snapshot(engine: Engine) -> tuple[UUID, UUID]:
             text(
                 "INSERT INTO datasets(id, project_id, name, lifecycle_status, "
                 "created_by, created_at) "
-                "VALUES (:id, :project, 'dataset', 'active', :actor, :now)"
+                "VALUES (:id, :project, 'dataset', 'ACTIVE', :actor, :now)"
             ),
             {"id": dataset_id, "project": project_id, "actor": actor_id, "now": now},
         )
@@ -219,7 +219,7 @@ def _seed_audit_finding(engine: Engine) -> UUID:
         connection.execute(
             text(
                 "INSERT INTO actors(id, actor_type, display_name, created_at) "
-                "VALUES (:id, 'human', 'test', :now)"
+                "VALUES (:id, 'HUMAN', 'test', :now)"
             ),
             {"id": actor_id, "now": now},
         )
@@ -235,8 +235,8 @@ def _seed_audit_finding(engine: Engine) -> UUID:
                 "INSERT INTO audit_findings "
                 "(id, project_id, finding_type, severity, title, description, target_type, "
                 "target_id, status, created_by, created_at) VALUES "
-                "(:id, :project, 'quality', 'minor', 'finding', 'description', 'run', "
-                ":target, 'open', :actor, :now)"
+                "(:id, :project, 'quality', 'MINOR', 'finding', 'description', 'RUN', "
+                ":target, 'OPEN', :actor, :now)"
             ),
             {
                 "id": finding_id,
@@ -516,11 +516,11 @@ def test_audit_finding_transition_and_material_immutability_are_database_enforce
     finding_id = _seed_audit_finding(engine)
     with engine.begin() as connection:
         connection.execute(
-            text("UPDATE public.audit_findings SET status='confirmed', row_version=2 WHERE id=:id"),
+            text("UPDATE public.audit_findings SET status='CONFIRMED', row_version=2 WHERE id=:id"),
             {"id": finding_id},
         )
         connection.execute(
-            text("UPDATE public.audit_findings SET status='resolved', row_version=3 WHERE id=:id"),
+            text("UPDATE public.audit_findings SET status='RESOLVED', row_version=3 WHERE id=:id"),
             {"id": finding_id},
         )
 
@@ -530,7 +530,7 @@ def test_audit_finding_transition_and_material_immutability_are_database_enforce
         with engine.begin() as connection:
             connection.execute(
                 text(
-                    "UPDATE public.audit_findings SET status='resolved', row_version=2 WHERE id=:id"
+                    "UPDATE public.audit_findings SET status='RESOLVED', row_version=2 WHERE id=:id"
                 ),
                 {"id": illegal_id},
             )
@@ -552,7 +552,7 @@ def test_audit_finding_transition_and_material_immutability_are_database_enforce
             text("SELECT status, title, row_version FROM public.audit_findings WHERE id=:id"),
             {"id": illegal_id},
         ).one()
-    assert (row.status, row.title, row.row_version) == ("open", "finding", 1)
+    assert (row.status, row.title, row.row_version) == ("OPEN", "finding", 1)
 
 
 def test_parent_state_lock_race_rejects_child_after_parent_seals(engine: Engine) -> None:

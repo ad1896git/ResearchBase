@@ -687,7 +687,7 @@ def test_direct_sql_frozen_evidence_mutation_matrix_is_rejected(
         (
             "INSERT INTO evidence_relations "
             "(id, claim_version_id, measurement_id, relation_type, created_by, created_at) "
-            "VALUES (:id, :version_id, :measurement_id, 'supports', :actor_id, :created_at)",
+            "VALUES (:id, :version_id, :measurement_id, 'SUPPORTS', :actor_id, :created_at)",
             {
                 "id": uuid4(),
                 "version_id": frozen.id,
@@ -699,7 +699,7 @@ def test_direct_sql_frozen_evidence_mutation_matrix_is_rejected(
         (
             "INSERT INTO evidence_relations "
             "(id, claim_version_id, statistical_result_id, relation_type, created_by, created_at) "
-            "VALUES (:id, :version_id, :statistical_result_id, 'context', :actor_id, :created_at)",
+            "VALUES (:id, :version_id, :statistical_result_id, 'CONTEXT', :actor_id, :created_at)",
             {
                 "id": uuid4(),
                 "version_id": frozen.id,
@@ -726,7 +726,7 @@ def test_direct_sql_frozen_evidence_mutation_matrix_is_rejected(
             },
         ),
         (
-            "UPDATE evidence_relations SET relation_type='context' WHERE id=:relation_id",
+            "UPDATE evidence_relations SET relation_type='CONTEXT' WHERE id=:relation_id",
             {"relation_id": measurement_relation.id},
         ),
         (
@@ -789,7 +789,7 @@ def test_direct_sql_superseded_and_abandoned_evidence_mutations_are_rejected(
             (
                 "INSERT INTO evidence_relations "
                 "(id, claim_version_id, measurement_id, relation_type, created_by, created_at) "
-                "VALUES (:new_id, :version_id, :measurement_id, 'context', :actor_id, :created_at)",
+                "VALUES (:new_id, :version_id, :measurement_id, 'CONTEXT', :actor_id, :created_at)",
                 {
                     "new_id": uuid4(),
                     "version_id": version_id,

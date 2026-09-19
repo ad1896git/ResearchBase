@@ -2978,8 +2978,8 @@ def _seed_explain_fixture(engine: Engine) -> tuple[dict[str, Any], int]:
                 "INSERT INTO audit_findings "
                 "(id, project_id, finding_type, severity, title, description, "
                 "target_type, target_id, target_content_hash, status, created_by, created_at) "
-                "VALUES (:id, :project, 'explain_fixture', 'info', :title, 'fixture', "
-                "'artifact_version', :target, NULL, 'open', :actor, :now)"
+                "VALUES (:id, :project, 'explain_fixture', 'INFO', :title, 'fixture', "
+                "'ARTIFACT_VERSION', :target, NULL, 'OPEN', :actor, :now)"
             ),
             [
                 {

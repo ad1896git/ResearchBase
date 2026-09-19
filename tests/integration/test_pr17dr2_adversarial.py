@@ -34,7 +34,7 @@ def _seed_claim_version(engine: Engine) -> UUID:
         connection.execute(
             text(
                 "INSERT INTO actors(id, actor_type, display_name, created_at) "
-                "VALUES (:id, 'human', 'pr17dr2', :now)"
+                "VALUES (:id, 'HUMAN', 'pr17dr2', :now)"
             ),
             {"id": actor_id, "now": now},
         )

@@ -45,8 +45,8 @@ def test_pr02_tables_and_constraints_exist_in_postgresql(engine: Engine) -> None
             )
         ).all()
         checks = " ".join(row.check_clause or "" for row in constraints)
-        assert "human" in checks and "agent" in checks and "service" in checks
-        assert "active" in checks and "archived" in checks and "retired" in checks
+        assert "HUMAN" in checks and "AGENT" in checks and "SERVICE" in checks
+        assert "ACTIVE" in checks and "ARCHIVED" in checks and "RETIRED" in checks
 
         foreign_keys = connection.execute(
             text(

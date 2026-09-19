@@ -47,12 +47,25 @@ def test_pr06_schema_columns_constraints_and_restrict_foreign_keys(engine: Engin
         for row in rows:
             columns.setdefault(row.table_name, set()).add(row.column_name)
         assert columns["datasets"] == {
-            "id", "project_id", "name", "description", "source_locator",
-            "lifecycle_status", "created_by", "created_at", "row_version",
+            "id",
+            "project_id",
+            "name",
+            "description",
+            "source_locator",
+            "lifecycle_status",
+            "created_by",
+            "created_at",
+            "row_version",
         }
         assert columns["dataset_snapshots"] == {
-            "id", "dataset_id", "manifest_hash", "selection_definition", "manifest_locator",
-            "content_hash", "created_by", "created_at",
+            "id",
+            "dataset_id",
+            "manifest_hash",
+            "selection_definition",
+            "manifest_locator",
+            "content_hash",
+            "created_by",
+            "created_at",
         }
         foreign_keys = connection.execute(
             text(
@@ -71,10 +84,7 @@ def test_pr06_schema_columns_constraints_and_restrict_foreign_keys(engine: Engin
             )
         ).all()
         assert all(row.delete_rule == "RESTRICT" for row in foreign_keys)
-        assert {
-            (row.table_name, row.column_name)
-            for row in foreign_keys
-        } >= {
+        assert {(row.table_name, row.column_name) for row in foreign_keys} >= {
             ("datasets", "project_id"),
             ("datasets", "created_by"),
             ("dataset_snapshots", "dataset_id"),
@@ -91,7 +101,7 @@ def test_dataset_snapshot_unique_dataset_content_constraint(engine: Engine) -> N
             text(
                 "INSERT INTO actors "
                 "(id, actor_type, display_name, created_at, row_version) "
-                "VALUES (:id, 'human', 'PR-06 unique test', now(), 1)"
+                "VALUES (:id, 'HUMAN', 'PR-06 unique test', now(), 1)"
             ),
             {"id": actor_id},
         )

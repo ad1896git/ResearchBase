@@ -7,13 +7,14 @@ from __future__ import annotations
 # methods return the frozen WriteResult contract.
 # pyright: reportReturnType=false
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from enum import Enum
 from functools import wraps
 from time import monotonic
 from typing import Any
 
 from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
+from researchbase.application.config import application_dto_dataclass
 from researchbase.application.dto import (
     ActorReadModel,
     ArtifactReadModel,
@@ -111,7 +112,7 @@ from researchbase.foundation.time import Clock
 from researchbase.foundation.versioning import VersionStatus
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateActorCommand:
     actor_type: ActorType | str
     display_name: str
@@ -119,14 +120,14 @@ class CreateActorCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateProjectCommand:
     name: str
     description: str | None
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateWorkspaceCommand:
     project_id: ProjectId
     name: str
@@ -134,7 +135,7 @@ class CreateWorkspaceCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateResearchQuestionCommand:
     project_id: ProjectId
     question_text: str
@@ -143,7 +144,7 @@ class CreateResearchQuestionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ReviseResearchQuestionCommand:
     research_question_id: ResearchQuestionId
     question_text: str
@@ -154,7 +155,7 @@ class ReviseResearchQuestionCommand:
     base_version_id: ResearchQuestionVersionId | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class UpdateResearchQuestionDraftCommand:
     research_question_id: ResearchQuestionId
     version_id: ResearchQuestionVersionId
@@ -165,7 +166,7 @@ class UpdateResearchQuestionDraftCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class FreezeResearchQuestionCommand:
     research_question_id: ResearchQuestionId
     version_id: ResearchQuestionVersionId
@@ -173,7 +174,7 @@ class FreezeResearchQuestionCommand:
     expected_row_version: int | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AbandonResearchQuestionVersionCommand:
     research_question_id: ResearchQuestionId
     version_id: ResearchQuestionVersionId
@@ -181,7 +182,7 @@ class AbandonResearchQuestionVersionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateHypothesisCommand:
     project_id: ProjectId
     statement: str
@@ -192,7 +193,7 @@ class CreateHypothesisCommand:
     research_question_id: ResearchQuestionId | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ReviseHypothesisCommand:
     hypothesis_id: HypothesisId
     statement: str
@@ -204,7 +205,7 @@ class ReviseHypothesisCommand:
     base_version_id: HypothesisVersionId | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class UpdateHypothesisDraftCommand:
     hypothesis_id: HypothesisId
     version_id: HypothesisVersionId
@@ -216,7 +217,7 @@ class UpdateHypothesisDraftCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class FreezeHypothesisCommand:
     hypothesis_id: HypothesisId
     version_id: HypothesisVersionId
@@ -224,7 +225,7 @@ class FreezeHypothesisCommand:
     expected_row_version: int | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AbandonHypothesisVersionCommand:
     hypothesis_id: HypothesisId
     version_id: HypothesisVersionId
@@ -232,7 +233,7 @@ class AbandonHypothesisVersionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateExperimentSpecCommand:
     project_id: ProjectId
     hypothesis_id: HypothesisId | None
@@ -245,7 +246,7 @@ class CreateExperimentSpecCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ReviseExperimentSpecCommand:
     experiment_spec_id: ExperimentSpecId
     title: str
@@ -259,7 +260,7 @@ class ReviseExperimentSpecCommand:
     base_version_id: ExperimentSpecVersionId | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class UpdateExperimentSpecDraftCommand:
     experiment_spec_id: ExperimentSpecId
     version_id: ExperimentSpecVersionId
@@ -273,7 +274,7 @@ class UpdateExperimentSpecDraftCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class FreezeExperimentSpecCommand:
     experiment_spec_id: ExperimentSpecId
     version_id: ExperimentSpecVersionId
@@ -281,7 +282,7 @@ class FreezeExperimentSpecCommand:
     expected_row_version: int | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AbandonExperimentSpecVersionCommand:
     experiment_spec_id: ExperimentSpecId
     version_id: ExperimentSpecVersionId
@@ -289,7 +290,7 @@ class AbandonExperimentSpecVersionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateMetricDefinitionCommand:
     project_id: ProjectId | None
     name: str
@@ -299,7 +300,7 @@ class CreateMetricDefinitionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ReviseMetricDefinitionCommand:
     metric_definition_id: MetricDefinitionId
     definition: object
@@ -309,7 +310,7 @@ class ReviseMetricDefinitionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class UpdateMetricDefinitionDraftCommand:
     metric_definition_id: MetricDefinitionId
     version_id: MetricDefinitionVersionId
@@ -320,7 +321,7 @@ class UpdateMetricDefinitionDraftCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class FreezeMetricDefinitionCommand:
     metric_definition_id: MetricDefinitionId
     version_id: MetricDefinitionVersionId
@@ -328,7 +329,7 @@ class FreezeMetricDefinitionCommand:
     expected_row_version: int | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AbandonMetricDefinitionVersionCommand:
     metric_definition_id: MetricDefinitionId
     version_id: MetricDefinitionVersionId
@@ -336,7 +337,7 @@ class AbandonMetricDefinitionVersionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateRunCommand:
     project_id: ProjectId
     experiment_spec_version_id: ExperimentSpecVersionId
@@ -344,7 +345,7 @@ class CreateRunCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AttachRunDatasetInputCommand:
     run_id: RunId
     dataset_snapshot_id: DatasetSnapshotId
@@ -354,7 +355,7 @@ class AttachRunDatasetInputCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AttachRunArtifactInputCommand:
     run_id: RunId
     artifact_version_id: ArtifactVersionId
@@ -364,14 +365,14 @@ class AttachRunArtifactInputCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class StartRunCommand:
     run_id: RunId
     expected_row_version: int
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class FinishRunCommand:
     run_id: RunId
     outcome: RunStatus | str
@@ -381,14 +382,14 @@ class FinishRunCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CancelRunCommand:
     run_id: RunId
     expected_row_version: int
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RecordMeasurementCommand:
     run_id: RunId
     metric_definition_version_id: MetricDefinitionVersionId
@@ -399,14 +400,14 @@ class RecordMeasurementCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class StatisticalResultInputCommand:
     measurement_id: MeasurementId
     input_role: str = "input"
     ordinal: int = 0
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RecordStatisticalResultCommand:
     project_id: ProjectId
     analysis_type: str
@@ -416,7 +417,7 @@ class RecordStatisticalResultCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateClaimCommand:
     project_id: ProjectId
     statement: str
@@ -425,7 +426,7 @@ class CreateClaimCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ReviseClaimCommand:
     claim_id: ClaimId
     statement: str | None
@@ -436,7 +437,7 @@ class ReviseClaimCommand:
     base_version_id: ClaimVersionId | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class UpdateClaimDraftCommand:
     claim_id: ClaimId
     version_id: ClaimVersionId
@@ -447,7 +448,7 @@ class UpdateClaimDraftCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class LinkEvidenceCommand:
     claim_id: ClaimId
     claim_version_id: ClaimVersionId
@@ -459,7 +460,7 @@ class LinkEvidenceCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class UnlinkEvidenceCommand:
     claim_id: ClaimId
     claim_version_id: ClaimVersionId
@@ -468,7 +469,7 @@ class UnlinkEvidenceCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class FreezeClaimVersionCommand:
     claim_id: ClaimId
     version_id: ClaimVersionId
@@ -476,7 +477,7 @@ class FreezeClaimVersionCommand:
     expected_row_version: int | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AbandonClaimVersionCommand:
     claim_id: ClaimId
     version_id: ClaimVersionId
@@ -497,7 +498,7 @@ UpdateMetricDefinitionVersionDraftCommand = UpdateMetricDefinitionDraftCommand
 FreezeMetricDefinitionVersionCommand = FreezeMetricDefinitionCommand
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RegisterDatasetCommand:
     project_id: ProjectId | None
     name: str
@@ -506,16 +507,16 @@ class RegisterDatasetCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateDatasetSnapshotCommand:
     dataset_id: DatasetId
-    manifest_hash: str | ContentHash
+    manifest_hash: str
     selection_definition: object
     manifest_locator: str | None
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateArtifactCommand:
     project_id: ProjectId | None
     artifact_type: str
@@ -524,11 +525,11 @@ class CreateArtifactCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class CreateArtifactVersionCommand:
     artifact_id: ArtifactId
     data: bytes | None
-    content_hash: str | ContentHash | None
+    content_hash: str | None
     locator: str | None
     media_type: str | None
     byte_size: int | None
@@ -536,7 +537,7 @@ class CreateArtifactVersionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class UpdateArtifactVersionDraftCommand:
     artifact_id: ArtifactId
     version_id: ArtifactVersionId
@@ -548,7 +549,7 @@ class UpdateArtifactVersionDraftCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class FreezeArtifactVersionCommand:
     artifact_id: ArtifactId
     version_id: ArtifactVersionId
@@ -556,7 +557,7 @@ class FreezeArtifactVersionCommand:
     expected_row_version: int | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class AbandonArtifactVersionCommand:
     artifact_id: ArtifactId
     version_id: ArtifactVersionId
@@ -564,7 +565,7 @@ class AbandonArtifactVersionCommand:
     context: ExecutionContext
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class SetArtifactCurrentVersionCommand:
     artifact_id: ArtifactId
     version_id: ArtifactVersionId

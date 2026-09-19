@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from researchbase.application.config import application_dto_dataclass
 from researchbase.domain.artifact import ArtifactId, ArtifactVersionId
 from researchbase.domain.claim import (
     ClaimId,
@@ -35,7 +35,6 @@ from researchbase.domain.run import (
     RunStatus,
 )
 from researchbase.domain.statistical_result import StatisticalResultId
-from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
 
@@ -79,7 +78,7 @@ def write_result(value: Any, server_timestamp: datetime) -> WriteResult:
     )
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ActorReadModel:
     id: ActorId
     actor_type: ActorType
@@ -90,7 +89,7 @@ class ActorReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ProjectReadModel:
     id: ProjectId
     name: str
@@ -101,7 +100,7 @@ class ProjectReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class WorkspaceReadModel:
     id: WorkspaceId
     project_id: ProjectId
@@ -113,7 +112,7 @@ class WorkspaceReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ResearchQuestionVersionReadModel:
     id: ResearchQuestionVersionId
     research_question_id: ResearchQuestionId
@@ -122,7 +121,7 @@ class ResearchQuestionVersionReadModel:
     question_text: str
     scope: object | None
     rationale: str | None
-    content_hash: ContentHash | None
+    content_hash: str | None
     hash_scheme: str | None
     created_by: ActorId
     created_at: datetime
@@ -130,7 +129,7 @@ class ResearchQuestionVersionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ResearchQuestionReadModel:
     id: ResearchQuestionId
     project_id: ProjectId
@@ -140,7 +139,7 @@ class ResearchQuestionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class HypothesisVersionReadModel:
     id: HypothesisVersionId
     hypothesis_id: HypothesisId
@@ -150,7 +149,7 @@ class HypothesisVersionReadModel:
     expected_direction: str | None
     success_criteria: object | None
     rationale: str | None
-    content_hash: ContentHash | None
+    content_hash: str | None
     hash_scheme: str | None
     created_by: ActorId
     created_at: datetime
@@ -158,7 +157,7 @@ class HypothesisVersionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class HypothesisReadModel:
     id: HypothesisId
     project_id: ProjectId
@@ -169,7 +168,7 @@ class HypothesisReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ExperimentSpecVersionReadModel:
     id: ExperimentSpecVersionId
     experiment_spec_id: ExperimentSpecId
@@ -181,7 +180,7 @@ class ExperimentSpecVersionReadModel:
     planned_metrics: object | None
     seed_policy: object | None
     analysis_plan: object | None
-    content_hash: ContentHash | None
+    content_hash: str | None
     hash_scheme: str | None
     created_by: ActorId
     created_at: datetime
@@ -189,7 +188,7 @@ class ExperimentSpecVersionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ExperimentSpecReadModel:
     id: ExperimentSpecId
     project_id: ProjectId
@@ -200,7 +199,7 @@ class ExperimentSpecReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class DatasetReadModel:
     id: DatasetId
     project_id: ProjectId | None
@@ -213,19 +212,19 @@ class DatasetReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class DatasetSnapshotReadModel:
     id: DatasetSnapshotId
     dataset_id: DatasetId
-    manifest_hash: ContentHash
+    manifest_hash: str
     selection_definition: object
     manifest_locator: str | None
-    content_hash: ContentHash
+    content_hash: str
     created_by: ActorId
     created_at: datetime
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ArtifactReadModel:
     id: ArtifactId
     project_id: ProjectId | None
@@ -238,7 +237,7 @@ class ArtifactReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ArtifactVersionReadModel:
     id: ArtifactVersionId
     artifact_id: ArtifactId
@@ -247,7 +246,7 @@ class ArtifactVersionReadModel:
     locator: str | None
     media_type: str | None
     byte_size: int | None
-    content_hash: ContentHash
+    content_hash: str
     metadata: object | None
     created_by: ActorId
     created_at: datetime
@@ -255,7 +254,7 @@ class ArtifactVersionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class MetricDefinitionVersionReadModel:
     id: MetricDefinitionVersionId
     metric_definition_id: MetricDefinitionId
@@ -264,7 +263,7 @@ class MetricDefinitionVersionReadModel:
     definition: object
     unit: str | None
     aggregation: str | None
-    content_hash: ContentHash | None
+    content_hash: str | None
     hash_scheme: str | None
     created_by: ActorId
     created_at: datetime
@@ -272,7 +271,7 @@ class MetricDefinitionVersionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class MetricDefinitionReadModel:
     id: MetricDefinitionId
     project_id: ProjectId | None
@@ -283,7 +282,7 @@ class MetricDefinitionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class MeasurementReadModel:
     id: MeasurementId
     run_id: RunId
@@ -292,24 +291,24 @@ class MeasurementReadModel:
     structured_value: object | None
     unit: str | None
     evaluation_scope: object | None
-    content_hash: ContentHash
+    content_hash: str
     created_by: ActorId
     created_at: datetime
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class StatisticalResultReadModel:
     id: StatisticalResultId
     project_id: ProjectId
     analysis_type: str
     result_payload: object
     analysis_definition: object
-    content_hash: ContentHash
+    content_hash: str
     created_by: ActorId
     created_at: datetime
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class StatisticalResultInputReadModel:
     statistical_result_id: StatisticalResultId
     measurement_id: MeasurementId
@@ -317,7 +316,7 @@ class StatisticalResultInputReadModel:
     ordinal: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ClaimReadModel:
     id: ClaimId
     project_id: ProjectId
@@ -327,7 +326,7 @@ class ClaimReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ClaimVersionReadModel:
     id: ClaimVersionId
     claim_id: ClaimId
@@ -336,8 +335,8 @@ class ClaimVersionReadModel:
     statement: str
     scope: object | None
     qualification: str | None
-    support_set_hash: ContentHash | None
-    content_hash: ContentHash | None
+    support_set_hash: str | None
+    content_hash: str | None
     hash_scheme: str | None
     created_by: ActorId
     created_at: datetime
@@ -345,7 +344,7 @@ class ClaimVersionReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class EvidenceRelationReadModel:
     id: EvidenceRelationId
     claim_version_id: ClaimVersionId
@@ -357,7 +356,7 @@ class EvidenceRelationReadModel:
     created_at: datetime
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RunReadModel:
     id: RunId
     project_id: ProjectId
@@ -374,7 +373,7 @@ class RunReadModel:
     row_version: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RunDatasetInputReadModel:
     run_id: RunId
     dataset_snapshot_id: DatasetSnapshotId
@@ -382,7 +381,7 @@ class RunDatasetInputReadModel:
     ordinal: int
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class RunArtifactInputReadModel:
     run_id: RunId
     artifact_version_id: ArtifactVersionId

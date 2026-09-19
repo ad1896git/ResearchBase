@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, cast
 from uuid import UUID
 
+from researchbase.application.config import application_dto_dataclass
 from researchbase.application.governance import TargetResolverRegistry
 from researchbase.application.ports import UnitOfWork
 from researchbase.domain.governance import (
@@ -19,7 +19,7 @@ from researchbase.domain.governance import (
 from researchbase.domain.organization import ProjectId
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class DownstreamImpactPath:
     target_type: GovernanceTargetType
     target_id: UUID
@@ -32,7 +32,7 @@ class DownstreamImpactPath:
     statistical_input_ordinal: int | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class DownstreamImpactTarget:
     target_type: GovernanceTargetType
     target_id: UUID
@@ -49,7 +49,7 @@ class ValidityState(StrEnum):
     UNKNOWN = "unknown"
 
 
-@dataclass(frozen=True, slots=True)
+@application_dto_dataclass
 class ValidityProjection:
     target_type: GovernanceTargetType
     target_id: UUID

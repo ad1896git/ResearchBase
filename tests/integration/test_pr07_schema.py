@@ -151,7 +151,7 @@ def test_pr07_restrict_foreign_keys_block_referenced_deletes(engine: Engine) -> 
         connection.execute(
             text(
                 "INSERT INTO actors (id, actor_type, display_name, created_at, row_version) "
-                "VALUES (:id, 'human', 'PR-07 schema actor', now(), 1)"
+                "VALUES (:id, 'HUMAN', 'PR-07 schema actor', now(), 1)"
             ),
             {"id": actor_id},
         )
