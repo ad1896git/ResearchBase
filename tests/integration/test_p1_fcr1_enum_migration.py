@@ -219,6 +219,36 @@ def test_0017_preserves_role_token_checks_and_open_vocabulary_columns(
     assert len(open_columns) == 5
 
 
+def test_0017_downgrade_rejects_unknown_canonical_before_mutation(
+    migration_database: tuple[str, Engine],
+) -> None:
+    database_url, engine = migration_database
+    result = _run_alembic(database_url, "upgrade", "0017_persisted_canonical_enum_normalization")
+    assert result.returncode == 0, result.stdout + result.stderr
+    actor_id = uuid4()
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE actors DROP CONSTRAINT ck_actors_actor_type"))
+        connection.execute(
+            text(
+                "INSERT INTO actors(id, actor_type, display_name, created_at) "
+                "VALUES (:id, 'BAD_CANONICAL', 'invalid canonical actor', now())"
+            ),
+            {"id": actor_id},
+        )
+    result = _run_alembic(database_url, "downgrade", "0016_pr17d_history_protection")
+    assert result.returncode != 0
+    with engine.connect() as connection:
+        assert (
+            connection.execute(
+                text("SELECT actor_type FROM actors WHERE id=:id"), {"id": actor_id}
+            ).scalar_one()
+            == "BAD_CANONICAL"
+        )
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0017_persisted_canonical_enum_normalization"
+        )
+
+
 def test_0017_rejects_unknown_before_schema_mutation(
     migration_database: tuple[str, Engine],
 ) -> None:
