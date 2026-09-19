@@ -36,6 +36,7 @@ def test_public_application_records_are_pydantic_dataclasses() -> None:
         assert config["from_attributes"] is False
         assert config["arbitrary_types_allowed"] is False
         assert config["use_enum_values"] is False
+        assert config["strict"] is False
 
 
 def test_public_command_preserves_positional_constructor_and_defaults() -> None:

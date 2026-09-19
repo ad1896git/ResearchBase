@@ -17,6 +17,7 @@ APPLICATION_DTO_CONFIG = ConfigDict(
     from_attributes=False,
     arbitrary_types_allowed=False,
     use_enum_values=False,
+    strict=False,
 )
 
 
