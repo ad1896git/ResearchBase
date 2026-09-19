@@ -5,7 +5,7 @@
     "all_required_checks": "PASS",
     "current_remediation_skips": 0
   },
-  "implementation_subject_head": "5794b405eca1b4804475d20eb3bc978797bdc777",
+  "implementation_subject_head": "4a5a66cd0f61e59c4ad6253b7bb592fb4d908840",
   "observed": {
     "catalog_verdict": "PASS",
     "current_remediation_skips": 0,

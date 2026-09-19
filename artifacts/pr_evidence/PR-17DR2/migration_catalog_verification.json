@@ -3630,9 +3630,9 @@
     }
   },
   "database": {
-    "alembic_revision": "0016_pr17d_history_protection",
+    "alembic_revision": "0017_persisted_canonical_enum_normalization",
     "credentials": "redacted",
-    "database": "researchbase",
+    "database": "researchbase_p1fcr1_full_20260919",
     "schema": "public",
     "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
     "version_number": "18.6"
@@ -6388,7 +6388,7 @@
       }
     ]
   },
-  "implementation_subject_head": "5794b405eca1b4804475d20eb3bc978797bdc777",
+  "implementation_subject_head": "4a5a66cd0f61e59c4ad6253b7bb592fb4d908840",
   "non_public_owned_functions": [],
   "observed": {
     "constraints": [],
