@@ -50,7 +50,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -94,7 +94,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -138,7 +138,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -182,7 +182,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -233,7 +233,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -245,11 +245,11 @@
     },
     "full_pytest": {
       "collection": {
-        "collected": 1136,
+        "collected": 1137,
         "command": "uv run pytest --collect-only -o addopts= -q -ra",
         "deselected": 0,
         "return_code": 0,
-        "total_discovered": 1136
+        "total_discovered": 1137
       },
       "command": "uv run pytest -q -ra --junitxml=.pr17dr_evidence_results/full_pytest.xml",
       "command_fingerprint": "9f3f509206a2b737b9e63d990aeeb35ba90cc6a5a97374e3481f19db629e4e33",
@@ -263,20 +263,20 @@
         "--junitxml=.pr17dr_evidence_results/full_pytest.xml"
       ],
       "counts": {
-        "collected": 1136,
+        "collected": 1137,
         "deselected": 0,
         "error": 0,
         "failed": 0,
-        "passed": 1134,
+        "passed": 1135,
         "skipped": 2,
-        "total_discovered": 1136,
+        "total_discovered": 1137,
         "xfailed": 0,
         "xpassed": 0
       },
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -313,7 +313,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -362,7 +362,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -406,7 +406,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -450,7 +450,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -494,7 +494,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -508,9 +508,9 @@
       "collection": {
         "collected": 342,
         "command": "uv run pytest --collect-only -o addopts= -q -ra -m integration",
-        "deselected": 794,
+        "deselected": 795,
         "return_code": 0,
-        "total_discovered": 1136
+        "total_discovered": 1137
       },
       "command": "uv run pytest -q -ra -m integration --junitxml=.pr17dr_evidence_results/postgresql_integration.xml",
       "command_fingerprint": "7383ebeb4bd459a1478847023e873ee3de6a6f4c5210aabc64cb9be8a3d842bd",
@@ -527,19 +527,19 @@
       ],
       "counts": {
         "collected": 342,
-        "deselected": 794,
+        "deselected": 795,
         "error": 0,
         "failed": 0,
         "passed": 340,
         "skipped": 2,
-        "total_discovered": 1136,
+        "total_discovered": 1137,
         "xfailed": 0,
         "xpassed": 0
       },
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -596,7 +596,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -640,7 +640,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -685,7 +685,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -709,7 +709,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -759,7 +759,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -785,7 +785,7 @@
       "database": {
         "alembic_revision": "0017_persisted_canonical_enum_normalization",
         "credentials": "redacted",
-        "database": "researchbase_p1fcr1_full_20260919",
+        "database": "researchbase_p1_fcr2_evidence_20260920_01",
         "schema": "public",
         "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
         "version_number": "18.6"
@@ -799,14 +799,14 @@
   "database": {
     "alembic_revision": "0017_persisted_canonical_enum_normalization",
     "credentials": "redacted",
-    "database": "researchbase_p1fcr1_full_20260919",
+    "database": "researchbase_p1_fcr2_evidence_20260920_01",
     "schema": "public",
     "server_version": "PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
     "version_number": "18.6"
   },
   "evidence_commit": null,
   "evidence_protocol": "non-self-referential-v1",
-  "implementation_subject_head": "4a5a66cd0f61e59c4ad6253b7bb592fb4d908840",
+  "implementation_subject_head": "de6c7694416635c4f7cb07635d69f12393ebb866",
   "pytest_count_semantics": {
     "collected": "tests selected for this invocation",
     "deselected": "discovered tests excluded by marker or filter",

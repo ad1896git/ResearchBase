@@ -1,0 +1,59 @@
+{
+  "schema": "p1-fcr2-ci-head-closure-v1",
+  "evidence_protocol": "non-self-referential-v1",
+  "implementation_subject_head": "de6c7694416635c4f7cb07635d69f12393ebb866",
+  "implementation_parent": "26e4a64e04e8b950e948e76a6747761892a63f76",
+  "evidence_commit": null,
+  "historical_subject": "4a5a66cd0f61e59c4ad6253b7bb592fb4d908840",
+  "old_reproduction": {
+    "actual_head": "0017_persisted_canonical_enum_normalization",
+    "stale_expected_head": "0016_pr17d_history_protection",
+    "result": "mismatch",
+    "reproduced": true
+  },
+  "current_verification": {
+    "repository_head": "0017_persisted_canonical_enum_normalization",
+    "ci_expected_head": "0017_persisted_canonical_enum_normalization",
+    "fresh_database": "researchbase_p1_fcr2_evidence_20260920_01",
+    "postgresql": "18.6",
+    "alembic_upgrade_head": "PASS",
+    "ci_head_assertion": "PASS",
+    "focused_contract_tests": {
+      "selected": 1,
+      "passed": 1,
+      "failed": 0,
+      "return_code": 0
+    },
+    "full_pytest": {
+      "discovered": 1137,
+      "passed": 1135,
+      "failed": 0,
+      "skipped": 2,
+      "return_code": 0
+    },
+    "postgresql_integration": {
+      "selected": 342,
+      "deselected": 795,
+      "passed": 340,
+      "failed": 0,
+      "skipped": 2,
+      "return_code": 0
+    }
+  },
+  "ci_ordering": [
+    "PostgreSQL available",
+    "alembic upgrade head",
+    "verify migration head",
+    "run database-backed tests"
+  ],
+  "scope": {
+    "migrations_changed": false,
+    "semantic_runtime_code_changed": false,
+    "changed_files": [
+      ".github/workflows/ci.yml",
+      "tests/unit/test_ci_migration_head.py"
+    ]
+  },
+  "verdict": "PASS",
+  "source": "fresh commands from the frozen P1-FCR2 subject"
+}

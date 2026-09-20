@@ -752,7 +752,7 @@
       }
     }
   ],
-  "implementation_subject_head": "4a5a66cd0f61e59c4ad6253b7bb592fb4d908840",
+  "implementation_subject_head": "de6c7694416635c4f7cb07635d69f12393ebb866",
   "ownership_predicate": "left(object_name, 6) = 'pr17d_'",
   "schema": "pr17dr-migration-object-manifest-v1",
   "triggers": [
