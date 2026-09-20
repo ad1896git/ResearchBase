@@ -1,0 +1,46 @@
+{
+  "protocol": "non-self-referential-v1",
+  "fresh_postgresql": {
+    "version": "18.6",
+    "repository_head": "0017_persisted_canonical_enum_normalization",
+    "database_head": "0017_persisted_canonical_enum_normalization",
+    "ci_head_contract": "PASS"
+  },
+  "full_pytest": {
+    "discovered": 1137,
+    "selected": 1137,
+    "deselected": 0,
+    "passed": 1135,
+    "failed": 0,
+    "skipped": 2,
+    "xfailed": 0,
+    "xpassed": 0,
+    "errors": 0,
+    "return_code": 0
+  },
+  "postgresql_integration": {
+    "selected": 342,
+    "deselected": 795,
+    "passed": 340,
+    "failed": 0,
+    "skipped": 2,
+    "errors": 0,
+    "return_code": 0
+  },
+  "accepted_skips": [
+    "tests.integration.test_pr11r2_migration::test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head",
+    "tests.integration.test_pr11r2_migration::test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries"
+  ],
+  "static": {
+    "ruff_lint": "PASS",
+    "ruff_format": "PASS_FOR_CHANGED_FILES",
+    "inherited_formatter_debt": 9,
+    "current_formatting_regression": "NO",
+    "pyright": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "s03": "PASS",
+  "s04": "PASS",
+  "pr18_false_positive_risk": "LOW",
+  "phase2_leakage": "NO"
+}

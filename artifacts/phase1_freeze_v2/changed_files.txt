@@ -1,0 +1,5 @@
+artifacts/phase1_freeze_v2/freeze_manifest.json
+artifacts/phase1_freeze_v2/freeze_summary.md
+artifacts/phase1_freeze_v2/verification_summary.json
+artifacts/phase1_freeze_v2/source_identity.json
+artifacts/phase1_freeze_v2/changed_files.txt

@@ -1,0 +1,10 @@
+{
+  "protocol": "non-self-referential-v1",
+  "implementation_subject_sha": "de6c7694416635c4f7cb07635d69f12393ebb866",
+  "accepted_evidence_sha": "cad9f0bab48f836e04bca0a31c7e24632a1961ee",
+  "freeze_parent_sha": "cad9f0bab48f836e04bca0a31c7e24632a1961ee",
+  "implementation_parent_sha": "26e4a64e04e8b950e948e76a6747761892a63f76",
+  "evidence_parent_sha": "de6c7694416635c4f7cb07635d69f12393ebb866",
+  "historical_phase1_tag_target": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+  "semantic_source_changes_in_freeze_commit": false
+}
