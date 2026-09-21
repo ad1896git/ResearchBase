@@ -36,5 +36,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0017_persisted_canonical_enum_normalization (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0018_current_pointer_same_parent_integrity (head)"
       - run: uv run pytest

@@ -256,7 +256,9 @@ def test_fresh_install_reaches_0017_with_exact_catalog() -> None:
     if not base_url:
         pytest.skip("DATABASE_URL is not set; run against PostgreSQL 18")
     with _temporary_database(base_url) as (database_url, engine):
-        _assert_alembic_ok(_run_alembic(database_url, "upgrade", "head"))
+        _assert_alembic_ok(
+            _run_alembic(database_url, "upgrade", "0017_persisted_canonical_enum_normalization")
+        )
         _assert_0017_catalog(engine)
 
 
@@ -308,10 +310,14 @@ def test_upgrade_downgrade_upgrade_has_same_semantic_catalog() -> None:
     if not base_url:
         pytest.skip("DATABASE_URL is not set; run against PostgreSQL 18")
     with _temporary_database(base_url) as (database_url, engine):
-        _assert_alembic_ok(_run_alembic(database_url, "upgrade", "head"))
+        _assert_alembic_ok(
+            _run_alembic(database_url, "upgrade", "0017_persisted_canonical_enum_normalization")
+        )
         first = _catalog(engine)[:3]
         _assert_alembic_ok(_run_alembic(database_url, "downgrade", "0015_governance_audit"))
-        _assert_alembic_ok(_run_alembic(database_url, "upgrade", "head"))
+        _assert_alembic_ok(
+            _run_alembic(database_url, "upgrade", "0017_persisted_canonical_enum_normalization")
+        )
         assert _catalog(engine)[:3] == first
         _assert_0017_catalog(engine)
 

@@ -92,7 +92,11 @@ def test_pr08_schema_is_exact_and_restrictive(engine: Engine) -> None:
                 "AND tc.constraint_type='UNIQUE'"
             )
         ).all()
-        assert {row.column_name for row in uniques} == {"metric_definition_id", "version_number"}
+        assert {row.column_name for row in uniques} == {
+            "id",
+            "metric_definition_id",
+            "version_number",
+        }
 
 
 def test_pr08_status_and_version_checks_exist(engine: Engine) -> None:

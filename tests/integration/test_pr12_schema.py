@@ -109,6 +109,7 @@ def test_claim_constraints_indexes_and_fks_are_exact(engine: Engine) -> None:
         "claims_project_id_fkey",
         "claims_created_by_fkey",
         "fk_claim_current_version",
+        "fk_claims_current_version_same_parent",
     }
     assert set(constraints["claim_versions"]) == {
         "claim_versions_pkey",
@@ -117,6 +118,7 @@ def test_claim_constraints_indexes_and_fks_are_exact(engine: Engine) -> None:
         "ck_claim_versions_version_number",
         "ck_claim_versions_status",
         "uq_claim_versions_parent_version",
+        "uq_claim_versions_parent_id_id",
     }
     assert set(constraints["evidence_relations"]) == {
         "evidence_relations_pkey",

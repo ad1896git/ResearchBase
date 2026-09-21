@@ -2843,7 +2843,7 @@ def collect_catalog_verification(engine: Engine) -> dict[str, Any]:
                     "am.amname AS access_method, "
                     "array_agg(a.attname ORDER BY keys.ordinality) AS columns, "
                     "array_agg(opc.opcname ORDER BY keys.ordinality) AS operator_classes, "
-                    "(pc.conindid IS NOT NULL) AS constraint_backed "
+                    "COALESCE(pc.constraint_backed, false) AS constraint_backed "
                     "FROM pg_index AS i "
                     "JOIN pg_class AS c ON c.oid = i.indexrelid "
                     "JOIN pg_namespace AS n ON n.oid = c.relnamespace "
@@ -2853,10 +2853,12 @@ def collect_catalog_verification(engine: Engine) -> dict[str, Any]:
                     "AS keys(attnum, opclass_oid, ordinality) ON true "
                     "JOIN pg_attribute AS a ON a.attrelid = i.indrelid AND a.attnum = keys.attnum "
                     "JOIN pg_opclass AS opc ON opc.oid = keys.opclass_oid "
-                    "LEFT JOIN pg_constraint AS pc ON pc.conindid = i.indexrelid "
+                    "LEFT JOIN (SELECT conindid, true AS constraint_backed "
+                    "FROM pg_constraint WHERE conindid IS NOT NULL GROUP BY conindid) AS pc "
+                    "ON pc.conindid = i.indexrelid "
                     "WHERE n.nspname = 'public' AND c.relname = ANY(:names) "
                     "GROUP BY c.relname, t.relname, i.indisunique, i.indisvalid, i.indisready, "
-                    "i.indpred, i.indrelid, am.amname, pc.conindid"
+                    "i.indpred, i.indrelid, am.amname, pc.constraint_backed"
                 ),
                 {"names": sorted(expected_names)},
             )

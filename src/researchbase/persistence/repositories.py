@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import case, delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
@@ -94,6 +95,27 @@ from researchbase.persistence.models import (
     StatisticalResultModel,
     WorkspaceModel,
 )
+
+
+def _ensure_current_pointer_parent(
+    session: Session,
+    identity_id: UUID,
+    current_version_id: UUID | None,
+    version_model: type[Any],
+    parent_column: str,
+    resource: str,
+) -> None:
+    if current_version_id is None:
+        return
+    parent_id = session.scalar(
+        select(getattr(version_model, parent_column)).where(version_model.id == current_version_id)
+    )
+    if parent_id != identity_id:
+        raise ResearchBaseError(
+            ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+            f"{resource} current version must belong to the {resource}",
+            {"id": str(identity_id), "current_version_id": str(current_version_id)},
+        )
 
 
 class SqlAlchemyActorRepository:
@@ -235,6 +257,14 @@ class SqlAlchemyResearchQuestionRepository:
         question = self.get(question_id)
         if question is None or question.current_version_id is None:
             return None
+        _ensure_current_pointer_parent(
+            self._session,
+            question.id,
+            question.current_version_id,
+            ResearchQuestionVersionModel,
+            "research_question_id",
+            "research question",
+        )
         return self.get_version(question.current_version_id)
 
     def list_history(self, question_id: ResearchQuestionId) -> list[ResearchQuestionVersion]:
@@ -367,6 +397,14 @@ class SqlAlchemyHypothesisRepository:
         hypothesis = self.get(hypothesis_id)
         if hypothesis is None or hypothesis.current_version_id is None:
             return None
+        _ensure_current_pointer_parent(
+            self._session,
+            hypothesis.id,
+            hypothesis.current_version_id,
+            HypothesisVersionModel,
+            "hypothesis_id",
+            "hypothesis",
+        )
         return self.get_version(hypothesis.current_version_id)
 
     def list_history(self, hypothesis_id: HypothesisId) -> list[HypothesisVersion]:
@@ -514,6 +552,14 @@ class SqlAlchemyExperimentSpecRepository:
         spec = self.get(spec_id)
         if spec is None or spec.current_version_id is None:
             return None
+        _ensure_current_pointer_parent(
+            self._session,
+            spec.id,
+            spec.current_version_id,
+            ExperimentSpecVersionModel,
+            "experiment_spec_id",
+            "experiment spec",
+        )
         return self.get_version(spec.current_version_id)
 
     def list_history(self, spec_id: ExperimentSpecId) -> list[ExperimentSpecVersion]:
@@ -1252,6 +1298,14 @@ class SqlAlchemyClaimRepository:
         claim = self.get(claim_id)
         if claim is None or claim.current_version_id is None:
             return None
+        _ensure_current_pointer_parent(
+            self._session,
+            claim.id,
+            claim.current_version_id,
+            ClaimVersionModel,
+            "claim_id",
+            "claim",
+        )
         return self.get_version(claim.current_version_id)
 
     def list_history(self, claim_id: ClaimId) -> list[ClaimVersion]:
