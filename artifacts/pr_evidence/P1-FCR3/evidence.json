@@ -1,0 +1,135 @@
+{
+  "schema": "p1-fcr3-evidence-non-self-referential-v1",
+  "source_subject": "503e1c2cf0baa1d806afc9a34099257406042354",
+  "source_parent": "7012d3c95aea8b2da195abb1a54489ca717deaba",
+  "protocol": "non-self-referential-v1",
+  "stale_reuse": false,
+  "evidence_only_commit": true,
+  "postgresql": "18.6",
+  "alembic_head": "0018_current_pointer_same_parent_integrity",
+  "migration": {
+    "revision": "0018_current_pointer_same_parent_integrity",
+    "down_revision": "0017_persisted_canonical_enum_normalization",
+    "previous_migrations_modified": false,
+    "new_functions": 0,
+    "new_triggers": 0,
+    "supporting_unique_constraints": 6,
+    "same_parent_composite_foreign_keys": 6,
+    "upgrade_order": [
+      "all-six-family-preflight",
+      "supporting-unique-constraints",
+      "composite-foreign-keys",
+      "catalog-postcondition-verification"
+    ],
+    "corrupt_upgrade": {
+      "cross_parent": "failed before DDL; alembic_version remained 0017",
+      "missing_target": "failed before DDL; alembic_version remained 0017",
+      "multiple_families": "failed before DDL; no partial family coverage",
+      "auto_repair": false
+    },
+    "downgrade": "removed only the six P1-FCR3 foreign keys and six supporting unique constraints",
+    "roundtrip": "0017 -> 0018 -> 0017 -> 0018 passed"
+  },
+  "catalog": {
+    "validated_constraints": 12,
+    "unique_constraints": [
+      "uq_research_question_versions_parent_id_id",
+      "uq_hypothesis_versions_parent_id_id",
+      "uq_experiment_spec_versions_parent_id_id",
+      "uq_artifact_versions_parent_id_id",
+      "uq_metric_definition_versions_parent_id_id",
+      "uq_claim_versions_parent_id_id"
+    ],
+    "composite_foreign_keys": [
+      "fk_research_questions_current_version_same_parent",
+      "fk_hypotheses_current_version_same_parent",
+      "fk_experiment_specs_current_version_same_parent",
+      "fk_artifacts_current_version_same_parent",
+      "fk_metric_definitions_current_version_same_parent",
+      "fk_claims_current_version_same_parent"
+    ],
+    "all_convalidated": true,
+    "unexpected_p1_fcr3_objects": 0
+  },
+  "direct_sql": {
+    "families": 6,
+    "pre_fix_cross_parent_commits_accepted": 6,
+    "post_fix_null_accepted": 6,
+    "post_fix_same_parent_accepted": 6,
+    "post_fix_cross_parent_rejected": 6,
+    "post_fix_nonexistent_target_rejected": 6,
+    "post_fix_cross_family_target_rejected": 6,
+    "cross_parent_sqlstate": "23503",
+    "oracle": "direct PostgreSQL sessions, not Application validation"
+  },
+  "read_path": {
+    "legacy_cross_parent_reads_rejected": 4,
+    "repositories": [
+      "ResearchQuestion",
+      "Hypothesis",
+      "ExperimentSpec",
+      "Claim"
+    ],
+    "error_code": "REFERENTIAL_INTEGRITY_ERROR",
+    "artifact_and_metric_existing_dereference_guards_preserved": true
+  },
+  "concurrency": {
+    "families": 6,
+    "two_session_same_parent_vs_cross_parent_races": 6,
+    "new_reproduced_deadlocks": 0,
+    "optimistic_concurrency_regression": 0
+  },
+  "hash_and_provenance": {
+    "content_hash_rewrites": 0,
+    "support_set_hash_rewrites": 0,
+    "governance_hash_rewrites": 0,
+    "artifact_hash_rewrites": 0,
+    "provenance_rewrites": 0,
+    "migration_contains_data_rewrite": false
+  },
+  "tests": {
+    "focused_p1_fcr3": {
+      "selected": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "errors": 0,
+      "return_code": 0
+    },
+    "full": {
+      "discovered": 1177,
+      "passed": 1175,
+      "failed": 0,
+      "skipped": 2,
+      "xfailed": 0,
+      "xpassed": 0,
+      "errors": 0,
+      "return_code": 0,
+      "accepted_skips": "two PR11R2 migration tests"
+    },
+    "postgresql_marked": {
+      "selected": 382,
+      "passed": 380,
+      "failed": 0,
+      "skipped": 2,
+      "errors": 0,
+      "return_code": 0
+    }
+  },
+  "static": {
+    "ruff_check": "passed",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "changed_file_formatting": "passed",
+    "git_diff_check": "passed",
+    "whole_tree_formatter": "9 inherited S13 files remain; no P1-FCR3 file added"
+  },
+  "tags": {
+    "phase1-final": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+    "phase1-final-v2": "7012d3c95aea8b2da195abb1a54489ca717deaba"
+  },
+  "phase_boundary": {
+    "phase2": "untouched and unauthorized",
+    "agent_runtime": "absent",
+    "freeze_v3": "not created"
+  }
+}
