@@ -1,0 +1,14 @@
+{
+  "protocol": "non-self-referential-v1",
+  "freeze_version": "phase1-final-v3",
+  "implementation_subject_sha": "503e1c2cf0baa1d806afc9a34099257406042354",
+  "accepted_evidence_sha": "a1cff72f4e8848217f56d11e757fc8bb410c8d6f",
+  "freeze_parent_sha": "a1cff72f4e8848217f56d11e757fc8bb410c8d6f",
+  "implementation_parent_sha": "7012d3c95aea8b2da195abb1a54489ca717deaba",
+  "evidence_parent_sha": "503e1c2cf0baa1d806afc9a34099257406042354",
+  "historical_phase1_tag_target": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+  "historical_phase1_v2_tag_target": "7012d3c95aea8b2da195abb1a54489ca717deaba",
+  "intended_phase1_final_v3_tag": "phase1-final-v3",
+  "semantic_source_changes_in_freeze_commit": false,
+  "self_referential_freeze_sha": "ABSENT"
+}

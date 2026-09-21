@@ -1,0 +1,78 @@
+{
+  "protocol": "non-self-referential-v1",
+  "fresh_postgresql": {
+    "version": "18.6",
+    "repository_head": "0018_current_pointer_same_parent_integrity",
+    "database_head": "0018_current_pointer_same_parent_integrity",
+    "supporting_unique_count": 6,
+    "composite_same_parent_fk_count": 6,
+    "rb_p1_001_release_smoke": "PASS",
+    "ci_head_contract": "PASS"
+  },
+  "read_path_release_smoke": {
+    "canonical_dereference_paths": 5,
+    "parent_verified": 5,
+    "artifact_canonical_current_version_dereference": "ABSENT",
+    "read_path_coverage_gap": "NO"
+  },
+  "migration_lifecycle": {
+    "empty_to_0018": "PASS",
+    "valid_populated_0017_to_0018": "PASS",
+    "corrupt_0017_to_0018": "FAIL_CLOSED",
+    "0018_to_0017_to_0018": "PASS",
+    "auto_repair_corrupt_current_pointers": "NO",
+    "partial_new_constraint_state_on_corrupt_upgrade": "NO"
+  },
+  "full_pytest": {
+    "discovered": 1177,
+    "selected": 1177,
+    "deselected": 0,
+    "passed": 1175,
+    "failed": 0,
+    "skipped": 2,
+    "xfailed": 0,
+    "xpassed": 0,
+    "errors": 0,
+    "return_code": 0
+  },
+  "postgresql_integration": {
+    "selected": 382,
+    "deselected": 795,
+    "passed": 380,
+    "failed": 0,
+    "skipped": 2,
+    "errors": 0,
+    "return_code": 0
+  },
+  "accepted_skips": [
+    "tests.integration.test_pr11r2_migration::test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head",
+    "tests.integration.test_pr11r2_migration::test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries"
+  ],
+  "focused_regression": {
+    "p1_fcr3": "PASS",
+    "s03": "PASS",
+    "s04": "PASS",
+    "run": "PASS",
+    "measurement_statistical_result": "PASS",
+    "claim": "PASS",
+    "governance": "PASS",
+    "artifact_store": "PASS",
+    "architecture": "PASS",
+    "pr18": "PASS",
+    "pr18_false_positive_risk": "LOW"
+  },
+  "static": {
+    "ruff_lint": "PASS",
+    "ruff_format_changed_files": "PASS",
+    "inherited_formatter_debt": 9,
+    "current_formatting_regression": "NO",
+    "pyright": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "hash_provenance": {
+    "hash_rewrites": 0,
+    "scientific_row_rewrites": 0,
+    "provenance_rewrites": 0
+  },
+  "phase2_leakage": "NO"
+}

@@ -1,0 +1,108 @@
+{
+  "freeze_protocol": "non-self-referential-v1",
+  "freeze_version": "phase1-final-v3",
+  "implementation_subject_sha": "503e1c2cf0baa1d806afc9a34099257406042354",
+  "accepted_evidence_sha": "a1cff72f4e8848217f56d11e757fc8bb410c8d6f",
+  "freeze_parent_sha": "a1cff72f4e8848217f56d11e757fc8bb410c8d6f",
+  "historical_phase1_tag": "phase1-final",
+  "historical_phase1_tag_target": "5fe5dd90310d68d6df1683307f0d24dd2233c3dd",
+  "historical_phase1_v2_tag": "phase1-final-v2",
+  "historical_phase1_v2_tag_target": "7012d3c95aea8b2da195abb1a54489ca717deaba",
+  "new_freeze_tag": "phase1-final-v3",
+  "postgresql_version": "18.6",
+  "alembic_head": "0018_current_pointer_same_parent_integrity",
+  "full_test_counts": {
+    "discovered": 1177,
+    "selected": 1177,
+    "deselected": 0,
+    "passed": 1175,
+    "failed": 0,
+    "skipped": 2,
+    "xfailed": 0,
+    "xpassed": 0,
+    "errors": 0,
+    "return_code": 0
+  },
+  "postgresql_integration_counts": {
+    "selected": 382,
+    "deselected": 795,
+    "passed": 380,
+    "failed": 0,
+    "skipped": 2,
+    "errors": 0,
+    "return_code": 0
+  },
+  "static_check_results": {
+    "ruff_lint": "PASS",
+    "ruff_format": "PASS_FOR_P1_FCR3_FILES_INHERITED_DEBT_REMAINS",
+    "current_formatting_regression": "NO",
+    "pyright": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "p0_count": 0,
+  "p1_count": 0,
+  "p2_count": 0,
+  "accepted_p3_findings": [
+    "S13",
+    "S16",
+    "MetricDefinition ORM metadata drift"
+  ],
+  "rb_p1_001_closed": true,
+  "p1_fcr3_closed": true,
+  "deep_audit_known_p1_count": 0,
+  "deep_audit_known_p2_count": 0,
+  "final_phase1_design_conformance": "PASS",
+  "corrected_phase1_implementation_complete": true,
+  "phase2_authorized": false,
+  "phase1_freeze_v3_executed": true,
+  "architecture_document_versions": {
+    "System Architecture": {
+      "path": "docs/architecture/01_ResearchBase_System_Architecture_v1.3_Harness_Integrated.md",
+      "blob_sha": "74f174ff07d35db3c60ba6fb6382c7d4158425ff"
+    },
+    "Final Architecture Correction Addendum": {
+      "path": "docs/architecture/02_Final_Architecture_Correction_Addendum_v1.0.md",
+      "blob_sha": "b8f1ac24c96629995c81bd8817ab90c20536daa5"
+    },
+    "Global Schema and Contract Registry": {
+      "path": "docs/architecture/03_Global_Schema_and_Contract_Registry_v1.0.md",
+      "blob_sha": "d60e757df07f3a538c99f5d08a6bd48735a7129a"
+    },
+    "Phase 1 Development Specification": {
+      "path": "docs/architecture/04_Phase1_Development_Specification_v1.2_Harness_Integrated.md",
+      "blob_sha": "8af7134dafe9d36b3e1eb560e39362313e2063ec"
+    },
+    "Cross-Phase Contracts": {
+      "path": "docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md",
+      "blob_sha": "fe6489e8818d21b56ce38f80fb61f6afbb69a4d9"
+    },
+    "TDG-1": {
+      "path": "docs/architecture/09_TDG1_Phase1_Technology_Decision_Gate_v1.0.md",
+      "blob_sha": "b647eb6e33fb0bec7a7fea8ff69cfdb2d6fa8dea"
+    },
+    "Final Architecture Review": {
+      "path": "docs/architecture/10_Final_System_Architecture_Review_Harness_Integrated_v1.0.md",
+      "blob_sha": "f4c328290fc19deddc270684af5b308ea3e2002a"
+    },
+    "Harness Integration Specification": {
+      "path": "docs/harness/09_Harness_Integration_Specification_v1.0.md",
+      "blob_sha": "90ae80770237458cce2e1ef1ab7a4c4fdeacfc3e"
+    }
+  },
+  "corrected_baseline_lineage": {
+    "phase1_final_v2_contained_known_rb_p1_001": true,
+    "remediation": "P1-FCR3",
+    "corrected_semantic_subject_sha": "503e1c2cf0baa1d806afc9a34099257406042354",
+    "accepted_evidence_sha": "a1cff72f4e8848217f56d11e757fc8bb410c8d6f"
+  },
+  "release_verification": {
+    "rb_p1_001_release_smoke": "PASS",
+    "read_path_coverage_gap": "NO",
+    "migration_lifecycle": "PASS",
+    "auto_repair_corrupt_current_pointers": "NO",
+    "hash_rewrites": 0,
+    "scientific_row_rewrites": 0,
+    "phase2_leakage": "NO"
+  },
+  "timestamp": "2026-09-21T14:01:42Z"
+}
