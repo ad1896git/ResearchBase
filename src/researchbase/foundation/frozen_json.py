@@ -14,15 +14,30 @@ type JSONScalar = None | bool | int | float | str
 class FrozenJSONObject(Mapping[str, object]):
     """An immutable, insertion-order-preserving JSON object snapshot."""
 
-    __slots__ = ("_items", "_values")
+    __slots__ = ("_items",)
     __hash__: Any = None
 
+    def __setattr__(self, name: str, value: object) -> None:
+        if hasattr(self, name):
+            raise AttributeError("FrozenJSONObject is immutable")
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError("FrozenJSONObject is immutable")
+
     def __init__(self, items: tuple[tuple[str, object], ...]) -> None:
-        self._items = items
-        self._values = dict(items)
+        owned_items: list[tuple[str, FrozenJSON]] = []
+        for key, value in items:
+            if not isinstance(key, str):
+                raise TypeError("canonical JSON object keys must be strings")
+            owned_items.append((key, _own_json(value)))
+        self._items = tuple(owned_items)
 
     def __getitem__(self, key: str) -> object:
-        return self._values[key]
+        for item_key, item_value in self._items:
+            if item_key == key:
+                return item_value
+        raise KeyError(key)
 
     def __iter__(self) -> Iterator[str]:
         return (key for key, _ in self._items)
@@ -45,8 +60,16 @@ class FrozenJSONArray(Sequence[object]):
     __slots__ = ("_values",)
     __hash__ = None
 
+    def __setattr__(self, name: str, value: object) -> None:
+        if hasattr(self, name):
+            raise AttributeError("FrozenJSONArray is immutable")
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError("FrozenJSONArray is immutable")
+
     def __init__(self, values: tuple[object, ...]) -> None:
-        self._values = values
+        self._values = tuple(_own_json(value) for value in values)
 
     def __getitem__(self, index: int | slice) -> object:
         return self._values[index]
@@ -64,6 +87,13 @@ class FrozenJSONArray(Sequence[object]):
 
 
 type FrozenJSON = JSONScalar | FrozenJSONObject | FrozenJSONArray
+
+
+def _own_json(value: object) -> FrozenJSON:
+    """Return a recursively owned JSON value without copying owned wrappers."""
+    if isinstance(value, FrozenJSONObject | FrozenJSONArray):
+        return value
+    return freeze_json(value)
 
 
 def freeze_json(value: object) -> FrozenJSON:
