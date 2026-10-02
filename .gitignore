@@ -2,7 +2,40 @@
 .data/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .pyright/
 __pycache__/
 *.py[cod]
 
+# Coverage and build outputs
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local environments and credentials
+.env
+.env.*
+!.env.example
+venv/
+
+# Local databases, dumps, logs, and scratch directories
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.sql.gz
+*.sql.dump
+*.log
+tmp/
+temp/
+
+# Editor and operating-system metadata
+.idea/
+.vscode/
+.DS_Store
+
+# Local linked worktrees
+.worktrees/
