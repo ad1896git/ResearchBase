@@ -953,6 +953,7 @@ def test_abandoned_exact_refs_remain_closure_invalid(
             connection.execute(
                 text(
                     "UPDATE experiment_spec_versions SET status='ABANDONED', "
+                    "content_hash=NULL, frozen_at=NULL, "
                     "row_version=row_version + 1 WHERE id=:id"
                 ),
                 {"id": spec_v1.id},

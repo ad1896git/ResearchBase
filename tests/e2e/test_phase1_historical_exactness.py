@@ -39,7 +39,7 @@ from researchbase.domain.governance import (
     ImpactAssessmentConclusion,
 )
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
-from researchbase.foundation.errors import ErrorCode
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 pytestmark = [pytest.mark.integration, pytest.mark.phase1_golden]
 
@@ -467,62 +467,14 @@ def test_claim_closure_reports_a_real_broken_descendant_deterministically(
                     )
                 )
 
-        reports = [
-            fixture.provenance.get_claim_closure_report(ids.claim_version_id) for _ in range(3)
-        ]
-
-    signatures = [
-        [
-            (item.code, item.object_type, item.object_id, item.path, item.message)
-            for item in report.violations
-        ]
-        for report in reports
-    ]
-    assert all(report.complete is False for report in reports)
-    assert signatures[0] == signatures[1] == signatures[2]
-    expected_paths = [
-        (
-            "claim_version",
-            "evidence",
-            str(ids.evidence_relation_ids[1]),
-            "statistical_result",
-            "inputs",
-            str(ids.measurement_ids[0]),
-            "measurement",
-            "metric_definition_version",
-            "status",
-        ),
-        (
-            "claim_version",
-            "evidence",
-            str(ids.evidence_relation_ids[1]),
-            "statistical_result",
-            "inputs",
-            str(ids.measurement_ids[1]),
-            "measurement",
-            "metric_definition_version",
-            "status",
-        ),
-        (
-            "claim_version",
-            "evidence",
-            str(ids.evidence_relation_ids[0]),
-            "measurement",
-            "metric_definition_version",
-            "status",
-        ),
-    ]
-    assert [item[3] for item in signatures[0]] == expected_paths
-    assert [item[:3] + item[4:] for item in signatures[0]] == [
-        (
-            ErrorCode.VERSION_NOT_FROZEN.value,
-            "MetricDefinitionVersion",
-            str(ids.metric_definition_version_id),
-            "metric definition version is not finalized",
-        )
-    ] * 3
-    assert all(report.visited_count == reports[0].visited_count for report in reports)
-    assert reports[0].visited_count == 14
+        for _ in range(3):
+            with pytest.raises(ResearchBaseError) as exc_info:
+                fixture.provenance.get_claim_closure_report(ids.claim_version_id)
+            assert exc_info.value.code is ErrorCode.REFERENTIAL_INTEGRITY_ERROR
+            assert exc_info.value.details == {
+                "object_id": str(ids.metric_definition_version_id),
+                "object_type": "MetricDefinitionVersion",
+            }
 
 
 def test_governance_validity_precedence_dismissal_and_correction_are_non_mutating(

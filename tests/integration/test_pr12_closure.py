@@ -22,7 +22,7 @@ from researchbase.application.commands import (
 from researchbase.application.dto import ClaimVersionReadModel, EvidenceRelationReadModel
 from researchbase.domain.measurement import MeasurementId
 from researchbase.domain.statistical_result import StatisticalResultId
-from researchbase.foundation.errors import ErrorCode
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 pytestmark = pytest.mark.integration
 
@@ -392,16 +392,9 @@ def test_claim_closure_detects_support_and_content_hash_tampering(
             "ALTER TABLE claim_versions ENABLE TRIGGER claim_versions_finalized_immutable"
         )
 
-    report = service.validate_claim_version(frozen.id)
-    assert report.complete is False
-    assert {item.code for item in report.violations} == {
-        "SUPPORT_SET_HASH_MISMATCH",
-        "CONTENT_HASH_MISMATCH",
-    }
-    assert [item.path for item in report.violations] == [
-        ["claim_version", "content_hash"],
-        ["claim_version", "support_set_hash"],
-    ]
+    with pytest.raises(ResearchBaseError) as exc_info:
+        service.validate_claim_version(frozen.id)
+    assert exc_info.value.code is ErrorCode.REFERENTIAL_INTEGRITY_ERROR
 
     with engine.begin() as connection:
         connection.exec_driver_sql(
@@ -515,10 +508,15 @@ def test_claim_closure_rejects_non_final_metric_definition_version(
         FreezeClaimVersionCommand(claim.id, current.id, actor_context, current.row_version)
     )
     with engine.connect() as connection:
-        metric_version_id = connection.execute(
-            text("SELECT metric_definition_version_id FROM measurements WHERE id=:measurement_id"),
+        metric_row = connection.execute(
+            text(
+                "SELECT mdv.id, mdv.content_hash, mdv.frozen_at "
+                "FROM measurements m JOIN metric_definition_versions mdv "
+                "ON mdv.id=m.metric_definition_version_id WHERE m.id=:measurement_id"
+            ),
             {"measurement_id": measurement_id},
-        ).scalar_one()
+        ).one()
+    metric_version_id, metric_content_hash, metric_frozen_at = metric_row
     with engine.begin() as connection:
         connection.execute(
             text(
@@ -533,7 +531,10 @@ def test_claim_closure_rejects_non_final_metric_definition_version(
             )
         )
         connection.execute(
-            text("UPDATE metric_definition_versions SET status='DRAFT' WHERE id=:id"),
+            text(
+                "UPDATE metric_definition_versions SET status='DRAFT', "
+                "content_hash=NULL, frozen_at=NULL WHERE id=:id"
+            ),
             {"id": metric_version_id},
         )
         connection.execute(
@@ -571,8 +572,15 @@ def test_claim_closure_rejects_non_final_metric_definition_version(
             )
         )
         connection.execute(
-            text("UPDATE metric_definition_versions SET status='FROZEN' WHERE id=:id"),
-            {"id": metric_version_id},
+            text(
+                "UPDATE metric_definition_versions SET status='FROZEN', "
+                "content_hash=:content_hash, frozen_at=:frozen_at WHERE id=:id"
+            ),
+            {
+                "id": metric_version_id,
+                "content_hash": metric_content_hash,
+                "frozen_at": metric_frozen_at,
+            },
         )
         connection.execute(
             text(

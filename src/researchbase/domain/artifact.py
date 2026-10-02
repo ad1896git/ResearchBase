@@ -8,8 +8,8 @@ from typing import NewType, Self
 from uuid import UUID
 
 from researchbase.domain.organization import ProjectId
-from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import Clock, to_utc
@@ -91,7 +91,7 @@ class ArtifactVersion:
             raise ValueError("byte_size must be non-negative")
         object.__setattr__(self, "content_hash", ContentHash(self.content_hash))
         if self.metadata is not None:
-            canonical_json_bytes(self.metadata)
+            object.__setattr__(self, "metadata", freeze_json(self.metadata))
         _validate_version_number(self.version_number)
         object.__setattr__(self, "created_at", to_utc(self.created_at))
         if self.frozen_at is not None:

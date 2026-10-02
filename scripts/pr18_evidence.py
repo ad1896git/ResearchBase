@@ -2981,7 +2981,7 @@ def _seed_explain_fixture(engine: Engine) -> tuple[dict[str, Any], int]:
                 "(id, project_id, finding_type, severity, title, description, "
                 "target_type, target_id, target_content_hash, status, created_by, created_at) "
                 "VALUES (:id, :project, 'explain_fixture', 'INFO', :title, 'fixture', "
-                "'ARTIFACT_VERSION', :target, NULL, 'OPEN', :actor, :now)"
+                "'ARTIFACT_VERSION', :target, :target_hash, 'OPEN', :actor, :now)"
             ),
             [
                 {
@@ -2989,6 +2989,7 @@ def _seed_explain_fixture(engine: Engine) -> tuple[dict[str, Any], int]:
                     "project": ids["project"],
                     "title": f"EXPLAIN fixture {number}",
                     "target": ids["artifact_version"] if number == 0 else uuid4(),
+                    "target_hash": "2" * 64,
                     "actor": ids["actor"],
                     "now": now,
                 }

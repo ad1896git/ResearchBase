@@ -288,15 +288,6 @@ class GovernanceService:
             finding_id = (
                 AuditFindingId(command.audit_finding_id) if command.audit_finding_id else None
             )
-            if finding_id is not None:
-                finding = uow.governance.get_audit_finding(finding_id)
-                if not isinstance(finding, AuditFinding):
-                    raise ResearchBaseError(ErrorCode.NOT_FOUND, "audit finding not found")
-                if finding.project_id != project_id:
-                    raise ResearchBaseError(
-                        ErrorCode.VALIDATION_ERROR,
-                        "audit finding belongs to another project",
-                    )
             assessment_id = new_typed_id(ImpactAssessmentId)
             normalized = tuple(
                 (
@@ -314,6 +305,15 @@ class GovernanceService:
                 project_id,
                 ((target_type, target_id) for target_type, target_id, _ in normalized),
             )
+            if finding_id is not None:
+                finding = uow.governance.get_audit_finding(finding_id)
+                if not isinstance(finding, AuditFinding):
+                    raise ResearchBaseError(ErrorCode.NOT_FOUND, "audit finding not found")
+                if finding.project_id != project_id:
+                    raise ResearchBaseError(
+                        ErrorCode.VALIDATION_ERROR,
+                        "audit finding belongs to another project",
+                    )
             targets = tuple(
                 sorted(
                     (

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import asdict, fields, is_dataclass
+from dataclasses import fields, is_dataclass
 from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
@@ -92,6 +92,7 @@ from researchbase.domain.governance import (
 )
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
 from researchbase.foundation.execution_context import ExecutionContext
+from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 
 _SCHEMA_CACHE: dict[type[Any], type[BaseModel]] = {}
 
@@ -423,8 +424,23 @@ def _services(request: Request) -> Any:
     return request.app.state.services
 
 
+def _http_json_value(value: object) -> object:
+    """Return a fresh transport tree without exposing FrozenJSON wrappers."""
+    if isinstance(value, FrozenJSONObject | FrozenJSONArray):
+        return thaw_json(value)
+    if isinstance(value, BaseModel):
+        return _http_json_value(value.model_dump(mode="python", by_alias=True))
+    if is_dataclass(value) and not isinstance(value, type):
+        return {field.name: _http_json_value(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, dict):
+        return {key: _http_json_value(item) for key, item in value.items()}
+    if isinstance(value, list | tuple | set | frozenset):
+        return [_http_json_value(item) for item in value]
+    return value
+
+
 def _json(value: object) -> Any:
-    return jsonable_encoder(asdict(value) if is_dataclass(value) else value)
+    return jsonable_encoder(_http_json_value(value))
 
 
 def _legacy_write(

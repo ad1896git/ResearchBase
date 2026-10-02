@@ -27,6 +27,7 @@ from researchbase.domain.governance import (
 )
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import thaw_json
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.persistence.models import (
@@ -52,15 +53,126 @@ from researchbase.persistence.models import (
     StatisticalResultInputModel,
     StatisticalResultModel,
 )
+from researchbase.persistence.repositories import (
+    _claim_version_from_model,
+    _dataset_snapshot_from_model,
+    _experiment_spec_version_from_model,
+    _measurement_from_model,
+    _metric_definition_version_from_model,
+    _statistical_result_from_row,
+    _verified_persisted,
+)
+
+
+@_verified_persisted("AuditFinding")
+def _audit_finding_from_model(model: AuditFindingModel) -> AuditFinding:
+    return AuditFinding(
+        AuditFindingId(model.id),
+        ProjectId(model.project_id),
+        model.finding_type,
+        AuditFindingSeverity(model.severity),
+        model.title,
+        model.description,
+        GovernanceTargetType(model.target_type),
+        model.target_id,
+        ContentHash(model.target_content_hash) if model.target_content_hash else None,
+        AuditFindingStatus(model.status),
+        ActorId(model.created_by),
+        model.created_at,
+        model.row_version,
+    )
+
+
+@_verified_persisted("ImpactTarget")
+def _impact_target_from_model(model: ImpactTargetModel) -> ImpactTarget:
+    return ImpactTarget(
+        ImpactAssessmentId(model.impact_assessment_id),
+        GovernanceTargetType(model.target_type),
+        model.target_id,
+        ContentHash(model.target_content_hash) if model.target_content_hash else None,
+        ImpactKind(model.impact_kind),
+    )
+
+
+@_verified_persisted("ImpactAssessment")
+def _impact_assessment_from_models(
+    model: ImpactAssessmentModel, targets: tuple[ImpactTarget, ...]
+) -> ImpactAssessment:
+    return ImpactAssessment(
+        ImpactAssessmentId(model.id),
+        ProjectId(model.project_id),
+        AuditFindingId(model.audit_finding_id) if model.audit_finding_id else None,
+        model.assessment_payload,
+        ImpactAssessmentConclusion(model.conclusion),
+        ActorId(model.created_by),
+        model.created_at,
+        ContentHash(model.content_hash),
+        targets,
+    )
+
+
+@_verified_persisted("CorrectionRecord")
+def _correction_record_from_model(model: CorrectionRecordModel) -> CorrectionRecord:
+    return CorrectionRecord(
+        CorrectionRecordId(model.id),
+        ProjectId(model.project_id),
+        GovernanceTargetType(model.target_type),
+        model.target_id,
+        ContentHash(model.target_content_hash) if model.target_content_hash else None,
+        CorrectionType(model.correction_type),
+        model.corrected_assertion,
+        model.reason,
+        ActorId(model.created_by),
+        model.created_at,
+        ContentHash(model.content_hash),
+    )
 
 
 class SqlAlchemyGovernanceRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+        self._verified_targets: dict[
+            tuple[GovernanceTargetType, UUID], ResolvedGovernanceTarget
+        ] = {}
+
+    def _verify_target_binding(
+        self,
+        project_id: ProjectId,
+        target_type: GovernanceTargetType,
+        target_id: UUID,
+        stored_hash: ContentHash | None,
+    ) -> None:
+        loaders = {
+            GovernanceTargetType.EXPERIMENT_SPEC_VERSION: self.resolve_experiment_spec_version,
+            GovernanceTargetType.DATASET_SNAPSHOT: self.resolve_dataset_snapshot,
+            GovernanceTargetType.ARTIFACT_VERSION: self.resolve_artifact_version,
+            GovernanceTargetType.RUN: self.resolve_run,
+            GovernanceTargetType.METRIC_DEFINITION_VERSION: self.resolve_metric_definition_version,
+            GovernanceTargetType.MEASUREMENT: self.resolve_measurement,
+            GovernanceTargetType.STATISTICAL_RESULT: self.resolve_statistical_result,
+            GovernanceTargetType.CLAIM_VERSION: self.resolve_claim_version,
+        }
+        resolved = self._verified_targets.get((target_type, target_id))
+        if resolved is None:
+            resolved = loaders[target_type](target_id)
+        if (
+            resolved is None
+            or resolved.project_id != project_id
+            or resolved.content_hash != stored_hash
+        ):
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "persisted governance target binding failed integrity verification",
+                {
+                    "object_type": target_type.value,
+                    "object_id": str(target_id),
+                    "hash_category": "target_hash_binding",
+                },
+            )
 
     def resolve_experiment_spec_version(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
-            select(ExperimentSpecModel.project_id, ExperimentSpecVersionModel.content_hash)
+            select(ExperimentSpecModel.project_id, ExperimentSpecVersionModel)
             .join(
                 ExperimentSpecVersionModel,
                 ExperimentSpecVersionModel.experiment_spec_id == ExperimentSpecModel.id,
@@ -78,7 +190,7 @@ class SqlAlchemyGovernanceRepository:
             select(
                 ExperimentSpecVersionModel.id,
                 ExperimentSpecModel.project_id,
-                ExperimentSpecVersionModel.content_hash,
+                ExperimentSpecVersionModel,
             )
             .join(
                 ExperimentSpecVersionModel,
@@ -90,7 +202,7 @@ class SqlAlchemyGovernanceRepository:
 
     def resolve_dataset_snapshot(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
-            select(DatasetModel.project_id, DatasetSnapshotModel.content_hash)
+            select(DatasetModel.project_id, DatasetSnapshotModel)
             .join(DatasetSnapshotModel, DatasetSnapshotModel.dataset_id == DatasetModel.id)
             .where(DatasetSnapshotModel.id == target_id)
         ).one_or_none()
@@ -103,7 +215,7 @@ class SqlAlchemyGovernanceRepository:
             select(
                 DatasetSnapshotModel.id,
                 DatasetModel.project_id,
-                DatasetSnapshotModel.content_hash,
+                DatasetSnapshotModel,
             )
             .join(DatasetSnapshotModel, DatasetSnapshotModel.dataset_id == DatasetModel.id)
             .where(DatasetSnapshotModel.id.in_(target_ids))
@@ -150,7 +262,7 @@ class SqlAlchemyGovernanceRepository:
         row = self._session.execute(
             select(
                 MetricDefinitionModel.project_id,
-                MetricDefinitionVersionModel.content_hash,
+                MetricDefinitionVersionModel,
             )
             .join(
                 MetricDefinitionVersionModel,
@@ -169,7 +281,7 @@ class SqlAlchemyGovernanceRepository:
             select(
                 MetricDefinitionVersionModel.id,
                 MetricDefinitionModel.project_id,
-                MetricDefinitionVersionModel.content_hash,
+                MetricDefinitionVersionModel,
             )
             .join(
                 MetricDefinitionVersionModel,
@@ -181,7 +293,7 @@ class SqlAlchemyGovernanceRepository:
 
     def resolve_measurement(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
-            select(RunModel.project_id, MeasurementModel.content_hash)
+            select(RunModel.project_id, MeasurementModel)
             .join(MeasurementModel, MeasurementModel.run_id == RunModel.id)
             .where(MeasurementModel.id == target_id)
         ).one_or_none()
@@ -191,7 +303,7 @@ class SqlAlchemyGovernanceRepository:
         if not target_ids:
             return []
         rows = self._session.execute(
-            select(MeasurementModel.id, RunModel.project_id, MeasurementModel.content_hash)
+            select(MeasurementModel.id, RunModel.project_id, MeasurementModel)
             .join(MeasurementModel, MeasurementModel.run_id == RunModel.id)
             .where(MeasurementModel.id.in_(target_ids))
         ).all()
@@ -199,7 +311,7 @@ class SqlAlchemyGovernanceRepository:
 
     def resolve_statistical_result(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
-            select(StatisticalResultModel.project_id, StatisticalResultModel.content_hash).where(
+            select(StatisticalResultModel.project_id, StatisticalResultModel).where(
                 StatisticalResultModel.id == target_id
             )
         ).one_or_none()
@@ -212,14 +324,14 @@ class SqlAlchemyGovernanceRepository:
             select(
                 StatisticalResultModel.id,
                 StatisticalResultModel.project_id,
-                StatisticalResultModel.content_hash,
+                StatisticalResultModel,
             ).where(StatisticalResultModel.id.in_(target_ids))
         ).all()
         return self._resolved_many(GovernanceTargetType.STATISTICAL_RESULT, rows)
 
     def resolve_claim_version(self, target_id: UUID) -> ResolvedGovernanceTarget | None:
         row = self._session.execute(
-            select(ClaimModel.project_id, ClaimVersionModel.content_hash)
+            select(ClaimModel.project_id, ClaimVersionModel)
             .join(ClaimVersionModel, ClaimVersionModel.claim_id == ClaimModel.id)
             .where(ClaimVersionModel.id == target_id)
         ).one_or_none()
@@ -229,37 +341,62 @@ class SqlAlchemyGovernanceRepository:
         if not target_ids:
             return []
         rows = self._session.execute(
-            select(ClaimVersionModel.id, ClaimModel.project_id, ClaimVersionModel.content_hash)
+            select(ClaimVersionModel.id, ClaimModel.project_id, ClaimVersionModel)
             .join(ClaimVersionModel, ClaimVersionModel.claim_id == ClaimModel.id)
             .where(ClaimVersionModel.id.in_(target_ids))
         ).all()
         return self._resolved_many(GovernanceTargetType.CLAIM_VERSION, rows)
 
-    @staticmethod
     def _resolved(
-        target_type: GovernanceTargetType, target_id: UUID, row: object
+        self, target_type: GovernanceTargetType, target_id: UUID, row: object
     ) -> ResolvedGovernanceTarget | None:
         if row is None:
             return None
         project_id, *hash_value = row  # type: ignore[misc]
         if project_id is None:
             return None
-        content_hash = hash_value[0] if hash_value else None
-        return ResolvedGovernanceTarget(
+        hash_source = hash_value[0] if hash_value else None
+        content_hash = self_hash = hash_source
+        if isinstance(hash_source, ExperimentSpecVersionModel):
+            self_hash = _experiment_spec_version_from_model(hash_source).content_hash
+        elif isinstance(hash_source, DatasetSnapshotModel):
+            self_hash = _dataset_snapshot_from_model(hash_source).content_hash
+        elif isinstance(hash_source, MetricDefinitionVersionModel):
+            self_hash = _metric_definition_version_from_model(hash_source).content_hash
+        elif isinstance(hash_source, MeasurementModel):
+            self_hash = _measurement_from_model(hash_source).content_hash
+        elif isinstance(hash_source, StatisticalResultModel):
+            self_hash = _statistical_result_from_row(
+                {
+                    "id": hash_source.id,
+                    "project_id": hash_source.project_id,
+                    "analysis_type": hash_source.analysis_type,
+                    "result_payload": hash_source.result_payload,
+                    "analysis_definition": hash_source.analysis_definition,
+                    "content_hash": hash_source.content_hash,
+                    "created_by": hash_source.created_by,
+                    "created_at": hash_source.created_at,
+                }
+            ).content_hash
+        elif isinstance(hash_source, ClaimVersionModel):
+            self_hash = _claim_version_from_model(hash_source).content_hash
+        content_hash = self_hash
+        resolved = ResolvedGovernanceTarget(
             target_type,
             target_id,
             ProjectId(project_id),
             ContentHash(content_hash) if content_hash is not None else None,
         )
+        self._verified_targets[(target_type, target_id)] = resolved
+        return resolved
 
-    @classmethod
     def _resolved_many(
-        cls, target_type: GovernanceTargetType, rows: Sequence[object]
+        self, target_type: GovernanceTargetType, rows: Sequence[object]
     ) -> list[ResolvedGovernanceTarget]:
         resolved: list[ResolvedGovernanceTarget] = []
         for row in rows:
             values = tuple(cast(Any, row))
-            item = cls._resolved(target_type, values[0], values[1:])
+            item = self._resolved(target_type, values[0], values[1:])
             if item is not None:
                 resolved.append(item)
         return resolved
@@ -288,21 +425,14 @@ class SqlAlchemyGovernanceRepository:
         model = self._session.get(AuditFindingModel, finding_id)
         if model is None:
             return None
-        return AuditFinding(
-            AuditFindingId(model.id),
-            ProjectId(model.project_id),
-            model.finding_type,
-            AuditFindingSeverity(model.severity),
-            model.title,
-            model.description,
-            GovernanceTargetType(model.target_type),
-            model.target_id,
-            ContentHash(model.target_content_hash) if model.target_content_hash else None,
-            AuditFindingStatus(model.status),
-            ActorId(model.created_by),
-            model.created_at,
-            model.row_version,
+        finding = _audit_finding_from_model(model)
+        self._verify_target_binding(
+            finding.project_id,
+            finding.target_type,
+            finding.target_id,
+            finding.target_content_hash,
         )
+        return finding
 
     def list_audit_findings(
         self, project_id: UUID, target_type: str | None = None, target_id: UUID | None = None
@@ -340,7 +470,7 @@ class SqlAlchemyGovernanceRepository:
                 id=assessment.id,
                 project_id=assessment.project_id,
                 audit_finding_id=assessment.audit_finding_id,
-                assessment_payload=assessment.assessment_payload,
+                assessment_payload=thaw_json(assessment.assessment_payload),
                 conclusion=assessment.conclusion.value,
                 created_by=assessment.created_by,
                 created_at=assessment.created_at,
@@ -369,27 +499,16 @@ class SqlAlchemyGovernanceRepository:
             .where(ImpactTargetModel.impact_assessment_id == assessment_id)
             .order_by(ImpactTargetModel.target_type, ImpactTargetModel.target_id)
         ).all()
-        targets = tuple(
-            ImpactTarget(
-                ImpactAssessmentId(item.impact_assessment_id),
-                GovernanceTargetType(item.target_type),
-                item.target_id,
-                ContentHash(item.target_content_hash) if item.target_content_hash else None,
-                ImpactKind(item.impact_kind),
+        targets = tuple(_impact_target_from_model(item) for item in target_models)
+        assessment = _impact_assessment_from_models(model, targets)
+        for target in targets:
+            self._verify_target_binding(
+                assessment.project_id,
+                target.target_type,
+                target.target_id,
+                target.target_content_hash,
             )
-            for item in target_models
-        )
-        return ImpactAssessment(
-            ImpactAssessmentId(model.id),
-            ProjectId(model.project_id),
-            AuditFindingId(model.audit_finding_id) if model.audit_finding_id else None,
-            model.assessment_payload,
-            ImpactAssessmentConclusion(model.conclusion),
-            ActorId(model.created_by),
-            model.created_at,
-            ContentHash(model.content_hash),
-            targets,
-        )
+        return assessment
 
     def list_impact_assessments(self, finding_id: UUID) -> list[ImpactAssessment]:
         ids = self._session.scalars(
@@ -408,7 +527,7 @@ class SqlAlchemyGovernanceRepository:
                 target_id=correction.target_id,
                 target_content_hash=correction.target_content_hash,
                 correction_type=correction.correction_type.value,
-                corrected_assertion=correction.corrected_assertion,
+                corrected_assertion=thaw_json(correction.corrected_assertion),
                 reason=correction.reason,
                 created_by=correction.created_by,
                 created_at=correction.created_at,
@@ -421,19 +540,14 @@ class SqlAlchemyGovernanceRepository:
         model = self._session.get(CorrectionRecordModel, correction_id)
         if model is None:
             return None
-        return CorrectionRecord(
-            CorrectionRecordId(model.id),
-            ProjectId(model.project_id),
-            GovernanceTargetType(model.target_type),
-            model.target_id,
-            ContentHash(model.target_content_hash) if model.target_content_hash else None,
-            CorrectionType(model.correction_type),
-            model.corrected_assertion,
-            model.reason,
-            ActorId(model.created_by),
-            model.created_at,
-            ContentHash(model.content_hash),
+        correction = _correction_record_from_model(model)
+        self._verify_target_binding(
+            correction.project_id,
+            correction.target_type,
+            correction.target_id,
+            correction.target_content_hash,
         )
+        return correction
 
     def list_correction_records(
         self, project_id: UUID, target_type: str, target_id: UUID
@@ -511,7 +625,7 @@ class SqlAlchemyGovernanceRepository:
                 select(
                     MeasurementModel.run_id,
                     MeasurementModel.id,
-                    MeasurementModel.content_hash,
+                    MeasurementModel,
                 ).where(MeasurementModel.run_id.in_(run_ids))
             ):
                 measurement_prefixes.append((row.run_id, row.id))
@@ -522,7 +636,7 @@ class SqlAlchemyGovernanceRepository:
                         row.run_id,
                         None,
                         None,
-                        row.content_hash,
+                        _measurement_from_model(row.MeasurementModel).content_hash,
                         None,
                         None,
                         None,
@@ -546,7 +660,7 @@ class SqlAlchemyGovernanceRepository:
                     MeasurementModel.run_id,
                     StatisticalResultInputModel.measurement_id,
                     StatisticalResultInputModel.statistical_result_id,
-                    StatisticalResultModel.content_hash,
+                    StatisticalResultModel,
                     StatisticalResultInputModel.input_role,
                     StatisticalResultInputModel.ordinal,
                 )
@@ -579,7 +693,20 @@ class SqlAlchemyGovernanceRepository:
                         row.run_id,
                         row.measurement_id,
                         None,
-                        row.content_hash,
+                        _statistical_result_from_row(
+                            {
+                                "id": row.StatisticalResultModel.id,
+                                "project_id": row.StatisticalResultModel.project_id,
+                                "analysis_type": row.StatisticalResultModel.analysis_type,
+                                "result_payload": row.StatisticalResultModel.result_payload,
+                                "analysis_definition": (
+                                    row.StatisticalResultModel.analysis_definition
+                                ),
+                                "content_hash": row.StatisticalResultModel.content_hash,
+                                "created_by": row.StatisticalResultModel.created_by,
+                                "created_at": row.StatisticalResultModel.created_at,
+                            }
+                        ).content_hash,
                         None,
                         row.input_role,
                         row.ordinal,
@@ -592,7 +719,7 @@ class SqlAlchemyGovernanceRepository:
                     EvidenceRelationModel.id,
                     EvidenceRelationModel.measurement_id,
                     EvidenceRelationModel.claim_version_id,
-                    ClaimVersionModel.content_hash,
+                    ClaimVersionModel,
                 )
                 .join(
                     ClaimVersionModel,
@@ -612,7 +739,7 @@ class SqlAlchemyGovernanceRepository:
                         run_id,
                         row.measurement_id,
                         None,
-                        row.content_hash,
+                        _claim_version_from_model(row.ClaimVersionModel).content_hash,
                         row.id,
                         None,
                         None,
@@ -626,7 +753,7 @@ class SqlAlchemyGovernanceRepository:
                     EvidenceRelationModel.id,
                     EvidenceRelationModel.statistical_result_id,
                     EvidenceRelationModel.claim_version_id,
-                    ClaimVersionModel.content_hash,
+                    ClaimVersionModel,
                 )
                 .join(
                     ClaimVersionModel,
@@ -647,7 +774,7 @@ class SqlAlchemyGovernanceRepository:
                             run_id,
                             measurement_id,
                             stat_id,
-                            row.content_hash,
+                            _claim_version_from_model(row.ClaimVersionModel).content_hash,
                             row.id,
                             input_role,
                             ordinal,

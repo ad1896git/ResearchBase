@@ -89,6 +89,28 @@ def freeze_material(
     )
 
 
+def validate_version_hash(
+    status: VersionStatus,
+    material: object,
+    content_hash: ContentHash | str | None,
+    hash_scheme: str | None,
+    frozen_at: datetime | None,
+) -> ContentHash | None:
+    """Validate exact lifecycle state and canonical material/hash binding."""
+    if status in {VersionStatus.DRAFT, VersionStatus.ABANDONED}:
+        if content_hash is not None or hash_scheme is not None or frozen_at is not None:
+            raise ValueError("draft-origin versions must not have frozen hash state")
+        return None
+    if content_hash is None or hash_scheme is None or frozen_at is None:
+        raise ValueError("frozen versions require content_hash, hash_scheme, and frozen_at")
+    if hash_scheme != CANONICAL_JSON_HASH_SCHEME:
+        raise ValueError("frozen versions require sha256-cjson-v1 hash_scheme")
+    normalized = ContentHash(content_hash)
+    if normalized != sha256_canonical_json(material):
+        raise ValueError("content_hash does not match frozen version material")
+    return normalized
+
+
 def _coerce_status(value: VersionStatus | str) -> VersionStatus | None:
     if isinstance(value, VersionStatus):
         return value

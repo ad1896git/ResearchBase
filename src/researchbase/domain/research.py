@@ -9,6 +9,7 @@ from uuid import UUID
 
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import Clock, to_utc
@@ -16,6 +17,7 @@ from researchbase.foundation.versioning import (
     VersionStatus,
     freeze_material,
     require_transition,
+    validate_version_hash,
 )
 
 ResearchQuestionId = NewType("ResearchQuestionId", UUID)
@@ -87,21 +89,25 @@ class ResearchQuestionVersion:
         _validate_version_number(self.version_number)
         if not isinstance(self.question_text, str) or not self.question_text.strip():
             raise ValueError("question_text must not be blank")
+        if self.scope is not None:
+            object.__setattr__(self, "scope", freeze_json(self.scope))
         object.__setattr__(self, "created_at", to_utc(self.created_at))
         if self.frozen_at is not None:
             object.__setattr__(self, "frozen_at", to_utc(self.frozen_at))
-        if self.content_hash is not None and not isinstance(self.content_hash, ContentHash):
-            object.__setattr__(self, "content_hash", ContentHash(self.content_hash))
-        if self.status in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED} and (
-            self.content_hash is None or self.hash_scheme is None or self.frozen_at is None
-        ):
-            raise ValueError("frozen versions require content_hash, hash_scheme, and frozen_at")
+        normalized_hash = validate_version_hash(
+            self.status,
+            self.material_payload(),
+            self.content_hash,
+            self.hash_scheme,
+            self.frozen_at,
+        )
+        object.__setattr__(self, "content_hash", normalized_hash)
         _validate_row_version(self.row_version)
 
     def material_payload(self) -> dict[str, object | None]:
         return {
             "question_text": self.question_text,
-            "scope": self.scope,
+            "scope": thaw_json(self.scope) if self.scope is not None else None,
             "rationale": self.rationale,
         }
 
@@ -195,22 +201,31 @@ class HypothesisVersion:
         _validate_version_number(self.version_number)
         if not isinstance(self.statement, str) or not self.statement.strip():
             raise ValueError("statement must not be blank")
+        if self.success_criteria is not None:
+            object.__setattr__(self, "success_criteria", freeze_json(self.success_criteria))
         object.__setattr__(self, "created_at", to_utc(self.created_at))
         if self.frozen_at is not None:
             object.__setattr__(self, "frozen_at", to_utc(self.frozen_at))
-        if self.content_hash is not None and not isinstance(self.content_hash, ContentHash):
-            object.__setattr__(self, "content_hash", ContentHash(self.content_hash))
-        if self.status in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED} and (
-            self.content_hash is None or self.hash_scheme is None or self.frozen_at is None
-        ):
-            raise ValueError("frozen versions require content_hash, hash_scheme, and frozen_at")
+        object.__setattr__(
+            self,
+            "content_hash",
+            validate_version_hash(
+                self.status,
+                self.material_payload(),
+                self.content_hash,
+                self.hash_scheme,
+                self.frozen_at,
+            ),
+        )
         _validate_row_version(self.row_version)
 
     def material_payload(self) -> dict[str, object | None]:
         return {
             "statement": self.statement,
             "expected_direction": self.expected_direction,
-            "success_criteria": self.success_criteria,
+            "success_criteria": (
+                thaw_json(self.success_criteria) if self.success_criteria is not None else None
+            ),
             "rationale": self.rationale,
         }
 

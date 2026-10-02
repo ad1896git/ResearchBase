@@ -11,6 +11,7 @@ from uuid import UUID
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from researchbase.foundation.hashing import ContentHash, sha256_canonical_json
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import to_utc
@@ -192,11 +193,12 @@ class ImpactAssessment:
         object.__setattr__(self, "created_at", to_utc(self.created_at))
         object.__setattr__(self, "content_hash", ContentHash(self.content_hash))
         object.__setattr__(self, "targets", tuple(self.targets))
-        _validate_json(self.assessment_payload, "assessment_payload")
+        object.__setattr__(self, "assessment_payload", freeze_json(self.assessment_payload))
+        _validate_json(thaw_json(self.assessment_payload), "assessment_payload")
         expected = calculate_impact_assessment_hash(
             project_id=self.project_id,
             audit_finding_id=self.audit_finding_id,
-            assessment_payload=self.assessment_payload,
+            assessment_payload=thaw_json(self.assessment_payload),
             conclusion=self.conclusion,
             targets=self.targets,
         )
@@ -237,14 +239,15 @@ class CorrectionRecord:
         if self.target_content_hash is not None:
             object.__setattr__(self, "target_content_hash", ContentHash(self.target_content_hash))
         _require_text(self.reason, "reason")
-        _validate_json(self.corrected_assertion, "corrected_assertion")
+        object.__setattr__(self, "corrected_assertion", freeze_json(self.corrected_assertion))
+        _validate_json(thaw_json(self.corrected_assertion), "corrected_assertion")
         expected = calculate_correction_record_hash(
             project_id=self.project_id,
             target_type=self.target_type,
             target_id=self.target_id,
             target_content_hash=self.target_content_hash,
             correction_type=self.correction_type,
-            corrected_assertion=self.corrected_assertion,
+            corrected_assertion=thaw_json(self.corrected_assertion),
             reason=self.reason,
         )
         if self.content_hash != expected:
@@ -263,7 +266,7 @@ def calculate_impact_assessment_hash(
     conclusion: ImpactAssessmentConclusion,
     targets: tuple[ImpactTarget, ...],
 ) -> ContentHash:
-    _validate_json(assessment_payload, "assessment_payload")
+    assessment_payload = _plain_json(assessment_payload, "assessment_payload")
     rows = [target.semantic_row() for target in targets]
     rows.sort(
         key=lambda row: (
@@ -295,7 +298,7 @@ def calculate_correction_record_hash(
     corrected_assertion: object,
     reason: str,
 ) -> ContentHash:
-    _validate_json(corrected_assertion, "corrected_assertion")
+    corrected_assertion = _plain_json(corrected_assertion, "corrected_assertion")
     return sha256_canonical_json(
         {
             "project_id": str(project_id),
@@ -320,6 +323,19 @@ def _validate_json(value: object, field: str) -> None:
             f"{field} is not valid canonical JSON",
             {"field": field},
         ) from exc
+
+
+def _plain_json(value: object, field: str) -> object:
+    try:
+        plain = thaw_json(value)
+    except (TypeError, ValueError) as exc:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            f"{field} is not valid canonical JSON",
+            {"field": field},
+        ) from exc
+    _validate_json(plain, field)
+    return plain
 
 
 def _require_uuid(value: object, field: str) -> None:

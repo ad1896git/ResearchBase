@@ -93,6 +93,51 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
             }
         )
     )
+    experiment_spec_hash = str(
+        sha256_canonical_json(
+            {
+                "title": "t",
+                "objective": "o",
+                "protocol": {"steps": ["execute"]},
+                "planned_metrics": None,
+                "seed_policy": None,
+                "analysis_plan": None,
+            }
+        )
+    )
+    manifest_hash = "3" * 64
+    dataset_snapshot_hash = str(
+        sha256_canonical_json({"manifest_hash": manifest_hash, "selection_definition": {}})
+    )
+    metric_definition_hash = str(
+        sha256_canonical_json({"definition": {}, "unit": None, "aggregation": None})
+    )
+    support_rows = [
+        {
+            "source_type": "measurement",
+            "source_id": str(ids["measurement"]),
+            "relation_type": "SUPPORTS",
+            "qualification": None,
+        },
+        {
+            "source_type": "statistical_result",
+            "source_id": str(ids["stat"]),
+            "relation_type": "SUPPORTS",
+            "qualification": None,
+        },
+    ]
+    support_rows.sort(key=lambda row: (row["source_type"], row["source_id"]))
+    support_set_hash = str(sha256_canonical_json(support_rows))
+    claim_hash = str(
+        sha256_canonical_json(
+            {
+                "statement": "claim",
+                "scope": None,
+                "qualification": None,
+                "support_set_hash": support_set_hash,
+            }
+        )
+    )
     with engine.begin() as c:
         c.execute(
             text(
@@ -119,7 +164,7 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
             {
                 "id": ids["spec_version"],
                 "parent": ids["spec"],
-                "hash": "1" * 64,
+                "hash": experiment_spec_hash,
                 "actor": ids["actor"],
                 "now": now,
             },
@@ -155,8 +200,8 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
             {
                 "id": ids["snapshot"],
                 "parent": ids["dataset"],
-                "manifest": "3" * 64,
-                "hash": "4" * 64,
+                "manifest": manifest_hash,
+                "hash": dataset_snapshot_hash,
                 "actor": ids["actor"],
                 "now": now,
             },
@@ -212,7 +257,7 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
             {
                 "id": ids["metric_version"],
                 "parent": ids["metric"],
-                "hash": "5" * 64,
+                "hash": metric_definition_hash,
                 "actor": ids["actor"],
                 "now": now,
             },
@@ -296,8 +341,8 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
             ),
             {
                 "id": ids["claim_version"],
-                "support_hash": "9" * 64,
-                "hash": "8" * 64,
+                "support_hash": support_set_hash,
+                "hash": claim_hash,
                 "now": now,
             },
         )
@@ -408,7 +453,7 @@ def test_closed_resolver_commands_downstream_validity_and_history(engine: Engine
         )
         .scalar_one()
     )
-    assert before == after == "8" * 64
+    assert before == after
     assert (
         correction.id
         in queries.validity_projection(
@@ -747,7 +792,18 @@ def test_downstream_select_count_is_stage_bounded(engine: Engine) -> None:
                         "measurement": measurement_id,
                         "run": run_id,
                         "metric": ids["metric_version"],
-                        "hash": uuid4().hex * 2,
+                        "hash": str(
+                            sha256_canonical_json(
+                                {
+                                    "run_id": str(run_id),
+                                    "metric_definition_version_id": str(ids["metric_version"]),
+                                    "numeric_value": 1.0,
+                                    "structured_value": None,
+                                    "unit": None,
+                                    "evaluation_scope": None,
+                                }
+                            )
+                        ),
                         "actor": ids["actor"],
                         "now": now,
                     },

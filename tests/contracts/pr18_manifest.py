@@ -488,23 +488,40 @@ FROZEN_QUERY_EXPECTATIONS: Final[dict[str, dict[str, object]]] = {
     "audit_findings": {
         "application_method": "GovernanceQueryService.list_audit_findings",
         "repository_methods": ("governance.list_audit_findings",),
-        "required_relations": ("audit_findings",),
+        "required_relations": ("audit_findings", "artifacts", "artifact_versions"),
         "required_predicates": (
             ("finding project scope", r"\baudit_findings\.project_id\s*=\s*"),
             ("finding target type scope", r"\baudit_findings\.target_type\s*=\s*"),
             ("finding target identity scope", r"\baudit_findings\.target_id\s*=\s*"),
         ),
         "topology": {
-            "mode": "batched_single_relation_selects",
-            "allowed_relations": ("audit_findings",),
+            "mode": "explicit_join_graph",
+            "allowed_relations": ("audit_findings", "artifacts", "artifact_versions"),
             "closed_relation_set": True,
             "allow_single_relation_reads": True,
             "allow_cartesian_joins": False,
             "forbidden_cartesian_joins": True,
-            "required_join_edges": (),
-            "allowed_join_edges": (),
+            "required_join_edges": (
+                (
+                    "artifact target binding verification",
+                    ("artifacts", "artifact_versions"),
+                    r"\bartifact_versions\.artifact_id\s*=\s*artifacts\.id\b",
+                ),
+            ),
+            "allowed_join_edges": (
+                (
+                    "artifact target binding verification",
+                    ("artifacts", "artifact_versions"),
+                    r"\bartifact_versions\.artifact_id\s*=\s*artifacts\.id\b",
+                ),
+            ),
             "forbidden_join_edges": "all_unlisted",
-            "required_join_patterns": (),
+            "required_join_patterns": (
+                (
+                    "artifact target binding verification",
+                    r"artifacts\s+JOIN\s+artifact_versions",
+                ),
+            ),
             "forbidden_node_types": ("ModifyTable", "LockRows"),
             "forbidden_sql_fragments": (
                 "FOR UPDATE",

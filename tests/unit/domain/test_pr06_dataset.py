@@ -127,8 +127,28 @@ def test_excluded_snapshot_fields_do_not_change_bare_content_hash(
 
 def test_each_material_snapshot_field_changes_bare_content_hash() -> None:
     baseline = _baseline_snapshot()
-    manifest_variant = replace(baseline, manifest_hash=ContentHash("b" * 64))
-    selection_variant = replace(baseline, selection_definition={"split": "test"})
+    changed_manifest = ContentHash("b" * 64)
+    changed_selection = {"split": "test"}
+    manifest_variant = replace(
+        baseline,
+        manifest_hash=changed_manifest,
+        content_hash=sha256_canonical_json(
+            {
+                "manifest_hash": str(changed_manifest),
+                "selection_definition": SELECTION,
+            }
+        ),
+    )
+    selection_variant = replace(
+        baseline,
+        selection_definition=changed_selection,
+        content_hash=sha256_canonical_json(
+            {
+                "manifest_hash": str(MANIFEST_HASH),
+                "selection_definition": changed_selection,
+            }
+        ),
+    )
 
     assert _snapshot_hash(manifest_variant) != _snapshot_hash(baseline)
     assert _snapshot_hash(selection_variant) != _snapshot_hash(baseline)

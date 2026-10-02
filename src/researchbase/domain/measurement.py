@@ -12,6 +12,7 @@ from researchbase.domain.metric import MetricDefinitionVersionId
 from researchbase.domain.run import RunId
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from researchbase.foundation.hashing import ContentHash, sha256_canonical_json
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import to_utc
@@ -53,6 +54,20 @@ class Measurement:
         )
         object.__setattr__(self, "created_by", ActorId(self.created_by))
         object.__setattr__(self, "created_at", to_utc(self.created_at))
+
+        for field in ("structured_value", "evaluation_scope"):
+            value = getattr(self, field)
+            if value is None:
+                continue
+            try:
+                frozen_value = freeze_json(value)
+            except (TypeError, ValueError) as exc:
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    f"{field} is not valid canonical JSON",
+                    {"field": field},
+                ) from exc
+            object.__setattr__(self, field, frozen_value)
 
         self._validate_value_representation()
         self._validate_unit()
@@ -105,7 +120,7 @@ class Measurement:
                     {"field": "numeric_value"},
                 )
             object.__setattr__(self, "numeric_value", numeric_value)
-        elif not isinstance(self.structured_value, dict | list):
+        elif not isinstance(thaw_json(self.structured_value), dict | list):
             raise ResearchBaseError(
                 ErrorCode.VALIDATION_ERROR,
                 "structured_value must be a JSON object or array",
@@ -122,11 +137,13 @@ class Measurement:
 
     def _validate_json_fields(self) -> None:
         try:
-            canonical_json_bytes(self.structured_value)
+            canonical_json_bytes(
+                thaw_json(self.structured_value) if self.structured_value is not None else None
+            )
             if self.evaluation_scope is not None:
-                if not isinstance(self.evaluation_scope, dict):
+                if not isinstance(thaw_json(self.evaluation_scope), dict):
                     raise TypeError("evaluation_scope must be a JSON object")
-                canonical_json_bytes(self.evaluation_scope)
+                canonical_json_bytes(thaw_json(self.evaluation_scope))
         except (TypeError, ValueError) as exc:
             field = "structured_value" if self.structured_value is not None else "evaluation_scope"
             raise ResearchBaseError(
@@ -141,7 +158,11 @@ class Measurement:
             "run_id": str(self.run_id),
             "metric_definition_version_id": str(self.metric_definition_version_id),
             "numeric_value": self.numeric_value,
-            "structured_value": self.structured_value,
+            "structured_value": (
+                thaw_json(self.structured_value) if self.structured_value is not None else None
+            ),
             "unit": self.unit,
-            "evaluation_scope": self.evaluation_scope,
+            "evaluation_scope": (
+                thaw_json(self.evaluation_scope) if self.evaluation_scope is not None else None
+            ),
         }

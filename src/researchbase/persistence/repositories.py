@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
+from functools import wraps
+from typing import Any, ParamSpec, TypeVar
 from uuid import UUID
 
 from sqlalchemy import case, delete, func, insert, select, update
@@ -66,6 +68,7 @@ from researchbase.domain.statistical_result import (
     StatisticalResultInput,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import thaw_json
 from researchbase.foundation.hashing import CANONICAL_JSON_HASH_SCHEME, ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.versioning import VersionStatus
@@ -95,6 +98,44 @@ from researchbase.persistence.models import (
     StatisticalResultModel,
     WorkspaceModel,
 )
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
+def _verified_persisted(record_type: str) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
+    """Normalize invalid persisted canonical state without changing caller validation."""
+
+    def decorate(converter: Callable[_P, _T]) -> Callable[_P, _T]:
+        @wraps(converter)
+        def converted(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+            try:
+                return converter(*args, **kwargs)
+            except ResearchBaseError as exc:
+                if exc.code is ErrorCode.REFERENTIAL_INTEGRITY_ERROR:
+                    raise
+                cause: Exception = exc
+            except (TypeError, ValueError) as exc:
+                cause = exc
+            source = args[0] if args else None
+            identifier = getattr(source, "id", None)
+            if identifier is None and source is not None:
+                try:
+                    identifier = source["id"]  # type: ignore[index]
+                except (KeyError, TypeError):
+                    identifier = None
+            details = {"object_type": record_type}
+            if identifier is not None:
+                details["object_id"] = str(identifier)
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "persisted canonical record failed integrity verification",
+                details,
+            ) from cause
+
+        return converted
+
+    return decorate
 
 
 def _ensure_current_pointer_parent(
@@ -215,7 +256,7 @@ class SqlAlchemyResearchQuestionRepository:
                 version_number=version.version_number,
                 status=version.status.value,
                 question_text=version.question_text,
-                scope=version.scope,
+                scope=thaw_json(version.scope) if version.scope is not None else None,
                 rationale=version.rationale,
                 content_hash=str(version.content_hash) if version.content_hash else None,
                 created_by=version.created_by,
@@ -324,7 +365,7 @@ class SqlAlchemyResearchQuestionRepository:
             .values(
                 status=version.status.value,
                 question_text=version.question_text,
-                scope=version.scope,
+                scope=thaw_json(version.scope) if version.scope is not None else None,
                 rationale=version.rationale,
                 content_hash=str(version.content_hash) if version.content_hash else None,
                 frozen_at=version.frozen_at,
@@ -361,7 +402,11 @@ class SqlAlchemyHypothesisRepository:
                 status=version.status.value,
                 statement=version.statement,
                 expected_direction=version.expected_direction,
-                success_criteria=version.success_criteria,
+                success_criteria=(
+                    thaw_json(version.success_criteria)
+                    if version.success_criteria is not None
+                    else None
+                ),
                 rationale=version.rationale,
                 content_hash=str(version.content_hash) if version.content_hash else None,
                 created_by=version.created_by,
@@ -465,7 +510,11 @@ class SqlAlchemyHypothesisRepository:
                 status=version.status.value,
                 statement=version.statement,
                 expected_direction=version.expected_direction,
-                success_criteria=version.success_criteria,
+                success_criteria=(
+                    thaw_json(version.success_criteria)
+                    if version.success_criteria is not None
+                    else None
+                ),
                 rationale=version.rationale,
                 content_hash=str(version.content_hash) if version.content_hash else None,
                 frozen_at=version.frozen_at,
@@ -502,10 +551,18 @@ class SqlAlchemyExperimentSpecRepository:
                 status=version.status.value,
                 title=version.title,
                 objective=version.objective,
-                protocol=version.protocol,
-                planned_metrics=version.planned_metrics,
-                seed_policy=version.seed_policy,
-                analysis_plan=version.analysis_plan,
+                protocol=thaw_json(version.protocol),
+                planned_metrics=(
+                    thaw_json(version.planned_metrics)
+                    if version.planned_metrics is not None
+                    else None
+                ),
+                seed_policy=(
+                    thaw_json(version.seed_policy) if version.seed_policy is not None else None
+                ),
+                analysis_plan=(
+                    thaw_json(version.analysis_plan) if version.analysis_plan is not None else None
+                ),
                 content_hash=str(version.content_hash) if version.content_hash else None,
                 created_by=version.created_by,
                 created_at=version.created_at,
@@ -620,10 +677,18 @@ class SqlAlchemyExperimentSpecRepository:
                 status=version.status.value,
                 title=version.title,
                 objective=version.objective,
-                protocol=version.protocol,
-                planned_metrics=version.planned_metrics,
-                seed_policy=version.seed_policy,
-                analysis_plan=version.analysis_plan,
+                protocol=thaw_json(version.protocol),
+                planned_metrics=(
+                    thaw_json(version.planned_metrics)
+                    if version.planned_metrics is not None
+                    else None
+                ),
+                seed_policy=(
+                    thaw_json(version.seed_policy) if version.seed_policy is not None else None
+                ),
+                analysis_plan=(
+                    thaw_json(version.analysis_plan) if version.analysis_plan is not None else None
+                ),
                 content_hash=str(version.content_hash) if version.content_hash else None,
                 frozen_at=version.frozen_at,
                 row_version=ExperimentSpecVersionModel.row_version + 1,
@@ -667,7 +732,7 @@ class SqlAlchemyDatasetSnapshotRepository:
                 id=snapshot.id,
                 dataset_id=snapshot.dataset_id,
                 manifest_hash=str(snapshot.manifest_hash),
-                selection_definition=snapshot.selection_definition,
+                selection_definition=thaw_json(snapshot.selection_definition),
                 manifest_locator=snapshot.manifest_locator,
                 content_hash=str(snapshot.content_hash),
                 created_by=snapshot.created_by,
@@ -773,7 +838,9 @@ class SqlAlchemyArtifactVersionRepository:
                 media_type=version.media_type,
                 byte_size=version.byte_size,
                 content_hash=str(version.content_hash),
-                metadata_json=version.metadata,
+                metadata_json=(
+                    thaw_json(version.metadata) if version.metadata is not None else None
+                ),
                 created_by=version.created_by,
                 created_at=version.created_at,
                 frozen_at=version.frozen_at,
@@ -841,7 +908,9 @@ class SqlAlchemyArtifactVersionRepository:
                 media_type=version.media_type,
                 byte_size=version.byte_size,
                 content_hash=str(version.content_hash),
-                metadata_json=version.metadata,
+                metadata_json=(
+                    thaw_json(version.metadata) if version.metadata is not None else None
+                ),
                 frozen_at=version.frozen_at,
                 row_version=ArtifactVersionModel.row_version + 1,
             )
@@ -922,7 +991,7 @@ class SqlAlchemyMetricDefinitionVersionRepository:
                 metric_definition_id=version.metric_definition_id,
                 version_number=version.version_number,
                 status=version.status.value,
-                definition=version.definition,
+                definition=thaw_json(version.definition),
                 unit=version.unit,
                 aggregation=version.aggregation,
                 content_hash=str(version.content_hash) if version.content_hash else None,
@@ -984,7 +1053,7 @@ class SqlAlchemyMetricDefinitionVersionRepository:
             )
             .values(
                 status=version.status.value,
-                definition=version.definition,
+                definition=thaw_json(version.definition),
                 unit=version.unit,
                 aggregation=version.aggregation,
                 content_hash=str(version.content_hash) if version.content_hash else None,
@@ -1116,9 +1185,17 @@ class SqlAlchemyMeasurementRepository:
                 run_id=measurement.run_id,
                 metric_definition_version_id=measurement.metric_definition_version_id,
                 numeric_value=measurement.numeric_value,
-                structured_value=measurement.structured_value,
+                structured_value=(
+                    thaw_json(measurement.structured_value)
+                    if measurement.structured_value is not None
+                    else None
+                ),
                 unit=measurement.unit,
-                evaluation_scope=measurement.evaluation_scope,
+                evaluation_scope=(
+                    thaw_json(measurement.evaluation_scope)
+                    if measurement.evaluation_scope is not None
+                    else None
+                ),
                 content_hash=str(measurement.content_hash),
                 created_by=measurement.created_by,
                 created_at=measurement.created_at,
@@ -1164,8 +1241,8 @@ class SqlAlchemyStatisticalResultRepository:
                 id=result.id,
                 project_id=result.project_id,
                 analysis_type=result.analysis_type,
-                result_payload=result.result_payload,
-                analysis_definition=result.analysis_definition,
+                result_payload=thaw_json(result.result_payload),
+                analysis_definition=thaw_json(result.analysis_definition),
                 content_hash=result.content_hash,
                 created_by=result.created_by,
                 created_at=result.created_at,
@@ -1259,7 +1336,7 @@ class SqlAlchemyClaimRepository:
                 version_number=version.version_number,
                 status=version.status.value,
                 statement=version.statement,
-                scope=version.scope,
+                scope=thaw_json(version.scope) if version.scope is not None else None,
                 qualification=version.qualification,
                 support_set_hash=(
                     str(version.support_set_hash) if version.support_set_hash is not None else None
@@ -1365,7 +1442,7 @@ class SqlAlchemyClaimRepository:
             .values(
                 status=version.status.value,
                 statement=version.statement,
-                scope=version.scope,
+                scope=thaw_json(version.scope) if version.scope is not None else None,
                 qualification=version.qualification,
                 support_set_hash=(
                     str(version.support_set_hash) if version.support_set_hash is not None else None
@@ -1453,6 +1530,7 @@ def _claim_from_model(model: ClaimModel) -> Claim:
     )
 
 
+@_verified_persisted("ClaimVersion")
 def _claim_version_from_model(model: ClaimVersionModel) -> ClaimVersion:
     return ClaimVersion(
         id=ClaimVersionId(model.id),
@@ -1558,6 +1636,7 @@ def _metric_definition_from_model(model: MetricDefinitionModel) -> MetricDefinit
     )
 
 
+@_verified_persisted("MetricDefinitionVersion")
 def _metric_definition_version_from_model(
     model: MetricDefinitionVersionModel,
 ) -> MetricDefinitionVersion:
@@ -1614,6 +1693,7 @@ def _run_artifact_input_from_model(model: RunArtifactInputModel) -> RunArtifactI
     )
 
 
+@_verified_persisted("Measurement")
 def _measurement_from_model(model: MeasurementModel) -> Measurement:
     return Measurement(
         id=MeasurementId(model.id),
@@ -1629,6 +1709,7 @@ def _measurement_from_model(model: MeasurementModel) -> Measurement:
     )
 
 
+@_verified_persisted("StatisticalResult")
 def _statistical_result_from_row(row: Any) -> StatisticalResult:
     return StatisticalResult(
         id=StatisticalResultId(row["id"]),
@@ -1665,6 +1746,7 @@ def _dataset_from_model(model: DatasetModel) -> Dataset:
     )
 
 
+@_verified_persisted("DatasetSnapshot")
 def _dataset_snapshot_from_model(model: DatasetSnapshotModel) -> DatasetSnapshot:
     return DatasetSnapshot(
         id=DatasetSnapshotId(model.id),
@@ -1718,6 +1800,7 @@ def _research_question_from_model(model: ResearchQuestionModel) -> ResearchQuest
     )
 
 
+@_verified_persisted("ResearchQuestionVersion")
 def _research_question_version_from_model(
     model: ResearchQuestionVersionModel,
 ) -> ResearchQuestionVersion:
@@ -1758,6 +1841,7 @@ def _hypothesis_from_model(model: HypothesisModel) -> Hypothesis:
     )
 
 
+@_verified_persisted("HypothesisVersion")
 def _hypothesis_version_from_model(model: HypothesisVersionModel) -> HypothesisVersion:
     return HypothesisVersion(
         id=HypothesisVersionId(model.id),
@@ -1793,6 +1877,7 @@ def _experiment_spec_from_model(model: ExperimentSpecModel) -> ExperimentSpec:
     )
 
 
+@_verified_persisted("ExperimentSpecVersion")
 def _experiment_spec_version_from_model(
     model: ExperimentSpecVersionModel,
 ) -> ExperimentSpecVersion:

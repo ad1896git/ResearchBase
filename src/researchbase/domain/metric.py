@@ -10,10 +10,16 @@ from uuid import UUID
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import Clock, to_utc
-from researchbase.foundation.versioning import VersionStatus, freeze_material, require_transition
+from researchbase.foundation.versioning import (
+    VersionStatus,
+    freeze_material,
+    require_transition,
+    validate_version_hash,
+)
 
 MetricDefinitionId = NewType("MetricDefinitionId", UUID)
 MetricDefinitionVersionId = NewType("MetricDefinitionVersionId", UUID)
@@ -89,12 +95,26 @@ class MetricDefinitionVersion:
             object.__setattr__(self, "frozen_at", to_utc(self.frozen_at))
         self._validate_optional_text(self.unit, "unit")
         self._validate_optional_text(self.aggregation, "aggregation")
-        if self.content_hash is not None and not isinstance(self.content_hash, ContentHash):
-            object.__setattr__(self, "content_hash", ContentHash(self.content_hash))
-        if self.status in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED} and (
-            self.content_hash is None or self.hash_scheme is None or self.frozen_at is None
-        ):
-            raise ValueError("frozen versions require content_hash, hash_scheme, and frozen_at")
+        try:
+            frozen_definition = freeze_json(self.definition)
+        except (TypeError, ValueError) as exc:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "metric definition material is not valid canonical JSON",
+                {"field": "definition"},
+            ) from exc
+        object.__setattr__(self, "definition", frozen_definition)
+        object.__setattr__(
+            self,
+            "content_hash",
+            validate_version_hash(
+                self.status,
+                self.material_payload(),
+                self.content_hash,
+                self.hash_scheme,
+                self.frozen_at,
+            ),
+        )
         if self.row_version < 1:
             raise ValueError("row_version must be positive")
         self.validate_material()
@@ -109,7 +129,11 @@ class MetricDefinitionVersion:
             )
 
     def material_payload(self) -> dict[str, object | None]:
-        return {"definition": self.definition, "unit": self.unit, "aggregation": self.aggregation}
+        return {
+            "definition": thaw_json(self.definition),
+            "unit": self.unit,
+            "aggregation": self.aggregation,
+        }
 
     def validate_material(self) -> None:
         if self.definition is None:

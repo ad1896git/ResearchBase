@@ -11,6 +11,7 @@ from researchbase.domain.organization import ProjectId
 from researchbase.domain.research import HypothesisId
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from researchbase.foundation.hashing import ContentHash
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import Clock, to_utc
@@ -18,6 +19,7 @@ from researchbase.foundation.versioning import (
     VersionStatus,
     freeze_material,
     require_transition,
+    validate_version_hash,
 )
 
 ExperimentSpecId = NewType("ExperimentSpecId", UUID)
@@ -88,15 +90,25 @@ class ExperimentSpecVersion:
         _validate_text(self.title, "title")
         _validate_text(self.objective, "objective")
         _validate_protocol(self.protocol)
+        object.__setattr__(self, "protocol", freeze_json(self.protocol))
+        for field in ("planned_metrics", "seed_policy", "analysis_plan"):
+            value = getattr(self, field)
+            if value is not None:
+                object.__setattr__(self, field, freeze_json(value))
         object.__setattr__(self, "created_at", to_utc(self.created_at))
         if self.frozen_at is not None:
             object.__setattr__(self, "frozen_at", to_utc(self.frozen_at))
-        if self.content_hash is not None and not isinstance(self.content_hash, ContentHash):
-            object.__setattr__(self, "content_hash", ContentHash(self.content_hash))
-        if self.status in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED} and (
-            self.content_hash is None or self.hash_scheme is None or self.frozen_at is None
-        ):
-            raise ValueError("frozen versions require content_hash, hash_scheme, and frozen_at")
+        object.__setattr__(
+            self,
+            "content_hash",
+            validate_version_hash(
+                self.status,
+                self.material_payload(),
+                self.content_hash,
+                self.hash_scheme,
+                self.frozen_at,
+            ),
+        )
         _validate_row_version(self.row_version)
 
     def material_payload(self) -> dict[str, object | None]:
@@ -104,10 +116,14 @@ class ExperimentSpecVersion:
         return {
             "title": self.title,
             "objective": self.objective,
-            "protocol": self.protocol,
-            "planned_metrics": self.planned_metrics,
-            "seed_policy": self.seed_policy,
-            "analysis_plan": self.analysis_plan,
+            "protocol": thaw_json(self.protocol),
+            "planned_metrics": (
+                thaw_json(self.planned_metrics) if self.planned_metrics is not None else None
+            ),
+            "seed_policy": thaw_json(self.seed_policy) if self.seed_policy is not None else None,
+            "analysis_plan": (
+                thaw_json(self.analysis_plan) if self.analysis_plan is not None else None
+            ),
         }
 
     def validate_material(self) -> None:

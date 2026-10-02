@@ -11,6 +11,7 @@ from researchbase.domain.measurement import MeasurementId
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from researchbase.foundation.hashing import ContentHash, sha256_canonical_json
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import to_utc
@@ -56,8 +57,10 @@ class StatisticalResult:
         object.__setattr__(self, "created_by", ActorId(self.created_by))
         object.__setattr__(self, "created_at", to_utc(self.created_at))
         try:
-            canonical_json_bytes(self.result_payload)
-            canonical_json_bytes(self.analysis_definition)
+            object.__setattr__(self, "result_payload", freeze_json(self.result_payload))
+            object.__setattr__(self, "analysis_definition", freeze_json(self.analysis_definition))
+            canonical_json_bytes(thaw_json(self.result_payload))
+            canonical_json_bytes(thaw_json(self.analysis_definition))
         except (TypeError, ValueError) as exc:
             raise ResearchBaseError(
                 ErrorCode.VALIDATION_ERROR,
@@ -84,8 +87,8 @@ class StatisticalResult:
         """Return the exact AD-PR11-001 content-hash material."""
         return {
             "analysis_type": self.analysis_type,
-            "result_payload": self.result_payload,
-            "analysis_definition": self.analysis_definition,
+            "result_payload": thaw_json(self.result_payload),
+            "analysis_definition": thaw_json(self.analysis_definition),
         }
 
 

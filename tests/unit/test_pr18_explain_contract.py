@@ -154,9 +154,13 @@ def test_query_contract_is_frozen_independently_of_observed_plan() -> None:
     expectation = FROZEN_QUERY_EXPECTATIONS["audit_findings"]
 
     assert expectation["application_method"] == "GovernanceQueryService.list_audit_findings"
-    assert expectation["required_relations"] == ("audit_findings",)
+    assert expectation["required_relations"] == (
+        "audit_findings",
+        "artifacts",
+        "artifact_versions",
+    )
     assert expectation["required_predicates"]
-    assert expectation["topology"]["mode"] == "batched_single_relation_selects"  # type: ignore[index]
+    assert expectation["topology"]["mode"] == "explicit_join_graph"  # type: ignore[index]
 
 
 def test_each_production_query_has_an_explicit_topology_contract() -> None:
@@ -928,7 +932,16 @@ def test_query_contract_rejects_missing_frozen_predicate() -> None:
                 "WHERE audit_findings.project_id = :project"
             ),
             relations=["audit_findings"],
-        )
+        ),
+        _statement(
+            "SELECT artifacts.project_id, artifact_versions.content_hash "
+            "FROM artifacts JOIN artifact_versions "
+            "ON artifact_versions.artifact_id = artifacts.id "
+            "WHERE artifact_versions.id = :id AND artifacts.project_id = :project",
+            relations=["artifacts", "artifact_versions"],
+            nodes=["Nested Loop", "Index Scan"],
+            join_types=["Inner"],
+        ),
     ]
 
     with pytest.raises(PR18EvidenceError, match="MISSING_REQUIRED_PREDICATE"):

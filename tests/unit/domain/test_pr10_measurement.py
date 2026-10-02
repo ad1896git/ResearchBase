@@ -83,14 +83,7 @@ def _measurement(**overrides: object) -> Measurement:
 
 def test_measurement_hash_material_is_exact_and_metadata_independent() -> None:
     measurement = _measurement()
-    expected = _material(
-        run_id=measurement.run_id,
-        metric_definition_version_id=measurement.metric_definition_version_id,
-        numeric_value=measurement.numeric_value,
-        structured_value=measurement.structured_value,
-        unit=measurement.unit,
-        evaluation_scope=measurement.evaluation_scope,
-    )
+    expected = measurement.material_payload()
 
     assert measurement.content_hash == independent_canonical_json_sha256(expected)
 
@@ -193,18 +186,9 @@ def test_each_material_field_changes_hash_independently() -> None:
     baseline = _measurement()
 
     def with_recomputed_hash(measurement: Measurement, **changes: object) -> Measurement:
-        material = _material(
-            run_id=changes.get("run_id", measurement.run_id),
-            metric_definition_version_id=changes.get(
-                "metric_definition_version_id", measurement.metric_definition_version_id
-            ),
-            numeric_value=cast(
-                float | None, changes.get("numeric_value", measurement.numeric_value)
-            ),
-            structured_value=changes.get("structured_value", measurement.structured_value),
-            unit=cast(str | None, changes.get("unit", measurement.unit)),
-            evaluation_scope=changes.get("evaluation_scope", measurement.evaluation_scope),
-        )
+        material = measurement.material_payload()
+        for field, value in changes.items():
+            material[field] = str(value) if field.endswith("_id") else value
         return replace(
             measurement,
             **changes,

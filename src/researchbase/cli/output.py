@@ -13,12 +13,15 @@ from uuid import UUID
 import typer
 
 from researchbase.foundation.errors import ResearchBaseError
+from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 from researchbase.foundation.time import format_utc
 
 from .errors import CliTransportError, error_code, error_details
 
 
 def to_jsonable(value: object) -> object:
+    if isinstance(value, FrozenJSONObject | FrozenJSONArray):
+        return to_jsonable(thaw_json(value))
     if is_dataclass(value) and not isinstance(value, type):
         return {field.name: to_jsonable(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, Enum):

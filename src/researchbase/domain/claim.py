@@ -13,10 +13,16 @@ from researchbase.domain.organization import ProjectId
 from researchbase.domain.statistical_result import StatisticalResultId
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from researchbase.foundation.hashing import ContentHash, sha256_canonical_json
 from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import Clock, to_utc
-from researchbase.foundation.versioning import VersionStatus, freeze_material, require_transition
+from researchbase.foundation.versioning import (
+    VersionStatus,
+    freeze_material,
+    require_transition,
+    validate_version_hash,
+)
 
 ClaimId = NewType("ClaimId", UUID)
 ClaimVersionId = NewType("ClaimVersionId", UUID)
@@ -94,30 +100,37 @@ class ClaimVersion:
                 "qualification must be text or null",
                 {"field": "qualification"},
             )
+        if self.scope is not None:
+            object.__setattr__(self, "scope", freeze_json(self.scope))
         object.__setattr__(self, "created_at", to_utc(self.created_at))
         if self.frozen_at is not None:
             object.__setattr__(self, "frozen_at", to_utc(self.frozen_at))
         if self.support_set_hash is not None and not isinstance(self.support_set_hash, ContentHash):
             object.__setattr__(self, "support_set_hash", ContentHash(self.support_set_hash))
-        if self.content_hash is not None and not isinstance(self.content_hash, ContentHash):
-            object.__setattr__(self, "content_hash", ContentHash(self.content_hash))
         if self.status in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED} and (
             self.support_set_hash is None
-            or self.content_hash is None
-            or self.hash_scheme is None
-            or self.frozen_at is None
         ):
-            raise ValueError(
-                "frozen claim versions require support_set_hash, content_hash, "
-                "hash_scheme, and frozen_at"
-            )
+            raise ValueError("frozen claim versions require support_set_hash")
+        if self.status in {VersionStatus.DRAFT, VersionStatus.ABANDONED} and self.support_set_hash:
+            raise ValueError("draft-origin claim versions must not have support_set_hash")
+        object.__setattr__(
+            self,
+            "content_hash",
+            validate_version_hash(
+                self.status,
+                self.material_payload(),
+                self.content_hash,
+                self.hash_scheme,
+                self.frozen_at,
+            ),
+        )
         _validate_positive(self.row_version, "row_version")
         self.validate_material()
 
     def material_payload(self) -> dict[str, object | None]:
         return {
             "statement": self.statement,
-            "scope": self.scope,
+            "scope": thaw_json(self.scope) if self.scope is not None else None,
             "qualification": self.qualification,
             "support_set_hash": (
                 str(self.support_set_hash) if self.support_set_hash is not None else None
@@ -154,15 +167,18 @@ class ClaimVersion:
 
     def freeze(self, *, support_set_hash: ContentHash, clock: Clock) -> ClaimVersion:
         self.validate_material()
-        materialized = replace(self, support_set_hash=ContentHash(support_set_hash))
+        normalized_support_hash = ContentHash(support_set_hash)
+        material = self.material_payload()
+        material["support_set_hash"] = str(normalized_support_hash)
         result = freeze_material(
-            materialized.status,
-            materialized.material_payload(),
+            self.status,
+            material,
             clock,
         )
         return replace(
-            materialized,
+            self,
             status=result.status,
+            support_set_hash=normalized_support_hash,
             content_hash=result.content_hash,
             hash_scheme=result.hash_scheme,
             frozen_at=result.frozen_at,
