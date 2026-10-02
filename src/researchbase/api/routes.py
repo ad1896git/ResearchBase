@@ -429,7 +429,9 @@ def _http_json_value(value: object) -> object:
     if isinstance(value, FrozenJSONObject | FrozenJSONArray):
         return thaw_json(value)
     if isinstance(value, BaseModel):
-        return _http_json_value(value.model_dump(mode="python", by_alias=True))
+        return {
+            name: _http_json_value(getattr(value, name)) for name in value.__class__.model_fields
+        }
     if is_dataclass(value) and not isinstance(value, type):
         return {field.name: _http_json_value(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, dict):

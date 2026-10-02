@@ -11,7 +11,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, is_dataclass, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
@@ -80,6 +80,7 @@ from researchbase.domain.identity import ActorType
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.execution_context import ExecutionContext
+from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
@@ -280,6 +281,8 @@ def _uuid(result: Any, name: str) -> UUID:
 
 
 def _jsonable(value: Any) -> Any:
+    if isinstance(value, FrozenJSONObject | FrozenJSONArray):
+        return _jsonable(thaw_json(value))
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, datetime):
@@ -287,7 +290,7 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.value
     if is_dataclass(value):
-        return _jsonable(asdict(value))
+        return {field.name: _jsonable(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
     if isinstance(value, list | tuple):

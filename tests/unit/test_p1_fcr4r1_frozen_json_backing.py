@@ -50,11 +50,11 @@ def _direct_backing_attacks(value: object) -> tuple[Attack, ...]:
 def _frozen_containers(value: object) -> Iterator[object]:
     if isinstance(value, FrozenJSONObject):
         yield value
-        for _, child in value._items:
+        for child in value.values():
             yield from _frozen_containers(child)
     elif isinstance(value, FrozenJSONArray):
         yield value
-        for child in value._values:
+        for child in value:
             yield from _frozen_containers(child)
 
 
@@ -72,12 +72,13 @@ def test_frozen_object_has_no_mutable_authoritative_backing_dict() -> None:
 
     assert isinstance(value, FrozenJSONObject)
     assert not hasattr(value, "_values")
-    assert isinstance(value._items, tuple)
-    assert all(isinstance(item, tuple) for item in value._items)
+    assert not hasattr(value, "_items")
+    assert isinstance(value, tuple)
+    assert all(isinstance(item, tuple) for item in tuple.__iter__(value))
     with pytest.raises(AttributeError):
         value._items = ()  # type: ignore[misc]
     with pytest.raises(AttributeError):
-        del value._items
+        object.__delattr__(value, "_items")
     for attack in _direct_backing_attacks(value):
         _attempt_without_material_change(value, attack)
 
@@ -96,11 +97,12 @@ def test_array_backing_attacks_cannot_change_material() -> None:
     value = freeze_json([{"x": 1}, 2])
 
     assert isinstance(value, FrozenJSONArray)
-    assert isinstance(value._values, tuple)
+    assert isinstance(value, tuple)
+    assert not hasattr(value, "_values")
     with pytest.raises(AttributeError):
         value._values = ()  # type: ignore[misc]
     with pytest.raises(AttributeError):
-        del value._values
+        object.__delattr__(value, "_values")
     for attack in _direct_backing_attacks(value):
         _attempt_without_material_change(value, attack)
 
@@ -179,10 +181,12 @@ def test_no_mutable_authoritative_container_exists_recursively() -> None:
     mutable_container_count = 0
     for container in _frozen_containers(value):
         if isinstance(container, FrozenJSONObject):
-            assert isinstance(container._items, tuple)
+            assert isinstance(container, tuple)
+            assert not hasattr(container, "_items")
             assert not hasattr(container, "_values")
         elif isinstance(container, FrozenJSONArray):
-            assert isinstance(container._values, tuple)
+            assert isinstance(container, tuple)
+            assert not hasattr(container, "_values")
         else:  # pragma: no cover - traversal yields only FrozenJSON containers
             mutable_container_count += 1
 

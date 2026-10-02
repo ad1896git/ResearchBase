@@ -3,7 +3,7 @@ from __future__ import annotations
 # pyright: reportArgumentType=false
 import os
 from collections.abc import Iterator
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -34,6 +34,7 @@ from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.domain.governance import AuditFindingSeverity, GovernanceTargetType
 from researchbase.domain.run import RunStatus
 from researchbase.foundation.execution_context import ExecutionContext
+from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 from researchbase.foundation.time import SystemClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
@@ -43,10 +44,22 @@ pytestmark = pytest.mark.integration
 
 def _json_value(value: object) -> object:
     if isinstance(value, tuple):
-        encoded = jsonable_encoder([asdict(item) for item in value])
+        encoded = jsonable_encoder([_plain_dataclass(item) for item in value])
         return _normalize_utc(encoded)
     assert is_dataclass(value)
-    return _normalize_utc(jsonable_encoder(asdict(value)))
+    return _normalize_utc(jsonable_encoder(_plain_dataclass(value)))
+
+
+def _plain_dataclass(value: object) -> object:
+    if isinstance(value, FrozenJSONObject | FrozenJSONArray):
+        return thaw_json(value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return {field.name: _plain_dataclass(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, dict):
+        return {key: _plain_dataclass(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_plain_dataclass(item) for item in value]
+    return value
 
 
 def _normalize_utc(value: object) -> object:

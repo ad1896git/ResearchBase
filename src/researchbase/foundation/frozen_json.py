@@ -11,39 +11,49 @@ from typing import Any
 type JSONScalar = None | bool | int | float | str
 
 
-class FrozenJSONObject(Mapping[str, object]):
+class FrozenJSONObject(tuple[tuple[str, object], ...]):
     """An immutable, insertion-order-preserving JSON object snapshot."""
 
-    __slots__ = ("_items",)
+    __slots__ = ()
     __hash__: Any = None
 
-    def __setattr__(self, name: str, value: object) -> None:
-        if hasattr(self, name):
-            raise AttributeError("FrozenJSONObject is immutable")
-        object.__setattr__(self, name, value)
-
-    def __delattr__(self, name: str) -> None:
-        raise AttributeError("FrozenJSONObject is immutable")
-
-    def __init__(self, items: tuple[tuple[str, object], ...]) -> None:
+    def __new__(cls, items: tuple[tuple[str, object], ...]) -> FrozenJSONObject:
         owned_items: list[tuple[str, FrozenJSON]] = []
         for key, value in items:
             if not isinstance(key, str):
                 raise TypeError("canonical JSON object keys must be strings")
             owned_items.append((key, _own_json(value)))
-        self._items = tuple(owned_items)
+        return tuple.__new__(cls, owned_items)
 
     def __getitem__(self, key: str) -> object:
-        for item_key, item_value in self._items:
+        for item_key, item_value in tuple.__iter__(self):
             if item_key == key:
                 return item_value
         raise KeyError(key)
 
     def __iter__(self) -> Iterator[str]:
-        return (key for key, _ in self._items)
+        return (key for key, _ in tuple.__iter__(self))
 
     def __len__(self) -> int:
-        return len(self._items)
+        return tuple.__len__(self)
+
+    def __contains__(self, key: object) -> bool:
+        return isinstance(key, str) and any(item_key == key for item_key in self)
+
+    def get(self, key: str, default: object = None) -> object:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def items(self) -> Iterator[tuple[str, object]]:
+        return tuple.__iter__(self)
+
+    def keys(self) -> Iterator[str]:
+        return iter(self)
+
+    def values(self) -> Iterator[object]:
+        return (value for _, value in tuple.__iter__(self))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Mapping):
@@ -54,28 +64,17 @@ class FrozenJSONObject(Mapping[str, object]):
         return f"FrozenJSONObject({thaw_json(self)!r})"
 
 
-class FrozenJSONArray(Sequence[object]):
+Mapping.register(FrozenJSONObject)  # pyright: ignore[reportAttributeAccessIssue]
+
+
+class FrozenJSONArray(tuple[object, ...]):
     """An immutable ordered JSON array snapshot."""
 
-    __slots__ = ("_values",)
+    __slots__ = ()
     __hash__ = None
 
-    def __setattr__(self, name: str, value: object) -> None:
-        if hasattr(self, name):
-            raise AttributeError("FrozenJSONArray is immutable")
-        object.__setattr__(self, name, value)
-
-    def __delattr__(self, name: str) -> None:
-        raise AttributeError("FrozenJSONArray is immutable")
-
-    def __init__(self, values: tuple[object, ...]) -> None:
-        self._values = tuple(_own_json(value) for value in values)
-
-    def __getitem__(self, index: int | slice) -> object:
-        return self._values[index]
-
-    def __len__(self) -> int:
-        return len(self._values)
+    def __new__(cls, values: tuple[object, ...]) -> FrozenJSONArray:
+        return tuple.__new__(cls, (_own_json(value) for value in values))
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, str | bytes | bytearray) or not isinstance(other, Sequence):
