@@ -1,0 +1,496 @@
+diff --git a/docs/architecture/02_Final_Architecture_Correction_Addendum_v1.0.md b/docs/architecture/02_Final_Architecture_Correction_Addendum_v1.0.md
+index b8f1ac2..255ff51 100644
+--- a/docs/architecture/02_Final_Architecture_Correction_Addendum_v1.0.md
++++ b/docs/architecture/02_Final_Architecture_Correction_Addendum_v1.0.md
+@@ -352,3 +352,15 @@ Cross-Phase Implementation Start Gate 增加：
+ ```text
+ IMPLEMENTATION_GO_PHASE1 = TRUE
+ ```
++
++---
++
++# A17. Phase 2 Design Gap Closure (normative patch)
++
++The Phase 2 architecture correction in `12_Phase2_Architecture_and_Contract_Correction_v1.0.md` and its field contract `13_Phase2_Schema_Field_Contract_v1.0.md` are incorporated into this Addendum for Phase 2 design review. They do not authorize implementation. In particular:
++
++- Phase 2 literature functionality is required.
++- `SubmissionVersion` retains the System Architecture meaning of a package actually sent externally and is deferred to the venue-submission extension. Phase 2's frozen *prepared* package is `PreparedSubmissionVersion`; no prepared package asserts that an external send occurred.
++- The Global Registry's Phase 2 object rows and the Phase 2 correction's typed provenance, bootstrap, hash/material, governance, and schema contracts govern over conflicting older Phase 2 prose.
++- Phase 2 PR2-00 bootstrap/membership precedes PR2-01 source identity. Neither PR is authorized by this design patch.
++- PR2-01 contains source identity and identifiers only; SourceMergeRecord and MERGED aliasing move to PR2-02 source lineage. The older Phase 2 PR2-01 merge bullet is superseded so the first literature PR remains independently reviewable.
+diff --git a/docs/architecture/03_Global_Schema_and_Contract_Registry_v1.0.md b/docs/architecture/03_Global_Schema_and_Contract_Registry_v1.0.md
+index d60e757..47f9e61 100644
+--- a/docs/architecture/03_Global_Schema_and_Contract_Registry_v1.0.md
++++ b/docs/architecture/03_Global_Schema_and_Contract_Registry_v1.0.md
+@@ -58,32 +58,56 @@ WORKFLOW
+ |---|---|---|---|---|
+ | ProjectMembership | organization | STATEFUL_OPERATIONAL | ACTIVE/SUSPENDED/ENDED | concrete actor/project FK |
+ | ProjectRoleAssignment | organization | STATEFUL_OPERATIONAL | temporal | concrete FK |
++| ProjectMembershipEvent | organization | IMMUTABLE_RECORD | append-only | membership/actor FKs |
++| ProjectRoleEvent | organization | IMMUTABLE_RECORD | append-only | role assignment/actor FKs |
++| BootstrapRecord | organization/identity boundary | IMMUTABLE_RECORD | immutable; first-owner ceremony only | concrete actor/project/membership/role FKs |
+ | LiteratureSource | literature | IDENTITY | ACTIVE/MERGED/RETIRED | Live identity |
+ | SourceIdentifier | literature | IMMUTABLE/STATEFUL | verified | source FK |
++| LiteratureSourceProjectLink | literature/organization boundary | IMMUTABLE_RECORD | append-only project access link | concrete source/project/actor FKs |
++| SourceIdentifierVerificationEvent | literature | IMMUTABLE_RECORD | append-only | identifier/basis ArtifactVersion/actor FKs |
+ | SourceVersion | literature | VERSION | DRAFT→FROZEN... | Frozen |
+ | LiteratureSearchPlan | literature | IDENTITY | stable | Live |
+ | LiteratureSearchPlanVersion | literature | VERSION | DRAFT→FROZEN... | Frozen |
+ | LiteratureSearchExecution | literature | STATEFUL_OPERATIONAL | PLANNED→terminal | plan version strong FK |
+ | SearchQueryRecord | literature | IMMUTABLE_RECORD | immutable | execution FK |
+ | SearchResultRecord | literature | IMMUTABLE_RECORD | immutable | query FK |
++| SearchResultResolution | literature | IMMUTABLE_RECORD | append-only | result/source/version FKs |
+ | LiteratureEvidence | literature | IMMUTABLE/REVIEWABLE | content immutable, verification state separate/controlled | SourceVersion strong FK |
++| LiteratureEvidenceReviewEvent | literature | IMMUTABLE_RECORD | append-only | evidence/actor FKs |
++| LiteratureEvidenceRelation | literature | IMMUTABLE_AFTER_FREEZE | target DRAFT edits; sealed on target freeze | concrete evidence and XOR target FKs |
++| SourceMergeRecord | literature | IMMUTABLE_RECORD | immutable | concrete losing/winning source FKs |
+ | ResearchBrief | evidence/artifact | ArtifactVersion role | versioned artifact | Frozen artifact |
+ | DiscussionSession | collaboration | STATEFUL_OPERATIONAL | OPEN/CLOSED/ARCHIVED | project FK |
+ | DiscussionTurn | collaboration | IMMUTABLE_RECORD | append-only | session FK |
+ | ScientificConclusion | research | IDENTITY | stable | Live |
+ | ScientificConclusionVersion | research | VERSION | DRAFT→FROZEN... | Frozen input set |
+ | Publication | publication | IDENTITY | lifecycle | Live |
++| PublicationLifecycleEvent | publication | IMMUTABLE_RECORD | append-only | publication/actor/decision/grant FKs |
+ | ManuscriptVersion | publication | VERSION | DRAFT→FROZEN... | Frozen |
++| ManuscriptClaimPlacement | publication | IMMUTABLE_AFTER_FREEZE | manuscript DRAFT edits; sealed on freeze | XOR exact ClaimVersion/ConclusionVersion FKs |
++| ManuscriptCitationPlacement | publication | IMMUTABLE_AFTER_FREEZE | manuscript DRAFT edits; sealed on freeze | exact SourceVersion FK; no support implication |
++| ManuscriptArtifactPlacement | publication | IMMUTABLE_AFTER_FREEZE | manuscript DRAFT edits; sealed on freeze | exact ArtifactVersion FK |
+ | InternalReviewRecord | governance | IMMUTABLE_RECORD | immutable | concrete frozen target |
+ | ReviewIssue | governance | STATEFUL_OPERATIONAL | OPEN/ADDRESSED/DISMISSED | review FK |
++| ReviewIssueEvent | governance | IMMUTABLE_RECORD | append-only | issue/actor/decision FKs |
+ | DecisionRecord | governance | IMMUTABLE_RECORD | immutable/superseding | typed basis relations |
++| RevisionAction | governance | IMMUTABLE_RECORD | immutable/superseding | concrete issue/decision/resulting version FKs |
+ | ApprovalRequest | governance | IMMUTABLE_RECORD-ish | PENDING→DECIDED/WITHDRAWN | concrete frozen target |
++| ApprovalRequestEvent | governance | IMMUTABLE_RECORD | append-only | request/actor FKs |
+ | ApprovalDecision | governance | IMMUTABLE_RECORD | immutable | request FK |
+ | ApprovalGrant | governance | STATEFUL_OPERATIONAL | ACTIVE/CONSUMED/EXPIRED/REVOKED/STALE | decision FK |
+-| SubmissionVersion | publication | VERSION/IMMUTABLE_SNAPSHOT | PREPARED→FROZEN→SUPERSEDED | Frozen closure |
+-| AuthorshipSnapshot | publication | IMMUTABLE_SNAPSHOT | frozen | Submission strong FK |
++| ApprovalGrantEvent | governance | IMMUTABLE_RECORD | append-only | grant/actor FKs |
++| ApprovalGrantConsumption | governance | IMMUTABLE_RECORD | at most one per grant | grant/command/resulting target FKs |
++| PreparedSubmissionVersion | publication | VERSION/IMMUTABLE_SNAPSHOT | PREPARED→FROZEN→SUPERSEDED/WITHDRAWN | Frozen package closure; no external send implication |
++| PreparedSubmissionEvent | publication | IMMUTABLE_RECORD | append-only | prepared package/actor FKs |
++| AuthorshipSnapshot | publication | IMMUTABLE_SNAPSHOT | frozen | PreparedSubmissionVersion strong FK |
++| ContributionRecord | publication | IMMUTABLE_RECORD | immutable | actor/publication or prepared-package FKs |
++| AuthorConsent | publication | IMMUTABLE_RECORD | new withdrawal record, no rewrite | actor/prepared-package FKs |
+ | PriorArtRelation | literature | IMMUTABLE_RECORD | immutable assessment | claim/source FKs |
+ | SearchCoverage | literature | IMMUTABLE_ASSESSMENT | immutable | relation tables |
++| NoveltyAssessment | literature | IMMUTABLE_ASSESSMENT | immutable/superseding | exact ClaimVersion/SearchCoverage FKs |
++
++`CitationRelation` is a noncanonical shorthand for `ManuscriptCitationPlacement`; it has no table. `SubmissionVersion` and `SubmissionRecord` are deferred to the venue-submission optional extension and denote actual external-send history. The normative Phase 2 correction and field contract are `12_Phase2_Architecture_and_Contract_Correction_v1.0.md` and `13_Phase2_Schema_Field_Contract_v1.0.md`.
+ 
+ ---
+ 
+diff --git a/docs/architecture/05_Phase2_Development_Specification_v1.1_Harness_Integrated.md b/docs/architecture/05_Phase2_Development_Specification_v1.1_Harness_Integrated.md
+index d9bca28..c701d68 100644
+--- a/docs/architecture/05_Phase2_Development_Specification_v1.1_Harness_Integrated.md
++++ b/docs/architecture/05_Phase2_Development_Specification_v1.1_Harness_Integrated.md
+@@ -1,5 +1,7 @@
+ # ResearchBase Phase 2 Development Specification
+ 
++> **Normative Phase 2 correction:** `docs/architecture/12_Phase2_Architecture_and_Contract_Correction_v1.0.md` resolves the prepared-versus-actual submission distinction, registry objects, bootstrap, hashes, governance, and schema. In this document, Phase 2 `SubmissionVersion` references in §§23, 34, 39, 48 and 52 mean `PreparedSubmissionVersion`; actual `SubmissionVersion` is deferred. `LiteratureSearchRun` means `LiteratureSearchExecution` under Final Correction Addendum A2. Literature is required Phase 2 scope. PR2-01 implements source identity/identifiers only; SourceMergeRecord moves to PR2-02 under Addendum A17.
++
+ > **版本**：v1.0  
+ > **状态**：DESIGN COMPLETE / READY FOR CROSS-PHASE REVIEW  
+ > **日期**：2026-08-26  
+@@ -2111,4 +2113,3 @@ Add to Section 52:
+ [ ] Skill/strategy revisions used in formal generated artifacts are identifiable PASS
+ [ ] scientific Skill trigger/evidence regression tests PASS
+ ```
+-
+diff --git a/docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md b/docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md
+index fe6489e..76c9e63 100644
+--- a/docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md
++++ b/docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md
+@@ -1,5 +1,7 @@
+ # ResearchBase Cross-Phase Contracts and Compatibility
+ 
++> **Phase 2 correction:** Final Architecture Correction Addendum A17 and `12_Phase2_Architecture_and_Contract_Correction_v1.0.md` distinguish Phase 2 `PreparedSubmissionVersion` from deferred actual-send `SubmissionVersion` and keep literature in Phase 2. Earlier Phase 2 submission references in this document use the prepared-package meaning only where they describe a pre-send workflow.
++
+ > **版本**：v1.0  
+ > **状态**：SYSTEM DESIGN CLOSURE / READY FOR FINAL REVIEW  
+ > **日期**：2026-08-26  
+@@ -101,7 +103,7 @@ DecisionRecord
+ ApprovalRequest
+ ApprovalDecision
+ ApprovalGrant
+-SubmissionVersion
++PreparedSubmissionVersion
+ ```
+ 
+ Phase 3 运行时稳定核心：
+@@ -715,7 +717,7 @@ policy
+ 
+ # 28. Publication Compatibility
+ 
+-Phase 2 SubmissionVersion 在后续接 venue submission 时保持不变。
++Phase 2 的 PreparedSubmissionVersion 是未发送的冻结包。后续 venue submission 扩展新增 SubmissionRecord 与 SubmissionVersion，后者只记录实际已发送的精确包；详见 Phase 2 Architecture and Contract Correction v1.0。不得将准备意图写成已发生的外部事实。
+ 
+ 新增：
+ 
+@@ -1277,4 +1279,3 @@ Harness logs, Skill recommendations and Agent reviews are useful provenance/eval
+ ## 52.4 Final Closure Rule
+ 
+ The Harness layer is accepted only if it can be removed/replaced without migrating canonical scientific state. Replacing a harness may require preserving historical AgentExecution/fingerprint provenance, but MUST NOT require rewriting historical scientific facts.
+-
+diff --git a/docs/architecture/11_TDG2_Phase2_Technology_Decision_Gate_v1.0.md b/docs/architecture/11_TDG2_Phase2_Technology_Decision_Gate_v1.0.md
+new file mode 100644
+index 0000000..c031908
+--- /dev/null
++++ b/docs/architecture/11_TDG2_Phase2_Technology_Decision_Gate_v1.0.md
+@@ -0,0 +1,28 @@
++# ResearchBase TDG-2 — Phase 2 Technology Decision Gate v1.0
++
++**Status:** ACCEPTED FOR DESIGN; implementation remains subject to Phase 2 reauthorization and each PR gate.  
++**Authority:** Final Architecture Correction Addendum A13; System Architecture; Global Registry; Cross-Phase Contracts.  
++**Scope:** Phase 2 literature retrieval, extraction, research strategies, and adapter boundaries. No adapter is enabled by this document.
++
++## Decisions
++
++| ID | Decision | Required contract |
++|---|---|---|
++| TDG2-01 | OpenAlex is the default live bibliographic search provider | `SearchCapability` accepts a frozen `LiteratureSearchPlanVersion`, typed provider selection, bounded query, and execution context. It returns candidates and provider provenance. It never creates SourceVersion or LiteratureEvidence. Phase 2 requires an OpenAlex adapter plus a deterministic test adapter; additional live providers are optional. OpenAlex's Works search/filter API is the selected default, subject to the adapter pin and access gate below. |
++| TDG2-02 | Crossref is the default DOI metadata verifier | Crossref REST resolves DOI metadata; OpenAlex may provide discovery metadata, but neither response is authoritative without ResearchBase identifier verification. arXiv/PubMed/URL identifiers use ResearchBase-owned normalization and may receive later dedicated adapters. SourceResolver records provider name/version, retrieval time, and raw-response ArtifactVersion when retained. No provider ID is a canonical primary key. |
++| TDG2-03 | Full-text extraction uses an optional GROBID sidecar | Prefer licensed/open-access source bytes captured as an immutable ArtifactVersion. When extraction is enabled, use a pinned GROBID REST sidecar behind a replaceable port; otherwise manually supplied verified locators remain supported. A locator must identify page/section/paragraph or stable source span. Extracted text is a candidate; copyright and access checks precede storage. Failure to obtain full text does not fabricate evidence. No GROBID-specific fields enter Core. |
++| TDG2-04 | ScientificRAG/PaperQA2 is an adapter | ResearchBase owns the `ScientificRAGCapability` port and candidate/evidence promotion commands. PaperQA2 is a required Phase 2 adapter only after its exact version/commit, license, dependency lock, and security review are recorded in its PR. Serialized indexes from untrusted sources are never deserialized. Indexes and caches are derived and rebuildable. |
++| TDG2-05 | Native STORM-like strategy is required | ResearchBase owns the strategy interface and native source-grounded algorithm. Official STORM is an optional thin comparison adapter pinned in its own PR. Neither STORM nor PaperQA2 owns canonical source, evidence, claim, conclusion, or manuscript state. |
++| TDG2-06 | External I/O uses bounded execution steps | TX A records a `LiteratureSearchExecution`; external calls occur outside DB transactions; TX B appends query/results or failure; TX C transitions to terminal. Each call has timeout, cancellation, request correlation, idempotency key, and bounded retry. A timeout with uncertain provider outcome is recorded as `UNKNOWN`, not success. |
++| TDG2-07 | Rate limits and retries | Respect `Retry-After`; otherwise exponential backoff with jitter and a configured maximum attempt count. `429`, transient `5xx`, and transport failures may retry. Validation/authentication failures do not retry. Exhaustion records terminal failure and preserves earlier query/result provenance. No implicit background queue is required. |
++| TDG2-08 | Cache policy | Provider responses and RAG indexes may be cached outside canonical tables using provider, normalized request, adapter version and access-scope keys. Cache hits carry original retrieval and cache-read times. TTL and invalidation are configuration, not scientific validity. Retraction/correction checks cannot be satisfied solely from a stale cache. Cache deletion cannot delete canonical provenance. |
++| TDG2-09 | Credentials and security | Secrets come from deployment secret injection, never canonical rows, artifacts, logs, prompts, or adapter DTOs. Project access is deny-by-default. Egress destinations and source licenses are allowlisted per deployment. Untrusted metadata, PDFs and retrieved text are data, never instructions or executable configuration. Logs redact secrets and copyrighted full text. |
++| TDG2-10 | Vendor lock-in boundary | Core persists ResearchBase IDs, exact source/version references, provider-neutral execution facts, and adapter/version provenance. Provider response shapes, prompt format, embeddings, vector indexes, and STORM/PaperQA internal state remain in adapters or immutable raw artifacts. Replacing a provider requires no canonical migration. |
++
++## Activation gates
++
++TDG2 accepts the technology *roles and boundaries*, not an unreviewed upstream binary. Each live adapter PR must record its exact upstream version or commit, transitive lock, license, security review, timeout/rate-limit configuration, compatibility tests, and failure evidence before enablement. If these checks fail, that adapter remains disabled; the Phase 2 scope and canonical contracts do not change.
++
++Primary provider references reviewed for this decision: [OpenAlex Works search](https://help.openalex.org/api/searching/), [OpenAlex authentication and rate limits](https://help.openalex.org/api/authentication/), [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/), [GROBID full-text REST operation](https://grobid.readthedocs.io/en/latest/Grobid-service/), [PaperQA2 project](https://github.com/Future-House/paper-qa), and [Stanford STORM project](https://github.com/stanford-oval/storm). Their live terms, versions and security state must be rechecked in the enabling adapter PR.
++
++`TDG2_STATUS = ACCEPTED`
+diff --git a/docs/architecture/12_Phase2_Architecture_and_Contract_Correction_v1.0.md b/docs/architecture/12_Phase2_Architecture_and_Contract_Correction_v1.0.md
+new file mode 100644
+index 0000000..f062b95
+--- /dev/null
++++ b/docs/architecture/12_Phase2_Architecture_and_Contract_Correction_v1.0.md
+@@ -0,0 +1,174 @@
++# Phase 2 Architecture and Contract Correction v1.0
++
++**Status:** normative design correction for Phase 2 reauthorization review. This document does not authorize implementation.  
++**Precedence:** incorporated by Final Architecture Correction Addendum A17; clarifies the System Architecture's Phase 2 submission placement and patches the Phase 2 specification's conflicting package wording. The Global Registry is updated with the decisions below. Phase 1 semantics and `phase1-final-v4` are untouched.  
++**Scope:** the seven entry-gate gaps, literature scope, conclusion and publication boundaries. New canonical objects in this correction are approved *design names* only. Any implementation still requires the separate PR gate.
++
++## 1. Phase boundary and publication correction
++
++`LITERATURE_IN_PHASE2 = YES`. Literature source/version, search, evidence, the native STORM-like strategy and bounded PaperQA2 adapter are Phase 2 work. Full Agent Runtime, Planner/Executor/Reviewer orchestration, background automation, UI/desktop, venue connectors and Phase 3/4 objects are excluded. The entry-gate checklist's reference to excluding literature is corrected by this section; it did not reflect the System Architecture, Cross-Phase Contract or Phase 2 specification.
++
++The phrase “SubmissionVersion is what was actually sent” in System Architecture §13 remains the definition of **SubmissionVersion**, but that object is deferred to the optional venue-submission extension. The Phase 2 prepared package is renamed **PreparedSubmissionVersion**. The Phase 2 spec §23 and PR2-17 references to `SubmissionVersion` mean `PreparedSubmissionVersion` only; the Global Registry and Cross-Phase §28 must be read accordingly. This is a deliberate higher-authority correction, not a reinterpretation by an implementation plan.
++
++| Fact | Canonical owner | State and effect |
++|---|---|---|
++| ClaimVersion | research | One scientific assertion with exact evidence; Phase 1 frozen semantics unchanged. |
++| ScientificConclusionVersion | research | Synthesis over exact frozen claims and/or verified literature evidence; no manuscript wording ownership. |
++| ManuscriptVersion | publication | Exact manuscript wording/artifact and placements; presentation cannot create scientific support. |
++| Publication | publication | Long-lived publication effort and current-manuscript navigation pointer. |
++| PreparedSubmissionVersion | publication | Frozen package *intended* for possible submission; no claim that external delivery occurred. |
++| ApprovalGrant | governance | Internal authority to perform a narrowly scoped future command; neither external effect nor delivery evidence. |
++| SubmissionVersion | publication, deferred | Exact package actually sent, linked to a frozen PreparedSubmissionVersion and immutable external submission event. It cannot exist before a governed external send. |
++| SubmissionRecord | publication, deferred | Append-only external attempt, provider/venue, request key, response and reconciliation status; may be UNKNOWN/FAILED/SUCCEEDED. A successful reconciled record creates or links SubmissionVersion. |
++
++`ExternalEffect` remains the governed effect record in the later connector extension. A venue response cannot alter Claim, Conclusion, Manuscript or prepared package material. External statuses append records; they do not rewrite a historical send.
++
++## 2. Registry reconciliation
++
++Every row below is a Phase 2 design decision. `CitationRelation` is a noncanonical shorthand for presentation citation links. Formal citation placement is `ManuscriptCitationPlacement`; scientific literature support is `LiteratureEvidenceRelation`. They cannot substitute for one another.
++
++| Name | Category, owner and identity | Lifecycle/versioning | Persistence, material and provenance |
++|---|---|---|---|
++| LiteratureEvidenceRelation | Canonical relation, literature; UUID | DRAFT Claim/Question/Hypothesis link may be withdrawn before target freeze; sealed thereafter; no version row | `literature_evidence_relations`, concrete literature-evidence FK and exactly one supported ClaimVersion/ResearchQuestionVersion/HypothesisVersion FK; no own hash, included in the target's support binding where applicable. Conclusion uses only `scientific_conclusion_literature_inputs` to avoid two owners for one input fact. |
++| CitationRelation | Derived name only, publication | No independent lifecycle/version | No table; use `manuscript_citation_placements`. It records citation placement, never Claim support. |
++| SourceMergeRecord | Canonical immutable record, literature; UUID | Append-only, no version row | `source_merge_records`, losing/winning LiteratureSource FKs, actor, reason, time, frozen identity-basis ArtifactVersion FK and own content hash. No source or version history is deleted or reparented. |
++| RevisionAction | Canonical immutable record, governance; UUID | Append-only completed action; correction by superseding record | `revision_actions`, concrete review-issue/decision basis and exact FROZEN resulting version FK where applicable; own content hash; cannot mutate its target. A planned edit is DecisionRecord intent, not RevisionAction history. |
++| ContributionRecord | Canonical immutable record, publication; UUID | Append-only per prepared package; no version row | `contribution_records`, actor and publication/prepared-package FKs, role/contribution statement, own content hash. It is authorship evidence, not project role or approval. |
++| AuthorConsent | Canonical immutable record, publication; UUID | GRANTED/WITHDRAWN via new record referring to prior consent; no in-place material update | `author_consents`, actor and prepared-package FKs, scope, captured-at, evidence artifact/hash and own content hash. Withdrawal invalidates a pending package gate; it does not erase historical consent. |
++| NoveltyAssessment | Canonical immutable assessment, literature; UUID | Append-only/superseding; no version row | `novelty_assessments`, exact claim version and SearchCoverage FKs, bounded conclusion, limitations, actor and own content hash. It never proves first-ever priority beyond recorded coverage. |
++| PreparedSubmissionVersion | Canonical version/snapshot, publication; UUID | PREPARED→FROZEN→SUPERSEDED/WITHDRAWN; immutable after FROZEN | `prepared_submission_versions`, Publication parent and exact ManuscriptVersion, authorship and package relations; own content hash plus manifest binding hash. |
++| SubmissionVersion, SubmissionRecord | Canonical but deferred optional extension, publication | Immutable sent snapshot/append-only attempt | No Phase 2 tables or commands. |
++
++ResearchBrief, ConceptMap, figure, table and manuscript bytes remain typed ArtifactVersion roles, not new canonical schemas. Provider results remain candidates until explicit Application promotion. LiteratureSource correction and merge preserve old IDs and frozen SourceVersion FKs.
++
++## 3. Actor bootstrap and project ownership
++
++**Classification:** Phase 2 prerequisite deployment/bootstrap ceremony; it is not a retroactive Phase 1 semantic rewrite. Phase 1's existing Application `create_actor` is a valid internal operation but its public provisioning ceremony was unspecified. This correction defines a Phase 2 bootstrap contract and requires separate PR2-00 implementation before PR2-01. It does not change the frozen Phase 1 baseline.
++
++Only a deployment operator whose OS user ID appears in the deployment bootstrap allowlist, with local host access, the configured database deployment credential, and a one-use bootstrap secret file may invoke `researchbase bootstrap first-owner` from the host CLI. The CLI obtains the OS user ID from the kernel, never a caller-supplied flag; the first HUMAN ActorIdentity has `external_key = local-os:<deployment_id>:<verified_uid>`, so later local authentication maps the same OS principal to that ActorIdentity. The actor display name is command input but does not establish identity. The file must be mode 0600 and outside the repository; its bytes never enter a log, canonical row or artifact. No HTTP bootstrap endpoint is permitted. The CLI validates the secret's deployment-configured SHA-256 digest and passes an authenticated `BootstrapAuthority` carrying verified deployment/UID/credential identifiers to a dedicated **Application** bootstrap command. Both Human and Agent continue to use the same ordinary Application commands after bootstrap; the narrowly scoped bootstrap command is unavailable to agents and regular API callers.
++
++In one serializable PostgreSQL transaction under a transaction-scoped advisory lock, the command requires `actors` and `projects` both empty, inserts the first HUMAN ActorIdentity, first Project, ACTIVE ProjectMembership and OWNER ProjectRoleAssignment, and inserts an immutable BootstrapRecord. Its `created_by` and attribution fields bind the new actor; BootstrapRecord additionally holds the operator credential identifier (not secret), deployment ID, one-use request UUID, secret digest identifier, timestamp, new IDs and outcome. A reused request UUID with byte-identical normalized input returns the original IDs; any other reuse conflicts. A concurrent or later bootstrap, malformed secret, partial insert, or failed role assignment aborts atomically. Once actor count is nonzero, bootstrap is permanently closed; no fallback path silently creates an owner. The one-use secret is destroyed by deployment procedure after success.
++
++`bootstrap_records` is an organization/identity boundary audit table with UUID PK, unique request UUID and deployment ID, actor/project/member/role concrete FKs, immutable material hash, and no delete cascade. A second operator can verify the record through an authorized read query. New **Phase 2** project creation uses `create_project_with_owner` and inserts an ACTIVE membership plus OWNER role in the same Application transaction. The frozen Phase 1 `create_project` command remains unchanged. A project created through that legacy path can be enrolled by a separate authenticated Phase 2 `enroll_project_owner` command whose actor must equal immutable `projects.created_by`; enrollment atomically creates the initial membership/OWNER and immutable enrollment event. Phase 2 commands reject a project until enrollment. This is an additive Phase 2 access contract, not a rewrite of Phase 1 project semantics. The external authentication adapter must establish actor identity; `X-Actor-ID` alone is attribution metadata and never sufficient authorization for Phase 2 governance.
++
++For the DEV_LOCAL reference profile, CLI authentication uses verified OS UID and the `local-os:<deployment_id>:<uid>` ActorIdentity mapping. Phase 2 HTTP writes require an mTLS ingress adapter that verifies a client certificate against the deployment CA and maps a URI SAN of `urn:researchbase:actor:<external_key>` to the matching ActorIdentity; the deployment operator may receive such a certificate only through the separate certificate-issuance ceremony. A caller-supplied `X-Actor-ID` must match the resolved actor or the request fails 403. TEAM_SINGLE_NODE/HPC_RESEARCH may replace mTLS with a reviewed trusted identity adapter that maps an authenticated external subject to `ActorIdentity.external_key`; without a configured adapter, Phase 2 HTTP writes fail closed with 401. No bare bearer token, proxy header or agent assertion is trusted. Authentication implementations are adapters, not canonical scientific state. Integration acceptance uses a fake verified-principal adapter to test both Human and Agent calls against the same Application policy.
++
++Acceptance: fresh DB succeeds once; concurrent attempts yield exactly one owner; replay of identical request is idempotent; changed replay and second bootstrap fail closed; bad secret leaves actor, project, membership, role and bootstrap tables empty; first project always has exactly one initial OWNER; no API route exposes bootstrap; audit record and actor/project attribution agree; Phase 2 project creation and legacy-project enrollment yield one initial OWNER without changing Phase 1 commands; Human/Agent ordinary commands share Application policies.
++
++## 4. Hash and canonical material registry
++
++All Phase 2 canonical hashes use `canonical-json-v1` UTF-8 bytes and `sha256-cjson-v1` unless a future ADR introduces a versioned new scheme. Persist `hash_scheme = sha256-cjson-v1` beside each own-content hash and binding hash. Hash payloads are JSON objects with the fixed `type` and `material_version = 1` discriminator. Field names below are literal; no implicit ORM fields enter. UUIDs are lowercase canonical strings; datetimes are UTC RFC3339 with six fractional digits and `Z`; dates are `YYYY-MM-DD`; enums are persisted uppercase names. Text is NFC-normalized without trimming except where a field explicitly says normalized; decimals use canonical decimal strings. Missing optional fields are serialized as `null`, never omitted. Object keys follow `canonical-json-v1`; array order is specified below. Stored `FrozenJSON` values are thawed only for canonical serialization.
++
++Across all rows, exclude database ID, parent ID **unless listed**, version number **unless listed**, created/updated/frozen timestamps, actor attribution **unless listed**, row version, status, current pointer, hash fields themselves, and operational provider/cache metadata. This exclusion does not remove FKs from provenance: binding hashes and database constraints verify references separately. For an own-content hash, include exactly the fields in its row. `ref(T,id,hash)` is `{"type":T,"id":lowercase_uuid,"content_hash":lowercase_hex}` and must be verified against an immutable referenced record or frozen-material version. Frozen-material version means immutable with `frozen_at` and status FROZEN or SUPERSEDED; supersession never invalidates an exact historical hash by itself. `idref(T,id)` is `{"type":T,"id":lowercase_uuid}` for identity/actor/project rows without content hashes. A binding hash uses the listed sorted set or ordered list and the same discriminator convention. Duplicate set entries are rejected before hashing. Every freeze verifies referenced frozen/immutable material and current validity, recomputes bindings and own hash within its transaction, then seals material. Every read used for formal provenance recomputes and compares hashes and returns `HASH_MISMATCH`/`PROVENANCE_CLOSURE_VIOLATION`, never a silent warning. Ordinary history reads may show an invalidity marker without treating it as valid evidence.
++
++| Owner / field | Exact material after `type`, `material_version` | Order and kind |
++|---|---|---|
++| SourceVersion.content_hash | `literature_source_id`, `version_kind`, `predecessor_source_version` ref or null, `correction_basis_artifact` ref or null, `title`, `abstract`, `authors`, `publication_date`, `venue`, `external_version_label`, `fulltext_artifact` ref or null, `metadata` | `authors` is an authored order list; metadata is canonical JSON. Own content. CORRECTED/RETRACTED requires a FROZEN predecessor and basis ArtifactVersion. |
++| LiteratureSearchPlanVersion.content_hash | `plan_id`, sorted `research_question_refs`, `objective`, `source_scope`, `inclusion_criteria`, `exclusion_criteria`, `time_range`, sorted `language_scope`, `search_strategy`, sorted `planned_providers`, `stopping_rule` | Reference/provider/language sets sort by canonical encoded value. Own content. |
++| LiteratureEvidence.content_hash | `project_id`, `source_version` ref, `evidence_type`, `locator`, `extracted_statement`, `normalized_assertion`, `extraction_method`, `confidence` | Own content; confidence is immutable author assessment, while verification status and execution locator are separate assessment/operational facts excluded. Locator has fixed keys page/section/paragraph/figure/table/quote_span, null when absent. |
++| ScientificConclusionVersion.support_set_hash | sorted `claim_inputs` and sorted `literature_inputs`; each row has exact ref, `relation_type`, `ordinal` | Binding hash; unique ordinal per input kind, sort by kind then ordinal then UUID. No empty support set at freeze. |
++| ScientificConclusionVersion.content_hash | `scientific_conclusion_id`, `statement`, `scope`, `confidence`, `limitation_summary`, `support_set_hash` | Own content; support binding is included. |
++| ManuscriptVersion.placement_set_hash | ordered claim/conclusion, citation and artifact placement rows with exact refs, section, locator and rhetorical/purpose fields | Binding hash; sort by placement kind, section ID, ordinal; that tuple is unique within one manuscript, so generated placement UUIDs do not affect ordering or material. |
++| ManuscriptVersion.content_hash | `publication_id`, `document_artifact` ref, `title`, `abstract`, `semantic_change_class`, `placement_set_hash` | Own content; document bytes are hashed by ArtifactVersion, not duplicated. |
++| InternalReviewRecord.content_hash | `project_id`, exactly one frozen target ref, `reviewer_actor_id`, `review_type`, `recommendation`, `summary` | Own immutable review content. ReviewIssue rows are separate historical facts. |
++| DecisionRecord.content_hash | `project_id`, `decision_type`, `question`, `decision`, `rationale`, `decided_by`, `supersedes_decision_id`, `basis_set_hash` | Own content; basis binding is sorted by target type/id/hash. |
++| ApprovalDecision.content_hash | `approval_request_id`, frozen target ref from request, `decision`, `valid_until`, `requires_current_author_consent`, `rationale`, `decided_by` | Own immutable decision content; Phase 2 has no generic executable conditions JSON. |
++| PreparedSubmissionVersion.package_manifest_hash | exact `manuscript_version` and `authorship_snapshot` refs from package columns, then ordered figure/table, citation, claim, conclusion and current AuthorConsent exact refs from manifest relation rows | Binding hash; sort relation rows by manifest category then ordinal; that tuple is unique within one package. Column refs are not duplicated as manifest rows. All material frozen. Later consent withdrawal makes current validity STALE without changing frozen bytes. |
++| PreparedSubmissionVersion.content_hash | `publication_id`, `manuscript_version` ref, `authorship_snapshot` ref, `package_manifest_hash` | Own content; computed at FROZEN. |
++| AuthorshipSnapshot.content_hash | `publication_id`, ordered author Actor IDs, sorted corresponding IDs, sorted equal-contribution groups, ordered contribution-record refs | Own frozen snapshot. |
++| SourceMergeRecord.content_hash | `losing_source` idref, `winning_source` idref, `reason`, `identity_basis_artifact` ref, `merged_by` idref | Own immutable record. |
++| RevisionAction.content_hash | `review_issue` idref or null, `decision` ref or null, `action_type`, `resulting_version` ref or null, `supersedes_revision_action` ref or null, `created_by` idref | Own immutable record; at least one issue/decision basis. |
++| ContributionRecord.content_hash | `publication` idref, `actor` idref, `contribution_role`, `contribution_statement`, `recorded_by` idref | Own immutable record. |
++| AuthorConsent.content_hash | `prepared_submission` idref, `actor` idref, `consent_state`, `consent_scope`, `evidence_artifact` ref or null, `prior_consent` ref or null | Own immutable record; prepared package is still PREPARED when consent is captured, so this is an identity FK without a content-hash cycle. Capture time excluded; withdrawal is a new record. |
++| NoveltyAssessment.content_hash | `claim_version` ref, `search_coverage` ref, `assessment`, `limitations`, `supersedes_assessment` ref or null, `assessed_by` idref | Own immutable assessment. |
++| PriorArtRelation.content_hash | `claim_version` ref, `source_version` ref, `relation`, `rationale`, sorted `literature_evidence` refs, `assessed_by` idref | Own immutable assessment; evidence set sorted by UUID. |
++| SearchCoverage.content_hash | `search_plan_version` ref, sorted `search_execution` idrefs, sorted `providers`, `query_count`, `result_count`, `resolved_source_count`, `time_scope`, `coverage_limitations` | Own immutable assessment; execution set sorted by UUID, provider set lexicographically. |
++| BootstrapRecord.content_hash | `deployment_id`, `request_id`, `operator_credential_id`, `secret_digest_id`, first actor/project/member/role UUIDs | Own immutable operational audit; no secret bytes. |
++
++`SearchQueryRecord.query_hash` is a binding of provider ID/version, normalized query text, ordinal and execution ID; it is not a SourceVersion content hash. `ApprovalRequest.target_content_hash` and `InternalReviewRecord.target_content_hash` are verified copies of the target hash, not independent scientific truth. Grant scope is a typed policy structure, not a scientific content hash. A new field that changes meaning requires a new material version/ADR; old hashes remain verifiable.
++
++`SourceVersion.metadata` is limited to curated vendor-neutral bibliographic values (journal identifier, volume, issue, pages, license label and public repository label), each string or null. Provider response objects, provider IDs, API keys, extraction internals and adapter configuration stay in operational retrieval records or immutable raw-response artifacts; they are not SourceVersion canonical material. The `authors` list contains external byline strings and optional public ORCID strings in published order, never ResearchBase Actor IDs.
++
++## 5. ScientificConclusion closure
++
++`ScientificConclusion` is an identity root scoped to Project, with `current_version_id` referencing one of its own versions. Its Version is a synthesis, never a Claim alias or manuscript paragraph. `scope` is schema-validated JSON with exactly `population`, `conditions`, `time_window`, and `applicability`, each a nonblank string or null; it contains no canonical IDs. `statement` is nonblank and `confidence` is STRONG/MODERATE/WEAK/INCONCLUSIVE/MIXED. DRAFT may add/remove typed ClaimVersion and LiteratureEvidence inputs. Each input row has immutable exact target ID, relation type (`SUPPORTS`, `CONTRADICTS`, `QUALIFIES`), and unique ordinal. At freeze: at least one input; every ClaimVersion has frozen material with valid Phase 1 closure and current validity; every LiteratureEvidence content hash valid, verification state VERIFIED for a material support assertion, and its SourceVersion frozen-material and non-retracted at that time; recompute support-set and content hashes; seal input rows. A contradiction may be recorded but cannot be silently counted as support. INCONCLUSIVE/MIXED are valid conclusions with accurately typed support and limitations.
++
++Supersession creates a new DRAFT Version under the same identity and only switches the same-parent current pointer after its freeze; old FROZEN rows and input sets remain. Later retraction, corrected source, invalid Claim or AuditFinding marks current validity STALE/INVALID through a derived assessment/query; no old conclusion bytes or hash change. Downstream ManuscriptVersion placements hold exact frozen conclusion version IDs; current pointer lookup is never historical evidence. A new manuscript version is required to change a placement.
++
++## 6. Governance authority and transitions
++
++Roles are contextual ProjectRoleAssignments, never actor subclasses. OWNER can administer membership and assign roles; RESEARCHER may draft; REVIEWER may review; APPROVER may approve; VIEWER reads. No actor may review or approve their own target or a target they materially authored. OWNER does not bypass scientific or conflict checks. Membership must be ACTIVE, role assignment effective at command time, and project not ARCHIVED. A role can be held by a Human or Agent actor, but ApprovalDecision requires a HUMAN APPROVER; Agent suggestions remain candidates.
++
++Every ACTIVE Project enrolled in Phase 2 must retain at least one ACTIVE OWNER assignment. Ending/suspending the last OWNER or archiving the sole owner membership fails in the same transaction; ownership transfer inserts the successor assignment before closing the predecessor. The database enforces this with a deferred constraint trigger, and Application checks provide the named error `LAST_PROJECT_OWNER`.
++
++| Transition/command | Role | Target and deterministic checks | Review/decision/grant | Failure/audit |
++|---|---|---|---|---|
++| Create/revise draft conclusion or manuscript | RESEARCHER or OWNER | Project active; exact referenced identities exist | None | Conflict/404; actor, input refs and command correlation recorded. |
++| Freeze conclusion | RESEARCHER or OWNER | DRAFT, valid frozen input closure and hashes | No review or grant required | Fail `PROVENANCE_CLOSURE_VIOLATION`; record actor/time and digest. |
++| Freeze manuscript | RESEARCHER or OWNER | DRAFT, frozen document and placement closure; citation-only paths not support | No grant required | Fail `MANUSCRIPT_INPUT_NOT_FROZEN`; record actor/time. |
++| Create InternalReviewRecord | REVIEWER or OWNER, independent of author | Concrete FROZEN target, exact hash and current validity checked | Review is immutable; issues append | Fail `REVIEW_TARGET_NOT_FROZEN` or `CONFLICT_OF_INTEREST`; immutable reviewer attribution. |
++| Resolve ReviewIssue | REVIEWER who opened it or independent OWNER | Issue OPEN; resulting exact revision/decision basis attached | DecisionRecord required for DISMISSED blocking issue | Fail closed; append RevisionAction and status history. |
++| Create DecisionRecord | OWNER or APPROVER, independent of affected target author | Typed basis refs exist and hashes verify | Review basis required for revision/publication decisions; no grant created | Fail `DECISION_BASIS_INVALID`; append immutable decision. |
++| Request internal scientific release/ready-for-submission/package preparation | RESEARCHER or OWNER | Exact FROZEN conclusion/manuscript, current valid closure | Purpose is INTERNAL_SCIENTIFIC_RELEASE, READY_FOR_SUBMISSION or PREPARE_SUBMISSION; all required reviews complete; no blocking issue; decision basis present for ready or prepare state | Fail `APPROVAL_GATE_FAILED`; immutable request target/hash. |
++| Decide approval | HUMAN APPROVER, independent of requester/author/reviewer | Pending request, still-valid frozen target/hash, active role | Required reviews/decision rechecked; approval creates one grant atomically | Fail `APPROVAL_TARGET_STALE`; immutable decision/conditions. |
++| Consume grant for internal ready transition | RESEARCHER or OWNER invoking Application command | Same target ID/hash, purpose, project and command; closure still valid | ACTIVE unexpired grant, conditions satisfied; consume exactly once in same transaction | Fail `GRANT_INVALID`; append consumption event, no bypass flag. |
++| Freeze prepared submission | RESEARCHER or OWNER | Frozen manuscript, authorship, package closure and all consents current | Separate ACTIVE `PREPARE_SUBMISSION` grant scoped to its exact ManuscriptVersion and `freeze_prepared_submission` command, consumed atomically here; no external send | Fail `SUBMISSION_PACKAGE_INVALID`; frozen package/audit. |
++| Revoke/expire/stale grant | APPROVER for revocation; system time/impact evaluator for expiry/staleness | Existing grant; terminal state monotonic | No target mutation | Append grant event; future consumption rejected. |
++
++Grant scope is a typed projection `(project_id, purpose, concrete target FK from ApprovalRequest, target_content_hash, allowed_command, max_uses=1, valid_until)`. It is never wildcard and is never persisted as generic `target_kind + target_id`. Phase 2 `APPROVE_WITH_CONDITIONS` permits only `valid_until` and `requires_current_author_consent`; both are typed decision columns and are rechecked at consumption. Unrecognized/free-text executable conditions are rejected. Consumption is atomic with the authorized transition, protected by row lock and unique consumption row; retry with same command key returns prior result, different retry fails. Expiration uses DB time at command; revocation and staleness take effect immediately. Target supersession, hash mismatch, invalid upstream input, withdrawn consent or new blocking issue makes grant STALE. Approval, Decision and Review cannot override deterministic facts, rewrite target content, or stand in for Application commands or ExternalEffect.
++
++The complete Phase 2 governance state graph is:
++
++| Object | Allowed transitions and authority | Guard and historical record |
++|---|---|---|
++| ReviewIssue | OPEN→ADDRESSED by independent REVIEWER after exact resulting frozen version/RevisionAction; OPEN→DISMISSED by independent OWNER after DecisionRecord; terminal issues do not reopen | Blocking issue must have a decision and closure check; every transition appends ReviewIssueEvent. A new concern creates a new issue. |
++| ApprovalRequest | PENDING→DECIDED only by one independent HUMAN APPROVER decision; PENDING→WITHDRAWN by requester or OWNER before decision | Target ID/hash and review gate are rechecked; append request event; terminal request cannot be reused. |
++| ApprovalDecision | Insert APPROVE, REJECT or APPROVE_WITH_CONDITIONS once | REJECT creates no grant; approval creates at most one ACTIVE grant atomically; decision material never updates. |
++| ApprovalGrant | ACTIVE→CONSUMED once by scoped command; ACTIVE→EXPIRED by DB-time check; ACTIVE→REVOKED by independent APPROVER; ACTIVE→STALE by deterministic impact check | Every terminal transition appends grant event; no terminal→ACTIVE transition. A new approval request is needed to restore authority. |
++| Publication | DRAFTING→INTERNAL_REVIEW on frozen manuscript; INTERNAL_REVIEW→READY on consumed READY_FOR_SUBMISSION grant; READY→DRAFTING on new DRAFT manuscript; DRAFTING/INTERNAL_REVIEW/READY→WITHDRAWN or ARCHIVED by OWNER | Every transition checks project, closure and blocking issues and appends publication lifecycle event; SUBMITTED/ACCEPTED/PUBLISHED are reserved for later external-event extension. |
++| PreparedSubmissionVersion | PREPARED→FROZEN on exact manifest, consents and consumed PREPARE_SUBMISSION grant; PREPARED→WITHDRAWN by OWNER; FROZEN→SUPERSEDED when a newer frozen package is created; FROZEN→WITHDRAWN by OWNER | Status changes append package event but cannot alter frozen package material/hash. No transition asserts actual external send. |
++
++Every command above uses one Application/UoW transaction. Authorization checks use authenticated ActorIdentity, active ProjectMembership, effective ProjectRoleAssignment, independent-actor test, exact target hash and current deterministic validity. A failed guard returns a named conflict/forbidden error and writes no partial state. Command request/correlation IDs, actor, checked target hash and resulting event ID form the audit projection.
++
++## 7. Schema and versioning contract
++
++The physical schema is additive from `0018_current_pointer_same_parent_integrity`. `0019` is reserved for PR2-00 bootstrap/membership and `0020` for PR2-01 source identity if both are authorized. No migration is created here. PostgreSQL 18.x is the integration target. Table names and keys below are normative; `id UUID PRIMARY KEY`, `created_at TIMESTAMPTZ NOT NULL`, actor attribution FK where named, and `ON DELETE RESTRICT` on canonical history FKs apply to every canonical row. Every listed status is persisted UPPER_SNAKE_CASE with a CHECK; terminal/frozen semantic columns are DB protected from UPDATE/DELETE by trigger or equivalent constraint mechanism. Archive updates only the owning identity/operational status and never cascades.
++
++For identity/version pairs, `UNIQUE(parent_id, version_number)`, `UNIQUE(parent_id,id)` on version rows and composite `(identity.id,identity.current_version_id) → version(parent_id,id)` enforce same-parent current pointers. A current pointer is nullable until a FROZEN version exists, and may point only to a FROZEN version under the same identity. Superseding switches the pointer to the newly frozen row in the same transaction that marks the old row SUPERSEDED. Every version has `version_number > 0`, exact parent FK and actor FK. Scientific relations are concrete typed FKs, never `type/id` as the sole formal edge. All relation rows have a unique ordinal within their parent/kind, parent and target lookup indexes, no delete cascade after parent freeze, and a same-project application check plus DB enforcement where both project keys exist.
++
++| Table(s) | Parent, keys/status/current pointer | Required FKs, UNIQUE/CHECK and index rules |
++|---|---|---|
++| `project_memberships`, `project_role_assignments`, `bootstrap_records` | Membership UUID, ACTIVE/SUSPENDED/ENDED; role UUID with `effective_from`, nullable `effective_until`; bootstrap UUID immutable | Actor/Project FKs; one active membership per actor/project; role FK to same actor/project membership; `effective_until > effective_from`; bootstrap unique deployment/request IDs and concrete first actor/project/member/role FKs; indexes on project+actor and active roles. |
++| `literature_sources`, `source_identifiers`, `source_merge_records` | Source UUID, ACTIVE/MERGED/RETIRED, nullable current SourceVersion; identifier UUID verified state; merge UUID immutable | Identifier source FK and partial unique `(identifier_type,normalized_value)` for UNVERIFIED/VERIFIED rows; REJECTED binding stays historical and permits corrected rebinding; at most one non-rejected primary identifier/source; merge loser/winner distinct concrete FKs and unique loser; no reparenting of frozen versions; indexes on normalized identifier and merged target. This corrects Phase 2 Spec §4.2's unconditional unique constraint. |
++| `source_versions` | Source parent, number, DRAFT/FROZEN/SUPERSEDED/ABANDONED; same-parent current pointer | Optional fulltext ArtifactVersion FK; content/hash scheme; unique parent+number; CORRECTED/RETRACTED versions require FROZEN predecessor SourceVersion under same source and FROZEN correction-basis ArtifactVersion; no mutation of prior frozen rows. RETRACTED kind affects current validity and downstream impact, not historical deletion. |
++| `literature_search_plans`, `literature_search_plan_versions`, `search_plan_question_inputs` | Plan Project FK, nullable current version; numbered DRAFT/FROZEN/SUPERSEDED/ABANDONED | Exact ResearchQuestionVersion FKs, unique input pair/ordinal and same-parent pointer; plan version FROZEN before execution. |
++| `literature_search_executions`, `search_query_records`, `search_result_records` | Execution Project/plan-version FK, PLANNED/RUNNING/SUCCEEDED/FAILED/CANCELLED/UNKNOWN; immutable query/results | Frozen plan FK, query execution FK, result query FK; unique execution+query ordinal and query+result rank; provider/request key unique within execution; optional resolved Source/SourceVersion FKs must agree on parent; indexes on plan/status, query, resolved source. |
++| `literature_evidence`, `literature_evidence_relations` | Evidence UUID, immutable content with separate verification state UNREVIEWED/VERIFIED/DISPUTED/REJECTED; relation UUID sealed with target freeze | Exact FROZEN SourceVersion FK; locator nonempty CHECK; relation Evidence FK and XOR concrete ClaimVersion/ResearchQuestionVersion/HypothesisVersion target FKs; typed relation kind; unique evidence+target+kind; indexes on each target and source. Conclusion input is owned solely by `scientific_conclusion_literature_inputs`. |
++| `discussion_sessions`, `discussion_turns` | Session Project FK OPEN/CLOSED/ARCHIVED; turn UUID append-only, ordinal | Turn session/actor FKs, unique session+ordinal; optional exact citation FKs in typed turn-reference rows; no turn update/delete; transcript ArtifactVersion optional exact FK. |
++| `scientific_conclusions`, `scientific_conclusion_versions`, `scientific_conclusion_claim_inputs`, `scientific_conclusion_literature_inputs` | Conclusion Project FK/current pointer; numbered DRAFT/FROZEN/SUPERSEDED/ABANDONED | Same-parent pointer; input rows concrete ClaimVersion or LiteratureEvidence FKs, relation type CHECK, unique version+kind+ordinal and version+target+kind; sealed on freeze; support/content hash columns required when FROZEN; indexes on input targets. |
++| `publications`, `manuscript_versions`, `manuscript_claim_placements`, `manuscript_citation_placements`, `manuscript_artifact_placements` | Publication Project FK and current manuscript pointer; manuscript numbered DRAFT/FROZEN/SUPERSEDED/ABANDONED | Same-parent pointer; document ArtifactVersion FK; claim placement XOR ClaimVersion/ConclusionVersion FK; citation exact SourceVersion FK; artifact exact ArtifactVersion FK; unique manuscript+kind+section+ordinal; frozen target checks and placement binding; indexes on target FKs. |
++| `internal_review_records`, `review_issues` | Review immutable; issue OPEN/ADDRESSED/DISMISSED | Review XOR concrete ManuscriptVersion/ClaimVersion/ConclusionVersion/ArtifactVersion FK; reviewer Actor FK; frozen target hash; issue review FK and optional related exact Claim/Source/Run FKs; issue status event history; target and severity indexes. |
++| `decision_records`, `decision_basis_claims`, `decision_basis_conclusions`, `decision_basis_manuscripts`, `decision_basis_reviews`, `revision_actions` | Decision/revision immutable, optional supersedes self-FK | Concrete typed basis tables, unique decision+target and ordinal; revision has review issue and/or decision FK (at least one), XOR resulting ClaimVersion/ConclusionVersion/ManuscriptVersion/SourceVersion or null if no change; actor FK; indexes on basis/revision targets. |
++| `approval_requests`, `approval_decisions`, `approval_grants`, `approval_grant_events`, `approval_grant_consumptions` | Request PENDING/DECIDED/WITHDRAWN; decision immutable; grant ACTIVE/CONSUMED/EXPIRED/REVOKED/STALE | Request XOR frozen ManuscriptVersion/ConclusionVersion FK; decision unique request FK; grant unique approving decision FK; consumption unique grant ID and command key; validity CHECK, target hash binding; indexes on request target/status and grant expiry. |
++| `prepared_submission_versions`, `prepared_submission_manifest_items`, `contribution_records`, `authorship_snapshots`, `author_consents` | Prepared version Publication parent/number PREPARED/FROZEN/SUPERSEDED/WITHDRAWN; authorship snapshot immutable | Exact ManuscriptVersion and AuthorshipSnapshot FKs; manifest rows concrete typed FKs for ClaimVersion/ConclusionVersion/SourceVersion/ArtifactVersion, one nonnull target per row; unique package+kind+ordinal; author/consent actor FK, consent prior self-FK; publication+number unique; indexes on manuscript, package and actor. |
++| `prior_art_relations`, `search_coverage`, `novelty_assessments` | UUID immutable, superseding self-FK where applicable | Prior art exact ClaimVersion/SourceVersion FKs; coverage exact plan/execution relation rows; novelty exact ClaimVersion/Coverage FKs; own hash; indexes on claim, source and coverage. |
++
++### 7.1 Exact `0019` contract
++
++`0019_phase2_bootstrap_membership` contains five new tables (the three principal tables below plus two append-only event tables) and their indexes/triggers. The existing Phase 1 `actors` and `projects` columns and constraints remain byte-for-byte unchanged. All UUIDs are Application-supplied; all timestamps are `TIMESTAMPTZ`, provided by the Application clock except lock/expiry checks that use database time.
++
++| Table | Exact columns | Constraints/indexes |
++|---|---|---|
++| `project_memberships` | `id UUID`, `project_id UUID`, `actor_id UUID`, `status VARCHAR(16)`, `started_at TIMESTAMPTZ`, `ended_at TIMESTAMPTZ NULL`, `created_by UUID`, `created_at TIMESTAMPTZ`, `row_version INTEGER` | PK `id`; FKs project/actor/creator RESTRICT; `UNIQUE(project_id,actor_id,started_at)`; partial unique `(project_id,actor_id) WHERE status='ACTIVE'`; CHECK status in ACTIVE/SUSPENDED/ENDED, row_version>0, ended_at NULL unless ENDED, and ended_at>=started_at when present; indexes `(actor_id,status)`, `(project_id,status)`. Suspension and ending append an immutable membership event row before updating only status/end time. |
++| `project_role_assignments` | `id UUID`, `membership_id UUID`, `project_id UUID`, `actor_id UUID`, `role VARCHAR(16)`, `effective_from TIMESTAMPTZ`, `effective_until TIMESTAMPTZ NULL`, `assigned_by UUID`, `created_at TIMESTAMPTZ`, `row_version INTEGER` | PK `id`; membership/actor/project/assigner FKs RESTRICT; composite `(membership_id,project_id,actor_id)` FK to membership unique key; CHECK role in OWNER/RESEARCHER/REVIEWER/APPROVER/VIEWER and `effective_until>effective_from` when present, row_version>0; partial unique `(membership_id,role) WHERE effective_until IS NULL`; index `(project_id,role,effective_until)`. Termination appends role event before closing effective interval. |
++| `bootstrap_records` | `id UUID`, `deployment_id TEXT`, `request_id UUID`, `request_fingerprint CHAR(64)`, `operator_credential_id TEXT`, `secret_digest_id TEXT`, `first_actor_id UUID`, `first_project_id UUID`, `first_membership_id UUID`, `first_role_assignment_id UUID`, `completed_at TIMESTAMPTZ`, `content_hash CHAR(64)`, `hash_scheme VARCHAR(32)` | PK `id`; unique `deployment_id`, unique `request_id`; actor/project/membership/role FKs RESTRICT; CHECK hash strings are 64 lowercase hex, nonblank identifiers, scheme=`sha256-cjson-v1`; UPDATE/DELETE forbidden; indexes on first actor/project. |
++
++Membership has `UNIQUE(id,project_id,actor_id)` to support the composite role FK. A separate `project_membership_events(id,membership_id,prior_status,new_status,actor_id,occurred_at,reason)` and `project_role_events(id,role_assignment_id,actor_id,event_kind,occurred_at,reason)` are append-only support tables in `0019`, with concrete FKs RESTRICT and indexes by parent/time. Their semantic columns and actor attribution are immutable; they have no scientific content hash. This makes temporal changes auditable. The bootstrap record is inserted in the same transaction as the first actor, project, membership and role. Database check/trigger prevents more than one BootstrapRecord and verifies that its role is OWNER for its first membership.
++
++No Phase 2 formal FK uses `ON DELETE CASCADE`. Phase 2 migrations must verify fresh DB→head and frozen `0018`→head on PostgreSQL 18.x. Each migration performs a fail-closed preflight before enforcing new constraints; invalid legacy state stops upgrade without rewriting Phase 1 history. Downgrade is supported only for an empty new canonical table set; otherwise it aborts with an explicit data-preservation error. `0019` must not change any Phase 1 table, constraint, hash, or lifecycle; it adds only membership, role, their event rows and bootstrap tables. `0020` adds only public source identity, identifiers, their verification event table and typed project access links, contingent on the PR2-01 gate. PR2-02 source lineage adds SourceVersion, SourceMergeRecord and MERGED alias fields in its separately reviewed migration. Global source identity never grants cross-project read access; each project needs an explicit link and active actor membership.
++
++`REGISTRY_PHASE2_OBJECT_AMBIGUITY = 0` for the named gap objects.  
++`SUBMISSION_SEMANTIC_CONFLICT = CLOSED` by the explicit renaming/deferment above.  
++`ACTOR_BOOTSTRAP_CONTRACT_DEFINED = YES`.  
++`SCIENTIFIC_CONCLUSION_CONTRACT_DEFINED = YES`.  
++`PUBLICATION_DOMAIN_BOUNDARY_DEFINED = YES`.
+diff --git a/docs/architecture/13_Phase2_Schema_Field_Contract_v1.0.md b/docs/architecture/13_Phase2_Schema_Field_Contract_v1.0.md
+new file mode 100644
+index 0000000..2faad77
+--- /dev/null
++++ b/docs/architecture/13_Phase2_Schema_Field_Contract_v1.0.md
+@@ -0,0 +1,74 @@
++# Phase 2 Schema Field Contract v1.0
++
++**Status:** normative companion to Final Correction Addendum A17 and Phase 2 Architecture and Contract Correction v1.0. It is design only. No migration or Phase 2 implementation is authorized.  
++**Precedence:** Final Correction Addendum A17 → Global Registry → this field contract → Phase 2 specification for fields not contradicted here. If a field below differs from older Phase 2 prose, this contract governs because A17 incorporates it.
++
++## Shared physical rules
++
++Unless stated otherwise every table has `id UUID PRIMARY KEY`, `created_at TIMESTAMPTZ NOT NULL`, `created_by UUID NOT NULL REFERENCES actors(id) ON DELETE RESTRICT`; row versions on mutable identity/operational tables are positive integers. Exact material/version FKs use `ON DELETE RESTRICT`; no scientific table has a delete cascade. The service validates actor/project authorization and exact target state in one transaction. PostgreSQL constraints/triggers independently enforce XOR, same-parent, frozen immutability and unique keys. A `content_hash CHAR(64)` row also has `hash_scheme VARCHAR(32)` constrained to `sha256-cjson-v1`; `support_set_hash`, `placement_set_hash`, `basis_set_hash`, and `package_manifest_hash` are separate 64-character lowercase hexadecimal bindings using the same scheme. Nullable hashes are permitted only in DRAFT/PREPARED state; FROZEN requires all applicable hashes and `frozen_at`. Immutable records require own hash at insert.
++
++The column lists below are exhaustive for scientific/business semantics; standard `id/created_at/created_by/row_version/hash_scheme` columns follow this shared rule. `JSONB` is allowed only for named, schema-validated structured fields (`locator`, `scope`, `criteria`, `conditions`, `metadata`, `manifest`, `external_context`); it is never a generic formal reference list or canonical polymorphic target. All canonical ID collections are typed relation rows. `status` and `kind` columns have uppercase CHECK values. Every FK column has a B-tree index unless its leading columns are covered by a stated unique index. Large text values have application limits documented by their command DTO; database `NOT NULL` and nonblank checks apply to required statements.
++
++## Organization and identity — migration 0019
++
++The exhaustive `0019` columns and constraints are in correction §7.1. `project_membership_events` has `id, membership_id, prior_status, new_status, actor_id, occurred_at, reason`; `project_role_events` has `id, role_assignment_id, actor_id, event_kind, occurred_at, reason`. Both have PK, parent/actor FKs RESTRICT, status/event CHECK, and `(parent_id,occurred_at,id)` indexes. They are immutable. No Phase 1 table is altered. Initial OWNER assignment and bootstrap are one serializable Application transaction.
++
++## Literature identity — migration 0020
++
++The exhaustive `literature_sources`, `source_identifiers` and `source_identifier_verification_events` columns and constraints are in PR2-01 execution pack §Schema. PR2-02 source lineage adds `source_merge_records` with `id UUID PK`, concrete losing/winning source FKs, frozen `identity_basis_artifact_version_id` FK, `reason`, `merged_by`, `merged_at`, `content_hash` and `hash_scheme`; losing and winning IDs must differ, losing source is unique, and UPDATE/DELETE is forbidden. That migration also adds source MERGED status and `merged_into_source_id` self-FK with acyclic root enforcement. `current_version_id` is added with `source_versions` in PR2-02, with same-parent composite FK.
++
++## Literature source, search and evidence
++
++| Table | Semantic columns beyond shared columns | Keys, state and immutability |
++|---|---|---|
++| `source_versions` | `literature_source_id UUID`, `version_number INT`, `version_kind VARCHAR(32)`, `predecessor_source_version_id UUID NULL`, `correction_basis_artifact_version_id UUID NULL`, `title TEXT`, `abstract TEXT NULL`, `authors JSONB`, `publication_date DATE NULL`, `venue TEXT NULL`, `external_version_label TEXT NULL`, `fulltext_artifact_version_id UUID NULL`, `metadata JSONB NULL`, `status VARCHAR(16)`, `content_hash CHAR(64) NULL`, `frozen_at TIMESTAMPTZ NULL` | Parent/source and artifact FKs; unique `(literature_source_id,version_number)` and `(literature_source_id,id)`; predecessor composite same-source FK; CORRECTED/RETRACTED kind requires predecessor and frozen correction basis; status DRAFT/FROZEN/SUPERSEDED/ABANDONED; immutable material after FROZEN; corrected/retracted successor never erases predecessor. `literature_sources.current_version_id` composite same-parent FK and frozen-target trigger. |
++| `literature_search_plans` | `project_id UUID`, `current_version_id UUID NULL` | Project FK; current pointer composite same-parent FK to plan versions; project/status index. |
++| `literature_search_plan_versions` | `plan_id UUID`, `version_number INT`, `status VARCHAR(16)`, `objective TEXT`, `source_scope VARCHAR(32)`, `inclusion_criteria JSONB NULL`, `exclusion_criteria JSONB NULL`, `time_range JSONB NULL`, `language_scope JSONB NULL`, `search_strategy VARCHAR(32)`, `planned_providers JSONB`, `stopping_rule JSONB NULL`, `content_hash CHAR(64) NULL`, `frozen_at TIMESTAMPTZ NULL` | Plan FK; unique `(plan_id,version_number)` and `(plan_id,id)`; frozen material immutable; provider/language arrays are normalized set values hashed deterministically, not canonical object IDs. |
++| `search_plan_question_inputs` | `plan_version_id UUID`, `research_question_version_id UUID`, `ordinal INT` | Exact frozen question FK; unique `(plan_version_id,ordinal)` and `(plan_version_id,research_question_version_id)`; sealed with plan version. |
++| `literature_search_executions` | `project_id UUID`, `search_plan_version_id UUID`, `strategy_id TEXT`, `strategy_version TEXT`, `status VARCHAR(16)`, `started_at TIMESTAMPTZ NULL`, `finished_at TIMESTAMPTZ NULL`, `requested_by UUID`, `executed_by UUID`, `execution_context JSONB NULL`, `idempotency_key UUID`, `failure_code TEXT NULL` | Frozen plan FK, project/actor FKs; unique `(project_id,idempotency_key)`; PLANNED/RUNNING/SUCCEEDED/FAILED/CANCELLED/UNKNOWN; terminal immutable except explicit reconciliation record; index `(project_id,status,created_at)`. |
++| `search_query_records` | `literature_search_execution_id UUID`, `query_text TEXT`, `perspective TEXT NULL`, `provider_id TEXT`, `provider_version TEXT NULL`, `ordinal INT`, `executed_at TIMESTAMPTZ`, `query_hash CHAR(64)`, `hash_scheme VARCHAR(32)` | Execution FK; unique `(execution_id,ordinal)` and `(execution_id,query_hash)`; scheme=`sha256-cjson-v1`; immutable; no scientific support claim. |
++| `search_result_records` | `search_query_record_id UUID`, `rank INT`, `external_identifier TEXT NULL`, `title TEXT`, `url TEXT NULL`, `snippet TEXT NULL`, `provider_score NUMERIC NULL`, `retrieved_at TIMESTAMPTZ` | Query FK; unique `(query_id,rank)`; immutable retrieval material; resolution lives only in appended resolution rows. The older Phase 2 spec's resolved-source columns are replaced by `search_result_resolutions`. |
++| `search_result_resolutions` | `search_result_record_id UUID`, `source_id UUID`, `source_version_id UUID NULL`, `resolved_by UUID`, `resolved_at TIMESTAMPTZ`, `basis TEXT` | Result/source/version FKs; composite same-source check; append-only; newest resolution is query projection, never historical result rewrite. |
++| `literature_evidence` | `project_id UUID`, `source_version_id UUID`, `evidence_type VARCHAR(32)`, `locator JSONB`, `extracted_statement TEXT`, `normalized_assertion TEXT NULL`, `extraction_method VARCHAR(16)`, `extraction_execution_ref JSONB NULL`, `confidence VARCHAR(16)`, `review_status VARCHAR(16)`, `content_hash CHAR(64)` | Frozen SourceVersion FK; locator schema has page/section/paragraph/figure/table/quote_span and at least one meaningful nonnull locator; content immutable; review status changes append evidence-review event and cannot alter hash material. Index on source/project/status. |
++| `literature_evidence_review_events` | `literature_evidence_id UUID`, `prior_status VARCHAR(16)`, `new_status VARCHAR(16)`, `reviewed_by UUID`, `reviewed_at TIMESTAMPTZ`, `basis TEXT` | Evidence/actor FKs; append-only; legal status transitions UNREVIEWED→VERIFIED/DISPUTED/REJECTED, VERIFIED→DISPUTED, DISPUTED→VERIFIED/REJECTED. |
++| `literature_evidence_relations` | `literature_evidence_id UUID`, `claim_version_id UUID NULL`, `research_question_version_id UUID NULL`, `hypothesis_version_id UUID NULL`, `relation_type VARCHAR(16)`, `ordinal INT` | Exactly one concrete target FK nonnull; no conclusion FK; unique target/evidence/relation and target/ordinal; target DRAFT edits only, sealed on target freeze. |
++
++## Discussion, conclusion and publication
++
++| Table | Semantic columns beyond shared columns | Keys, state and immutability |
++|---|---|---|
++| `discussion_sessions` | `project_id UUID`, `topic TEXT`, `status VARCHAR(16)`, `transcript_artifact_version_id UUID NULL` | Project/artifact FKs; OPEN/CLOSED/ARCHIVED; closing seals turns; archive retains all rows. |
++| `discussion_session_question_inputs`, `discussion_session_claim_inputs`, `discussion_session_source_inputs` | `session_id UUID`, one exact typed version FK, `ordinal INT` | Separate typed tables; unique session+ordinal and session+target; no generic ref. |
++| `discussion_turns` | `session_id UUID`, `ordinal INT`, `actor_id UUID`, `role VARCHAR(32)`, `utterance TEXT` | Session/actor FKs; unique session+ordinal; append-only; turn is not DecisionRecord. |
++| `discussion_turn_claim_citations`, `discussion_turn_source_citations` | `turn_id UUID`, exact ClaimVersion or SourceVersion FK, `ordinal INT` | Separate typed citation tables; unique turn+ordinal and turn+target; citation is not support. |
++| `scientific_conclusions` | `project_id UUID`, `current_version_id UUID NULL` | Project FK; composite same-parent current pointer to FROZEN conclusion version; no delete cascade. |
++| `scientific_conclusion_versions` | `scientific_conclusion_id UUID`, `version_number INT`, `status VARCHAR(16)`, `statement TEXT`, `scope JSONB`, `confidence VARCHAR(16)`, `limitation_summary TEXT NULL`, `support_set_hash CHAR(64) NULL`, `content_hash CHAR(64) NULL`, `frozen_at TIMESTAMPTZ NULL` | Parent FK; unique parent+number and parent+id; DRAFT/FROZEN/SUPERSEDED/ABANDONED; support and content hash required when FROZEN; material/input rows immutable after freeze. |
++| `scientific_conclusion_claim_inputs`, `scientific_conclusion_literature_inputs` | `conclusion_version_id UUID`, exact `claim_version_id` or `literature_evidence_id UUID`, `relation_type VARCHAR(16)`, `ordinal INT` | Separate typed target FKs; unique conclusion+ordinal and conclusion+target+relation in each table; support-set binding owned only here. |
++| `publications`, `publication_lifecycle_events` | Publication: `project_id UUID`, `publication_type VARCHAR(32)`, `title TEXT`, `lifecycle_status VARCHAR(24)`, `current_manuscript_version_id UUID NULL`, `row_version INT`; event: `publication_id`, `prior_status`, `new_status`, `actor_id`, `occurred_at`, `basis_decision_id NULL`, `basis_grant_consumption_id NULL` | Project FK; DRAFTING/INTERNAL_REVIEW/READY/SUBMITTED/ACCEPTED/PUBLISHED/WITHDRAWN/ARCHIVED; current pointer composite same-parent; event append-only. In Phase 2, SUBMITTED/ACCEPTED/PUBLISHED are reserved and cannot be entered. |
++| `manuscript_versions` | `publication_id UUID`, `version_number INT`, `status VARCHAR(16)`, `document_artifact_version_id UUID`, `title TEXT`, `abstract TEXT NULL`, `semantic_change_class VARCHAR(24)`, `placement_set_hash CHAR(64) NULL`, `content_hash CHAR(64) NULL`, `frozen_at TIMESTAMPTZ NULL` | Parent/artifact FKs; unique parent+number and parent+id; frozen document/placements required; immutable after FROZEN. |
++| `manuscript_claim_placements` | `manuscript_version_id UUID`, `claim_version_id UUID NULL`, `scientific_conclusion_version_id UUID NULL`, `section_id TEXT`, `locator JSONB`, `rhetorical_strength VARCHAR(16)`, `ordinal INT` | XOR exact frozen Claim/Conclusion FKs; unique manuscript+section+ordinal; sealed on manuscript freeze. |
++| `manuscript_citation_placements` | `manuscript_version_id UUID`, `source_version_id UUID`, `section_id TEXT`, `locator JSONB`, `citation_purpose VARCHAR(16)`, `ordinal INT` | Exact frozen SourceVersion FK; unique manuscript+section+ordinal; no evidence/support implication. |
++| `manuscript_artifact_placements` | `manuscript_version_id UUID`, `artifact_version_id UUID`, `section_id TEXT`, `locator JSONB`, `artifact_role VARCHAR(16)`, `ordinal INT` | Exact frozen ArtifactVersion FK; role FIGURE/TABLE/OTHER; unique manuscript+section+ordinal. |
++
++## Governance, prepared package and novelty
++
++| Table | Semantic columns beyond shared columns | Keys, state and immutability |
++|---|---|---|
++| `internal_review_records` | `project_id UUID`, XOR `manuscript_version_id`, `claim_version_id`, `scientific_conclusion_version_id`, `research_brief_artifact_version_id` UUIDs, `target_content_hash CHAR(64)`, `reviewer_actor_id UUID`, `review_type VARCHAR(24)`, `recommendation VARCHAR(24)`, `summary TEXT`, `content_hash CHAR(64)` | Exact frozen target FK and XOR CHECK; immutable; index on each target and reviewer. |
++| `review_issues`, `review_issue_events` | Issue: `review_record_id UUID`, `severity VARCHAR(16)`, `issue_type VARCHAR(32)`, `target_locator JSONB NULL`, `description TEXT`, related exact ClaimVersion/SourceVersion/Run IDs nullable, `status VARCHAR(16)`; event: `issue_id`, `prior_status`, `new_status`, `actor_id`, `occurred_at`, `decision_id NULL` | Review FK; issue OPEN/ADDRESSED/DISMISSED; append-only event for each status transition; blocking dismissal requires DecisionRecord; original issue material immutable. |
++| `decision_records`, `decision_basis_claims`, `decision_basis_conclusions`, `decision_basis_manuscripts`, `decision_basis_reviews` | Decision: `project_id`, `decision_type`, `question`, `decision`, `rationale`, `decided_by`, `decided_at`, `supersedes_decision_id NULL`, `basis_set_hash`, `content_hash`; basis: `decision_id`, exact typed target FK, `ordinal` | Decision immutable; concrete basis tables with unique decision+target and decision+ordinal; supersedes self-FK; no generic basis JSON. |
++| `revision_actions` | `review_issue_id NULL`, `decision_record_id NULL`, `action_type`, XOR nullable resulting Claim/Conclusion/Manuscript/SourceVersion FKs, `supersedes_revision_action_id NULL`, `content_hash` | At least one issue/decision basis; resulting target is FROZEN and may be null only for NO_CHANGE; immutable completed-action history and superseding self-FK. |
++| `approval_requests`, `approval_request_events` | Request: `project_id`, XOR `manuscript_version_id`/`scientific_conclusion_version_id`, `target_content_hash`, `target_hash_scheme`, `approval_purpose`, `requested_by`, `requested_at`, `status`; event: `request_id`, `prior_status`, `new_status`, `actor_id`, `occurred_at`, `reason` | PENDING/DECIDED/WITHDRAWN; target scheme=`sha256-cjson-v1`; purpose INTERNAL_SCIENTIFIC_RELEASE/READY_FOR_SUBMISSION/PREPARE_SUBMISSION; PREPARE_SUBMISSION requires ManuscriptVersion target; exact frozen target and XOR; immutable request material; event append-only. |
++| `approval_decisions` | `approval_request_id`, `decision`, `valid_until TIMESTAMPTZ NULL`, `requires_current_author_consent BOOLEAN NOT NULL DEFAULT FALSE`, `rationale`, `decided_by`, `decided_at`, `content_hash` | Unique request FK; APPROVE/REJECT/APPROVE_WITH_CONDITIONS; conditional approval permits only the two typed conditions; immutable. The older Phase 2 spec's generic `conditions` field is superseded. |
++| `approval_grants`, `approval_grant_events`, `approval_grant_consumptions` | Grant: `approval_decision_id`, `project_id`, `purpose`, `allowed_command`, `status`, `valid_until`; event: grant, prior/new status, actor, time, reason; consumption: `grant_id`, `command_key`, `actor_id`, `consumed_at`, XOR nullable `result_publication_id`/`result_prepared_submission_version_id`/`result_scientific_conclusion_version_id` | Grant unique approving decision, ACTIVE/CONSUMED/EXPIRED/REVOKED/STALE; exact target is reached through Decision→Request's concrete XOR FK, never generic kind/id columns or scope JSON; consumption has concrete XOR result FKs and unique grant/command key; immutable events/consumptions. |
++| `prepared_submission_versions`, `prepared_submission_manifest_items`, `prepared_submission_events` | Prepared: `publication_id`, `version_number`, `manuscript_version_id`, `authorship_snapshot_id`, `status`, `package_manifest_hash`, `content_hash`, `frozen_at`; manifest: `prepared_submission_version_id`, `category`, XOR exact Claim/Conclusion/Source/ArtifactVersion or AuthorConsent FK, `ordinal`; event: `prepared_submission_version_id`, `prior_status`, `new_status`, `actor_id`, `occurred_at`, `reason` | Publication parent; unique parent+number and parent+id; PREPARED/FROZEN/SUPERSEDED/WITHDRAWN; no separate current package pointer; package frozen before any external effect; manifest unique package+category+ordinal and sealed at freeze; event append-only. |
++| `contribution_records`, `authorship_snapshots`, `authorship_snapshot_contributions`, `authorship_snapshot_authors`, `authorship_snapshot_corresponding_authors`, `authorship_snapshot_equal_groups`, `author_consents` | Contribution: `publication_id`, `actor_id`, `contribution_role`, `contribution_statement`, `recorded_by`, `content_hash`; snapshot: `publication_id`, `content_hash`; each author/corresponding/equal-group relation has snapshot ID, actor ID and ordinal/group ordinal; contribution relation has snapshot/contribution IDs and ordinal; consent: `prepared_submission_version_id`, `actor_id`, `consent_state`, `consent_scope`, `evidence_artifact_version_id NULL`, `prior_consent_id NULL`, `captured_at`, `content_hash` | Concrete actor/publication/package FKs; authorship snapshot FROZEN/immutable; canonical Actor ID collections live only in typed relation rows, with unique snapshot+actor and snapshot+ordinal constraints; consent GRANTED/WITHDRAWN via new row; no rewrite. |
++| `prior_art_relations`, `prior_art_evidence_inputs` | Prior art: `claim_version_id`, `source_version_id`, `relation`, `rationale`, `assessed_by`, `content_hash`; input: prior-art/evidence IDs | Exact Claim/Source/LiteratureEvidence FKs; immutable; unique prior-art+evidence; no unsupported first-ever conclusion. |
++| `search_coverage`, `search_coverage_executions` | Coverage: `search_plan_version_id`, providers JSONB, query/result/resolved counts INT, `time_scope JSONB`, `coverage_limitations TEXT`, `content_hash`; execution relation: coverage/execution IDs | Exact frozen plan and execution FKs; counts nonnegative; execution set unique; provider values are strings, not canonical ID list; immutable. |
++| `novelty_assessments` | `claim_version_id`, `search_coverage_id`, `assessment`, `limitations`, `assessed_by`, `supersedes_assessment_id NULL`, `content_hash` | Exact claim/coverage FKs; immutable; superseding self-FK; assessment enum NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE/CLOSE_PRIOR_ART_FOUND/INCONCLUSIVE, with nonblank limitations. First-ever claims are not an enum value. |
++
++For AuthorshipSnapshot the three author relation tables are the canonical storage. `authors`, `corresponding_authors`, and `equal_contribution_groups` in its hash material are projections built from those relation rows in ordinal order. No canonical Actor ID collection is stored in JSONB. `PreparedSubmissionVersion` is the only Phase 2 submission package object. No `SubmissionRecord`, actual `SubmissionVersion`, venue response or external-effect table is created in Phase 2.
++
++## Migration verification
++
++Each authorized PR adds only its tables/constraints and a single linear Alembic revision. PostgreSQL 18.x tests cover fresh DB→head, frozen Phase 1 `0018`→head, invalid legacy state fail-closed preflight, constraints under concurrency, frozen-state UPDATE/DELETE rejection and a data-preserving downgrade refusal. No migration rewrites Phase 1 canonical rows. Exact column/index names may use the repository's established naming convention, but their semantics, types, keys and checks above are fixed; a semantic change requires ADR and revised contract before code.
+diff --git a/execution/phase2/PR2-01_Design_Execution_Pack_v1.0.md b/execution/phase2/PR2-01_Design_Execution_Pack_v1.0.md
+new file mode 100644
+index 0000000..5350aa9
+--- /dev/null
++++ b/execution/phase2/PR2-01_Design_Execution_Pack_v1.0.md
+@@ -0,0 +1,61 @@
++# PR2-01 — LiteratureSource and SourceIdentifier: design execution pack v1.0
++
++**Status:** DESIGN ONLY. No implementation authorization.  
++**Prerequisites:** Phase 2 reauthorization; approved TDG-2; independently accepted Phase 2 Architecture and Contract Correction; PR2-00 first-owner bootstrap/membership accepted with migration `0019`; clean Phase 1 regression evidence.  
++**Authoritative sources:** System Architecture → Final Correction Addendum → Global Registry → Cross-Phase Contracts → Phase 2 Architecture and Contract Correction → Phase 2 Spec → TDG-2 → this pack. This pack cannot redefine an upstream contract.
++
++## Goal and STOP boundary
++
++Provide one canonical LiteratureSource identity per normalized identifier, retain all historical source IDs, and expose deterministic source registration/lookup through Application services. Included: LiteratureSource and SourceIdentifier with typed commands/queries. Excluded: SourceMergeRecord implementation, SourceVersion, LiteratureSearchExecution, LiteratureEvidence, citation, conclusion, manuscript, external provider calls, Agent Runtime and any Phase 1 schema or semantic change. The later merge policy is defined here but not implemented in PR2-01. PR2-01 stops after independently reviewed source-identity evidence. It does not authorize PR2-02.
++
++## Schema and migration intent
++
++Migration `0020_literature_source_identity` descends from accepted `0019_phase2_bootstrap_membership` (exact revision ID confirmed against PR2-00 head when authorized). It adds only:
++
++| Table | Columns and constraints |
++|---|---|
++| `literature_sources` | `id UUID PK`, `source_kind VARCHAR(32) NOT NULL` CHECK in PAPER/PREPRINT/THESIS/BOOK/WEB/STANDARD/DATASET_DOC/OTHER, `canonical_title TEXT NOT NULL` CHECK nonblank after NFC/trim, `lifecycle_status VARCHAR(16) NOT NULL` CHECK ACTIVE/RETIRED in this PR, `created_by UUID NOT NULL` actor FK RESTRICT, `created_at TIMESTAMPTZ NOT NULL`, `row_version INT NOT NULL DEFAULT 1` CHECK positive. Index on status. No canonical scientific content hash on identity. MERGED and its alias FK arrive with SourceMergeRecord in the later source-lineage PR. |
++| `source_identifiers` | `id UUID PK`, `literature_source_id UUID NOT NULL` FK RESTRICT, `identifier_type VARCHAR(32) NOT NULL` CHECK DOI/ARXIV/PMID/SEMANTIC_SCHOLAR/OPENALEX/URL/ISBN/OTHER, `identifier_value TEXT NOT NULL`, `normalized_value TEXT NOT NULL` CHECK nonblank, `is_primary BOOLEAN NOT NULL DEFAULT FALSE`, `verification_status VARCHAR(16) NOT NULL` CHECK UNVERIFIED/VERIFIED/REJECTED, `verified_at TIMESTAMPTZ NULL`, `verified_by UUID NULL` actor FK, `verification_basis_artifact_version_id UUID NULL` ArtifactVersion FK RESTRICT, `created_by UUID NOT NULL` actor FK, `created_at TIMESTAMPTZ NOT NULL`; partial unique `(identifier_type, normalized_value) WHERE verification_status IN ('UNVERIFIED','VERIFIED')`; partial unique `(literature_source_id) WHERE is_primary AND verification_status != 'REJECTED'`; VERIFIED iff verified_at/by and frozen basis FK are nonnull. Index on source ID and rejected identifier history. Rejected historical rows remain queryable but do not block corrected binding. |
++| `source_identifier_verification_events` | `id UUID PK`, `source_identifier_id UUID NOT NULL` FK RESTRICT, `prior_status VARCHAR(16) NOT NULL`, `new_status VARCHAR(16) NOT NULL`, `basis_artifact_version_id UUID NOT NULL` frozen ArtifactVersion FK RESTRICT, `verified_by UUID NOT NULL` actor FK RESTRICT, `occurred_at TIMESTAMPTZ NOT NULL`, `reason TEXT NOT NULL`; append-only; index `(source_identifier_id,occurred_at,id)`. UNVERIFIED→VERIFIED/REJECTED and VERIFIED→REJECTED are permitted with a new frozen basis; REJECTED is terminal for that row. Raw and normalized identifier material never changes. |
++| `literature_source_project_links` | `id UUID PK`, `literature_source_id UUID NOT NULL` source FK RESTRICT, `project_id UUID NOT NULL` project FK RESTRICT, `linked_by UUID NOT NULL` actor FK RESTRICT, `linked_at TIMESTAMPTZ NOT NULL`; unique `(literature_source_id,project_id)`; indexes `(project_id,literature_source_id)` and `(literature_source_id,project_id)`. Immutable access provenance; archive does not delete it. |
++
++No scientific `ON DELETE CASCADE`. Existing Phase 1 tables are not changed. PR2-02 adds `current_version_id` with its concrete same-parent FK once `source_versions` exists. PR2-02 adds SourceMergeRecord and aliasing only after a verified human identity decision with an exact frozen basis ArtifactVersion; it preserves all frozen version parents and uses resolution aliases, never reparenting them. No merge occurs in PR2-01. SourceIdentifier verification changes only status/verification columns with an append-only verification event in the same transaction; its type, raw value, normalized value, owner and primary designation are immutable after creation. LiteratureSource identity contains public bibliographic metadata only; private local-corpus material stays in project-scoped ArtifactVersion. Every read/write requires an active membership in an explicitly supplied project and a source–project link. Registering a known public identifier from a second project adds that project's link in the same transaction without exposing other project associations.
++
++`canonical_title` on LiteratureSource is immutable registration display metadata, never formal scientific content. Corrected titles belong to a new SourceVersion in PR2-02. A source identity created with a mistaken title remains historically visible; a correction/merge record or retired identity resolves identity errors without rewriting the registration row.
++
++## Identifier rules
++
++Normalize Unicode NFC, trim outer whitespace, reject controls and empty values, and cap stored normalized strings at 2048 code points. Type-specific rules are deterministic and versioned as `source-identifier-normalization-v1`:
++
++| Type | Normalized form |
++|---|---|
++| DOI | Remove `doi:` and recognized `https://doi.org/` or `http://dx.doi.org/` prefix; percent-decode unreserved characters once; lowercase ASCII DOI suffix and prefix; require `10.` prefix, slash and nonempty suffix; preserve punctuation. |
++| ARXIV | Remove `arXiv:` and recognized arxiv.org `/abs/` or `/pdf/` wrapper; strip terminal `.pdf`; lowercase archive prefix; strip explicit `vN` suffix into SourceVersion candidate metadata, so SourceIdentifier names the work identity; validate modern or legacy arXiv syntax. |
++| PMID | Accept digits only; remove leading zeros by base-10 normalization; reject zero. |
++| ISBN | Remove spaces/hyphens; uppercase `X`; validate ISBN-10 or ISBN-13 check digit; preserve digits/check digit. |
++| URL | Require HTTP(S); lowercase scheme/IDNA hostname; remove default port and fragment; normalize unreserved percent encodings; preserve path/query ordering and case; reject username/password in URL. |
++| SEMANTIC_SCHOLAR | Accept exactly 40 ASCII hexadecimal characters; lowercase them. Provider URL wrappers are rejected in PR2-01. |
++| OPENALEX | Accept a Works ID `W` followed by a nonzero decimal integer, optionally wrapped as `https://openalex.org/W…`; uppercase the `W` and remove the wrapper. Other OpenAlex entity types are rejected. |
++| OTHER | Require `namespace:value`, where namespace matches lowercase ASCII `[a-z0-9][a-z0-9._-]{1,63}` and value is 1–2048 NFC code points after outer trim; preserve value case. A namespace is registered in deployment configuration before use; unknown namespaces fail `IDENTIFIER_INVALID`. |
++
++Normalization is pure and has table-driven test vectors. An UNVERIFIED or VERIFIED identifier value is unique; a REJECTED historical binding permits a new corrected row with the same normalized value. Identical title is never proof of identity. A different DOI is not auto-merged. Registration with an existing VERIFIED normalized identifier returns that canonical source only when caller input is compatible; an UNVERIFIED collision or conflicting source kind/title or explicit source target returns `SOURCE_IDENTITY_CONFLICT` for review. No provider response can auto-create an authoritative merge. Distinct verified identifiers may later be judged co-referent only by an authorized human decision with frozen identity-basis ArtifactVersion; the later merge command appends SourceMergeRecord, retains both source IDs and identifiers, rejects cycles, and never rewrites SourceVersion parents.
++
++## Application surface and ports
++
++Commands (one transaction each): `register_literature_source(context, project_id, kind, title, initial_identifier?, idempotency_key)`, `add_source_identifier(context, project_id, source_id, type, value, is_primary, idempotency_key)`, `verify_source_identifier(context, project_id, identifier_id, verification_basis_artifact_version_id, idempotency_key)`. Registration of an existing public source creates only the new source–project link. Verification requires a FROZEN ArtifactVersion documenting the identifier basis, an active Project OWNER/RESEARCHER actor, and exact source/identifier matching; no opaque provider assertion is enough. Merge commands are excluded from PR2-01.
++
++Queries: `get_literature_source(project_id,id)`, `find_source_by_identifier(project_id,type,value)`, `list_source_identifiers(project_id,source_id)`. All require active membership and source–project link; unauthorized lookup returns the same not-found shape as an absent source. Query DTOs disclose source ID and verification status, never another project's links or current SourceVersion. Reads do not mutate.
++
++Ports: `LiteratureSourceRepository` with `get`, `get_for_update`, `add`, `get_by_normalized_identifier`, `has_project_link`, `add_project_link`; `SourceIdentifierRepository` with `get`, `list_for_source`, `add`, `mark_verified`. They return domain models/DTOs, not ORM entities. Application uses the existing synchronous UnitOfWork; persistence alone owns SQLAlchemy. Actor and Project membership/role checks use PR2-00 ports. Human and Agent callers use the same ordinary Application service.
++
++HTTP adapter: `POST /v1/projects/{project_id}/literature/sources`, `POST /v1/projects/{project_id}/literature/sources/{id}/identifiers`, `POST /v1/projects/{project_id}/literature/identifiers/{id}:verify`, `GET /v1/projects/{project_id}/literature/sources/{id}`, `GET /v1/projects/{project_id}/literature/sources:resolve?identifier_type=&identifier_value=`. CLI equivalents: `researchbase literature source create|show|resolve --project-id`, `researchbase literature identifier add|verify|list --project-id`. Both pass authenticated actor context into Application; no route or CLI handler commits directly. API/CLI must return the same normalized DTO and error codes.
++
++Errors: `SOURCE_IDENTITY_CONFLICT` 409, `IDENTIFIER_INVALID` 422, `IDENTIFIER_ALREADY_BOUND` 409, `SOURCE_NOT_FOUND` 404, `IDENTIFIER_BASIS_NOT_FROZEN` 409, `FORBIDDEN` 403, `CONCURRENT_MODIFICATION` 409, `IDEMPOTENCY_CONFLICT` 409. A duplicate request with the same idempotency key and canonical input returns the same IDs; a changed payload conflicts. SQL uniqueness errors map to deterministic Application errors after re-read, not arbitrary 500 responses.
++
++## Verification and evidence
++
++Unit contracts: normalization vectors, title non-identity, frozen verification basis, rejected-binding correction, project access and idempotency. PostgreSQL integration: active identifier races, one current primary/source, verified timestamp CHECK, source/project/actor FKs, immutable verification history, project-link uniqueness, cross-project denial, row-lock concurrency, transaction rollback, delete RESTRICT. Migration: clean DB→0020 and frozen Phase 1 `0018`→0019→0020 on PostgreSQL 18.x; invalid legacy state fails closed; attempted downgrade with populated canonical tables aborts; no Phase 1 table/hash/history changes. Application/API/CLI contract tests verify parity and authenticated actor/role enforcement. Architecture tests reject domain→SQLAlchemy/FastAPI/Typer and direct adapter commits.
++
++For this PR, run the full frozen Phase 1 regression pack: RB-P1-001, RB-V3-P1-001, RB-V3-P1-002, FrozenJSON, canonical-json-v1, sha256-cjson-v1, Run, Measurement, StatisticalResult, Claim/provenance, Governance, ArtifactStore, same-parent current-version integrity, architecture boundaries and Phase 1 local acceptance invariants. Record exact command, environment, PostgreSQL version, exit code and failure counts in `artifacts/pr_evidence/PR2-01/`. Include migration inventory/diff, constraint tests, normalization vectors, API/CLI examples, phase1 regression report and reviewer findings. `not run` is never PASS.
++
++STOP if any P0/P1 review finding remains, a required test fails or is not run, a registry/hash/merge contract changes without ADR, a Phase 1 semantic rewrite appears, or implementation scope reaches PR2-02. This pack itself authorizes no implementation, commit, migration or deployment.

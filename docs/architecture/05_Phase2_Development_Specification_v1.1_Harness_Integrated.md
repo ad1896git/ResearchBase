@@ -1,5 +1,7 @@
 # ResearchBase Phase 2 Development Specification
 
+> **Normative Phase 2 correction:** `docs/architecture/12_Phase2_Architecture_and_Contract_Correction_v1.0.md` resolves the prepared-versus-actual submission distinction, registry objects, bootstrap, hashes, governance, and schema. In this document, Phase 2 `SubmissionVersion` references in §§23, 34, 39, 48 and 52 mean `PreparedSubmissionVersion`; actual `SubmissionVersion` is deferred. `LiteratureSearchRun` means `LiteratureSearchExecution` under Final Correction Addendum A2. Literature is required Phase 2 scope. PR2-01 implements source identity/identifiers only; SourceMergeRecord moves to PR2-02 under Addendum A17.
+
 > **版本**：v1.0  
 > **状态**：DESIGN COMPLETE / READY FOR CROSS-PHASE REVIEW  
 > **日期**：2026-08-26  
@@ -2111,4 +2113,3 @@ Add to Section 52:
 [ ] Skill/strategy revisions used in formal generated artifacts are identifiable PASS
 [ ] scientific Skill trigger/evidence regression tests PASS
 ```
-

@@ -58,32 +58,56 @@ WORKFLOW
 |---|---|---|---|---|
 | ProjectMembership | organization | STATEFUL_OPERATIONAL | ACTIVE/SUSPENDED/ENDED | concrete actor/project FK |
 | ProjectRoleAssignment | organization | STATEFUL_OPERATIONAL | temporal | concrete FK |
+| ProjectMembershipEvent | organization | IMMUTABLE_RECORD | append-only | membership/actor FKs |
+| ProjectRoleEvent | organization | IMMUTABLE_RECORD | append-only | role assignment/actor FKs |
+| BootstrapRecord | organization/identity boundary | IMMUTABLE_RECORD | immutable; first-owner ceremony only | concrete actor/project/membership/role FKs |
 | LiteratureSource | literature | IDENTITY | ACTIVE/MERGED/RETIRED | Live identity |
 | SourceIdentifier | literature | IMMUTABLE/STATEFUL | verified | source FK |
+| LiteratureSourceProjectLink | literature/organization boundary | IMMUTABLE_RECORD | append-only project access link | concrete source/project/actor FKs |
+| SourceIdentifierVerificationEvent | literature | IMMUTABLE_RECORD | append-only | identifier/basis ArtifactVersion/actor FKs |
 | SourceVersion | literature | VERSION | DRAFT→FROZEN... | Frozen |
 | LiteratureSearchPlan | literature | IDENTITY | stable | Live |
 | LiteratureSearchPlanVersion | literature | VERSION | DRAFT→FROZEN... | Frozen |
 | LiteratureSearchExecution | literature | STATEFUL_OPERATIONAL | PLANNED→terminal | plan version strong FK |
 | SearchQueryRecord | literature | IMMUTABLE_RECORD | immutable | execution FK |
 | SearchResultRecord | literature | IMMUTABLE_RECORD | immutable | query FK |
+| SearchResultResolution | literature | IMMUTABLE_RECORD | append-only | result/source/version FKs |
 | LiteratureEvidence | literature | IMMUTABLE/REVIEWABLE | content immutable, verification state separate/controlled | SourceVersion strong FK |
+| LiteratureEvidenceReviewEvent | literature | IMMUTABLE_RECORD | append-only | evidence/actor FKs |
+| LiteratureEvidenceRelation | literature | IMMUTABLE_AFTER_FREEZE | target DRAFT edits; sealed on target freeze | concrete evidence and XOR target FKs |
+| SourceMergeRecord | literature | IMMUTABLE_RECORD | immutable | concrete losing/winning source FKs |
 | ResearchBrief | evidence/artifact | ArtifactVersion role | versioned artifact | Frozen artifact |
 | DiscussionSession | collaboration | STATEFUL_OPERATIONAL | OPEN/CLOSED/ARCHIVED | project FK |
 | DiscussionTurn | collaboration | IMMUTABLE_RECORD | append-only | session FK |
 | ScientificConclusion | research | IDENTITY | stable | Live |
 | ScientificConclusionVersion | research | VERSION | DRAFT→FROZEN... | Frozen input set |
 | Publication | publication | IDENTITY | lifecycle | Live |
+| PublicationLifecycleEvent | publication | IMMUTABLE_RECORD | append-only | publication/actor/decision/grant FKs |
 | ManuscriptVersion | publication | VERSION | DRAFT→FROZEN... | Frozen |
+| ManuscriptClaimPlacement | publication | IMMUTABLE_AFTER_FREEZE | manuscript DRAFT edits; sealed on freeze | XOR exact ClaimVersion/ConclusionVersion FKs |
+| ManuscriptCitationPlacement | publication | IMMUTABLE_AFTER_FREEZE | manuscript DRAFT edits; sealed on freeze | exact SourceVersion FK; no support implication |
+| ManuscriptArtifactPlacement | publication | IMMUTABLE_AFTER_FREEZE | manuscript DRAFT edits; sealed on freeze | exact ArtifactVersion FK |
 | InternalReviewRecord | governance | IMMUTABLE_RECORD | immutable | concrete frozen target |
 | ReviewIssue | governance | STATEFUL_OPERATIONAL | OPEN/ADDRESSED/DISMISSED | review FK |
+| ReviewIssueEvent | governance | IMMUTABLE_RECORD | append-only | issue/actor/decision FKs |
 | DecisionRecord | governance | IMMUTABLE_RECORD | immutable/superseding | typed basis relations |
+| RevisionAction | governance | IMMUTABLE_RECORD | immutable/superseding | concrete issue/decision/resulting version FKs |
 | ApprovalRequest | governance | IMMUTABLE_RECORD-ish | PENDING→DECIDED/WITHDRAWN | concrete frozen target |
+| ApprovalRequestEvent | governance | IMMUTABLE_RECORD | append-only | request/actor FKs |
 | ApprovalDecision | governance | IMMUTABLE_RECORD | immutable | request FK |
 | ApprovalGrant | governance | STATEFUL_OPERATIONAL | ACTIVE/CONSUMED/EXPIRED/REVOKED/STALE | decision FK |
-| SubmissionVersion | publication | VERSION/IMMUTABLE_SNAPSHOT | PREPARED→FROZEN→SUPERSEDED | Frozen closure |
-| AuthorshipSnapshot | publication | IMMUTABLE_SNAPSHOT | frozen | Submission strong FK |
+| ApprovalGrantEvent | governance | IMMUTABLE_RECORD | append-only | grant/actor FKs |
+| ApprovalGrantConsumption | governance | IMMUTABLE_RECORD | at most one per grant | grant/command/resulting target FKs |
+| PreparedSubmissionVersion | publication | VERSION/IMMUTABLE_SNAPSHOT | PREPARED→FROZEN→SUPERSEDED/WITHDRAWN | Frozen package closure; no external send implication |
+| PreparedSubmissionEvent | publication | IMMUTABLE_RECORD | append-only | prepared package/actor FKs |
+| AuthorshipSnapshot | publication | IMMUTABLE_SNAPSHOT | frozen | PreparedSubmissionVersion strong FK |
+| ContributionRecord | publication | IMMUTABLE_RECORD | immutable | actor/publication or prepared-package FKs |
+| AuthorConsent | publication | IMMUTABLE_RECORD | new withdrawal record, no rewrite | actor/prepared-package FKs |
 | PriorArtRelation | literature | IMMUTABLE_RECORD | immutable assessment | claim/source FKs |
 | SearchCoverage | literature | IMMUTABLE_ASSESSMENT | immutable | relation tables |
+| NoveltyAssessment | literature | IMMUTABLE_ASSESSMENT | immutable/superseding | exact ClaimVersion/SearchCoverage FKs |
+
+`CitationRelation` is a noncanonical shorthand for `ManuscriptCitationPlacement`; it has no table. `SubmissionVersion` and `SubmissionRecord` are deferred to the venue-submission optional extension and denote actual external-send history. The normative Phase 2 correction and field contract are `12_Phase2_Architecture_and_Contract_Correction_v1.0.md` and `13_Phase2_Schema_Field_Contract_v1.0.md`.
 
 ---
 
