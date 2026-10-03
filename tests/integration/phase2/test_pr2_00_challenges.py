@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from threading import Event
 from time import monotonic, sleep
+from typing import Any
 from uuid import uuid4
 
 from alembic import command
@@ -60,15 +62,73 @@ class _AttestationVerifier:
         return True
 
 
+class _TemporalTrace:
+    def __init__(self) -> None:
+        self.values: dict[str, object] = {"authorization_times": []}
+
+    def clear(self) -> None:
+        self.values = {"authorization_times": []}
+
+    def wrap(self, repository: Any) -> Any:
+        trace = self
+
+        class ObservedRepository:
+            def __getattr__(self, name: str) -> Any:
+                return getattr(repository, name)
+
+            def lock_deployment(self, deployment_id: str) -> None:
+                tx_started_at, backend_pid = repository._session.execute(
+                    text("SELECT transaction_timestamp(), pg_backend_pid()")
+                ).one()
+                trace.values.update(tx_started_at=tx_started_at, backend_pid=backend_pid)
+                return repository.lock_deployment(deployment_id)
+
+            def lock_project(self, project_id: object) -> None:
+                tx_started_at, backend_pid = repository._session.execute(
+                    text("SELECT transaction_timestamp(), pg_backend_pid()")
+                ).one()
+                trace.values.update(tx_started_at=tx_started_at, backend_pid=backend_pid)
+                repository.lock_project(project_id)
+                trace.values["lock_acquired_at"] = repository.database_time()
+
+            def database_time(self) -> datetime:
+                value = repository.database_time()
+                cast_times = trace.values["authorization_times"]
+                assert isinstance(cast_times, list)
+                cast_times.append(value)
+                return value
+
+            def enrollment_challenge_for_update(self, challenge_id: object) -> Any:
+                result = repository.enrollment_challenge_for_update(challenge_id)
+                trace.values["lock_acquired_at"] = repository.database_time()
+                return result
+
+            def active_membership_for_update(self, actor_id: object, project_id: object) -> Any:
+                result = repository.active_membership_for_update(actor_id, project_id)
+                trace.values["lock_acquired_at"] = repository.database_time()
+                return result
+
+        return ObservedRepository()
+
+
 def _service(
     database_url: str,
     credential_verifier: Phase2CredentialVerifier | None = None,
     bootstrap_proof_verifier: BootstrapProofVerifier | None = None,
+    temporal_trace: _TemporalTrace | None = None,
 ) -> tuple[Phase2IdentityService, VerifiedPrincipal, VerifiedSubject]:
     engine = create_engine(database_url)
     factory = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+
+    class ObservedUnitOfWork(SqlAlchemyUnitOfWork):
+        def __enter__(self) -> ObservedUnitOfWork:
+            super().__enter__()
+            if temporal_trace is not None:
+                self.phase2_identity = temporal_trace.wrap(self.phase2_identity)
+            return self
+
     service = Phase2IdentityService(
-        lambda: SqlAlchemyUnitOfWork(factory),
+        lambda: ObservedUnitOfWork(factory),
         nonce_issuer=_NonceIssuer(),
         operator_policy=_OperatorPolicy(),
         credential_verifier=credential_verifier or _CredentialVerifier(),
@@ -91,6 +151,29 @@ def _service(
         credential_id="os-peer-1001",
     )
     return service, operator, subject
+
+
+def _wait_for_database_lock(engine: Any, backend_pid: int) -> dict[str, object]:
+    deadline = monotonic() + 5
+    while monotonic() < deadline:
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT clock_timestamp(), wait_event_type, wait_event, query "
+                    "FROM pg_stat_activity "
+                    "WHERE pid = :pid"
+                ),
+                {"pid": backend_pid},
+            ).one_or_none()
+        if row is not None and row.wait_event_type == "Lock":
+            return {
+                "observed_at": row[0],
+                "wait_event_type": row.wait_event_type,
+                "wait_event": row.wait_event,
+                "query": row.query,
+            }
+        sleep(0.01)
+    raise AssertionError(f"PostgreSQL backend {backend_pid} did not enter a lock wait")
 
 
 def _challenge_consumers_have_one_winner(
@@ -184,7 +267,8 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     command.upgrade(config, "0019_phase2_bootstrap_membership")
     engine = create_engine(phase2_database_url)
-    service, operator, subject = _service(phase2_database_url)
+    trace = _TemporalTrace()
+    service, operator, subject = _service(phase2_database_url, temporal_trace=trace)
     actor_id = uuid4()
     now = datetime.now(UTC)
     try:
@@ -206,6 +290,7 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
                 lifetime=timedelta(seconds=3),
             )
         )
+        trace.clear()
         import hashlib
 
         attestation = OnboardingAttestation(
@@ -236,10 +321,7 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
             {"id": ticket.challenge_id},
         ).scalar_one()
 
-        waiting = Event()
-
         def consume() -> ErrorCode | None:
-            waiting.set()
             try:
                 service.bind_legacy_actor_subject(bind_command)
             except ResearchBaseError as exc:
@@ -248,55 +330,65 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
 
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(consume)
-            assert waiting.wait(timeout=2)
             lock_deadline = monotonic() + 5
-            blocked = False
-            while monotonic() < lock_deadline:
-                with engine.connect() as connection:
-                    blocked = bool(
-                        connection.execute(
-                            text(
-                                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity "
-                                "WHERE wait_event_type = 'Lock' "
-                                "AND query ILIKE '%actor_enrollment_challenges%')"
-                            )
-                        ).scalar_one()
-                    )
-                    expired = bool(
-                        connection.execute(
-                            text(
-                                "SELECT clock_timestamp() >= expires_at "
-                                "FROM actor_enrollment_challenges WHERE id = :id"
-                            ),
-                            {"id": ticket.challenge_id},
-                        ).scalar_one()
-                    )
-                if blocked and expired:
-                    break
-                sleep(0.02)
-            assert blocked, "consumer must wait on the challenge row lock"
-            assert expired, "test must release the required lock after challenge expiry"
+            while "backend_pid" not in trace.values and monotonic() < lock_deadline:
+                sleep(0.005)
+            backend_pid = trace.values.get("backend_pid")
+            assert isinstance(backend_pid, int)
+            lock_wait = _wait_for_database_lock(engine, backend_pid)
+            lock_wait_started_at = lock_wait["observed_at"]
+            assert isinstance(lock_wait_started_at, datetime)
+            assert "actor_enrollment_challenges" in str(lock_wait["query"])
+            expiry_at = ticket.expires_at
+            assert lock_wait_started_at < expiry_at
+            with engine.connect() as connection:
+                while connection.execute(
+                    text("SELECT clock_timestamp() < :expiry"), {"expiry": expiry_at}
+                ).scalar_one():
+                    sleep(0.01)
             holding_transaction.rollback()
             assert future.result(timeout=5) is ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED
+        lock_acquired_at = trace.values["lock_acquired_at"]
+        authorization_times = trace.values["authorization_times"]
+        assert isinstance(lock_acquired_at, datetime)
+        assert isinstance(authorization_times, list) and authorization_times
+        authorization_checked_at = authorization_times[-1]
+        tx_started_at = trace.values["tx_started_at"]
+        assert isinstance(tx_started_at, datetime)
+        assert tx_started_at < expiry_at
+        assert lock_acquired_at >= expiry_at
+        assert authorization_checked_at >= lock_acquired_at
+        assert authorization_checked_at > expiry_at
         holder.close()
         with engine.connect() as connection:
-            assert (
-                connection.execute(
+            persisted = {
+                "challenge_status": connection.execute(
                     text("SELECT status FROM actor_enrollment_challenges WHERE id = :id"),
                     {"id": ticket.challenge_id},
-                ).scalar_one()
-                == "ISSUED"
-            )
-            assert (
-                connection.execute(
+                ).scalar_one(),
+                "bindings": connection.execute(
                     text(
                         "SELECT count(*) FROM actor_subject_bindings "
                         "WHERE enrollment_challenge_id = :id"
                     ),
                     {"id": ticket.challenge_id},
-                ).scalar_one()
-                == 0
-            )
+                ).scalar_one(),
+                "binding_events": connection.execute(
+                    text(
+                        "SELECT count(*) FROM actor_subject_binding_events WHERE actor_id = :actor"
+                    ),
+                    {"actor": actor_id},
+                ).scalar_one(),
+            }
+            assert persisted == {"challenge_status": "ISSUED", "bindings": 0, "binding_events": 0}
+        trace.values.update(
+            expiry_at=expiry_at,
+            lock_wait_started_at=lock_wait_started_at,
+            observed_wait=lock_wait,
+            effect_result="DENY",
+            persisted_effects=persisted,
+        )
+        print("TEMP-AUTH challenge proof " + json.dumps(trace.values, default=str, sort_keys=True))
     finally:
         engine.dispose()
 
@@ -398,6 +490,8 @@ def test_consumed_challenge_stays_unusable_after_binding_revocation(
 
 def _owner_credential_expiry_after_project_lock_wait_denies_role_assignment(
     phase2_database_url: str,
+    *,
+    further_wait: bool = False,
 ) -> None:
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
@@ -406,12 +500,11 @@ def _owner_credential_expiry_after_project_lock_wait_denies_role_assignment(
     target_id, project_id, owner_membership_id, target_membership_id = (uuid4() for _ in range(4))
     owner_binding_id, owner_role_id = uuid4(), uuid4()
     owner_event_id = uuid4()
-    with engine.begin() as connection:
-        expiry = connection.execute(
-            text("SELECT clock_timestamp() + interval '2 seconds'")
-        ).scalar_one()
-
-    service, owner, _subject = _service(phase2_database_url, _ExpiringCredentialVerifier(expiry))
+    credential_verifier = _ExpiringCredentialVerifier(datetime.max.replace(tzinfo=UTC))
+    trace = _TemporalTrace()
+    service, owner, _subject = _service(
+        phase2_database_url, credential_verifier, temporal_trace=trace
+    )
     owner_id = owner.actor_id
     with engine.begin() as connection:
         now = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
@@ -580,6 +673,7 @@ def _owner_credential_expiry_after_project_lock_wait_denies_role_assignment(
             },
         )
 
+    owner = replace(owner, verified_at=now)
     service.assign_project_role(
         AssignProjectRole(
             principal=owner,
@@ -593,13 +687,20 @@ def _owner_credential_expiry_after_project_lock_wait_denies_role_assignment(
 
     holder = engine.connect()
     holding_transaction = holder.begin()
-    holder.execute(
-        text("SELECT id FROM projects WHERE id = :id FOR UPDATE"), {"id": project_id}
-    ).scalar_one()
-    waiting = Event()
+    if further_wait:
+        holder.execute(text("SELECT id FROM actors WHERE id = :id FOR UPDATE"), {"id": target_id})
+    else:
+        holder.execute(
+            text("SELECT id FROM projects WHERE id = :id FOR UPDATE"), {"id": project_id}
+        ).scalar_one()
+    with engine.begin() as connection:
+        expiry = connection.execute(
+            text("SELECT clock_timestamp() + interval '2 seconds'")
+        ).scalar_one()
+    credential_verifier.expires_at = expiry
+    trace.clear()
 
     def assign() -> ErrorCode | None:
-        waiting.set()
         try:
             service.assign_project_role(
                 AssignProjectRole(
@@ -618,44 +719,90 @@ def _owner_credential_expiry_after_project_lock_wait_denies_role_assignment(
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(assign)
-            assert waiting.wait(timeout=2)
             lock_deadline = monotonic() + 5
-            blocked = False
-            expired = False
-            while monotonic() < lock_deadline:
-                with engine.connect() as connection:
-                    blocked = bool(
-                        connection.execute(
-                            text(
-                                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity "
-                                "WHERE wait_event_type = 'Lock' "
-                                "AND query ILIKE '%rb_phase2_lock_project%')"
-                            )
-                        ).scalar_one()
-                    )
-                    expired = bool(
-                        connection.execute(
-                            text("SELECT clock_timestamp() >= :expiry"), {"expiry": expiry}
-                        ).scalar_one()
-                    )
-                if blocked and expired:
-                    break
-                sleep(0.02)
-            assert blocked, "protected action must wait on the required project lock"
-            assert expired, "test must release the project lock after OWNER credential expiry"
+            while "backend_pid" not in trace.values and monotonic() < lock_deadline:
+                sleep(0.005)
+            backend_pid = trace.values.get("backend_pid")
+            assert isinstance(backend_pid, int)
+            lock_wait = _wait_for_database_lock(engine, backend_pid)
+            lock_wait_started_at = lock_wait["observed_at"]
+            assert isinstance(lock_wait_started_at, datetime)
+            if further_wait:
+                assert "project_memberships" in str(lock_wait["query"])
+            else:
+                assert "rb_phase2_lock_project" in str(lock_wait["query"])
+            authorization_times = trace.values["authorization_times"]
+            assert isinstance(authorization_times, list)
+            if further_wait:
+                assert authorization_times and authorization_times[0] < expiry
+            assert lock_wait_started_at < expiry
+            with engine.connect() as connection:
+                while connection.execute(
+                    text("SELECT clock_timestamp() < :expiry"), {"expiry": expiry}
+                ).scalar_one():
+                    sleep(0.01)
             holding_transaction.rollback()
             assert future.result(timeout=5) is ErrorCode.OWNER_CREDENTIAL_UNAVAILABLE
+        lock_acquired_at = trace.values["lock_acquired_at"]
+        authorization_times = trace.values["authorization_times"]
+        assert isinstance(lock_acquired_at, datetime)
+        assert isinstance(authorization_times, list) and authorization_times
+        tx_started_at = trace.values["tx_started_at"]
+        assert isinstance(tx_started_at, datetime) and tx_started_at < expiry
+        assert lock_acquired_at >= expiry
+        assert authorization_times[-1] >= lock_acquired_at
+        assert authorization_times[-1] > expiry
+        if further_wait:
+            assert len(authorization_times) >= 2
+            assert authorization_times[-1] > authorization_times[0]
         with engine.connect() as connection:
-            assert (
-                connection.execute(
+            protected_counts = {
+                "memberships": connection.execute(
+                    text(
+                        "SELECT count(*) FROM project_memberships "
+                        "WHERE project_id=:p AND actor_id=:a"
+                    ),
+                    {"p": project_id, "a": target_id},
+                ).scalar_one(),
+                "roles": connection.execute(
                     text(
                         "SELECT count(*) FROM project_role_assignments "
-                        "WHERE project_id = :project AND actor_id = :actor AND role = 'REVIEWER'"
+                        "WHERE project_id=:p AND actor_id=:a"
                     ),
-                    {"project": project_id, "actor": target_id},
-                ).scalar_one()
-                == 0
-            )
+                    {"p": project_id, "a": target_id},
+                ).scalar_one(),
+                "membership_events": connection.execute(
+                    text(
+                        "SELECT count(*) FROM project_membership_events e "
+                        "JOIN project_memberships m ON m.id=e.membership_id "
+                        "WHERE m.project_id=:p AND m.actor_id=:a"
+                    ),
+                    {"p": project_id, "a": target_id},
+                ).scalar_one(),
+                "role_events": connection.execute(
+                    text(
+                        "SELECT count(*) FROM project_role_events e "
+                        "JOIN project_role_assignments r ON r.id=e.role_assignment_id "
+                        "WHERE r.project_id=:p AND r.actor_id=:a"
+                    ),
+                    {"p": project_id, "a": target_id},
+                ).scalar_one(),
+            }
+            assert protected_counts == {
+                "memberships": 1,
+                "roles": 1,
+                "membership_events": 1,
+                "role_events": 1,
+            }
+        trace.values.update(
+            expiry_at=expiry,
+            lock_wait_started_at=lock_wait_started_at,
+            observed_wait=lock_wait,
+            effect_result="DENY",
+            protected_counts=protected_counts,
+            distinct_further_wait=further_wait,
+        )
+        print("TEMP-AUTH OWNER proof " + json.dumps(trace.values, default=str, sort_keys=True))
     finally:
         holder.close()
         engine.dispose()

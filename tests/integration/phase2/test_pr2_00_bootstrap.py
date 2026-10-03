@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from threading import Barrier
+from threading import Barrier, Event
+from time import monotonic, sleep
 from uuid import uuid4
 
 from alembic import command
@@ -160,6 +161,182 @@ def test_concurrent_first_owner_bootstrap_has_one_committed_result(
         futures = [pool.submit(attempt), pool.submit(attempt)]
         outcomes = sorted(future.result(timeout=10) for future in futures)
     assert outcomes == ["BOOTSTRAP_CLOSED", "SUCCESS"]
+
+
+def test_invalid_legacy_state_rejects_bootstrap_without_protected_writes(
+    phase2_database_url: str,
+) -> None:
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "0019_phase2_bootstrap_membership")
+    engine = create_engine(phase2_database_url)
+    service, _principal, _subject = _service(
+        phase2_database_url, bootstrap_proof_verifier=_BootstrapProofVerifier()
+    )
+    actor_id = uuid4()
+    with engine.begin() as connection:
+        now = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
+        connection.execute(
+            text(
+                "INSERT INTO actors (id, actor_type, display_name, created_at) "
+                "VALUES (:id, 'HUMAN', 'legacy', :now)"
+            ),
+            {"id": actor_id, "now": now},
+        )
+        connection.execute(text("DROP INDEX uq_actors_external_key"))
+        connection.execute(
+            text("UPDATE actors SET external_key = 'duplicate' WHERE id = :id"),
+            {"id": actor_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO actors (id, actor_type, display_name, external_key, created_at) "
+                "VALUES (:id, 'HUMAN', 'duplicate', 'duplicate', :now)"
+            ),
+            {"id": uuid4(), "now": now},
+        )
+    operator = VerifiedPrincipal(
+        actor_id=uuid4(),
+        deployment_id="deployment-invalid-legacy",
+        subject_kind="OS_UID",
+        subject_value="740",
+        credential_id="os-credential-740",
+        verified_at=datetime.now(UTC),
+    )
+    authority = BootstrapAuthority(
+        deployment_id=operator.deployment_id,
+        operator=operator,
+        verified_os_uid=740,
+        subject_credential_id=operator.credential_id,
+        secret_digest_id="secret-digest-ref",
+        proof_sha256="a" * 64,
+        proof_record_ref="audit/sha256/invalid-legacy",
+    )
+    try:
+        errors = []
+        for _ in range(2):
+            try:
+                service.bootstrap_first_owner(
+                    authority,
+                    request_id=uuid4(),
+                    display_name="Must not be created",
+                    project_name="Must not be created",
+                )
+            except ResearchBaseError as exc:
+                assert exc.code is ErrorCode.LEGACY_STATE_INVALID
+                errors.append(exc.to_dict())
+            else:
+                raise AssertionError("invalid legacy state must fail closed")
+        assert errors[0] == errors[1]
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT count(*) FROM actors")).scalar_one() == 2
+            assert connection.execute(text("SELECT count(*) FROM projects")).scalar_one() == 0
+            assert (
+                connection.execute(text("SELECT count(*) FROM bootstrap_records")).scalar_one() == 0
+            )
+            assert (
+                connection.execute(text("SELECT count(*) FROM project_memberships")).scalar_one()
+                == 0
+            )
+            assert (
+                connection.execute(text("SELECT count(*) FROM project_role_events")).scalar_one()
+                == 0
+            )
+    finally:
+        engine.dispose()
+
+
+def test_bootstrap_preflight_reads_state_after_required_table_lock_wait(
+    phase2_database_url: str,
+) -> None:
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "0019_phase2_bootstrap_membership")
+    engine = create_engine(phase2_database_url)
+    service, _principal, _subject = _service(
+        phase2_database_url, bootstrap_proof_verifier=_BootstrapProofVerifier()
+    )
+    with engine.begin() as connection:
+        connection.execute(text("DROP INDEX uq_actors_external_key"))
+    holder = engine.connect()
+    transaction = holder.begin()
+    holder.execute(text("LOCK TABLE actors IN ROW EXCLUSIVE MODE"))
+    actor_ids = uuid4(), uuid4()
+    now = datetime.now(UTC)
+    holder.execute(
+        text(
+            "INSERT INTO actors (id, actor_type, display_name, external_key, created_at) "
+            "VALUES (:a, 'HUMAN', 'concurrent legacy A', 'duplicate', :now), "
+            "(:b, 'HUMAN', 'concurrent legacy B', 'duplicate', :now)"
+        ),
+        {"a": actor_ids[0], "b": actor_ids[1], "now": now},
+    )
+    operator = VerifiedPrincipal(
+        actor_id=uuid4(),
+        deployment_id="deployment-legacy-race",
+        subject_kind="OS_UID",
+        subject_value="742",
+        credential_id="os-credential-742",
+        verified_at=datetime.now(UTC),
+    )
+    authority = BootstrapAuthority(
+        deployment_id=operator.deployment_id,
+        operator=operator,
+        verified_os_uid=742,
+        subject_credential_id=operator.credential_id,
+        secret_digest_id="secret-digest-ref",
+        proof_sha256="d" * 64,
+        proof_record_ref="audit/sha256/bootstrap-legacy-race",
+    )
+    started = Event()
+
+    def attempt() -> ErrorCode | None:
+        started.set()
+        try:
+            service.bootstrap_first_owner(
+                authority,
+                request_id=uuid4(),
+                display_name="Must remain absent",
+                project_name="Must remain absent",
+            )
+        except ResearchBaseError as exc:
+            return exc.code
+        return None
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(attempt)
+            assert started.wait(timeout=2)
+            deadline = monotonic() + 5
+            blocked = False
+            while monotonic() < deadline:
+                with engine.connect() as connection:
+                    blocked = bool(
+                        connection.execute(
+                            text(
+                                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity "
+                                "WHERE wait_event_type='Lock' "
+                                "AND query ILIKE '%LOCK TABLE actors, projects%')"
+                            )
+                        ).scalar_one()
+                    )
+                if blocked:
+                    break
+                sleep(0.01)
+            assert blocked, "bootstrap must block on the legacy tables before its preflight read"
+            transaction.commit()
+            assert future.result(timeout=5) is ErrorCode.LEGACY_STATE_INVALID
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT count(*) FROM actors")).scalar_one() == 2
+            assert connection.execute(text("SELECT count(*) FROM projects")).scalar_one() == 0
+            assert (
+                connection.execute(text("SELECT count(*) FROM bootstrap_records")).scalar_one() == 0
+            )
+    finally:
+        if transaction.is_active:
+            transaction.rollback()
+        holder.close()
+        engine.dispose()
 
 
 def test_new_project_is_created_with_continuous_owner_coverage(
@@ -670,6 +847,126 @@ def test_legacy_project_enrollment_starts_owner_coverage_without_backfill(
                     {"project": legacy_project_id},
                 ).scalar_one()
                 == 1
+            )
+    finally:
+        engine.dispose()
+
+
+def test_invalid_legacy_project_state_rejects_enrollment_before_writes(
+    phase2_database_url: str,
+) -> None:
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "0019_phase2_bootstrap_membership")
+    engine = create_engine(phase2_database_url)
+    service, _principal, _subject = _service(
+        phase2_database_url, bootstrap_proof_verifier=_BootstrapProofVerifier()
+    )
+    operator = VerifiedPrincipal(
+        actor_id=uuid4(),
+        deployment_id="deployment-invalid-project",
+        subject_kind="OS_UID",
+        subject_value="741",
+        credential_id="os-credential-741",
+        verified_at=datetime.now(UTC),
+    )
+    authority = BootstrapAuthority(
+        deployment_id=operator.deployment_id,
+        operator=operator,
+        verified_os_uid=741,
+        subject_credential_id=operator.credential_id,
+        secret_digest_id="secret-digest-ref",
+        proof_sha256="b" * 64,
+        proof_record_ref="audit/sha256/invalid-project-bootstrap",
+    )
+    try:
+        first = service.bootstrap_first_owner(
+            authority,
+            request_id=uuid4(),
+            display_name="Legacy creator",
+            project_name="Initial project",
+        )
+        legacy_project_id = uuid4()
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO projects (id, name, created_by, created_at) "
+                    "VALUES (:id, 'Invalid legacy project', :actor, clock_timestamp())"
+                ),
+                {"id": legacy_project_id, "actor": first.actor_id},
+            )
+            connection.execute(text("ALTER TABLE actors DROP CONSTRAINT ck_actors_actor_type"))
+            connection.execute(
+                text("UPDATE actors SET actor_type = 'UNKNOWN' WHERE id = :id"),
+                {"id": first.actor_id},
+            )
+        principal = VerifiedPrincipal(
+            actor_id=first.actor_id,
+            deployment_id=operator.deployment_id,
+            subject_kind=operator.subject_kind,
+            subject_value=operator.subject_value,
+            credential_id=operator.credential_id,
+            verified_at=datetime.now(UTC),
+        )
+        attestation = ProvisioningAttestation(
+            actor_id=first.actor_id,
+            deployment_id=operator.deployment_id,
+            subject_kind=operator.subject_kind,
+            subject_value=operator.subject_value,
+            subject_credential_id=operator.credential_id,
+            operator=VerifiedPrincipal(
+                actor_id=uuid4(),
+                deployment_id=operator.deployment_id,
+                subject_kind="MTLS_URI",
+                subject_value="spiffe://example.org/operators/invalid-project",
+                credential_id="operator-invalid-project-cert",
+                verified_at=datetime.now(UTC),
+            ),
+            proof_sha256="c" * 64,
+            proof_record_ref="audit/sha256/invalid-project-enrollment",
+            reason="reviewed legacy project evidence",
+        )
+        errors = []
+        for _ in range(2):
+            try:
+                service.enroll_legacy_project_owner(
+                    EnrollLegacyProjectOwner(
+                        principal=principal,
+                        project_id=legacy_project_id,
+                        attestation=attestation,
+                        request_id=uuid4(),
+                    )
+                )
+            except ResearchBaseError as exc:
+                assert exc.code is ErrorCode.LEGACY_STATE_INVALID
+                errors.append(exc.to_dict())
+            else:
+                raise AssertionError("invalid legacy project state must fail closed")
+        assert errors[0] == errors[1]
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM project_memberships WHERE project_id=:id"),
+                    {"id": legacy_project_id},
+                ).scalar_one()
+                == 0
+            )
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM project_role_assignments WHERE project_id=:id"),
+                    {"id": legacy_project_id},
+                ).scalar_one()
+                == 0
+            )
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT count(*) FROM project_membership_events e "
+                        "JOIN project_memberships m ON m.id=e.membership_id WHERE m.project_id=:id"
+                    ),
+                    {"id": legacy_project_id},
+                ).scalar_one()
+                == 0
             )
     finally:
         engine.dispose()

@@ -20,4 +20,6 @@ def test_owner_credential_expiry_after_lock_wait(phase2_database_url: str) -> No
 
 
 def test_fresh_time_after_each_required_wait(phase2_database_url: str) -> None:
-    _owner_credential_expiry_after_project_lock_wait_denies_role_assignment(phase2_database_url)
+    _owner_credential_expiry_after_project_lock_wait_denies_role_assignment(
+        phase2_database_url, further_wait=True
+    )

@@ -228,6 +228,7 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 409,
         ErrorCode.BOOTSTRAP_CLOSED: 409,
         ErrorCode.IDEMPOTENCY_CONFLICT: 409,
+        ErrorCode.LEGACY_STATE_INVALID: 409,
     }
     assert set(expected) == set(ErrorCode)
     request_id = uuid4()

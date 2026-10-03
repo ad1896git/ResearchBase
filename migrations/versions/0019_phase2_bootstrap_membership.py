@@ -27,6 +27,37 @@ PHASE2_TABLES = (
 )
 
 
+def _preflight_legacy_state() -> None:
+    """Reject contradictory frozen Phase 1 identity data before Phase 2 DDL."""
+    bind = op.get_bind()
+    bind.execute(sa.text("LOCK TABLE actors, projects IN SHARE ROW EXCLUSIVE MODE"))
+    checks = (
+        (
+            "PROJECT_CREATOR_ORPHAN",
+            "SELECT EXISTS (SELECT 1 FROM projects p LEFT JOIN actors a "
+            "ON a.id = p.created_by WHERE a.id IS NULL)",
+        ),
+        (
+            "DUPLICATE_ACTOR_EXTERNAL_KEY",
+            "SELECT EXISTS (SELECT 1 FROM actors WHERE external_key IS NOT NULL "
+            "GROUP BY external_key HAVING count(*) > 1)",
+        ),
+        (
+            "INVALID_ACTOR_TYPE",
+            "SELECT EXISTS (SELECT 1 FROM actors "
+            "WHERE actor_type NOT IN ('HUMAN', 'AGENT', 'SERVICE'))",
+        ),
+        (
+            "INVALID_PROJECT_LIFECYCLE",
+            "SELECT EXISTS (SELECT 1 FROM projects "
+            "WHERE lifecycle_status NOT IN ('ACTIVE', 'ARCHIVED', 'RETIRED'))",
+        ),
+    )
+    violations = [code for code, query in checks if bind.execute(sa.text(query)).scalar_one()]
+    if violations:
+        raise RuntimeError("LEGACY_STATE_INVALID:" + ",".join(violations))
+
+
 def _install_functions() -> None:
     op.execute(
         """
@@ -514,6 +545,7 @@ def _install_functions() -> None:
 
 def upgrade() -> None:
     bind = op.get_bind()
+    _preflight_legacy_state()
     extension = bind.execute(
         sa.text("SELECT 1 FROM pg_available_extensions WHERE name = 'btree_gist'")
     ).scalar_one_or_none()

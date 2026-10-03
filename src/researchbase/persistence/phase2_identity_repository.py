@@ -427,6 +427,79 @@ class SqlAlchemyPhase2IdentityRepository:
             ).scalar_one()
         )
 
+    def legacy_state_violations(self) -> tuple[str, ...]:
+        checks = (
+            (
+                "PROJECT_CREATOR_ORPHAN",
+                "SELECT EXISTS (SELECT 1 FROM projects p LEFT JOIN actors a "
+                "ON a.id = p.created_by WHERE a.id IS NULL)",
+            ),
+            (
+                "DUPLICATE_ACTOR_EXTERNAL_KEY",
+                "SELECT EXISTS (SELECT 1 FROM actors WHERE external_key IS NOT NULL "
+                "GROUP BY external_key HAVING count(*) > 1)",
+            ),
+            (
+                "INVALID_ACTOR_TYPE",
+                "SELECT EXISTS (SELECT 1 FROM actors "
+                "WHERE actor_type NOT IN ('HUMAN', 'AGENT', 'SERVICE'))",
+            ),
+            (
+                "INVALID_PROJECT_LIFECYCLE",
+                "SELECT EXISTS (SELECT 1 FROM projects "
+                "WHERE lifecycle_status NOT IN ('ACTIVE', 'ARCHIVED', 'RETIRED'))",
+            ),
+        )
+        return tuple(
+            sorted(
+                code for code, query in checks if self._session.execute(text(query)).scalar_one()
+            )
+        )
+
+    def legacy_project_state_violations(self, project_id: UUID) -> tuple[str, ...]:
+        project = (
+            self._session.execute(
+                text(
+                    "SELECT created_by, lifecycle_status FROM projects "
+                    "WHERE id = :project_id FOR UPDATE"
+                ),
+                {"project_id": project_id},
+            )
+            .mappings()
+            .first()
+        )
+        if project is None:
+            return ()
+        creator_id = project["created_by"]
+        violations: list[str] = []
+        if project["lifecycle_status"] not in {"ACTIVE", "ARCHIVED", "RETIRED"}:
+            violations.append("INVALID_PROJECT_LIFECYCLE")
+        if creator_id is None:
+            violations.append("PROJECT_CREATOR_ORPHAN")
+            return tuple(violations)
+        creator = (
+            self._session.execute(
+                text("SELECT actor_type, external_key FROM actors WHERE id = :actor_id FOR UPDATE"),
+                {"actor_id": creator_id},
+            )
+            .mappings()
+            .first()
+        )
+        if creator is None:
+            violations.append("PROJECT_CREATOR_ORPHAN")
+            return tuple(violations)
+        if creator["actor_type"] not in {"HUMAN", "AGENT", "SERVICE"}:
+            violations.append("INVALID_ACTOR_TYPE")
+        if (
+            creator["external_key"] is not None
+            and self._session.execute(
+                text("SELECT count(*) > 1 FROM actors WHERE external_key = :external_key"),
+                {"external_key": creator["external_key"]},
+            ).scalar_one()
+        ):
+            violations.append("DUPLICATE_ACTOR_EXTERNAL_KEY")
+        return tuple(sorted(violations))
+
     def lock_bootstrap_tables(self) -> None:
         self._session.execute(text("LOCK TABLE actors, projects IN SHARE ROW EXCLUSIVE MODE"))
 

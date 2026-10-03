@@ -327,8 +327,10 @@ class Phase2IdentityService:
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
-            repo.lock_deployment(authority.deployment_id)
             repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
             if not repo.actors_and_projects_empty():
                 raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
             completed_at = repo.database_time()
@@ -570,6 +572,16 @@ class Phase2IdentityService:
                 command.principal.subject_kind,
                 command.principal.subject_value,
             )
+            if owner_facts is None:
+                raise _error(ErrorCode.FORBIDDEN, "project role assignment is not authorized")
+            preliminary_at = repo.database_time()
+            if not _owner_authorized(
+                owner_facts, command.principal, self._credential_verifier, preliminary_at
+            ):
+                raise _error(
+                    ErrorCode.OWNER_CREDENTIAL_UNAVAILABLE,
+                    "effective OWNER authority is unavailable",
+                )
             target_membership = repo.active_membership_for_update(
                 command.actor_id, command.project_id
             )
@@ -1037,6 +1049,8 @@ class Phase2IdentityService:
             repo = uow.phase2_identity
             repo.lock_project(command.project_id)
             creator_id = repo.legacy_project_creator_for_update(command.project_id)
+            if repo.legacy_project_state_violations(command.project_id):
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
             actor = repo.actor_for_update(command.principal.actor_id)
             binding = repo.active_binding_for_actor_for_update(command.principal.actor_id)
             if (

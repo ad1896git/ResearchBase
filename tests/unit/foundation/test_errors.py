@@ -24,6 +24,7 @@ def test_normative_error_codes_are_stable() -> None:
         "ENROLLMENT_CHALLENGE_EXPIRED",
         "BOOTSTRAP_CLOSED",
         "IDEMPOTENCY_CONFLICT",
+        "LEGACY_STATE_INVALID",
     ]
 
 

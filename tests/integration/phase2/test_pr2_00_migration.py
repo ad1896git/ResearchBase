@@ -185,6 +185,105 @@ def test_eight_table_catalog_and_phase1_non_drift(phase2_database_url: str) -> N
         engine.dispose()
 
 
+@pytest.mark.parametrize(
+    ("violation", "expected_code"),
+    [
+        ("orphan_creator", "PROJECT_CREATOR_ORPHAN"),
+        ("duplicate_external_key", "DUPLICATE_ACTOR_EXTERNAL_KEY"),
+        ("actor_type", "INVALID_ACTOR_TYPE"),
+        ("project_lifecycle", "INVALID_PROJECT_LIFECYCLE"),
+    ],
+)
+def test_legacy_state_preflight_fails_before_phase2_ddl_and_is_deterministic(
+    phase2_database_url: str, violation: str, expected_code: str
+) -> None:
+    database_url = phase2_database_url
+    engine = create_engine(database_url)
+    config = _alembic_config(database_url)
+    actor_id, project_id = uuid4(), uuid4()
+    now = datetime.now(UTC)
+    try:
+        _upgrade(config, "0018_current_pointer_same_parent_integrity")
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO actors (id, actor_type, display_name, created_at) "
+                    "VALUES (:id, 'HUMAN', 'preflight actor', :now)"
+                ),
+                {"id": actor_id, "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO projects (id, name, created_by, created_at) "
+                    "VALUES (:id, 'preflight project', :actor, :now)"
+                ),
+                {"id": project_id, "actor": actor_id, "now": now},
+            )
+            if violation == "orphan_creator":
+                connection.execute(
+                    text("ALTER TABLE projects DROP CONSTRAINT projects_created_by_fkey")
+                )
+                connection.execute(
+                    text("UPDATE projects SET created_by = :missing WHERE id = :id"),
+                    {"missing": uuid4(), "id": project_id},
+                )
+            elif violation == "duplicate_external_key":
+                connection.execute(text("DROP INDEX uq_actors_external_key"))
+                connection.execute(
+                    text("UPDATE actors SET external_key = 'duplicate-key' WHERE id = :id"),
+                    {"id": actor_id},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO actors (id, actor_type, display_name, "
+                        "external_key, created_at) "
+                        "VALUES (:id, 'HUMAN', 'duplicate actor', 'duplicate-key', :now)"
+                    ),
+                    {"id": uuid4(), "now": now},
+                )
+            elif violation == "actor_type":
+                connection.execute(text("ALTER TABLE actors DROP CONSTRAINT ck_actors_actor_type"))
+                connection.execute(
+                    text("UPDATE actors SET actor_type = 'UNKNOWN' WHERE id = :id"),
+                    {"id": actor_id},
+                )
+            else:
+                connection.execute(
+                    text("ALTER TABLE projects DROP CONSTRAINT ck_projects_lifecycle_status")
+                )
+                connection.execute(
+                    text("UPDATE projects SET lifecycle_status = 'unknown' WHERE id = :id"),
+                    {"id": project_id},
+                )
+
+        errors: list[str] = []
+        for _ in range(2):
+            with pytest.raises(Exception, match="LEGACY_STATE_INVALID") as raised:
+                _upgrade(config, "0019_phase2_bootstrap_membership")
+            errors.append(str(raised.value))
+        assert errors[0] == errors[1]
+        assert expected_code in errors[0]
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one() == ("0018_current_pointer_same_parent_integrity")
+            tables = set(
+                connection.execute(
+                    text(
+                        "SELECT table_name FROM information_schema.tables "
+                        "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
+                    )
+                ).scalars()
+            )
+            assert not (tables & PHASE2_TABLES)
+            assert connection.execute(text("SELECT count(*) FROM actors")).scalar_one() == (
+                2 if violation == "duplicate_external_key" else 1
+            )
+            assert connection.execute(text("SELECT count(*) FROM projects")).scalar_one() == 1
+    finally:
+        engine.dispose()
+
+
 def test_empty_downgrade_removes_all_phase2_tables(phase2_database_url: str) -> None:
     engine = create_engine(phase2_database_url)
     config = _alembic_config(phase2_database_url)

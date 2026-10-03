@@ -68,6 +68,7 @@ def test_all_stable_error_codes_have_cli_exit_mapping() -> None:
         ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 4,
         ErrorCode.BOOTSTRAP_CLOSED: 4,
         ErrorCode.IDEMPOTENCY_CONFLICT: 4,
+        ErrorCode.LEGACY_STATE_INVALID: 4,
     }
     assert set(expected) == set(ErrorCode)
 

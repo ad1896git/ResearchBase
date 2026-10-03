@@ -245,6 +245,7 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 409,
         ErrorCode.BOOTSTRAP_CLOSED: 409,
         ErrorCode.IDEMPOTENCY_CONFLICT: 409,
+        ErrorCode.LEGACY_STATE_INVALID: 409,
     }
     expected_cli = {
         ErrorCode.VALIDATION_ERROR: 2,
@@ -266,6 +267,7 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 4,
         ErrorCode.BOOTSTRAP_CLOSED: 4,
         ErrorCode.IDEMPOTENCY_CONFLICT: 4,
+        ErrorCode.LEGACY_STATE_INVALID: 4,
     }
     assert set(expected_http) == set(ErrorCode)
     assert _STATUS == expected_http

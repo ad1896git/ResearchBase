@@ -42,6 +42,7 @@ CLI_EXIT_CODES: dict[ErrorCode, int] = {
     ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 4,
     ErrorCode.BOOTSTRAP_CLOSED: 4,
     ErrorCode.IDEMPOTENCY_CONFLICT: 4,
+    ErrorCode.LEGACY_STATE_INVALID: 4,
 }
 
 
