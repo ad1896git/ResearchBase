@@ -46,6 +46,16 @@ Sort A/B by UUID and keep both; survivor is separate, so opposite directions has
 
 At 0021 both source-version sets are empty. After 0022, include each source's current SourceVersion ID/hash and kind/status; a corrected or retracted version changes the current ref. Any source, link set, identifier, or current-version state change invalidates approvals. Material change creates a new proposal. Golden vectors include representative references and expected SHA-256 digests.
 
+### Required bridge-time golden vector
+
+Input has A=...0010, B=...0020, survivor B, project ...0030, links ...0040 for A and ...0050 for B, no identifiers, no current versions for either source, rationale “Duplicate DOI record”, and no evidence artifacts. The canonical JSON preimage is exactly the serializer output:
+
+~~~json
+{"affected_project_ids":["00000000-0000-0000-0000-000000000030"],"canonical_survivor":{"id":"00000000-0000-0000-0000-000000000020","type":"LiteratureSource"},"effective_project_links":[{"link_id":"00000000-0000-0000-0000-000000000040","project_id":"00000000-0000-0000-0000-000000000030","source_id":"00000000-0000-0000-0000-000000000010"},{"link_id":"00000000-0000-0000-0000-000000000050","project_id":"00000000-0000-0000-0000-000000000030","source_id":"00000000-0000-0000-0000-000000000020"}],"evidence_artifacts":[],"identifier_state":[],"material_version":1,"rationale":"Duplicate DOI record","source_a":{"id":"00000000-0000-0000-0000-000000000010","type":"LiteratureSource"},"source_b":{"id":"00000000-0000-0000-0000-000000000020","type":"LiteratureSource"},"source_version_state":[{"current_version":null,"source_id":"00000000-0000-0000-0000-000000000010"},{"current_version":null,"source_id":"00000000-0000-0000-0000-000000000020"}],"type":"SourceMergeProposalBasis"}
+~~~
+
+Expected SHA-256 for survivor B is a822b2bb9ea98a89100ce30220a16af624bffe365b6bcf37e9b9d867c2746c23. Changing only survivor to A yields af75e117eb3e3e20c63fbed24b86621e99d17c069b325fe6ebd9961c9d865231. Tests must assert both exact hashes and that reordered semantic inputs serialize to the same first hash.
+
 ## Lifecycle, authority and concurrency
 
 Lifecycle derives from immutable material, approval rows and append-only events:
