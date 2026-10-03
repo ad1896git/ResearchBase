@@ -78,6 +78,34 @@ uv run ruff check .
 uv run pyright
 ```
 
+## Formatter baseline-delta acceptance — FORMAT-BASELINE-01
+
+The repository-wide formatter command remains required. If the exact authorized starting subject already fails `uv run ruff format --check .`, evaluate formatter acceptance by delta against that immutable subject. The formatter gate passes only when all of the following are evidenced:
+
+1. The exact starting subject and its formatter result are recorded, including Ruff version, command, exit code and sorted failing-file set.
+2. The current worktree runs the same repository-wide command and records its exit code and sorted failing-file set.
+3. `current_failures - baseline_failures` is empty, and every file added or modified by the PR is formatter-clean.
+4. The current failure set is identical to or a strict subset of the starting failure set.
+5. Formatter commands and configuration have not been weakened to obtain acceptance, and no inherited frozen file is modified solely for formatting.
+
+When the baseline command exits nonzero but these conditions hold, record the raw command as failed due to inherited baseline formatting and the formatter gate as `PASS_VIA_BASELINE_DELTA`. This is baseline-delta acceptance, not a waiver. Otherwise the formatter gate fails. Preserve the command `uv run ruff format --check .`; do not replace it with a changed-files-only check.
+
+For PR2-00, the authorized formatter baseline is `e756b1392ee25c2753e0837bda8eb905df7de013`. Its inherited failing set is:
+
+```text
+migrations/versions/0004_experiment_spec.py
+scripts/pr17dr_evidence.py
+tests/integration/test_pr04_application.py
+tests/integration/test_pr04_schema.py
+tests/integration/test_pr05_application.py
+tests/integration/test_pr05_schema.py
+tests/integration/test_pr06_application.py
+tests/unit/domain/test_pr05_experiment.py
+tests/unit/test_pr17dr2_evidence.py
+```
+
+Independently reproduce this set from a clean checkout/archive of that exact subject. Record the baseline and current formatter results, set comparison, Ruff version, and changed-file formatting result in `artifacts/pr_evidence/PR2-00/formatter_baseline.json`. Do not infer the baseline result from this recorded list alone.
+
 The future migration test must actually exercise `uv run alembic upgrade 0019_phase2_bootstrap_membership` from fresh and frozen-0018 databases, `uv run alembic downgrade 0018_current_pointer_same_parent_integrity` on an empty 0019 schema, and refusal of that downgrade with canonical 0019 rows. Capture `uv run alembic current`, catalog inventory and data-preservation evidence. These are future test requirements, **not commands to run or migration success claims in this design task**.
 
 ## Current pack-remediation verification and STOP
