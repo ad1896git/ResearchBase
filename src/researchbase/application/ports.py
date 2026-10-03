@@ -38,6 +38,7 @@ from researchbase.domain.metric import (
     MetricDefinitionVersionId,
 )
 from researchbase.domain.organization import Project, ProjectId, Workspace, WorkspaceId
+from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.research import (
     Hypothesis,
     HypothesisId,
@@ -172,6 +173,62 @@ class Phase2IdentityRepository(Protocol):
     def create_membership_event(self, values: dict[str, object]) -> None: ...
 
     def create_bootstrap_record(self, values: dict[str, object]) -> None: ...
+
+
+class SourceIdentityRepository(Protocol):
+    def database_time(self) -> datetime: ...
+
+    def lock_command(
+        self, principal: VerifiedPrincipal, project_id: UUID, command_name: str, request_id: UUID
+    ) -> None: ...
+
+    def lock_identifier(self, identifier_type: str, normalized_value: str) -> None: ...
+
+    def lock_source(self, source_id: UUID) -> None: ...
+
+    def authorize(
+        self, principal: VerifiedPrincipal, project_id: UUID, at: datetime
+    ) -> tuple[str, str] | None: ...
+
+    def receipt(
+        self, principal: VerifiedPrincipal, project_id: UUID, command_name: str, request_id: UUID
+    ) -> dict[str, object] | None: ...
+
+    def insert_source(self, values: dict[str, object]) -> None: ...
+
+    def insert_identifier(self, values: dict[str, object]) -> None: ...
+
+    def insert_link(self, values: dict[str, object]) -> None: ...
+
+    def source(
+        self, source_id: UUID, project_id: UUID, *, lock: bool = False
+    ) -> dict[str, object] | None: ...
+
+    def source_by_identifier(
+        self, identifier_type: str, normalized_value: str, *, lock: bool = False
+    ) -> dict[str, object] | None: ...
+
+    def identifier(
+        self, identifier_id: UUID, project_id: UUID, *, lock: bool = False
+    ) -> dict[str, object] | None: ...
+
+    def link_count(self, source_id: UUID) -> int: ...
+
+    def has_rejected_identifier(self, identifier_type: str, normalized_value: str) -> bool: ...
+
+    def basis_is_frozen(self, artifact_version_id: UUID) -> bool: ...
+
+    def transition_identifier(self, values: dict[str, object]) -> None: ...
+
+    def insert_verification_event(self, values: dict[str, object]) -> None: ...
+
+    def insert_receipt(self, values: dict[str, object]) -> None: ...
+
+    def list_identifiers(self, source_id: UUID, project_id: UUID) -> list[dict[str, object]]: ...
+
+    def find_source(
+        self, project_id: UUID, identifier_type: str, normalized_value: str
+    ) -> dict[str, object] | None: ...
 
 
 class WorkspaceRepository(Protocol):
@@ -575,6 +632,9 @@ class UnitOfWork(Protocol):
     runs: RunRepository
     governance: GovernanceRepository
     phase2_identity: Phase2IdentityRepository
+
+    @property
+    def source_identity(self) -> SourceIdentityRepository: ...
 
     def __enter__(self) -> UnitOfWork: ...
 

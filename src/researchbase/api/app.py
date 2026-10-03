@@ -13,6 +13,7 @@ from researchbase.application.commands import ApplicationService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.provenance_queries import ProvenanceQueryService
+from researchbase.application.source_identity import SourceIdentityService
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
@@ -41,6 +42,7 @@ class ServiceBundle:
     provenance: ProvenanceQueryService
     governance: GovernanceService
     governance_queries: GovernanceQueryService
+    literature: SourceIdentityService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -59,6 +61,7 @@ def build_services() -> ServiceBundle:
         ProvenanceQueryService(uow_factory),
         GovernanceService(uow_factory, clock),
         GovernanceQueryService(uow_factory),
+        SourceIdentityService(uow_factory, None),
     )
 
 

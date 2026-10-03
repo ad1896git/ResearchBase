@@ -343,17 +343,84 @@ ROUTES = (
         "DownstreamImpactTargetResponse",
         "get_downstream_impact",
     ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/sources",
+        "register_literature_source",
+        "register_literature_source",
+        "LiteratureSourceIn",
+        "Response Register Literature Source",
+        "register_literature_source",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/sources/{source_id}/identifiers",
+        "add_source_identifier",
+        "add_source_identifier",
+        "SourceIdentifierIn",
+        "Response Add Source Identifier",
+        "add_source_identifier",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/identifiers/{identifier_id}:verify",
+        "verify_source_identifier",
+        "verify_source_identifier",
+        "IdentifierStatusIn",
+        "Response Verify Source Identifier",
+        "verify_source_identifier",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/identifiers/{identifier_id}:reject",
+        "reject_source_identifier",
+        "reject_source_identifier",
+        "IdentifierStatusIn",
+        "Response Reject Source Identifier",
+        "reject_source_identifier",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/sources/{source_id}",
+        "get_literature_source",
+        "get_literature_source",
+        None,
+        "Response Get Literature Source",
+        "get_literature_source",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/sources:resolve",
+        "find_source_by_identifier",
+        "find_source_by_identifier",
+        None,
+        "Response Find Source By Identifier",
+        "find_source_by_identifier",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/sources/{source_id}/identifiers",
+        "list_source_identifiers",
+        "list_source_identifiers",
+        None,
+        "Response List Source Identifiers",
+        "list_source_identifiers",
+    ),
 )
 
 
 def _ref_name(schema: dict[str, object]) -> str:
     if "$ref" in schema:
         return str(schema["$ref"]).rsplit("/", 1)[-1]
-    return str(schema["items"]["$ref"]).rsplit("/", 1)[-1]  # type: ignore[index]
+    if "items" in schema:
+        return str(schema["items"]["$ref"]).rsplit("/", 1)[-1]  # type: ignore[index]
+    if "title" in schema:
+        return str(schema["title"])
+    raise AssertionError(f"schema has no reference or title: {schema}")
 
 
-def test_all_35_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 35
+def test_all_42_routes_have_exact_schema_operation_and_application_bindings() -> None:
+    assert len(ROUTES) == 42
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -363,7 +430,7 @@ def test_all_35_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 35
+    assert len({item.operation_id for item in ROUTES}) == 42
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

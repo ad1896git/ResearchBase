@@ -25,6 +25,12 @@ def test_normative_error_codes_are_stable() -> None:
         "BOOTSTRAP_CLOSED",
         "IDEMPOTENCY_CONFLICT",
         "LEGACY_STATE_INVALID",
+        "IDENTIFIER_INVALID",
+        "SOURCE_IDENTITY_CONFLICT",
+        "IDENTIFIER_ALREADY_BOUND",
+        "IDENTIFIER_BASIS_NOT_FROZEN",
+        "SOURCE_NOT_FOUND",
+        "SHARED_SOURCE_REJECTION_REQUIRES_REVIEW",
     ]
 
 

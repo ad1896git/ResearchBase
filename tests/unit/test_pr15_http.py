@@ -185,6 +185,13 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
         ("post", "/v1/impact-assessments"),
         ("post", "/v1/corrections"),
         ("get", "/v1/impact/{target_type}/{target_id}"),
+        ("post", "/v1/projects/{project_id}/literature/sources"),
+        ("post", "/v1/projects/{project_id}/literature/sources/{source_id}/identifiers"),
+        ("post", "/v1/projects/{project_id}/literature/identifiers/{identifier_id}:verify"),
+        ("post", "/v1/projects/{project_id}/literature/identifiers/{identifier_id}:reject"),
+        ("get", "/v1/projects/{project_id}/literature/sources/{source_id}"),
+        ("get", "/v1/projects/{project_id}/literature/sources:resolve"),
+        ("get", "/v1/projects/{project_id}/literature/sources/{source_id}/identifiers"),
     }
     first = create_app(Services(FakeApplication())).openapi()
     second = create_app(Services(FakeApplication())).openapi()
@@ -229,6 +236,12 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.BOOTSTRAP_CLOSED: 409,
         ErrorCode.IDEMPOTENCY_CONFLICT: 409,
         ErrorCode.LEGACY_STATE_INVALID: 409,
+        ErrorCode.IDENTIFIER_INVALID: 422,
+        ErrorCode.SOURCE_IDENTITY_CONFLICT: 409,
+        ErrorCode.IDENTIFIER_ALREADY_BOUND: 409,
+        ErrorCode.IDENTIFIER_BASIS_NOT_FROZEN: 409,
+        ErrorCode.SOURCE_NOT_FOUND: 404,
+        ErrorCode.SHARED_SOURCE_REJECTION_REQUIRES_REVIEW: 409,
     }
     assert set(expected) == set(ErrorCode)
     request_id = uuid4()

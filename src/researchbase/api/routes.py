@@ -10,7 +10,7 @@ from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
@@ -79,6 +79,12 @@ from researchbase.application.governance import (
 )
 from researchbase.application.governance_queries import DownstreamImpactTarget
 from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
+from researchbase.application.source_identity import (
+    AddSourceIdentifier,
+    RegisterLiteratureSource,
+    RejectSourceIdentifier,
+    VerifySourceIdentifier,
+)
 from researchbase.domain.claim import EvidenceRelationType
 from researchbase.domain.governance import (
     AuditFinding,
@@ -90,7 +96,9 @@ from researchbase.domain.governance import (
     ImpactAssessmentConclusion,
     ImpactKind,
 )
+from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
+from researchbase.domain.source_identity import IdentifierType, SourceKind
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 
@@ -408,6 +416,26 @@ class CorrectionIn(InputModel):
     reason: str = Field(min_length=1)
 
 
+class LiteratureSourceIn(InputModel):
+    kind: SourceKind
+    title: str = Field(min_length=1, max_length=2048)
+    initial_identifier_type: IdentifierType | None = None
+    initial_identifier_value: str | None = Field(default=None, max_length=2048)
+
+
+class SourceIdentifierIn(InputModel):
+    identifier_type: IdentifierType
+    identifier_value: str = Field(min_length=1, max_length=2048)
+    is_primary: bool = False
+    binding_basis_artifact_version_id: UUID | None = None
+    supersedes_rejected_identifier_id: UUID | None = None
+
+
+class IdentifierStatusIn(InputModel):
+    basis_artifact_version_id: UUID
+    reason: str = Field(min_length=1, max_length=2048)
+
+
 router = APIRouter(
     prefix="/v1",
     responses={
@@ -422,6 +450,24 @@ Ctx = Annotated[ExecutionContext, Depends(execution_context)]
 
 def _services(request: Request) -> Any:
     return request.app.state.services
+
+
+def _verified_principal(request: Request) -> VerifiedPrincipal:
+    principal = getattr(request.state, "verified_principal", None)
+    if not isinstance(principal, VerifiedPrincipal):
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.AUTHENTICATION_REQUIRED, "a trusted verified principal is required"
+        )
+    supplied_actor = request.headers.get("X-Actor-ID")
+    if supplied_actor is not None and supplied_actor != str(principal.actor_id):
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.FORBIDDEN, "X-Actor-ID does not match the authenticated principal"
+        )
+    return principal
 
 
 def _http_json_value(value: object) -> object:
@@ -1009,4 +1055,150 @@ def downstream_impact(
 ) -> Any:
     return _json(
         _services(request).governance_queries.downstream_impact(project_id, target_type, target_id)
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/sources",
+    status_code=201,
+    operation_id="register_literature_source",
+)
+def register_literature_source(
+    project_id: UUID,
+    body: LiteratureSourceIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.register_literature_source(
+            RegisterLiteratureSource(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                kind=body.kind,
+                title=body.title,
+                request_id=idempotency_key,
+                initial_identifier_type=body.initial_identifier_type,
+                initial_identifier_value=body.initial_identifier_value,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/sources/{source_id}/identifiers",
+    status_code=201,
+    operation_id="add_source_identifier",
+)
+def add_source_identifier(
+    project_id: UUID,
+    source_id: UUID,
+    body: SourceIdentifierIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.add_source_identifier(
+            AddSourceIdentifier(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                source_id=source_id,
+                identifier_type=body.identifier_type,
+                identifier_value=body.identifier_value,
+                is_primary=body.is_primary,
+                request_id=idempotency_key,
+                binding_basis_artifact_version_id=body.binding_basis_artifact_version_id,
+                supersedes_rejected_identifier_id=body.supersedes_rejected_identifier_id,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/identifiers/{identifier_id}:verify",
+    operation_id="verify_source_identifier",
+)
+def verify_source_identifier(
+    project_id: UUID,
+    identifier_id: UUID,
+    body: IdentifierStatusIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.verify_source_identifier(
+            VerifySourceIdentifier(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                identifier_id=identifier_id,
+                basis_artifact_version_id=body.basis_artifact_version_id,
+                reason=body.reason,
+                request_id=idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/identifiers/{identifier_id}:reject",
+    operation_id="reject_source_identifier",
+)
+def reject_source_identifier(
+    project_id: UUID,
+    identifier_id: UUID,
+    body: IdentifierStatusIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.reject_source_identifier(
+            RejectSourceIdentifier(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                identifier_id=identifier_id,
+                basis_artifact_version_id=body.basis_artifact_version_id,
+                reason=body.reason,
+                request_id=idempotency_key,
+            )
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources/{source_id}",
+    operation_id="get_literature_source",
+)
+def get_literature_source(project_id: UUID, source_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).literature.get_literature_source(
+            _verified_principal(request), project_id, source_id
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources:resolve",
+    operation_id="find_source_by_identifier",
+)
+def find_source_by_identifier(
+    project_id: UUID,
+    request: Request,
+    identifier_type: Annotated[IdentifierType, Query()],
+    value: Annotated[str, Query(min_length=1, max_length=2048)],
+) -> Any:
+    return _json(
+        _services(request).literature.find_source_by_identifier(
+            _verified_principal(request), project_id, identifier_type, value
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources/{source_id}/identifiers",
+    operation_id="list_source_identifiers",
+)
+def list_source_identifiers(project_id: UUID, source_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).literature.list_source_identifiers(
+            _verified_principal(request), project_id, source_id
+        )
     )

@@ -131,6 +131,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0017_persisted_canonical_enum_normalization.py",
         "0018_current_pointer_same_parent_integrity.py",
         "0019_phase2_bootstrap_membership.py",
+        "0020_literature_source_identity.py",
     ]
 
 

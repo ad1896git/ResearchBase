@@ -50,6 +50,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
     SqlAlchemyWorkspaceRepository,
 )
+from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 
 
 def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
@@ -96,6 +97,18 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
         )
     if sqlstate == "23505":
         duplicate_map = {
+            "uq_source_identifier_live_value": (
+                ErrorCode.IDENTIFIER_ALREADY_BOUND,
+                "identifier is already bound",
+            ),
+            "uq_source_identifier_corrected_predecessor": (
+                ErrorCode.SOURCE_IDENTITY_CONFLICT,
+                "rejected identifier already has a corrected successor",
+            ),
+            "uq_literature_command_receipt_scope": (
+                ErrorCode.CONCURRENT_MODIFICATION,
+                "literature command receipt was concurrently committed",
+            ),
             "uq_research_question_versions_parent_version": (
                 ErrorCode.VALIDATION_ERROR,
                 "version_number is already in use for this parent",
@@ -186,6 +199,7 @@ class SqlAlchemyUnitOfWork:
     claims: ClaimRepository
     governance: GovernanceRepository
     phase2_identity: Phase2IdentityRepository
+    source_identity: SqlAlchemySourceIdentityRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -214,6 +228,7 @@ class SqlAlchemyUnitOfWork:
         self.claims = SqlAlchemyClaimRepository(self._session)
         self.governance = SqlAlchemyGovernanceRepository(self._session)
         self.phase2_identity = SqlAlchemyPhase2IdentityRepository(self._session)
+        self.source_identity = SqlAlchemySourceIdentityRepository(self._session)
         return self
 
     def begin_serializable(self) -> None:

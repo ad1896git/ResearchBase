@@ -69,6 +69,12 @@ def test_all_stable_error_codes_have_cli_exit_mapping() -> None:
         ErrorCode.BOOTSTRAP_CLOSED: 4,
         ErrorCode.IDEMPOTENCY_CONFLICT: 4,
         ErrorCode.LEGACY_STATE_INVALID: 4,
+        ErrorCode.IDENTIFIER_INVALID: 2,
+        ErrorCode.SOURCE_IDENTITY_CONFLICT: 4,
+        ErrorCode.IDENTIFIER_ALREADY_BOUND: 4,
+        ErrorCode.IDENTIFIER_BASIS_NOT_FROZEN: 4,
+        ErrorCode.SOURCE_NOT_FOUND: 3,
+        ErrorCode.SHARED_SOURCE_REJECTION_REQUIRES_REVIEW: 4,
     }
     assert set(expected) == set(ErrorCode)
 

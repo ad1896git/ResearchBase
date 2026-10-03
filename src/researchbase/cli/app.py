@@ -8,6 +8,7 @@ from .commands.claim import register as register_claim
 from .commands.evidence import register as register_evidence
 from .commands.experiment import register as register_experiment
 from .commands.governance import register as register_governance
+from .commands.literature import register as register_literature
 from .commands.research import register as register_research
 from .composition import build_services
 from .context import CliServices, create_runtime
@@ -57,6 +58,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
     register_experiment(app)
     register_claim(app)
     register_governance(app)
+    register_literature(app)
 
     @app.callback()
     def callback(
