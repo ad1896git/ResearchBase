@@ -1,0 +1,77 @@
+{
+  "predicate": {
+    "PROJECT_CREATOR_ORPHAN": "Every projects.created_by resolves to exactly one actors.id.",
+    "DUPLICATE_ACTOR_EXTERNAL_KEY": "Every non-NULL actors.external_key is unique.",
+    "INVALID_ACTOR_TYPE": "Every actors.actor_type is non-NULL and one of HUMAN, AGENT, or SERVICE.",
+    "INVALID_PROJECT_LIFECYCLE": "Every projects.lifecycle_status is non-NULL and one of ACTIVE, ARCHIVED, or RETIRED."
+  },
+  "migration_tests": {
+    "test": "tests/integration/phase2/test_pr2_00_migration.py::test_legacy_state_preflight_fails_before_phase2_ddl_and_is_deterministic",
+    "case_count": 6,
+    "cases": [
+      "orphan creator -> PROJECT_CREATOR_ORPHAN",
+      "duplicate non-NULL external key -> DUPLICATE_ACTOR_EXTERNAL_KEY",
+      "out-of-domain actor_type -> INVALID_ACTOR_TYPE",
+      "NULL actor_type with frozen CHECK and NOT NULL removed -> INVALID_ACTOR_TYPE",
+      "out-of-domain lifecycle_status -> INVALID_PROJECT_LIFECYCLE",
+      "NULL lifecycle_status with frozen CHECK and NOT NULL removed -> INVALID_PROJECT_LIFECYCLE"
+    ],
+    "each_unchanged_invalid_state_attempted_twice": true,
+    "same_stable_error_text": true,
+    "alembic_revision_remained": "0018_current_pointer_same_parent_integrity",
+    "phase2_tables_created_on_failure": 0,
+    "legacy_rows_rewritten": 0
+  },
+  "application_tests": {
+    "null_state_bootstrap": {
+      "test": "tests/integration/phase2/test_pr2_00_bootstrap.py::test_null_legacy_state_rejects_bootstrap_without_protected_writes",
+      "cases": [
+        "NULL actor_type",
+        "NULL lifecycle_status"
+      ],
+      "result": "LEGACY_STATE_INVALID",
+      "same_error_dict_on_retry": true,
+      "protected_bootstrap_membership_role_and_event_rows": 0
+    },
+    "existing_invalid_bootstrap": {
+      "test": "tests/integration/phase2/test_pr2_00_bootstrap.py::test_invalid_legacy_state_rejects_bootstrap_without_protected_writes",
+      "invalid_case": "duplicate non-NULL external key",
+      "result": "LEGACY_STATE_INVALID",
+      "same_error_dict_on_retry": true,
+      "protected_bootstrap_membership_and_event_rows": 0
+    },
+    "legacy_project_invalid_state": {
+      "test": "tests/integration/phase2/test_pr2_00_bootstrap.py::test_invalid_legacy_project_state_rejects_enrollment_before_writes",
+      "invalid_case": "creator actor_type outside frozen Phase 1 domain",
+      "result": "LEGACY_STATE_INVALID",
+      "same_error_dict_on_retry": true,
+      "membership_role_or_event_rows_for_target_project": 0
+    },
+    "concurrent_change_while_bootstrap_waits": {
+      "test": "tests/integration/phase2/test_pr2_00_bootstrap.py::test_bootstrap_preflight_reads_state_after_required_table_lock_wait",
+      "synchronization": "PostgreSQL pg_stat_activity observed LOCK TABLE actors, projects blocked while another transaction committed duplicate external keys",
+      "result": "LEGACY_STATE_INVALID",
+      "bootstrap_protected_rows": 0
+    },
+    "valid_legacy_project_control": {
+      "test": "tests/integration/phase2/test_pr2_00_bootstrap.py::test_legacy_project_enrollment_starts_owner_coverage_without_backfill",
+      "result": "one ACTIVE membership and one open OWNER role"
+    }
+  },
+  "implementation": {
+    "migration_0019_and_runtime_predicate_reject_null_explicitly": true,
+    "failure_code": "LEGACY_STATE_INVALID",
+    "failure_before_protected_mutation": true,
+    "automatic_repair": false
+  },
+  "verification_context": {
+    "postgresql": "18.6",
+    "formatter_contract_subject": "8c45e393c6ba68ab3989acaa4a319bc63c3bea89",
+    "p1_clarification_subject": "5a79d9cacc97ffbfd307d8c3f586d2521271194e",
+    "original_implementation_subject": "5b65f6983dd627757ac7ab7b1fb6befe0a832573",
+    "prior_remediation_subject": "21d04de1ec5e11be11581f288a161826fa86377f",
+    "prior_evidence_subject": "7d9e01f84e967541c002635bbfb71feddc4173e5",
+    "remediation_subject": "57c2bd5a0b556b879703d22ebb3e5d78a7cd3b8c",
+    "phase1_frozen_baseline": "d2400fbeca835c89bd802a4e9d647bda01cfd115"
+  }
+}
