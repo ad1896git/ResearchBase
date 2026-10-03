@@ -2,6 +2,8 @@
 
 **Status:** Design subject. Implementation starts only after committed independent design review returns P0=0, P1=0, readiness YES. **Role:** Required prerequisite to PR2-02; no permanent PR number is consumed. **Migration:** 0021_source_merge_governance_bridge, parent 0020_literature_source_identity.
 
+**Normative correction:** `PR2-02-GOV_Idempotency_Contract_Correction_v1.0.md` supersedes §Schema item 7's four-column event uniqueness statement. The canonical command idempotency key is `(deployment_id, actor_id, project_id, command_name, request_id)`; event UUID identity remains separate. See the correction for the migration constraint audit and semantic mapping. Historical review/evidence subjects are unchanged.
+
 ## Authority and purpose
 
 Precedence: System Architecture/frozen Phase 1 → Addendum A18-A22 → Phase 2 R2 contracts 14-17 and R3/R4 corrections 18-19 in their subjects → ADR-0010 → accepted PR2-00/PR2-01 → this pack. Repository numbering reserves PR2-02 for source lineage, so this is prerequisite subject PR2-02-GOV.
