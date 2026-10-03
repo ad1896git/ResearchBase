@@ -77,10 +77,20 @@ class _TemporalTrace:
                 return getattr(repository, name)
 
             def lock_deployment(self, deployment_id: str) -> None:
-                tx_started_at, backend_pid = repository._session.execute(
-                    text("SELECT transaction_timestamp(), pg_backend_pid()")
-                ).one()
-                trace.values.update(tx_started_at=tx_started_at, backend_pid=backend_pid)
+                tx_started_at, backend_pid, isolation_level, database_timezone = (
+                    repository._session.execute(
+                        text(
+                            "SELECT transaction_timestamp(), pg_backend_pid(), "
+                            "current_setting('transaction_isolation'), current_setting('TimeZone')"
+                        )
+                    ).one()
+                )
+                trace.values.update(
+                    tx_started_at=tx_started_at,
+                    backend_pid=backend_pid,
+                    isolation_level=isolation_level,
+                    database_timezone=database_timezone,
+                )
                 return repository.lock_deployment(deployment_id)
 
             def lock_project(self, project_id: object) -> None:
@@ -101,6 +111,13 @@ class _TemporalTrace:
             def enrollment_challenge_for_update(self, challenge_id: object) -> Any:
                 result = repository.enrollment_challenge_for_update(challenge_id)
                 trace.values["lock_acquired_at"] = repository.database_time()
+                if result is not None:
+                    trace.values["challenge_after_lock"] = {
+                        "id": str(result["id"]),
+                        "issued_at": result["issued_at"],
+                        "expires_at": result["expires_at"],
+                        "status": result["status"],
+                    }
                 return result
 
             def active_membership_for_update(self, actor_id: object, project_id: object) -> Any:
@@ -291,6 +308,37 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
             )
         )
         trace.clear()
+        trace.values.update(
+            challenge_id=str(ticket.challenge_id),
+            challenge_issued_at=ticket.issued_at,
+            challenge_expires_at=ticket.expires_at,
+            application_timestamp_type=type(ticket.expires_at).__name__,
+            application_timestamp_timezone=str(ticket.expires_at.tzinfo),
+        )
+        with engine.connect() as connection:
+            timestamp_columns = (
+                connection.execute(
+                    text(
+                        "SELECT column_name, data_type, datetime_precision "
+                        "FROM information_schema.columns "
+                        "WHERE table_schema = 'public' "
+                        "AND table_name = 'actor_enrollment_challenges' "
+                        "AND column_name IN ('issued_at', 'expires_at') "
+                        "ORDER BY column_name"
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        trace.values["database_timestamp_columns"] = [dict(row) for row in timestamp_columns]
+        assert {row["column_name"] for row in timestamp_columns} == {
+            "issued_at",
+            "expires_at",
+        }
+        assert all(row["data_type"] == "timestamp with time zone" for row in timestamp_columns)
+        assert all(row["datetime_precision"] == 6 for row in timestamp_columns)
+        assert ticket.issued_at.utcoffset() == timedelta(0)
+        assert ticket.expires_at.utcoffset() == timedelta(0)
         import hashlib
 
         attestation = OnboardingAttestation(
@@ -340,14 +388,19 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
             assert isinstance(lock_wait_started_at, datetime)
             assert "actor_enrollment_challenges" in str(lock_wait["query"])
             expiry_at = ticket.expires_at
+            expiry_safety_margin = timedelta(milliseconds=250)
             assert lock_wait_started_at < expiry_at
-            with engine.connect() as connection:
-                while connection.execute(
-                    text("SELECT clock_timestamp() < :expiry"), {"expiry": expiry_at}
-                ).scalar_one():
-                    sleep(0.01)
+            while True:
+                with engine.connect() as connection:
+                    db_clock = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
+                if db_clock >= expiry_at + expiry_safety_margin:
+                    expiry_crossed_at = db_clock
+                    break
+                sleep(0.005)
             holding_transaction.rollback()
-            assert future.result(timeout=5) is ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED
+            with engine.connect() as connection:
+                lock_released_at = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
+            result = future.result(timeout=10)
         lock_acquired_at = trace.values["lock_acquired_at"]
         authorization_times = trace.values["authorization_times"]
         assert isinstance(lock_acquired_at, datetime)
@@ -355,10 +408,6 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
         authorization_checked_at = authorization_times[-1]
         tx_started_at = trace.values["tx_started_at"]
         assert isinstance(tx_started_at, datetime)
-        assert tx_started_at < expiry_at
-        assert lock_acquired_at >= expiry_at
-        assert authorization_checked_at >= lock_acquired_at
-        assert authorization_checked_at > expiry_at
         holder.close()
         with engine.connect() as connection:
             persisted = {
@@ -380,15 +429,29 @@ def _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url: st
                     {"actor": actor_id},
                 ).scalar_one(),
             }
-            assert persisted == {"challenge_status": "ISSUED", "bindings": 0, "binding_events": 0}
         trace.values.update(
             expiry_at=expiry_at,
             lock_wait_started_at=lock_wait_started_at,
             observed_wait=lock_wait,
-            effect_result="DENY",
+            expiry_crossed_at=expiry_crossed_at,
+            expiry_safety_margin=expiry_safety_margin,
+            lock_released_at_observed=lock_released_at,
+            authorization_clock_timestamp=authorization_checked_at,
+            effect_result=(
+                "DENY" if result is ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED else "SUCCESS"
+            ),
             persisted_effects=persisted,
         )
         print("TEMP-AUTH challenge proof " + json.dumps(trace.values, default=str, sort_keys=True))
+        assert result is ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED
+        assert persisted == {"challenge_status": "ISSUED", "bindings": 0, "binding_events": 0}
+        assert tx_started_at < expiry_at
+        assert lock_wait_started_at < expiry_at
+        assert expiry_crossed_at >= expiry_at + expiry_safety_margin
+        assert lock_released_at >= expiry_at + expiry_safety_margin
+        assert lock_acquired_at >= expiry_at + expiry_safety_margin
+        assert authorization_checked_at >= lock_acquired_at
+        assert authorization_checked_at >= expiry_at
     finally:
         engine.dispose()
 
