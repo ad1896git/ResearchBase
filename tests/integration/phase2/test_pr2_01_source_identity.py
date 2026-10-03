@@ -406,14 +406,29 @@ def test_unlinked_source_is_not_disclosed_and_shared_source_cannot_be_rejected(
     engine.dispose()
 
 
+@pytest.mark.parametrize(
+    ("identifier_type", "identifier_value"),
+    [
+        (None, None),
+        (IdentifierType.DOI, "10.4444/concurrent"),
+    ],
+)
 def test_concurrent_same_key_registration_replays_one_committed_result(
     phase2_database_url: str,
+    identifier_type: IdentifierType | None,
+    identifier_value: str | None,
 ) -> None:
     engine, _, service, principal, project_id = _authorized_service(phase2_database_url)
     barrier = Barrier(2)
     request_id = uuid4()
     command = RegisterLiteratureSource(
-        principal, project_id, SourceKind.PAPER, "Concurrent study", request_id
+        principal,
+        project_id,
+        SourceKind.PAPER,
+        "Concurrent study",
+        request_id,
+        identifier_type,
+        identifier_value,
     )
 
     def register() -> dict[str, object]:
