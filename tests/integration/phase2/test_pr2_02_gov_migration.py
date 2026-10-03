@@ -47,7 +47,7 @@ def test_fresh_install_creates_typed_bridge_and_empty_downgrade_succeeds(
         )
         assert actual == TABLES
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0021_source_merge_governance_bridge"
+            "0021a_source_merge_gov_guards"
         )
         assert (
             connection.execute(text("SELECT version() ")).scalar_one().startswith("PostgreSQL 18.")
@@ -198,11 +198,13 @@ def test_populated_bridge_downgrade_refuses_before_schema_changes(
                     "hash": "d" * 64,
                 },
             )
-    with pytest.raises(RuntimeError, match="SOURCE_MERGE_GOVERNANCE_DATA_PRESERVATION_REQUIRED"):
+    with pytest.raises(
+        RuntimeError, match="SOURCE_MERGE_GOVERNANCE_GUARD_DOWNGRADE_REQUIRES_EMPTY_PROPOSALS"
+    ):
         _alembic(phase2_database_url, "downgrade", "0020_literature_source_identity")
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0021_source_merge_governance_bridge"
+            "0021a_source_merge_gov_guards"
         )
         assert (
             connection.execute(text("SELECT count(*) FROM source_merge_proposals")).scalar_one()
