@@ -6,7 +6,8 @@ import pytest
 
 from researchbase.application.source_merge import SourceMergeGovernanceService
 from researchbase.domain.phase2_identity import VerifiedPrincipal
-from researchbase.domain.source_merge import SourceMergeBasis
+from researchbase.domain.source_merge import SourceMergeBasis, SourceMergeRecordMaterial
+from researchbase.domain.source_version import FrozenSourceReference
 
 
 def _basis(survivor: int = 0x20, *, reverse: bool = False) -> SourceMergeBasis:
@@ -42,6 +43,27 @@ def test_bridge_golden_vectors_bind_direction_and_sort_inputs() -> None:
         _basis(0x10).digest() == "af75e117eb3e3e20c63fbed24b86621e99d17c069b325fe6ebd9961c9d865231"
     )
     assert _basis(reverse=True).digest() == _basis().digest()
+
+
+def test_source_merge_record_matches_contract_golden_vector_and_direction() -> None:
+    material = SourceMergeRecordMaterial(
+        losing_source_id=UUID("00000000-0000-0000-0000-000000000010"),
+        winning_source_id=UUID("00000000-0000-0000-0000-000000000020"),
+        identity_basis_artifact=FrozenSourceReference(
+            UUID("00000000-0000-0000-0000-000000000030"), "a" * 64
+        ),
+        reason="Duplicate DOI record",
+        merged_by_actor_id=UUID("00000000-0000-0000-0000-000000000040"),
+    )
+    assert material.digest() == "c00555621d772e43f204c3b46689c458823949f590992e9d97a3bf321dd667ca"
+    reverse = SourceMergeRecordMaterial(
+        losing_source_id=material.winning_source_id,
+        winning_source_id=material.losing_source_id,
+        identity_basis_artifact=material.identity_basis_artifact,
+        reason=material.reason,
+        merged_by_actor_id=material.merged_by_actor_id,
+    )
+    assert reverse.digest() != material.digest()
 
 
 def test_basis_requires_distinct_sources_and_survivor_from_pair() -> None:

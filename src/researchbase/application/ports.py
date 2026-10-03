@@ -639,6 +639,9 @@ class UnitOfWork(Protocol):
     @property
     def source_merge(self) -> Any: ...
 
+    @property
+    def source_version(self) -> Any: ...
+
     def __enter__(self) -> UnitOfWork: ...
 
     def __exit__(

@@ -40,7 +40,7 @@ def test_pr2_01_fresh_install_adds_exact_five_tables(phase2_database_url: str) -
         )
         assert tables == SOURCE_TABLES
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0021a_source_merge_gov_guards"
+            "0022_source_version_and_merge_lineage"
         )
         assert (
             connection.execute(text("SELECT version() ")).scalar_one().startswith("PostgreSQL 18.")
@@ -109,7 +109,7 @@ def test_populated_0020_downgrade_refuses_without_removing_identity(
             == 1
         )
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0021a_source_merge_gov_guards"
+            "0022_source_version_and_merge_lineage"
         )
     engine.dispose()
 

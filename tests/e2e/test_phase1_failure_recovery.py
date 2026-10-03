@@ -259,6 +259,13 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.SOURCE_MERGE_REJECTED: 409,
         ErrorCode.SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED: 409,
         ErrorCode.SOURCE_MERGE_BASIS_CONFLICT: 409,
+        ErrorCode.SOURCE_NOT_MERGEABLE: 409,
+        ErrorCode.SOURCE_MERGE_IDENTIFIER_CONFLICT: 409,
+        ErrorCode.SOURCE_VERSION_NOT_FOUND: 404,
+        ErrorCode.SOURCE_VERSION_NOT_FREEZABLE: 409,
+        ErrorCode.SOURCE_VERSION_ALREADY_FROZEN: 409,
+        ErrorCode.SOURCE_VERSION_IMMUTABLE: 409,
+        ErrorCode.INVALID_SOURCE_VERSION_LINEAGE: 409,
     }
     expected_cli = {
         ErrorCode.VALIDATION_ERROR: 2,
@@ -294,6 +301,13 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.SOURCE_MERGE_REJECTED: 4,
         ErrorCode.SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED: 4,
         ErrorCode.SOURCE_MERGE_BASIS_CONFLICT: 4,
+        ErrorCode.SOURCE_NOT_MERGEABLE: 4,
+        ErrorCode.SOURCE_MERGE_IDENTIFIER_CONFLICT: 4,
+        ErrorCode.SOURCE_VERSION_NOT_FOUND: 3,
+        ErrorCode.SOURCE_VERSION_NOT_FREEZABLE: 4,
+        ErrorCode.SOURCE_VERSION_ALREADY_FROZEN: 4,
+        ErrorCode.SOURCE_VERSION_IMMUTABLE: 4,
+        ErrorCode.INVALID_SOURCE_VERSION_LINEAGE: 4,
     }
     assert set(expected_http) == set(ErrorCode)
     assert _STATUS == expected_http

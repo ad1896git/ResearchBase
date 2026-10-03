@@ -279,7 +279,10 @@ class SqlAlchemySourceIdentityRepository:
         row = (
             self._session.execute(
                 text(
-                    "SELECT s.* FROM source_identifiers si JOIN literature_sources s ON s.id=si.literature_source_id "
+                    "SELECT resolved.* FROM source_identifiers si "
+                    "JOIN literature_sources s ON s.id=si.literature_source_id "
+                    "JOIN literature_sources resolved ON resolved.id=CASE "
+                    "WHEN s.lifecycle_status='MERGED' THEN s.merged_into_source_id ELSE s.id END "
                     "JOIN literature_source_project_links l ON l.literature_source_id=s.id AND l.project_id=:project "
                     "WHERE si.identifier_type=:type AND si.normalized_value=:normalized "
                     "AND si.verification_status IN ('UNVERIFIED','VERIFIED')"

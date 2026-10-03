@@ -15,6 +15,8 @@ from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
+from researchbase.application.source_merge_execution import SourceMergeExecutionService
+from researchbase.application.source_version import SourceVersionService
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
@@ -45,6 +47,8 @@ class ServiceBundle:
     governance_queries: GovernanceQueryService
     literature: SourceIdentityService | None = None
     source_merge: SourceMergeGovernanceService | None = None
+    source_versions: SourceVersionService | None = None
+    source_merge_execution: SourceMergeExecutionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -65,6 +69,8 @@ def build_services() -> ServiceBundle:
         GovernanceQueryService(uow_factory),
         SourceIdentityService(uow_factory, None),
         SourceMergeGovernanceService(uow_factory, None),
+        SourceVersionService(uow_factory, None),
+        SourceMergeExecutionService(uow_factory, None),
     )
 
 

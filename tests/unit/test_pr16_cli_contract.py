@@ -78,8 +78,22 @@ def test_literature_merge_proposal_help_lists_frozen_governance_commands() -> No
     )
 
     assert result.exit_code == 0
-    for command in ("create", "show", "approve", "reject", "revoke", "supersede"):
+    for command in ("create", "show", "approve", "reject", "revoke", "supersede", "consume"):
         assert command in result.stdout
+
+
+def test_literature_source_version_cli_commands_are_registered_and_json_capable() -> None:
+    runner = CliRunner()
+    group = runner.invoke(
+        create_app(FakeServices(FakeApplication())), ["literature", "version", "--help"]
+    )
+    assert group.exit_code == 0
+    for name in ("create", "update", "freeze", "abandon", "show", "list"):
+        result = runner.invoke(
+            create_app(FakeServices(FakeApplication())), ["literature", "version", name, "--help"]
+        )
+        assert result.exit_code == 0
+        assert "--json" in result.stdout
 
 
 def test_literature_merge_proposal_commands_forward_typed_operations() -> None:

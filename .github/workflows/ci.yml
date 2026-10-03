@@ -36,5 +36,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0021a_source_merge_gov_guards (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0022_source_version_and_merge_lineage (head)"
       - run: uv run pytest

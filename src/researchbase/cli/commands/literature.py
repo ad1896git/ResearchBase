@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import json
+from datetime import date
 from uuid import UUID
 
 import typer
@@ -20,8 +22,19 @@ from researchbase.application.source_merge import (
     ProposeSourceMerge,
     RevokeSourceMergeApproval,
 )
+from researchbase.application.source_merge_execution import ConsumeSourceMergeProposal
+from researchbase.application.source_version import (
+    CreateSourceVersion,
+    TransitionSourceVersion,
+    UpdateSourceVersionDraft,
+)
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.source_identity import IdentifierType, SourceKind
+from researchbase.domain.source_version import (
+    FrozenSourceReference,
+    SourceVersionKind,
+    SourceVersionMaterial,
+)
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 from ..context import CliRuntime
@@ -284,6 +297,35 @@ def source_show(
     )
 
 
+def source_merge_execute(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    proposal_id: str = typer.Option(..., "--proposal-id"),
+    proposal_basis_hash: str = typer.Option(..., "--proposal-basis-hash"),
+    identity_basis_artifact_id: str = typer.Option(..., "--identity-basis-artifact-id"),
+    identity_basis_content_hash: str = typer.Option(..., "--identity-basis-content-hash"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    _run(
+        runtime,
+        json_mode,
+        lambda: _source_merge_execution(runtime).consume(
+            ConsumeSourceMergeProposal(
+                _principal(runtime),
+                _uuid(project_id, "--project-id"),
+                _uuid(proposal_id, "--proposal-id"),
+                proposal_basis_hash,
+                FrozenSourceReference(
+                    _uuid(identity_basis_artifact_id, "--identity-basis-artifact-id"),
+                    identity_basis_content_hash,
+                ),
+                _request_id(runtime),
+            )
+        ),
+    )
+
+
 def source_resolve(
     ctx: typer.Context,
     project_id: str = typer.Option(..., "--project-id"),
@@ -413,12 +455,181 @@ def identifier_list(
     )
 
 
+def _version_material(source_id: UUID, raw: str) -> SourceVersionMaterial:
+    try:
+        value = json.loads(raw)
+
+        def reference(key: str):
+            item = value.get(key)
+            return (
+                None
+                if item is None
+                else FrozenSourceReference(UUID(item["id"]), item["content_hash"])
+            )
+
+        publication_date = value.get("publication_date")
+        return SourceVersionMaterial(
+            literature_source_id=source_id,
+            version_kind=SourceVersionKind(value["version_kind"]),
+            predecessor_source_version=reference("predecessor_source_version"),
+            correction_basis_artifact=reference("correction_basis_artifact"),
+            title=value["title"],
+            abstract=value.get("abstract"),
+            authors=tuple(value["authors"]),
+            publication_date=date.fromisoformat(publication_date) if publication_date else None,
+            venue=value.get("venue"),
+            external_version_label=value.get("external_version_label"),
+            fulltext_artifact=reference("fulltext_artifact"),
+            metadata=value.get("metadata"),
+        )
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "invalid source version material JSON"
+        ) from exc
+
+
+def source_version_create(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    source_id: str = typer.Option(..., "--source-id"),
+    material_json: str = typer.Option(..., "--material-json"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    _run(
+        runtime,
+        json_mode,
+        lambda: _source_versions(runtime).create(
+            CreateSourceVersion(
+                _principal(runtime),
+                _uuid(project_id, "--project-id"),
+                _version_material(_uuid(source_id, "--source-id"), material_json),
+                _request_id(runtime),
+            )
+        ),
+    )
+
+
+def source_version_update(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    source_id: str = typer.Option(..., "--source-id"),
+    source_version_id: str = typer.Option(..., "--source-version-id"),
+    material_json: str = typer.Option(..., "--material-json"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    _run(
+        runtime,
+        json_mode,
+        lambda: _source_versions(runtime).update(
+            UpdateSourceVersionDraft(
+                _principal(runtime),
+                _uuid(project_id, "--project-id"),
+                _uuid(source_version_id, "--source-version-id"),
+                _version_material(_uuid(source_id, "--source-id"), material_json),
+                _request_id(runtime),
+            )
+        ),
+    )
+
+
+def _source_version_transition(
+    ctx: typer.Context, project_id: str, version_id: str, json_mode: bool, operation: str
+) -> None:
+    runtime = _runtime(ctx)
+    command = TransitionSourceVersion(
+        _principal(runtime),
+        _uuid(project_id, "--project-id"),
+        _uuid(version_id, "--source-version-id"),
+        _request_id(runtime),
+    )
+    _run(runtime, json_mode, lambda: getattr(_source_versions(runtime), operation)(command))
+
+
+def source_version_freeze(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    source_version_id: str = typer.Option(..., "--source-version-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    _source_version_transition(ctx, project_id, source_version_id, json_mode, "freeze")
+
+
+def source_version_abandon(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    source_version_id: str = typer.Option(..., "--source-version-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    _source_version_transition(ctx, project_id, source_version_id, json_mode, "abandon")
+
+
+def source_version_show(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    source_version_id: str = typer.Option(..., "--source-version-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    _run(
+        runtime,
+        json_mode,
+        lambda: _source_versions(runtime).get(
+            _principal(runtime),
+            _uuid(project_id, "--project-id"),
+            _uuid(source_version_id, "--source-version-id"),
+        ),
+    )
+
+
+def source_version_list(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    source_id: str = typer.Option(..., "--source-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    _run(
+        runtime,
+        json_mode,
+        lambda: _source_versions(runtime).list(
+            _principal(runtime), _uuid(project_id, "--project-id"), _uuid(source_id, "--source-id")
+        ),
+    )
+
+
+def _source_versions(runtime: CliRuntime):
+    service = getattr(runtime.services, "source_versions", None)
+    if service is None:
+        raise ResearchBaseError(
+            ErrorCode.AUTHENTICATION_REQUIRED, "source version service unavailable"
+        )
+    return service
+
+
+def _source_merge_execution(runtime: CliRuntime):
+    service = getattr(runtime.services, "source_merge_execution", None)
+    if service is None:
+        raise ResearchBaseError(
+            ErrorCode.AUTHENTICATION_REQUIRED, "source merge execution unavailable"
+        )
+    return service
+
+
 def register(app: typer.Typer) -> None:
     literature = command_group("Public literature source identity and identifiers.")
     source = command_group("Literature source commands.")
     merge_proposal = command_group("Global source merge governance proposals.")
     identifier = command_group("Source identifier commands.")
+    version = command_group("Immutable literature source version commands.")
     add_command(source, "create", "Register a public literature source.", source_create)
+    add_command(version, "create", "Create a draft source version.", source_version_create)
+    add_command(version, "update", "Update a draft source version.", source_version_update)
+    add_command(version, "freeze", "Freeze a source version.", source_version_freeze)
+    add_command(version, "abandon", "Abandon a draft source version.", source_version_abandon)
+    add_command(version, "show", "Read a linked source version.", source_version_show)
+    add_command(version, "list", "List linked source versions.", source_version_list)
     add_command(
         merge_proposal, "create", "Propose a globally governed source merge.", source_merge_propose
     )
@@ -444,6 +655,9 @@ def register(app: typer.Typer) -> None:
         "Replace a nonterminal source merge proposal.",
         source_merge_supersede,
     )
+    add_command(
+        merge_proposal, "consume", "Execute an approved source merge.", source_merge_execute
+    )
     add_command(source, "show", "Read a project-linked literature source.", source_show)
     add_command(source, "resolve", "Resolve a source by a typed identifier.", source_resolve)
     add_command(identifier, "add", "Add a source identifier.", identifier_add)
@@ -453,4 +667,5 @@ def register(app: typer.Typer) -> None:
     literature.add_typer(source, name="source")
     literature.add_typer(merge_proposal, name="merge-proposal")
     literature.add_typer(identifier, name="identifier")
+    literature.add_typer(version, name="version")
     app.add_typer(literature, name="literature")

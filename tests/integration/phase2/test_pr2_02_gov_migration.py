@@ -33,7 +33,7 @@ def _alembic(database_url: str, action: str, revision: str) -> None:
 def test_fresh_install_creates_typed_bridge_and_empty_downgrade_succeeds(
     phase2_database_url: str,
 ) -> None:
-    _alembic(phase2_database_url, "upgrade", "head")
+    _alembic(phase2_database_url, "upgrade", "0021a_source_merge_gov_guards")
     engine = create_engine(phase2_database_url)
     with engine.connect() as connection:
         actual = set(
@@ -65,7 +65,7 @@ def test_fresh_install_creates_typed_bridge_and_empty_downgrade_succeeds(
 def test_populated_bridge_downgrade_refuses_before_schema_changes(
     phase2_database_url: str,
 ) -> None:
-    _alembic(phase2_database_url, "upgrade", "head")
+    _alembic(phase2_database_url, "upgrade", "0021a_source_merge_gov_guards")
     engine = create_engine(phase2_database_url)
     actor, project, source_a, source_b, proposal = (uuid4() for _ in range(5))
     with engine.begin() as connection:
@@ -216,7 +216,7 @@ def test_populated_bridge_downgrade_refuses_before_schema_changes(
 def test_proposal_cannot_commit_without_project_source_basis_and_submission_event(
     phase2_database_url: str,
 ) -> None:
-    _alembic(phase2_database_url, "upgrade", "head")
+    _alembic(phase2_database_url, "upgrade", "0021a_source_merge_gov_guards")
     engine = create_engine(phase2_database_url)
     actor, project, source_a, source_b, proposal = (uuid4() for _ in range(5))
     a, b = sorted((source_a, source_b), key=str)

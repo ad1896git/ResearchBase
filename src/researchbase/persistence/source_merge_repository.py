@@ -128,10 +128,104 @@ class SqlAlchemySourceMergeRepository:
         ).all()
         self._session.execute(
             text(
-                "SELECT id FROM source_identifiers WHERE literature_source_id = ANY(:ids) ORDER BY identifier_type,normalized_value,id FOR UPDATE"
+                "SELECT id FROM source_identifiers WHERE literature_source_id = ANY(:ids) "
+                "ORDER BY identifier_type,normalized_value,id FOR UPDATE"
             ),
             {"ids": list(source_ids)},
         ).all()
+        self._session.execute(
+            text(
+                "SELECT v.id FROM literature_sources s JOIN source_versions v "
+                "ON v.id=s.current_version_id WHERE s.id=ANY(:ids) ORDER BY v.id FOR UPDATE OF v"
+            ),
+            {"ids": list(source_ids)},
+        ).all()
+
+    def lock_proposal_decisions(self, proposal_id: UUID) -> None:
+        self._session.execute(
+            text(
+                "SELECT id FROM source_merge_approvals WHERE proposal_id=:id ORDER BY id FOR UPDATE"
+            ),
+            {"id": proposal_id},
+        ).all()
+        self._session.execute(
+            text(
+                "SELECT id FROM source_merge_governance_events WHERE proposal_id=:id "
+                "ORDER BY id FOR UPDATE"
+            ),
+            {"id": proposal_id},
+        ).all()
+
+    def source_rows(self, source_ids: tuple[UUID, UUID]) -> list[dict[str, Any]]:
+        rows = self._session.execute(
+            text("SELECT * FROM literature_sources WHERE id=ANY(:ids) ORDER BY id"),
+            {"ids": list(source_ids)},
+        ).mappings()
+        return [dict(row) for row in rows]
+
+    def has_identifier_conflict(self, source_ids: tuple[UUID, UUID]) -> bool:
+        return bool(
+            self._session.execute(
+                text("""SELECT EXISTS(
+                      SELECT 1 FROM source_identifiers a JOIN source_identifiers b
+                        ON a.identifier_type=b.identifier_type
+                       AND a.normalized_value=b.normalized_value AND a.id<b.id
+                     WHERE a.literature_source_id=:a AND b.literature_source_id=:b
+                       AND a.verification_status IN ('UNVERIFIED','VERIFIED')
+                       AND b.verification_status IN ('UNVERIFIED','VERIFIED'))"""),
+                {"a": source_ids[0], "b": source_ids[1]},
+            ).scalar_one()
+        )
+
+    def identity_basis_artifact(self, artifact_id: UUID, project_id: UUID):
+        row = (
+            self._session.execute(
+                text("""SELECT v.id,v.content_hash,v.status,a.project_id
+                      FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
+                     WHERE v.id=:id"""),
+                {"id": artifact_id},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None or row["status"] != "FROZEN" or row["project_id"] != project_id:
+            return None
+        return dict(row)
+
+    def insert_merge_record(self, values: dict[str, Any]) -> None:
+        self._session.execute(
+            text("""INSERT INTO source_merge_records
+              (id,losing_source_id,winning_source_id,identity_basis_artifact_version_id,
+               reason,merged_by,merged_at,content_hash,hash_scheme)
+              VALUES (:id,:loser,:winner,:basis,:reason,:actor,:at,:hash,'sha256-cjson-v1')"""),
+            values,
+        )
+
+    def mark_source_merged(self, loser: UUID, winner: UUID) -> None:
+        self._session.execute(
+            text(
+                "UPDATE literature_sources SET lifecycle_status='MERGED',merged_into_source_id=:winner "
+                "WHERE id=:loser AND lifecycle_status='ACTIVE'"
+            ),
+            {"loser": loser, "winner": winner},
+        )
+
+    def merge_record_for_event(self, event_id: UUID):
+        row = (
+            self._session.execute(
+                text("""SELECT r.* FROM source_merge_records r
+                    JOIN source_merge_proposals p ON p.source_a_id IN (r.losing_source_id,r.winning_source_id)
+                      AND p.source_b_id IN (r.losing_source_id,r.winning_source_id)
+                    JOIN source_merge_governance_events e ON e.proposal_id=p.id
+                   WHERE e.id=:event AND e.event_kind='PROPOSAL_CONSUMED'
+                     AND r.winning_source_id=p.canonical_survivor_id
+                     AND r.losing_source_id<>p.canonical_survivor_id"""),
+                {"event": event_id},
+            )
+            .mappings()
+            .first()
+        )
+        return dict(row) if row else None
 
     def receipt(self, deployment: str, project: UUID, actor: UUID, command: str, request: UUID):
         row = (
@@ -195,13 +289,49 @@ class SqlAlchemySourceMergeRepository:
                 row,
             )
 
-    def insert_source_basis(self, proposal_id, source_ids, at, state_hash) -> None:
-        for source_id in source_ids:
+    def source_version_states(self, source_ids: tuple[UUID, UUID]) -> list[dict[str, Any]]:
+        rows = self._session.execute(
+            text("""SELECT s.id AS source_id, v.id AS version_id, v.content_hash,
+                         v.version_kind, v.status
+                    FROM literature_sources s
+                    LEFT JOIN source_versions v ON v.id=s.current_version_id
+                   WHERE s.id=ANY(:sources) ORDER BY s.id"""),
+            {"sources": list(source_ids)},
+        ).mappings()
+        result = []
+        for row in rows:
+            current = None
+            if row["version_id"] is not None:
+                current = {
+                    "type": "SourceVersion",
+                    "id": str(row["version_id"]),
+                    "content_hash": str(row["content_hash"]),
+                    "version_kind": str(row["version_kind"]),
+                    "lifecycle_status": str(row["status"]),
+                }
+            result.append({"source_id": str(row["source_id"]), "current_version": current})
+        return result
+
+    def insert_source_basis(self, proposal_id, states, at, state_hash) -> None:
+        for state in states:
+            current = state["current_version"]
             self._session.execute(
                 text(
-                    "INSERT INTO source_merge_proposal_source_basis(proposal_id,source_id,current_version_id,current_version_hash,version_state_hash,captured_at) VALUES (:proposal,:source,NULL,NULL,:hash,:at)"
+                    "INSERT INTO source_merge_proposal_source_basis"
+                    "(proposal_id,source_id,current_version_id,current_version_hash,current_version_kind,"
+                    "current_version_status,version_state_hash,captured_at) VALUES "
+                    "(:proposal,:source,:version_id,:version_hash,:version_kind,:version_status,:hash,:at)"
                 ),
-                {"proposal": proposal_id, "source": source_id, "hash": state_hash, "at": at},
+                {
+                    "proposal": proposal_id,
+                    "source": UUID(state["source_id"]),
+                    "version_id": UUID(current["id"]) if current else None,
+                    "version_hash": current["content_hash"] if current else None,
+                    "version_kind": current["version_kind"] if current else None,
+                    "version_status": current["lifecycle_status"] if current else None,
+                    "hash": state_hash,
+                    "at": at,
+                },
             )
 
     def frozen_artifact_refs(

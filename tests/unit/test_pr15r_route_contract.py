@@ -408,6 +408,60 @@ ROUTES = (
     ),
     RouteContract(
         "post",
+        "/v1/projects/{project_id}/literature/sources/{source_id}/versions",
+        "create_source_version",
+        "create",
+        "SourceVersionIn",
+        "SourceVersionResult",
+        "create_source_version",
+    ),
+    RouteContract(
+        "patch",
+        "/v1/projects/{project_id}/literature/source-versions/{source_version_id}",
+        "update_source_version_draft",
+        "update",
+        "SourceVersionIn",
+        "SourceVersionResult",
+        "update_source_version_draft",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/source-versions/{source_version_id}:freeze",
+        "freeze_source_version",
+        "freeze",
+        None,
+        "SourceVersionResult",
+        "freeze_source_version",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/source-versions/{source_version_id}:abandon",
+        "abandon_source_version",
+        "abandon",
+        None,
+        "SourceVersionResult",
+        "abandon_source_version",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/sources/{source_id}/versions",
+        "list_source_versions",
+        "list",
+        None,
+        "SourceVersionReadResult",
+        "list_source_versions",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/source-versions/{source_version_id}",
+        "get_source_version",
+        "get",
+        None,
+        "SourceVersionReadResult",
+        "get_source_version",
+    ),
+    RouteContract(
+        "post",
         "/v1/projects/{project_id}/literature/source-merge-proposals",
         "propose_source_merge",
         "propose",
@@ -451,6 +505,15 @@ ROUTES = (
         "SourceMergeProposalStatus",
         "get_source_merge_proposal",
     ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:consume",
+        "consume_source_merge_proposal",
+        "consume",
+        "SourceMergeConsumeIn",
+        "SourceMergeRecordResult",
+        "consume_source_merge_proposal",
+    ),
 )
 
 
@@ -464,18 +527,18 @@ def _ref_name(schema: dict[str, object]) -> str:
     raise AssertionError(f"schema has no reference or title: {schema}")
 
 
-def test_all_47_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 47
+def test_all_54_routes_have_exact_schema_operation_and_application_bindings() -> None:
+    assert len(ROUTES) == 54
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
         for path, operations in schema["paths"].items()
         if path.startswith("/v1/")
         for method in operations
-        if method in {"get", "post"}
+        if method in {"get", "post", "patch"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 47
+    assert len({item.operation_id for item in ROUTES}) == 54
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

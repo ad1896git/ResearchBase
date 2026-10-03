@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from researchbase.domain.source_version import FrozenSourceReference
 from researchbase.foundation.hashing import sha256_canonical_json
 
 
@@ -69,6 +70,38 @@ class SourceMergeBasis:
             "source_version_state": versions,
             "rationale": rationale,
             "evidence_artifacts": artifacts,
+        }
+
+    def digest(self) -> str:
+        return str(sha256_canonical_json(self.payload()))
+
+
+@dataclass(frozen=True, slots=True)
+class SourceMergeRecordMaterial:
+    losing_source_id: UUID
+    winning_source_id: UUID
+    identity_basis_artifact: FrozenSourceReference
+    reason: str
+    merged_by_actor_id: UUID
+
+    def payload(self) -> dict[str, object]:
+        if self.losing_source_id == self.winning_source_id:
+            raise ValueError("merge source identities must be distinct")
+        reason = unicodedata.normalize("NFC", self.reason)
+        if not reason.strip():
+            raise ValueError("merge reason must not be blank")
+        return {
+            "type": "SourceMergeRecord",
+            "material_version": 1,
+            "losing_source": {"type": "LiteratureSource", "id": str(self.losing_source_id)},
+            "winning_source": {"type": "LiteratureSource", "id": str(self.winning_source_id)},
+            "identity_basis_artifact": {
+                "type": "ArtifactVersion",
+                "id": str(self.identity_basis_artifact.id),
+                "content_hash": self.identity_basis_artifact.content_hash,
+            },
+            "reason": reason,
+            "merged_by": {"type": "ActorIdentity", "id": str(self.merged_by_actor_id)},
         }
 
     def digest(self) -> str:

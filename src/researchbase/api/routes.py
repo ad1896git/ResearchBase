@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import fields, is_dataclass
+from datetime import date
 from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
@@ -90,6 +91,16 @@ from researchbase.application.source_merge import (
     ProposeSourceMerge,
     RevokeSourceMergeApproval,
 )
+from researchbase.application.source_merge_execution import (
+    ConsumeSourceMergeProposal,
+    SourceMergeExecutionService,
+)
+from researchbase.application.source_version import (
+    CreateSourceVersion,
+    SourceVersionService,
+    TransitionSourceVersion,
+    UpdateSourceVersionDraft,
+)
 from researchbase.domain.claim import EvidenceRelationType
 from researchbase.domain.governance import (
     AuditFinding,
@@ -104,6 +115,11 @@ from researchbase.domain.governance import (
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
 from researchbase.domain.source_identity import IdentifierType, SourceKind
+from researchbase.domain.source_version import (
+    FrozenSourceReference,
+    SourceVersionKind,
+    SourceVersionMaterial,
+)
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 
@@ -486,6 +502,67 @@ class SourceMergeProposalIn(InputModel):
 
 class SourceMergeDecisionIn(InputModel):
     reason: str | None = Field(default=None, max_length=2048)
+
+
+class SourceMergeConsumeIn(InputModel):
+    proposal_basis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    identity_basis_artifact: SourceVersionReferenceIn
+
+
+class SourceVersionReferenceIn(InputModel):
+    id: UUID
+    content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class SourceVersionIn(InputModel):
+    version_kind: SourceVersionKind
+    predecessor_source_version: SourceVersionReferenceIn | None = None
+    correction_basis_artifact: SourceVersionReferenceIn | None = None
+    title: str = Field(min_length=1)
+    abstract: str | None = None
+    authors: list[dict[str, str | None]]
+    publication_date: date | None = None
+    venue: str | None = None
+    external_version_label: str | None = None
+    fulltext_artifact: SourceVersionReferenceIn | None = None
+    metadata: dict[str, str | None] | None = None
+
+
+class SourceVersionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_version_id: str
+    literature_source_id: str
+    version_number: int
+    status: str
+    content_hash: str | None
+
+
+class SourceVersionReadResult(SourceVersionResult):
+    version_kind: str
+    predecessor_source_version_id: str | None
+    correction_basis_artifact_version_id: str | None
+    title: str
+    abstract: str | None
+    authors: Any
+    publication_date: str | None
+    venue: str | None
+    external_version_label: str | None
+    fulltext_artifact_version_id: str | None
+    metadata: Any
+    hash_scheme: str
+    frozen_at: str | None
+
+
+class SourceMergeRecordResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_merge_record_id: str
+    losing_source_id: str
+    winning_source_id: str
+    identity_basis_artifact_version_id: str
+    reason: str
+    merged_by: str
+    merged_at: str
+    content_hash: str
 
 
 router = APIRouter(
@@ -1244,6 +1321,145 @@ def find_source_by_identifier(
     )
 
 
+def _source_version_material(source_id: UUID, body: SourceVersionIn) -> SourceVersionMaterial:
+    def reference(value: SourceVersionReferenceIn | None) -> FrozenSourceReference | None:
+        if value is None:
+            return None
+        return FrozenSourceReference(value.id, value.content_hash)
+
+    return SourceVersionMaterial(
+        literature_source_id=source_id,
+        version_kind=body.version_kind,
+        predecessor_source_version=reference(body.predecessor_source_version),
+        correction_basis_artifact=reference(body.correction_basis_artifact),
+        title=body.title,
+        abstract=body.abstract,
+        authors=tuple(body.authors),
+        publication_date=body.publication_date,
+        venue=body.venue,
+        external_version_label=body.external_version_label,
+        fulltext_artifact=reference(body.fulltext_artifact),
+        metadata=body.metadata,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/sources/{source_id}/versions",
+    status_code=201,
+    operation_id="create_source_version",
+    response_model=SourceVersionResult,
+)
+def create_source_version(
+    project_id: UUID,
+    source_id: UUID,
+    body: SourceVersionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    service: SourceVersionService = _services(request).source_versions
+    return _json(
+        service.create(
+            CreateSourceVersion(
+                _verified_principal(request),
+                project_id,
+                _source_version_material(source_id, body),
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.patch(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}",
+    operation_id="update_source_version_draft",
+    response_model=SourceVersionResult,
+)
+def update_source_version_draft(
+    project_id: UUID,
+    source_version_id: UUID,
+    body: SourceVersionIn,
+    request: Request,
+    source_id: Annotated[UUID, Query()],
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    service: SourceVersionService = _services(request).source_versions
+    return _json(
+        service.update(
+            UpdateSourceVersionDraft(
+                _verified_principal(request),
+                project_id,
+                source_version_id,
+                _source_version_material(source_id, body),
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}:freeze",
+    operation_id="freeze_source_version",
+    response_model=SourceVersionResult,
+)
+def freeze_source_version(
+    project_id: UUID,
+    source_version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_versions.freeze(
+            TransitionSourceVersion(
+                _verified_principal(request), project_id, source_version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}:abandon",
+    operation_id="abandon_source_version",
+    response_model=SourceVersionResult,
+)
+def abandon_source_version(
+    project_id: UUID,
+    source_version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_versions.abandon(
+            TransitionSourceVersion(
+                _verified_principal(request), project_id, source_version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources/{source_id}/versions",
+    operation_id="list_source_versions",
+    response_model=list[SourceVersionReadResult],
+)
+def list_source_versions(project_id: UUID, source_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).source_versions.list(_verified_principal(request), project_id, source_id)
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}",
+    operation_id="get_source_version",
+    response_model=SourceVersionReadResult,
+)
+def get_source_version(project_id: UUID, source_version_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).source_versions.get(
+            _verified_principal(request), project_id, source_version_id
+        )
+    )
+
+
 @router.get(
     "/projects/{project_id}/literature/sources/{source_id}/identifiers",
     operation_id="list_source_identifiers",
@@ -1363,4 +1579,34 @@ def revoke_source_merge_approval(
 def get_source_merge_proposal(project_id: UUID, proposal_id: UUID, request: Request) -> Any:
     return _json(
         _services(request).source_merge.get(_verified_principal(request), project_id, proposal_id)
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:consume",
+    operation_id="consume_source_merge_proposal",
+    response_model=SourceMergeRecordResult,
+)
+def consume_source_merge_proposal(
+    project_id: UUID,
+    proposal_id: UUID,
+    body: SourceMergeConsumeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    service: SourceMergeExecutionService = _services(request).source_merge_execution
+    return _json(
+        service.consume(
+            ConsumeSourceMergeProposal(
+                _verified_principal(request),
+                project_id,
+                proposal_id,
+                body.proposal_basis_hash,
+                FrozenSourceReference(
+                    body.identity_basis_artifact.id,
+                    body.identity_basis_artifact.content_hash,
+                ),
+                idempotency_key,
+            )
+        )
     )

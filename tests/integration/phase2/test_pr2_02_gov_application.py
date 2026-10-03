@@ -109,7 +109,7 @@ def test_proposal_requires_human_owner_and_decisions_are_basis_bound(
             (evidence_id,),
         )
     )
-    with pytest.raises(IntegrityError, match="consumed proposal requires all project approvals"):
+    with pytest.raises(IntegrityError, match="consumed proposal requires its source merge record"):
         with engine.begin() as connection:
             connection.execute(
                 text(

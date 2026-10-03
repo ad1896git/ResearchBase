@@ -206,6 +206,18 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
             "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:revoke",
         ),
         ("get", "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}"),
+        ("post", "/v1/projects/{project_id}/literature/sources/{source_id}/versions"),
+        ("post", "/v1/projects/{project_id}/literature/source-versions/{source_version_id}:freeze"),
+        (
+            "post",
+            "/v1/projects/{project_id}/literature/source-versions/{source_version_id}:abandon",
+        ),
+        ("get", "/v1/projects/{project_id}/literature/sources/{source_id}/versions"),
+        ("get", "/v1/projects/{project_id}/literature/source-versions/{source_version_id}"),
+        (
+            "post",
+            "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:consume",
+        ),
     }
     first = create_app(Services(FakeApplication())).openapi()
     second = create_app(Services(FakeApplication())).openapi()
@@ -263,6 +275,13 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.SOURCE_MERGE_REJECTED: 409,
         ErrorCode.SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED: 409,
         ErrorCode.SOURCE_MERGE_BASIS_CONFLICT: 409,
+        ErrorCode.SOURCE_NOT_MERGEABLE: 409,
+        ErrorCode.SOURCE_MERGE_IDENTIFIER_CONFLICT: 409,
+        ErrorCode.SOURCE_VERSION_NOT_FOUND: 404,
+        ErrorCode.SOURCE_VERSION_NOT_FREEZABLE: 409,
+        ErrorCode.SOURCE_VERSION_ALREADY_FROZEN: 409,
+        ErrorCode.SOURCE_VERSION_IMMUTABLE: 409,
+        ErrorCode.INVALID_SOURCE_VERSION_LINEAGE: 409,
     }
     assert set(expected) == set(ErrorCode)
     request_id = uuid4()

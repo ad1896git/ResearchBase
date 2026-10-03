@@ -174,6 +174,7 @@ class SourceMergeGovernanceService:
             if not link_rows or command.project_id not in {row["project_id"] for row in link_rows}:
                 raise _error(ErrorCode.SOURCE_NOT_FOUND, "source pair is not linked in project")
             identifier_rows = [_identifier_json(row) for row in repo.identifier_rows(sources)]
+            version_rows = repo.source_version_states(sources)
             basis = SourceMergeBasis(
                 sources[0],
                 sources[1],
@@ -188,9 +189,7 @@ class SourceMergeGovernanceService:
                     for row in link_rows
                 ),
                 tuple(identifier_rows),
-                tuple(
-                    {"source_id": str(source_id), "current_version": None} for source_id in sources
-                ),
+                tuple(version_rows),
                 rationale,
                 tuple(evidence_refs),
             )
@@ -246,7 +245,7 @@ class SourceMergeGovernanceService:
             ]
             repo.insert_project_basis(proposal_id, project_rows, now, link_hashes)
             repo.insert_identifier_basis(proposal_id, repo.identifier_rows(sources))
-            repo.insert_source_basis(proposal_id, sources, now, version_hash)
+            repo.insert_source_basis(proposal_id, version_rows, now, version_hash)
             repo.insert_proposal_evidence(proposal_id, evidence_refs)
             repo.insert_event(
                 {
@@ -690,7 +689,7 @@ def _current_basis_hash(repo, proposal: dict[str, Any]) -> str:
         tuple(sorted({row["project_id"] for row in link_rows}, key=str)),
         project_links,
         identifiers,
-        tuple({"source_id": str(source_id), "current_version": None} for source_id in sources),
+        tuple(repo.source_version_states(sources)),
         str(proposal["rationale"]),
         evidence,
     )
