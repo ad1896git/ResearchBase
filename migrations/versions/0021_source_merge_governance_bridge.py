@@ -438,6 +438,197 @@ def upgrade() -> None:
         CREATE CONSTRAINT TRIGGER trg_source_merge_evidence_valid
             AFTER INSERT ON source_merge_proposal_evidence DEFERRABLE INITIALLY DEFERRED
             FOR EACH ROW EXECUTE FUNCTION rb_validate_source_merge_evidence();
+
+        CREATE FUNCTION rb_guard_source_merge_basis_insert() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM source_merge_governance_events
+                WHERE proposal_id=NEW.proposal_id AND event_kind='SUBMITTED'
+            ) THEN
+                RAISE EXCEPTION 'source merge proposal basis is sealed after submission'
+                    USING ERRCODE='23514', CONSTRAINT='ck_source_merge_basis_sealed';
+            END IF;
+            RETURN NEW;
+        END $$;
+        CREATE TRIGGER trg_source_merge_projects_sealed
+            BEFORE INSERT ON source_merge_proposal_projects
+            FOR EACH ROW EXECUTE FUNCTION rb_guard_source_merge_basis_insert();
+        CREATE TRIGGER trg_source_merge_identifiers_sealed
+            BEFORE INSERT ON source_merge_proposal_identifier_basis
+            FOR EACH ROW EXECUTE FUNCTION rb_guard_source_merge_basis_insert();
+        CREATE TRIGGER trg_source_merge_sources_sealed
+            BEFORE INSERT ON source_merge_proposal_source_basis
+            FOR EACH ROW EXECUTE FUNCTION rb_guard_source_merge_basis_insert();
+        CREATE TRIGGER trg_source_merge_evidence_sealed
+            BEFORE INSERT ON source_merge_proposal_evidence
+            FOR EACH ROW EXECUTE FUNCTION rb_guard_source_merge_basis_insert();
+
+        CREATE FUNCTION rb_validate_source_merge_proposal_complete() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        DECLARE
+            p source_merge_proposals%ROWTYPE;
+            project_count integer;
+            source_count integer;
+            identifier_snapshot_count integer;
+            identifier_count integer;
+            submitted_count integer;
+        BEGIN
+            SELECT * INTO p FROM source_merge_proposals WHERE id=NEW.id;
+            SELECT count(*) INTO project_count FROM source_merge_proposal_projects
+                WHERE proposal_id=NEW.id;
+            SELECT count(*) INTO source_count FROM source_merge_proposal_source_basis
+                WHERE proposal_id=NEW.id AND source_id IN (p.source_a_id,p.source_b_id);
+            SELECT count(*) INTO identifier_snapshot_count
+                FROM source_merge_proposal_identifier_basis WHERE proposal_id=NEW.id;
+            SELECT count(*) INTO identifier_count FROM source_identifiers
+                WHERE literature_source_id IN (p.source_a_id,p.source_b_id);
+            SELECT count(*) INTO submitted_count FROM source_merge_governance_events
+                WHERE proposal_id=NEW.id AND event_kind='SUBMITTED';
+            IF p.id IS NULL OR project_count=0 OR source_count<>2 OR
+               (SELECT count(*) FROM source_merge_proposal_source_basis
+                   WHERE proposal_id=NEW.id)<>2 OR submitted_count<>1 OR
+               identifier_snapshot_count<>identifier_count OR
+               EXISTS (
+                   SELECT 1 FROM literature_source_project_links l
+                   WHERE l.literature_source_id IN (p.source_a_id,p.source_b_id)
+                     AND NOT EXISTS (
+                         SELECT 1 FROM source_merge_proposal_projects x
+                         WHERE x.proposal_id=NEW.id AND x.project_id=l.project_id
+                           AND ((l.literature_source_id=p.source_a_id AND x.source_a_link_id=l.id)
+                             OR (l.literature_source_id=p.source_b_id AND x.source_b_link_id=l.id))
+                     )
+               ) OR EXISTS (
+                   SELECT 1 FROM source_merge_proposal_identifier_basis b
+                   JOIN source_identifiers i ON i.id=b.identifier_id
+                   WHERE b.proposal_id=NEW.id AND
+                     ROW(b.source_id,b.identifier_type,b.normalized_value,b.normalization_version,
+                         b.verification_status,b.is_primary,b.binding_basis_artifact_version_id,
+                         b.supersedes_rejected_identifier_id,b.verification_basis_artifact_version_id,
+                         b.verified_by,b.verified_at,b.captured_row_version) IS DISTINCT FROM
+                     ROW(i.literature_source_id,i.identifier_type,i.normalized_value,i.normalization_version,
+                         i.verification_status,i.is_primary,i.binding_basis_artifact_version_id,
+                         i.supersedes_rejected_identifier_id,i.verification_basis_artifact_version_id,
+                         i.verified_by,i.verified_at,i.row_version)
+               ) OR EXISTS (
+                   SELECT 1 FROM source_identifiers i
+                   WHERE i.literature_source_id IN (p.source_a_id,p.source_b_id)
+                     AND NOT EXISTS (
+                         SELECT 1 FROM source_merge_proposal_identifier_basis b
+                         WHERE b.proposal_id=NEW.id AND b.identifier_id=i.id
+                     )
+               ) THEN
+                RAISE EXCEPTION 'source merge proposal basis is incomplete or inconsistent'
+                    USING ERRCODE='23514', CONSTRAINT='ck_source_merge_proposal_complete';
+            END IF;
+            RETURN NULL;
+        END $$;
+        CREATE CONSTRAINT TRIGGER trg_source_merge_proposal_complete
+            AFTER INSERT ON source_merge_proposals DEFERRABLE INITIALLY DEFERRED
+            FOR EACH ROW EXECUTE FUNCTION rb_validate_source_merge_proposal_complete();
+
+        CREATE FUNCTION rb_validate_source_merge_event() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        DECLARE
+            p source_merge_proposals%ROWTYPE;
+            replacement source_merge_proposals%ROWTYPE;
+            affected boolean;
+            approved_count integer;
+            project_count integer;
+        BEGIN
+            SELECT * INTO p FROM source_merge_proposals WHERE id=NEW.proposal_id;
+            SELECT EXISTS (SELECT 1 FROM source_merge_proposal_projects
+                WHERE proposal_id=NEW.proposal_id AND project_id=NEW.project_id) INTO affected;
+            IF p.id IS NULL OR NEW.basis_hash<>p.proposal_basis_hash OR
+               NEW.project_id IS NULL OR NEW.actor_id IS NULL OR
+               length(btrim(NEW.deployment_id))=0 OR
+               NEW.request_hash !~ '^[0-9a-f]{64}$' THEN
+                RAISE EXCEPTION 'source merge event required fields or basis are invalid'
+                    USING ERRCODE='23514', CONSTRAINT='ck_source_merge_event_basis';
+            END IF;
+            IF NEW.event_kind='SUBMITTED' THEN
+                IF NEW.approval_id IS NOT NULL OR NEW.project_id<>p.proposed_in_project_id OR
+                   NEW.actor_id<>p.proposed_by_actor_id OR NEW.deployment_id<>p.deployment_id OR
+                   NEW.request_id<>p.request_id OR NEW.request_hash<>p.request_hash OR
+                   NEW.command_name<>'SUBMIT_SOURCE_MERGE_PROPOSAL_EVENT' OR NEW.reason IS NOT NULL OR
+                   EXISTS (SELECT 1 FROM source_merge_governance_events
+                           WHERE proposal_id=NEW.proposal_id AND id<>NEW.id) THEN
+                    RAISE EXCEPTION 'source merge submission event does not match its proposal'
+                        USING ERRCODE='23514', CONSTRAINT='ck_source_merge_event_submission';
+                END IF;
+            ELSE
+                IF NOT affected OR EXISTS (
+                    SELECT 1 FROM source_merge_governance_events e
+                    WHERE e.proposal_id=NEW.proposal_id AND e.id<>NEW.id
+                      AND e.event_kind IN ('APPROVAL_REVOKED','PROPOSAL_SUPERSEDED','PROPOSAL_STALE','PROPOSAL_CONSUMED')
+                ) OR EXISTS (
+                    SELECT 1 FROM source_merge_approvals a
+                    WHERE a.proposal_id=NEW.proposal_id AND a.decision='REJECT'
+                ) THEN
+                    RAISE EXCEPTION 'source merge event violates terminal proposal state'
+                        USING ERRCODE='23514', CONSTRAINT='ck_source_merge_event_transition';
+                END IF;
+                IF NEW.event_kind='APPROVAL_REVOKED' THEN
+                    IF NEW.approval_id IS NULL OR length(btrim(coalesce(NEW.reason,'')))=0 OR
+                       NEW.command_name<>'REVOKE_SOURCE_MERGE_APPROVAL' OR NOT EXISTS (
+                           SELECT 1 FROM source_merge_approvals a
+                           WHERE a.id=NEW.approval_id AND a.proposal_id=NEW.proposal_id
+                             AND a.project_id=NEW.project_id AND a.decision='APPROVE'
+                             AND a.decision_basis_hash=NEW.basis_hash
+                             AND a.decided_at<=NEW.occurred_at
+                       ) OR NOT EXISTS (
+                           SELECT 1 FROM actors a
+                           JOIN project_memberships m ON m.actor_id=a.id
+                           JOIN project_role_assignments r ON r.membership_id=m.id
+                             AND r.project_id=m.project_id AND r.actor_id=m.actor_id
+                           WHERE a.id=NEW.actor_id AND a.actor_type='HUMAN' AND a.retired_at IS NULL
+                             AND m.project_id=NEW.project_id AND m.status='ACTIVE'
+                             AND r.role='OWNER' AND r.effective_from<=NEW.occurred_at
+                             AND (r.effective_until IS NULL OR NEW.occurred_at<r.effective_until)
+                       ) THEN
+                        RAISE EXCEPTION 'source merge revocation does not match an approval'
+                            USING ERRCODE='23514', CONSTRAINT='ck_source_merge_event_revocation';
+                    END IF;
+                ELSIF NEW.event_kind='PROPOSAL_STALE' THEN
+                    IF NEW.approval_id IS NOT NULL OR length(btrim(coalesce(NEW.reason,'')))=0 OR
+                       NEW.command_name<>'MARK_SOURCE_MERGE_PROPOSAL_STALE' THEN
+                        RAISE EXCEPTION 'source merge stale event is malformed'
+                            USING ERRCODE='23514', CONSTRAINT='ck_source_merge_event_stale';
+                    END IF;
+                ELSIF NEW.event_kind='PROPOSAL_SUPERSEDED' THEN
+                    SELECT * INTO replacement FROM source_merge_proposals
+                    WHERE supersedes_proposal_id=NEW.proposal_id
+                      AND deployment_id=NEW.deployment_id AND request_id=NEW.request_id
+                      AND request_hash=NEW.request_hash;
+                    IF NOT FOUND OR NEW.approval_id IS NOT NULL OR
+                       replacement.source_a_id<>p.source_a_id OR
+                       replacement.source_b_id<>p.source_b_id OR
+                       NEW.project_id<>replacement.proposed_in_project_id OR
+                       NEW.actor_id<>replacement.proposed_by_actor_id OR
+                       length(btrim(coalesce(NEW.reason,'')))=0 OR
+                       NEW.command_name<>'SUPERSEDE_PRIOR_SOURCE_MERGE_PROPOSAL' THEN
+                        RAISE EXCEPTION 'source merge supersession event lacks a replacement proposal'
+                            USING ERRCODE='23514', CONSTRAINT='ck_source_merge_event_supersession';
+                    END IF;
+                ELSIF NEW.event_kind='PROPOSAL_CONSUMED' THEN
+                    SELECT count(*) INTO project_count FROM source_merge_proposal_projects
+                        WHERE proposal_id=NEW.proposal_id;
+                    SELECT count(*) INTO approved_count FROM source_merge_approvals
+                        WHERE proposal_id=NEW.proposal_id AND decision='APPROVE'
+                          AND decision_basis_hash=NEW.basis_hash;
+                    IF NEW.approval_id IS NOT NULL OR NEW.reason IS NOT NULL OR
+                       NEW.command_name<>'CONSUME_SOURCE_MERGE_PROPOSAL' OR
+                       approved_count<>project_count THEN
+                        RAISE EXCEPTION 'consumed proposal requires all project approvals'
+                            USING ERRCODE='23514', CONSTRAINT='ck_source_merge_event_consumption';
+                    END IF;
+                END IF;
+            END IF;
+            RETURN NULL;
+        END $$;
+        CREATE CONSTRAINT TRIGGER trg_source_merge_event_valid
+            AFTER INSERT ON source_merge_governance_events DEFERRABLE INITIALLY DEFERRED
+            FOR EACH ROW EXECUTE FUNCTION rb_validate_source_merge_event();
         """
     )
 
@@ -462,6 +653,9 @@ def downgrade() -> None:
         op.drop_table(table)
     op.execute(
         "DROP FUNCTION rb_validate_source_merge_evidence();"
+        "DROP FUNCTION rb_validate_source_merge_event();"
+        "DROP FUNCTION rb_validate_source_merge_proposal_complete();"
+        "DROP FUNCTION rb_guard_source_merge_basis_insert();"
         "DROP FUNCTION rb_validate_source_merge_approval();"
         "DROP FUNCTION rb_validate_source_merge_project_basis();"
     )

@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from tests.integration.phase2.test_pr2_01_source_identity import (
     _authorized_service,
@@ -74,6 +75,21 @@ def test_proposal_requires_human_owner_and_decisions_are_basis_bound(
         lambda: SqlAlchemyUnitOfWork(factory), _ValidCredential()
     )
     evidence_id = _frozen_basis(engine, project_id, principal.actor_id)
+    with pytest.raises(ResearchBaseError) as duplicate_evidence:
+        service.propose(
+            ProposeSourceMerge(
+                principal,
+                project_id,
+                UUID(str(source_a)),
+                UUID(str(source_b)),
+                UUID(str(source_b)),
+                "Duplicate evidence input",
+                uuid4(),
+                None,
+                (evidence_id, evidence_id),
+            )
+        )
+    assert duplicate_evidence.value.code is ErrorCode.VALIDATION_ERROR
     request_id = uuid4()
     proposal = service.propose(
         ProposeSourceMerge(
@@ -88,6 +104,51 @@ def test_proposal_requires_human_owner_and_decisions_are_basis_bound(
             (evidence_id,),
         )
     )
+    with pytest.raises(IntegrityError, match="consumed proposal requires all project approvals"):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO source_merge_governance_events"
+                    "(id,proposal_id,approval_id,project_id,actor_id,event_kind,occurred_at,reason,"
+                    "deployment_id,request_id,request_hash,basis_hash,command_name) "
+                    "VALUES (:id,:proposal,NULL,:project,:actor,'PROPOSAL_CONSUMED',"
+                    "clock_timestamp(),'invalid premature consume',:deployment,:request,"
+                    ":request_hash,"
+                    ":basis,'CONSUME_SOURCE_MERGE_PROPOSAL')"
+                ),
+                {
+                    "id": uuid4(),
+                    "proposal": UUID(str(proposal["proposal_id"])),
+                    "project": project_id,
+                    "actor": principal.actor_id,
+                    "deployment": principal.deployment_id,
+                    "request": uuid4(),
+                    "request_hash": "b" * 64,
+                    "basis": proposal["proposal_basis_hash"],
+                },
+            )
+    with pytest.raises(IntegrityError, match="event required fields or basis are invalid"):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO source_merge_governance_events"
+                    "(id,proposal_id,project_id,actor_id,event_kind,occurred_at,reason,deployment_id,"
+                    "request_id,request_hash,basis_hash,command_name) "
+                    "VALUES (:id,:proposal,:project,:actor,'PROPOSAL_STALE',clock_timestamp(),"
+                    "'basis changed',:deployment,:request,:hash,"
+                    ":wrong_basis,'MARK_SOURCE_MERGE_PROPOSAL_STALE')"
+                ),
+                {
+                    "id": uuid4(),
+                    "proposal": UUID(str(proposal["proposal_id"])),
+                    "project": project_id,
+                    "actor": principal.actor_id,
+                    "deployment": principal.deployment_id,
+                    "request": uuid4(),
+                    "hash": "b" * 64,
+                    "wrong_basis": "c" * 64,
+                },
+            )
     replay = service.propose(
         ProposeSourceMerge(
             principal,
@@ -294,6 +355,28 @@ def test_proposal_requires_human_owner_and_decisions_are_basis_bound(
             )
         )
     assert stale.value.code is ErrorCode.SOURCE_MERGE_PROPOSAL_STALE
+    with pytest.raises(ResearchBaseError) as repeated_stale:
+        service.decide(
+            DecideSourceMerge(
+                principal,
+                project_id,
+                UUID(str(stale_proposal["proposal_id"])),
+                "APPROVE",
+                uuid4(),
+            )
+        )
+    assert repeated_stale.value.code is ErrorCode.SOURCE_MERGE_PROPOSAL_STALE
+    with engine.connect() as connection:
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM source_merge_governance_events "
+                    "WHERE proposal_id=:id AND event_kind='PROPOSAL_STALE'"
+                ),
+                {"id": UUID(str(stale_proposal["proposal_id"]))},
+            ).scalar_one()
+            == 1
+        )
     engine.dispose()
 
 

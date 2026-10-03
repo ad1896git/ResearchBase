@@ -74,6 +74,8 @@ class SourceMergeGovernanceService:
         rationale = unicodedata.normalize("NFC", command.rationale)
         if not rationale.strip():
             raise _error(ErrorCode.VALIDATION_ERROR, "rationale must not be blank")
+        if len(command.evidence_artifact_ids) != len(set(command.evidence_artifact_ids)):
+            raise _error(ErrorCode.VALIDATION_ERROR, "duplicate evidence references are forbidden")
         sources = tuple(sorted((command.source_a_id, command.source_b_id), key=str))
         command_name = (
             "SUPERSEDE_SOURCE_MERGE_PROPOSAL"
@@ -390,7 +392,11 @@ class SourceMergeGovernanceService:
                         ErrorCode.IDEMPOTENCY_CONFLICT,
                         "request ID was reused with different input",
                     )
-                if prior_stale is None:
+                already_stale = any(
+                    row["event_kind"] == "PROPOSAL_STALE"
+                    for row in repo.events(command.proposal_id)
+                )
+                if prior_stale is None and not already_stale:
                     repo.insert_event(
                         {
                             "id": uuid4(),
@@ -408,7 +414,7 @@ class SourceMergeGovernanceService:
                             "command": stale_command,
                         }
                     )
-                    uow.commit()
+                uow.commit()
                 raise _error(ErrorCode.SOURCE_MERGE_PROPOSAL_STALE, "proposal basis changed")
             if any(row["decision"] == "REJECT" for row in repo.decisions(command.proposal_id)):
                 raise _error(

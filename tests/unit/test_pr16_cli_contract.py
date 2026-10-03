@@ -15,6 +15,7 @@ from researchbase.application.dto import ProjectReadModel, WriteResult, write_re
 from researchbase.cli import context as cli_context
 from researchbase.cli.app import create_app
 from researchbase.domain.organization import LifecycleStatus
+from researchbase.domain.phase2_identity import VerifiedPrincipal
 
 
 @dataclass
@@ -43,6 +44,8 @@ class FakeServices:
     provenance: Any = None
     governance: Any = None
     governance_queries: Any = None
+    source_merge: Any = None
+    verified_principal: VerifiedPrincipal | None = None
 
 
 def test_root_help_lists_frozen_command_groups() -> None:
@@ -66,6 +69,130 @@ def test_root_help_lists_frozen_command_groups() -> None:
         "correction",
     ):
         assert group in result.stdout
+
+
+def test_literature_merge_proposal_help_lists_frozen_governance_commands() -> None:
+    result = CliRunner().invoke(
+        create_app(FakeServices(FakeApplication())),
+        ["literature", "merge-proposal", "--help"],
+    )
+
+    assert result.exit_code == 0
+    for command in ("create", "show", "approve", "reject", "revoke", "supersede"):
+        assert command in result.stdout
+
+
+def test_literature_merge_proposal_commands_forward_typed_operations() -> None:
+    class SourceMerge:
+        def __init__(self) -> None:
+            self.commands: list[object] = []
+
+        def propose(self, command: object) -> dict[str, str]:
+            self.commands.append(command)
+            return {"operation": "propose"}
+
+        def get(self, principal: object, project_id: object, proposal_id: object) -> dict[str, str]:
+            self.commands.append((principal, project_id, proposal_id))
+            return {"operation": "get"}
+
+        def decide(self, command: object) -> dict[str, str]:
+            self.commands.append(command)
+            return {"operation": "decide"}
+
+        def revoke(self, command: object) -> None:
+            self.commands.append(command)
+
+    actor_id = uuid4()
+    project_id = uuid4()
+    proposal_id = uuid4()
+    source_a_id = uuid4()
+    source_b_id = uuid4()
+    service = SourceMerge()
+    services = FakeServices(
+        FakeApplication(),
+        source_merge=service,
+        verified_principal=VerifiedPrincipal(
+            actor_id, "deployment", "OS_UID", "user:1", "credential", datetime.now(UTC)
+        ),
+    )
+    common = [
+        "--request-id",
+        str(uuid4()),
+        "literature",
+        "merge-proposal",
+    ]
+    runner = CliRunner()
+    for operation, extra in (
+        (
+            "create",
+            [
+                "--source-a-id",
+                str(source_a_id),
+                "--source-b-id",
+                str(source_b_id),
+                "--canonical-survivor-id",
+                str(source_b_id),
+                "--rationale",
+                "duplicate",
+            ],
+        ),
+        (
+            "supersede",
+            [
+                "--prior-proposal-id",
+                str(proposal_id),
+                "--source-a-id",
+                str(source_a_id),
+                "--source-b-id",
+                str(source_b_id),
+                "--canonical-survivor-id",
+                str(source_b_id),
+                "--rationale",
+                "reconsidered",
+            ],
+        ),
+    ):
+        result = runner.invoke(
+            create_app(services),
+            [*common, operation, "--project-id", str(project_id), *extra, "--json"],
+        )
+        assert result.exit_code == 0
+    shown = runner.invoke(
+        create_app(services),
+        [
+            "literature",
+            "merge-proposal",
+            "show",
+            "--project-id",
+            str(project_id),
+            "--proposal-id",
+            str(proposal_id),
+            "--json",
+        ],
+    )
+    assert shown.exit_code == 0
+    for operation, extra, expected in (
+        ("approve", [], "APPROVE"),
+        ("reject", ["--reason", "distinct records"], "REJECT"),
+    ):
+        result = runner.invoke(
+            create_app(services),
+            [
+                "--request-id",
+                str(uuid4()),
+                "literature",
+                "merge-proposal",
+                operation,
+                "--project-id",
+                str(project_id),
+                "--proposal-id",
+                str(proposal_id),
+                *extra,
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0
+        assert service.commands[-1].decision == expected
 
 
 def test_project_create_forwards_exact_execution_context_and_json_serializes_result() -> None:
