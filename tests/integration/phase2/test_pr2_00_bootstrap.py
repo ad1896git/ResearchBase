@@ -6,6 +6,7 @@ from threading import Barrier, Event
 from time import monotonic, sleep
 from uuid import uuid4
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
@@ -246,6 +247,106 @@ def test_invalid_legacy_state_rejects_bootstrap_without_protected_writes(
         engine.dispose()
 
 
+@pytest.mark.parametrize("invalid_column", ["actor_type", "lifecycle_status"])
+def test_null_legacy_state_rejects_bootstrap_without_protected_writes(
+    phase2_database_url: str, invalid_column: str
+) -> None:
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "0019_phase2_bootstrap_membership")
+    engine = create_engine(phase2_database_url)
+    service, _principal, _subject = _service(
+        phase2_database_url, bootstrap_proof_verifier=_BootstrapProofVerifier()
+    )
+    actor_id, project_id = uuid4(), uuid4()
+    with engine.begin() as connection:
+        now = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
+        connection.execute(
+            text(
+                "INSERT INTO actors (id, actor_type, display_name, created_at) "
+                "VALUES (:id, 'HUMAN', 'legacy', :now)"
+            ),
+            {"id": actor_id, "now": now},
+        )
+        if invalid_column == "lifecycle_status":
+            connection.execute(
+                text(
+                    "INSERT INTO projects (id, name, created_by, created_at) "
+                    "VALUES (:id, 'legacy', :actor, :now)"
+                ),
+                {"id": project_id, "actor": actor_id, "now": now},
+            )
+    with engine.begin() as connection:
+        if invalid_column == "actor_type":
+            connection.execute(text("ALTER TABLE actors DROP CONSTRAINT ck_actors_actor_type"))
+            connection.execute(text("ALTER TABLE actors ALTER COLUMN actor_type DROP NOT NULL"))
+            connection.execute(
+                text("UPDATE actors SET actor_type = NULL WHERE id = :id"), {"id": actor_id}
+            )
+        else:
+            connection.execute(
+                text("ALTER TABLE projects DROP CONSTRAINT ck_projects_lifecycle_status")
+            )
+            connection.execute(
+                text("ALTER TABLE projects ALTER COLUMN lifecycle_status DROP NOT NULL")
+            )
+            connection.execute(
+                text("UPDATE projects SET lifecycle_status = NULL WHERE id = :id"),
+                {"id": project_id},
+            )
+    operator = VerifiedPrincipal(
+        actor_id=uuid4(),
+        deployment_id="deployment-null-legacy",
+        subject_kind="OS_UID",
+        subject_value="742",
+        credential_id="os-credential-742",
+        verified_at=datetime.now(UTC),
+    )
+    authority = BootstrapAuthority(
+        deployment_id=operator.deployment_id,
+        operator=operator,
+        verified_os_uid=742,
+        subject_credential_id=operator.credential_id,
+        secret_digest_id="secret-digest-ref",
+        proof_sha256="d" * 64,
+        proof_record_ref="audit/sha256/null-legacy",
+    )
+    try:
+        errors = []
+        for _ in range(2):
+            try:
+                service.bootstrap_first_owner(
+                    authority,
+                    request_id=uuid4(),
+                    display_name="Must not be created",
+                    project_name="Must not be created",
+                )
+            except ResearchBaseError as exc:
+                assert exc.code is ErrorCode.LEGACY_STATE_INVALID
+                errors.append(exc.to_dict())
+            else:
+                raise AssertionError("NULL legacy state must fail closed")
+        assert errors[0] == errors[1]
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT count(*) FROM actors")).scalar_one() == 1
+            assert connection.execute(text("SELECT count(*) FROM projects")).scalar_one() == (
+                1 if invalid_column == "lifecycle_status" else 0
+            )
+            assert (
+                connection.execute(text("SELECT count(*) FROM bootstrap_records")).scalar_one() == 0
+            )
+            assert (
+                connection.execute(text("SELECT count(*) FROM project_memberships")).scalar_one()
+                == 0
+            )
+            assert (
+                connection.execute(text("SELECT count(*) FROM project_role_events")).scalar_one()
+                == 0
+            )
+    finally:
+        engine.dispose()
+
+
 def test_bootstrap_preflight_reads_state_after_required_table_lock_wait(
     phase2_database_url: str,
 ) -> None:
@@ -455,13 +556,17 @@ def test_closing_last_owner_role_is_denied_without_history_loss(
             display_name="Last Owner",
             project_name="Protected project",
         )
+        with engine.connect() as connection:
+            verified_at = connection.execute(
+                text("SELECT clock_timestamp() - interval '1 second'")
+            ).scalar_one()
         principal = VerifiedPrincipal(
             actor_id=first.actor_id,
             deployment_id=operator.deployment_id,
             subject_kind=operator.subject_kind,
             subject_value=operator.subject_value,
             credential_id=operator.credential_id,
-            verified_at=datetime.now(UTC),
+            verified_at=verified_at,
         )
         with engine.connect() as connection:
             role_id = connection.execute(

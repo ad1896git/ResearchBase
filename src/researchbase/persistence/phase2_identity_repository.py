@@ -442,12 +442,14 @@ class SqlAlchemyPhase2IdentityRepository:
             (
                 "INVALID_ACTOR_TYPE",
                 "SELECT EXISTS (SELECT 1 FROM actors "
-                "WHERE actor_type NOT IN ('HUMAN', 'AGENT', 'SERVICE'))",
+                "WHERE actor_type IS NULL "
+                "OR actor_type NOT IN ('HUMAN', 'AGENT', 'SERVICE'))",
             ),
             (
                 "INVALID_PROJECT_LIFECYCLE",
                 "SELECT EXISTS (SELECT 1 FROM projects "
-                "WHERE lifecycle_status NOT IN ('ACTIVE', 'ARCHIVED', 'RETIRED'))",
+                "WHERE lifecycle_status IS NULL "
+                "OR lifecycle_status NOT IN ('ACTIVE', 'ARCHIVED', 'RETIRED'))",
             ),
         )
         return tuple(

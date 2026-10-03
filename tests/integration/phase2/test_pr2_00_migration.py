@@ -191,7 +191,9 @@ def test_eight_table_catalog_and_phase1_non_drift(phase2_database_url: str) -> N
         ("orphan_creator", "PROJECT_CREATOR_ORPHAN"),
         ("duplicate_external_key", "DUPLICATE_ACTOR_EXTERNAL_KEY"),
         ("actor_type", "INVALID_ACTOR_TYPE"),
+        ("actor_type_null", "INVALID_ACTOR_TYPE"),
         ("project_lifecycle", "INVALID_PROJECT_LIFECYCLE"),
+        ("project_lifecycle_null", "INVALID_PROJECT_LIFECYCLE"),
     ],
 )
 def test_legacy_state_preflight_fails_before_phase2_ddl_and_is_deterministic(
@@ -241,19 +243,33 @@ def test_legacy_state_preflight_fails_before_phase2_ddl_and_is_deterministic(
                     ),
                     {"id": uuid4(), "now": now},
                 )
-            elif violation == "actor_type":
+            elif violation in {"actor_type", "actor_type_null"}:
                 connection.execute(text("ALTER TABLE actors DROP CONSTRAINT ck_actors_actor_type"))
+                if violation == "actor_type_null":
+                    connection.execute(
+                        text("ALTER TABLE actors ALTER COLUMN actor_type DROP NOT NULL")
+                    )
                 connection.execute(
-                    text("UPDATE actors SET actor_type = 'UNKNOWN' WHERE id = :id"),
-                    {"id": actor_id},
+                    text("UPDATE actors SET actor_type = :actor_type WHERE id = :id"),
+                    {
+                        "id": actor_id,
+                        "actor_type": None if violation == "actor_type_null" else "UNKNOWN",
+                    },
                 )
             else:
                 connection.execute(
                     text("ALTER TABLE projects DROP CONSTRAINT ck_projects_lifecycle_status")
                 )
+                if violation == "project_lifecycle_null":
+                    connection.execute(
+                        text("ALTER TABLE projects ALTER COLUMN lifecycle_status DROP NOT NULL")
+                    )
                 connection.execute(
-                    text("UPDATE projects SET lifecycle_status = 'unknown' WHERE id = :id"),
-                    {"id": project_id},
+                    text("UPDATE projects SET lifecycle_status = :lifecycle WHERE id = :id"),
+                    {
+                        "id": project_id,
+                        "lifecycle": None if violation == "project_lifecycle_null" else "unknown",
+                    },
                 )
 
         errors: list[str] = []
