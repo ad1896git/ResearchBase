@@ -1,0 +1,12 @@
+{
+  "implementation_subject": "5b65f6983dd627757ac7ab7b1fb6befe0a832573",
+  "postgresql_version": "18.6",
+  "command": "uv run pytest -o addopts='' tests/integration/phase2/test_pr2_00_concurrency.py -ra",
+  "result": "4 passed",
+  "tests": {
+    "challenge_expiry_after_lock_wait": "passed; required row lock observed, expiry crossed before lock release, and the resumed consumer was denied",
+    "owner_credential_expiry_after_lock_wait": "passed; owner credential expired while blocked and role assignment was denied",
+    "fresh_time_after_each_required_wait": "passed; expiry-sensitive authorization used advancing post-lock PostgreSQL time after required waits"
+  },
+  "temporal_contract": "TEMP-AUTH-01"
+}

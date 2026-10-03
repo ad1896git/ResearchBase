@@ -1,0 +1,30 @@
+{
+  "implementation_subject": "5b65f6983dd627757ac7ab7b1fb6befe0a832573",
+  "postgresql_version": "18.6",
+  "command": "uv run pytest -o addopts='' tests/integration/phase2/test_pr2_00_concurrency.py -ra",
+  "result": "4 passed",
+  "cases": {
+    "C1_concurrent_challenge_consumption": {
+      "test": "test_challenge_single_winner",
+      "result": "passed",
+      "committed_successes": 1,
+      "durable_binding_count": 1
+    },
+    "C2_challenge_expires_while_waiting": {
+      "test": "test_challenge_expiry_after_lock_wait",
+      "result": "passed",
+      "result_code": "ENROLLMENT_CHALLENGE_EXPIRED",
+      "challenge_consumption_or_binding": "none"
+    },
+    "C3_revocation_does_not_restore_challenge": {
+      "test": "tests/integration/phase2/test_pr2_00_challenges.py::test_consumed_challenge_stays_unusable_after_binding_revocation",
+      "result": "passed",
+      "challenge_remains": "CONSUMED"
+    },
+    "C4_owner_credential_expires_while_waiting": {
+      "test": "test_owner_credential_expiry_after_lock_wait",
+      "result": "passed",
+      "authorization": "denied"
+    }
+  }
+}
