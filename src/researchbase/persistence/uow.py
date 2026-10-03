@@ -21,6 +21,7 @@ from researchbase.application.ports import (
     MeasurementRepository,
     MetricDefinitionRepository,
     MetricDefinitionVersionRepository,
+    Phase2IdentityRepository,
     ProjectRepository,
     ResearchQuestionRepository,
     RunRepository,
@@ -30,6 +31,7 @@ from researchbase.application.ports import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
+from researchbase.persistence.phase2_identity_repository import SqlAlchemyPhase2IdentityRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
     SqlAlchemyArtifactRepository,
@@ -58,6 +60,11 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
     sqlstate = getattr(original, "sqlstate", None)
     diagnostic = getattr(original, "diag", None)
     constraint = getattr(diagnostic, "constraint_name", None)
+    if sqlstate == "40001":
+        return ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION,
+            "serializable transaction must be retried",
+        )
     if sqlstate == "P17D1":
         return ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "record is immutable")
     if sqlstate == "P17D2":
@@ -75,6 +82,11 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
             "resource was modified concurrently",
         )
     if sqlstate == "23514":
+        if constraint == "ck_project_owner_coverage":
+            return ResearchBaseError(
+                ErrorCode.OWNER_COVERAGE_GAP,
+                "operation would break continuous project OWNER coverage",
+            )
         if "immutable" in str(original).lower():
             return ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "record is immutable")
         return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "database check constraint violated")
@@ -173,6 +185,7 @@ class SqlAlchemyUnitOfWork:
     runs: RunRepository
     claims: ClaimRepository
     governance: GovernanceRepository
+    phase2_identity: Phase2IdentityRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -200,7 +213,13 @@ class SqlAlchemyUnitOfWork:
         self.runs = SqlAlchemyRunRepository(self._session)
         self.claims = SqlAlchemyClaimRepository(self._session)
         self.governance = SqlAlchemyGovernanceRepository(self._session)
+        self.phase2_identity = SqlAlchemyPhase2IdentityRepository(self._session)
         return self
+
+    def begin_serializable(self) -> None:
+        """Set SERIALIZABLE before the first SQL statement in this UoW."""
+
+        self._require_session().connection(execution_options={"isolation_level": "SERIALIZABLE"})
 
     def commit(self) -> None:
         try:

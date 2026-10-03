@@ -228,6 +228,9 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
     expected_http = {
         ErrorCode.VALIDATION_ERROR: 422,
         ErrorCode.NOT_FOUND: 404,
+        ErrorCode.AUTHENTICATION_REQUIRED: 401,
+        ErrorCode.FORBIDDEN: 403,
+        ErrorCode.SUBJECT_BINDING_UNPROVEN: 403,
         ErrorCode.INVALID_STATE_TRANSITION: 409,
         ErrorCode.VERSION_NOT_FROZEN: 409,
         ErrorCode.IMMUTABLE_RECORD: 409,
@@ -236,10 +239,19 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.FROZEN_REFERENCE_REQUIRED: 409,
         ErrorCode.PROVENANCE_CLOSURE_VIOLATION: 409,
         ErrorCode.REFERENTIAL_INTEGRITY_ERROR: 409,
+        ErrorCode.SUBJECT_ALREADY_BOUND: 409,
+        ErrorCode.OWNER_COVERAGE_GAP: 409,
+        ErrorCode.OWNER_CREDENTIAL_UNAVAILABLE: 409,
+        ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 409,
+        ErrorCode.BOOTSTRAP_CLOSED: 409,
+        ErrorCode.IDEMPOTENCY_CONFLICT: 409,
     }
     expected_cli = {
         ErrorCode.VALIDATION_ERROR: 2,
         ErrorCode.NOT_FOUND: 3,
+        ErrorCode.AUTHENTICATION_REQUIRED: 3,
+        ErrorCode.FORBIDDEN: 3,
+        ErrorCode.SUBJECT_BINDING_UNPROVEN: 3,
         ErrorCode.INVALID_STATE_TRANSITION: 4,
         ErrorCode.VERSION_NOT_FROZEN: 4,
         ErrorCode.IMMUTABLE_RECORD: 4,
@@ -248,6 +260,12 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.FROZEN_REFERENCE_REQUIRED: 5,
         ErrorCode.PROVENANCE_CLOSURE_VIOLATION: 5,
         ErrorCode.REFERENTIAL_INTEGRITY_ERROR: 5,
+        ErrorCode.SUBJECT_ALREADY_BOUND: 4,
+        ErrorCode.OWNER_COVERAGE_GAP: 4,
+        ErrorCode.OWNER_CREDENTIAL_UNAVAILABLE: 4,
+        ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 4,
+        ErrorCode.BOOTSTRAP_CLOSED: 4,
+        ErrorCode.IDEMPOTENCY_CONFLICT: 4,
     }
     assert set(expected_http) == set(ErrorCode)
     assert _STATUS == expected_http

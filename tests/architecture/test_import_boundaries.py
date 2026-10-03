@@ -109,7 +109,7 @@ def test_production_does_not_import_shared_test_contracts() -> None:
     assert violations == []
 
 
-def test_phase1_has_only_the_authorized_business_migrations() -> None:
+def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration() -> None:
     migrations = Path(__file__).parents[2] / "migrations" / "versions"
     assert sorted(path.name for path in migrations.glob("*.py")) == [
         "0001_empty_bootstrap.py",
@@ -130,6 +130,7 @@ def test_phase1_has_only_the_authorized_business_migrations() -> None:
         "0016_pr17d_history_protection.py",
         "0017_persisted_canonical_enum_normalization.py",
         "0018_current_pointer_same_parent_integrity.py",
+        "0019_phase2_bootstrap_membership.py",
     ]
 
 

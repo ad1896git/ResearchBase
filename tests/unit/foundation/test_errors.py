@@ -2,7 +2,7 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 
 def test_normative_error_codes_are_stable() -> None:
-    assert [code.value for code in ErrorCode] == [
+    assert [code.value for code in ErrorCode][:10] == [
         "NOT_FOUND",
         "INVALID_STATE_TRANSITION",
         "VERSION_NOT_FROZEN",
@@ -13,6 +13,17 @@ def test_normative_error_codes_are_stable() -> None:
         "DUPLICATE_CONTENT",
         "REFERENTIAL_INTEGRITY_ERROR",
         "VALIDATION_ERROR",
+    ]
+    assert [code.value for code in ErrorCode][10:] == [
+        "AUTHENTICATION_REQUIRED",
+        "FORBIDDEN",
+        "SUBJECT_BINDING_UNPROVEN",
+        "SUBJECT_ALREADY_BOUND",
+        "OWNER_COVERAGE_GAP",
+        "OWNER_CREDENTIAL_UNAVAILABLE",
+        "ENROLLMENT_CHALLENGE_EXPIRED",
+        "BOOTSTRAP_CLOSED",
+        "IDEMPOTENCY_CONFLICT",
     ]
 
 

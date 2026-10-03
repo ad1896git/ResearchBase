@@ -476,7 +476,7 @@ def test_valid_populated_0017_upgrade_succeeds(
                 {"version": ids["version_a"], "identity": ids["identity_a"]},
             )
 
-    result = _run_alembic(database_url, "upgrade", "head")
+    result = _run_alembic(database_url, "upgrade", CURRENT_REVISION)
     assert result.returncode == 0, f"Alembic upgrade failed:\n{result.stdout}\n{result.stderr}"
     with engine.connect() as connection:
         assert (

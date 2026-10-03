@@ -25,6 +25,9 @@ class CliTransportError(Exception):
 CLI_EXIT_CODES: dict[ErrorCode, int] = {
     ErrorCode.VALIDATION_ERROR: 2,
     ErrorCode.NOT_FOUND: 3,
+    ErrorCode.AUTHENTICATION_REQUIRED: 3,
+    ErrorCode.FORBIDDEN: 3,
+    ErrorCode.SUBJECT_BINDING_UNPROVEN: 3,
     ErrorCode.INVALID_STATE_TRANSITION: 4,
     ErrorCode.VERSION_NOT_FROZEN: 4,
     ErrorCode.IMMUTABLE_RECORD: 4,
@@ -33,6 +36,12 @@ CLI_EXIT_CODES: dict[ErrorCode, int] = {
     ErrorCode.FROZEN_REFERENCE_REQUIRED: 5,
     ErrorCode.PROVENANCE_CLOSURE_VIOLATION: 5,
     ErrorCode.REFERENTIAL_INTEGRITY_ERROR: 5,
+    ErrorCode.SUBJECT_ALREADY_BOUND: 4,
+    ErrorCode.OWNER_COVERAGE_GAP: 4,
+    ErrorCode.OWNER_CREDENTIAL_UNAVAILABLE: 4,
+    ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 4,
+    ErrorCode.BOOTSTRAP_CLOSED: 4,
+    ErrorCode.IDEMPOTENCY_CONFLICT: 4,
 }
 
 

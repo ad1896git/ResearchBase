@@ -211,6 +211,9 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
     expected = {
         ErrorCode.VALIDATION_ERROR: 422,
         ErrorCode.NOT_FOUND: 404,
+        ErrorCode.AUTHENTICATION_REQUIRED: 401,
+        ErrorCode.FORBIDDEN: 403,
+        ErrorCode.SUBJECT_BINDING_UNPROVEN: 403,
         ErrorCode.INVALID_STATE_TRANSITION: 409,
         ErrorCode.VERSION_NOT_FROZEN: 409,
         ErrorCode.FROZEN_REFERENCE_REQUIRED: 409,
@@ -219,6 +222,12 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.DUPLICATE_CONTENT: 409,
         ErrorCode.REFERENTIAL_INTEGRITY_ERROR: 409,
         ErrorCode.PROVENANCE_CLOSURE_VIOLATION: 409,
+        ErrorCode.SUBJECT_ALREADY_BOUND: 409,
+        ErrorCode.OWNER_COVERAGE_GAP: 409,
+        ErrorCode.OWNER_CREDENTIAL_UNAVAILABLE: 409,
+        ErrorCode.ENROLLMENT_CHALLENGE_EXPIRED: 409,
+        ErrorCode.BOOTSTRAP_CLOSED: 409,
+        ErrorCode.IDEMPOTENCY_CONFLICT: 409,
     }
     assert set(expected) == set(ErrorCode)
     request_id = uuid4()
