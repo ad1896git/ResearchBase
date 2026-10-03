@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from threading import Barrier
+from threading import Barrier, Event, Lock
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
@@ -11,11 +11,17 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service, _frozen_basis
 
 from researchbase.application.source_identity import RegisterLiteratureSource
-from researchbase.application.source_merge import ProposeSourceMerge, SourceMergeGovernanceService
+from researchbase.application.source_merge import (
+    DecideSourceMerge,
+    ProposeSourceMerge,
+    RevokeSourceMergeApproval,
+    SourceMergeGovernanceService,
+)
 from researchbase.application.source_merge_execution import (
     ConsumeSourceMergeProposal,
     SourceMergeExecutionService,
@@ -33,6 +39,7 @@ from researchbase.domain.source_version import (
     SourceVersionMaterial,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
 from researchbase.persistence.source_version_repository import SqlAlchemySourceVersionRepository
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
@@ -651,4 +658,292 @@ def test_approved_source_merge_is_atomic_and_exactly_once(phase2_database_url: s
             ).scalar_one()
             == 1
         )
+    engine.dispose()
+
+
+def test_revoked_merge_approval_returns_canonical_denial_without_effects(
+    phase2_database_url: str,
+) -> None:
+    engine, _, literature, principal, project_id = _authorized_service(phase2_database_url)
+    source_a = UUID(
+        str(
+            literature.register_literature_source(
+                RegisterLiteratureSource(
+                    principal, project_id, SourceKind.PAPER, "Revoked merge A", uuid4()
+                )
+            )["source_id"]
+        )
+    )
+    source_b = UUID(
+        str(
+            literature.register_literature_source(
+                RegisterLiteratureSource(
+                    principal, project_id, SourceKind.PAPER, "Revoked merge B", uuid4()
+                )
+            )["source_id"]
+        )
+    )
+
+    def factory():
+        return SqlAlchemyUnitOfWork(
+            sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+        )
+
+    governance = SourceMergeGovernanceService(factory, _Credential())
+    identity_basis_id = _frozen_basis(engine, project_id, principal.actor_id)
+    proposal = governance.propose(
+        ProposeSourceMerge(
+            principal,
+            project_id,
+            source_a,
+            source_b,
+            source_b,
+            "Approval revocation denial test",
+            uuid4(),
+            None,
+            (identity_basis_id,),
+        )
+    )
+    proposal_id = UUID(str(proposal["proposal_id"]))
+    governance.decide(DecideSourceMerge(principal, project_id, proposal_id, "APPROVE", uuid4()))
+    governance.revoke(
+        RevokeSourceMergeApproval(
+            principal, project_id, proposal_id, "Owner withdrew approval", uuid4()
+        )
+    )
+    with engine.connect() as connection:
+        identity_basis_hash = connection.execute(
+            text("SELECT content_hash FROM artifact_versions WHERE id=:id"),
+            {"id": identity_basis_id},
+        ).scalar_one()
+    service = SourceMergeExecutionService(factory, _Credential())
+    command = ConsumeSourceMergeProposal(
+        principal,
+        project_id,
+        proposal_id,
+        str(proposal["proposal_basis_hash"]),
+        FrozenSourceReference(identity_basis_id, identity_basis_hash),
+        uuid4(),
+    )
+
+    with pytest.raises(ResearchBaseError) as denied:
+        service.consume(command)
+
+    assert denied.value.code is ErrorCode.SOURCE_MERGE_APPROVAL_FORBIDDEN
+    with pytest.raises(IntegrityError, match="event violates terminal proposal state"):
+        with engine.begin() as connection:
+            connection.execute(text("SET CONSTRAINTS trg_source_merge_event_valid IMMEDIATE"))
+            connection.execute(
+                text(
+                    "INSERT INTO source_merge_governance_events"
+                    "(id,proposal_id,approval_id,project_id,actor_id,event_kind,occurred_at,reason,"
+                    "deployment_id,request_id,request_hash,basis_hash,command_name) "
+                    "VALUES (:id,:proposal,NULL,:project,:actor,'PROPOSAL_CONSUMED',"
+                    "clock_timestamp(),NULL,:deployment,:request,:request_hash,:basis,"
+                    "'CONSUME_SOURCE_MERGE_PROPOSAL')"
+                ),
+                {
+                    "id": uuid4(),
+                    "proposal": proposal_id,
+                    "project": project_id,
+                    "actor": principal.actor_id,
+                    "deployment": principal.deployment_id,
+                    "request": uuid4(),
+                    "request_hash": "b" * 64,
+                    "basis": proposal["proposal_basis_hash"],
+                },
+            )
+    with engine.connect() as connection:
+        assert (
+            connection.execute(text("SELECT count(*) FROM source_merge_records")).scalar_one() == 0
+        )
+        states = connection.execute(
+            text(
+                "SELECT lifecycle_status,merged_into_source_id FROM literature_sources "
+                "WHERE id=ANY(:ids) ORDER BY id"
+            ),
+            {"ids": [source_a, source_b]},
+        ).all()
+        assert len(states) == 2
+        assert all(row.lifecycle_status == "ACTIVE" for row in states)
+        assert all(row.merged_into_source_id is None for row in states)
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM source_identifiers WHERE literature_source_id=ANY(:ids)"
+                ),
+                {"ids": [source_a, source_b]},
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM source_merge_governance_events "
+                    "WHERE proposal_id=:proposal AND event_kind='PROPOSAL_CONSUMED'"
+                ),
+                {"proposal": proposal_id},
+            ).scalar_one()
+            == 0
+        )
+    engine.dispose()
+
+
+@pytest.mark.parametrize("winner", ["revocation", "merge"])
+def test_merge_and_approval_revocation_serialize(
+    phase2_database_url: str, monkeypatch: pytest.MonkeyPatch, winner: str
+) -> None:
+    engine, _, literature, principal, project_id = _authorized_service(phase2_database_url)
+    source_a = UUID(
+        str(
+            literature.register_literature_source(
+                RegisterLiteratureSource(
+                    principal, project_id, SourceKind.PAPER, "Race source A", uuid4()
+                )
+            )["source_id"]
+        )
+    )
+    source_b = UUID(
+        str(
+            literature.register_literature_source(
+                RegisterLiteratureSource(
+                    principal, project_id, SourceKind.PAPER, "Race source B", uuid4()
+                )
+            )["source_id"]
+        )
+    )
+
+    def factory():
+        return SqlAlchemyUnitOfWork(
+            sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+        )
+
+    governance = SourceMergeGovernanceService(factory, _Credential())
+    identity_basis_id = _frozen_basis(engine, project_id, principal.actor_id)
+    proposal = governance.propose(
+        ProposeSourceMerge(
+            principal,
+            project_id,
+            source_a,
+            source_b,
+            source_b,
+            "Approval revocation serialization test",
+            uuid4(),
+            None,
+            (identity_basis_id,),
+        )
+    )
+    proposal_id = UUID(str(proposal["proposal_id"]))
+    governance.decide(DecideSourceMerge(principal, project_id, proposal_id, "APPROVE", uuid4()))
+    with engine.connect() as connection:
+        identity_basis_hash = connection.execute(
+            text("SELECT content_hash FROM artifact_versions WHERE id=:id"),
+            {"id": identity_basis_id},
+        ).scalar_one()
+    execution = SourceMergeExecutionService(factory, _Credential())
+    merge_command = ConsumeSourceMergeProposal(
+        principal,
+        project_id,
+        proposal_id,
+        str(proposal["proposal_basis_hash"]),
+        FrozenSourceReference(identity_basis_id, identity_basis_hash),
+        uuid4(),
+    )
+    revoke_command = RevokeSourceMergeApproval(
+        principal, project_id, proposal_id, "Owner withdrew approval", uuid4()
+    )
+
+    first_locked = Event()
+    release_first = Event()
+    gate_guard = Lock()
+    gate_used = False
+    original_lock_project = SqlAlchemySourceMergeRepository.lock_project
+
+    def hold_first_project_lock(repository, locked_project_id):
+        nonlocal gate_used
+        original_lock_project(repository, locked_project_id)
+        should_hold = False
+        with gate_guard:
+            if locked_project_id == project_id and not gate_used:
+                gate_used = True
+                should_hold = True
+        if should_hold:
+            first_locked.set()
+            if not release_first.wait(timeout=20):
+                raise TimeoutError("test did not release the winning transaction")
+
+    monkeypatch.setattr(SqlAlchemySourceMergeRepository, "lock_project", hold_first_project_lock)
+    revocation_first = winner == "revocation"
+
+    def first_operation():
+        if revocation_first:
+            return governance.revoke(revoke_command)
+        return execution.consume(merge_command)
+
+    def second_operation():
+        if revocation_first:
+            return execution.consume(merge_command)
+        return governance.revoke(revoke_command)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(first_operation)
+            assert first_locked.wait(timeout=10)
+            second = executor.submit(second_operation)
+            wait_deadline = time.monotonic() + 10
+            lock_wait_observed = False
+            while time.monotonic() < wait_deadline and not lock_wait_observed:
+                with engine.connect() as connection:
+                    lock_wait_observed = connection.execute(
+                        text(
+                            "SELECT EXISTS(SELECT 1 FROM pg_stat_activity "
+                            "WHERE datname=current_database() AND pid<>pg_backend_pid() "
+                            "AND wait_event_type='Lock')"
+                        )
+                    ).scalar_one()
+                if not lock_wait_observed:
+                    if second.done():
+                        second.result()
+                    time.sleep(0.01)
+            assert lock_wait_observed, "second command did not wait on the shared project lock"
+            release_first.set()
+            first_result = first.result(timeout=20)
+            if revocation_first:
+                assert first_result is None
+                with pytest.raises(ResearchBaseError) as denied:
+                    second.result(timeout=20)
+                assert denied.value.code is ErrorCode.SOURCE_MERGE_APPROVAL_FORBIDDEN
+            else:
+                assert first_result is not None
+                assert first_result["winning_source_id"] == str(source_b)
+                with pytest.raises(ResearchBaseError) as terminal:
+                    second.result(timeout=20)
+                assert terminal.value.code is ErrorCode.SOURCE_MERGE_BASIS_CONFLICT
+    finally:
+        release_first.set()
+
+    with engine.connect() as connection:
+        merge_count = connection.execute(
+            text("SELECT count(*) FROM source_merge_records")
+        ).scalar_one()
+        consumed_count = connection.execute(
+            text(
+                "SELECT count(*) FROM source_merge_governance_events "
+                "WHERE event_kind='PROPOSAL_CONSUMED'"
+            )
+        ).scalar_one()
+        revoked_count = connection.execute(
+            text(
+                "SELECT count(*) FROM source_merge_governance_events "
+                "WHERE event_kind='APPROVAL_REVOKED'"
+            )
+        ).scalar_one()
+        source_a_status = connection.execute(
+            text("SELECT lifecycle_status FROM literature_sources WHERE id=:id"),
+            {"id": source_a},
+        ).scalar_one()
+    assert merge_count == (0 if revocation_first else 1)
+    assert consumed_count == (0 if revocation_first else 1)
+    assert revoked_count == (1 if revocation_first else 0)
+    assert source_a_status == ("ACTIVE" if revocation_first else "MERGED")
     engine.dispose()

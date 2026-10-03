@@ -122,12 +122,16 @@ class SourceMergeExecutionService:
                 uow.commit()
                 return _record_dto(record)
 
-            if any(
-                row["event_kind"] == "PROPOSAL_CONSUMED" for row in repo.events(command.proposal_id)
-            ):
+            proposal_events = repo.events(command.proposal_id)
+            if any(row["event_kind"] == "PROPOSAL_CONSUMED" for row in proposal_events):
                 raise _error(
                     ErrorCode.SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED,
                     "proposal has already been consumed",
+                )
+            if any(row["event_kind"] == "APPROVAL_REVOKED" for row in proposal_events):
+                raise _error(
+                    ErrorCode.SOURCE_MERGE_APPROVAL_FORBIDDEN,
+                    "a required project approval has been revoked",
                 )
             if proposal["proposal_basis_hash"] != command.proposal_basis_hash:
                 raise _error(
