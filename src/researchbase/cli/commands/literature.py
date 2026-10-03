@@ -15,6 +15,11 @@ from researchbase.application.source_identity import (
     RejectSourceIdentifier,
     VerifySourceIdentifier,
 )
+from researchbase.application.source_merge import (
+    DecideSourceMerge,
+    ProposeSourceMerge,
+    RevokeSourceMergeApproval,
+)
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.source_identity import IdentifierType, SourceKind
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
@@ -50,6 +55,15 @@ def _literature(runtime: CliRuntime):
     service = getattr(runtime.services, "literature", None)
     if service is None:
         raise ResearchBaseError(ErrorCode.AUTHENTICATION_REQUIRED, "literature service unavailable")
+    return service
+
+
+def _source_merge(runtime: CliRuntime):
+    service = getattr(runtime.services, "source_merge", None)
+    if service is None:
+        raise ResearchBaseError(
+            ErrorCode.AUTHENTICATION_REQUIRED, "source merge service unavailable"
+        )
     return service
 
 
@@ -105,6 +119,88 @@ def source_create(
             )
         ),
     )
+
+
+def source_merge_propose(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    source_a_id: str = typer.Option(..., "--source-a-id"),
+    source_b_id: str = typer.Option(..., "--source-b-id"),
+    canonical_survivor_id: str = typer.Option(..., "--canonical-survivor-id"),
+    rationale: str = typer.Option(..., "--rationale"),
+    supersedes_proposal_id: str | None = typer.Option(None, "--supersedes-proposal-id"),
+    evidence_artifact_ids: list[str] = typer.Option([], "--evidence-artifact-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    _run(
+        runtime,
+        json_mode,
+        lambda: _source_merge(runtime).propose(
+            ProposeSourceMerge(
+                _principal(runtime),
+                _uuid(project_id, "--project-id"),
+                _uuid(source_a_id, "--source-a-id"),
+                _uuid(source_b_id, "--source-b-id"),
+                _uuid(canonical_survivor_id, "--canonical-survivor-id"),
+                rationale,
+                _request_id(runtime),
+                _uuid(supersedes_proposal_id, "--supersedes-proposal-id")
+                if supersedes_proposal_id
+                else None,
+                tuple(_uuid(value, "--evidence-artifact-id") for value in evidence_artifact_ids),
+            )
+        ),
+    )
+
+
+def source_merge_decide(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    proposal_id: str = typer.Option(..., "--proposal-id"),
+    decision: str = typer.Option(..., "--decision"),
+    reason: str | None = typer.Option(None, "--reason"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    _run(
+        runtime,
+        json_mode,
+        lambda: _source_merge(runtime).decide(
+            DecideSourceMerge(
+                _principal(runtime),
+                _uuid(project_id, "--project-id"),
+                _uuid(proposal_id, "--proposal-id"),
+                decision.upper(),
+                _request_id(runtime),
+                reason,
+            )
+        ),
+    )
+
+
+def source_merge_revoke(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    proposal_id: str = typer.Option(..., "--proposal-id"),
+    reason: str = typer.Option(..., "--reason"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+
+    def revoke():
+        _source_merge(runtime).revoke(
+            RevokeSourceMergeApproval(
+                _principal(runtime),
+                _uuid(project_id, "--project-id"),
+                _uuid(proposal_id, "--proposal-id"),
+                reason,
+                _request_id(runtime),
+            )
+        )
+        return {"status": "REVOKED"}
+
+    _run(runtime, json_mode, revoke)
 
 
 def source_show(
@@ -255,8 +351,12 @@ def identifier_list(
 def register(app: typer.Typer) -> None:
     literature = command_group("Public literature source identity and identifiers.")
     source = command_group("Literature source commands.")
+    merge = command_group("Global source merge governance proposals.")
     identifier = command_group("Source identifier commands.")
     add_command(source, "create", "Register a public literature source.", source_create)
+    add_command(merge, "propose", "Propose a globally governed source merge.", source_merge_propose)
+    add_command(merge, "decide", "Approve or reject a source merge proposal.", source_merge_decide)
+    add_command(merge, "revoke", "Revoke a project merge approval.", source_merge_revoke)
     add_command(source, "show", "Read a project-linked literature source.", source_show)
     add_command(source, "resolve", "Resolve a source by a typed identifier.", source_resolve)
     add_command(identifier, "add", "Add a source identifier.", identifier_add)
@@ -264,5 +364,6 @@ def register(app: typer.Typer) -> None:
     add_command(identifier, "reject", "Reject an identifier using frozen basis.", identifier_reject)
     add_command(identifier, "list", "List linked source identifier history.", identifier_list)
     literature.add_typer(source, name="source")
+    literature.add_typer(merge, name="merge")
     literature.add_typer(identifier, name="identifier")
     app.add_typer(literature, name="literature")

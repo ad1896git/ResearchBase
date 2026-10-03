@@ -85,6 +85,11 @@ from researchbase.application.source_identity import (
     RejectSourceIdentifier,
     VerifySourceIdentifier,
 )
+from researchbase.application.source_merge import (
+    DecideSourceMerge,
+    ProposeSourceMerge,
+    RevokeSourceMergeApproval,
+)
 from researchbase.domain.claim import EvidenceRelationType
 from researchbase.domain.governance import (
     AuditFinding,
@@ -170,6 +175,40 @@ DownstreamImpactTarget = _response_schema(DownstreamImpactTarget)
 
 class InputModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class SourceMergeProposalResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposal_id: UUID
+    status: str
+    proposal_basis_hash: str
+
+
+class SourceMergeDecisionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approval_id: UUID
+    proposal_id: UUID
+    project_id: UUID
+    decision: str
+
+
+class SourceMergeProposalStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposal_id: UUID
+    source_a_id: UUID
+    source_b_id: UUID
+    canonical_survivor_id: UUID
+    proposal_basis_hash: str
+    status: str
+    affected_project_count: int
+    decision_count: int
+    project_decision: str | None
+    project_decision_reason: str | None
+
+
+class SourceMergeRevocationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: str
 
 
 class ProjectIn(InputModel):
@@ -434,6 +473,19 @@ class SourceIdentifierIn(InputModel):
 class IdentifierStatusIn(InputModel):
     basis_artifact_version_id: UUID
     reason: str = Field(min_length=1, max_length=2048)
+
+
+class SourceMergeProposalIn(InputModel):
+    source_a_id: UUID
+    source_b_id: UUID
+    canonical_survivor_id: UUID
+    rationale: str = Field(min_length=1, max_length=4096)
+    supersedes_proposal_id: UUID | None = None
+    evidence_artifact_ids: list[UUID] = Field(default_factory=list)
+
+
+class SourceMergeDecisionIn(InputModel):
+    reason: str | None = Field(default=None, max_length=2048)
 
 
 router = APIRouter(
@@ -1201,4 +1253,114 @@ def list_source_identifiers(project_id: UUID, source_id: UUID, request: Request)
         _services(request).literature.list_source_identifiers(
             _verified_principal(request), project_id, source_id
         )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals",
+    status_code=201,
+    operation_id="propose_source_merge",
+    response_model=SourceMergeProposalResult,
+)
+def propose_source_merge(
+    project_id: UUID,
+    body: SourceMergeProposalIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_merge.propose(
+            ProposeSourceMerge(
+                _verified_principal(request),
+                project_id,
+                body.source_a_id,
+                body.source_b_id,
+                body.canonical_survivor_id,
+                body.rationale,
+                idempotency_key,
+                body.supersedes_proposal_id,
+                tuple(body.evidence_artifact_ids),
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:approve",
+    operation_id="approve_source_merge",
+    response_model=SourceMergeDecisionResult,
+)
+def approve_source_merge(
+    project_id: UUID,
+    proposal_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_merge.decide(
+            DecideSourceMerge(
+                _verified_principal(request), project_id, proposal_id, "APPROVE", idempotency_key
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:reject",
+    operation_id="reject_source_merge",
+    response_model=SourceMergeDecisionResult,
+)
+def reject_source_merge(
+    project_id: UUID,
+    proposal_id: UUID,
+    body: SourceMergeDecisionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_merge.decide(
+            DecideSourceMerge(
+                _verified_principal(request),
+                project_id,
+                proposal_id,
+                "REJECT",
+                idempotency_key,
+                body.reason,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:revoke",
+    operation_id="revoke_source_merge_approval",
+    response_model=SourceMergeRevocationResult,
+)
+def revoke_source_merge_approval(
+    project_id: UUID,
+    proposal_id: UUID,
+    body: SourceMergeDecisionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    _services(request).source_merge.revoke(
+        RevokeSourceMergeApproval(
+            _verified_principal(request),
+            project_id,
+            proposal_id,
+            body.reason or "",
+            idempotency_key,
+        )
+    )
+    return {"status": "REVOKED"}
+
+
+@router.get(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}",
+    operation_id="get_source_merge_proposal",
+    response_model=SourceMergeProposalStatus,
+)
+def get_source_merge_proposal(project_id: UUID, proposal_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).source_merge.get(_verified_principal(request), project_id, proposal_id)
     )

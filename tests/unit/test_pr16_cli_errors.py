@@ -75,6 +75,13 @@ def test_all_stable_error_codes_have_cli_exit_mapping() -> None:
         ErrorCode.IDENTIFIER_BASIS_NOT_FROZEN: 4,
         ErrorCode.SOURCE_NOT_FOUND: 3,
         ErrorCode.SHARED_SOURCE_REJECTION_REQUIRES_REVIEW: 4,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_NOT_FOUND: 3,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_STALE: 4,
+        ErrorCode.SOURCE_MERGE_APPROVAL_MISSING: 4,
+        ErrorCode.SOURCE_MERGE_APPROVAL_FORBIDDEN: 3,
+        ErrorCode.SOURCE_MERGE_REJECTED: 4,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED: 4,
+        ErrorCode.SOURCE_MERGE_BASIS_CONFLICT: 4,
     }
     assert set(expected) == set(ErrorCode)
 

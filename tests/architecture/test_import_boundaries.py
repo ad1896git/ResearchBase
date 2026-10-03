@@ -132,6 +132,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0018_current_pointer_same_parent_integrity.py",
         "0019_phase2_bootstrap_membership.py",
         "0020_literature_source_identity.py",
+        "0021_source_merge_governance_bridge.py",
     ]
 
 

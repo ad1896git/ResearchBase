@@ -406,6 +406,51 @@ ROUTES = (
         "Response List Source Identifiers",
         "list_source_identifiers",
     ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/source-merge-proposals",
+        "propose_source_merge",
+        "propose",
+        "SourceMergeProposalIn",
+        "SourceMergeProposalResult",
+        "propose_source_merge",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:approve",
+        "approve_source_merge",
+        "decide",
+        None,
+        "SourceMergeDecisionResult",
+        "approve_source_merge",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:reject",
+        "reject_source_merge",
+        "decide",
+        "SourceMergeDecisionIn",
+        "SourceMergeDecisionResult",
+        "reject_source_merge",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:revoke",
+        "revoke_source_merge_approval",
+        "revoke",
+        "SourceMergeDecisionIn",
+        "SourceMergeRevocationResult",
+        "revoke_source_merge_approval",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/source-merge-proposals/{proposal_id}",
+        "get_source_merge_proposal",
+        "get",
+        None,
+        "SourceMergeProposalStatus",
+        "get_source_merge_proposal",
+    ),
 )
 
 
@@ -419,8 +464,8 @@ def _ref_name(schema: dict[str, object]) -> str:
     raise AssertionError(f"schema has no reference or title: {schema}")
 
 
-def test_all_42_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 42
+def test_all_47_routes_have_exact_schema_operation_and_application_bindings() -> None:
+    assert len(ROUTES) == 47
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -430,7 +475,7 @@ def test_all_42_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 42
+    assert len({item.operation_id for item in ROUTES}) == 47
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

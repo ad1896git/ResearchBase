@@ -38,5 +38,5 @@ def test_http_routes_do_not_import_persistence_or_sqlalchemy_or_commit() -> None
 def test_pr15_adds_no_cli_or_later_phase_symbols() -> None:
     owned = "\n".join(path.read_text() for path in _python_files("src/researchbase/api"))
     assert "DecisionRecord" not in owned
-    assert "Approval" not in owned
+    assert "ApprovalRequest" not in owned
     assert "researchbase.cli" not in owned

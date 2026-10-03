@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from types import TracebackType
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
@@ -635,6 +635,9 @@ class UnitOfWork(Protocol):
 
     @property
     def source_identity(self) -> SourceIdentityRepository: ...
+
+    @property
+    def source_merge(self) -> Any: ...
 
     def __enter__(self) -> UnitOfWork: ...
 

@@ -252,6 +252,13 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.IDENTIFIER_BASIS_NOT_FROZEN: 409,
         ErrorCode.SOURCE_NOT_FOUND: 404,
         ErrorCode.SHARED_SOURCE_REJECTION_REQUIRES_REVIEW: 409,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_NOT_FOUND: 404,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_STALE: 409,
+        ErrorCode.SOURCE_MERGE_APPROVAL_MISSING: 409,
+        ErrorCode.SOURCE_MERGE_APPROVAL_FORBIDDEN: 403,
+        ErrorCode.SOURCE_MERGE_REJECTED: 409,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED: 409,
+        ErrorCode.SOURCE_MERGE_BASIS_CONFLICT: 409,
     }
     expected_cli = {
         ErrorCode.VALIDATION_ERROR: 2,
@@ -280,6 +287,13 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.IDENTIFIER_BASIS_NOT_FROZEN: 4,
         ErrorCode.SOURCE_NOT_FOUND: 3,
         ErrorCode.SHARED_SOURCE_REJECTION_REQUIRES_REVIEW: 4,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_NOT_FOUND: 3,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_STALE: 4,
+        ErrorCode.SOURCE_MERGE_APPROVAL_MISSING: 4,
+        ErrorCode.SOURCE_MERGE_APPROVAL_FORBIDDEN: 3,
+        ErrorCode.SOURCE_MERGE_REJECTED: 4,
+        ErrorCode.SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED: 4,
+        ErrorCode.SOURCE_MERGE_BASIS_CONFLICT: 4,
     }
     assert set(expected_http) == set(ErrorCode)
     assert _STATUS == expected_http
