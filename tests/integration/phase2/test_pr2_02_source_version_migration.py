@@ -270,7 +270,7 @@ def test_pr2_02_fresh_migration_adds_version_merge_and_command_receipt_schema(
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     with patch.dict("os.environ", {"DATABASE_URL": phase2_database_url}):
-        command.upgrade(config, "head")
+        command.upgrade(config, "0022_source_version_and_merge_lineage")
 
     engine = create_engine(phase2_database_url)
     with engine.connect() as connection:
@@ -316,7 +316,7 @@ def test_pr2_02_empty_downgrade_restores_0021a_schema(phase2_database_url: str) 
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     with patch.dict("os.environ", {"DATABASE_URL": phase2_database_url}):
-        command.upgrade(config, "head")
+        command.upgrade(config, "0022_source_version_and_merge_lineage")
         command.downgrade(config, "0021a_source_merge_gov_guards")
 
     engine = create_engine(phase2_database_url)
@@ -350,13 +350,15 @@ def test_pr2_02_empty_downgrade_restores_0021a_schema(phase2_database_url: str) 
         assert "source_merge_proposal_identifier_basis" in stale_guard
     engine.dispose()
     with patch.dict("os.environ", {"DATABASE_URL": phase2_database_url}):
-        command.upgrade(config, "head")
+        command.upgrade(config, "0022_source_version_and_merge_lineage")
 
 
 def test_pr2_02_populated_downgrade_refuses_without_losing_version_history(
     phase2_database_url: str,
 ) -> None:
-    engine, _, literature, principal, project_id = _authorized_service(phase2_database_url)
+    engine, _, literature, principal, project_id = _authorized_service(
+        phase2_database_url, migration_revision="0022_source_version_and_merge_lineage"
+    )
     source_id = UUID(
         str(
             literature.register_literature_source(

@@ -113,7 +113,7 @@ def test_postgresql_valid_digest_and_orm_roundtrip_corpus(tmp_path: Path) -> Non
         ids = run_workflow(fixture, "application")
 
         with fixture.engine.connect() as connection:
-            assert connection.execute(text("SHOW server_version")).scalar_one() == "18.6"
+            assert int(connection.execute(text("SHOW server_version_num")).scalar_one()) == 180006
             database_head = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()

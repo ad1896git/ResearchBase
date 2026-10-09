@@ -45,10 +45,14 @@ class _BootstrapProofVerifier:
         return None
 
 
-def _authorized_service(database_url: str, credential_verifier=None):
+def _authorized_service(
+    database_url: str,
+    credential_verifier=None,
+    migration_revision: str = "head",
+):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", database_url)
-    command.upgrade(config, "head")
+    command.upgrade(config, migration_revision)
     engine = create_engine(database_url)
     identity, _, _ = _identity_service(
         database_url, bootstrap_proof_verifier=_BootstrapProofVerifier()

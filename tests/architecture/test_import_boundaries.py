@@ -135,6 +135,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0021_source_merge_governance_bridge.py",
         "0021a_source_merge_governance_guards.py",
         "0022_source_version_and_merge_lineage.py",
+        "0023_literature_search_plan.py",
     ]
 
 

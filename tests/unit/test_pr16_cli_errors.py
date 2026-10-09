@@ -89,6 +89,11 @@ def test_all_stable_error_codes_have_cli_exit_mapping() -> None:
         ErrorCode.SOURCE_VERSION_ALREADY_FROZEN: 4,
         ErrorCode.SOURCE_VERSION_IMMUTABLE: 4,
         ErrorCode.INVALID_SOURCE_VERSION_LINEAGE: 4,
+        ErrorCode.SEARCH_PLAN_QUESTION_REQUIRED: 2,
+        ErrorCode.SEARCH_PLAN_LANGUAGE_SCOPE_REQUIRED: 2,
+        ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 2,
+        ErrorCode.SEARCH_PLAN_QUESTION_SCOPE_MISMATCH: 3,
+        ErrorCode.SEARCH_PLAN_VERSION_IMMUTABLE: 4,
     }
     assert set(expected) == set(ErrorCode)
 

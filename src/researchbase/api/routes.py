@@ -9,7 +9,7 @@ from dataclasses import fields, is_dataclass
 from datetime import date
 from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -79,6 +79,15 @@ from researchbase.application.governance import (
     ProposedImpactTarget,
 )
 from researchbase.application.governance_queries import DownstreamImpactTarget
+from researchbase.application.literature_search_plan import (
+    CreateLiteratureSearchPlan,
+    EditLiteratureSearchPlanQuestions,
+    LiteratureSearchPlanService,
+    RemoveLiteratureSearchPlanQuestion,
+    ReviseLiteratureSearchPlan,
+    TransitionLiteratureSearchPlanVersion,
+    UpdateLiteratureSearchPlanDraft,
+)
 from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
 from researchbase.application.source_identity import (
     AddSourceIdentifier,
@@ -111,6 +120,12 @@ from researchbase.domain.governance import (
     ImpactAssessment,
     ImpactAssessmentConclusion,
     ImpactKind,
+)
+from researchbase.domain.literature_search_plan import (
+    FrozenResearchQuestionReference,
+    LiteratureSearchPlanMaterial,
+    LiteratureSearchStrategy,
+    LiteratureSourceScope,
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
@@ -526,6 +541,25 @@ class SourceVersionIn(InputModel):
     external_version_label: str | None = None
     fulltext_artifact: SourceVersionReferenceIn | None = None
     metadata: dict[str, str | None] | None = None
+
+
+class SearchPlanQuestionReferenceIn(InputModel):
+    research_question_id: UUID
+    version_id: UUID
+    content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class LiteratureSearchPlanIn(InputModel):
+    objective: str = Field(min_length=1)
+    source_scope: LiteratureSourceScope
+    inclusion_criteria: dict[str, Any] | None = None
+    exclusion_criteria: dict[str, Any] | None = None
+    time_range: dict[str, date | None] | None = None
+    language_scope: list[str] | None = None
+    search_strategy: LiteratureSearchStrategy
+    planned_providers: list[str]
+    stopping_rule: dict[str, str] | None = None
+    research_question_refs: list[SearchPlanQuestionReferenceIn] = Field(default_factory=list)
 
 
 class SourceVersionResult(BaseModel):
@@ -1456,6 +1490,236 @@ def get_source_version(project_id: UUID, source_version_id: UUID, request: Reque
     return _json(
         _services(request).source_versions.get(
             _verified_principal(request), project_id, source_version_id
+        )
+    )
+
+
+def _search_plan_service(request: Request) -> LiteratureSearchPlanService:
+    service = getattr(_services(request), "literature_search_plans", None)
+    if service is None:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.AUTHENTICATION_REQUIRED, "search plan service unavailable"
+        )
+    return service
+
+
+def _search_plan_material(
+    plan_id: UUID, body: LiteratureSearchPlanIn, *, include_refs: bool
+) -> LiteratureSearchPlanMaterial:
+    try:
+        refs = (
+            tuple(
+                FrozenResearchQuestionReference(
+                    item.research_question_id, item.version_id, item.content_hash
+                )
+                for item in body.research_question_refs
+            )
+            if include_refs
+            else ()
+        )
+        return LiteratureSearchPlanMaterial(
+            plan_id=plan_id,
+            research_question_refs=refs,
+            objective=body.objective,
+            source_scope=body.source_scope,
+            inclusion_criteria=body.inclusion_criteria,
+            exclusion_criteria=body.exclusion_criteria,
+            time_range=body.time_range,
+            language_scope=tuple(body.language_scope) if body.language_scope is not None else None,
+            search_strategy=body.search_strategy,
+            planned_providers=tuple(body.planned_providers),
+            stopping_rule=body.stopping_rule,
+        )
+    except (TypeError, ValueError) as exc:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, str(exc)) from exc
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans",
+    status_code=201,
+    operation_id="create_literature_search_plan",
+)
+def create_literature_search_plan(
+    project_id: UUID,
+    body: LiteratureSearchPlanIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).create(
+            CreateLiteratureSearchPlan(
+                _verified_principal(request),
+                project_id,
+                _search_plan_material(uuid4(), body, include_refs=True),
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/search-plans", operation_id="list_literature_search_plans"
+)
+def list_literature_search_plans(project_id: UUID, request: Request) -> Any:
+    return _json(_search_plan_service(request).list(_verified_principal(request), project_id))
+
+
+@router.get(
+    "/projects/{project_id}/literature/search-plans/{plan_id}",
+    operation_id="get_literature_search_plan",
+)
+def get_literature_search_plan(project_id: UUID, plan_id: UUID, request: Request) -> Any:
+    return _json(
+        _search_plan_service(request).get(_verified_principal(request), project_id, plan_id)
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}:revise",
+    operation_id="revise_literature_search_plan",
+)
+def revise_literature_search_plan(
+    project_id: UUID,
+    plan_id: UUID,
+    base_version_id: Annotated[UUID, Query()],
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).revise(
+            ReviseLiteratureSearchPlan(
+                _verified_principal(request), project_id, plan_id, base_version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.put(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}",
+    operation_id="update_literature_search_plan_draft",
+)
+def update_literature_search_plan_draft(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    body: LiteratureSearchPlanIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    if body.research_question_refs:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "question relations use the dedicated add/remove commands",
+        )
+    material = _search_plan_material(plan_id, body, include_refs=False)
+    return _json(
+        _search_plan_service(request).update(
+            UpdateLiteratureSearchPlanDraft(
+                _verified_principal(request),
+                project_id,
+                plan_id,
+                version_id,
+                material,
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}/questions",
+    operation_id="add_literature_search_plan_question",
+)
+def add_literature_search_plan_question(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    research_question_version_id: Annotated[UUID, Query()],
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).add_question(
+            EditLiteratureSearchPlanQuestions(
+                _verified_principal(request),
+                project_id,
+                plan_id,
+                version_id,
+                research_question_version_id,
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.delete(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}/questions/{research_question_id}",
+    operation_id="remove_literature_search_plan_question",
+)
+def remove_literature_search_plan_question(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    research_question_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).remove_question(
+            RemoveLiteratureSearchPlanQuestion(
+                _verified_principal(request),
+                project_id,
+                plan_id,
+                version_id,
+                research_question_id,
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}:freeze",
+    operation_id="freeze_literature_search_plan",
+)
+def freeze_literature_search_plan(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).freeze(
+            TransitionLiteratureSearchPlanVersion(
+                _verified_principal(request), project_id, plan_id, version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}:abandon",
+    operation_id="abandon_literature_search_plan",
+)
+def abandon_literature_search_plan(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).abandon(
+            TransitionLiteratureSearchPlanVersion(
+                _verified_principal(request), project_id, plan_id, version_id, idempotency_key
+            )
         )
     )
 

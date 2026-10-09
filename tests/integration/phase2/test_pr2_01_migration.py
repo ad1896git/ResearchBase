@@ -26,7 +26,7 @@ def _upgrade(database_url: str, revision: str = "head") -> None:
 
 
 def test_pr2_01_fresh_install_adds_exact_five_tables(phase2_database_url: str) -> None:
-    _upgrade(phase2_database_url)
+    _upgrade(phase2_database_url, "0022_source_version_and_merge_lineage")
     engine = create_engine(phase2_database_url)
     with engine.connect() as connection:
         tables = set(
@@ -76,7 +76,7 @@ def test_pr2_01_schema_has_five_owned_tables_and_no_phase1_alters(
 def test_populated_0020_downgrade_refuses_without_removing_identity(
     phase2_database_url: str,
 ) -> None:
-    _upgrade(phase2_database_url)
+    _upgrade(phase2_database_url, "0022_source_version_and_merge_lineage")
     engine = create_engine(phase2_database_url)
     actor_id = uuid4()
     source_id = uuid4()

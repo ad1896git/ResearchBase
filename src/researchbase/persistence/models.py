@@ -11,6 +11,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -890,3 +891,112 @@ class CorrectionRecordModel(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+
+
+class LiteratureSearchPlanModel(Base):
+    __tablename__ = "literature_search_plans"
+    __table_args__ = (
+        UniqueConstraint("project_id", "id", name="uq_literature_search_plans_project_id"),
+        UniqueConstraint("id", "current_version_id", name="uq_lsp_id_current_version"),
+        ForeignKeyConstraint(
+            ["id", "current_version_id"],
+            ["literature_search_plan_versions.plan_id", "literature_search_plan_versions.id"],
+            name="fk_lsp_current_version_same_plan",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    current_version_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+
+
+class LiteratureSearchPlanVersionModel(Base):
+    __tablename__ = "literature_search_plan_versions"
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_lspv_version_number"),
+        CheckConstraint(
+            "status IN ('DRAFT','FROZEN','SUPERSEDED','ABANDONED')", name="ck_lspv_status"
+        ),
+        UniqueConstraint("plan_id", "version_number", name="uq_lspv_plan_version"),
+        UniqueConstraint("plan_id", "id", name="uq_lspv_plan_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    plan_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plans.id", ondelete="RESTRICT"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    source_scope: Mapped[str] = mapped_column(String(32), nullable=False)
+    inclusion_criteria: Mapped[object | None] = mapped_column(JSONB)
+    exclusion_criteria: Mapped[object | None] = mapped_column(JSONB)
+    time_range: Mapped[object | None] = mapped_column(JSONB)
+    language_scope: Mapped[list[str] | None] = mapped_column(JSONB)
+    search_strategy: Mapped[str] = mapped_column(String(32), nullable=False)
+    planned_providers: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    stopping_rule: Mapped[object | None] = mapped_column(JSONB)
+    content_hash: Mapped[str | None] = mapped_column(CHAR(64))
+    hash_scheme: Mapped[str] = mapped_column(String(32), nullable=False)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    row_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+
+
+class SearchPlanQuestionInputModel(Base):
+    __tablename__ = "search_plan_question_inputs"
+    __table_args__ = (
+        CheckConstraint("ordinal >= 0", name="ck_spqi_ordinal"),
+        UniqueConstraint("plan_version_id", "ordinal", name="uq_spqi_ordinal"),
+    )
+
+    plan_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plan_versions.id", ondelete="RESTRICT"), primary_key=True
+    )
+    research_question_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("research_question_versions.id", ondelete="RESTRICT"), primary_key=True
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class LiteratureSearchPlanCommandReceiptModel(Base):
+    __tablename__ = "literature_search_plan_command_receipts"
+    __table_args__ = (
+        UniqueConstraint(
+            "deployment_id", "actor_id", "project_id", "command_name", "request_id",
+            name="uq_lsp_receipt_scope",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    deployment_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    command_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    hash_scheme: Mapped[str] = mapped_column(String(32), nullable=False)
+    result_plan_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plans.id", ondelete="RESTRICT"), nullable=False
+    )
+    result_plan_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plan_versions.id", ondelete="RESTRICT")
+    )
+    result_dto_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_dto: Mapped[object] = mapped_column(JSONB, nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

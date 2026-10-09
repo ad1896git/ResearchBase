@@ -1659,6 +1659,10 @@ class ApplicationService:
             "research_questions",
             "research_question_id",
             _research_question_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                ResearchQuestionVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def abandon_hypothesis_version(self, command: AbandonHypothesisVersionCommand) -> WriteResult:
@@ -1670,6 +1674,10 @@ class ApplicationService:
             "hypotheses",
             "hypothesis_id",
             _hypothesis_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                HypothesisVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def abandon_experiment_spec_version(
@@ -1683,6 +1691,10 @@ class ApplicationService:
             "experiment_specs",
             "experiment_spec_id",
             _experiment_spec_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                ExperimentSpecVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def abandon_metric_definition_version(
@@ -1696,6 +1708,10 @@ class ApplicationService:
             "metric_definition_versions",
             "metric_definition_id",
             _metric_definition_version_read_model,
+            lambda repository, version_id: repository.get_for_update(
+                MetricDefinitionVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update(version, expected),
         )
 
     def abandon_artifact_version(self, command: AbandonArtifactVersionCommand) -> WriteResult:
@@ -1707,6 +1723,8 @@ class ApplicationService:
             "artifact_versions",
             "artifact_id",
             _artifact_version_read_model,
+            lambda repository, version_id: repository.get_for_update(ArtifactVersionId(version_id)),
+            lambda repository, version, expected: repository.update(version, expected),
         )
 
     def abandon_claim_version(self, command: AbandonClaimVersionCommand) -> WriteResult:
@@ -1718,6 +1736,10 @@ class ApplicationService:
             "claims",
             "claim_id",
             _claim_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                ClaimVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def _abandon_version(
@@ -1729,12 +1751,14 @@ class ApplicationService:
         repository_name: str,
         parent_field: str,
         read_model: Callable[[Any], Any],
+        load_version_for_update: Callable[[Any, Any], Any],
+        update_version: Callable[[Any, Any, int], None],
     ) -> Any:
         actor_id = ActorId(context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
             repository = getattr(uow, repository_name)
-            version = repository.get_for_update(version_id)
+            version = load_version_for_update(repository, version_id)
             if version is None:
                 raise _not_found("version", version_id)
             if getattr(version, parent_field) != parent_id:
@@ -1744,7 +1768,7 @@ class ApplicationService:
                 )
             _require_expected_row_version(version.row_version, expected_row_version)
             abandoned = version.transition_to(VersionStatus.ABANDONED)
-            repository.update_version(abandoned, version.row_version)
+            update_version(repository, abandoned, version.row_version)
             uow.commit()
             return read_model(replace(abandoned, row_version=version.row_version + 1))
 

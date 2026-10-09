@@ -28,12 +28,26 @@ from researchbase.application.source_version import (
     TransitionSourceVersion,
     UpdateSourceVersionDraft,
 )
+from researchbase.application.literature_search_plan import (
+    CreateLiteratureSearchPlan,
+    EditLiteratureSearchPlanQuestions,
+    RemoveLiteratureSearchPlanQuestion,
+    ReviseLiteratureSearchPlan,
+    TransitionLiteratureSearchPlanVersion,
+    UpdateLiteratureSearchPlanDraft,
+)
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.source_identity import IdentifierType, SourceKind
 from researchbase.domain.source_version import (
     FrozenSourceReference,
     SourceVersionKind,
     SourceVersionMaterial,
+)
+from researchbase.domain.literature_search_plan import (
+    FrozenResearchQuestionReference,
+    LiteratureSearchPlanMaterial,
+    LiteratureSearchStrategy,
+    LiteratureSourceScope,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
@@ -608,6 +622,120 @@ def _source_versions(runtime: CliRuntime):
     return service
 
 
+def _search_plans(runtime: CliRuntime):
+    service = getattr(runtime.services, "literature_search_plans", None)
+    if service is None:
+        raise ResearchBaseError(ErrorCode.AUTHENTICATION_REQUIRED, "search plan service unavailable")
+    return service
+
+
+def _search_plan_material(plan_id: UUID, raw: str, *, refs: bool) -> LiteratureSearchPlanMaterial:
+    try:
+        value = json.loads(raw)
+        question_refs = tuple(
+            FrozenResearchQuestionReference(
+                UUID(item["research_question_id"]), UUID(item["version_id"]), item["content_hash"]
+            )
+            for item in value.get("research_question_refs", [])
+        ) if refs else ()
+        time_range = value.get("time_range")
+        if time_range is not None:
+            time_range = {
+                key: date.fromisoformat(time_range[key]) if time_range.get(key) else None
+                for key in ("from", "through")
+            }
+        language_scope = value.get("language_scope")
+        return LiteratureSearchPlanMaterial(
+            plan_id=plan_id,
+            research_question_refs=question_refs,
+            objective=value["objective"],
+            source_scope=LiteratureSourceScope(value["source_scope"]),
+            inclusion_criteria=value.get("inclusion_criteria"),
+            exclusion_criteria=value.get("exclusion_criteria"),
+            time_range=time_range,
+            language_scope=tuple(language_scope) if language_scope is not None else None,
+            search_strategy=LiteratureSearchStrategy(value["search_strategy"]),
+            planned_providers=tuple(value["planned_providers"]),
+            stopping_rule=value.get("stopping_rule"),
+        )
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid literature search plan JSON") from exc
+
+
+def search_plan_create(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    material_json: str = typer.Option(..., "--material-json"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    material = _search_plan_material(UUID(int=0), material_json, refs=True)
+    _run(runtime, json_mode, lambda: _search_plans(runtime).create(
+        CreateLiteratureSearchPlan(_principal(runtime), _uuid(project_id, "--project-id"), material, _request_id(runtime))
+    ))
+
+
+def search_plan_update(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    plan_id: str = typer.Option(..., "--plan-id"),
+    version_id: str = typer.Option(..., "--version-id"),
+    material_json: str = typer.Option(..., "--material-json"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    plan_uuid = _uuid(plan_id, "--plan-id")
+    material = _search_plan_material(plan_uuid, material_json, refs=False)
+    _run(runtime, json_mode, lambda: _search_plans(runtime).update(
+        UpdateLiteratureSearchPlanDraft(_principal(runtime), _uuid(project_id, "--project-id"), plan_uuid, _uuid(version_id, "--version-id"), material, _request_id(runtime))
+    ))
+
+
+def _search_plan_transition(ctx, project_id, plan_id, version_id, json_mode, operation):
+    runtime = _runtime(ctx)
+    command = TransitionLiteratureSearchPlanVersion(
+        _principal(runtime), _uuid(project_id, "--project-id"), _uuid(plan_id, "--plan-id"),
+        _uuid(version_id, "--version-id"), _request_id(runtime),
+    )
+    _run(runtime, json_mode, lambda: getattr(_search_plans(runtime), operation)(command))
+
+
+def search_plan_freeze(ctx: typer.Context, project_id: str = typer.Option(..., "--project-id"), plan_id: str = typer.Option(..., "--plan-id"), version_id: str = typer.Option(..., "--version-id"), json_mode: bool = typer.Option(False, "--json")) -> None:
+    _search_plan_transition(ctx, project_id, plan_id, version_id, json_mode, "freeze")
+
+
+def search_plan_abandon(ctx: typer.Context, project_id: str = typer.Option(..., "--project-id"), plan_id: str = typer.Option(..., "--plan-id"), version_id: str = typer.Option(..., "--version-id"), json_mode: bool = typer.Option(False, "--json")) -> None:
+    _search_plan_transition(ctx, project_id, plan_id, version_id, json_mode, "abandon")
+
+
+def search_plan_revise(ctx: typer.Context, project_id: str = typer.Option(..., "--project-id"), plan_id: str = typer.Option(..., "--plan-id"), base_version_id: str = typer.Option(..., "--base-version-id"), json_mode: bool = typer.Option(False, "--json")) -> None:
+    runtime = _runtime(ctx)
+    command = ReviseLiteratureSearchPlan(_principal(runtime), _uuid(project_id, "--project-id"), _uuid(plan_id, "--plan-id"), _uuid(base_version_id, "--base-version-id"), _request_id(runtime))
+    _run(runtime, json_mode, lambda: _search_plans(runtime).revise(command))
+
+
+def search_plan_add_question(ctx: typer.Context, project_id: str = typer.Option(..., "--project-id"), plan_id: str = typer.Option(..., "--plan-id"), version_id: str = typer.Option(..., "--version-id"), question_version_id: str = typer.Option(..., "--question-version-id"), json_mode: bool = typer.Option(False, "--json")) -> None:
+    runtime = _runtime(ctx)
+    command = EditLiteratureSearchPlanQuestions(_principal(runtime), _uuid(project_id, "--project-id"), _uuid(plan_id, "--plan-id"), _uuid(version_id, "--version-id"), _uuid(question_version_id, "--question-version-id"), _request_id(runtime))
+    _run(runtime, json_mode, lambda: _search_plans(runtime).add_question(command))
+
+
+def search_plan_remove_question(ctx: typer.Context, project_id: str = typer.Option(..., "--project-id"), plan_id: str = typer.Option(..., "--plan-id"), version_id: str = typer.Option(..., "--version-id"), question_id: str = typer.Option(..., "--question-id"), json_mode: bool = typer.Option(False, "--json")) -> None:
+    runtime = _runtime(ctx)
+    command = RemoveLiteratureSearchPlanQuestion(_principal(runtime), _uuid(project_id, "--project-id"), _uuid(plan_id, "--plan-id"), _uuid(version_id, "--version-id"), _uuid(question_id, "--question-id"), _request_id(runtime))
+    _run(runtime, json_mode, lambda: _search_plans(runtime).remove_question(command))
+
+
+def search_plan_show(ctx: typer.Context, project_id: str = typer.Option(..., "--project-id"), plan_id: str = typer.Option(..., "--plan-id"), json_mode: bool = typer.Option(False, "--json")) -> None:
+    runtime = _runtime(ctx)
+    _run(runtime, json_mode, lambda: _search_plans(runtime).get(_principal(runtime), _uuid(project_id, "--project-id"), _uuid(plan_id, "--plan-id")))
+
+
+def search_plan_list(ctx: typer.Context, project_id: str = typer.Option(..., "--project-id"), json_mode: bool = typer.Option(False, "--json")) -> None:
+    runtime = _runtime(ctx)
+    _run(runtime, json_mode, lambda: _search_plans(runtime).list(_principal(runtime), _uuid(project_id, "--project-id")))
+
+
 def _source_merge_execution(runtime: CliRuntime):
     service = getattr(runtime.services, "source_merge_execution", None)
     if service is None:
@@ -620,6 +748,7 @@ def _source_merge_execution(runtime: CliRuntime):
 def register(app: typer.Typer) -> None:
     literature = command_group("Public literature source identity and identifiers.")
     source = command_group("Literature source commands.")
+    search_plan = command_group("Project-scoped literature search plan authoring.")
     merge_proposal = command_group("Global source merge governance proposals.")
     identifier = command_group("Source identifier commands.")
     version = command_group("Immutable literature source version commands.")
@@ -630,6 +759,15 @@ def register(app: typer.Typer) -> None:
     add_command(version, "abandon", "Abandon a draft source version.", source_version_abandon)
     add_command(version, "show", "Read a linked source version.", source_version_show)
     add_command(version, "list", "List linked source versions.", source_version_list)
+    add_command(search_plan, "create", "Create a draft literature search plan.", search_plan_create)
+    add_command(search_plan, "update", "Replace draft plan material.", search_plan_update)
+    add_command(search_plan, "revise", "Create a draft from the current frozen plan.", search_plan_revise)
+    add_command(search_plan, "add-question", "Attach a frozen ResearchQuestion version.", search_plan_add_question)
+    add_command(search_plan, "remove-question", "Remove a ResearchQuestion identity.", search_plan_remove_question)
+    add_command(search_plan, "freeze", "Freeze the complete search plan.", search_plan_freeze)
+    add_command(search_plan, "abandon", "Abandon a draft search plan.", search_plan_abandon)
+    add_command(search_plan, "show", "Read a project-scoped search plan.", search_plan_show)
+    add_command(search_plan, "list", "List project-scoped search plans.", search_plan_list)
     add_command(
         merge_proposal, "create", "Propose a globally governed source merge.", source_merge_propose
     )
@@ -668,4 +806,5 @@ def register(app: typer.Typer) -> None:
     literature.add_typer(merge_proposal, name="merge-proposal")
     literature.add_typer(identifier, name="identifier")
     literature.add_typer(version, name="version")
+    literature.add_typer(search_plan, name="search-plan")
     app.add_typer(literature, name="literature")

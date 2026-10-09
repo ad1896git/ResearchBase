@@ -30,6 +30,87 @@ class RouteContract:
 ROUTES = (
     RouteContract(
         "post",
+        "/v1/projects/{project_id}/literature/search-plans",
+        "create_literature_search_plan",
+        "create",
+        "LiteratureSearchPlanIn",
+        "Response Create Literature Search Plan",
+        "create_literature_search_plan",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/search-plans",
+        "list_literature_search_plans",
+        "list",
+        None,
+        "Response List Literature Search Plans",
+        "list_literature_search_plans",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/literature/search-plans/{plan_id}",
+        "get_literature_search_plan",
+        "get",
+        None,
+        "Response Get Literature Search Plan",
+        "get_literature_search_plan",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/search-plans/{plan_id}:revise",
+        "revise_literature_search_plan",
+        "revise",
+        None,
+        "Response Revise Literature Search Plan",
+        "revise_literature_search_plan",
+    ),
+    RouteContract(
+        "put",
+        "/v1/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}",
+        "update_literature_search_plan_draft",
+        "update",
+        "LiteratureSearchPlanIn",
+        "Response Update Literature Search Plan Draft",
+        "update_literature_search_plan_draft",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}/questions",
+        "add_literature_search_plan_question",
+        "add_question",
+        None,
+        "Response Add Literature Search Plan Question",
+        "add_literature_search_plan_question",
+    ),
+    RouteContract(
+        "delete",
+        "/v1/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}/questions/{research_question_id}",
+        "remove_literature_search_plan_question",
+        "remove_question",
+        None,
+        "Response Remove Literature Search Plan Question",
+        "remove_literature_search_plan_question",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}:freeze",
+        "freeze_literature_search_plan",
+        "freeze",
+        None,
+        "Response Freeze Literature Search Plan",
+        "freeze_literature_search_plan",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}:abandon",
+        "abandon_literature_search_plan",
+        "abandon",
+        None,
+        "Response Abandon Literature Search Plan",
+        "abandon_literature_search_plan",
+    ),
+    RouteContract(
+        "post",
         "/v1/projects",
         "create_project",
         "create_project",
@@ -527,18 +608,18 @@ def _ref_name(schema: dict[str, object]) -> str:
     raise AssertionError(f"schema has no reference or title: {schema}")
 
 
-def test_all_54_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 54
+def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
+    assert len(ROUTES) == 63
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
         for path, operations in schema["paths"].items()
         if path.startswith("/v1/")
         for method in operations
-        if method in {"get", "post", "patch"}
+        if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 54
+    assert len({item.operation_id for item in ROUTES}) == 63
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

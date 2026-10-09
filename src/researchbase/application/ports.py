@@ -642,6 +642,9 @@ class UnitOfWork(Protocol):
     @property
     def source_version(self) -> Any: ...
 
+    @property
+    def literature_search_plan(self) -> Any: ...
+
     def __enter__(self) -> UnitOfWork: ...
 
     def __exit__(

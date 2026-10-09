@@ -14,6 +14,7 @@ from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
 from researchbase.application.source_merge_execution import SourceMergeExecutionService
 from researchbase.application.source_version import SourceVersionService
+from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.structured_logging import configure_logging
@@ -40,6 +41,7 @@ class ServiceBundle:
     source_merge: SourceMergeGovernanceService | None = None
     source_versions: SourceVersionService | None = None
     source_merge_execution: SourceMergeExecutionService | None = None
+    literature_search_plans: LiteratureSearchPlanService | None = None
     verified_principal: VerifiedPrincipal | None = None
 
 
@@ -63,4 +65,5 @@ def build_services() -> ServiceBundle:
         SourceMergeGovernanceService(uow_factory, None),
         SourceVersionService(uow_factory, None),
         SourceMergeExecutionService(uow_factory, None),
+        LiteratureSearchPlanService(uow_factory, None),
     )

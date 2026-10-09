@@ -53,6 +53,9 @@ from researchbase.persistence.repositories import (
 from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
 from researchbase.persistence.source_version_repository import SqlAlchemySourceVersionRepository
+from researchbase.persistence.literature_search_plan_repository import (
+    SqlAlchemyLiteratureSearchPlanRepository,
+)
 
 
 def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
@@ -204,6 +207,7 @@ class SqlAlchemyUnitOfWork:
     source_identity: SqlAlchemySourceIdentityRepository
     source_merge: SqlAlchemySourceMergeRepository
     source_version: SqlAlchemySourceVersionRepository
+    literature_search_plan: SqlAlchemyLiteratureSearchPlanRepository
 
     def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
         self._session_factory = session_factory
@@ -235,6 +239,7 @@ class SqlAlchemyUnitOfWork:
         self.source_identity = SqlAlchemySourceIdentityRepository(self._session)
         self.source_merge = SqlAlchemySourceMergeRepository(self._session)
         self.source_version = SqlAlchemySourceVersionRepository(self._session)
+        self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(self._session)
         return self
 
     def begin_serializable(self) -> None:
