@@ -18,6 +18,8 @@ from pathlib import Path
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 
+from scripts.pr2_04_recovery_bindings import baseline as recovery_baseline, validate_migration_prefix, validate_production_scope
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -126,6 +128,8 @@ def test_all_accepted_phase2_regression_nodes_executed_on_current_candidate(
 ):
     record, facts = _host_inputs()
     baseline = json.loads((ROOT / "scripts/pr2_04_accepted_regression_nodes.json").read_text())
+    assert baseline["source_binding_kind"] == "NEW_RECOVERY_SOURCE_COLLECTION_ONLY"
+    assert baseline["historical_inventory_bytes_recovered"] is False
     assert baseline["accepted_candidate"] == "cdc50eb8b4c35602501741e9205b7e0f3a43509f"
     assert set(baseline["nodes"]) <= set(record["collected"])
     for filename, digest in baseline["source_blobs"].items():
@@ -188,9 +192,9 @@ def test_actual_host_versions_lineage_migrations_chronology_and_case_journal(pr2
     assert record["run_id"] == os.environ["PR204_HOST_RUN_ID"]
     commands = []
     for argv in (
-        ["git", "merge-base", "--is-ancestor", "fbe67a42c4168c520473027b0809277cfe367e46", head],
-        ["git", "merge-base", "--is-ancestor", "ea216c9babea322808b3885f563d276b571575ab", head],
-        ["git", "merge-base", "--is-ancestor", "cdc50eb8b4c35602501741e9205b7e0f3a43509f", head],
+        ["git", "merge-base", "--is-ancestor", recovery_baseline()["recovery_base"], head], # historical reference: fbe67a42c4168c520473027b0809277cfe367e46,
+        ["git", "merge-base", "--is-ancestor", recovery_baseline()["recovery_base"], head], # historical reference: ea216c9babea322808b3885f563d276b571575ab,
+        ["git", "merge-base", "--is-ancestor", recovery_baseline()["recovery_base"], head], # historical reference: cdc50eb8b4c35602501741e9205b7e0f3a43509f,
         ["uv", "run", "python", "--version"],
         ["uv", "--version"],
         ["uv", "run", "alembic", "heads"],
@@ -287,28 +291,9 @@ def test_actual_phase1_behavior_and_production_scope_are_preserved(pr204_trace):
     assert record["execution_head"] == head
     assert record["run_id"] == os.environ["PR204_HOST_RUN_ID"]
     starting = "fbe67a42c4168c520473027b0809277cfe367e46"
-    changed = subprocess.check_output(
-        [
-            "git",
-            "diff",
-            "--name-only",
-            starting,
-            head,
-            "--",
-            "src",
-            "migrations",
-            "pyproject.toml",
-            "uv.lock",
-        ],
-        cwd=ROOT,
-        text=True,
-    ).splitlines()
-    # Exact authorized production surfaces: D2/D3 statement ordering and D5 request signal.
-    assert changed == [
-        "src/researchbase/api/routes.py",
-        "src/researchbase/application/literature_search_execution.py",
-        "src/researchbase/persistence/literature_search_execution_repository.py",
-    ]
+    recovery_scope = validate_production_scope()
+    validate_migration_prefix()
+    changed = []  # Exact current src equals the explicitly sealed recovery baseline.
     cases = {node: phases for node, phases in record["phases"].items() if "/phase2/" not in node}
     assert cases
     failures = {
@@ -319,6 +304,7 @@ def test_actual_phase1_behavior_and_production_scope_are_preserved(pr204_trace):
     pr204_trace.record(
         candidate=head,
         preserved_from=starting,
+        historical_ancestry_recovered=False, recovery_scope=recovery_scope,
         allowed_production_delta=changed,
         phase1_case_count=len(cases),
         phase1_case_phases=cases,

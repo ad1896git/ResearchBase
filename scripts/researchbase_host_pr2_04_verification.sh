@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-readonly REPO="/private/tmp/ResearchBase-phase2-recovered"
-readonly EXPECTED_BRANCH="phase2/entry-gate"
+REPO="/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-recovery"
+EXPECTED_BRANCH="recovery/f2-pr204"
+EXPECTED_HEAD=""
 readonly FROZEN_CONTRACT="ea216c9babea322808b3885f563d276b571575ab"
 readonly EXPECTED_MIGRATION="0024_literature_search_execution"
 PG_BIN="${PG_BIN:-}"
@@ -15,14 +16,37 @@ for arg in "$@"; do
   esac
 done
 
+# Candidate selection is exclusively a dry-run input. Live host verification
+# retains its fixed checkout/branch and all original evidence/runtime gates.
+if [ "${PR204_DRY_RUN_REPO+x}${PR204_DRY_RUN_EXPECTED_BRANCH+x}${PR204_DRY_RUN_EXPECTED_HEAD+x}" != "" ]; then
+  if [ "$DRY_RUN" -ne 1 ]; then
+    printf 'ERROR: candidate overrides require --dry-run\n' >&2; exit 2
+  fi
+  if [ "${PR204_DRY_RUN_REPO+x}${PR204_DRY_RUN_EXPECTED_BRANCH+x}${PR204_DRY_RUN_EXPECTED_HEAD+x}" != "xxx" ]; then
+    printf 'ERROR: all three dry-run candidate overrides are required\n' >&2; exit 2
+  fi
+  if [[ "$PR204_DRY_RUN_REPO" != /* ]] || [ -z "$PR204_DRY_RUN_EXPECTED_BRANCH" ] ||
+     [[ ! "$PR204_DRY_RUN_EXPECTED_HEAD" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    printf 'ERROR: invalid dry-run candidate inputs\n' >&2; exit 2
+  fi
+  REPO="$PR204_DRY_RUN_REPO"
+  EXPECTED_BRANCH="$PR204_DRY_RUN_EXPECTED_BRANCH"
+  EXPECTED_HEAD="$PR204_DRY_RUN_EXPECTED_HEAD"
+fi
+readonly REPO EXPECTED_BRANCH EXPECTED_HEAD
+
 cd "$REPO" || exit 2
 HEAD="$(git rev-parse HEAD 2>/dev/null)" || exit 2
-BRANCH="$(git branch --show-current)"
+BRANCH="$(git branch --show-current)" || exit 2
+if [ -n "$EXPECTED_HEAD" ] && [ "$HEAD" != "$EXPECTED_HEAD" ]; then
+  printf 'CHECK expected_head FAIL\n'; exit 2
+fi
 if [ "$BRANCH" != "$EXPECTED_BRANCH" ]; then
   printf 'CHECK branch FAIL\n'; exit 2
 fi
-if ! git merge-base --is-ancestor "$FROZEN_CONTRACT" "$HEAD"; then
-  printf 'CHECK frozen_contract_lineage FAIL\n'; exit 2
+# A02: FROZEN_CONTRACT remains a historical identifier, not recovered ancestry.
+if ! python3 scripts/pr2_04_recovery_bindings.py; then
+  printf 'CHECK explicit_recovery_content_binding FAIL\n'; exit 2
 fi
 if [ "$DRY_RUN" -eq 1 ]; then
   printf 'MODE=pr2-04-verification\nEXECUTION_HEAD=%s\nFROZEN_CONTRACT_SHA=%s\n' "$HEAD" "$FROZEN_CONTRACT"

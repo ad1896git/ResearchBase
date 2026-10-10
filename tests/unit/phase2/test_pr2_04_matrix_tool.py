@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -87,10 +88,25 @@ def test_matrix_pass_cannot_omit_evidence_or_exact_node_ids(tmp_path: Path) -> N
         _load_results(evidence_file, tmp_path, head)
 
 
+def _dry_run_candidate_env() -> tuple[dict[str, str], str]:
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    branch = subprocess.check_output(
+        ["git", "branch", "--show-current"], cwd=ROOT, text=True
+    ).strip()
+    return {
+        **os.environ,
+        "PR204_DRY_RUN_REPO": str(ROOT.resolve()),
+        "PR204_DRY_RUN_EXPECTED_BRANCH": branch,
+        "PR204_DRY_RUN_EXPECTED_HEAD": head,
+    }, head
+
+
 def test_host_review_dry_run_binds_frozen_contract_and_required_gates() -> None:
+    environment, head = _dry_run_candidate_env()
     completed = subprocess.run(
         ["bash", str(HOST_REVIEW), "--dry-run"],
         cwd=ROOT,
+        env=environment,
         check=False,
         capture_output=True,
         text=True,
@@ -100,3 +116,39 @@ def test_host_review_dry_run_binds_frozen_contract_and_required_gates() -> None:
     assert "FROZEN_CONTRACT_SHA=ea216c9babea322808b3885f563d276b571575ab" in completed.stdout
     assert "EXPECTED_MIGRATION=0024_literature_search_execution" in completed.stdout
     assert "matrix_65" in completed.stdout
+
+    assert f"EXECUTION_HEAD={head}\n" in completed.stdout
+
+
+@pytest.mark.parametrize(
+    "invalid", ["wrong_head", "wrong_branch", "partial", "live", "empty_repo", "relative_repo", "short_head"]
+)
+def test_host_review_candidate_override_rejects_invalid_inputs_before_database(
+    invalid: str, tmp_path: Path,
+) -> None:
+    environment, head = _dry_run_candidate_env()
+    if invalid == "wrong_head":
+        environment["PR204_DRY_RUN_EXPECTED_HEAD"] = ("0" if head[0] != "0" else "1") + head[1:]
+    elif invalid == "wrong_branch":
+        environment["PR204_DRY_RUN_EXPECTED_BRANCH"] += "-wrong-candidate"
+    elif invalid == "partial":
+        del environment["PR204_DRY_RUN_EXPECTED_HEAD"]
+    elif invalid == "empty_repo":
+        environment["PR204_DRY_RUN_REPO"] = ""
+    elif invalid == "relative_repo":
+        environment["PR204_DRY_RUN_REPO"] = "."
+    elif invalid == "short_head":
+        environment["PR204_DRY_RUN_EXPECTED_HEAD"] = head[:7]
+    sentinel = tmp_path / "database_invoked"
+    for executable in ("postgres", "initdb", "pg_ctl", "createdb", "psql"):
+        probe = tmp_path / executable
+        probe.write_text('#!/bin/sh\n: > "$PR204_DB_SENTINEL"\nexit 99\n')
+        probe.chmod(0o700)
+    environment.update(PG_BIN=str(tmp_path), POSTGRES_VERSION="18.0", PR204_DB_SENTINEL=str(sentinel))
+    completed = subprocess.run(
+        ["bash", str(HOST_REVIEW), *([] if invalid == "live" else ["--dry-run"])],
+        cwd=ROOT, env=environment, check=False, capture_output=True, text=True,
+    )
+    assert completed.returncode == 2
+    assert "REQUIRED_GATES=" not in completed.stdout
+    assert not sentinel.exists()

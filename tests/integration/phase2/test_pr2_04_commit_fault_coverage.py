@@ -21,6 +21,7 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
 
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
 from researchbase.domain.literature_search_execution import SearchHit, SearchResponse
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 

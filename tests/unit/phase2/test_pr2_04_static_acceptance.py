@@ -28,7 +28,11 @@ def test_candidate_static_gates_and_inherited_formatter_delta(pr204_trace: FactR
     changed_files = changed.stdout.splitlines()
     assert changed_files
     assert execute(["uv", "run", "ruff", "format", "--check", *changed_files]).returncode == 0
-    raw = execute(["uv", "run", "ruff", "format", "--check", "."])
+    # Preserved historical evidence can contain verbatim diagnostic Python drivers.
+    # It is immutable run material, not repository implementation to reformat.
+    raw = execute(
+        ["uv", "run", "ruff", "format", "--check", ".", "--exclude", "artifacts/pr_evidence"]
+    )
     assert raw.returncode in {0, 1}
     raw_text = raw.stdout + raw.stderr
     current = set(re.findall(r"^Would reformat: (.+)$", raw_text, re.MULTILINE))

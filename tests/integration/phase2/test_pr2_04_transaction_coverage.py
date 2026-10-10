@@ -295,7 +295,7 @@ def test_pg_provider_entry_wait_and_backoff_hold_no_service_transaction(
 @pytest.mark.parametrize("phase", ["admission", "outcome", "finalization"])
 @pytest.mark.parametrize("sqlstate", ["40001", "40P01"])
 @pytest.mark.parametrize("exhausted", [False, True], ids=["retry", "exhaustion"])
-@pytest.mark.pr204_requirements("PR204-CONC-05", "PR204-CONC-06")
+@pytest.mark.pr204_requirements("PR204-BOUND-02", "PR204-CONC-05", "PR204-CONC-06")
 def test_pg_sqlstate_retry_is_phase_local_and_never_reinvokes_provider(
     phase2_database_url, phase, sqlstate, exhausted, pr204_trace: FactRecorder
 ):

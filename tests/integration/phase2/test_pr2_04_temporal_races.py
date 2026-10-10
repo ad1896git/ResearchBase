@@ -12,9 +12,9 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from tests.integration.phase2.test_pr2_03_effective_authority import _authority_rows, _provision
 from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
-from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 
 from researchbase.application.literature_search_execution import (
     CreateLiteratureSearchExecution,
@@ -142,8 +142,8 @@ def test_pg_contention_rechecks_db_time_and_authority_on_every_attempt(
                             wait = (
                                 c.execute(
                                     text(
-                                    "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers "
-                                    "FROM pg_stat_activity WHERE pid=:pid"
+                                        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers "
+                                        "FROM pg_stat_activity WHERE pid=:pid"
                                     ),
                                     {"pid": first["backend_pid"]},
                                 )
