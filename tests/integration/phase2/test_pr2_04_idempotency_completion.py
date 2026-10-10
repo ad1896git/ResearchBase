@@ -6,6 +6,11 @@ from uuid import UUID
 
 import pytest
 from sqlalchemy import text
+
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.literature_search_provider import ProviderError, ProviderFailureKind
+from researchbase.domain.literature_search_execution import DeliveryCertainty
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.test_pr2_04_execution_recovery import ReservedBeforeInvocation
 from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
     _command,
@@ -14,11 +19,6 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
     _snapshot,
 )
 from tests.unit.phase2.test_pr2_04_provider_coverage import ScriptedProvider, success
-
-from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.literature_search_provider import ProviderError, ProviderFailureKind
-from researchbase.domain.literature_search_execution import DeliveryCertainty
-from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 
 @pytest.fixture
@@ -59,12 +59,14 @@ class InvalidCredential:
 
 def _saved_admission(rows, command):
     matches = [
-        row for row in rows["receipts"]
+        row
+        for row in rows["receipts"]
         if row["deployment_id"] == command.deployment_id
         and row["actor_id"] == command.actor_id
         and row["project_id"] == command.project_id
         and row["request_id"] == command.request_id
-        and row["command_name"] == {
+        and row["command_name"]
+        == {
             "ExecuteLiteratureSearchExecution": "EXECUTE_LITERATURE_SEARCH_EXECUTION",
             "CancelLiteratureSearchExecution": "CANCEL_LITERATURE_SEARCH_EXECUTION",
             "RecoverLiteratureSearchExecution": "RECOVER_LITERATURE_SEARCH_EXECUTION",
@@ -90,21 +92,27 @@ def _script_step(status, query="normalization evidence"):
             delivery_certainty=DeliveryCertainty.MAY_HAVE_BEEN_SENT,
         )
     if status == "CANCELLED":
-        return ProviderError(
-            ProviderFailureKind.CANCELLED,
-            "PROVIDER_CANCELLED",
-            delivery_certainty=DeliveryCertainty.RESPONSE_RECEIVED,
-        )
+        # A confirmed response echoes this actual invocation; an exception alone
+        # no longer establishes provider-origin cancellation (M0-CANCEL-002).
+        from tests.integration.phase2.test_m0_provider_cancellation import confirmation
+
+        return confirmation
     raise AssertionError(status)
 
 
 REPLAY_CASES = [
-    *(pytest.param("recover", state, id=f"recover-planned-origin-{state}")
-      for state in ("PLANNED", "RUNNING", "FAILED", "CANCELLED", "UNKNOWN", "SUCCEEDED")),
-    *(pytest.param("execute", state, id=f"execute-{state}")
-      for state in ("RUNNING", "FAILED", "CANCELLED", "UNKNOWN", "SUCCEEDED")),
-    *(pytest.param("cancel", state, id=f"cancel-{state}")
-      for state in ("PLANNED", "RUNNING", "CANCELLED", "UNKNOWN")),
+    *(
+        pytest.param("recover", state, id=f"recover-planned-origin-{state}")
+        for state in ("PLANNED", "RUNNING", "FAILED", "CANCELLED", "UNKNOWN", "SUCCEEDED")
+    ),
+    *(
+        pytest.param("execute", state, id=f"execute-{state}")
+        for state in ("RUNNING", "FAILED", "CANCELLED", "UNKNOWN", "SUCCEEDED")
+    ),
+    *(
+        pytest.param("cancel", state, id=f"cancel-{state}")
+        for state in ("PLANNED", "RUNNING", "CANCELLED", "UNKNOWN")
+    ),
 ]
 
 
@@ -172,9 +180,13 @@ def test_pg_reachable_saved_command_replay_preserves_all_facts_and_rechecks_enti
     assert _snapshot(engine, project) == before
     assert len(provider.calls) == calls
     pr204_trace.record(
-        command=name, observed_state=state, admission=saved,
-        before=before, after=_snapshot(engine, project),
-        provider_calls_before=calls, provider_calls_after=len(provider.calls),
+        command=name,
+        observed_state=state,
+        admission=saved,
+        before=before,
+        after=_snapshot(engine, project),
+        provider_calls_before=calls,
+        provider_calls_after=len(provider.calls),
         fresh_credential_denial=caught.value.code.value,
     )
 
@@ -210,15 +222,23 @@ def test_pg_running_recovery_receipt_replays_before_and_after_separate_finalizat
     assert service.recover(recover) == admission
     assert _snapshot(engine, project) == after and len(provider.calls) == 1
     pr204_trace.record(
-        terminal=terminal, running_receipt=admission,
-        before_finalization=before, after_finalization=after,
-        provider_calls=1, replay_finalized=False,
+        terminal=terminal,
+        running_receipt=admission,
+        before_finalization=before,
+        after_finalization=after,
+        provider_calls=1,
+        replay_finalized=False,
     )
 
 
 STOP_CASES = [
-    "cancel_intent", "permanent", "unknown", "cancelled_outcome",
-    "attempt_exhausted", "time_budget", "all_queries_complete",
+    "cancel_intent",
+    "permanent",
+    "unknown",
+    "cancelled_outcome",
+    "attempt_exhausted",
+    "time_budget",
+    "all_queries_complete",
 ]
 
 
@@ -232,15 +252,20 @@ def test_pg_new_execute_key_cannot_bypass_committed_stop_or_exhaustion(
     prefix = ("first query",) if prior_hits else ()
     target = "target query"
     suffix = () if stop == "all_queries_complete" else ("never sent query",)
-    script = [success("first query", "provider-a", hits=2)] if prior_hits else []
+    script: list[object] = [success("first query", "provider-a", hits=2)] if prior_hits else []
     if stop in {"permanent", "unknown", "cancelled_outcome"}:
-        terminal = {"permanent": "FAILED", "unknown": "UNKNOWN", "cancelled_outcome": "CANCELLED"}[stop]
+        terminal = {"permanent": "FAILED", "unknown": "UNKNOWN", "cancelled_outcome": "CANCELLED"}[
+            stop
+        ]
         script.append(_script_step(terminal, target))
     elif stop == "attempt_exhausted":
-        script.append(ProviderError(
-            ProviderFailureKind.RETRYABLE, "PROVIDER_TRANSIENT",
-            delivery_certainty=DeliveryCertainty.NOT_SENT,
-        ))
+        script.append(
+            ProviderError(
+                ProviderFailureKind.RETRYABLE,
+                "PROVIDER_TRANSIENT",
+                delivery_certainty=DeliveryCertainty.NOT_SENT,
+            )
+        )
     else:
         script.append(success(target, "provider-a", hits=1))
     provider = ScriptedProvider(script, "provider-a")
@@ -271,7 +296,9 @@ def test_pg_new_execute_key_cannot_bypass_committed_stop_or_exhaustion(
                 text("SELECT greatest(0,extract(epoch FROM (:deadline-clock_timestamp())))"),
                 {"deadline": deadline},
             ).scalar_one()
-            connection.execute(text("SELECT pg_sleep(:seconds)"), {"seconds": float(remaining) + 0.02})
+            connection.execute(
+                text("SELECT pg_sleep(:seconds)"), {"seconds": float(remaining) + 0.02}
+            )
             observed_at = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
         assert observed_at >= deadline
     before = _snapshot(engine, project)
@@ -280,11 +307,20 @@ def test_pg_new_execute_key_cannot_bypass_committed_stop_or_exhaustion(
     assert all(row["status"] != "RESERVED" for row in before["attempts"])
     assert calls == len(prefix) + 1
     if prior_hits:
-        first_query_ids = {row["id"] for row in before["queries"] if row["query_text"] == "first query"}
-        assert sum(row["search_query_record_id"] in first_query_ids for row in before["results"]) == 2
+        first_query_ids = {
+            row["id"] for row in before["queries"] if row["query_text"] == "first query"
+        }
+        assert (
+            sum(row["search_query_record_id"] in first_query_ids for row in before["results"]) == 2
+        )
     if stop == "attempt_exhausted":
-        target_attempt = next(row for row in before["attempts"] if row["query_index"] == len(prefix))
-        assert target_attempt["attempt_number"] == 1 and target_attempt["status"] == "RETRYABLE_FAILURE"
+        target_attempt = next(
+            row for row in before["attempts"] if row["query_index"] == len(prefix)
+        )
+        assert (
+            target_attempt["attempt_number"] == 1
+            and target_attempt["status"] == "RETRYABLE_FAILURE"
+        )
     service = _service(engine, provider)
     assert service.execute(original) == _saved_admission(before, original)
     assert _snapshot(engine, project) == before and len(provider.calls) == calls
@@ -295,9 +331,15 @@ def test_pg_new_execute_key_cannot_bypass_committed_stop_or_exhaustion(
     assert _snapshot(engine, project) == before and len(provider.calls) == calls
     assert all(row["request_id"] != new_command.request_id for row in before["receipts"])
     pr204_trace.record(
-        stop=stop, prior_hits=prior_hits, original_request=original.request_id,
-        rejected_request=new_command.request_id, error_code=caught.value.code.value,
-        before=before, after=_snapshot(engine, project),
-        provider_calls_before=calls, provider_calls_after=len(provider.calls),
-        budget_deadline=deadline, post_wait_database_time=observed_at,
+        stop=stop,
+        prior_hits=prior_hits,
+        original_request=original.request_id,
+        rejected_request=new_command.request_id,
+        error_code=caught.value.code.value,
+        before=before,
+        after=_snapshot(engine, project),
+        provider_calls_before=calls,
+        provider_calls_after=len(provider.calls),
+        budget_deadline=deadline,
+        post_wait_database_time=observed_at,
     )

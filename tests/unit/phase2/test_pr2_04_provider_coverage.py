@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 import json
 import socket
 import urllib.request
@@ -38,6 +36,7 @@ from researchbase.persistence.in_memory_literature_search_execution import (
     InMemoryExecutionUnitOfWork,
     InMemoryLiteratureSearchExecutionRepository,
 )
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 CANARY = "PR204_SECRET_DO_NOT_PERSIST_9d8b"
 
@@ -54,7 +53,7 @@ class ScriptedProvider(FakeSearchCapability):
         step = self.script.pop(0)
         if isinstance(step, Exception):
             raise step
-        return step
+        return step(request) if callable(step) else step
 
 
 def success(query: str = "cortex", provider: str = "fake", hits: int = 0) -> SearchResponse:

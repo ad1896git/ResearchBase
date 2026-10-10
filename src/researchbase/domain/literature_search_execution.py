@@ -308,6 +308,10 @@ class SearchResponse:
     retry_after_seconds: int | None = None
     failure_code: str | None = None
     retrieved_at: datetime | None = None
+    # Correlation echoed by a confirmed cancellation, never a cancellation request.
+    execution_id: UUID | None = None
+    attempt_id: UUID | None = None
+    provider_request_key: UUID | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id", 128))

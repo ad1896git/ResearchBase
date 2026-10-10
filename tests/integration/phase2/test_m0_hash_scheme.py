@@ -104,7 +104,11 @@ def test_fresh_upgrade_empty_downgrade_and_reupgrade(phase2_database_url):
 
 
 def test_populated_downgrade_refuses_before_removing_protection(phase2_database_url):
-    material = _material(phase2_database_url, "sealed")
+    with patch(
+        "tests.integration.phase2.test_pr2_04_schema_coverage._setup",
+        side_effect=lambda url: _setup(url, migration_revision=REVISION),
+    ):
+        material = _material(phase2_database_url, "sealed")
     engine = material["engine"]
     try:
         before = _rows(engine)

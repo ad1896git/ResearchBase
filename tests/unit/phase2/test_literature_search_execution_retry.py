@@ -328,6 +328,8 @@ def test_tx_b_lost_commit_ack_rejects_different_sealed_outcome() -> None:
             invoked_at=None,
             returned_at=None,
             project_id=None,
+            *,
+            provider_confirmation=None,
         ):
             if not self.persisted_conflict:
                 self.persisted_conflict = True
@@ -351,6 +353,7 @@ def test_tx_b_lost_commit_ack_rejects_different_sealed_outcome() -> None:
                     invoked_at,
                     returned_at,
                     project_id,
+                    provider_confirmation=provider_confirmation,
                 )
                 raise ResearchBaseError(
                     ErrorCode.CONCURRENT_MODIFICATION,
@@ -368,6 +371,7 @@ def test_tx_b_lost_commit_ack_rejects_different_sealed_outcome() -> None:
                 invoked_at,
                 returned_at,
                 project_id,
+                provider_confirmation=provider_confirmation,
             )
 
     repository = InMemoryLiteratureSearchExecutionRepository()

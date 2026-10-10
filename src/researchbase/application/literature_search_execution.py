@@ -834,7 +834,9 @@ class LiteratureSearchExecutionService:
             if unknown is not None:
                 status = ExecutionStatus.UNKNOWN
                 failure_code = str(unknown["failure_code"])
-            elif execution.cancellation_requested:
+            elif execution.cancellation_requested or any(
+                row.get("status") == AttemptStatus.CANCELLED.value for row in attempts
+            ):
                 status = ExecutionStatus.CANCELLED
                 failure_code = "CANCELLED"
             elif permanent_failure is not None:
@@ -889,6 +891,7 @@ class LiteratureSearchExecutionService:
         query_payload = context["queries"][query_index]
         remaining_timeout = max(0.0, monotonic_deadline - self._monotonic())
         invoked_at: datetime | None = None
+        provider_confirmation: SearchRequest | None = None
         if remaining_timeout <= 0:
             response = SearchResponse(
                 context["provider_id"],
@@ -918,22 +921,23 @@ class LiteratureSearchExecutionService:
                         delivery_certainty=DeliveryCertainty.NOT_SENT,
                     )
                 invoked_at = call_started_at
+                request = SearchRequest(
+                    execution_id,
+                    attempt_id,
+                    attempt_id,
+                    execution.plan_version_id,
+                    plan_hash,
+                    plan_material,
+                    query_index,
+                    query_payload["query_text"],
+                    query_payload["perspective"],
+                    query_payload["query_type"],
+                    context["provider_id"],
+                    context["provider_version"],
+                    context["max_results"],
+                )
                 response = provider.search(
-                    SearchRequest(
-                        execution_id,
-                        attempt_id,
-                        attempt_id,
-                        execution.plan_version_id,
-                        plan_hash,
-                        plan_material,
-                        query_index,
-                        query_payload["query_text"],
-                        query_payload["perspective"],
-                        query_payload["query_type"],
-                        context["provider_id"],
-                        context["provider_version"],
-                        context["max_results"],
-                    ),
+                    request,
                     SearchCallContext(
                         execution_id,
                         deadline,
@@ -942,6 +946,7 @@ class LiteratureSearchExecutionService:
                         or (disconnected is not None and disconnected.is_set()),
                     ),
                 )
+                provider_confirmation = request
             except ProviderError as exc:
                 if (
                     exc.kind is ProviderFailureKind.UNCERTAIN
@@ -969,14 +974,12 @@ class LiteratureSearchExecutionService:
                         failure_code=failure_code,
                     )
                 elif exc.kind is ProviderFailureKind.CANCELLED:
-                    response = SearchResponse(
-                        context["provider_id"],
-                        context["provider_version"],
-                        query_payload["query_text"],
-                        exc.provider_request_id,
-                        exc.delivery_certainty,
-                        warning_codes=exc.warning_codes,
-                        failure_code="PROVIDER_CANCELLED",
+                    # An exception is not a bound confirmation of remote outcome.
+                    response = SearchResponse.uncertain(
+                        provider_id=context["provider_id"],
+                        provider_version=context["provider_version"],
+                        normalized_query=query_payload["query_text"],
+                        provider_request_id=exc.provider_request_id,
                     )
                 else:
                     code = (
@@ -1029,6 +1032,7 @@ class LiteratureSearchExecutionService:
                 invoked_at,
                 returned_at,
                 execution.project_id,
+                provider_confirmation=provider_confirmation,
             )
         )
         terminal_status, retry_provider, continue_query, retry_delay = outcome
@@ -1185,6 +1189,8 @@ class LiteratureSearchExecutionService:
         invoked_at: datetime | None = None,
         returned_at: datetime | None = None,
         project_id: UUID | None = None,
+        *,
+        provider_confirmation: SearchRequest | None = None,
     ) -> tuple[ExecutionStatus | None, bool, bool, float]:
         terminal_status: ExecutionStatus | None = None
         retry_provider = False
@@ -1235,21 +1241,6 @@ class LiteratureSearchExecutionService:
                 raise ResearchBaseError(
                     ErrorCode.INVALID_STATE_TRANSITION, "execution is not RUNNING"
                 )
-            if (
-                response.failure_code == "PROVIDER_CANCELLED"
-                and not execution.cancellation_requested
-            ):
-                # CANCELLED requires durable C1 intent. A provider claiming cancellation
-                # without that intent is an invalid adapter outcome, not a system cancel.
-                response = SearchResponse(
-                    context["provider_id"],
-                    context["provider_version"],
-                    expected_query,
-                    response.provider_request_id,
-                    response.delivery_certainty,
-                    warning_codes=response.warning_codes,
-                    failure_code="PROVIDER_MALFORMED",
-                )
             prior_attempt = next(
                 (
                     row
@@ -1258,6 +1249,49 @@ class LiteratureSearchExecutionService:
                 ),
                 None,
             )
+            if (
+                response.failure_code == "PROVIDER_CANCELLED"
+                and response.delivery_certainty is not DeliveryCertainty.MAY_HAVE_BEEN_SENT
+            ):
+                if prior_attempt is None:
+                    raise ResearchBaseError(
+                        ErrorCode.IMMUTABLE_RECORD, "confirmation has no matching reserved attempt"
+                    )
+                confirmed = (
+                    provider_confirmation is not None
+                    and invoked_at is not None
+                    and returned_at is not None
+                    and response.provider_request_id is not None
+                    and prior_attempt is not None
+                    and context == execution.execution_context
+                    and prior_attempt.get("query_index") == query_index
+                    and str(prior_attempt.get("provider_request_key")) == str(attempt_id)
+                    and response.execution_id == provider_confirmation.execution_id == execution_id
+                    and response.attempt_id == provider_confirmation.attempt_id == attempt_id
+                    and response.provider_request_key
+                    == provider_confirmation.provider_request_key
+                    == attempt_id
+                    and response.provider_id
+                    == provider_confirmation.provider_id
+                    == context["provider_id"]
+                    and response.provider_version
+                    == provider_confirmation.provider_version
+                    == context["provider_version"]
+                    and response.normalized_query
+                    == provider_confirmation.query_text
+                    == expected_query
+                    and provider_confirmation.query_index == query_index
+                    and provider_confirmation.plan_version_id == execution.plan_version_id
+                )
+                if not confirmed:
+                    response = SearchResponse(
+                        context["provider_id"],
+                        context["provider_version"],
+                        expected_query,
+                        response.provider_request_id,
+                        DeliveryCertainty.RESPONSE_RECEIVED,
+                        failure_code="PROVIDER_MALFORMED",
+                    )
             if (
                 prior_attempt is not None
                 and prior_attempt.get("status") != AttemptStatus.RESERVED.value
@@ -1682,7 +1716,9 @@ class LiteratureSearchExecutionService:
             attempts = repo.attempts(execution_id)
             if any(row.get("status") == AttemptStatus.UNKNOWN.value for row in attempts):
                 status = ExecutionStatus.UNKNOWN
-            elif execution.cancellation_requested:
+            elif execution.cancellation_requested or any(
+                row.get("status") == AttemptStatus.CANCELLED.value for row in attempts
+            ):
                 status = ExecutionStatus.CANCELLED
             elif any(
                 row.get("status") == AttemptStatus.PERMANENT_FAILURE.value for row in attempts

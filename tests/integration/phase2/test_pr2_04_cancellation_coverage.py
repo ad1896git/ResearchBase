@@ -1,14 +1,9 @@
 """Cancellation while the fake provider is entered and between committed outcomes."""
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from uuid import UUID, uuid4
 
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
-from tests.integration.phase2.test_pr2_04_execution_provenance import _execution_service
-from tests.integration.phase2.test_pr2_04_transaction_coverage import ObservedTransactions
 
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
@@ -22,6 +17,10 @@ from researchbase.domain.literature_search_execution import (
     SearchHit,
     SearchResponse,
 )
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+from tests.integration.phase2.test_pr2_04_execution_provenance import _execution_service
+from tests.integration.phase2.test_pr2_04_transaction_coverage import ObservedTransactions
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 @pytest.mark.parametrize(
@@ -70,6 +69,15 @@ def test_pg_cancellation_during_provider_distinguishes_remote_certainty(
         execution_id = UUID(admission["execution_id"])
 
         def cancel_during_call(request):
+            from dataclasses import replace
+
+            if reason == "PROVIDER_CANCELLED":
+                provider.responses[0] = replace(
+                    provider.responses[0],
+                    execution_id=request.execution_id,
+                    attempt_id=request.attempt_id,
+                    provider_request_key=request.provider_request_key,
+                )
             assert engine.pool.checkedout() == 0
             receipt = service.cancel(
                 CancelLiteratureSearchExecution(
@@ -171,7 +179,8 @@ def test_pg_prestart_cancel_commits_admission_then_separate_finalization(
         def observe_authorization(uow, *args, **kwargs):
             authorize(uow, *args, **kwargs)
             observations.fact(
-                point="CURRENT_AUTHORIZED", db_attempt=uow.number,
+                point="CURRENT_AUTHORIZED",
+                db_attempt=uow.number,
                 trusted_authorization_time=uow.literature_search_plan.at(),
             )
 
@@ -228,21 +237,27 @@ def test_pg_prestart_cancel_commits_admission_then_separate_finalization(
         events = observations.events
         c1 = next(e for e in events if e.get("point") == "C1_VISIBLE")
         disclosures = [i for i, e in enumerate(events) if e.get("point") == "DISCLOSURE_BEGIN"]
-        assert len(disclosures) == 2  # Initial result and exact replay each require current entitlement.
+        assert (
+            len(disclosures) == 2
+        )  # Initial result and exact replay each require current entitlement.
         c2_attempt = events[disclosures[0]]["prior_commit_attempt"]
         assert c1["db_attempt"] != c2_attempt
         c2_commit = next(
-            i for i, e in enumerate(events)
+            i
+            for i, e in enumerate(events)
             if e.get("point") == "TX_COMMIT" and e["db_attempt"] == c2_attempt
         )
         assert events.index(c1) < c2_commit < disclosures[0]
         authorization_attempts = []
         for start in disclosures:
             end = next(
-                i for i in range(start + 1, len(events))
+                i
+                for i in range(start + 1, len(events))
                 if events[i].get("point") == "DISCLOSURE_AUTHORIZED"
             )
-            authorized = next(e for e in events[start:end] if e.get("point") == "CURRENT_AUTHORIZED")
+            authorized = next(
+                e for e in events[start:end] if e.get("point") == "CURRENT_AUTHORIZED"
+            )
             authorization_attempts.append(authorized["db_attempt"])
             assert any(
                 e.get("point") == "TX_COMMIT" and e["db_attempt"] == authorized["db_attempt"]
@@ -268,8 +283,9 @@ def test_pg_cancel_after_known_outcome_retains_hits_and_prevents_next_query(
                     provider_version="1",
                     normalized_query="normalization evidence",
                     provider_request_id="known-response",
-                    hits=(SearchHit("hit", "Paper", None, None, None),), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+                    hits=(SearchHit("hit", "Paper", None, None, None),),
+                    retrieved_at=PROVIDER_RETRIEVED_AT,
+                )
             ],
         )
         base = _execution_service(engine, provider)

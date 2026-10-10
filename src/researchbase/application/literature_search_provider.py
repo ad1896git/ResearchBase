@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from collections.abc import Callable
 from typing import Protocol
 from uuid import UUID
 
@@ -74,6 +74,12 @@ class SearchCallContext:
 
 
 class SearchCapability(Protocol):
+    """Trusted, configured invocation boundary.
+
+    Confirmed cancellations return SearchResponse with execution/attempt/request
+    key echoes. Exceptions and local cancellation tokens are not confirmation.
+    """
+
     capability_id: str
     version: str
     supported_source_scopes: frozenset[str]
