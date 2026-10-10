@@ -10,9 +10,11 @@ import typer
 from researchbase.application.commands import (
     CreateResearchQuestionCommand,
     CreateWorkspaceCommand,
+    FreezeResearchQuestionCommand,
     WriteProjectionTarget,
 )
 from researchbase.domain.organization import ProjectId
+from researchbase.domain.research import ResearchQuestionId, ResearchQuestionVersionId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.local_identity import LocalIdentityAdapter
@@ -146,6 +148,30 @@ def question_show(
     invoke(runtime, json_mode, operation)
 
 
+def question_freeze(
+    ctx: typer.Context,
+    question_id: Annotated[UUID, typer.Option("--question-id")],
+    version_id: Annotated[UUID, typer.Option("--version-id")],
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    invoke(
+        runtime,
+        json_mode,
+        lambda: application_write(
+            runtime.services.application,
+            WriteProjectionTarget.RESEARCH_QUESTION_VERSION,
+            lambda: runtime.services.application.freeze_research_question(
+                FreezeResearchQuestionCommand(
+                    ResearchQuestionId(question_id),
+                    ResearchQuestionVersionId(version_id),
+                    _context(runtime),
+                )
+            ),
+        ),
+    )
+
+
 def register(app: typer.Typer) -> None:
     local = command_group("Trusted single-user local workbench.")
     for name, fn in (
@@ -156,6 +182,7 @@ def register(app: typer.Typer) -> None:
         ("workspace-create", workspace_create),
         ("question-create", question_create),
         ("question-show", question_show),
+        ("question-freeze", question_freeze),
     ):
         add_command(local, name, fn.__doc__ or name, fn)
     app.add_typer(local, name="local")

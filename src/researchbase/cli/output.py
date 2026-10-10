@@ -6,6 +6,7 @@ import base64
 import json
 from dataclasses import fields, is_dataclass
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 from uuid import UUID
@@ -30,6 +31,10 @@ def to_jsonable(value: object) -> object:
         return str(value)
     if isinstance(value, datetime):
         return format_utc(value)
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError("nonfinite CLI decimal")
+        return str(value)
     if isinstance(value, bytes):
         return base64.b64encode(value).decode("ascii")
     if isinstance(value, dict):

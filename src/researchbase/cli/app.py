@@ -14,6 +14,7 @@ from .commands.governance import register as register_governance
 from .commands.literature import register as register_literature
 from .commands.literature_search_execution import register as register_search_execution
 from .commands.local import register as register_local
+from .commands.metadata_observation import register as register_metadata
 from .commands.research import register as register_research
 from .composition import build_services
 from .context import CliServices, create_runtime
@@ -34,7 +35,15 @@ def _root_callback(
 ) -> None:
     try:
         if services is None and (
-            actor_id is not None or ctx.invoked_subcommand not in {None, "local", "literature"}
+            actor_id is not None
+            or ctx.invoked_subcommand
+            not in {
+                None,
+                "local",
+                "literature",
+                "literature-search-execution",
+                "literature-metadata",
+            }
         ):
             raise ResearchBaseError(
                 ErrorCode.FORBIDDEN,
@@ -68,6 +77,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
         invoke_without_command=True,
         no_args_is_help=False,
     )
+    register_metadata(app)
     register_local(app)
     register_research(app)
     register_evidence(app)

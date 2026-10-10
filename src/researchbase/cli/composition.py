@@ -9,6 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
+from researchbase.adapters.crossref import CrossrefVerifier
+from researchbase.adapters.metadata_journal import MetadataDispatchJournal
+from researchbase.adapters.openalex import OpenAlexSearchCapability
 from researchbase.application.commands import ApplicationService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
@@ -16,6 +19,7 @@ from researchbase.application.literature_search_execution import LiteratureSearc
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
 from researchbase.application.local_workbench import LocalWorkbenchService
+from researchbase.application.metadata_observation import MetadataObservationService
 from researchbase.application.phase2_identity import Phase2IdentityService, VerifiedSubject
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
@@ -58,6 +62,7 @@ class ServiceBundle:
     verified_principal: VerifiedPrincipal | None = None
     local_identity: LocalWorkbenchService | None = None
     local_credentials: LocalIdentityAdapter | None = None
+    metadata_observations: MetadataObservationService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -94,23 +99,38 @@ def build_services() -> ServiceBundle:
             principal = local.authenticate()
         except ResearchBaseError:
             pass  # Bootstrap may legitimately have no canonical binding yet.
+    sources = SourceIdentityService(uow_factory, credentials)
+    versions = SourceVersionService(uow_factory, credentials)
     return ServiceBundle(
         ApplicationService(uow_factory, clock, store, project_authorizer=local.authorize),
         ProvenanceQueryService(uow_factory),
         GovernanceService(uow_factory, clock),
         GovernanceQueryService(uow_factory),
-        SourceIdentityService(uow_factory, credentials),
+        sources,
         SourceMergeGovernanceService(uow_factory, credentials),
-        SourceVersionService(uow_factory, credentials),
+        versions,
         SourceMergeExecutionService(uow_factory, credentials),
         LiteratureSearchPlanService(uow_factory, credentials),
         LiteratureSearchExecutionService(
             literature_search_execution_uow_factory(session_factory),
-            StaticSearchCapabilityRegistry(),
+            StaticSearchCapabilityRegistry(
+                (OpenAlexSearchCapability(api_key=os.environ.get("OPENALEX_API_KEY")),)
+            ),
+            credential_verifier=credentials,
         ),
         principal,
         local,
         credentials,
+        MetadataObservationService(
+            uow_factory,
+            credentials,
+            store,
+            MetadataDispatchJournal(
+                Path(settings.artifact_store_root) / "metadata-invocations", CrossrefVerifier()
+            ),
+            sources,
+            versions,
+        ),
     )
 
 

@@ -72,3 +72,7 @@ For AuthorshipSnapshot the three author relation tables are the canonical storag
 ## Migration verification
 
 Each authorized PR adds only its tables/constraints and a single linear Alembic revision. PostgreSQL 18.x tests cover fresh DB→head, frozen Phase 1 `0018`→head, invalid legacy state fail-closed preflight, constraints under concurrency, frozen-state UPDATE/DELETE rejection and a data-preserving downgrade refusal. For PR2-00, the exact legacy-state predicate and no-rewrite behavior are defined by Addendum A22 `LEGACY-STATE-01`. No migration rewrites Phase 1 canonical rows. Exact column/index names may use the repository's established naming convention, but their semantics, types, keys and checks above are fixed; a semantic change requires ADR and revised contract before code.
+
+## M2-AQ-001 approved amendment — 2026-10-10
+
+Architecture-owner-approved M2 implementation is defined by [ADR-0013](adr/ADR-0013-durable-metadata-observations.md), including exhaustive columns, nullability, replay key, checks, concrete FKs, insert guards, hashes and transaction/CAS sequencing. It adds `metadata_observations` as one SearchResult-dependent append-only relation and implements the existing `search_result_resolutions` relation. This narrowly supersedes the original design-only/PR2-04 observation deferral for M2; no M3 schema or existing scientific hash is changed. Source-less outcomes live in observations; established result/source/version links remain resolutions.

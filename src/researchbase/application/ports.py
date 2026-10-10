@@ -616,6 +616,9 @@ class GovernanceRepository(Protocol):
 
 
 class UnitOfWork(Protocol):
+    @property
+    def metadata_observations(self) -> Any: ...
+
     actors: ActorRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository

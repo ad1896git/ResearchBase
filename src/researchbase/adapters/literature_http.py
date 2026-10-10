@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import dataclass
+from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -15,6 +17,9 @@ class HttpObservation:
     status: int
     headers: dict[str, str]
     body: Any
+    payload_sha256: str | None = None
+    payload_truncated: bool = False
+    payload_failure: str | None = None
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -36,18 +41,39 @@ def get_json(url: str, headers: dict[str, str], timeout: float) -> HttpObservati
     with response:
         status = response.code
         observed_headers = {key.lower(): value for key, value in response.headers.items()}
-        if status != 200:
-            return HttpObservation(status, observed_headers, None)
         chunks = []
         size = 0
         while True:
-            if time.monotonic() - started >= timeout:
-                raise TimeoutError
-            chunk = response.read(65536)
+            try:
+                if time.monotonic() - started >= timeout:
+                    raise TimeoutError
+                chunk = response.read(65536)
+            except (OSError, HTTPException):
+                # Headers already arrived: this is never a response-less observation.
+                return HttpObservation(
+                    status,
+                    observed_headers,
+                    None,
+                    hashlib.sha256(b"".join(chunks)).hexdigest(),
+                    True,
+                    "INCOMPLETE_BODY",
+                )
             if not chunk:
                 break
             size += len(chunk)
             if size > 4 * 1024 * 1024:
-                raise ValueError("provider response exceeds byte limit")
+                return HttpObservation(
+                    status,
+                    observed_headers,
+                    None,
+                    hashlib.sha256(b"".join(chunks) + chunk).hexdigest(),
+                    True,
+                )
             chunks.append(chunk)
-        return HttpObservation(status, observed_headers, json.loads(b"".join(chunks)))
+        try:
+            body = json.loads(b"".join(chunks))
+        except (ValueError, UnicodeError):
+            body = None
+        return HttpObservation(
+            status, observed_headers, body, hashlib.sha256(b"".join(chunks)).hexdigest()
+        )

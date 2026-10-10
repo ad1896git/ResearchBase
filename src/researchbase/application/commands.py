@@ -1001,6 +1001,14 @@ class ApplicationService:
         actor_id = ActorId(command.context.actor_id)
         question_id = ResearchQuestionId(command.research_question_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                preliminary = uow.research_questions.get(question_id)
+                if preliminary is None:
+                    raise _not_found("research question", question_id)
+                self._project_authorizer(
+                    uow, preliminary.project_id, True, command.context.actor_id
+                )
             _require_actor(uow, actor_id)
             question = uow.research_questions.get_for_update(question_id)
             if question is None:

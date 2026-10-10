@@ -1,6 +1,6 @@
 # M2-AQ-001 — durable metadata observations and result-resolution linkage
 
-Status: OPEN; no contract/schema change implemented. Starting candidate df603fe0fbb8c80758400e7b13cb831b7f730187.
+Status: RESOLVED by architecture-owner M2-AQ-001 amendment, 2026-10-10; implemented by ADR-0013 and migration 0029. The original question below is retained as history. Starting candidate df603fe0fbb8c80758400e7b13cb831b7f730187.
 
 ## Required behavior
 

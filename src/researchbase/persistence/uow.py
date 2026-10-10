@@ -37,6 +37,9 @@ from researchbase.persistence.literature_search_execution_repository import (
 from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
+from researchbase.persistence.metadata_observation_repository import (
+    SqlAlchemyMetadataObservationRepository,
+)
 from researchbase.persistence.phase2_identity_repository import SqlAlchemyPhase2IdentityRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
@@ -219,6 +222,7 @@ class SqlAlchemyUnitOfWork:
     source_merge: SqlAlchemySourceMergeRepository
     source_version: SqlAlchemySourceVersionRepository
     literature_search_plan: SqlAlchemyLiteratureSearchPlanRepository
+    metadata_observations: SqlAlchemyMetadataObservationRepository
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
 
     def __init__(
@@ -254,6 +258,7 @@ class SqlAlchemyUnitOfWork:
         self.claims = SqlAlchemyClaimRepository(self._session)
         self.governance = SqlAlchemyGovernanceRepository(self._session)
         self.phase2_identity = SqlAlchemyPhase2IdentityRepository(self._session)
+        self.metadata_observations = SqlAlchemyMetadataObservationRepository(self._session)
         self.source_identity = SqlAlchemySourceIdentityRepository(self._session)
         self.source_merge = SqlAlchemySourceMergeRepository(self._session)
         self.source_version = SqlAlchemySourceVersionRepository(self._session)
@@ -314,9 +319,7 @@ class SqlAlchemyUnitOfWork:
                 if exc_type is not None or not self._committed:
                     try:
                         self._session.rollback()
-                        emit_uow_rollback(
-                            getattr(getattr(exc_value, "code", None), "value", None)
-                        )
+                        emit_uow_rollback(getattr(getattr(exc_value, "code", None), "value", None))
                     except BaseException as rollback_error:
                         cleanup_error = rollback_error
             finally:
@@ -349,7 +352,9 @@ class SqlAlchemyUnitOfWork:
                         raise normalized_cleanup from cleanup_error
                     raise cleanup_error
                 if hasattr(exc_value, "add_note"):
-                    exc_value.add_note("PR2-04 transaction cleanup failed; session closure attempted")
+                    exc_value.add_note(
+                        "PR2-04 transaction cleanup failed; session closure attempted"
+                    )
         else:
             if exc_type is not None or not self._committed:
                 self._session.rollback()

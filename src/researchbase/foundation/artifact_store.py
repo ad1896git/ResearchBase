@@ -62,6 +62,19 @@ class ContentAddressedFilesystemArtifactStore:
                     raise OSError("existing content-addressed object failed verification") from None
             finally:
                 temporary.unlink(missing_ok=True)
+            # File data fsync alone does not make the new CAS directory entry durable.
+            # Sync the object path and newly-created ancestor entries before DB commit.
+            directory = target.parent
+            stop = self.root.parent
+            while True:
+                directory_fd = os.open(directory, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                if directory == stop:
+                    break
+                directory = directory.parent
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
