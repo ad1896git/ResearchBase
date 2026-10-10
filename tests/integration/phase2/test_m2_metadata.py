@@ -33,7 +33,7 @@ from researchbase.foundation.errors import ResearchBaseError
 
 
 @pytest.fixture
-def setup_m2(phase2_database_url, tmp_path, monkeypatch):
+def setup_m2(phase2_database_url, tmp_path, monkeypatch, request):
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", phase2_database_url)
     command.upgrade(cfg, "head")
@@ -134,7 +134,13 @@ def setup_m2(phase2_database_url, tmp_path, monkeypatch):
                 normalized_query="test",
                 provider_request_id=None,
                 hits=(
-                    SearchHit("W1", "CRISPR Cas9", "https://doi.org/10.1234/abc", None, None),
+                    SearchHit(
+                        "W1",
+                        getattr(request, "param", "CRISPR Cas9"),
+                        "https://doi.org/10.1234/abc",
+                        None,
+                        None,
+                    ),
                     SearchHit("W2", "No DOI", None, None, None),
                 ),
                 retrieved_at=datetime.now(UTC),
@@ -496,4 +502,101 @@ def test_question_freeze_rejects_direct_actor_forgery(setup_m2):
             )
             == "DRAFT"
         )
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "setup_m2,provider_title",
+    [("CRISPR Cas9", "CRISPR Cas9 "), ("CRISPR Cas9 é", "CRISPR Cas9 e\u0301")],
+    indirect=["setup_m2"],
+)
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_normalized_title_resolution_replay(setup_m2, provider_title, interrupted, monkeypatch):
+    bundle, principal, project, results, engine, cli = setup_m2
+    service = bundle.metadata_observations
+    calls = provider(service, {"DOI": "10.1234/abc", "title": [provider_title]})
+    observation = service.observe(principal, project, results[0], uuid4())
+    assert observation["outcome"] == "MATCH"
+    observation_id = UUID(observation["id"])
+    if interrupted:
+
+        def fail_before_freeze(*args):
+            raise OSError("injected interruption after durable draft creation")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(service._versions, "freeze", fail_before_freeze)
+            with pytest.raises(OSError, match="interruption after durable draft"):
+                service.resolve(principal, project, observation_id)
+        with engine.connect() as conn:
+            assert (
+                conn.scalar(text("SELECT count(*) FROM source_versions WHERE status='DRAFT'")) == 1
+            )
+            assert conn.scalar(text("SELECT count(*) FROM search_result_resolutions")) == 0
+    else:
+        first = service.resolve(principal, project, observation_id)
+        assert service.resolve(principal, project, observation_id) == first
+    # Each call runs in a fresh authenticated CLI process. This also resumes the durable draft.
+    restarted = cli(
+        "literature-metadata",
+        "resolve",
+        "--project-id",
+        str(project),
+        "--observation-id",
+        observation["id"],
+        "--json",
+    )
+    assert restarted["resolution"] is not None
+    assert service.resolve(principal, project, observation_id) == restarted
+    assert (
+        cli(
+            "literature-metadata",
+            "resolve",
+            "--project-id",
+            str(project),
+            "--observation-id",
+            observation["id"],
+            "--json",
+        )
+        == restarted
+    )
+    assert service.get(principal, project, observation_id) == observation
+    assert observation["evidence"]["metadata"]["title"] == provider_title
+    assert observation["evidence"]["evidence"]["response"]["title"] == [provider_title]
+    assert len(calls) == 1
+    with engine.connect() as conn:
+        assert conn.scalar(text("SELECT count(*) FROM literature_sources")) == 1
+        assert conn.scalar(text("SELECT count(*) FROM source_versions")) == 1
+        assert conn.scalar(text("SELECT count(*) FROM source_versions WHERE status='FROZEN'")) == 1
+        assert conn.scalar(text("SELECT count(*) FROM search_result_resolutions")) == 1
+    engine.dispose()
+
+
+def test_resolution_genuine_title_conflict_still_fails_closed(setup_m2):
+    from researchbase.application.source_identity import RegisterLiteratureSource
+    from researchbase.domain.source_identity import IdentifierType, SourceKind
+    from researchbase.foundation.errors import ErrorCode
+
+    bundle, principal, project, results, engine, cli = setup_m2
+    service = bundle.metadata_observations
+    provider(service, {"DOI": "10.1234/abc", "title": ["CRISPR Cas9 "]})
+    observation = service.observe(principal, project, results[0], uuid4())
+    bundle.literature.register_literature_source(
+        RegisterLiteratureSource(
+            principal,
+            project,
+            SourceKind.OTHER,
+            "Genuinely different title",
+            uuid4(),
+            IdentifierType.DOI,
+            "10.1234/abc",
+        )
+    )
+    with pytest.raises(ResearchBaseError) as exc:
+        service.resolve(principal, project, UUID(observation["id"]))
+    assert exc.value.code is ErrorCode.SOURCE_IDENTITY_CONFLICT
+    with engine.connect() as conn:
+        assert conn.scalar(text("SELECT count(*) FROM literature_sources")) == 1
+        assert conn.scalar(text("SELECT count(*) FROM source_versions")) == 0
+        assert conn.scalar(text("SELECT count(*) FROM search_result_resolutions")) == 0
+    assert service.get(principal, project, UUID(observation["id"])) == observation
     engine.dispose()

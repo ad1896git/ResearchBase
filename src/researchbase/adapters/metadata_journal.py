@@ -19,6 +19,18 @@ class MetadataDispatchJournal:
 
     def obtain(self, key: str, fingerprint: str, doi: str | None, title: str, timeout: int):
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # Like CAS persistence, sync directory entries through their ancestors.
+        # Repeat for existing paths: a previous failed sync may have left them present.
+        directory = self.root.absolute()
+        while True:
+            directory_fd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+            if directory == directory.parent:
+                break
+            directory = directory.parent
         path = self.root / (key + ".json")
         with (self.root / (key + ".lock")).open("a+b") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)

@@ -19,6 +19,7 @@ from researchbase.domain.source_identity import (
     IdentifierType,
     SourceKind,
     normalize_source_identifier,
+    normalize_source_title,
 )
 from researchbase.domain.source_version import SourceVersionKind, SourceVersionMaterial
 from researchbase.foundation.canonical_json import canonical_json_bytes
@@ -357,7 +358,7 @@ class MetadataObservationService:
                 "resolution": None,
             }
         metadata = observation["evidence"]["metadata"]
-        title = metadata["title"]
+        title = normalize_source_title(metadata["title"])
         source_kind = {
             "journal-article": SourceKind.PAPER,
             "proceedings-article": SourceKind.PAPER,
