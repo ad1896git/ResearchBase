@@ -323,8 +323,7 @@ class SqlAlchemyLiteratureSearchExecutionRepository:
             )
         deadline_at = min(
             now + timedelta(seconds=int(context["timeout_seconds"])),
-            execution.started_at
-            + timedelta(seconds=int(context["execution_budget_seconds"])),
+            execution.started_at + timedelta(seconds=int(context["execution_budget_seconds"])),
         )
         self._session.add(
             LiteratureSearchProviderAttemptModel(
@@ -470,8 +469,7 @@ class SqlAlchemyLiteratureSearchExecutionRepository:
             (
                 candidate
                 for candidate in self._session.new
-                if getattr(candidate, "id", None) == query_id
-                and hasattr(candidate, "query_hash")
+                if getattr(candidate, "id", None) == query_id and hasattr(candidate, "query_hash")
             ),
             None,
         )

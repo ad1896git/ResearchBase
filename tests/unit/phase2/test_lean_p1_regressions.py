@@ -2,9 +2,11 @@
 
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.orm import Session
 
 from researchbase.application.literature_search_execution import (
     CreateLiteratureSearchExecution,
@@ -51,7 +53,7 @@ def test_c01_attempt_projection_preserves_retrieval_observation():
         retrieved_at=retrieved,
     )
     session = SimpleNamespace(scalars=lambda _: SimpleNamespace(all=lambda: [row]))
-    repository = SqlAlchemyLiteratureSearchExecutionRepository(session)
+    repository = SqlAlchemyLiteratureSearchExecutionRepository(cast(Session, session))
     assert repository.attempts(uuid4())[0].get("retrieved_at") == retrieved
 
 
@@ -161,3 +163,12 @@ def test_explicit_historical_check_fails_for_missing_subject():
 
     with pytest.raises(subprocess.CalledProcessError):
         validate_migration_prefix(source_ref="0" * 40)
+
+
+def test_historical_prefix_verification_identifies_its_exact_subject():
+    from scripts.pr2_04_recovery_bindings import F2_CANDIDATE, validate_migration_prefix
+
+    result = validate_migration_prefix(source_ref=F2_CANDIDATE)
+    assert result["subject"] == F2_CANDIDATE
+    assert result["migration_head"] == "0025_pr2_04_reservation_guards"
+    assert result["original_history_recovered"] is False

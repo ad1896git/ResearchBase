@@ -1863,9 +1863,7 @@ class LiteratureSearchExecutionService:
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "query must be nonblank TEXT")
         if value.perspective is not None and not isinstance(value.perspective, str):
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "perspective must be text")
-        perspective = (
-            unicodedata.normalize("NFC", value.perspective) if value.perspective else None
-        )
+        perspective = unicodedata.normalize("NFC", value.perspective) if value.perspective else None
         if perspective is not None and not perspective.strip():
             perspective = None
         if perspective is not None and len(perspective) > 256:

@@ -9,6 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from tests.integration.phase2.test_pr2_04_execution_migration import _upgrade
 from tests.integration.phase2.test_pr2_04_idempotency_coverage import _command, _execution_setup
 from tests.integration.phase2.test_pr2_04_schema_coverage import (
+    A,
     E,
     Q,
     V,
@@ -88,7 +89,7 @@ def test_c05_sealed_attempt_rejects_second_query(phase2_database_url, hits):
         engine.dispose()
 
 
-@pytest.mark.parametrize("state", ["planned", "cancelled", "running", "ambiguous"])
+@pytest.mark.parametrize("state", ["planned", "cancelled", "running", "ambiguous", "non_null"])
 def test_c03_historical_backfill_is_evidence_bound_and_atomic(phase2_database_url, state):
     from sqlalchemy.orm import sessionmaker
 
@@ -127,23 +128,24 @@ def test_c03_historical_backfill_is_evidence_bound_and_atomic(phase2_database_ur
             principal=principal,
         )
         execution = UUID(service.create(create)["execution_id"])
-        # Simulate original 0025 NULL initialization, without changing its migration.
-        with engine.begin() as connection:
-            connection.execute(
-                text(f"ALTER TABLE {E} DISABLE TRIGGER trg_pr204_execution_update_guard")
-            )
-            connection.execute(
-                text(f"ALTER TABLE {E} DISABLE TRIGGER trg_pr204_execution_event_commit")
-            )
-            connection.execute(
-                text(f"UPDATE {E} SET executed_by=NULL WHERE id=:id"), {"id": execution}
-            )
-            connection.execute(
-                text(f"ALTER TABLE {E} ENABLE TRIGGER trg_pr204_execution_event_commit")
-            )
-            connection.execute(
-                text(f"ALTER TABLE {E} ENABLE TRIGGER trg_pr204_execution_update_guard")
-            )
+        if state != "non_null":
+            # Simulate original 0025 NULL initialization, without changing its migration.
+            with engine.begin() as connection:
+                connection.execute(
+                    text(f"ALTER TABLE {E} DISABLE TRIGGER trg_pr204_execution_update_guard")
+                )
+                connection.execute(
+                    text(f"ALTER TABLE {E} DISABLE TRIGGER trg_pr204_execution_event_commit")
+                )
+                connection.execute(
+                    text(f"UPDATE {E} SET executed_by=NULL WHERE id=:id"), {"id": execution}
+                )
+                connection.execute(
+                    text(f"ALTER TABLE {E} ENABLE TRIGGER trg_pr204_execution_event_commit")
+                )
+                connection.execute(
+                    text(f"ALTER TABLE {E} ENABLE TRIGGER trg_pr204_execution_update_guard")
+                )
         if state == "cancelled":
             service.cancel(_command("cancel", principal, project, execution))
         elif state == "running":
@@ -225,5 +227,90 @@ def test_c03_empty_upgrade_downgrade_roundtrip(phase2_database_url):
             ]
             is False
         )
+    finally:
+        engine.dispose()
+
+
+def test_c03_first_authorized_executor_replaces_requester_once(phase2_database_url):
+    from researchbase.application.phase2_identity import AssignProjectRole
+    from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
+    from tests.integration.phase2.test_pr2_03_effective_authority import _provision
+    from tests.integration.phase2.test_pr2_04_execution_recovery import ReservedBeforeInvocation
+    from tests.integration.phase2.test_pr2_04_idempotency_coverage import _service
+
+    case = _execution_setup(phase2_database_url)
+    engine, service, provider, owner, project, create = next(case)
+    try:
+        identity, _, _ = identity_service(phase2_database_url)
+        executor, _ = _provision(identity, owner)
+        identity.assign_project_role(
+            AssignProjectRole(
+                owner, project, executor.actor_id, "RESEARCHER", "first executor", uuid4()
+            )
+        )
+        execution = UUID(service.create(create)["execution_id"])
+        paused = _service(engine, provider, ReservedBeforeInvocation)
+        paused.execute(_command("execute", executor, project, execution))
+        before = _rows(engine)
+        assert before[E][0]["requested_by"] == owner.actor_id
+        assert before[E][0]["executed_by"] == executor.actor_id != owner.actor_id
+        assert before[A][0]["created_by"] == executor.actor_id
+        with pytest.raises(DBAPIError) as caught:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        f"UPDATE {E} SET executed_by=:owner,row_version=row_version+1 WHERE id=:id"
+                    ),
+                    dict(owner=owner.actor_id, id=execution),
+                )
+        assert getattr(caught.value.orig, "sqlstate", None) == "P17D1"
+        assert _rows(engine) == before and provider.calls == []
+        # Initial SQL attribution cannot impersonate another existing actor either.
+        wrong = dict(
+            before[E][0],
+            id=uuid4(),
+            idempotency_key=uuid4(),
+            status="PLANNED",
+            row_version=1,
+            started_at=None,
+        )
+        with pytest.raises(DBAPIError) as caught:
+            with engine.begin() as connection:
+                _insert(connection, E, wrong)
+        assert getattr(caught.value.orig, "sqlstate", None) == "P17D5"
+        assert _rows(engine) == before
+    finally:
+        case.close()
+
+
+def test_c05_query_without_atomic_attempt_seal_is_rejected(phase2_database_url):
+    value = _material(phase2_database_url, "reserved")
+    engine = value["engine"]
+    try:
+        before = _rows(engine)
+        attempt = before[A][0]
+        with pytest.raises(DBAPIError) as caught:
+            with engine.begin() as connection:
+                _insert(
+                    connection,
+                    Q,
+                    dict(
+                        id=uuid4(),
+                        literature_search_execution_id=value["execution"],
+                        provider_attempt_id=attempt["id"],
+                        ordinal=0,
+                        query_text="normalization evidence",
+                        perspective=None,
+                        provider_id="provider-a",
+                        provider_version="1",
+                        executed_at=attempt["reserved_at"],
+                        query_hash="f" * 64,
+                        hash_scheme="sha256-cjson-v1",
+                        created_by=value["principal"].actor_id,
+                        created_at=attempt["reserved_at"],
+                    ),
+                )
+        assert getattr(caught.value.orig, "sqlstate", None) == "P17D5"
+        assert _rows(engine) == before
     finally:
         engine.dispose()

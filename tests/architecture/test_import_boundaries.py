@@ -139,6 +139,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0023a_search_plan_review_guards.py",
         "0024_literature_search_execution.py",
         "0025_pr2_04_reservation_guards.py",
+        "0026_pr2_04_p1_contract_guards.py",
     ]
 
 

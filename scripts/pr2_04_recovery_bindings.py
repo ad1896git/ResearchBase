@@ -92,6 +92,7 @@ def validate_migration_prefix(source_ref=None):
         "binding_kind": "EXPLICIT_RECOVERY_CONTENT",
         "recovery_base": data["recovery_base"],
         "migration_head": expected,
+        "subject": source_ref or "WORKTREE",
         "original_history_recovered": False,
     }
 
