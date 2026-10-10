@@ -4,7 +4,7 @@ Date: 2026-10-11 (Asia/Shanghai). Verdict: **M3_PARTIAL**. This supersedes the e
 
 ## Checkpoint and scope
 
-Starting SHA: `6d45d547a0c229e26c089d106d90a1793bf9b912` (accepted M2). Branch: `feature/m3-literature-evidence`. Persistent worktree: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m3-literature-evidence`. Final implementation SHA: recorded in the delivery update below. The final report commit is the delivery HEAD, obtainable with `git log -1 --format=%H -- planning/M3_LITERATURE_EVIDENCE_COMPLETION.md`; its exact SHA is also returned in the delivery response.
+Starting SHA: `6d45d547a0c229e26c089d106d90a1793bf9b912` (accepted M2). Branch: `feature/m3-literature-evidence`. Persistent worktree: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m3-literature-evidence`. Final implementation SHA: `65b0aa234d12f802c185a46f4b30454c581ecf47`. The final report commit is the delivery HEAD, obtainable with `git log -1 --format=%H -- planning/M3_LITERATURE_EVIDENCE_COMPLETION.md`; its exact SHA is also returned in the delivery response.
 
 One primary executor; no subagents, push, merge or M4. M2's untracked final closure and independent-review reports remain unmodified in their original worktree. The unrelated ResearchBase-phase2 execution-pack edit was not touched. No dependency, lockfile, authentication-profile or governing Harness changes.
 
@@ -53,4 +53,4 @@ This is the remaining acceptance blocker, not a passing human gate. **M4 readine
 
 ## Delivery update
 
-Implementation commit and verified milestone bundle are recorded after committing the above code/test evidence. The earlier blocked bundle is historical and is not the M3 implementation milestone.
+Implementation commit: `65b0aa234d12f802c185a46f4b30454c581ecf47`. Delivery bundle: `/Users/onephone/Documents/Codex/ResearchBaseProject/backups/m3-literature-evidence.bundle`, containing the final feature branch including this report update. Bundle verification and exact delivery HEAD are reported in the delivery response after creation. The earlier blocked bundle is historical and is not the M3 implementation milestone.
