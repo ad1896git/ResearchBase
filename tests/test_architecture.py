@@ -38,7 +38,11 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
     migration_text = "\n".join(
         path.read_text()
         for path in _python_files(ROOT / "migrations")
-        if path.name != "0030_literature_evidence.py"
+        if path.name
+        not in {
+            "0030_literature_evidence.py",
+            "0031_m3_snapshot_relation_cardinality.py",
+        }
     )
     forbidden_tables = (
         "literature_evidence",

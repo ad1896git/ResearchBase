@@ -557,9 +557,13 @@ class LiteratureEvidenceService:
                     **{key: relation[key] for key in ("relation_type", "ordinal", "qualification")},
                 }
             )
+            if evidence["source_validity"] != "VALID" or evidence["review_status"] in {
+                "DISPUTED",
+                "REJECTED",
+            }:
+                valid = False
             if relation["relation_type"] == "SUPPORTS" and (
                 evidence["review_status"] != "VERIFIED"
-                or evidence["source_validity"] != "VALID"
                 or not evidence["review_events"]
                 or evidence["review_events"][-1]["reviewed_by"]
                 in {evidence["created_by"], row["created_by"]}

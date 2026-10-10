@@ -551,7 +551,7 @@ def test_pg_m3_migration_from_phase1_and_empty_roundtrip(phase2_database_url):
     with engine.connect() as connection:
         assert (
             connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0030_literature_evidence"
+            == "0031_m3_snapshot_relation_cardinality"
         )
     engine.dispose()
 

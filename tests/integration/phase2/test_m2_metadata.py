@@ -466,7 +466,7 @@ def test_empty_m2_migration_roundtrip(phase2_database_url):
     engine = create_engine(phase2_database_url)
     with engine.connect() as conn:
         assert conn.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0030_literature_evidence"
+            "0031_m3_snapshot_relation_cardinality"
         )
     engine.dispose()
 
