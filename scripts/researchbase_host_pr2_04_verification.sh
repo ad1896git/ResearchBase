@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-REPO="/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-recovery"
-EXPECTED_BRANCH="recovery/f2-pr204"
+REPO="/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-p1-remediation"
+EXPECTED_BRANCH="recovery/f2-p1-remediation"
 EXPECTED_HEAD=""
+readonly RECOVERY_COMPARISON_BASE="14143dc09983ce1765b3b39fda536691193fd868"
 readonly FROZEN_CONTRACT="ea216c9babea322808b3885f563d276b571575ab"
 readonly EXPECTED_MIGRATION="0025_pr2_04_reservation_guards"
 PG_BIN="${PG_BIN:-}"
@@ -52,6 +53,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   printf 'MODE=pr2-04-verification\nEXECUTION_HEAD=%s\nFROZEN_CONTRACT_SHA=%s\n' "$HEAD" "$FROZEN_CONTRACT"
   printf 'EXPECTED_BRANCH=%s\nEXPECTED_MIGRATION=%s\n' "$EXPECTED_BRANCH" "$EXPECTED_MIGRATION"
   printf 'REQUIRED_GATES=postgres18,phase1_non_drift,prior_pr_regression,migration0024,focused_pr204,full_suite,ruff,pyright,formatter_delta,diff_check,matrix_65\n'
+  python3 scripts/pr2_04_recovery_static_gates.py lineage || exit 2
   exit 0
 fi
 
@@ -118,7 +120,7 @@ def junit(path, log_path):
     warning_counts=re.findall(r"\b(\d+) warnings?\b",log)
     return {"collected":len(cases),"passed":len(cases)-failed-errors-skipped,"failed":failed,"errors":errors,"skipped":skipped,"warnings":int(warning_counts[-1]) if warning_counts else 0}
 version_path=out/"logs/postgres_version.log"
-summary={"schema_version":"pr2-04-host-review-v1","run_id":sys.argv[5],"execution_head":sys.argv[2],"frozen_contract_sha":sys.argv[3],"postgres_version":sys.argv[4] or None,"postgres_version_text":version_path.read_text().strip() if version_path.exists() else None,"started_at_utc":sys.argv[8],"finished_at_utc":sys.argv[9],"accepted_baseline":sys.argv[3],"cleanup":sys.argv[6],"checks":checks,"focused_counts":junit(out/"logs/focused.xml",out/"logs/focused.log"),"full_suite_counts":junit(out/"logs/full_suite.xml",out/"logs/full_suite.log"),"verification_matrix":matrix,"status":"PASS" if sys.argv[7]=="0" and matrix and matrix.get("counts",{}).get("PASS")==65 else "BLOCKED_OR_FAIL"}
+summary={"schema_version":"pr2-04-host-review-v1","run_id":sys.argv[5],"execution_head":sys.argv[2],"frozen_contract_sha":sys.argv[3],"postgres_version":sys.argv[4] or None,"postgres_version_text":version_path.read_text().strip() if version_path.exists() else None,"started_at_utc":sys.argv[8],"finished_at_utc":sys.argv[9],"accepted_baseline":None,"recovery_comparison_baseline":"14143dc09983ce1765b3b39fda536691193fd868","original_history_recovered":False,"historical_lineage":next((c["status"] for c in checks if c["id"]=="frozen_contract_lineage"),"NOT_RUN"),"cleanup":sys.argv[6],"checks":checks,"focused_counts":junit(out/"logs/focused.xml",out/"logs/focused.log"),"full_suite_counts":junit(out/"logs/full_suite.xml",out/"logs/full_suite.log"),"verification_matrix":matrix,"status":"PASS" if sys.argv[7]=="0" and matrix and matrix.get("counts",{}).get("PASS")==65 else "BLOCKED_OR_FAIL"}
 (out/"host_review_result.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
 (out/"host_review_result.md").write_text("# PR2-04 host verification\n\n"+"\n".join(f"- {c['id']}: {c['status']} — `{c['command']}`" for c in checks)+f"\n\nMatrix: `{summary['verification_matrix'].get('counts') if summary['verification_matrix'] else 'missing'}`\n")
 digests={str(path.relative_to(out)):hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(out.rglob("*")) if path.is_file() and path.name!="artifact_sha256.json"}
@@ -148,7 +150,20 @@ PY
 )"
 record candidate_cleanliness "$([ "$TRACKED_STATE" != DIRTY ] && echo PASS || echo FAIL)" "tracked tree clean; only artifacts/pr_evidence untracked ($TRACKED_STATE)"
 record postgres18_binary "$([ -n "$PG_BIN" ] && [ -x "$PG_BIN/postgres" ] && [[ "$POSTGRES_VERSION" == 18.* ]] && echo PASS || echo FAIL)" "PostgreSQL 18 binary and version"
-record frozen_contract_lineage PASS "frozen contract $FROZEN_CONTRACT is ancestor of candidate $HEAD"
+python3 scripts/pr2_04_recovery_static_gates.py lineage > "$OUT/recovery_lineage.json" 2> "$OUT/logs/recovery_lineage.log"
+lineage_rc=$?
+if [ "$lineage_rc" -ne 0 ]; then
+  record recovery_baseline_lineage FAIL "recovery baseline prerequisite or comparison failed"
+  record frozen_contract_lineage NOT_RUN "historical ancestry prerequisite not established"
+  exit 2
+fi
+historical_lineage_status="$(python3 - "$OUT/recovery_lineage.json" <<'PY_STATUS'
+import json,sys
+print(json.load(open(sys.argv[1]))["historical_lineage"]["status"])
+PY_STATUS
+)" || exit 2
+record recovery_baseline_lineage PASS "verified actual recovery comparison $RECOVERY_COMPARISON_BASE..$HEAD; not historical ancestry"
+record frozen_contract_lineage "$historical_lineage_status" "actual historical object/ancestry status; see recovery_lineage.json"
 record phase1_migration_non_drift "$(git diff --quiet d2400fbeca835c89bd802a4e9d647bda01cfd115 "$HEAD" -- migrations/versions/000*.py migrations/versions/001[0-8]*.py && echo PASS || echo FAIL)" "compare frozen Phase 1 migration files"
 
 if [ "$TRACKED_STATE" = DIRTY ] || [ -z "$PG_BIN" ] || [ ! -x "$PG_BIN/initdb" ] || [[ "$POSTGRES_VERSION" != 18.* ]]; then
@@ -215,18 +230,9 @@ type_rc=$?; record pyright "$([ "$type_rc" -eq 0 ] && echo PASS || echo FAIL)" "
 uv run ruff format --check . > "$OUT/logs/formatter_raw.log" 2>&1
 raw_format_rc=$?
 record formatter_raw "$([ "$raw_format_rc" -eq 0 ] && echo PASS || echo INHERITED)" "uv run ruff format --check . (raw result; delta gate follows)"
-git diff --name-only -z "$FROZEN_CONTRACT" "$HEAD" -- '*.py' '*.pyi' > "$OUT/changed_python_files.bin"
-python3 - "$OUT/changed_python_files.bin" > "$OUT/logs/formatter_changed_scope.log" 2>&1 <<'PY'
-import subprocess,sys
-from pathlib import Path
-files=[item.decode() for item in Path(sys.argv[1]).read_bytes().split(b"\0") if item]
-if not files:
-    print("No changed Python files.")
-    raise SystemExit(0)
-raise SystemExit(subprocess.run(["uv","run","ruff","format","--check",*files],check=False).returncode)
-PY
+python3 scripts/pr2_04_recovery_static_gates.py formatter > "$OUT/logs/formatter_changed_scope.log" 2>&1
 changed_format_rc=$?
-record formatter_changed_scope "$([ "$changed_format_rc" -eq 0 ] && echo PASS || echo FAIL)" "ruff format --check every changed Python file"
+record formatter_changed_scope "$([ "$changed_format_rc" -eq 0 ] && echo PASS || echo FAIL)" "verified recovery baseline $RECOVERY_COMPARISON_BASE..$HEAD; ruff format --check every extant changed Python file"
 python3 - "$OUT/logs/formatter_raw.log" "$OUT/formatter_baseline_delta.json" "$raw_format_rc" <<'PY'
 import json,re,sys
 from pathlib import Path
@@ -243,8 +249,8 @@ raise SystemExit(0 if result["gate"]=="PASS" else 1)
 PY
 formatter_delta_rc=$?
 record formatter_baseline_delta "$([ "$formatter_delta_rc" -eq 0 ] && echo PASS || echo FAIL)" "compare raw formatter failures with frozen FORMAT-BASELINE-01"
-git diff --check "$FROZEN_CONTRACT" "$HEAD" > "$OUT/logs/diff_check.log" 2>&1
-diff_rc=$?; record git_diff_check "$([ "$diff_rc" -eq 0 ] && echo PASS || echo FAIL)" "git diff --check frozen-contract..candidate"
+python3 scripts/pr2_04_recovery_static_gates.py diff-check > "$OUT/logs/diff_check.log" 2>&1
+diff_rc=$?; record git_diff_check "$([ "$diff_rc" -eq 0 ] && echo PASS || echo FAIL)" "git diff --check recovery baseline $RECOVERY_COMPARISON_BASE..$HEAD"
 
 # A result index is created only by explicit test/evidence instrumentation. A command summary
 # alone never advances requirement rows from NOT_RUN.
