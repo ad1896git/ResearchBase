@@ -5,9 +5,11 @@ network disconnects. A post-commit injection executes in a separate cleanup
 transaction after the original commit; the trace retains both transaction IDs.
 """
 
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import replace
 from time import monotonic, sleep
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -15,6 +17,14 @@ from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
+
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.phase2_identity import AssignProjectRole
+from researchbase.domain.phase2_identity import CredentialVerifier
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
+from tests.integration.phase2.test_pr2_03_effective_authority import _provision
 from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
     _AlwaysValidCredential,
 )
@@ -25,13 +35,6 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
     _snapshot,
 )
 from tests.unit.phase2.test_pr2_04_provider_coverage import ScriptedProvider, success
-
-from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.phase2_identity import AssignProjectRole
-from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
-from tests.integration.phase2.test_pr2_03_effective_authority import _provision
-from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture
@@ -55,7 +58,14 @@ def _wait_until_recovery(engine, deadline):
 
 
 class PhaseFault:
-    def __init__(self, engine, project, recorder):
+    def __init__(self, engine, project, recorder, sqlstate="40001"):
+        assert sqlstate in {"40001", "40P01"}
+        self.sqlstate = sqlstate
+        self.before_phase: Callable[[str], None] | None = None
+        self.after_actual_commit: Callable[[dict[str, Any]], None] | None = None
+        self.credential: CredentialVerifier = _AlwaysValidCredential()
+        self.expected_roles = ["OWNER"]
+        self.commands = []
         self.engine = engine
         self.project = project
         self.recorder = recorder
@@ -77,6 +87,8 @@ class PhaseFault:
         old = self.phase
         self.phase = phase
         self.phase_attempts.append(phase)
+        if self.before_phase is not None:
+            self.before_phase(phase)
         try:
             yield
         finally:
@@ -101,12 +113,30 @@ class PhaseFault:
                     "injection_number": len(control.faults) + 1,
                 }
                 control.remaining -= 1
-                if control.mode == "post_commit_ack_lost":
+                if control.mode in {"post_commit_ack_lost", "context_exit"}:
                     super().commit()
                     fault["phase_commit_completed"] = True
+                    if control.after_actual_commit is not None:
+                        control.after_actual_commit(fault)
                 else:
                     assert control.mode == "rollback"
                     fault["phase_commit_completed"] = False
+                if control.mode == "context_exit":
+                    self.exit_fault = fault
+                    return None
+                return self.inject_fault(fault, xid)
+
+            def close(self):
+                fault = getattr(self, "exit_fault", None)
+                if fault is None:
+                    return super().close()
+                self.exit_fault = None
+                try:
+                    self.inject_fault(fault, fault["phase_transaction_id"])
+                finally:
+                    super().close()
+
+            def inject_fault(self, fault, xid):
                 # Independent ordinary SELECTs see only committed facts. Snapshot
                 # is made before the injected exception and before any retry.
                 fault["independent_snapshot_before_fault"] = _snapshot(
@@ -117,15 +147,15 @@ class PhaseFault:
                 ).one()
                 fault["injection_backend_pid"] = cleanup_pid
                 fault["injection_transaction_id"] = cleanup_xid
-                if control.mode == "post_commit_ack_lost":
+                if control.mode in {"post_commit_ack_lost", "context_exit"}:
                     assert cleanup_xid != xid
                 else:
                     assert cleanup_xid == xid
                 try:
-                    self.execute(text("DO $$ BEGIN RAISE SQLSTATE '40001'; END $$"))
+                    self.execute(text(f"DO $$ BEGIN RAISE SQLSTATE '{control.sqlstate}'; END $$"))
                 except DBAPIError as error:
                     fault["sqlstate"] = getattr(error.orig, "sqlstate", None)
-                    assert fault["sqlstate"] == "40001"
+                    assert fault["sqlstate"] == control.sqlstate
                     control.faults.append(fault)
                     control.recorder.record(commit_fault=fault)
                     raise
@@ -166,12 +196,16 @@ class PhaseFault:
 
             def begin_serializable(self):
                 super().begin_serializable()
-                pid, xid = self._require_session().execute(
-                    text("SELECT pg_backend_pid(),txid_current()")
-                ).one()
+                pid, xid = (
+                    self._require_session()
+                    .execute(text("SELECT pg_backend_pid(),txid_current()"))
+                    .one()
+                )
                 self.fact.update(backend_pid=pid, transaction_id=xid)
 
             def __exit__(self, *args):
+                if isinstance(args[1], ResearchBaseError):
+                    self.fact["error_code"] = args[1].code.value
                 try:
                     return super().__exit__(*args)
                 except ResearchBaseError as error:
@@ -182,6 +216,22 @@ class PhaseFault:
                     control.recorder.record(database_transaction=self.fact)
 
         class FaultService(LiteratureSearchExecutionService):
+            def execute(self, command):
+                control.commands.append(("execute", command.request_id))
+                return super().execute(command)
+
+            def cancel(self, command):
+                control.commands.append(("cancel", command.request_id))
+                return super().cancel(command)
+
+            def recover(self, command):
+                control.commands.append(("recover", command.request_id))
+                return super().recover(command)
+
+            def _cancel_or_recover(self, *args, **kwargs):
+                with control.enter_phase("recover_admission" if args[4] else "cancel_admission"):
+                    return super()._cancel_or_recover(*args, **kwargs)
+
             def _execute_admission(self, *args, **kwargs):
                 with control.enter_phase("reserve"):
                     return super()._execute_admission(*args, **kwargs)
@@ -204,7 +254,7 @@ class PhaseFault:
         return FaultService(
             lambda: ObservedUow(sessions, pr204_error_normalization=True),
             provider,
-            credential_verifier=_AlwaysValidCredential(),
+            credential_verifier=control.credential,
         )
 
     def assert_clean_fresh_attempts(self, phase, expected):
@@ -217,7 +267,7 @@ class PhaseFault:
             order = item["order"]
             assert order.index("project_lock_returned") < order.index("authority_read_returned")
             assert order.index("authority_read_returned") < order.index("fresh_database_time")
-            assert item["database_times"] and item["roles"] == ["OWNER"]
+            assert item["database_times"] and item["roles"] == self.expected_roles
 
 
 @pytest.mark.pr204_requirements("PR204-BOUND-03")
@@ -284,7 +334,7 @@ def test_pg_lost_outcome_commit_ack_matches_exact_tuple_and_rejects_changed_tupl
     ordinary._persist_outcome(*args, **kwargs)
     assert _snapshot(engine, project) == after and len(provider.calls) == 1
     changed = list(args)
-    changed[7] = replace(changed[7], provider_request_id="different-valid-correlation")
+    changed[6] = replace(changed[6], provider_request_id="different-valid-correlation")
     with pytest.raises(ResearchBaseError) as different:
         ordinary._persist_outcome(*changed, **kwargs)
     assert different.value.code is ErrorCode.IMMUTABLE_RECORD
@@ -297,7 +347,9 @@ def test_pg_lost_outcome_commit_ack_matches_exact_tuple_and_rejects_changed_tupl
     for key in ("attempts", "queries", "results"):
         assert final[key] == after[key]
     assert len(provider.calls) == 1
-    pr204_trace.record(after=after, final=final, different_error=different.value.code.value, provider_calls=1)
+    pr204_trace.record(
+        after=after, final=final, different_error=different.value.code.value, provider_calls=1
+    )
 
 
 @pytest.mark.pr204_requirements("PR204-CRASH-05")
@@ -444,9 +496,16 @@ def _assert_exact_admission_replay(control, provider, command, before):
     assert replay == saved["result_dto"]
     assert _snapshot(control.engine, control.project) == before
     assert len(provider.calls) == calls
-    control.recorder.record(exact_receipt_replay=dict(
-        request_id=command.request_id, command=name, saved=saved, returned=replay,
-        unchanged_snapshot=before, provider_calls=calls))
+    control.recorder.record(
+        exact_receipt_replay=dict(
+            request_id=command.request_id,
+            command=name,
+            saved=saved,
+            returned=replay,
+            unchanged_snapshot=before,
+            provider_calls=calls,
+        )
+    )
 
 
 def _accounting(control, provider, expected_phase_attempts):
@@ -459,27 +518,37 @@ def _accounting(control, provider, expected_phase_attempts):
     provider_ids = [call.attempt_id for call in provider.calls]
     assert len(provider_ids) == len(set(provider_ids))
     control.recorder.record(
-        accounting=dict(public_commands=control.commands,
+        accounting=dict(
+            public_commands=control.commands,
             expected_phase_attempts=expected_phase_attempts,
             database_transactions=control.transactions,
             sqlstate_faults=control.faults,
             provider_invocation_attempt_ids=provider_ids,
-            durable_outcome=_snapshot(control.engine, control.project)))
+            durable_outcome=_snapshot(control.engine, control.project),
+        )
+    )
 
 
 def _finite_role_before_phase(engine, role_id, actor_id):
     # Same finite-interval convention as the accepted temporal fixtures. This
     # runs before the phase opens its UoW; all causal fields and guards remain.
     with engine.begin() as connection:
-        deadline = connection.execute(text(
-            "UPDATE project_role_assignments SET "
-            "effective_until=clock_timestamp()+interval '3 seconds',row_version=row_version+1 "
-            "WHERE id=:id RETURNING effective_until"), {"id": role_id}).scalar_one()
-        connection.execute(text(
-            "INSERT INTO project_role_events(id,role_assignment_id,actor_id,event_kind,"
-            "occurred_at,reason,request_id) VALUES "
-            "(:id,:role,:actor,'CLOSED',:at,'finite fault acceptance interval',:request)"),
-            dict(id=uuid4(), role=role_id, actor=actor_id, at=deadline, request=uuid4()))
+        deadline = connection.execute(
+            text(
+                "UPDATE project_role_assignments SET "
+                "effective_until=clock_timestamp()+interval '3 seconds',row_version=row_version+1 "
+                "WHERE id=:id RETURNING effective_until"
+            ),
+            {"id": role_id},
+        ).scalar_one()
+        connection.execute(
+            text(
+                "INSERT INTO project_role_events(id,role_assignment_id,actor_id,event_kind,"
+                "occurred_at,reason,request_id) VALUES "
+                "(:id,:role,:actor,'CLOSED',:at,'finite fault acceptance interval',:request)"
+            ),
+            dict(id=uuid4(), role=role_id, actor=actor_id, at=deadline, request=uuid4()),
+        )
     return deadline
 
 
@@ -488,15 +557,22 @@ def _finite_role_before_phase(engine, role_id, actor_id):
 @pytest.mark.parametrize("sqlstate", ["40001", "40P01"])
 @pytest.mark.parametrize("loss", ["credential", "role_expiry"])
 def test_pg_postcommit_fault_reauthorizes_before_disclosing_saved_admission(
-    fault_completion_case, phase2_database_url, phase, sqlstate, loss,
+    fault_completion_case,
+    phase2_database_url,
+    phase,
+    sqlstate,
+    loss,
     pr204_trace: FactRecorder,
 ):
     engine, normal, _, owner, project, create = fault_completion_case
     provider = ScriptedProvider([success("normalization evidence", "provider-a", 2)], "provider-a")
     identity, _, _ = _identity_service(phase2_database_url)
     principal, _ = _provision(identity, owner)
-    role_id = identity.assign_project_role(AssignProjectRole(
-        owner, project, principal.actor_id, "RESEARCHER", "postcommit authority", uuid4()))
+    role_id = identity.assign_project_role(
+        AssignProjectRole(
+            owner, project, principal.actor_id, "RESEARCHER", "postcommit authority", uuid4()
+        )
+    )
     execution_id = UUID(normal.create(create)["execution_id"])
     control = PhaseFault(engine, project, pr204_trace, sqlstate)
     control.expected_roles = ["RESEARCHER"]
@@ -515,7 +591,7 @@ def test_pg_postcommit_fault_reauthorizes_before_disclosing_saved_admission(
 
     def before_phase(current):
         if current == phase and loss == "role_expiry" and "deadline" not in interval:
-            interval["deadline"] = _finite_role_before_phase(engine, role_id, owner.actor_id)
+            interval["deadline"] = _finite_role_before_phase(engine, role_id, principal.actor_id)
 
     def after_commit(fault):
         assert fault["phase_commit_completed"]
@@ -526,7 +602,8 @@ def test_pg_postcommit_fault_reauthorizes_before_disclosing_saved_admission(
         if loss == "role_expiry":
             assert at < interval["deadline"]
             interval["after_commit_database_time"] = _wait_until_recovery(
-                engine, interval["deadline"])
+                engine, interval["deadline"]
+            )
             assert interval["after_commit_database_time"] >= interval["deadline"]
         else:
             credential.valid = False
@@ -547,12 +624,17 @@ def test_pg_postcommit_fault_reauthorizes_before_disclosing_saved_admission(
     assert len(provider.calls) == expected_calls
     assert len(after["receipts"]) == 2
     assert after["executions"][0]["status"] == (
-        "RUNNING" if phase == "outcome" else "CANCELLED" if name == "cancel" else "SUCCEEDED")
+        "RUNNING" if phase == "outcome" else "CANCELLED" if name == "cancel" else "SUCCEEDED"
+    )
     attempts = [t for t in control.transactions if t["phase"] == phase]
     assert len(attempts) == 2
     for attempt in attempts:
-        assert attempt["order"].index("project_lock_returned") < attempt["order"].index("authority_read_returned")
-        assert attempt["order"].index("authority_read_returned") < attempt["order"].index("fresh_database_time")
+        assert attempt["order"].index("project_lock_returned") < attempt["order"].index(
+            "authority_read_returned"
+        )
+        assert attempt["order"].index("authority_read_returned") < attempt["order"].index(
+            "fresh_database_time"
+        )
     assert attempts[0]["database_times"][-1] < attempts[1]["database_times"][-1]
     assert attempts[1]["error_code"] == "FORBIDDEN"
     if loss == "credential":
@@ -582,9 +664,15 @@ def test_pg_postcommit_fault_reauthorizes_before_disclosing_saved_admission(
     assert _snapshot(engine, project) == final and len(provider.calls) == expected_calls
     _accounting(control, provider, {phase: 2})
     _accounting(replacement, provider, {"recover_admission": 2})
-    pr204_trace.record(authority_loss=loss, credential_samples=samples, role_interval=interval,
-        denied_code=denied.value.code.value, denied_replay=replay_denied.value.code.value,
-        committed_before_denial=after, after_entitled_recovery=final)
+    pr204_trace.record(
+        authority_loss=loss,
+        credential_samples=samples,
+        role_interval=interval,
+        denied_code=denied.value.code.value,
+        denied_replay=replay_denied.value.code.value,
+        committed_before_denial=after,
+        after_entitled_recovery=final,
+    )
 
 
 @pytest.mark.pr204_requirements("PR204-CONC-05", "PR204-CONC-06", "PR204-IDEM-06")
@@ -592,7 +680,11 @@ def test_pg_postcommit_fault_reauthorizes_before_disclosing_saved_admission(
 @pytest.mark.parametrize("sqlstate", ["40001", "40P01"])
 @pytest.mark.parametrize("fault_count", [1, 3], ids=["retry", "exhaustion"])
 def test_pg_actual_context_exit_fault_preserves_commit_and_bounds_phase_retry(
-    fault_completion_case, phase, sqlstate, fault_count, pr204_trace: FactRecorder,
+    fault_completion_case,
+    phase,
+    sqlstate,
+    fault_count,
+    pr204_trace: FactRecorder,
 ):
     engine, normal, _, principal, project, create = fault_completion_case
     provider = ScriptedProvider([success("normalization evidence", "provider-a", 2)], "provider-a")
@@ -621,7 +713,8 @@ def test_pg_actual_context_exit_fault_preserves_commit_and_bounds_phase_retry(
         assert fault["independent_snapshot_before_fault"] == after
     assert len(after["receipts"]) == 2
     assert after["executions"][0]["status"] == (
-        "RUNNING" if phase == "outcome" else "CANCELLED" if name == "cancel" else "SUCCEEDED")
+        "RUNNING" if phase == "outcome" else "CANCELLED" if name == "cancel" else "SUCCEEDED"
+    )
     expected_calls = 0 if name == "cancel" else 1
     assert len(provider.calls) == expected_calls
     assert sum(e["kind"] == "OUTCOME_RECORDED" for e in after["events"]) == expected_calls
@@ -644,7 +737,11 @@ def test_pg_actual_context_exit_fault_preserves_commit_and_bounds_phase_retry(
 @pytest.mark.parametrize("sqlstate", ["40001", "40P01"])
 @pytest.mark.parametrize("fault_count", [1, 3], ids=["retry", "exhaustion"])
 def test_pg_execute_and_c1_precommit_fault_rolls_back_only_current_admission(
-    fault_completion_case, phase, sqlstate, fault_count, pr204_trace: FactRecorder,
+    fault_completion_case,
+    phase,
+    sqlstate,
+    fault_count,
+    pr204_trace: FactRecorder,
 ):
     engine, normal, _, principal, project, create = fault_completion_case
     provider = ScriptedProvider([success("normalization evidence", "provider-a", 2)], "provider-a")
@@ -676,7 +773,9 @@ def test_pg_execute_and_c1_precommit_fault_rolls_back_only_current_admission(
         assert after["executions"][0]["status"] == "PLANNED"
     else:
         assert len(after["receipts"]) == 2
-        assert after["executions"][0]["status"] == ("SUCCEEDED" if name == "execute" else "CANCELLED")
+        assert after["executions"][0]["status"] == (
+            "SUCCEEDED" if name == "execute" else "CANCELLED"
+        )
         assert sum(e["kind"] == "FINISHED" for e in after["events"]) == 1
         assert len(provider.calls) == (1 if name == "execute" else 0)
         assert len(after["attempts"]) == (1 if name == "execute" else 0)
