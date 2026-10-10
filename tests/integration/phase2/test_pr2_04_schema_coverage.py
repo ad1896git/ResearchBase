@@ -58,11 +58,12 @@ JSON_COLUMNS = {"execution_context", "warning_codes", "result_dto"}
 
 # Frozen pack §13 inventory, including the accepted concrete provider-attempt FK.
 NULLABLE = {
-    E: {"executed_by", "started_at", "finished_at", "failure_code"},
+    E: {"started_at", "finished_at", "failure_code"},
     A: {
         "query_record_id",
         "invoked_at",
         "returned_at",
+        "retrieved_at",
         "completed_at",
         "delivery_certainty",
         "provider_request_id",
@@ -78,7 +79,7 @@ NULLABLE = {
 }
 COLUMNS = {
     E: "id project_id search_plan_version_id strategy_id strategy_version status requested_by executed_by started_at finished_at execution_context idempotency_key failure_code row_version created_by created_at",
-    A: "id execution_id query_index attempt_number provider_request_key reserved_at deadline_at recovery_after status query_record_id invoked_at returned_at completed_at delivery_certainty provider_request_id failure_code retry_after_seconds warning_codes result_count row_version created_by created_at",
+    A: "id execution_id query_index attempt_number provider_request_key reserved_at deadline_at recovery_after status query_record_id invoked_at returned_at retrieved_at completed_at delivery_certainty provider_request_id failure_code retry_after_seconds warning_codes result_count row_version created_by created_at",
     Q: "id literature_search_execution_id provider_attempt_id query_text perspective provider_id provider_version ordinal executed_at query_hash hash_scheme created_by created_at",
     R: "id search_query_record_id rank external_identifier title url snippet provider_score retrieved_at content_hash hash_scheme created_by created_at",
     V: "id execution_id sequence kind attempt_id prior_status new_status prior_row_version new_row_version occurred_at created_by created_at",
@@ -93,12 +94,13 @@ UNIQUE_COLUMNS = {
         ("query_record_id",),
     },
     Q: {
+        ("provider_attempt_id",),
         ("literature_search_execution_id", "ordinal"),
         ("literature_search_execution_id", "query_hash"),
         ("literature_search_execution_id", "id"),
     },
     R: {("search_query_record_id", "rank")},
-    V: {("execution_id", "sequence")},
+    V: {("execution_id", "sequence"), ("execution_id", "new_row_version")},
     C: {("deployment_id", "actor_id", "project_id", "command_name", "request_id")},
 }
 

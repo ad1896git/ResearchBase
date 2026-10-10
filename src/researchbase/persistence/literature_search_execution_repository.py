@@ -16,8 +16,8 @@ from researchbase.domain.literature_search_execution import (
     SearchQueryRecord,
     SearchResponse,
 )
-from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.persistence.models import (
     LiteratureSearchExecutionCommandReceiptModel,
     LiteratureSearchExecutionEventModel,

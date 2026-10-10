@@ -144,7 +144,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
         )
         assert before == after
         assert revisions == [REVISION]
-        assert scripts.get_heads() == ["0025_pr2_04_reservation_guards"]
+        assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
         assert revision.down_revision == PARENT
         if origin == PARENT:
             assert after_tables - before_tables == set(TABLES)
@@ -257,7 +257,7 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
     # A02: FROZEN_PR204 remains provenance; no original ancestry claim.
     from scripts.pr2_04_recovery_bindings import baseline, validate_migration_prefix
     binding = baseline()
-    checks = validate_migration_prefix()
+    checks = validate_migration_prefix(source_ref="86658eb83bb0552da36510368d70fe5c049ec086")
     hashes = {}
     for path, digest in binding["source_sha256"].items():
         if path.startswith("migrations/versions/"):
@@ -268,7 +268,7 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
     scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
     child = scripts.get_revision("0025_pr2_04_reservation_guards")
     assert child is not None and child.down_revision == REVISION
-    assert scripts.get_heads() == ["0025_pr2_04_reservation_guards"]
+    assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
     pr204_trace.record(historical_reference=FROZEN_PR204,
         historical_ancestry_recovered=False, recovery_baseline=binding["migration_base"],
         recovery_migration_hashes=hashes, topology=checks)

@@ -86,8 +86,8 @@ class LiteratureSearchExecution:
     requested_by: UUID
     idempotency_key: UUID
     execution_context: dict[str, Any]
+    executed_by: UUID
     status: ExecutionStatus = ExecutionStatus.PLANNED
-    executed_by: UUID | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
     row_version: int = 1
@@ -119,6 +119,7 @@ class LiteratureSearchExecution:
             requested_by,
             idempotency_key,
             dict(execution_context),
+            executed_by=requested_by,
         )
 
     def _require_open(self) -> None:

@@ -899,7 +899,6 @@ class LiteratureSearchExecutionService:
                 failure_code="PROVIDER_TIMEOUT",
             )
         else:
-            invoked_at = self._clock()
             try:
                 provider = self._provider_for(context["provider_id"], context["provider_version"])
                 if provider is None:
@@ -910,6 +909,15 @@ class LiteratureSearchExecutionService:
                     )
                 disconnected = _http_disconnect.get()
                 durable_cancel = self._cancellation_event(execution_id)
+                call_started_at = self._clock()
+                remaining_timeout = max(0.0, monotonic_deadline - self._monotonic())
+                if remaining_timeout <= 0:
+                    raise ProviderError(
+                        ProviderFailureKind.RETRYABLE,
+                        "PROVIDER_TIMEOUT",
+                        delivery_certainty=DeliveryCertainty.NOT_SENT,
+                    )
+                invoked_at = call_started_at
                 response = provider.search(
                     SearchRequest(
                         execution_id,

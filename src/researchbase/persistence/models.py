@@ -1052,8 +1052,8 @@ class LiteratureSearchExecutionModel(Base):
     requested_by: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
     )
-    executed_by: Mapped[UUID | None] = mapped_column(
-        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT")
+    executed_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1070,6 +1070,7 @@ class LiteratureSearchExecutionModel(Base):
 class LiteratureSearchQueryRecordModel(Base):
     __tablename__ = "search_query_records"
     __table_args__ = (
+        UniqueConstraint("provider_attempt_id", name="uq_sqrec_provider_attempt"),
         UniqueConstraint(
             "literature_search_execution_id", "ordinal", name="uq_sqr_execution_ordinal"
         ),
@@ -1179,6 +1180,7 @@ class LiteratureSearchProviderAttemptModel(Base):
     )
     invoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivery_certainty: Mapped[str | None] = mapped_column(String(24))
     provider_request_id: Mapped[str | None] = mapped_column(String(256))
@@ -1227,6 +1229,7 @@ class LiteratureSearchExecutionEventModel(Base):
     __tablename__ = "literature_search_execution_events"
     __table_args__ = (
         UniqueConstraint("execution_id", "sequence", name="uq_lsee_execution_sequence"),
+        UniqueConstraint("execution_id", "new_row_version", name="uq_lsee_mutation_coordinate"),
         CheckConstraint("sequence >= 0", name="ck_lsee_sequence"),
     )
 

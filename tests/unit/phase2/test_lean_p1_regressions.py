@@ -55,7 +55,7 @@ def test_c01_attempt_projection_preserves_retrieval_observation():
     assert repository.attempts(uuid4())[0].get("retrieved_at") == retrieved
 
 
-@pytest.mark.parametrize("boundary", ["commit", "exit"])
+@pytest.mark.parametrize("boundary", ["commit", "exit", "provider_lookup"])
 @pytest.mark.parametrize("elapsed", [0.25, 2.0])
 def test_c02_preparation_latency_reduces_dispatch_budget(boundary, elapsed):
     now = datetime(2026, 1, 1, tzinfo=UTC)
@@ -99,7 +99,16 @@ def test_c02_preparation_latency_reduces_dispatch_budget(boundary, elapsed):
             return super().search(request, context)
 
     provider = Provider()
-    service = LiteratureSearchExecutionService(
+
+    class Service(LiteratureSearchExecutionService):
+        def _provider_for(self, *args):
+            nonlocal seconds
+            provider = super()._provider_for(*args)
+            if boundary == "provider_lookup" and commits == 3:
+                seconds += elapsed
+            return provider
+
+    service = Service(
         lambda: Uow(repository),
         provider,
         clock=lambda: repository.database_now(),
@@ -134,3 +143,21 @@ def test_c02_preparation_latency_reduces_dispatch_budget(boundary, elapsed):
         assert provider.calls == []
     else:
         assert observed == [(elapsed, pytest.approx(1 - elapsed))]
+
+
+def test_historical_seals_are_not_applied_to_new_candidate(monkeypatch):
+    from scripts import pr2_04_recovery_bindings as bindings
+
+    monkeypatch.setattr(bindings.subprocess, "check_output", lambda *a, **kw: "a" * 40)
+    scope = bindings.historical_gate_scope()
+    assert scope["status"] == "NOT_APPLICABLE"
+    assert scope["candidate"] != scope["subject"]
+
+
+def test_explicit_historical_check_fails_for_missing_subject():
+    import subprocess
+
+    from scripts.pr2_04_recovery_bindings import validate_migration_prefix
+
+    with pytest.raises(subprocess.CalledProcessError):
+        validate_migration_prefix(source_ref="0" * 40)

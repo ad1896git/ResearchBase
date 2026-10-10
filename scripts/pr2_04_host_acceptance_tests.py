@@ -17,8 +17,12 @@ from pathlib import Path
 
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
-
-from scripts.pr2_04_recovery_bindings import baseline as recovery_baseline, validate_migration_prefix, validate_production_scope
+from scripts.pr2_04_recovery_bindings import baseline as recovery_baseline
+from scripts.pr2_04_recovery_bindings import (
+    historical_gate_scope,
+    validate_migration_prefix,
+    validate_production_scope,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,7 +38,10 @@ def validate_r8a_migration_topology(
     assert parent == "0024_literature_search_execution"
 
 
-def _validate_current_r8a_migrations() -> None:
+def _validate_current_r8a_migrations() -> dict:
+    scope = historical_gate_scope()
+    if scope["status"] == "NOT_APPLICABLE":
+        return scope
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
@@ -60,6 +67,7 @@ def _validate_current_r8a_migrations() -> None:
     child = scripts.get_revision("0025_pr2_04_reservation_guards")
     assert child is not None
     validate_r8a_migration_topology(historical, current, scripts.get_heads(), child.down_revision)
+    return scope
 
 
 def validate_full_suite(record: dict, junit: Path, head: str, run_id: str) -> dict:
@@ -129,7 +137,8 @@ def _host_inputs():
         with engine.connect() as connection:
             version, name, pid = connection.execute(
                 text(
-                    "SELECT current_setting('server_version_num')::int, current_database(), pg_backend_pid()"
+                    "SELECT current_setting('server_version_num')::int, "
+                    "current_database(), pg_backend_pid()"
                 )
             ).one()
         assert 180000 <= version < 190000
@@ -231,9 +240,27 @@ def test_actual_host_versions_lineage_migrations_chronology_and_case_journal(pr2
     assert record["run_id"] == os.environ["PR204_HOST_RUN_ID"]
     commands = []
     for argv in (
-        ["git", "merge-base", "--is-ancestor", recovery_baseline()["recovery_base"], head], # historical reference: fbe67a42c4168c520473027b0809277cfe367e46,
-        ["git", "merge-base", "--is-ancestor", recovery_baseline()["recovery_base"], head], # historical reference: ea216c9babea322808b3885f563d276b571575ab,
-        ["git", "merge-base", "--is-ancestor", recovery_baseline()["recovery_base"], head], # historical reference: cdc50eb8b4c35602501741e9205b7e0f3a43509f,
+        [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            recovery_baseline()["recovery_base"],
+            head,
+        ],  # historical reference: fbe67a42c4168c520473027b0809277cfe367e46,
+        [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            recovery_baseline()["recovery_base"],
+            head,
+        ],  # historical reference: ea216c9babea322808b3885f563d276b571575ab,
+        [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            recovery_baseline()["recovery_base"],
+            head,
+        ],  # historical reference: cdc50eb8b4c35602501741e9205b7e0f3a43509f,
         ["uv", "run", "python", "--version"],
         ["uv", "--version"],
         ["uv", "run", "alembic", "heads"],
@@ -262,7 +289,8 @@ def test_actual_host_versions_lineage_migrations_chronology_and_case_journal(pr2
             with engine.connect() as connection:
                 version, name, now = connection.execute(
                     text(
-                        "SELECT current_setting('server_version_num')::int,current_database(),clock_timestamp()"
+                        "SELECT current_setting('server_version_num')::int,"
+                        "current_database(),clock_timestamp()"
                     )
                 ).one()
                 migration = connection.execute(
@@ -332,9 +360,23 @@ def test_actual_phase1_behavior_and_production_scope_are_preserved(pr204_trace):
     assert record["run_id"] == os.environ["PR204_HOST_RUN_ID"]
     starting = "fbe67a42c4168c520473027b0809277cfe367e46"
     _validate_current_r8a_migrations()
-    recovery_scope = validate_production_scope()
-    validate_migration_prefix()
-    changed = []  # Exact current src equals the explicitly sealed recovery baseline.
+    recovery_scope = historical_gate_scope()
+    if recovery_scope["status"] == "APPLICABLE":
+        validate_production_scope()
+        validate_migration_prefix()
+    changed = subprocess.check_output(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "86658eb83bb0552da36510368d70fe5c049ec086",
+            "HEAD",
+            "--",
+            "src",
+        ],
+        cwd=ROOT,
+        text=True,
+    ).splitlines()
     cases = {node: phases for node, phases in record["phases"].items() if "/phase2/" not in node}
     assert cases
     failures = {
@@ -345,7 +387,8 @@ def test_actual_phase1_behavior_and_production_scope_are_preserved(pr204_trace):
     pr204_trace.record(
         candidate=head,
         preserved_from=starting,
-        historical_ancestry_recovered=False, recovery_scope=recovery_scope,
+        historical_ancestry_recovered=False,
+        recovery_scope=recovery_scope,
         allowed_production_delta=changed,
         phase1_case_count=len(cases),
         phase1_case_phases=cases,

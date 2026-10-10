@@ -70,7 +70,7 @@ def test_pg_prestart_cancelled_is_immutable_for_every_target_including_same_stat
     before = _snapshot(engine, project)
     assert before["executions"][0]["status"] == "CANCELLED"
     assert before["executions"][0]["started_at"] is None
-    assert before["executions"][0]["executed_by"] is None
+    assert before["executions"][0]["executed_by"] == principal.actor_id
     assert before["attempts"] == before["queries"] == before["results"] == []
     with pytest.raises(DBAPIError) as caught:
         with engine.begin() as connection:
