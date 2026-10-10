@@ -144,7 +144,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
         )
         assert before == after
         assert revisions == [REVISION]
-        assert scripts.get_heads() == [REVISION]
+        assert scripts.get_heads() == ["0025_pr2_04_reservation_guards"]
         assert revision.down_revision == PARENT
         if origin == PARENT:
             assert after_tables - before_tables == set(TABLES)
@@ -191,7 +191,10 @@ def test_each_populated_table_independently_refuses_downgrade_before_any_ddl(
     pr204_trace: FactRecorder,
 ) -> None:
     stage = "planned" if sentinel == E else "reserved" if sentinel == A else "terminal"
-    material = _material(phase2_database_url, stage, hits=0 if sentinel == Q else 1)
+    # Historical0024 preflight fixture remains distinct from current0025 graph.
+    with patch("tests.integration.phase2.test_pr2_04_schema_coverage._setup",
+               side_effect=lambda url: _setup(url, migration_revision=REVISION)):
+        material = _material(phase2_database_url, stage, hits=0 if sentinel == Q else 1)
     engine = material["engine"]
     try:
         # Test-only removal of immutable audit rows is confined to the disposable
@@ -251,20 +254,21 @@ def test_each_populated_table_independently_refuses_downgrade_before_any_ddl(
 
 @pytest.mark.pr204_requirements("PR204-MIG-02", "PR204-REG-01")
 def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: FactRecorder) -> None:
-    entries = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", FROZEN_PR204, "--", "migrations/versions"],
-        check=True, capture_output=True, text=True,
-    ).stdout.splitlines()
-    paths = [path for path in entries if Path(path).name != "0024_literature_search_execution.py"]
+    # A02: FROZEN_PR204 remains provenance; no original ancestry claim.
+    from scripts.pr2_04_recovery_bindings import baseline, validate_migration_prefix
+    binding = baseline()
+    checks = validate_migration_prefix()
     hashes = {}
-    for path in paths:
-        frozen = subprocess.run(["git", "show", f"{FROZEN_PR204}:{path}"],
-                                check=True, capture_output=True).stdout
-        current = Path(path).read_bytes()
-        hashes[path] = {"frozen_sha256": hashlib.sha256(frozen).hexdigest(),
-                        "current_sha256": hashlib.sha256(current).hexdigest()}
-    pr204_trace.record(frozen_tree=FROZEN_PR204, historical_migration_hashes=hashes)
-    assert paths
-    assert all(h["frozen_sha256"] == h["current_sha256"] for h in hashes.values())
-    assert set(paths) == {str(p) for p in Path("migrations/versions").glob("*.py")
-                         if p.name != "0024_literature_search_execution.py"}
+    for path, digest in binding["source_sha256"].items():
+        if path.startswith("migrations/versions/"):
+            current = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+            assert current == digest
+            hashes[path] = {"recovery_parent_sha256": digest, "current_sha256": current}
+    assert hashes
+    scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
+    child = scripts.get_revision("0025_pr2_04_reservation_guards")
+    assert child is not None and child.down_revision == REVISION
+    assert scripts.get_heads() == ["0025_pr2_04_reservation_guards"]
+    pr204_trace.record(historical_reference=FROZEN_PR204,
+        historical_ancestry_recovered=False, recovery_baseline=binding["migration_base"],
+        recovery_migration_hashes=hashes, topology=checks)

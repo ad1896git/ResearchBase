@@ -9,6 +9,7 @@ def baseline():
     data = json.loads((ROOT / "scripts/pr2_04_recovery_baseline.json").read_text())
     assert data["schema"] == "pr204-explicit-recovery-baseline-v1"
     assert data["original_history_recovered"] is False
+    assert data["migration_base"] == "bf0a8a14037e21ea8ad086c6b1ab01239d36c650"
     assert data["recovery_base"] == "dd7dece1b7403a39d662c8fd16d50e4f75201e6d"
     subprocess.run(["git", "merge-base", "--is-ancestor", data["recovery_base"], "HEAD"], cwd=ROOT, check=True, capture_output=True)
     for name, digest in data["source_sha256"].items():
@@ -18,11 +19,14 @@ def baseline():
 
 def validate_migration_prefix():
     data = baseline()
+    subprocess.run(["git", "merge-base", "--is-ancestor", data["migration_base"], "HEAD"], cwd=ROOT, check=True, capture_output=True)
     prefix = {n: h for n, h in data["source_sha256"].items() if n.startswith("migrations/versions/")}
     current = {str(p.relative_to(ROOT)): p for p in (ROOT / "migrations/versions").glob("*.py")}
     child = "migrations/versions/0025_pr2_04_reservation_guards.py"
     assert set(current) == set(prefix) | ({child} if child in current else set())
     for name, digest in prefix.items():
+        parent_bytes = subprocess.check_output(["git", "show", data["migration_base"] + ":" + name], cwd=ROOT)
+        assert hashlib.sha256(parent_bytes).hexdigest() == digest
         assert hashlib.sha256(current[name].read_bytes()).hexdigest() == digest, name
     revisions = {}
     for name,p in current.items():

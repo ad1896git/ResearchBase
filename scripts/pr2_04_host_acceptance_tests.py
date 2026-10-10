@@ -23,6 +23,45 @@ from scripts.pr2_04_recovery_bindings import baseline as recovery_baseline, vali
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def validate_r8a_migration_topology(
+    historical: dict[str, bytes], current: dict[str, bytes], heads: list[str], parent: str
+) -> None:
+    """Only the authorized R8A child may extend the byte-frozen migration prefix."""
+    added = "migrations/versions/0025_pr2_04_reservation_guards.py"
+    assert set(current) == set(historical) | {added}
+    assert all(current[path] == content for path, content in historical.items())
+    assert heads == ["0025_pr2_04_reservation_guards"]
+    assert parent == "0024_literature_search_execution"
+
+
+def _validate_current_r8a_migrations() -> None:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    historical_baseline = "9169b1e7c8ff49e2f14b19aeaddf1a0945c95446"
+    binding = recovery_baseline()
+    assert historical_baseline in binding["historical_identifiers_only"]
+    baseline = binding["migration_base"]
+    paths = subprocess.check_output(
+        ["git", "ls-tree", "-r", "--name-only", baseline, "--", "migrations/versions"],
+        cwd=ROOT,
+        text=True,
+    ).splitlines()
+    historical = {
+        path: subprocess.check_output(["git", "show", baseline + ":" + path], cwd=ROOT)
+        for path in paths
+        if path.endswith(".py")
+    }
+    current = {
+        str(path.relative_to(ROOT)): path.read_bytes()
+        for path in (ROOT / "migrations/versions").glob("*.py")
+    }
+    scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
+    child = scripts.get_revision("0025_pr2_04_reservation_guards")
+    assert child is not None
+    validate_r8a_migration_topology(historical, current, scripts.get_heads(), child.down_revision)
+
+
 def validate_full_suite(record: dict, junit: Path, head: str, run_id: str) -> dict:
     assert record["schema_version"] == "pr204-full-suite-observation-v1"
     assert record["execution_head"] == head and record["run_id"] == run_id
@@ -211,10 +250,11 @@ def test_actual_host_versions_lineage_migrations_chronology_and_case_journal(pr2
         )
         assert completed.returncode == 0
     assert commands[3]["stdout"].strip().startswith("Python 3.12.")
-    assert commands[5]["stdout"].strip() == "0024_literature_search_execution (head)"
+    assert commands[5]["stdout"].strip() == "0025_pr2_04_reservation_guards (head)"
+    _validate_current_r8a_migrations()
     databases = []
     for variable, expected in (
-        ("DATABASE_URL", "0024_literature_search_execution"),
+        ("DATABASE_URL", "0025_pr2_04_reservation_guards"),
         ("PHASE1_DATABASE_URL", "0018_current_pointer_same_parent_integrity"),
     ):
         engine = create_engine(os.environ[variable])
@@ -291,6 +331,7 @@ def test_actual_phase1_behavior_and_production_scope_are_preserved(pr204_trace):
     assert record["execution_head"] == head
     assert record["run_id"] == os.environ["PR204_HOST_RUN_ID"]
     starting = "fbe67a42c4168c520473027b0809277cfe367e46"
+    _validate_current_r8a_migrations()
     recovery_scope = validate_production_scope()
     validate_migration_prefix()
     changed = []  # Exact current src equals the explicitly sealed recovery baseline.

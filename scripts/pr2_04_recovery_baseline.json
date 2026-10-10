@@ -124,5 +124,7 @@
     "src/researchbase/persistence/uow.py": "0ecdd2503cb9f1ffd34097956986d14161baeba2fcdd10fddb38d3fd43efa3ae"
   },
   "original_history_recovered": false,
-  "formal_acceptance": "NOT_RUN"
+  "formal_acceptance": "NOT_RUN",
+  "migration_base": "bf0a8a14037e21ea8ad086c6b1ab01239d36c650",
+  "migration_base_role": "Verified pre0025 new Acceptance checkpoint; original9169 identity unavailable"
 }

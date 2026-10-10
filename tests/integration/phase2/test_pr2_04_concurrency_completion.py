@@ -74,6 +74,9 @@ def _race_callbacks(engine, provider, winner, callbacks, trace, *, rollback=Fals
                 commits.append(context.label)
             if first: assert loser_done.wait(20)
         def __exit__(self, *args):
+            error = args[1] if len(args) > 1 else None
+            if error is not None:
+                self.observation.update(exit_type=type(error).__name__, canonical_error=error.code.value if isinstance(error, ResearchBaseError) else None, sqlstates=_sqlstates(error))
             try: return super().__exit__(*args)
             except Exception as error:
                 self.observation.update(exit_type=type(error).__name__, canonical_error=error.code.value if isinstance(error, ResearchBaseError) else None, sqlstates=_sqlstates(error))
@@ -82,9 +85,20 @@ def _race_callbacks(engine, provider, winner, callbacks, trace, *, rollback=Fals
     factory = lambda: Uow(sessionmaker(bind=engine, expire_on_commit=False, autoflush=False), pr204_error_normalization=True)
     service = LiteratureSearchExecutionService(factory, provider, credential_verifier=_AlwaysValidCredential())
     original = SqlAlchemyLiteratureSearchPlanRepository.lock_project
+    original_authorize = SqlAlchemyLiteratureSearchPlanRepository.authorize
+    original_at = SqlAlchemyLiteratureSearchPlanRepository.at
     def lock_project(repo, project):
-        context.uow.observation["backend_pid"] = repo._session.execute(text("SELECT pg_backend_pid()")).scalar_one()
+        pid, transaction = repo._session.execute(text("SELECT pg_backend_pid(), pg_current_xact_id()::text")).one()
+        context.uow.observation.update(backend_pid=pid, transaction_id=transaction)
         return original(repo, project)
+    def observed_authorize(repo, principal, project):
+        rows = original_authorize(repo, principal, project)
+        context.uow.observation.setdefault("authority_reads", []).append([dict(row) for row in rows])
+        return rows
+    def observed_at(repo):
+        at = original_at(repo)
+        context.uow.observation.setdefault("authorization_times", []).append(at)
+        return at
     def worker(label):
         context.label = label
         try: return callbacks[label](service)
@@ -93,7 +107,9 @@ def _race_callbacks(engine, provider, winner, callbacks, trace, *, rollback=Fals
         finally:
             if label != winner: loser_done.set()
     loser = "B" if winner == "A" else "A"
-    with patch.object(SqlAlchemyLiteratureSearchPlanRepository, "lock_project", lock_project):
+    with (patch.object(SqlAlchemyLiteratureSearchPlanRepository, "lock_project", lock_project),
+          patch.object(SqlAlchemyLiteratureSearchPlanRepository, "authorize", observed_authorize),
+          patch.object(SqlAlchemyLiteratureSearchPlanRepository, "at", observed_at)):
         with ThreadPoolExecutor(max_workers=2) as pool:
             first = pool.submit(worker, winner)
             try:

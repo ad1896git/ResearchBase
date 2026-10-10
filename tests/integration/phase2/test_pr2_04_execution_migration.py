@@ -70,7 +70,9 @@ def test_pr2_04_upgrade_adds_exact_tables_and_unique_head(
             == REVISION
         )
         assert set(inspect(connection).get_table_names()) >= TABLES
-        assert ScriptDirectory.from_config(_alembic(phase2_database_url)).get_heads() == [REVISION]
+        assert ScriptDirectory.from_config(_alembic(phase2_database_url)).get_heads() == [
+            "0025_pr2_04_reservation_guards"
+        ]
         pr204_trace.record(
             current_revision=connection.execute(
                 text("SELECT version_num FROM alembic_version")
@@ -149,7 +151,9 @@ def test_pr2_04_populated_downgrade_refuses_without_dropping_data(
     phase2_database_url: str,
     pr204_trace: FactRecorder,
 ) -> None:
-    engine, _plan_service, principal, project, plan, version = _setup(phase2_database_url)
+    engine, _plan_service, principal, project, plan, version = _setup(
+        phase2_database_url, migration_revision=REVISION
+    )
     _freeze(engine, _plan_service, principal, project, plan, version)
 
     factory = literature_search_execution_uow_factory(

@@ -49,8 +49,8 @@ from researchbase.foundation.time import SystemClock
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 
-def _setup(url):
-    engine, _, _, principal, project = _authorized_service(url)
+def _setup(url, *, migration_revision="head"):
+    engine, _, _, principal, project = _authorized_service(url, migration_revision=migration_revision)
     service = LiteratureSearchPlanService(
         lambda: SqlAlchemyUnitOfWork(
             sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)

@@ -114,7 +114,7 @@ def test_host_review_dry_run_binds_frozen_contract_and_required_gates() -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert "FROZEN_CONTRACT_SHA=ea216c9babea322808b3885f563d276b571575ab" in completed.stdout
-    assert "EXPECTED_MIGRATION=0024_literature_search_execution" in completed.stdout
+    assert "EXPECTED_MIGRATION=0025_pr2_04_reservation_guards" in completed.stdout
     assert "matrix_65" in completed.stdout
 
     assert f"EXECUTION_HEAD={head}\n" in completed.stdout
