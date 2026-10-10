@@ -74,9 +74,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Keep both write-blocking locks through the history check, trigger removal,
+    # and Alembic revision update in the online migration transaction.
+    op.execute(
+        "LOCK TABLE literature_support_snapshots, literature_evidence_relations "
+        "IN ACCESS EXCLUSIVE MODE"
+    )
     op.execute("""
         DO $$ BEGIN
-            IF EXISTS (SELECT 1 FROM literature_support_snapshots) THEN
+            IF EXISTS (SELECT 1 FROM literature_support_snapshots)
+               OR EXISTS (SELECT 1 FROM literature_evidence_relations) THEN
                 RAISE EXCEPTION 'M3 cardinality guard downgrade preserves nonempty scientific history'
                     USING ERRCODE = 'P17D5';
             END IF;
