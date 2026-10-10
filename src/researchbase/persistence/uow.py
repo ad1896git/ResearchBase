@@ -31,6 +31,9 @@ from researchbase.application.ports import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
+from researchbase.persistence.literature_evidence_repository import (
+    SqlAlchemyLiteratureEvidenceRepository,
+)
 from researchbase.persistence.literature_search_execution_repository import (
     SqlAlchemyLiteratureSearchExecutionRepository,
 )
@@ -223,6 +226,7 @@ class SqlAlchemyUnitOfWork:
     source_version: SqlAlchemySourceVersionRepository
     literature_search_plan: SqlAlchemyLiteratureSearchPlanRepository
     metadata_observations: SqlAlchemyMetadataObservationRepository
+    literature_evidence: SqlAlchemyLiteratureEvidenceRepository
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
 
     def __init__(
@@ -262,6 +266,7 @@ class SqlAlchemyUnitOfWork:
         self.source_identity = SqlAlchemySourceIdentityRepository(self._session)
         self.source_merge = SqlAlchemySourceMergeRepository(self._session)
         self.source_version = SqlAlchemySourceVersionRepository(self._session)
+        self.literature_evidence = SqlAlchemyLiteratureEvidenceRepository(self._session)
         self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(self._session)
         self.literature_search_execution = SqlAlchemyLiteratureSearchExecutionRepository(
             self._session

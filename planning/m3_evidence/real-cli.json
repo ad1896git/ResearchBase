@@ -1,0 +1,644 @@
+{
+  "os_uid": 502,
+  "postgresql": "PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+  "migration": "0030_literature_evidence",
+  "principal": {
+    "actor_id": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+    "credential_id": "os-0224d2d7-00ce-4280-86e5-b000c8cd2bc7",
+    "deployment_id": "local-6b47f81302ac90b223d3d6d1baa0e143eb2f57f6f1c85675c4b99aebdeb1627b-1c82426e-0a42-4a95-a02f-fa3a1795edad",
+    "subject_kind": "OS_UID",
+    "subject_value": "502",
+    "verified_at": "2026-10-10T16:36:28.208241Z"
+  },
+  "project": "9a90692c-a8c2-49f2-a670-380619828784",
+  "source": {
+    "identifier_id": "0e745c3a-2945-4a3e-a74f-18c3da776c27",
+    "source_id": "8a739f39-f895-4307-baad-ec35efd80285"
+  },
+  "document": {
+    "access": "PROJECT_LOCAL",
+    "artifact_id": "12a29f85-0d1a-46ff-954f-ad241d814fd6",
+    "artifact_version_id": "12242b5c-1650-4638-a6a5-35cb25cbf8df",
+    "byte_size": 47522,
+    "content_hash": "6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71",
+    "media_type": "application/jats+xml",
+    "parser": "manual-document-v1",
+    "retention_basis": "CC BY 4.0; Sandve et al. 2013; doi:10.1371/journal.pcbi.1003285; original Europe PMC JATS; local project retention"
+  },
+  "source_version": "e052ba4d-d592-43b6-a6b5-83f08eb86b0a",
+  "evidence": {
+    "access": "PROJECT_LOCAL",
+    "artifact_id": "12a29f85-0d1a-46ff-954f-ad241d814fd6",
+    "artifact_version_id": "12242b5c-1650-4638-a6a5-35cb25cbf8df",
+    "byte_size": 47522,
+    "confidence": "MODERATE",
+    "content_hash": "5d3571a573ee98fe5093782f32018a3af86b3208a9ead2195efa9ec302fedd6f",
+    "created_at": "2026-10-11T00:36:30.996450+08:00",
+    "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+    "document_content_hash": "6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71",
+    "evidence_type": "QUOTATION",
+    "extracted_statement": "The standard solution to track evolution of code is to use a version control system",
+    "extraction_execution_ref": null,
+    "extraction_method": "RULE",
+    "hash_scheme": "sha256-cjson-v1",
+    "id": "b16adfee-451d-4f75-926e-56d24fe7fb40",
+    "locator": {
+      "figure": null,
+      "page": null,
+      "paragraph": "16",
+      "quote_span": "char:0:83",
+      "section": null,
+      "table": null
+    },
+    "media_type": "application/jats+xml",
+    "normalized_assertion": null,
+    "parser": "manual-document-v1",
+    "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+    "retention_basis": "CC BY 4.0; Sandve et al. 2013; doi:10.1371/journal.pcbi.1003285; original Europe PMC JATS; local project retention",
+    "review_events": [],
+    "review_status": "UNREVIEWED",
+    "source_validity": "VALID",
+    "source_version_hash": "0564b80af0a7b8f208008643fdbb5dc7dbf5090e84030555957a0e270d2bfc51",
+    "source_version_id": "e052ba4d-d592-43b6-a6b5-83f08eb86b0a"
+  },
+  "hypothesis": {
+    "content_hash": "4ca2c56709cd52d7ca01a68ae3272eee3d6dc4817ae9c0352a900b91dc636fcd",
+    "created_at": "2026-10-10T16:36:31.542474Z",
+    "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+    "expected_direction": null,
+    "frozen_at": "2026-10-10T16:36:32.061470Z",
+    "hash_scheme": "sha256-cjson-v1",
+    "hypothesis_id": "01a126ac-58b5-7360-80e7-c5d68e9b6eae",
+    "id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+    "rationale": "Demonstration hypothesis only; methodological context is not verified support.",
+    "row_version": 2,
+    "statement": "Computational results may depend on the exact version of code used.",
+    "status": "FROZEN",
+    "success_criteria": null,
+    "version_number": 1
+  },
+  "snapshot": {
+    "claim_version_id": null,
+    "content_hash": "288c47d5d92e1512166e9091722ae32663ef0342f048f6e2ae8f4d27c1f9260d",
+    "created_at": "2026-10-11T00:36:32.503844+08:00",
+    "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+    "frozen_at": "2026-10-11T00:36:32.503844+08:00",
+    "hash_scheme": "sha256-cjson-v1",
+    "hypothesis_version_id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+    "id": "933cf8da-5b4e-4246-924c-47a632e33fe9",
+    "literature_support_set_hash": "d6b7e14638ea66f7dcf06118636f355f784b00fbc9994ea4615fe365699df0ef",
+    "previous_snapshot_id": null,
+    "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+    "relations": [
+      {
+        "created_at": "2026-10-11T00:36:32.503844+08:00",
+        "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "id": "be108f74-1349-4296-9e05-6292bc33e2f6",
+        "literature_evidence_id": "b16adfee-451d-4f75-926e-56d24fe7fb40",
+        "literature_support_snapshot_id": "933cf8da-5b4e-4246-924c-47a632e33fe9",
+        "ordinal": 0,
+        "qualification": "Methodological context only; no scientific SUPPORTS assertion or independent-human acceptance.",
+        "relation_type": "CONTEXTUALIZES"
+      }
+    ],
+    "research_question_version_id": null,
+    "snapshot_number": 1,
+    "target": {
+      "content_hash": "4ca2c56709cd52d7ca01a68ae3272eee3d6dc4817ae9c0352a900b91dc636fcd",
+      "id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+      "type": "HypothesisVersion"
+    },
+    "validity": "VALID"
+  },
+  "real_independent_human_verification": "NOT RUN: no designated independent authenticated human reviewer; existing profile is single-user",
+  "cli_process_restart_readback": "PASS",
+  "transcript": [
+    {
+      "command": [
+        "local",
+        "init",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "installation": "/private/var/folders/m2/pb24m9sd42v4hx_8jw8yp8w00000gp/T/pytest-of-onephone/pytest-71/test_real_source_cli_restart_a0/installation",
+        "profile": "LOCAL_FIRST"
+      }
+    },
+    {
+      "command": [
+        "local",
+        "bootstrap",
+        "--display-name",
+        "M3 local demonstrator",
+        "--project-name",
+        "M3 real source demonstration",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "actor_id": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "binding_id": "d47e39a7-1b00-40ad-90c8-16c21f956e85",
+        "membership_id": "27f79d83-1e51-48b4-8629-8572d0fcd5eb",
+        "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+        "request_fingerprint": "878a794d1ec11b872721aa26a89acb2b291d180ab75019ac9fc3875f3a08254e",
+        "role_assignment_id": "aa86e271-05f3-42e1-95d5-3489b53730f6"
+      }
+    },
+    {
+      "command": [
+        "local",
+        "whoami",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "actor_id": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "credential_id": "os-0224d2d7-00ce-4280-86e5-b000c8cd2bc7",
+        "deployment_id": "local-6b47f81302ac90b223d3d6d1baa0e143eb2f57f6f1c85675c4b99aebdeb1627b-1c82426e-0a42-4a95-a02f-fa3a1795edad",
+        "subject_kind": "OS_UID",
+        "subject_value": "502",
+        "verified_at": "2026-10-10T16:36:28.208241Z"
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "a14e290d-8056-4a63-a07f-47281dd38edd",
+        "literature",
+        "source",
+        "create",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--kind",
+        "PAPER",
+        "--title",
+        "Ten Simple Rules for Reproducible Computational Research",
+        "--initial-identifier-type",
+        "DOI",
+        "--initial-identifier-value",
+        "10.1371/journal.pcbi.1003285",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "identifier_id": "0e745c3a-2945-4a3e-a74f-18c3da776c27",
+        "source_id": "8a739f39-f895-4307-baad-ec35efd80285"
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "0724ce3f-ce87-4ca9-8281-3e9d9c94b108",
+        "literature-evidence",
+        "import-document",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--path",
+        "/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m3-literature-evidence/tests/fixtures/m3/PMC3812051.xml",
+        "--media-type",
+        "application/jats+xml",
+        "--rights-basis",
+        "CC BY 4.0; Sandve et al. 2013; doi:10.1371/journal.pcbi.1003285; original Europe PMC JATS; local project retention",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "access": "PROJECT_LOCAL",
+        "artifact_id": "12a29f85-0d1a-46ff-954f-ad241d814fd6",
+        "artifact_version_id": "12242b5c-1650-4638-a6a5-35cb25cbf8df",
+        "byte_size": 47522,
+        "content_hash": "6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71",
+        "media_type": "application/jats+xml",
+        "parser": "manual-document-v1",
+        "retention_basis": "CC BY 4.0; Sandve et al. 2013; doi:10.1371/journal.pcbi.1003285; original Europe PMC JATS; local project retention"
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "201db02a-f47e-45fc-8baf-ce47cc1e838e",
+        "literature",
+        "version",
+        "create",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--source-id",
+        "8a739f39-f895-4307-baad-ec35efd80285",
+        "--material-json",
+        "{\"version_kind\": \"PUBLISHED\", \"title\": \"Ten Simple Rules for Reproducible Computational Research\", \"authors\": [], \"fulltext_artifact\": {\"id\": \"12242b5c-1650-4638-a6a5-35cb25cbf8df\", \"content_hash\": \"6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71\"}}",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "content_hash": null,
+        "literature_source_id": "8a739f39-f895-4307-baad-ec35efd80285",
+        "source_version_id": "e052ba4d-d592-43b6-a6b5-83f08eb86b0a",
+        "status": "DRAFT",
+        "version_number": 1
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "0930934f-32ad-42ba-add1-ccff5fe609d4",
+        "literature",
+        "version",
+        "freeze",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--source-version-id",
+        "e052ba4d-d592-43b6-a6b5-83f08eb86b0a",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "content_hash": "0564b80af0a7b8f208008643fdbb5dc7dbf5090e84030555957a0e270d2bfc51",
+        "literature_source_id": "8a739f39-f895-4307-baad-ec35efd80285",
+        "source_version_id": "e052ba4d-d592-43b6-a6b5-83f08eb86b0a",
+        "status": "FROZEN",
+        "version_number": 1
+      }
+    },
+    {
+      "command": [
+        "literature-evidence",
+        "inspect",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--source-version-id",
+        "e052ba4d-d592-43b6-a6b5-83f08eb86b0a",
+        "--paragraph",
+        "16",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "access": "PROJECT_LOCAL",
+        "artifact_id": "12a29f85-0d1a-46ff-954f-ad241d814fd6",
+        "artifact_version_id": "12242b5c-1650-4638-a6a5-35cb25cbf8df",
+        "byte_size": 47522,
+        "content_hash": "6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71",
+        "media_type": "application/jats+xml",
+        "paragraph": 16,
+        "paragraph_count": 27,
+        "parser": "manual-document-v1",
+        "retention_basis": "CC BY 4.0; Sandve et al. 2013; doi:10.1371/journal.pcbi.1003285; original Europe PMC JATS; local project retention",
+        "source_validity": "VALID",
+        "source_version": {
+          "content_hash": "0564b80af0a7b8f208008643fdbb5dc7dbf5090e84030555957a0e270d2bfc51",
+          "id": "e052ba4d-d592-43b6-a6b5-83f08eb86b0a",
+          "type": "SourceVersion"
+        },
+        "text": "The standard solution to track evolution of code is to use a version control system [15], such as Subversion, Git, or Mercurial. These systems are relatively easy to set up and use, and may be used to systematically store the state of the code throughout development at any desired time granularity."
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "45735af6-bc9e-44a2-9cb5-dee33d5291a5",
+        "literature-evidence",
+        "create",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--source-version-id",
+        "e052ba4d-d592-43b6-a6b5-83f08eb86b0a",
+        "--artifact-version-id",
+        "12242b5c-1650-4638-a6a5-35cb25cbf8df",
+        "--quotation",
+        "The standard solution to track evolution of code is to use a version control system",
+        "--paragraph",
+        "16",
+        "--start",
+        "0",
+        "--end",
+        "83",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "access": "PROJECT_LOCAL",
+        "artifact_id": "12a29f85-0d1a-46ff-954f-ad241d814fd6",
+        "artifact_version_id": "12242b5c-1650-4638-a6a5-35cb25cbf8df",
+        "byte_size": 47522,
+        "confidence": "MODERATE",
+        "content_hash": "5d3571a573ee98fe5093782f32018a3af86b3208a9ead2195efa9ec302fedd6f",
+        "created_at": "2026-10-11T00:36:30.996450+08:00",
+        "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "document_content_hash": "6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71",
+        "evidence_type": "QUOTATION",
+        "extracted_statement": "The standard solution to track evolution of code is to use a version control system",
+        "extraction_execution_ref": null,
+        "extraction_method": "RULE",
+        "hash_scheme": "sha256-cjson-v1",
+        "id": "b16adfee-451d-4f75-926e-56d24fe7fb40",
+        "locator": {
+          "figure": null,
+          "page": null,
+          "paragraph": "16",
+          "quote_span": "char:0:83",
+          "section": null,
+          "table": null
+        },
+        "media_type": "application/jats+xml",
+        "normalized_assertion": null,
+        "parser": "manual-document-v1",
+        "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+        "retention_basis": "CC BY 4.0; Sandve et al. 2013; doi:10.1371/journal.pcbi.1003285; original Europe PMC JATS; local project retention",
+        "review_events": [],
+        "review_status": "UNREVIEWED",
+        "source_validity": "VALID",
+        "source_version_hash": "0564b80af0a7b8f208008643fdbb5dc7dbf5090e84030555957a0e270d2bfc51",
+        "source_version_id": "e052ba4d-d592-43b6-a6b5-83f08eb86b0a"
+      }
+    },
+    {
+      "command": [
+        "local",
+        "hypothesis-create",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--statement",
+        "Computational results may depend on the exact version of code used.",
+        "--rationale",
+        "Demonstration hypothesis only; methodological context is not verified support.",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "created_at": "2026-10-10T16:36:31.541392Z",
+        "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "current_version_id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+        "id": "01a126ac-58b5-7360-80e7-c5d68e9b6eae",
+        "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+        "research_question_id": null,
+        "row_version": 1
+      }
+    },
+    {
+      "command": [
+        "local",
+        "hypothesis-freeze",
+        "--hypothesis-id",
+        "01a126ac-58b5-7360-80e7-c5d68e9b6eae",
+        "--version-id",
+        "01a126ac-58b6-73e2-a03b-04f283d78d49",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "content_hash": "4ca2c56709cd52d7ca01a68ae3272eee3d6dc4817ae9c0352a900b91dc636fcd",
+        "created_at": "2026-10-10T16:36:31.542474Z",
+        "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "expected_direction": null,
+        "frozen_at": "2026-10-10T16:36:32.061470Z",
+        "hash_scheme": "sha256-cjson-v1",
+        "hypothesis_id": "01a126ac-58b5-7360-80e7-c5d68e9b6eae",
+        "id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+        "rationale": "Demonstration hypothesis only; methodological context is not verified support.",
+        "row_version": 2,
+        "statement": "Computational results may depend on the exact version of code used.",
+        "status": "FROZEN",
+        "success_criteria": null,
+        "version_number": 1
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "35478ca8-2704-4cf4-a9b1-80c5830c455e",
+        "literature-evidence",
+        "support-create",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--target-type",
+        "HypothesisVersion",
+        "--target-version-id",
+        "01a126ac-58b6-73e2-a03b-04f283d78d49",
+        "--inputs-json",
+        "[{\"evidence_id\": \"b16adfee-451d-4f75-926e-56d24fe7fb40\", \"relation_type\": \"CONTEXTUALIZES\", \"qualification\": \"Methodological context only; no scientific SUPPORTS assertion or independent-human acceptance.\"}]",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "claim_version_id": null,
+        "content_hash": "288c47d5d92e1512166e9091722ae32663ef0342f048f6e2ae8f4d27c1f9260d",
+        "created_at": "2026-10-11T00:36:32.503844+08:00",
+        "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "frozen_at": "2026-10-11T00:36:32.503844+08:00",
+        "hash_scheme": "sha256-cjson-v1",
+        "hypothesis_version_id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+        "id": "933cf8da-5b4e-4246-924c-47a632e33fe9",
+        "literature_support_set_hash": "d6b7e14638ea66f7dcf06118636f355f784b00fbc9994ea4615fe365699df0ef",
+        "previous_snapshot_id": null,
+        "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+        "relations": [
+          {
+            "created_at": "2026-10-11T00:36:32.503844+08:00",
+            "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+            "id": "be108f74-1349-4296-9e05-6292bc33e2f6",
+            "literature_evidence_id": "b16adfee-451d-4f75-926e-56d24fe7fb40",
+            "literature_support_snapshot_id": "933cf8da-5b4e-4246-924c-47a632e33fe9",
+            "ordinal": 0,
+            "qualification": "Methodological context only; no scientific SUPPORTS assertion or independent-human acceptance.",
+            "relation_type": "CONTEXTUALIZES"
+          }
+        ],
+        "research_question_version_id": null,
+        "snapshot_number": 1,
+        "target": {
+          "content_hash": "4ca2c56709cd52d7ca01a68ae3272eee3d6dc4817ae9c0352a900b91dc636fcd",
+          "id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+          "type": "HypothesisVersion"
+        },
+        "validity": "VALID"
+      }
+    },
+    {
+      "command": [
+        "literature-evidence",
+        "get",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--evidence-id",
+        "b16adfee-451d-4f75-926e-56d24fe7fb40",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "access": "PROJECT_LOCAL",
+        "artifact_id": "12a29f85-0d1a-46ff-954f-ad241d814fd6",
+        "artifact_version_id": "12242b5c-1650-4638-a6a5-35cb25cbf8df",
+        "byte_size": 47522,
+        "confidence": "MODERATE",
+        "content_hash": "5d3571a573ee98fe5093782f32018a3af86b3208a9ead2195efa9ec302fedd6f",
+        "created_at": "2026-10-11T00:36:30.996450+08:00",
+        "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "document_content_hash": "6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71",
+        "evidence_type": "QUOTATION",
+        "extracted_statement": "The standard solution to track evolution of code is to use a version control system",
+        "extraction_execution_ref": null,
+        "extraction_method": "RULE",
+        "hash_scheme": "sha256-cjson-v1",
+        "id": "b16adfee-451d-4f75-926e-56d24fe7fb40",
+        "locator": {
+          "figure": null,
+          "page": null,
+          "paragraph": "16",
+          "quote_span": "char:0:83",
+          "section": null,
+          "table": null
+        },
+        "media_type": "application/jats+xml",
+        "normalized_assertion": null,
+        "parser": "manual-document-v1",
+        "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+        "retention_basis": "CC BY 4.0; Sandve et al. 2013; doi:10.1371/journal.pcbi.1003285; original Europe PMC JATS; local project retention",
+        "review_events": [],
+        "review_status": "UNREVIEWED",
+        "source_validity": "VALID",
+        "source_version_hash": "0564b80af0a7b8f208008643fdbb5dc7dbf5090e84030555957a0e270d2bfc51",
+        "source_version_id": "e052ba4d-d592-43b6-a6b5-83f08eb86b0a"
+      }
+    },
+    {
+      "command": [
+        "literature-evidence",
+        "support-get",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--snapshot-id",
+        "933cf8da-5b4e-4246-924c-47a632e33fe9",
+        "--json"
+      ],
+      "exit": 0,
+      "output": {
+        "claim_version_id": null,
+        "content_hash": "288c47d5d92e1512166e9091722ae32663ef0342f048f6e2ae8f4d27c1f9260d",
+        "created_at": "2026-10-11T00:36:32.503844+08:00",
+        "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+        "frozen_at": "2026-10-11T00:36:32.503844+08:00",
+        "hash_scheme": "sha256-cjson-v1",
+        "hypothesis_version_id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+        "id": "933cf8da-5b4e-4246-924c-47a632e33fe9",
+        "literature_support_set_hash": "d6b7e14638ea66f7dcf06118636f355f784b00fbc9994ea4615fe365699df0ef",
+        "previous_snapshot_id": null,
+        "project_id": "9a90692c-a8c2-49f2-a670-380619828784",
+        "relations": [
+          {
+            "created_at": "2026-10-11T00:36:32.503844+08:00",
+            "created_by": "f283fe92-3938-4c96-bf50-3fbbb63d4bbb",
+            "id": "be108f74-1349-4296-9e05-6292bc33e2f6",
+            "literature_evidence_id": "b16adfee-451d-4f75-926e-56d24fe7fb40",
+            "literature_support_snapshot_id": "933cf8da-5b4e-4246-924c-47a632e33fe9",
+            "ordinal": 0,
+            "qualification": "Methodological context only; no scientific SUPPORTS assertion or independent-human acceptance.",
+            "relation_type": "CONTEXTUALIZES"
+          }
+        ],
+        "research_question_version_id": null,
+        "snapshot_number": 1,
+        "target": {
+          "content_hash": "4ca2c56709cd52d7ca01a68ae3272eee3d6dc4817ae9c0352a900b91dc636fcd",
+          "id": "01a126ac-58b6-73e2-a03b-04f283d78d49",
+          "type": "HypothesisVersion"
+        },
+        "validity": "VALID"
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "2a452356-67af-45d5-92ae-b365ae0a2502",
+        "literature-evidence",
+        "review",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--evidence-id",
+        "b16adfee-451d-4f75-926e-56d24fe7fb40",
+        "--status",
+        "VERIFIED",
+        "--basis",
+        "Self verification must be rejected",
+        "--json"
+      ],
+      "exit": 3,
+      "output": {
+        "error": {
+          "code": "FORBIDDEN",
+          "details": null,
+          "message": "verification requires an independent human reviewer",
+          "request_id": "2a452356-67af-45d5-92ae-b365ae0a2502"
+        }
+      }
+    },
+    {
+      "command": [
+        "--request-id",
+        "33c212c0-24c1-4f73-93be-f52335d6782f",
+        "literature-evidence",
+        "support-create",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--target-type",
+        "HypothesisVersion",
+        "--target-version-id",
+        "01a126ac-58b6-73e2-a03b-04f283d78d49",
+        "--inputs-json",
+        "[{\"evidence_id\": \"b16adfee-451d-4f75-926e-56d24fe7fb40\", \"relation_type\": \"SUPPORTS\", \"qualification\": \"Methodological context only; no scientific SUPPORTS assertion or independent-human acceptance.\"}]",
+        "--json"
+      ],
+      "exit": 3,
+      "output": {
+        "error": {
+          "code": "FORBIDDEN",
+          "details": null,
+          "message": "SUPPORTS requires independently human-verified valid evidence",
+          "request_id": "33c212c0-24c1-4f73-93be-f52335d6782f"
+        }
+      }
+    },
+    {
+      "command": [
+        "--actor-id",
+        "3664b0ab-a2ef-47ed-b791-98a387ad4910",
+        "literature-evidence",
+        "get",
+        "--project-id",
+        "9a90692c-a8c2-49f2-a670-380619828784",
+        "--evidence-id",
+        "b16adfee-451d-4f75-926e-56d24fe7fb40",
+        "--json"
+      ],
+      "exit": 3,
+      "output": {
+        "error": {
+          "code": "FORBIDDEN",
+          "details": null,
+          "message": "use authenticated local or literature commands; actor overrides are forbidden",
+          "request_id": "01a126ac-653f-7eaf-be28-cab1fa2f4a85"
+        }
+      }
+    },
+    {
+      "command": [
+        "literature-evidence",
+        "get",
+        "--project-id",
+        "9eafbb71-8882-4e38-a42c-905649298f10",
+        "--evidence-id",
+        "b16adfee-451d-4f75-926e-56d24fe7fb40",
+        "--json"
+      ],
+      "exit": 3,
+      "output": {
+        "error": {
+          "code": "FORBIDDEN",
+          "details": null,
+          "message": "current authenticated project authority unavailable",
+          "request_id": "01a126ac-66ee-7659-9863-d16c1eebd2e2"
+        }
+      }
+    }
+  ]
+}

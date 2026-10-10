@@ -1055,6 +1055,9 @@ class ApplicationService:
     def create_hypothesis(self, command: CreateHypothesisCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                self._project_authorizer(uow, command.project_id, True, actor_id)
             project = _require_project(uow, ProjectId(command.project_id))
             _require_actor(uow, actor_id)
             question_id = command.research_question_id
@@ -1154,6 +1157,12 @@ class ApplicationService:
         actor_id = ActorId(command.context.actor_id)
         hypothesis_id = HypothesisId(command.hypothesis_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                preliminary = uow.hypotheses.get(hypothesis_id)
+                if preliminary is None:
+                    raise _not_found("hypothesis", hypothesis_id)
+                self._project_authorizer(uow, preliminary.project_id, True, actor_id)
             _require_actor(uow, actor_id)
             hypothesis = uow.hypotheses.get_for_update(hypothesis_id)
             if hypothesis is None:

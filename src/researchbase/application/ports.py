@@ -617,6 +617,9 @@ class GovernanceRepository(Protocol):
 
 class UnitOfWork(Protocol):
     @property
+    def literature_evidence(self) -> Any: ...
+
+    @property
     def metadata_observations(self) -> Any: ...
 
     actors: ActorRepository

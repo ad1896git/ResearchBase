@@ -1,50 +1,56 @@
 # M3 Literature Evidence & Claim Grounding
 
-Date: 2026-10-11 (Asia/Shanghai). Verdict: **M3_BLOCKED**.
+Date: 2026-10-11 (Asia/Shanghai). Verdict: **M3_PARTIAL**. This supersedes the earlier report-only M3_BLOCKED checkpoint following the user's explicit direction to implement and defer only real independent-human verification.
 
-## Checkpoint
+## Checkpoint and scope
 
-Starting SHA: `6d45d547a0c229e26c089d106d90a1793bf9b912`, independently confirmed against the accepted M2 worktree. Branch: `feature/m3-literature-evidence`. Persistent worktree: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m3-literature-evidence`. Final SHA is the report-only checkpoint returned by `git log -1 --format=%H -- planning/M3_LITERATURE_EVIDENCE_COMPLETION.md`; no implementation commit exists. One verified Git bundle preserves this blocked checkpoint, not a completed implementation.
+Starting SHA: `6d45d547a0c229e26c089d106d90a1793bf9b912` (accepted M2). Branch: `feature/m3-literature-evidence`. Persistent worktree: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m3-literature-evidence`. Final implementation SHA: recorded in the delivery update below. The final report commit is the delivery HEAD, obtainable with `git log -1 --format=%H -- planning/M3_LITERATURE_EVIDENCE_COMPLETION.md`; its exact SHA is also returned in the delivery response.
 
-M2's untracked `planning/M2_FINAL_CLOSURE.md` and `planning/M2_FINAL_INDEPENDENT_REVIEW.md` remain in their original worktree, unmodified. The final closure explicitly supersedes the earlier rejection and accepts exact M2 HEAD with P2 debt. The separate ResearchBase-phase2 execution-pack edit was not touched.
+One primary executor; no subagents, push, merge or M4. M2's untracked final closure and independent-review reports remain unmodified in their original worktree. The unrelated ResearchBase-phase2 execution-pack edit was not touched. No dependency, lockfile, authentication-profile or governing Harness changes.
 
-## Genuine authorization boundary (P1 MAJOR)
+## Reuse and implementation
 
-The requested real positive SUPPORTS workflow requires a human distinct from extraction and support-snapshot authors. Frozen R2 contract `docs/architecture/14_Phase2_Design_Gap_Closure_R2_v1.0.md`, section 2, explicitly requires the latest VERIFIED event to be from an authenticated HUMAN reviewer distinct from both actors.
+Reused Artifact/ArtifactVersion and CAS, LiteratureSource registration, SourceVersion fulltext binding and immutable hashing, project authorization/credential checks, local OS identity, repositories/UoW, frozen Claim/Hypothesis/Question models, Phase 1 closure validator and governance projection. No Phase 1 scientific hash changes or parallel literature registry.
 
-Approved `docs/architecture/adr/ADR-0012-local-first-identity.md` instead defines a single-user local profile and says: **“Multi-user/network deployment requires a separately approved authentication profile.”** Production `src/researchbase/cli/composition.py` supplies `UnavailableAttestations()` to Phase2IdentityService; its verifier always returns False. `provision_actor()` in `src/researchbase/application/phase2_identity.py` rejects missing signed proof and additionally requires operator, owner and subject separation. `LocalIdentityAdapter.is_valid()` binds the current kernel UID to the protected installation's deployment and credential; it does not authenticate arbitrary reviewer identities. M1's completion report explicitly deferred multi-user profiles and independent enrollment.
+Added bounded local UTF-8 text/JATS localization, the approved LiteratureEvidence/review-event/LiteratureSupportSnapshot/relation aggregate, additive migration `0030_literature_evidence`, synchronous persistence adapter and Application commands. A dependent operational receipt table binds idempotency to deployment/project/actor/command/request and concrete result FKs. Document ArtifactVersion metadata preserves explicit retention basis, PROJECT_LOCAL access and parser identity. CAS bytes are verified before persistence and every evidence read.
 
-Consequently, enrolling a real second reviewer is not ordinary fixture work or simply exposing an existing CLI command. It requires an approved local authentication/enrollment extension. This report does not claim there are no other OS accounts; the missing component is an approved production path to authenticate/enroll another reviewer into the same scientific project. A manually seeded actor, mock principal, alternate actor flag, second bootstrap database, or a second label for the same subject cannot satisfy acceptance.
+Evidence material follows literal frozen R2/R3 hashes, including the R3 golden vector. Review events are append-only; only the matching derived review status can change. Snapshot relation sets and predecessors are immutable, with concrete same-project frozen target FKs and typed relation enums. SUPPORTS requires latest VERIFIED by an authenticated HUMAN distinct from both extraction actor and snapshot author, valid original content, and valid target closure. Current source/review/Claim governance validity is projected without rewriting history. RELATED, ambiguous selection, conflicting edges, missing approval and forged/cross-project authority fail closed. Commands reauthorize before commit, including after document storage and on replay.
 
-**Smallest required decision:** approve a bounded local independent-reviewer authentication/enrollment profile that reuses existing Actor/subject binding/membership/role and Application ceremonies, defines trusted live proof plus independent operator attestation, and supplies a real reviewer able to inspect and explicitly verify the passage. No network authentication, PKI, generic IAM, autonomous approver or new canonical identity schema is proposed. If that extension is not authorized, retain the independent-review rule and explicitly accept an M3_PARTIAL candidate with the positive SUPPORTS demonstration pending; that would not meet the original full acceptance request.
+CLI commands: `literature-evidence import-document`, `inspect`, `create`, `get`, `review`, `support-create`, `support-get`; authenticated `local hypothesis-create` and `local hypothesis-freeze`. Existing source/version commands provide registration and exact fulltext association. Writes require request IDs. See `docs/M3_LITERATURE_EVIDENCE_WORKFLOW.md` for usage and format limits. No PDF/OCR, crawler, paraphrase extraction or automated scientific approval.
 
-No governing contract or production authentication boundary was weakened. Implementation is paused at the user-requested exception for a genuine unresolved authorization boundary, not at an external-skill design approval gate.
+## Real scientific source demonstration
 
-## Reuse inventory and implementation disposition
+Actual OS UID **502**, production Local-First identity, fresh CLI subprocess for each command, real **PostgreSQL 18.6**, migration 0030. The source used the approved LiteratureSource registration path with DOI `10.1371/journal.pcbi.1003285`: Sandve et al., *Ten Simple Rules for Reproducible Computational Research* (2013), PMCID PMC3812051. Original Europe PMC JATS XML, embedded CC BY 4.0 and attribution, retained byte-for-byte in `tests/fixtures/m3/PMC3812051.xml`.
 
-- Document identity/content: existing Artifact/ArtifactVersion, CAS storage and content-integrity checks. SourceVersionMaterial already has `fulltext_artifact`, persisted as concrete `fulltext_artifact_version_id`. Associate content through a new SourceVersion; never mutate M2 frozen metadata versions.
-- Sources: SourceIdentityService, SourceVersionService, and M2 exact result/observation/resolution provenance.
-- Authority: LocalIdentityAdapter, LocalWorkbenchService, Phase2IdentityService, active project membership/role checks and current credential checks.
-- Scientific targets: existing frozen ClaimVersion/HypothesisVersion. Phase 1 EvidenceRelation is for experimental evidence; it must not become a parallel literature registry.
-- Approved literature owner: LiteratureEvidence, append-only LiteratureEvidenceReviewEvent, LiteratureSupportSnapshot and its typed LiteratureEvidenceRelation children, with literal R2/R3 hash material. These literature-specific services/tables are not implemented at accepted M2 HEAD.
-- RELATED is not an approved relation enum. Approved kinds are SUPPORTS, CONTRADICTS, QUALIFIES, MOTIVATES, PRIOR_ART and CONTEXTUALIZES. No automatic conversion from retrieval/topic relevance to positive support is permitted.
+Document SHA-256: `6c72197e487de37923690bca0e31fd21cfb0f37d0a5eb313594df9661810fe71`; size 47522 bytes. Exact ArtifactVersion: `12242b5c-1650-4638-a6a5-35cb25cbf8df`. Frozen SourceVersion: `e052ba4d-d592-43b6-a6b5-83f08eb86b0a`; source hash `0564b80af0a7b8f208008643fdbb5dc7dbf5090e84030555957a0e270d2bfc51`.
 
-New components: none. Implemented M3 CLI commands: none. No migrations, dependency changes, source downloads, canonical evidence writes, invented quotations or approval events.
+Exact 83-character quotation: “The standard solution to track evolution of code is to use a version control system”. Locator: paragraph `16`, quote_span `char:0:83`, remaining four frozen locator fields null. JATS `p` elements use document order and Unicode codepoints with no normalization. Inspect and relocated quotation match original bytes.
+
+Evidence: `b16adfee-451d-4f75-926e-56d24fe7fb40`; hash `5d3571a573ee98fe5093782f32018a3af86b3208a9ead2195efa9ec302fedd6f`; QUOTATION / RULE / MODERATE / **UNREVIEWED**. There are **zero review events** in the real demonstration. Frozen demonstration HypothesisVersion: `01a126ac-58b6-73e2-a03b-04f283d78d49`; snapshot `933cf8da-5b4e-4246-924c-47a632e33fe9`, explicitly **CONTEXTUALIZES**, with a relevance qualification and no positive-support claim. New CLI processes recover the same evidence, locator, hashes, status and snapshot. Self-VERIFIED and unapproved SUPPORTS, forged actor flag and cross-project access are rejected.
+
+Full public command/result transcript: `planning/m3_evidence/real-cli.json`. This is a real authenticated workflow in disposable test databases, not a retained production project. CLI process restart is tested; database-server restart/backup restoration is not claimed. Artifact alteration/deletion and missing content fail integrity checks in PostgreSQL technical tests.
 
 ## Actual verification
 
-Executed from the new worktree using the existing neighboring uv-managed interpreter:
+Runtime: existing neighboring uv-managed Python 3.12.14 environment; no parallel dependency definition. Isolated PostgreSQL 18.6 cluster at `/private/tmp/rb-m3-postgres`, port 55442; all integration databases disposable. Database timezone Asia/Shanghai; persisted timestamps are TIMESTAMPTZ and compare as instants.
 
-```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src ../m1-identity-onboarding/.venv/bin/python -m pytest tests/unit/test_local_identity.py -q -o addopts='' -p no:cacheprovider --junitxml=/private/tmp/rb-m3-identity-boundary.xml
-```
+- **127 passed, 0 failures, 0 errors, 0 skipped**, exit 0, 158.787 seconds: focused M3 unit/PostgreSQL/real-CLI tests **28**, relevant architecture/identity/M0/M1/M2 regressions **99**. Exact cases/timings in `planning/m3_evidence/focused-tests.xml`; command selection is the three `test_m3_*` modules plus architecture, local identity, M2 provider/journal/CLI/CAS unit modules and M1 onboarding/M2 metadata/M0 cancellation integration modules.
+- Final architecture check: **12 passed**, exit 0, after limiting the authorized migration exception to the affected check; `architecture-final.xml`.
+- All **19 changed Python files**: Ruff check PASS; Ruff format PASS; Pyright **0 errors, 0 warnings**, exit 0. Exact command arguments/results in `static-checks.json`. Pyright also prints an environment notice that this worktree has no `.venv`; the explicit neighboring interpreter is used.
+- `git diff --check`: exit 0 before delivery. No full historical repository suite claimed.
 
-Result: **7 passed in 0.35s**, exit 0. This verifies existing local identity unit regressions only; it is not an M3 acceptance result. Actual process UID is **502**, non-root. Worktree starts at the exact accepted SHA; initial status clean; initial `git diff --check` exit 0. Delivery verifies the report diff, commit, clean status and bundle separately.
+Technical coverage includes exact SourceVersion/ArtifactVersion closure, malformed/unsafe documents, wrong/ambiguous spans, R3 golden hash, replay/current authority, independent reviewer/snapshot author separation, legal and terminal review transitions, append-only records, sealed snapshot sets, unchanged Phase 1 Claim closure/hash, source retraction staleness, revoked/expired authority, forged/project isolation, byte corruption/removal, empty migration roundtrip from Phase 1 and fresh CLI readback. Distinct reviewer actors and credential fixtures are **technical tests only**.
 
-Not run: M3 unit/integration/provenance/authorization/E2E tests; PostgreSQL 18 migration or persistence/restart demonstration; real scientific document acquisition/localization; Claim/Hypothesis linkage; explicit independent human verification; cross-project/forged attribution/artifact corruption acceptance. These are **NOT RUN**, never PASS. Modified-file Ruff/format/Pyright: not applicable to this report-only checkpoint; no Python files changed. Full historical suite not run.
+Earlier red tests identified the pre-commit credential-expiry gap (fixed and now passing). Three regression failures were obsolete migration-head/phase assumptions; expectations now admit only authorized 0030 or assert its head, preserving other forbidden-schema checks. Final output has 77 existing Alembic `path_separator` deprecation warnings; no warning suppression or unrelated cleanup.
 
-## Remaining issues and readiness
+## Review, unmet prerequisite and readiness
 
-P0: none established by this bounded inspection; no comprehensive implementation review performed. P1: independent-reviewer authentication/enrollment authorization boundary above blocks the complete positive workflow. P2: accepted M2 inherited debt remains as documented in the final closure; it was not repaired or reverified here. No M3 scientific reliability or production-readiness claim.
+Primary-executor contract/diff review against frozen contracts and test evidence found no remaining implementation P0/P1 within this bounded scope. No independent code-review acceptance is claimed. Existing M2 P2 debt remains accepted and outside this change; this slice retains bounded text/JATS formats and recursive historical snapshot validation (long-chain scalability is not certified).
 
-**M4 readiness: NO.** Resume M3 after the narrow profile decision and provision for actual independent human verification. No push, merge or M4 work.
+**Real independent-human verification: NOT RUN.** No separate authenticated human reviewer has been designated. The required person must inspect the exact retained passage and explicitly verify it, and must differ from both extraction actor and support-snapshot author. Production remains the approved single-user Local-First profile with unavailable independent enrollment attestations. No invented actor, second Codex session or test principal can satisfy this acceptance. A designated real reviewer and an approved way to authenticate/enroll that reviewer in the same project are the exact unmet prerequisites. User direction explicitly defers this demonstration; reviewer separation is unchanged.
+
+This is the remaining acceptance blocker, not a passing human gate. **M4 readiness: NO** until independent-human demonstration and required review acceptance. Do not treat technical SUPPORTS tests as M3_READY_FOR_REVIEW. Delivery stops at M3_PARTIAL.
+
+## Delivery update
+
+Implementation commit and verified milestone bundle are recorded after committing the above code/test evidence. The earlier blocked bundle is historical and is not the M3 implementation milestone.

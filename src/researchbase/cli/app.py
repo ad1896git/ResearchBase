@@ -12,6 +12,7 @@ from .commands.evidence import register as register_evidence
 from .commands.experiment import register as register_experiment
 from .commands.governance import register as register_governance
 from .commands.literature import register as register_literature
+from .commands.literature_evidence import register as register_literature_evidence
 from .commands.literature_search_execution import register as register_search_execution
 from .commands.local import register as register_local
 from .commands.metadata_observation import register as register_metadata
@@ -43,6 +44,7 @@ def _root_callback(
                 "literature",
                 "literature-search-execution",
                 "literature-metadata",
+                "literature-evidence",
             }
         ):
             raise ResearchBaseError(
@@ -78,6 +80,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
         no_args_is_help=False,
     )
     register_metadata(app)
+    register_literature_evidence(app)
     register_local(app)
     register_research(app)
     register_evidence(app)

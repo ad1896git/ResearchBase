@@ -244,7 +244,7 @@ def test_migration_empty_roundtrip_and_populated_downgrade(case, phase2_database
         command.downgrade(_alembic(phase2_database_url), PARENT)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0029_metadata_observations"
+            "0030_literature_evidence"
         )
 
 

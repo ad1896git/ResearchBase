@@ -15,6 +15,7 @@ from researchbase.adapters.openalex import OpenAlexSearchCapability
 from researchbase.application.commands import ApplicationService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
+from researchbase.application.literature_evidence import LiteratureEvidenceService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
@@ -63,6 +64,7 @@ class ServiceBundle:
     local_identity: LocalWorkbenchService | None = None
     local_credentials: LocalIdentityAdapter | None = None
     metadata_observations: MetadataObservationService | None = None
+    literature_evidence: LiteratureEvidenceService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -131,6 +133,7 @@ def build_services() -> ServiceBundle:
             sources,
             versions,
         ),
+        LiteratureEvidenceService(uow_factory, credentials, store),
     )
 
 

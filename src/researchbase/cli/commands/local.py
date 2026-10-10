@@ -8,13 +8,20 @@ from uuid import UUID
 import typer
 
 from researchbase.application.commands import (
+    CreateHypothesisCommand,
     CreateResearchQuestionCommand,
     CreateWorkspaceCommand,
+    FreezeHypothesisCommand,
     FreezeResearchQuestionCommand,
     WriteProjectionTarget,
 )
 from researchbase.domain.organization import ProjectId
-from researchbase.domain.research import ResearchQuestionId, ResearchQuestionVersionId
+from researchbase.domain.research import (
+    HypothesisId,
+    HypothesisVersionId,
+    ResearchQuestionId,
+    ResearchQuestionVersionId,
+)
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.local_identity import LocalIdentityAdapter
@@ -172,6 +179,51 @@ def question_freeze(
     )
 
 
+def hypothesis_create(
+    ctx: typer.Context,
+    project_id: Annotated[UUID, typer.Option("--project-id")],
+    statement: str = typer.Option(..., "--statement"),
+    rationale: str = typer.Option(..., "--rationale"),
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    invoke(
+        runtime,
+        json_mode,
+        lambda: application_write(
+            runtime.services.application,
+            WriteProjectionTarget.HYPOTHESIS,
+            lambda: runtime.services.application.create_hypothesis(
+                CreateHypothesisCommand(
+                    ProjectId(project_id), statement, None, None, rationale, _context(runtime)
+                )
+            ),
+        ),
+    )
+
+
+def hypothesis_freeze(
+    ctx: typer.Context,
+    hypothesis_id: Annotated[UUID, typer.Option("--hypothesis-id")],
+    version_id: Annotated[UUID, typer.Option("--version-id")],
+    json_mode: bool = typer.Option(False, "--json"),
+) -> None:
+    runtime = _runtime(ctx)
+    invoke(
+        runtime,
+        json_mode,
+        lambda: application_write(
+            runtime.services.application,
+            WriteProjectionTarget.HYPOTHESIS_VERSION,
+            lambda: runtime.services.application.freeze_hypothesis(
+                FreezeHypothesisCommand(
+                    HypothesisId(hypothesis_id), HypothesisVersionId(version_id), _context(runtime)
+                )
+            ),
+        ),
+    )
+
+
 def register(app: typer.Typer) -> None:
     local = command_group("Trusted single-user local workbench.")
     for name, fn in (
@@ -181,6 +233,8 @@ def register(app: typer.Typer) -> None:
         ("project-show", project_show),
         ("workspace-create", workspace_create),
         ("question-create", question_create),
+        ("hypothesis-create", hypothesis_create),
+        ("hypothesis-freeze", hypothesis_freeze),
         ("question-show", question_show),
         ("question-freeze", question_freeze),
     ):
