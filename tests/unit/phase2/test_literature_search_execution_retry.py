@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID, uuid4
@@ -28,6 +26,7 @@ from researchbase.persistence.in_memory_literature_search_execution import (
     InMemoryExecutionUnitOfWork,
     InMemoryLiteratureSearchExecutionRepository,
 )
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 def test_known_not_sent_failure_creates_a_new_provider_attempt() -> None:
@@ -578,7 +577,7 @@ def test_provider_timeout_uses_remaining_reserved_attempt_deadline() -> None:
 
     repository = DelayedReservationRepository()
     provider = DeadlineProvider()
-    monotonic_ticks = iter((7.0, 7.5))
+    monotonic_ticks = iter((7.0, 7.5, 7.5))
     service = LiteratureSearchExecutionService(
         lambda: InMemoryExecutionUnitOfWork(repository),
         provider,

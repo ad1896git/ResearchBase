@@ -1,4 +1,4 @@
-"""Direct SQL child appends serialize on the execution row with terminalization."""
+"""Valid child writes serialize; duplicate sealed queries reject before the barrier."""
 
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
+
 from tests.integration.phase2.test_pr2_04_cas_completion import _event
 from tests.integration.phase2.test_pr2_04_schema_coverage import (
     E,
@@ -57,7 +58,8 @@ def test_pg_direct_child_append_and_terminalization_share_execution_lock(
                 else:
                     conn.execute(
                         text(
-                            "UPDATE literature_search_executions SET status='SUCCEEDED',finished_at=clock_timestamp(),row_version=row_version+1 WHERE id=:id"
+                            "UPDATE literature_search_executions SET status='SUCCEEDED',"
+                            "finished_at=clock_timestamp(),row_version=row_version+1 WHERE id=:id"
                         ),
                         {"id": execution["id"]},
                     )
@@ -79,54 +81,89 @@ def test_pg_direct_child_append_and_terminalization_share_execution_lock(
                 tx.commit()
                 fact["committed"] = True
         except DBAPIError as error:
-            fact["sqlstate"] = error.orig.sqlstate
+            fact["sqlstate"] = getattr(error.orig, "sqlstate", None)
         return fact
 
     try:
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            first = pool.submit(worker, winner)
-            second = None
-            try:
-                assert ready.wait(10)
-                second = pool.submit(worker, "terminal" if winner == "child" else "child")
-                waiting_pid = entered.get(timeout=10)
-                blocker = next(x["pid"] for x in observations if x["label"] == winner)
-                limit = monotonic() + 10
-                wait = None
-                while monotonic() < limit:
-                    with engine.connect() as observer:
-                        wait = dict(
-                            observer.execute(
-                                text(
-                                    "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers FROM pg_stat_activity WHERE pid=:pid"
-                                ),
-                                {"pid": waiting_pid},
+        early_duplicate = child == Q and winner == "child"
+        if early_duplicate:
+            # The immediate uniqueness guard rejects before the race barrier.
+            # Prove that rejection, then prove terminalization still commits.
+            with engine.connect() as conn:
+                tx = conn.begin()
+                pid, xid = conn.execute(text("SELECT pg_backend_pid(),txid_current()")).one()
+                with pytest.raises(DBAPIError) as caught:
+                    _insert(conn, child, row)
+                tx.rollback()
+            sqlstate = getattr(caught.value.orig, "sqlstate", None)
+            constraint = getattr(getattr(caught.value.orig, "diag", None), "constraint_name", None)
+            assert sqlstate == "23505"
+            assert constraint == "uq_sqrec_provider_attempt"
+            observations.append(
+                {
+                    "label": "child",
+                    "pid": pid,
+                    "xid": xid,
+                    "sqlstate": sqlstate,
+                    "committed": False,
+                    "rejected_before_barrier": True,
+                }
+            )
+            pr204_trace.record(
+                phase="early_duplicate_rejection",
+                run=run,
+                child=child,
+                winner=winner,
+                sqlstate=sqlstate,
+                constraint=constraint,
+            )
+            worker("terminal")
+        else:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(worker, winner)
+                second = None
+                try:
+                    assert ready.wait(10)
+                    second = pool.submit(worker, "terminal" if winner == "child" else "child")
+                    waiting_pid = entered.get(timeout=10)
+                    blocker = next(x["pid"] for x in observations if x["label"] == winner)
+                    limit = monotonic() + 10
+                    wait = None
+                    while monotonic() < limit:
+                        with engine.connect() as observer:
+                            wait = dict(
+                                observer.execute(
+                                    text(
+                                        "SELECT wait_event_type,pg_blocking_pids(pid) AS blockers "
+                                        "FROM pg_stat_activity WHERE pid=:pid"
+                                    ),
+                                    {"pid": waiting_pid},
+                                )
+                                .mappings()
+                                .one()
                             )
-                            .mappings()
-                            .one()
-                        )
-                    if wait["wait_event_type"] == "Lock" and blocker in wait["blockers"]:
-                        break
-                    Event().wait(0.01)
-                assert (
-                    wait is not None
-                    and wait["wait_event_type"] == "Lock"
-                    and blocker in wait["blockers"]
-                )
-                pr204_trace.record(
-                    phase="actual_lock_wait",
-                    run=run,
-                    child=child,
-                    winner=winner,
-                    waiting_pid=waiting_pid,
-                    blocker_pid=blocker,
-                    wait=wait,
-                )
-            finally:
-                release.set()
-            first.result(timeout=20)
-            assert second is not None
-            second.result(timeout=20)
+                        if wait["wait_event_type"] == "Lock" and blocker in wait["blockers"]:
+                            break
+                        Event().wait(0.01)
+                    assert (
+                        wait is not None
+                        and wait["wait_event_type"] == "Lock"
+                        and blocker in wait["blockers"]
+                    )
+                    pr204_trace.record(
+                        phase="actual_lock_wait",
+                        run=run,
+                        child=child,
+                        winner=winner,
+                        waiting_pid=waiting_pid,
+                        blocker_pid=blocker,
+                        wait=wait,
+                    )
+                finally:
+                    release.set()
+                first.result(timeout=20)
+                assert second is not None
+                second.result(timeout=20)
         after = _rows(engine)
         child_fact = next(x for x in observations if x["label"] == "child")
         terminal_fact = next(x for x in observations if x["label"] == "terminal")
@@ -136,9 +173,13 @@ def test_pg_direct_child_append_and_terminalization_share_execution_lock(
             transactions=observations,
             provider_calls=len(material["provider"].calls),
         )
-        assert child_fact["sqlstate"] == ("P17D5" if winner == "child" else "P17D3")
+        expected_sqlstate = (
+            "23505" if early_duplicate else ("P17D5" if winner == "child" else "P17D3")
+        )
+        assert child_fact["sqlstate"] == expected_sqlstate
         assert not child_fact["committed"] and terminal_fact["committed"]
-        assert len({x["pid"] for x in observations}) == 2
+        if not early_duplicate:
+            assert len({x["pid"] for x in observations}) == 2
         assert len({x["xid"] for x in observations}) == 2
         assert after[Q] == before[Q] and after[R] == before[R]
         assert after[E][0]["status"] == "SUCCEEDED"
