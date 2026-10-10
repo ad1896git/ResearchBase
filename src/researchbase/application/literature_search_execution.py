@@ -884,10 +884,9 @@ class LiteratureSearchExecutionService:
             plan_hash,
             plan_material,
             deadline,
-            remaining_at_exit,
+            monotonic_deadline,
         ) = prepared
         query_payload = context["queries"][query_index]
-        monotonic_deadline = self._monotonic() + max(0.0, remaining_at_exit)
         remaining_timeout = max(0.0, monotonic_deadline - self._monotonic())
         invoked_at: datetime | None = None
         if remaining_timeout <= 0:
@@ -1148,7 +1147,10 @@ class LiteratureSearchExecutionService:
                 if execution.started_at is not None
                 else deadline_at,
             )
-            remaining_at_exit = (deadline - repo.database_now()).total_seconds()
+            # Anchor before DB sampling, commit and closure; never add their latency back.
+            sampled_at = self._monotonic()
+            remaining = (deadline - repo.database_now()).total_seconds()
+            monotonic_deadline = sampled_at + max(0.0, remaining)
             uow.commit()
             return (
                 execution,
@@ -1159,7 +1161,7 @@ class LiteratureSearchExecutionService:
                 plan_hash,
                 plan_material,
                 deadline,
-                remaining_at_exit,
+                monotonic_deadline,
             )
 
     def _persist_outcome(

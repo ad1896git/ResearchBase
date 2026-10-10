@@ -386,6 +386,7 @@ class SqlAlchemyLiteratureSearchExecutionRepository:
                 "recovery_after": row.recovery_after,
                 "invoked_at": row.invoked_at,
                 "returned_at": row.returned_at,
+                "retrieved_at": row.retrieved_at,
                 "completed_at": row.completed_at,
                 "query_record_id": row.query_record_id,
                 "delivery_certainty": row.delivery_certainty,
