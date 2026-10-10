@@ -234,6 +234,13 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
             "post",
             "/v1/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}:abandon",
         ),
+        ("post", "/v1/literature/search-executions"),
+        ("get", "/v1/literature/search-executions"),
+        ("post", "/v1/literature/search-executions/{execution_id}:execute"),
+        ("post", "/v1/literature/search-executions/{execution_id}:cancel"),
+        ("post", "/v1/literature/search-executions/{execution_id}:recover"),
+        ("get", "/v1/literature/search-executions/{execution_id}"),
+        ("get", "/v1/literature/search-executions/{execution_id}/provenance"),
     }
     first = create_app(Services(FakeApplication())).openapi()
     second = create_app(Services(FakeApplication())).openapi()
@@ -303,6 +310,9 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 422,
         ErrorCode.SEARCH_PLAN_QUESTION_SCOPE_MISMATCH: 403,
         ErrorCode.SEARCH_PLAN_VERSION_IMMUTABLE: 409,
+        ErrorCode.SEARCH_PLAN_NOT_FROZEN: 409,
+        ErrorCode.ADAPTER_UNAVAILABLE: 503,
+        ErrorCode.ADAPTER_VERSION_MISMATCH: 409,
         ErrorCode.SEARCH_PLAN_QUESTION_REQUIRED: 422,
         ErrorCode.SEARCH_PLAN_LANGUAGE_SCOPE_REQUIRED: 422,
         ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 422,

@@ -94,6 +94,9 @@ def test_all_stable_error_codes_have_cli_exit_mapping() -> None:
         ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 2,
         ErrorCode.SEARCH_PLAN_QUESTION_SCOPE_MISMATCH: 3,
         ErrorCode.SEARCH_PLAN_VERSION_IMMUTABLE: 4,
+        ErrorCode.SEARCH_PLAN_NOT_FROZEN: 4,
+        ErrorCode.ADAPTER_UNAVAILABLE: 5,
+        ErrorCode.ADAPTER_VERSION_MISMATCH: 4,
     }
     assert set(expected) == set(ErrorCode)
 

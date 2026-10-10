@@ -31,6 +31,12 @@ from researchbase.application.ports import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
+from researchbase.persistence.literature_search_execution_repository import (
+    SqlAlchemyLiteratureSearchExecutionRepository,
+)
+from researchbase.persistence.literature_search_plan_repository import (
+    SqlAlchemyLiteratureSearchPlanRepository,
+)
 from researchbase.persistence.phase2_identity_repository import SqlAlchemyPhase2IdentityRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
@@ -53,9 +59,6 @@ from researchbase.persistence.repositories import (
 from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
 from researchbase.persistence.source_version_repository import SqlAlchemySourceVersionRepository
-from researchbase.persistence.literature_search_plan_repository import (
-    SqlAlchemyLiteratureSearchPlanRepository,
-)
 
 
 def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
@@ -113,6 +116,14 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
             "uq_literature_command_receipt_scope": (
                 ErrorCode.CONCURRENT_MODIFICATION,
                 "literature command receipt was concurrently committed",
+            ),
+            "uq_lse_project_idempotency": (
+                ErrorCode.IDEMPOTENCY_CONFLICT,
+                "execution idempotency key already exists",
+            ),
+            "uq_lse_receipt_scope": (
+                ErrorCode.CONCURRENT_MODIFICATION,
+                "execution command receipt was concurrently committed",
             ),
             "uq_research_question_versions_parent_version": (
                 ErrorCode.VALIDATION_ERROR,
@@ -208,9 +219,16 @@ class SqlAlchemyUnitOfWork:
     source_merge: SqlAlchemySourceMergeRepository
     source_version: SqlAlchemySourceVersionRepository
     literature_search_plan: SqlAlchemyLiteratureSearchPlanRepository
+    literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
 
-    def __init__(self, session_factory: Callable[[], Session] | sessionmaker[Session]) -> None:
+    def __init__(
+        self,
+        session_factory: Callable[[], Session] | sessionmaker[Session],
+        *,
+        pr204_error_normalization: bool = False,
+    ) -> None:
         self._session_factory = session_factory
+        self._pr204_error_normalization = pr204_error_normalization
         self._session: Session | None = None
 
         self._committed = False
@@ -240,6 +258,9 @@ class SqlAlchemyUnitOfWork:
         self.source_merge = SqlAlchemySourceMergeRepository(self._session)
         self.source_version = SqlAlchemySourceVersionRepository(self._session)
         self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(self._session)
+        self.literature_search_execution = SqlAlchemyLiteratureSearchExecutionRepository(
+            self._session
+        )
         return self
 
     def begin_serializable(self) -> None:
@@ -252,6 +273,24 @@ class SqlAlchemyUnitOfWork:
             self._require_session().commit()
         except DBAPIError as exc:
             normalized = _normalize_database_error(exc)
+            if (
+                normalized is None
+                and self._pr204_error_normalization
+                and getattr(exc.orig, "sqlstate", None) == "40P01"
+            ):
+                normalized = ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "deadlocked PR2-04 transaction must be retried",
+                )
+            if (
+                normalized is None
+                and self._pr204_error_normalization
+                and exc.connection_invalidated
+            ):
+                normalized = ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "PR2-04 transaction connection was lost; reread before retry",
+                )
             if normalized is not None:
                 raise normalized from exc
             raise
@@ -269,13 +308,76 @@ class SqlAlchemyUnitOfWork:
     ) -> None:
         if self._session is None:
             return
-        if exc_type is not None or not self._committed:
-            self._session.rollback()
-            emit_uow_rollback(getattr(getattr(exc_value, "code", None), "value", None))
-        self._session.close()
-        self._session = None
+        if self._pr204_error_normalization:
+            cleanup_error: BaseException | None = None
+            try:
+                if exc_type is not None or not self._committed:
+                    try:
+                        self._session.rollback()
+                        emit_uow_rollback(
+                            getattr(getattr(exc_value, "code", None), "value", None)
+                        )
+                    except BaseException as rollback_error:
+                        cleanup_error = rollback_error
+            finally:
+                try:
+                    self._session.close()
+                except BaseException as close_error:
+                    cleanup_error = cleanup_error or close_error
+                finally:
+                    self._session = None
+            if cleanup_error is not None:
+                if exc_value is None:
+                    normalized_cleanup = (
+                        _normalize_database_error(cleanup_error)
+                        if isinstance(cleanup_error, DBAPIError)
+                        else None
+                    )
+                    if (
+                        normalized_cleanup is None
+                        and isinstance(cleanup_error, DBAPIError)
+                        and (
+                            cleanup_error.connection_invalidated
+                            or getattr(cleanup_error.orig, "sqlstate", None) == "40P01"
+                        )
+                    ):
+                        normalized_cleanup = ResearchBaseError(
+                            ErrorCode.CONCURRENT_MODIFICATION,
+                            "PR2-04 transaction cleanup failed; reread before retry",
+                        )
+                    if normalized_cleanup is not None:
+                        raise normalized_cleanup from cleanup_error
+                    raise cleanup_error
+                if hasattr(exc_value, "add_note"):
+                    exc_value.add_note("PR2-04 transaction cleanup failed; session closure attempted")
+        else:
+            if exc_type is not None or not self._committed:
+                self._session.rollback()
+                emit_uow_rollback(getattr(getattr(exc_value, "code", None), "value", None))
+            self._session.close()
+            self._session = None
         if exc_value is not None:
             normalized = _normalize_database_error(exc_value)
+            if (
+                normalized is None
+                and self._pr204_error_normalization
+                and isinstance(exc_value, DBAPIError)
+                and getattr(exc_value.orig, "sqlstate", None) == "40P01"
+            ):
+                normalized = ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "deadlocked PR2-04 transaction must be retried",
+                )
+            if (
+                normalized is None
+                and self._pr204_error_normalization
+                and isinstance(exc_value, DBAPIError)
+                and exc_value.connection_invalidated
+            ):
+                normalized = ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "PR2-04 transaction connection was lost; reread before retry",
+                )
             if normalized is not None:
                 raise normalized from exc_value
 

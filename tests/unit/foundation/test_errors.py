@@ -50,6 +50,9 @@ def test_normative_error_codes_are_stable() -> None:
         "SEARCH_PLAN_QUESTION_INVALID",
         "SEARCH_PLAN_QUESTION_SCOPE_MISMATCH",
         "SEARCH_PLAN_VERSION_IMMUTABLE",
+        "SEARCH_PLAN_NOT_FROZEN",
+        "ADAPTER_UNAVAILABLE",
+        "ADAPTER_VERSION_MISMATCH",
     ]
 
 

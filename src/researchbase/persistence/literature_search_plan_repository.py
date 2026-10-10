@@ -36,6 +36,14 @@ class SqlAlchemyLiteratureSearchPlanRepository:
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"), {"key": key}
         )
 
+    def lock_literature_search_execution_command(
+        self, deployment: str, actor: UUID, project: UUID, command: str, request: UUID
+    ) -> None:
+        key = f"literature-search-execution-receipt:{deployment}:{actor}:{project}:{command}:{request}"
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"), {"key": key}
+        )
+
     def at(self):
         return self._session.execute(text("SELECT clock_timestamp()")).scalar_one()
 

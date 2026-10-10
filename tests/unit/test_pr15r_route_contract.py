@@ -30,6 +30,69 @@ class RouteContract:
 ROUTES = (
     RouteContract(
         "post",
+        "/v1/literature/search-executions",
+        "create_literature_search_execution",
+        "create",
+        "LiteratureSearchExecutionIn",
+        "Response Create Literature Search Execution",
+        "create_literature_search_execution",
+    ),
+    RouteContract(
+        "get",
+        "/v1/literature/search-executions",
+        "list_literature_search_executions",
+        "list",
+        None,
+        "Response List Literature Search Executions",
+        "list_literature_search_executions",
+    ),
+    RouteContract(
+        "post",
+        "/v1/literature/search-executions/{execution_id}:execute",
+        "execute_literature_search_execution",
+        "_execution_command",
+        "LiteratureSearchExecutionScopeIn",
+        "Response Execute Literature Search Execution",
+        "execute_literature_search_execution",
+    ),
+    RouteContract(
+        "post",
+        "/v1/literature/search-executions/{execution_id}:cancel",
+        "cancel_literature_search_execution",
+        "_execution_command",
+        "LiteratureSearchExecutionScopeIn",
+        "Response Cancel Literature Search Execution",
+        "cancel_literature_search_execution",
+    ),
+    RouteContract(
+        "post",
+        "/v1/literature/search-executions/{execution_id}:recover",
+        "recover_literature_search_execution",
+        "_execution_command",
+        "LiteratureSearchExecutionScopeIn",
+        "Response Recover Literature Search Execution",
+        "recover_literature_search_execution",
+    ),
+    RouteContract(
+        "get",
+        "/v1/literature/search-executions/{execution_id}",
+        "get_literature_search_execution",
+        "get",
+        None,
+        "Response Get Literature Search Execution",
+        "get_literature_search_execution",
+    ),
+    RouteContract(
+        "get",
+        "/v1/literature/search-executions/{execution_id}/provenance",
+        "get_literature_search_execution_provenance",
+        "get_provenance",
+        None,
+        "Response Get Literature Search Execution Provenance",
+        "get_literature_search_execution_provenance",
+    ),
+    RouteContract(
+        "post",
         "/v1/projects/{project_id}/literature/search-plans",
         "create_literature_search_plan",
         "create",
@@ -609,7 +672,7 @@ def _ref_name(schema: dict[str, object]) -> str:
 
 
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 63
+    assert len(ROUTES) == 70
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -619,7 +682,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 63
+    assert len({item.operation_id for item in ROUTES}) == 70
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]
@@ -639,4 +702,18 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         assert _ref_name(response) == item.response_schema
         assert operation["operationId"] == item.operation_id
         source = inspect.getsource(getattr(routes, item.endpoint))
-        assert f".{item.handler}(" in source
+        if item.handler == "_execution_command":
+            assert "_execution_command(" in source
+        else:
+            assert f".{item.handler}(" in source
+
+
+def test_pr204_execution_list_exposes_optional_after_cursor() -> None:
+    schema = create_app(EmptyServices()).openapi()
+    operation = schema["paths"]["/v1/literature/search-executions"]["get"]
+    query_parameters = {
+        parameter["name"]
+        for parameter in operation["parameters"]
+        if parameter["in"] == "query"
+    }
+    assert {"project_id", "limit", "after"} <= query_parameters

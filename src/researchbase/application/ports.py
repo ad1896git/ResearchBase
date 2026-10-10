@@ -640,6 +640,9 @@ class UnitOfWork(Protocol):
     def source_merge(self) -> Any: ...
 
     @property
+    def literature_search_execution(self) -> Any: ...
+
+    @property
     def source_version(self) -> Any: ...
 
     @property

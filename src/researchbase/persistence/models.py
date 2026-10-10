@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -931,7 +932,9 @@ class LiteratureSearchPlanVersionModel(Base):
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
     plan_id: Mapped[UUID] = mapped_column(
-        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plans.id", ondelete="RESTRICT"), nullable=False
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_plans.id", ondelete="RESTRICT"),
+        nullable=False,
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -962,10 +965,14 @@ class SearchPlanQuestionInputModel(Base):
     )
 
     plan_version_id: Mapped[UUID] = mapped_column(
-        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plan_versions.id", ondelete="RESTRICT"), primary_key=True
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_plan_versions.id", ondelete="RESTRICT"),
+        primary_key=True,
     )
     research_question_version_id: Mapped[UUID] = mapped_column(
-        PostgreSQLUUID(as_uuid=True), ForeignKey("research_question_versions.id", ondelete="RESTRICT"), primary_key=True
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_question_versions.id", ondelete="RESTRICT"),
+        primary_key=True,
     )
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -974,7 +981,11 @@ class LiteratureSearchPlanCommandReceiptModel(Base):
     __tablename__ = "literature_search_plan_command_receipts"
     __table_args__ = (
         UniqueConstraint(
-            "deployment_id", "actor_id", "project_id", "command_name", "request_id",
+            "deployment_id",
+            "actor_id",
+            "project_id",
+            "command_name",
+            "request_id",
             name="uq_lsp_receipt_scope",
         ),
     )
@@ -992,11 +1003,311 @@ class LiteratureSearchPlanCommandReceiptModel(Base):
     request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
     hash_scheme: Mapped[str] = mapped_column(String(32), nullable=False)
     result_plan_id: Mapped[UUID] = mapped_column(
-        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plans.id", ondelete="RESTRICT"), nullable=False
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_plans.id", ondelete="RESTRICT"),
+        nullable=False,
     )
     result_plan_version_id: Mapped[UUID | None] = mapped_column(
-        PostgreSQLUUID(as_uuid=True), ForeignKey("literature_search_plan_versions.id", ondelete="RESTRICT")
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_plan_versions.id", ondelete="RESTRICT"),
     )
     result_dto_version: Mapped[int] = mapped_column(Integer, nullable=False)
     result_dto: Mapped[object] = mapped_column(JSONB, nullable=False)
     completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LiteratureSearchExecutionModel(Base):
+    __tablename__ = "literature_search_executions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PLANNED','RUNNING','SUCCEEDED','FAILED','CANCELLED','UNKNOWN')",
+            name="ck_lse_status",
+        ),
+        CheckConstraint("row_version > 0", name="ck_lse_row_version"),
+        CheckConstraint(
+            "strategy_id = 'explicit_queries' AND strategy_version = '1'",
+            name="ck_lse_strategy",
+        ),
+        CheckConstraint(
+            "started_at IS NULL OR finished_at IS NULL OR finished_at >= started_at",
+            name="ck_lse_finished_after_start",
+        ),
+        UniqueConstraint("project_id", "idempotency_key", name="uq_lse_project_idempotency"),
+        UniqueConstraint("project_id", "id", name="uq_lse_project_id"),
+        Index("ix_lse_project_created", "project_id", "created_at", "id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    search_plan_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_plan_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    strategy_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    strategy_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="PLANNED")
+    requested_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    executed_by: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT")
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    execution_context: Mapped[object] = mapped_column(JSONB, nullable=False)
+    idempotency_key: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    failure_code: Mapped[str | None] = mapped_column(String(64))
+    row_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LiteratureSearchQueryRecordModel(Base):
+    __tablename__ = "search_query_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "literature_search_execution_id", "ordinal", name="uq_sqr_execution_ordinal"
+        ),
+        UniqueConstraint(
+            "literature_search_execution_id", "query_hash", name="uq_sqr_execution_hash"
+        ),
+        CheckConstraint("ordinal >= 0", name="ck_sqr_ordinal"),
+        ForeignKeyConstraint(
+            ["literature_search_execution_id", "provider_attempt_id"],
+            [
+                "literature_search_provider_attempts.execution_id",
+                "literature_search_provider_attempts.id",
+            ],
+            name="fk_sqr_attempt_same_execution",
+            ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    literature_search_execution_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_executions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    provider_attempt_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    perspective: Mapped[str | None] = mapped_column(Text)
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_version: Mapped[str | None] = mapped_column(String(128))
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    query_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    hash_scheme: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="sha256-cjson-v1"
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LiteratureSearchProviderAttemptModel(Base):
+    __tablename__ = "literature_search_provider_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "execution_id", "query_index", "attempt_number", name="uq_lspa_attempt_number"
+        ),
+        CheckConstraint("query_index >= 0", name="ck_lspa_query_index"),
+        CheckConstraint("attempt_number > 0", name="ck_lspa_attempt_number"),
+        CheckConstraint("provider_request_key = id", name="ck_lspa_request_key_is_attempt_id"),
+        CheckConstraint("row_version > 0", name="ck_lspa_row_version"),
+        CheckConstraint(
+            "retry_after_seconds IS NULL OR retry_after_seconds >= 0",
+            name="ck_lspa_retry_after",
+        ),
+        CheckConstraint("result_count IS NULL OR result_count >= 0", name="ck_lspa_result_count"),
+        CheckConstraint("deadline_at > reserved_at", name="ck_lspa_deadline_after_reserve"),
+        CheckConstraint(
+            "recovery_after = deadline_at + interval '30 seconds'",
+            name="ck_lspa_recovery_after_deadline",
+        ),
+        CheckConstraint(
+            "(status = 'RESERVED' AND completed_at IS NULL AND delivery_certainty IS NULL "
+            "AND failure_code IS NULL AND result_count IS NULL AND query_record_id IS NULL "
+            "AND invoked_at IS NULL AND returned_at IS NULL AND provider_request_id IS NULL "
+            "AND retry_after_seconds IS NULL AND warning_codes IS NULL) OR "
+            "(status = 'SUCCEEDED' AND completed_at IS NOT NULL AND invoked_at IS NOT NULL "
+            "AND returned_at IS NOT NULL AND delivery_certainty = 'RESPONSE_RECEIVED' "
+            "AND failure_code IS NULL AND result_count IS NOT NULL AND query_record_id IS NOT NULL "
+            "AND warning_codes IS NOT NULL) OR "
+            "(status IN ('RETRYABLE_FAILURE','PERMANENT_FAILURE','CANCELLED','UNKNOWN') "
+            "AND completed_at IS NOT NULL AND delivery_certainty IS NOT NULL "
+            "AND failure_code IS NOT NULL AND result_count = 0 AND warning_codes IS NOT NULL "
+            "AND ((invoked_at IS NULL AND query_record_id IS NULL) OR "
+            "(invoked_at IS NOT NULL AND query_record_id IS NOT NULL)))",
+            name="ck_lspa_outcome_shape",
+        ),
+        CheckConstraint(
+            "status IN ('RESERVED','SUCCEEDED','RETRYABLE_FAILURE','PERMANENT_FAILURE',"
+            "'CANCELLED','UNKNOWN')",
+            name="ck_lspa_status",
+        ),
+        UniqueConstraint("execution_id", "id", name="uq_lspa_execution_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    execution_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_executions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    query_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_request_key: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    deadline_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recovery_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, server_default="RESERVED")
+    query_record_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "search_query_records.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
+    invoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delivery_certainty: Mapped[str | None] = mapped_column(String(24))
+    provider_request_id: Mapped[str | None] = mapped_column(String(256))
+    failure_code: Mapped[str | None] = mapped_column(String(64))
+    retry_after_seconds: Mapped[int | None] = mapped_column(Integer)
+    warning_codes: Mapped[object | None] = mapped_column(JSONB)
+    result_count: Mapped[int | None] = mapped_column(Integer)
+    row_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LiteratureSearchResultRecordModel(Base):
+    __tablename__ = "search_result_records"
+    __table_args__ = (
+        UniqueConstraint("search_query_record_id", "rank", name="uq_srr_query_rank"),
+        CheckConstraint("rank >= 0", name="ck_srr_rank"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    search_query_record_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("search_query_records.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    external_identifier: Mapped[str | None] = mapped_column(String(1024))
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(2048), nullable=False)
+    url: Mapped[str | None] = mapped_column(String(4096))
+    snippet: Mapped[str | None] = mapped_column(String(4096))
+    provider_score: Mapped[object | None] = mapped_column(Numeric())
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    hash_scheme: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="sha256-cjson-v1"
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LiteratureSearchExecutionEventModel(Base):
+    __tablename__ = "literature_search_execution_events"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "sequence", name="uq_lsee_execution_sequence"),
+        CheckConstraint("sequence >= 0", name="ck_lsee_sequence"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    execution_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_executions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    attempt_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("literature_search_provider_attempts.id", ondelete="RESTRICT"),
+    )
+    prior_status: Mapped[str | None] = mapped_column(String(16))
+    new_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    prior_row_version: Mapped[int | None] = mapped_column(Integer)
+    new_row_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LiteratureSearchExecutionCommandReceiptModel(Base):
+    __tablename__ = "literature_search_execution_command_receipts"
+    __table_args__ = (
+        UniqueConstraint(
+            "deployment_id",
+            "actor_id",
+            "project_id",
+            "command_name",
+            "request_id",
+            name="uq_lse_receipt_scope",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "result_execution_id"],
+            ["literature_search_executions.project_id", "literature_search_executions.id"],
+            name="fk_lse_receipt_execution_same_project",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(result_dto) = 'object' AND "
+            "result_dto->>'execution_id' = result_execution_id::text AND "
+            "result_dto->>'command_name' = command_name AND "
+            "jsonb_typeof(result_dto->'accepted_at') = 'string' AND "
+            "jsonb_typeof(result_dto->'accepted_row_version') = 'number' AND "
+            "(result_dto->>'accepted_row_version')::integer > 0 AND "
+            "result_dto ?& ARRAY['execution_id','command_name','accepted_at',"
+            "'accepted_row_version'] AND result_dto - "
+            "ARRAY['execution_id','command_name','accepted_at','accepted_row_version'] "
+            "= '{}'::jsonb",
+            name="ck_lse_receipt_admission_dto",
+        ),
+        CheckConstraint("length(btrim(deployment_id)) > 0", name="ck_lse_receipt_deployment"),
+        CheckConstraint("hash_scheme = 'sha256-cjson-v1'", name="ck_lse_receipt_hash_scheme"),
+        CheckConstraint("result_dto_version = 1", name="ck_lse_receipt_dto_version"),
+        CheckConstraint("created_by = actor_id", name="ck_lse_receipt_actor_attribution"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    deployment_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    project_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    command_name: Mapped[str] = mapped_column(String(48), nullable=False)
+    request_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    hash_scheme: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="sha256-cjson-v1"
+    )
+    result_execution_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    result_dto_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1")
+    )
+    result_dto: Mapped[object] = mapped_column(JSONB, nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -4,9 +4,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import fields, is_dataclass
 from datetime import date
+from threading import Event
 from types import UnionType
 from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 from uuid import UUID, uuid4
@@ -14,6 +17,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field, create_model
+from starlette.concurrency import run_in_threadpool
 
 from researchbase.api.context import execution_context
 from researchbase.api.errors import ErrorEnvelope
@@ -79,6 +83,15 @@ from researchbase.application.governance import (
     ProposedImpactTarget,
 )
 from researchbase.application.governance_queries import DownstreamImpactTarget
+from researchbase.application.literature_search_execution import (
+    CancelLiteratureSearchExecution,
+    CreateLiteratureSearchExecution,
+    ExecuteLiteratureSearchExecution,
+    LiteratureSearchExecutionService,
+    RecoverLiteratureSearchExecution,
+    SearchQueryInput,
+    _http_disconnect,
+)
 from researchbase.application.literature_search_plan import (
     CreateLiteratureSearchPlan,
     EditLiteratureSearchPlanQuestions,
@@ -560,6 +573,28 @@ class LiteratureSearchPlanIn(InputModel):
     planned_providers: list[str]
     stopping_rule: dict[str, str] | None = None
     research_question_refs: list[SearchPlanQuestionReferenceIn] = Field(default_factory=list)
+
+
+class LiteratureSearchExecutionQueryIn(InputModel):
+    query_type: str = Field(default="TEXT", pattern="^TEXT$")
+    query_text: str = Field(min_length=1, max_length=4096)
+    perspective: str | None = Field(default=None, max_length=256)
+
+
+class LiteratureSearchExecutionIn(InputModel):
+    project_id: UUID
+    search_plan_version_id: UUID
+    provider_id: str = Field(min_length=1, max_length=128)
+    provider_version: str = Field(min_length=1, max_length=128)
+    queries: list[LiteratureSearchExecutionQueryIn] = Field(min_length=1, max_length=32)
+    max_results: int = Field(default=20, ge=1, le=100)
+    max_provider_attempts: int = Field(default=3, ge=1, le=3)
+    timeout_seconds: int = Field(default=30, ge=1, le=30)
+    execution_budget_seconds: int = Field(default=300, ge=1, le=600)
+
+
+class LiteratureSearchExecutionScopeIn(InputModel):
+    project_id: UUID
 
 
 class SourceVersionResult(BaseModel):
@@ -1720,6 +1755,192 @@ def abandon_literature_search_plan(
             TransitionLiteratureSearchPlanVersion(
                 _verified_principal(request), project_id, plan_id, version_id, idempotency_key
             )
+        )
+    )
+
+
+def _search_execution_service(request: Request) -> LiteratureSearchExecutionService:
+    service = getattr(_services(request), "literature_search_executions", None)
+    if service is None:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(ErrorCode.ADAPTER_UNAVAILABLE, "search adapter unavailable")
+    return service
+
+
+@router.post(
+    "/literature/search-executions",
+    status_code=201,
+    operation_id="create_literature_search_execution",
+)
+def create_literature_search_execution(
+    body: LiteratureSearchExecutionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    principal = _verified_principal(request)
+    return _json(
+        _search_execution_service(request).create(
+            CreateLiteratureSearchExecution(
+                project_id=body.project_id,
+                plan_version_id=body.search_plan_version_id,
+                actor_id=principal.actor_id,
+                deployment_id=principal.deployment_id,
+                request_id=idempotency_key,
+                provider_id=body.provider_id,
+                provider_version=body.provider_version,
+                queries=tuple(
+                    SearchQueryInput(item.query_text, item.perspective, item.query_type)
+                    for item in body.queries
+                ),
+                max_results=body.max_results,
+                max_provider_attempts=body.max_provider_attempts,
+                timeout_seconds=body.timeout_seconds,
+                execution_budget_seconds=body.execution_budget_seconds,
+                principal=principal,
+            )
+        )
+    )
+
+
+def _execution_command(
+    command_type: type[
+        ExecuteLiteratureSearchExecution
+        | CancelLiteratureSearchExecution
+        | RecoverLiteratureSearchExecution
+    ],
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    request_id: UUID,
+) -> Any:
+    principal = _verified_principal(request)
+    command = command_type(
+        execution_id=execution_id,
+        actor_id=principal.actor_id,
+        deployment_id=principal.deployment_id,
+        request_id=request_id,
+        project_id=body.project_id,
+        principal=principal,
+    )
+    service = _search_execution_service(request)
+    method = {
+        ExecuteLiteratureSearchExecution: service.execute,
+        CancelLiteratureSearchExecution: service.cancel,
+        RecoverLiteratureSearchExecution: service.recover,
+    }[command_type]
+    return _json(method(command))
+
+
+@router.post(
+    "/literature/search-executions/{execution_id}:execute",
+    status_code=202,
+    operation_id="execute_literature_search_execution",
+)
+async def execute_literature_search_execution(
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    disconnected = Event()
+    context_token = _http_disconnect.set(disconnected)
+
+    async def watch_disconnect() -> None:
+        while True:
+            if (await request.receive())["type"] == "http.disconnect":
+                disconnected.set()
+                return
+
+    watcher = asyncio.create_task(watch_disconnect())
+    try:
+        return await run_in_threadpool(
+            lambda: _execution_command(
+                ExecuteLiteratureSearchExecution, execution_id, body, request, idempotency_key
+            ),
+        )
+    finally:
+        watcher.cancel()
+        try:
+            with suppress(asyncio.CancelledError):
+                await watcher
+        finally:
+            _http_disconnect.reset(context_token)
+
+
+@router.post(
+    "/literature/search-executions/{execution_id}:cancel",
+    status_code=202,
+    operation_id="cancel_literature_search_execution",
+)
+def cancel_literature_search_execution(
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _execution_command(
+        CancelLiteratureSearchExecution, execution_id, body, request, idempotency_key
+    )
+
+
+@router.post(
+    "/literature/search-executions/{execution_id}:recover",
+    status_code=202,
+    operation_id="recover_literature_search_execution",
+)
+def recover_literature_search_execution(
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _execution_command(
+        RecoverLiteratureSearchExecution, execution_id, body, request, idempotency_key
+    )
+
+
+@router.get(
+    "/literature/search-executions/{execution_id}",
+    operation_id="get_literature_search_execution",
+)
+def get_literature_search_execution(
+    execution_id: UUID, project_id: Annotated[UUID, Query()], request: Request
+) -> Any:
+    return _json(
+        _search_execution_service(request).get(
+            _verified_principal(request), project_id, execution_id
+        )
+    )
+
+
+@router.get(
+    "/literature/search-executions",
+    operation_id="list_literature_search_executions",
+)
+def list_literature_search_executions(
+    project_id: Annotated[UUID, Query()],
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    after: Annotated[UUID | None, Query()] = None,
+) -> Any:
+    return _json(
+        _search_execution_service(request).list(
+            _verified_principal(request), project_id, limit, after
+        )
+    )
+
+
+@router.get(
+    "/literature/search-executions/{execution_id}/provenance",
+    operation_id="get_literature_search_execution_provenance",
+)
+def get_literature_search_execution_provenance(
+    execution_id: UUID, project_id: Annotated[UUID, Query()], request: Request
+) -> Any:
+    return _json(
+        _search_execution_service(request).get_provenance(
+            _verified_principal(request), project_id, execution_id
         )
     )
 

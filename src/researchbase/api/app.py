@@ -12,18 +12,23 @@ from researchbase import __version__
 from researchbase.application.commands import ApplicationService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
+from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
 from researchbase.application.source_merge_execution import SourceMergeExecutionService
 from researchbase.application.source_version import SourceVersionService
-from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
 from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from researchbase.persistence.literature_search_execution_uow import (
+    literature_search_execution_uow_factory,
+)
 
 
 class HttpServices(Protocol):
@@ -51,6 +56,7 @@ class ServiceBundle:
     source_versions: SourceVersionService | None = None
     source_merge_execution: SourceMergeExecutionService | None = None
     literature_search_plans: LiteratureSearchPlanService | None = None
+    literature_search_executions: LiteratureSearchExecutionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -74,6 +80,10 @@ def build_services() -> ServiceBundle:
         SourceVersionService(uow_factory, None),
         SourceMergeExecutionService(uow_factory, None),
         LiteratureSearchPlanService(uow_factory, None),
+        LiteratureSearchExecutionService(
+            literature_search_execution_uow_factory(session_factory),
+            StaticSearchCapabilityRegistry(),
+        ),
     )
 
 

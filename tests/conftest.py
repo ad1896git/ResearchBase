@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+pytest_plugins = ("scripts.pr2_04_pytest_evidence",)
+
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "integration: requires a running PostgreSQL 18 service")

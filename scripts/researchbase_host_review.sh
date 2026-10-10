@@ -37,6 +37,7 @@ usage() {
   cat <<'EOF'
 Usage: bash scripts/researchbase_host_review.sh --pr2-02-closure [--dry-run]
        bash scripts/researchbase_host_review.sh --pr2-03-verification
+       bash scripts/researchbase_host_review.sh --pr2-04-verification [--dry-run]
 
 Runs PR2-02 PostgreSQL 18 closure verification on the normal macOS host using
 an isolated temporary cluster. --dry-run validates inputs and prints the
@@ -97,6 +98,10 @@ while [ "$#" -gt 0 ]; do
       [ -z "$MODE" ] || fail "select exactly one mode"
       MODE="pr2-03-verification"
       ;;
+    --pr2-04-verification)
+      [ -z "$MODE" ] || fail "select exactly one mode"
+      MODE="pr2-04-verification"
+      ;;
     --dry-run)
       DRY_RUN=1
       ;;
@@ -124,6 +129,20 @@ if [ "$MODE" = "pr2-03-verification" ]; then
     exec bash "$SCRIPT_DIR/researchbase_host_pr2_03_verification.sh" --dry-run
   fi
   exec bash "$SCRIPT_DIR/researchbase_host_pr2_03_verification.sh"
+fi
+
+if [ "$MODE" = "pr2-04-verification" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  if ! discover_postgres18; then
+    printf 'CHECK postgres18_binary FAIL\nHOST_POSTGRESQL_18_UNAVAILABLE\n' >&2
+    exit 2
+  fi
+  export PG_BIN POSTGRES_VERSION POSTGRES_VERSION_TEXT
+  printf 'POSTGRESQL_VERSION=%s\nPG_BIN=%s\n' "$POSTGRES_VERSION" "$PG_BIN"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    exec bash "$SCRIPT_DIR/researchbase_host_pr2_04_verification.sh" --dry-run
+  fi
+  exec bash "$SCRIPT_DIR/researchbase_host_pr2_04_verification.sh"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
