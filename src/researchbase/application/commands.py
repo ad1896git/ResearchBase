@@ -12,6 +12,7 @@ from enum import Enum
 from functools import wraps
 from time import monotonic
 from typing import Any
+from uuid import UUID
 
 from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
 from researchbase.application.config import application_dto_dataclass
@@ -772,11 +773,17 @@ def _instrument_application_service(cls: type[Any]) -> type[Any]:
 @_instrument_application_service
 class ApplicationService:
     def __init__(
-        self, uow_factory: UowFactory, clock: Clock, artifact_store: ArtifactStore | None = None
+        self,
+        uow_factory: UowFactory,
+        clock: Clock,
+        artifact_store: ArtifactStore | None = None,
+        *,
+        project_authorizer: Callable[[UnitOfWork, UUID, bool, UUID | None], None] | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._clock = clock
         self._artifact_store = artifact_store
+        self._project_authorizer = project_authorizer
 
     def to_write_result(self, value: object) -> WriteResult:
         """Convert a typed value for callers that are migrating to WriteResult."""
@@ -877,6 +884,9 @@ class ApplicationService:
     def create_workspace(self, command: CreateWorkspaceCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                self._project_authorizer(uow, command.project_id, True, command.context.actor_id)
             _require_actor(uow, actor_id)
             project = uow.projects.get(ProjectId(command.project_id))
             if project is None:
@@ -896,6 +906,9 @@ class ApplicationService:
     def create_research_question(self, command: CreateResearchQuestionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                self._project_authorizer(uow, command.project_id, True, command.context.actor_id)
             project = _require_project(uow, ProjectId(command.project_id))
             _require_actor(uow, actor_id)
             question = ResearchQuestion(
@@ -2240,9 +2253,13 @@ class ApplicationService:
 
     def get_research_question(self, question_id: ResearchQuestionId) -> ResearchQuestionReadModel:
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
             question = uow.research_questions.get(ResearchQuestionId(question_id))
             if question is None:
                 raise _not_found("research question", question_id)
+            if self._project_authorizer is not None:
+                self._project_authorizer(uow, question.project_id, False, None)
             return _research_question_read_model(question)
 
     def get_hypothesis(self, hypothesis_id: HypothesisId) -> HypothesisReadModel:
@@ -2261,16 +2278,24 @@ class ApplicationService:
 
     def get_project(self, project_id: ProjectId) -> ProjectReadModel:
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
             project = uow.projects.get(ProjectId(project_id))
             if project is None:
                 raise _not_found("project", project_id)
+            if self._project_authorizer is not None:
+                self._project_authorizer(uow, project.id, False, None)
             return _project_read_model(project)
 
     def get_workspace(self, workspace_id: WorkspaceId) -> WorkspaceReadModel:
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
             workspace = uow.workspaces.get(WorkspaceId(workspace_id))
             if workspace is None:
                 raise _not_found("workspace", workspace_id)
+            if self._project_authorizer is not None:
+                self._project_authorizer(uow, workspace.project_id, False, None)
             return _workspace_read_model(workspace)
 
     def register_dataset(self, command: RegisterDatasetCommand) -> WriteResult:

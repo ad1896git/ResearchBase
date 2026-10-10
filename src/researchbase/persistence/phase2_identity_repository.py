@@ -15,6 +15,32 @@ class SqlAlchemyPhase2IdentityRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    def resolve_local_binding(self, subject: Any) -> dict[str, Any] | None:
+        rows = (
+            self._session.execute(
+                text(
+                    "SELECT b.actor_id, b.bound_at, b.revoked_at, a.retired_at "
+                    "FROM actor_subject_bindings b "
+                    "JOIN actors a ON a.id=b.actor_id "
+                    "JOIN bootstrap_records br ON br.first_actor_id=a.id "
+                    "AND br.deployment_id=b.deployment_id "
+                    "WHERE b.deployment_id=:deployment AND b.subject_kind='OS_UID' "
+                    "AND b.subject_value=:subject AND b.subject_credential_id=:credential "
+                    "AND b.status='ACTIVE' AND a.actor_type='HUMAN' "
+                    "AND a.external_key=:external_key"
+                ),
+                {
+                    "deployment": subject.deployment_id,
+                    "subject": subject.subject_value,
+                    "credential": subject.credential_id,
+                    "external_key": f"local-os:{subject.deployment_id}:{subject.subject_value}",
+                },
+            )
+            .mappings()
+            .all()
+        )
+        return dict(rows[0]) if len(rows) == 1 else None
+
     def transaction_isolation(self) -> str:
         return str(self._session.execute(text("SHOW transaction_isolation")).scalar_one())
 

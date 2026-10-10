@@ -112,3 +112,37 @@ scripts/                Evidence and verification tooling
 
 No license file is currently present. Until the repository owner selects and adds a license,
 no license grant should be inferred from publication.
+
+
+## Local-first onboarding (M1-AUTH-002)
+
+Use Python 3.12, uv and PostgreSQL 18.x from this source checkout. The supported MVP runs under one trusted non-root macOS/Linux account, including SSH sessions on that same host/account. Run without sudo. No application TCP listener starts. Network HTTP still needs its separately configured trusted authentication profile and is not part of local onboarding.
+
+```bash
+uv sync --frozen
+# Set DATABASE_URL for your PostgreSQL database through protected deployment configuration.
+# Prefer a mode-0600 .pgpass or deployment secret; never commit database passwords.
+uv run alembic upgrade head
+uv run researchbase local init --json
+uv run researchbase local bootstrap --display-name "Researcher" --project-name "My research" --json
+uv run researchbase local whoami --json
+```
+
+Save the returned project ID. `local init` creates `~/.researchbase-local` using the OS account database rather than `$HOME`; the parent must already exist. Alternatively select a dedicated absolute, physical path outside every Git checkout with `RESEARCHBASE_LOCAL_ROOT`. This variable selects configuration; it does not establish identity. The directory is 0700 and its files are 0600, owned by the actual UID. Symlinked paths, copied configuration at another location, another host/installation, root and mismatched real/effective UID/GID fail closed. Initialization refuses to overwrite an existing directory. Bootstrap refuses any nonempty identity/project database and never imports or reattributes legacy actors.
+
+```bash
+uv run researchbase local project-show --project-id PROJECT_UUID --json
+uv run researchbase local workspace-create --project-id PROJECT_UUID --name Lab --locator /absolute/workspace --json
+uv run researchbase local question-create --project-id PROJECT_UUID --question-text "What explains this result?" --json
+uv run researchbase local question-show --question-id QUESTION_UUID --json
+uv run researchbase --request-id REQUEST_UUID literature search-plan create --project-id PROJECT_UUID --material-json '{"objective":"Review relevant work","source_scope":"BIBLIOGRAPHIC","search_strategy":"KEYWORD","planned_providers":["openalex"]}' --json
+uv run researchbase literature search-plan show --project-id PROJECT_UUID --plan-id PLAN_UUID --json
+```
+
+Replace UUID placeholders with actual IDs; generate a fresh request UUID with `python3 -c 'import uuid; print(uuid.uuid4())'`. Reopen a terminal using the same account, configuration location and database to read the same canonical objects. `openalex` above is planned search material only; M1 performs no live provider retrieval. The `local` workbench and authorized `literature` groups are the production CLI surface; other legacy groups and `--actor-id` overrides are refused. ResearchQuestion creation/show and workspace creation reuse existing Application services with in-transaction membership/role checks. Scientific hashes and history are unchanged.
+
+The one-use bootstrap secret is removed after commit; PostgreSQL permanently closes bootstrap even if a crash leaves that file behind. Retain the protected installation and HMAC audit key/records with database backups. Do not move/copy the installation to impersonate an old account. Missing mappings require an explicit future recovery/enrollment procedure; initialization cannot recover an existing database automatically. A failed filesystem initialization leaves its partial directory untouched for inspection; do not overwrite an existing valid installation.
+
+The protected `installation.json` is operational deployment policy, not canonical identity. `enabled=false` disables the local credential; `not_after` may set an aware ISO-8601 expiry. Each authorization rereads that policy at fresh DB time after required locks. Default validity is unbounded while the trusted OS account and installation remain enabled. Canonical membership/binding revocation and actor retirement still deny access. Keep the database/server sessions in UTC. PostgreSQL's OWNER-coverage guards prevent revoking the only structural Owner; they are not weakened for local operation.
+
+This profile trusts code running as that OS account and its database administration authority. It does not isolate malicious code within the same account or guarantee identity across cloned machine identifiers/privileged UID reuse. Do not give untrusted Agent processes this account, installation files or PostgreSQL credentials. No Agent sandbox, multi-user isolation, PKI, certificate enrollment or network deployment is supplied by M1. See ADR-0012 for the boundary.

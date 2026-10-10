@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import pwd
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -10,8 +13,10 @@ from researchbase.application.commands import ApplicationService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
+from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
+from researchbase.application.local_workbench import LocalWorkbenchService
+from researchbase.application.phase2_identity import Phase2IdentityService, VerifiedSubject
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
@@ -19,14 +24,16 @@ from researchbase.application.source_merge_execution import SourceMergeExecution
 from researchbase.application.source_version import SourceVersionService
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
+from researchbase.foundation.errors import ResearchBaseError
 from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
+from researchbase.local_identity import LocalIdentityAdapter, process_uid
 from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 
 class CliServices(Protocol):
@@ -49,6 +56,8 @@ class ServiceBundle:
     literature_search_plans: LiteratureSearchPlanService | None = None
     literature_search_executions: LiteratureSearchExecutionService | None = None
     verified_principal: VerifiedPrincipal | None = None
+    local_identity: LocalWorkbenchService | None = None
+    local_credentials: LocalIdentityAdapter | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -62,18 +71,59 @@ def build_services() -> ServiceBundle:
 
     clock = SystemClock()
     store = ContentAddressedFilesystemArtifactStore(Path(settings.artifact_store_root))
+    root = Path(
+        os.environ.get(
+            "RESEARCHBASE_LOCAL_ROOT",
+            str(Path(pwd.getpwuid(process_uid()).pw_dir) / ".researchbase-local"),
+        )
+    )
+    credentials = LocalIdentityAdapter(root)
+    identity = Phase2IdentityService(
+        uow_factory,
+        nonce_issuer=credentials,
+        operator_policy=credentials,
+        credential_verifier=credentials,
+        subject_credential_verifier=LocalSubjectCredentials(credentials),
+        attestation_verifier=UnavailableAttestations(),
+        bootstrap_proof_verifier=credentials,
+    )
+    local = LocalWorkbenchService(uow_factory, credentials, identity)
+    principal = None
+    if root.exists():
+        try:
+            principal = local.authenticate()
+        except ResearchBaseError:
+            pass  # Bootstrap may legitimately have no canonical binding yet.
     return ServiceBundle(
-        ApplicationService(uow_factory, clock, store),
+        ApplicationService(uow_factory, clock, store, project_authorizer=local.authorize),
         ProvenanceQueryService(uow_factory),
         GovernanceService(uow_factory, clock),
         GovernanceQueryService(uow_factory),
-        SourceIdentityService(uow_factory, None),
-        SourceMergeGovernanceService(uow_factory, None),
-        SourceVersionService(uow_factory, None),
-        SourceMergeExecutionService(uow_factory, None),
-        LiteratureSearchPlanService(uow_factory, None),
+        SourceIdentityService(uow_factory, credentials),
+        SourceMergeGovernanceService(uow_factory, credentials),
+        SourceVersionService(uow_factory, credentials),
+        SourceMergeExecutionService(uow_factory, credentials),
+        LiteratureSearchPlanService(uow_factory, credentials),
         LiteratureSearchExecutionService(
             literature_search_execution_uow_factory(session_factory),
             StaticSearchCapabilityRegistry(),
         ),
+        principal,
+        local,
+        credentials,
     )
+
+
+class UnavailableAttestations:
+    """Local MVP does not authorize independent legacy/provisioning ceremonies."""
+
+    def verify(self, attestation: object) -> bool:
+        return False
+
+
+class LocalSubjectCredentials:
+    def __init__(self, adapter: LocalIdentityAdapter) -> None:
+        self.adapter = adapter
+
+    def is_valid(self, subject: VerifiedSubject, at: datetime) -> bool:
+        return self.adapter.is_valid(subject, at)
