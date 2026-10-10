@@ -1,54 +1,66 @@
-# M1 Identity and Onboarding — blocked execution report
+# M1 Identity and Onboarding — continuation checkpoint
 
 Date: 2026-10-10 (Asia/Shanghai). Verdict: **M1_BLOCKED**.
 
-## Candidate and changes
+## Starting and final state
 
-Starting SHA and final implementation SHA: `eac3153cd3ba96797d63593827ec58fc8d3fc1a6`.
-The approved `f2-p1-c03` checkout was clean at that exact SHA. Created the requested persistent worktree `worktrees/m1-identity-onboarding` and branch `feature/m1-identity-onboarding` from it. Production source, migrations, dependency declarations and lockfile are unchanged. The delivery commit contains this report only; obtain its SHA with `git log -1 --format=%H -- planning/M1_IDENTITY_ONBOARDING_COMPLETION.md`.
+Continuation starting SHA: `7e0dbb0eb3917df6796f149937a548b04922b2bc`.
+Final implementation SHA: the same SHA; no production implementation changed. The final delivery commit changes this report only; its exact SHA is available with `git log -1 --format=%H -- planning/M1_IDENTITY_ONBOARDING_COMPLETION.md` and is reported in the delivery message.
 
-`uv sync --frozen` succeeded with Python 3.12.14. No new user-visible authentication capabilities or onboarding commands were implemented. Existing literature CLI/API routes still require an externally established verified principal; production composition still supplies no trusted verifier. No M1 usability or security acceptance is claimed.
+Verified the existing `feature/m1-identity-onboarding` branch and clean worktree at `worktrees/m1-identity-onboarding`. Both the approved M0 SHA `eac3153cd3ba96797d63593827ec58fc8d3fc1a6` and the expected M1 checkpoint are ancestors of HEAD (each check exit 0). Reused the existing worktree. No history was rewritten.
 
-## P1 MAJOR — first local owner has no approved HTTP credential enrollment path
+## Approved decision: M1-AUTH-001
 
-Evidence and contract:
+The architecture owner's continuation authorization resolves the previous first-owner enrollment deadlock. A locally OS-authenticated, previously bootstrapped first Owner may enroll an mTLS credential for that existing identity through a protected local administration channel without requiring a preexisting mTLS credential or an independent operator. Ordinary HTTP endpoints still require mTLS. The former contract-completeness blocker is resolved and must not be raised again as an approval requirement.
 
-- Contract 16, “Boundary and principal model,” paragraphs 1–3 and first-bootstrap ceremony: local CLI authenticates kernel UID; HTTP authenticates a CA-verified client certificate and resolves an `MTLS_URI` binding. Bootstrap creates an `OS_UID` binding and non-null `local-os:<deployment>:<uid>` external key. Neither actor ID nor proxy headers establish authentication.
-- `src/researchbase/application/phase2_identity.py:325–369`: bootstrap implements that OS-only binding.
-- Contract 16 legacy ceremony; Application lines 478–507 and 1342–1379: legacy binding applies only to an actor with null external key and no existing active binding. It cannot add an mTLS subject to the bootstrapped owner.
-- Contract 16 provisioning ceremony; Application lines 1214–1233 and 1282–1309: provisioning requires independent operator/subject proof, rejects operator equal to the current owner, and creates a new actor. It does not attach a second credential to an existing actor.
-- Contract 12 §3 also requires a separate certificate-issuance ceremony. Issuing a certificate alone does not create the required canonical subject binding.
+This authorization does not establish a CA or issuer, approve arbitrary self-signed credentials, or substitute an insecure verifier. Its explicit prerequisite is: “If no operationally trustworthy certificate issuer, trust root, or mTLS verification path exists, identify the exact missing prerequisite and STOP rather than substituting an insecure verifier.”
 
-Impact: for a fresh installation with only the bootstrapped local user and no independent onboarding operator, an HTTP verifier alone cannot produce an authorized principal under the approved ceremonies. Adding an mTLS binding directly, treating an OS binding as an mTLS binding, weakening independence, or accepting caller headers would bypass the identity contracts. A deployment with an independently verified operator and a separately provisioned HTTP actor is a different viable profile, but its availability has not been established for this single-user mission.
+## Current blocker: operational certificate trust prerequisites unavailable
 
-This is a contract-completeness decision, not an observed authentication bypass. Existing fail-closed behavior remains intact. The mission explicitly says to STOP for a frozen-contract conflict or unresolved identity trust-boundary decision; implementation stopped before changing that boundary.
+The inspected project configuration and current process environment do not identify an approved certificate issuer or CA trust root. No operational mTLS verification path was found in the inspected project. This is a bounded observation, not a claim that no PKI exists elsewhere on the host or in the organization.
 
-## Concrete resolution requested
+Evidence:
 
-Recommended architecture clarification: authorize a dedicated first-owner HTTP credential enrollment ceremony for the already authenticated bootstrap actor. Require a live allowlisted kernel-UID principal matching the immutable bootstrap binding, fresh proof of possession of the proposed mTLS private key through a CA-verified handshake, a fresh single-use challenge bound to actor/deployment/exact URI/certificate fingerprint, a protected signed audit record before commit, SERIALIZABLE deployment/project locking, and fresh post-lock credential/challenge checks. Append the additional binding and binding event without changing actor attribution or membership. Explicitly decide whether the initial owner may perform this narrow ceremony without an independent operator, and specify its binding-event/challenge representation before code: existing event kinds and legacy challenge constraints must not be silently repurposed. A certificate remains insufficient without this enrollment.
+- `.env.example` contains only database and artifact-store settings. No `.env` exists in the M1 worktree.
+- `compose.yaml` defines PostgreSQL only; it has no TLS ingress service.
+- `src/researchbase/persistence/config.py:15–20` defines database URL, artifact root, log level and application environment only.
+- `src/researchbase/api/app.py:74–111` supplies no credential verifier and installs no TLS authentication adapter.
+- `src/researchbase/api/routes.py:653–668` requires an already verified principal; a header cannot create it.
+- Filename searches in the project workspace found no TLS/ingress/issuer configuration or CA-named PEM/CRT files. No certificate/issuer environment variable names matching MTLS, TLS_, CLIENT_CERT, CA_BUNDLE, CA_FILE, ISSUER or TRUST_ROOT were present. No private keys or credential bytes were read.
 
-Alternative retaining current contracts: require an independent deployment operator and provision a separate mTLS actor with explicit project membership. This requires confirmation of that deployment profile. A CLI-only M1 would instead require an explicit scope reduction; it would not satisfy the original API requirement.
+Exact prerequisites needed to continue:
 
-No architecture exception or new ceremony is approved by this report.
+1. An approved deployment CA trust bundle and an identified operational issuer/issuance procedure for server and client-auth certificates. The issuer's private key must remain with the issuer; it must not be supplied in chat or committed.
+2. The issuer's revocation mechanism and policy (for example, an available signed CRL with freshness requirements), plus the client URI SAN/Owner-binding policy.
+3. The approved TLS termination configuration or authorization to implement direct TLS termination using that supplied trust root, including protected server certificate/key file paths. Client private-key possession must be proved through a real validated handshake; localhost alone is insufficient.
+
+Resolution: provide the existing approved deployment configuration and public trust-root location, or explicitly authorize a separate, specified local PKI provisioning step with its ownership and trust policy. No new CA has been created or implicitly trusted. Implementation stopped at this prerequisite as instructed.
+
+## Implementation, commands and trust boundaries
+
+No new user-visible capabilities, onboarding commands, enrollment migration or credential verifier were implemented in this continuation. No runnable M1 enrollment command is claimed. Existing scientific provenance, M0 corrections and dependency lock remain unchanged.
+
+The authorized design remains kernel-provided local UID authentication, a match to the immutable bootstrap Owner and existing membership, CA-validated client-auth certificate and private-key possession, one-time concurrent-safe persistent enrollment, and fresh post-lock authorization. HTTP must resolve the enrolled exact mTLS subject to that same Owner and recheck validity/revocation. These are requirements awaiting implementation, not verified capabilities.
 
 ## Verification actually executed
 
 | Check | Result |
 |---|---|
-| Approved checkout HEAD and porcelain status | Exact approved SHA; clean |
-| Requested worktree/branch creation | Succeeded from exact approved SHA |
-| `uv sync --frozen` | Exit 0; existing locked dependencies only |
-| `uv run --frozen pytest -o addopts='' tests/architecture/test_pr2_00_boundaries.py -q` | Exit 0; **3 passed in 2.29s** |
-| Source/migration/pyproject/lock diff against starting SHA | Empty; exit 0 |
-| End-to-end onboarding, restart, invalid/revoked/expired and cross-project smoke | **NOT RUN**; real adapters and approved HTTP enrollment unavailable |
-| PostgreSQL identity/membership/bootstrap/temporal/CLI/API/M0 regressions | **NOT RUN**; stopped at contract decision; no cluster initialized |
+| `git status --short` and `git rev-parse HEAD` | Clean; exact expected checkpoint |
+| `git merge-base --is-ancestor eac3153cd3ba96797d63593827ec58fc8d3fc1a6 HEAD` | Exit 0 |
+| `git merge-base --is-ancestor 7e0dbb0 HEAD` | Exit 0 |
+| Configuration/source and environment-name inspection | Missing prerequisites listed above; no secret values inspected |
+| PostgreSQL identity/membership/bootstrap/temporal/security regressions | **NOT RUN** in continuation; no test cluster initialized |
+| Actual mTLS and end-to-end onboarding/restart/denial/concurrency smoke | **NOT RUN**; certificate trust prerequisites unavailable |
 | Ruff/formatter/Pyright on modified Python paths | Not applicable; no Python paths changed |
-| Repository-wide diagnostics | Not run; no claim about baseline debt or full-suite success |
+| Repository-wide diagnostics | Not run; no repository-wide success claim |
 
-## Remaining issues, delivery and next milestone
+Previous checkpoint evidence, not a new continuation result: `uv sync --frozen` succeeded using Python 3.12.14; `uv run --frozen pytest -o addopts='' tests/architecture/test_pr2_00_boundaries.py -q` produced 3 passed in 2.29s, exit 0. That result does not demonstrate real authentication.
 
-P0: none identified in this bounded inspection; no independent M1 security review performed.
-P1: the HTTP enrollment decision above blocks the requested complete single-user onboarding profile.
-P2: carry forward M0 cancellation response-reuse metadata mismatch (`literature_search_execution.py:1408/1534` in the starting candidate); untouched. Historical repository-wide diagnostics remain unassessed.
+## Issues, backup and readiness
 
-Deferred: all M1 implementation and real acceptance demonstrations pending resolution; OpenAlex, Crossref and all M2 work remain excluded. **Not ready for M2 live literature search.** No push, merge, scientific data write or historical rewrite occurred. The requested local milestone backup is created and verified after the report commit; it preserves this blocked checkpoint, not a completed M1 implementation.
+P0: none identified by this bounded inspection; no independent M1 security review performed.
+P1: operational certificate trust prerequisites are unavailable in the inspected deployment configuration, blocking completion under the explicit continuation STOP rule. The former first-owner architecture blocker is resolved by M1-AUTH-001.
+P2: M0 cancellation response-reuse metadata mismatch remains deferred (`literature_search_execution.py:1408/1534` at the M0 baseline). Its trust boundary was not modified. Historical repository-wide diagnostics remain unassessed.
+
+All remaining M1 implementation and acceptance checks await the certificate prerequisites. M2 live literature search readiness: **NO**. No OpenAlex/Crossref implementation, push, merge, scientific data mutation or new worktree occurred. A local Git bundle is created and verified after this report commit, preserving the blocked continuation checkpoint rather than claiming completed M1 functionality.
