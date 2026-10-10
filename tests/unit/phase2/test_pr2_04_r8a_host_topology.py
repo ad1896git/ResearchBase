@@ -17,10 +17,10 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
     from alembic.script import ScriptDirectory
 
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
+    assert scripts.get_heads() == ["0027_pr2_04_hash_scheme_guards"]
     assert (
         scripts.get_revision(scripts.get_heads()[0]).down_revision
-        == "0025_pr2_04_reservation_guards"
+        == "0026_pr2_04_p1_contract_guards"
     )
 
 

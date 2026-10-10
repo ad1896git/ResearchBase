@@ -183,7 +183,7 @@ def test_c03_historical_backfill_is_evidence_bound_and_atomic(phase2_database_ur
         before = _rows(engine)
         if state == "ambiguous":
             with pytest.raises(DBAPIError, match="ambiguous historical creation attribution"):
-                _upgrade(phase2_database_url, "head")
+                _upgrade(phase2_database_url, "0026_pr2_04_p1_contract_guards")
             assert _rows(engine) == before
             with engine.connect() as connection:
                 assert (
@@ -194,7 +194,7 @@ def test_c03_historical_backfill_is_evidence_bound_and_atomic(phase2_database_ur
                 "nullable"
             ]
         else:
-            _upgrade(phase2_database_url, "head")
+            _upgrade(phase2_database_url, "0026_pr2_04_p1_contract_guards")
             after = _rows(engine)
             expected = dict(before[E][0], executed_by=principal.actor_id)
             assert after[E] == [expected]
@@ -216,9 +216,9 @@ def test_c03_empty_upgrade_downgrade_roundtrip(phase2_database_url):
 
     from tests.integration.phase2.test_pr2_04_execution_migration import _alembic
 
-    _upgrade(phase2_database_url, "head")
+    _upgrade(phase2_database_url, "0026_pr2_04_p1_contract_guards")
     command.downgrade(_alembic(phase2_database_url), "0025_pr2_04_reservation_guards")
-    _upgrade(phase2_database_url, "head")
+    _upgrade(phase2_database_url, "0026_pr2_04_p1_contract_guards")
     engine = create_engine(phase2_database_url)
     try:
         assert (
