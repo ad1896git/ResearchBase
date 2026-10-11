@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
+from sqlalchemy.engine import make_url
+
 from researchbase.adapters.crossref import CrossrefVerifier
 from researchbase.adapters.metadata_journal import MetadataDispatchJournal
 from researchbase.adapters.openalex import OpenAlexSearchCapability
@@ -46,6 +48,15 @@ class CliServices(Protocol):
     provenance: object
     governance: object
     governance_queries: object
+
+
+def _search_capabilities(
+    database_url: str, openalex_api_key: str | None
+) -> StaticSearchCapabilityRegistry:
+    """Retained M3 cannot activate live retrieval before its separate TDG2 gate."""
+    if make_url(database_url).database == "researchbase_m3_retained_20261011":
+        return StaticSearchCapabilityRegistry()
+    return StaticSearchCapabilityRegistry((OpenAlexSearchCapability(api_key=openalex_api_key),))
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,9 +126,7 @@ def build_services() -> ServiceBundle:
         LiteratureSearchPlanService(uow_factory, credentials),
         LiteratureSearchExecutionService(
             literature_search_execution_uow_factory(session_factory),
-            StaticSearchCapabilityRegistry(
-                (OpenAlexSearchCapability(api_key=os.environ.get("OPENALEX_API_KEY")),)
-            ),
+            _search_capabilities(settings.database_url, os.environ.get("OPENALEX_API_KEY")),
             credential_verifier=credentials,
         ),
         principal,
