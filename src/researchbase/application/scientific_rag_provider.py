@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -73,8 +74,13 @@ class SourceLocator:
             value = getattr(self, name)
             if value is not None:
                 _bounded_text(value, f"locator {name}", 128)
-                if "://" in value or value.lower().startswith(("internal-index:", "index:")):
-                    raise ValueError("locator cannot be a provider index reference")
+                if (
+                    value != value.strip()
+                    or any(unicodedata.category(character).startswith("C") for character in value)
+                    or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", value) is not None
+                    or "://" in value
+                ):
+                    raise ValueError("locator cannot be an opaque reference")
         if not any(
             value is not None
             for value in (self.page, self.section, self.paragraph, self.figure, self.table)

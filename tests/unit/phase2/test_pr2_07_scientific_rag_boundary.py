@@ -83,8 +83,17 @@ def test_unverifiable_or_unbounded_locator_is_rejected(locator):
 def test_internal_index_identifier_cannot_be_used_as_source_locator():
     with pytest.raises(ValueError, match="locator"):
         EvidenceCandidate(uuid4(), "internal-index:opaque-42", "excerpt")
-    with pytest.raises(ValueError, match="index"):
+    with pytest.raises(ValueError, match="locator"):
         SourceLocator(section="internal-index:opaque-42")
+
+
+@pytest.mark.parametrize(
+    "label",
+    (" internal-index:opaque-42", "internal-index:opaque-42 ", "opaque:42", "https://x"),
+)
+def test_locator_label_cannot_hide_an_opaque_reference(label):
+    with pytest.raises(ValueError, match="locator"):
+        SourceLocator(section=label)
 
 
 def test_structured_char_span_is_bounded_and_source_addressed():
