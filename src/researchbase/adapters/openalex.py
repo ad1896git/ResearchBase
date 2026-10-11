@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlencode
 
-from researchbase.adapters.literature_http import HttpObservation, get_json
+from researchbase.adapters.literature_http import HttpObservation, HttpTransportFailure, get_json
 from researchbase.application.literature_search_provider import (
     ProviderError,
     ProviderFailureKind,
@@ -46,26 +46,39 @@ class OpenAlexSearchCapability:
                 "PROVIDER_TRANSIENT",
                 delivery_certainty=DeliveryCertainty.NOT_SENT,
             )
+        invalid_request = False
         try:
             url = self.request_url(request)
-        except (TypeError, ValueError, KeyError) as exc:
-            raise ProviderError(ProviderFailureKind.PERMANENT, "PROVIDER_PERMANENT") from exc
+        except (TypeError, ValueError, KeyError):
+            invalid_request = True
+        if invalid_request:
+            raise ProviderError(ProviderFailureKind.PERMANENT, "PROVIDER_PERMANENT")
         headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+        transport_error: ProviderError | None = None
         try:
             observation = self._get(url, headers, min(30.0, context.remaining_timeout_seconds))
-        except (ValueError, UnicodeError) as exc:
-            raise ProviderError(
-                ProviderFailureKind.PERMANENT,
-                "PROVIDER_MALFORMED",
-                delivery_certainty=DeliveryCertainty.RESPONSE_RECEIVED,
-            ) from exc
-        except Exception as exc:
-            raise ProviderError(ProviderFailureKind.UNCERTAIN, "PROVIDER_OUTCOME_UNKNOWN") from exc
+        except HttpTransportFailure as exc:
+            certainty = exc.delivery_certainty
+            transport_error = ProviderError(
+                ProviderFailureKind.UNCERTAIN
+                if certainty is DeliveryCertainty.MAY_HAVE_BEEN_SENT
+                else ProviderFailureKind.RETRYABLE,
+                "PROVIDER_OUTCOME_UNKNOWN"
+                if certainty is DeliveryCertainty.MAY_HAVE_BEEN_SENT
+                else "PROVIDER_TRANSIENT",
+                delivery_certainty=certainty,
+            )
+        except Exception:
+            transport_error = ProviderError(
+                ProviderFailureKind.UNCERTAIN, "PROVIDER_OUTCOME_UNKNOWN"
+            )
+        if transport_error is not None:
+            raise transport_error
         if not isinstance(observation, HttpObservation):
             raise ProviderError(ProviderFailureKind.UNCERTAIN, "PROVIDER_OUTCOME_UNKNOWN")
         token = observation.headers.get("x-request-id")
         if token is not None and (
-            not re.fullmatch(r"[\x21-\x7e]{1,256}", token)
+            not re.fullmatch(r"[A-Za-z0-9._:-]{1,256}", token)
             or (self._api_key is not None and self._api_key in token)
         ):
             token = None
@@ -149,13 +162,14 @@ class OpenAlexSearchCapability:
                 warning_codes=("RESULTS_TRUNCATED",) if count > len(hits) else (),
                 retrieved_at=datetime.now(UTC),
             )
-        except (ValueError, TypeError, KeyError, AttributeError, ResearchBaseError) as exc:
-            raise ProviderError(
-                ProviderFailureKind.PERMANENT,
-                "PROVIDER_MALFORMED",
-                delivery_certainty=DeliveryCertainty.RESPONSE_RECEIVED,
-                provider_request_id=token,
-            ) from exc
+        except (ValueError, TypeError, KeyError, AttributeError, ResearchBaseError):
+            pass
+        raise ProviderError(
+            ProviderFailureKind.PERMANENT,
+            "PROVIDER_MALFORMED",
+            delivery_certainty=DeliveryCertainty.RESPONSE_RECEIVED,
+            provider_request_id=token,
+        )
 
     def request_url(self, request: SearchRequest) -> str:
         if (
