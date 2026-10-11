@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import struct
@@ -156,3 +157,48 @@ def test_socket_lifecycle_one_request_and_cleanup():
     assert result["ok"] is True
     assert not path.exists()
     assert not path.parent.exists()
+
+
+def test_foreign_peer_policy_denies_before_frame_without_using_request_slot(monkeypatch):
+    # Policy test only: this does not replace a real distinct-UID host test.
+    import researchbase.runner as runner
+
+    peers = iter(((os.geteuid() + 1, os.getegid()), (os.geteuid(), os.getegid())))
+    monkeypatch.setattr(runner, "peer_credentials", lambda _connection: next(peers))
+    server = RunnerServer(
+        services(), parent=Path("/private/tmp"), max_requests=1, lifetime_seconds=5
+    )
+    path = server.start()
+    thread = threading.Thread(target=server.serve)
+    thread.start()
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as foreign:
+            foreign.settimeout(0.5)
+            foreign.connect(str(path))
+            size = struct.unpack("!I", foreign.recv(4))[0]
+            denied = json.loads(foreign.recv(size))
+            assert denied == {"v": 1, "ok": False, "error": "DENIED"}
+        allowed = request(path, {"v": 1, "op": "whoami"})
+        assert allowed["ok"] is True
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+    finally:
+        server.stop()
+        thread.join(timeout=4)
+
+
+def test_incomplete_owner_frame_cannot_extend_runner_past_deadline():
+    server = RunnerServer(
+        services(), parent=Path("/private/tmp"), max_requests=1, lifetime_seconds=1
+    )
+    path = server.start()
+    thread = threading.Thread(target=server.serve)
+    thread.start()
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stalled:
+            stalled.connect(str(path))
+            thread.join(timeout=1.8)
+            assert not thread.is_alive()
+    finally:
+        server.stop()
+        thread.join(timeout=4)

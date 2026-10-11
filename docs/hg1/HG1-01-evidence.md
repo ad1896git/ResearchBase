@@ -5,7 +5,7 @@ Worktree: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/hg1-01-
 
 ## Focused checks
 
-- `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding/.venv/bin/python -m pytest -q tests/unit/test_hg1_runner.py tests/unit/test_local_identity.py`: 24 passed (17 HG1 Runner cases and 7 existing Local-First identity cases).
+- `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding/.venv/bin/python -m pytest -q tests/unit/test_hg1_runner.py tests/unit/test_local_identity.py`: 26 passed (19 HG1 Runner cases and 7 existing Local-First identity cases).
 - `HG1_RUN_LIVE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding/.venv/bin/python -m pytest -q tests/integration/phase2/test_hg1_runner_live.py`: 1 passed. Four foreground Runner processes returned matching canonical deployment IDs and project IDs; each exited 0 and removed its transient socket directory.
 - `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding/.venv/bin/ruff check --no-cache src/researchbase/runner.py tests/unit/test_hg1_runner.py tests/integration/phase2/test_hg1_runner_live.py`: all checks passed.
 - `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding/.venv/bin/pyright --venvpath /Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding src/researchbase/runner.py`: 0 errors, 0 warnings.
@@ -21,3 +21,7 @@ Worktree: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/hg1-01-
 ## Scope
 
 Only new Runner code, focused tests, and these HG1-01 documents are added. No accepted M3 file, schema, hash code, HBA, scientific data or historical identity row is changed.
+
+## Independent review follow-up
+
+The single independent reviewer found no P0/P1. Their P2 availability finding was that foreign peers could consume request slots with incomplete frames and push the Runner beyond its 60-second deadline. Two focused tests reproduced both failures before the fix. The Runner now denies a foreign kernel UID before reading its frame or consuming a request slot, and applies the absolute deadline to every frame read. Both tests then passed; the full focused suite and four-deployment live test passed again. The same reviewer will inspect only this follow-up delta.

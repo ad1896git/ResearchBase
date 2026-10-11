@@ -52,9 +52,14 @@ def peer_credentials(connection: socket.socket) -> tuple[int, int]:
         raise Denied("native Unix peer credentials unavailable") from exc
 
 
-def _exact(connection: socket.socket, size: int) -> bytes:
+def _exact(connection: socket.socket, size: int, deadline: float | None = None) -> bytes:
     chunks = bytearray()
     while len(chunks) < size:
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Runner request deadline reached")
+            connection.settimeout(min(3, remaining))
         part = connection.recv(size - len(chunks))
         if not part:
             raise BadRequest("incomplete frame")
@@ -91,13 +96,13 @@ def _validate(value: Any) -> dict[str, Any]:
     raise BadRequest("unknown operation or fields")
 
 
-def read_request(connection: socket.socket) -> dict[str, Any]:
-    size = struct.unpack("!I", _exact(connection, 4))[0]
+def read_request(connection: socket.socket, *, deadline: float | None = None) -> dict[str, Any]:
+    size = struct.unpack("!I", _exact(connection, 4, deadline))[0]
     if not 1 <= size <= MAX_MESSAGE:
         raise BadRequest("request too large or empty")
     try:
         value = json.loads(
-            _exact(connection, size).decode("utf-8"), object_pairs_hook=_unique_pairs
+            _exact(connection, size, deadline).decode("utf-8"), object_pairs_hook=_unique_pairs
         )
     except (UnicodeError, ValueError, RecursionError) as exc:
         raise BadRequest("invalid JSON") from exc
@@ -200,12 +205,16 @@ class RunnerServer:
                     connection, _ = self._listener.accept()
                 except TimeoutError:
                     continue
-                handled += 1
                 with connection:
-                    connection.settimeout(3)
                     try:
                         uid, _gid = peer_credentials(connection)
-                        value = read_request(connection)
+                        if uid != self.owner_uid or uid == 0:
+                            self._safe_error(connection, "DENIED")
+                            continue
+                        handled += 1
+                        value = read_request(connection, deadline=deadline)
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError("Runner request deadline reached")
                         result = dispatch(value, uid, self.services, self.owner_uid)
                         _send(connection, {"v": PROTOCOL_VERSION, "ok": True, "result": result})
                     except BadRequest:
