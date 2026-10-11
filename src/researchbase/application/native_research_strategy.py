@@ -40,6 +40,7 @@ class ResearchStrategyRequest:
 
 @dataclass(frozen=True, slots=True)
 class ResearchStrategyContext:
+    authorized_request: ResearchStrategyRequest
     cancellation_requested: Callable[[], bool]
 
 
@@ -76,6 +77,8 @@ class BriefSectionCandidate:
     query: str
     answer_candidate: str | None
     evidence_candidates: tuple[StrategyEvidenceCandidate, ...]
+    contradictions: tuple[str, ...] = ()
+    missing_evidence: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +142,8 @@ class NativeResearchStrategy:
         self, request: ResearchStrategyRequest, context: ResearchStrategyContext
     ) -> ResearchStrategyPlan:
         self._check_cancel(context)
+        if request != context.authorized_request:
+            raise ValueError("strategy request differs from trusted context")
         topic = request.topic.strip()
         return ResearchStrategyPlan(
             topic,
@@ -157,10 +162,7 @@ class NativeResearchStrategy:
         context: ResearchStrategyContext,
     ) -> ResearchStrategyResult:
         self._check_cancel(context)
-        request = ResearchStrategyRequest(
-            plan.topic, plan.source_version_ids, plan.max_evidence_candidates
-        )
-        if plan != self.prepare_plan(request, context):
+        if plan != self.prepare_plan(context.authorized_request, context):
             raise ValueError("strategy plan differs from deterministic preparation")
         sections: list[BriefSectionCandidate] = []
         evidence: list[StrategyEvidenceCandidate] = []
@@ -211,12 +213,24 @@ class NativeResearchStrategy:
                 for item in response.evidence_candidates
             )
             evidence.extend(candidates)
-            answer = response.answer_candidate if candidates else None
+            qualified = bool(response.contradictions or response.missing_evidence)
+            answer = response.answer_candidate if candidates and not qualified else None
+            if response.contradictions:
+                warnings.append("CONTRADICTION_CANDIDATE")
+            if response.missing_evidence:
+                warnings.append("MISSING_EVIDENCE")
             if answer is None:
                 warnings.append("MISSING_EVIDENCE")
                 open_questions.append(perspective.query)
             sections.append(
-                BriefSectionCandidate(perspective.name, perspective.query, answer, candidates)
+                BriefSectionCandidate(
+                    perspective.name,
+                    perspective.query,
+                    answer,
+                    candidates,
+                    response.contradictions,
+                    response.missing_evidence,
+                )
             )
         self._check_cancel(context)
         return ResearchStrategyResult(

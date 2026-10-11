@@ -16,6 +16,12 @@ source/evidence candidates, a ResearchBrief **candidate** with exact source
 locators and query/provider provenance, open questions, coverage limitations
 and safe warnings. A provider failure must not fabricate a section answer.
 Cancellation aborts without a partial result. No canonical promotion occurs.
+The Application caller constructs `ResearchStrategyContext` from the original
+authorized request. Execution compares the full plan with that trusted request
+before dispatch; a plan cannot authorize its own source set. The context is
+not a caller-supplied authorization object. Provider contradiction and missing
+evidence notes stay in the unverified section candidate and suppress an
+unqualified answer candidate.
 
 **Exclusions:** No live search/RAG/model call, PaperQA2/STORM package,
 retained database/CAS write, ArtifactVersion creation, scientific schema or
