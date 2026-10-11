@@ -14,7 +14,7 @@
 - [x] Add and run read-only four-deployment live integration test.
 - [x] Compare all 256 M2 public-table canonical hashes with the frozen baseline.
 - [x] Record final focused checks and evidence; commit the bounded diff.
-- [ ] Obtain one independent read-only security review; stop on P0/P1.
+- [x] Obtain one independent read-only security review; no P0/P1 remains.
 
 ## STOP boundaries
 
