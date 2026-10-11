@@ -1,0 +1,8 @@
+{
+  "meta": {"count": 2, "page": 1, "per_page": 2, "next_cursor": "offline-only"},
+  "results": [
+    {"id": "https://openalex.org/W1", "title": "First offline work", "doi": "https://doi.org/10.1234/ABC", "relevance_score": 1.25, "future_field": "ignored"},
+    {"id": "https://openalex.org/W2", "title": "Second offline work", "doi": null, "relevance_score": null}
+  ],
+  "future_top_level": {"untrusted": "data only"}
+}

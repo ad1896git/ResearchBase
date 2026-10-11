@@ -61,8 +61,13 @@ class OpenAlexSearchCapability:
             ) from exc
         except Exception as exc:
             raise ProviderError(ProviderFailureKind.UNCERTAIN, "PROVIDER_OUTCOME_UNKNOWN") from exc
+        if not isinstance(observation, HttpObservation):
+            raise ProviderError(ProviderFailureKind.UNCERTAIN, "PROVIDER_OUTCOME_UNKNOWN")
         token = observation.headers.get("x-request-id")
-        if token is not None and (not token.strip() or len(token) > 256):
+        if token is not None and (
+            not re.fullmatch(r"[\x21-\x7e]{1,256}", token)
+            or (self._api_key is not None and self._api_key in token)
+        ):
             token = None
         if observation.status != 200:
             retryable = observation.status == 429 or 500 <= observation.status < 600
@@ -84,20 +89,56 @@ class OpenAlexSearchCapability:
                 retry_after_seconds=seconds,
                 warning_codes=("RATE_LIMITED",) if observation.status == 429 else (),
             )
+        content_type = observation.headers.get("content-type")
+        if (
+            content_type is not None
+            and content_type.split(";", 1)[0].strip().lower() != "application/json"
+        ):
+            raise ProviderError(
+                ProviderFailureKind.PERMANENT,
+                "PROVIDER_MALFORMED",
+                delivery_certainty=DeliveryCertainty.RESPONSE_RECEIVED,
+                provider_request_id=token,
+            )
+        if observation.payload_failure == "INCOMPLETE_BODY":
+            raise ProviderError(
+                ProviderFailureKind.RETRYABLE,
+                "PROVIDER_TRANSIENT",
+                delivery_certainty=DeliveryCertainty.RESPONSE_RECEIVED,
+                provider_request_id=token,
+            )
+        if observation.payload_truncated or observation.payload_failure is not None:
+            raise ProviderError(
+                ProviderFailureKind.PERMANENT,
+                "PROVIDER_MALFORMED",
+                delivery_certainty=DeliveryCertainty.RESPONSE_RECEIVED,
+                provider_request_id=token,
+            )
         try:
             body = observation.body
             if not isinstance(body, dict) or not isinstance(body.get("results"), list):
                 raise ValueError
-            count = body["meta"]["count"]
+            meta = body["meta"]
+            count = meta["count"]
             if (
                 isinstance(count, bool)
                 or not isinstance(count, int)
                 or count < len(body["results"])
+                or ("page" in meta and (type(meta["page"]) is not int or meta["page"] != 1))
+                or (
+                    "per_page" in meta
+                    and (
+                        type(meta["per_page"]) is not int or meta["per_page"] != request.max_results
+                    )
+                )
             ):
                 raise ValueError
             if len(body["results"]) > request.max_results:
                 raise ValueError
             hits = tuple(self._hit(work) for work in body["results"])
+            identifiers = [hit.external_identifier for hit in hits]
+            if len(identifiers) != len(set(identifiers)):
+                raise ValueError("duplicate OpenAlex work")
             return SearchResponse(
                 self.capability_id,
                 self.version,
@@ -147,7 +188,10 @@ class OpenAlexSearchCapability:
             filters.append("language:" + "|".join(languages))
         if filters:
             params["filter"] = ",".join(filters)
-        return self.endpoint + "?" + urlencode(params)
+        url = self.endpoint + "?" + urlencode(params)
+        if len(url.encode("utf-8")) > 4094:
+            raise ValueError("OpenAlex request URL exceeds provider limit")
+        return url
 
     @staticmethod
     def _hit(work: object) -> SearchHit:
