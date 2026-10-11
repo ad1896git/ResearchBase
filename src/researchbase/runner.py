@@ -12,6 +12,7 @@ import struct
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -20,6 +21,74 @@ from researchbase.local_identity import process_uid
 
 MAX_MESSAGE = 4096
 PROTOCOL_VERSION = 1
+_DURABLE = Path("/Users/onephone/ResearchBaseData")
+
+
+@dataclass(frozen=True)
+class RunnerProfile:
+    tag: str
+    installation_root: Path
+    cas_root: Path
+    policy_required: bool
+
+
+def resolve_runner_profile(
+    database_url: str, local_root: str | None, cas_root: str
+) -> RunnerProfile:
+    """Bind a trusted process to one exact retained deployment."""
+    from sqlalchemy.engine import make_url
+
+    url = make_url(database_url)
+    if (
+        url.drivername != "postgresql+psycopg"
+        or url.username != "onephone"
+        or url.password is not None
+        or url.host is not None
+        or url.port is not None
+        or url.query.get("host") != "/private/tmp"
+        or url.query.get("port") != "55440"
+    ):
+        raise ValueError("Runner requires the approved Unix-socket peer database")
+    if url.database == "researchbase_m3_retained_20261011":
+        if set(url.query) != {"host", "port"}:
+            raise ValueError("M3 database URL contains unapproved options")
+        profile = RunnerProfile(
+            "m3-retained",
+            _DURABLE / "rb-m3-retained-installation",
+            _DURABLE / "rb-m3-retained-artifacts",
+            True,
+        )
+    elif url.database in {f"researchbase_m2_{tag}" for tag in ("final", "live", "live2", "live3")}:
+        tag = url.database.removeprefix("researchbase_m2_")
+        profile = RunnerProfile(
+            tag, _DURABLE / f"rb-m2-{tag}-installation", _DURABLE / f"rb-m2-{tag}-artifacts", False
+        )
+    else:
+        raise ValueError("unsupported retained deployment")
+    if local_root != str(profile.installation_root) or cas_root != str(profile.cas_root):
+        raise ValueError("Runner installation and CAS roots do not match deployment")
+    return profile
+
+
+def verify_m3_storage(profile: RunnerProfile) -> None:
+    """Reject path substitution before loading M3 installation secrets or CAS."""
+    import stat
+
+    for path in (_DURABLE, profile.installation_root, profile.cas_root):
+        info = path.lstat()
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or path.resolve() != path
+            or info.st_uid != os.geteuid()
+            or info.st_mode & 0o077
+        ):
+            raise ValueError("M3 storage is not private approved durable storage")
+
+
+def require_coordinator(profile: RunnerProfile, coordinator: Any) -> Any:
+    if profile.policy_required and coordinator is None:
+        raise ValueError("M3 requires installed root-controlled HG1 policy")
+    return coordinator
 
 
 class BadRequest(Exception):
@@ -375,33 +444,23 @@ def main() -> int:
     args = parser.parse_args()
     if sys.platform != "darwin" or process_uid() != 502:
         raise SystemExit("HG1-01 requires the trusted macOS onephone account")
-    from sqlalchemy.engine import make_url
-
     from researchbase.cli.composition import build_services
-    from researchbase.hg1_runtime import build_hg1_coordinator
+    from researchbase.hg1_runtime import build_hg1_coordinator, verify_m3_server
     from researchbase.persistence.config import load_settings
 
     settings = load_settings()
-    url = make_url(settings.database_url)
-    if (
-        url.drivername != "postgresql+psycopg"
-        or url.username != "onephone"
-        or url.password is not None
-        or url.host is not None
-        or url.query.get("host") != "/private/tmp"
-        or url.query.get("port") != "55440"
-        or url.database
-        not in {f"researchbase_m2_{tag}" for tag in ("final", "live", "live2", "live3")}
-    ):
-        raise SystemExit("HG1-01 requires the existing M2 Unix-socket peer database")
-    tag = url.database.removeprefix("researchbase_m2_")
-    durable = Path("/Users/onephone/ResearchBaseData")
-    if os.environ.get("RESEARCHBASE_LOCAL_ROOT") != str(
-        durable / f"rb-m2-{tag}-installation"
-    ) or settings.artifact_store_root != str(durable / f"rb-m2-{tag}-artifacts"):
-        raise SystemExit("HG1-01 requires the durable matching M2 installation and CAS roots")
+    profile = resolve_runner_profile(
+        settings.database_url,
+        os.environ.get("RESEARCHBASE_LOCAL_ROOT"),
+        settings.artifact_store_root,
+    )
+    if profile.policy_required:
+        verify_m3_storage(profile)
+        verify_m3_server(settings)
     services = build_services()
-    coordinator = build_hg1_coordinator(tag, services, settings)
+    coordinator = require_coordinator(
+        profile, build_hg1_coordinator(profile.tag, services, settings)
+    )
     server = RunnerServer(
         services,
         coordinator=coordinator,

@@ -21,6 +21,67 @@ from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 TRUST_ROOT = Path("/Library/Application Support/ResearchBase")
 DURABLE_ROOT = Path("/Users/onephone/ResearchBaseData")
+REQUIRED_M3_HBA = (
+    ("local", "all", "onephone", None, None, "peer", None),
+    ("local", "all", "all", None, None, "reject", None),
+    ("local", "replication", "all", None, None, "reject", None),
+    ("host", "all", "all", "127.0.0.1", "255.255.255.255", "reject", None),
+    ("host", "all", "all", "::1", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "reject", None),
+    ("host", "replication", "all", "127.0.0.1", "255.255.255.255", "reject", None),
+    (
+        "host",
+        "replication",
+        "all",
+        "::1",
+        "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "reject",
+        None,
+    ),
+)
+
+
+def verify_m3_server(settings: Any) -> None:
+    """Fail closed if the retained M3 target or effective authentication drifts."""
+    from sqlalchemy import text
+
+    engine = create_database_engine(settings.database_url)
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SET TRANSACTION READ ONLY"))
+            facts = connection.execute(
+                text("""
+                SELECT current_database(), current_user, current_setting('data_directory'),
+                       current_setting('port'), current_setting('unix_socket_directories'),
+                       current_setting('hba_file'), current_setting('listen_addresses'),
+                       (SELECT system_identifier::text FROM pg_control_system()),
+                       (SELECT version_num FROM alembic_version)
+            """)
+            ).one()
+            expected = (
+                "researchbase_m3_retained_20261011",
+                "onephone",
+                str(DURABLE_ROOT / "rb-m2-pg"),
+                "55440",
+                "/private/tmp",
+                str(DURABLE_ROOT / "rb-m2-pg" / "pg_hba.conf"),
+                facts[6],
+                "7695048034454027996",
+                "0031_m3_snapshot_relation_cardinality",
+            )
+            listeners = {item.strip() for item in facts[6].split(",")}
+            if tuple(facts) != expected or not listeners <= {"localhost", "127.0.0.1", "::1"}:
+                raise ValueError("retained M3 PostgreSQL identity changed")
+            rules = connection.execute(
+                text("""
+                SELECT type, array_to_string(database, ','), array_to_string(user_name, ','),
+                       address, netmask, auth_method, error
+                  FROM pg_hba_file_rules ORDER BY rule_number
+            """)
+            ).all()
+            if tuple(tuple(rule) for rule in rules) != REQUIRED_M3_HBA:
+                raise ValueError("retained M3 PostgreSQL HBA changed")
+    finally:
+        engine.dispose()
 
 
 class _SubjectCredentials:
@@ -65,7 +126,7 @@ def read_trusted_config(path: Path) -> dict[str, Any] | None:
 
 def build_hg1_coordinator(tag: str, services: Any, settings: Any) -> HG1Coordinator | None:
     """Keep HG1-01 A-only behavior until host-admin policy is installed."""
-    if tag not in {"final", "live", "live2", "live3"}:
+    if tag not in {"final", "live", "live2", "live3", "m3-retained"}:
         raise ValueError("unsupported retained deployment")
     config_path = TRUST_ROOT / f"hg1-02-{tag}.json"
     config = read_trusted_config(config_path)
