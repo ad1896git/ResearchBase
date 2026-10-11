@@ -8,13 +8,15 @@ Global Schema Registry DiscussionSession/DiscussionTurn and ArtifactVersion
 roles; Cross-Phase Contracts discussion/decision separation.
 
 **Scope:** Given a trusted, closed DiscussionSession snapshot with immutable,
-ordered DiscussionTurn records and concrete SourceVersion/ClaimVersion citation
-IDs, build deterministic exact-byte candidates for DiscussionTranscript and
+ordered DiscussionTurn records and concrete ResearchQuestionVersion,
+SourceVersion and ClaimVersion input IDs, build deterministic exact-byte
+candidates for DiscussionTranscript and
 ConceptMap ArtifactVersion roles. ConceptMap contains only mechanical
 turn-to-citation edges; it makes no scientific inference. Preserve speaker,
 role, timestamp, utterance and exact cited version IDs in the transcript.
 Validate session/project identity, contiguous turn order, citation type and
-source/claim reference allowlists before rendering. Return SHA-256 for each
+source/claim reference allowlists before rendering. Preserve all three input
+reference kinds in the transcript. Return SHA-256 for each
 candidate's exact bytes. Both outputs remain unverified derived candidates.
 
 **Exclusions:** No DiscussionSession/Turn table or migration, persistent

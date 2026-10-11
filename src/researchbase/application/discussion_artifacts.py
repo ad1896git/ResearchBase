@@ -45,6 +45,7 @@ class ClosedDiscussionSnapshot:
     source_version_ids: tuple[UUID, ...]
     claim_version_ids: tuple[UUID, ...]
     turns: tuple[DiscussionTurnSnapshot, ...]
+    research_question_version_ids: tuple[UUID, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +87,7 @@ def _validate(snapshot: ClosedDiscussionSnapshot) -> None:
         raise ValueError("close time precedes creation")
     sources = set(_refs(snapshot.source_version_ids, "source references"))
     claims = set(_refs(snapshot.claim_version_ids, "claim references"))
+    _refs(snapshot.research_question_version_ids, "research question references")
     if not isinstance(snapshot.turns, tuple) or not snapshot.turns:
         raise ValueError("closed discussion requires turns")
     seen_turns: set[UUID] = set()
@@ -150,6 +152,9 @@ def build_discussion_artifact_candidates(
             "closed_at": format_utc(snapshot.closed_at),
             "input_source_version_ids": [str(value) for value in snapshot.source_version_ids],
             "input_claim_version_ids": [str(value) for value in snapshot.claim_version_ids],
+            "input_research_question_version_ids": [
+                str(value) for value in snapshot.research_question_version_ids
+            ],
             "turns": [
                 {
                     "id": str(turn.id),

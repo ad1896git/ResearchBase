@@ -36,7 +36,7 @@ def _snapshot():
 
 
 def test_exact_deterministic_transcript_and_mechanical_concept_map():
-    snapshot = _snapshot()
+    snapshot = replace(_snapshot(), research_question_version_ids=(uuid4(),))
     first = build_discussion_artifact_candidates(snapshot)
     assert first == build_discussion_artifact_candidates(snapshot)
     assert [item.artifact_type for item in first] == [
@@ -54,6 +54,9 @@ def test_exact_deterministic_transcript_and_mechanical_concept_map():
     assert transcript["turns"][1]["actor_id"] == str(snapshot.turns[1].actor_id)
     assert transcript["turns"][0]["cited_source_version_ids"] == [
         str(snapshot.source_version_ids[0])
+    ]
+    assert transcript["input_research_question_version_ids"] == [
+        str(snapshot.research_question_version_ids[0])
     ]
     assert graph["derived_only"] is True
     assert graph["edges"] == [
@@ -123,6 +126,7 @@ def test_empty_and_duplicate_input_references_fail_closed():
     for changed in (
         replace(snapshot, turns=()),
         replace(snapshot, source_version_ids=snapshot.source_version_ids * 2),
+        replace(snapshot, research_question_version_ids=(uuid4(),) * 2),
     ):
         with pytest.raises(ValueError):
             build_discussion_artifact_candidates(changed)
