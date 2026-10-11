@@ -1,0 +1,11 @@
+# HG1-01 local trusted Runner design
+
+Status: authorized implementation only. Baseline: `b4d6758fd1c64deb74f9945918c7e690f01d9094`.
+
+The Runner is a foreground, non-root, short-lived process launched by the trusted `onephone` operator with the existing M2 Unix-socket PostgreSQL URL, installation root, and CAS root. It uses the existing CLI composition and Application services. A client receives only a transient Unix-socket path. The Runner obtains the peer effective UID/GID with macOS `getpeereid(2)` through libc; client JSON never supplies identity or authorization.
+
+The HG1-01 protocol is one framed JSON request per connection, maximum 4096 bytes, version 1, exact keys. Supported operations are `whoami` and `project.get`. The first authenticates through the existing LocalWorkbenchService and current canonical binding. The second uses the existing Application project read and its transaction-scoped project authorizer. The Runner accepts only the bound local installation UID. All other peer UIDs fail closed until separately authorized onboarding exists; HG1-01 introduces no Human B identity or reviewer command. The socket can be reached by other local UIDs for a denial, while the Runner alone holds the PostgreSQL connection and private installation/CAS paths.
+
+The Runner owns a random, temporary `/private/tmp/rb-hg1-01-*` directory (0711) and socket (0666), removes both at exit, accepts at most 32 requests, and expires within 60 seconds. It exposes no network listener, password, credential bytes, audit key, CAS path, or arbitrary Application method selector. Unknown versions, operations, fields, duplicate keys, malformed frames, oversized messages, and identity mismatches return bounded errors or close the connection. No source migration, scientific write, schema, HBA, or credential change is part of this design.
+
+Verification: kernel-credential unit test with a real socket pair; strict framing and authority-field rejection tests; lifecycle test; read-only M2 integration with fresh authentication/project read; static and live checks that untrusted clients cannot obtain PostgreSQL/CAS access through the protocol. A distinct-UID host attempt is reported `NOT_RUN` if it cannot be executed. A fresh independent reviewer checks the committed diff and evidence without editing it.
