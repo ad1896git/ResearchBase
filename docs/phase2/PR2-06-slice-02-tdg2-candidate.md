@@ -68,9 +68,9 @@ inventory, not a license determination or live-adapter admission.
 
 ## D. Offline verification and unresolved activation gates
 
-Run from this worktree with the existing project virtual environment:
+Run from this worktree with the existing Python 3.12+ environment used for verification:
 
-`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/unit/phase2/test_pr2_06_openalex_offline_compat.py tests/unit/test_m2_openalex.py tests/unit/phase2/test_pr2_06_m3_provider_gate.py tests/test_architecture.py tests/architecture/test_import_boundaries.py -k 'not migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration'`
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding/.venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/phase2/test_pr2_06_openalex_offline_compat.py tests/unit/test_m2_openalex.py tests/unit/phase2/test_pr2_06_m3_provider_gate.py tests/test_architecture.py tests/architecture/test_import_boundaries.py -k 'not migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration'`
 
 Result: **56 passed**. Ruff: all checks passed. Pyright: zero errors/warnings.
 The exact three previously reported failures were rerun on both Slice 01 and
