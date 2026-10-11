@@ -69,6 +69,7 @@ class TrustedPeerIdentity:
         operator_public_key_sha256: str,
         audit_root: Path,
         binding_lookup: Callable[[VerifiedSubject], tuple[dict[str, Any] | None, datetime]],
+        config_guard: Callable[[], bool] | None = None,
     ) -> None:
         records = tuple(peers)
         by_uid = {record.uid: record for record in records}
@@ -89,6 +90,33 @@ class TrustedPeerIdentity:
         self._operator_public_key_sha256 = operator_public_key_sha256
         self._audit_root = audit_root.absolute()
         self._binding_lookup = binding_lookup
+        self._config_guard = config_guard or (lambda: True)
+
+    @property
+    def operator_uid(self) -> int:
+        return self._operator_uid
+
+    @property
+    def audit_root(self) -> Path:
+        return self._audit_root
+
+    def record(self, peer_uid: int) -> PeerCredential:
+        if type(peer_uid) is not int or peer_uid not in self._peers:
+            raise _denied()
+        return self._peers[peer_uid]
+
+    def proof_material(self, attestation: ProvisioningAttestation) -> dict[str, Any] | None:
+        """Return signed, digest-bound material only after complete verification."""
+        if not self.verify(attestation):
+            return None
+        try:
+            raw = self._read_proof(self._audit_root / f"proof-{attestation.proof_sha256}.json")
+            if not hmac.compare_digest(hashlib.sha256(raw).hexdigest(), attestation.proof_sha256):
+                return None
+            material = json.loads(raw)["material"]
+            return material if isinstance(material, dict) else None
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
 
     def subject(self, peer_uid: int) -> VerifiedSubject:
         if isinstance(peer_uid, bool) or peer_uid not in self._peers:
@@ -119,6 +147,8 @@ class TrustedPeerIdentity:
 
     def is_valid(self, principal: VerifiedPrincipal | VerifiedSubject, at: datetime) -> bool:
         try:
+            if not self._config_guard():
+                return False
             if principal.deployment_id != self.deployment_id or principal.subject_kind != "OS_UID":
                 return False
             uid = int(principal.subject_value)
@@ -133,7 +163,7 @@ class TrustedPeerIdentity:
                 and record.not_before <= at
                 and (record.not_after is None or at < record.not_after)
             )
-        except (KeyError, ValueError, TypeError):
+        except Exception:
             return False
 
     def is_allowlisted(self, principal: VerifiedPrincipal) -> bool:

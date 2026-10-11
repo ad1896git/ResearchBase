@@ -118,6 +118,86 @@ def test_protocol_rejects_oversize_before_reading_body():
         right.close()
 
 
+def test_v2_protocol_has_exact_bounded_operations_and_no_identity_claims():
+    accepted = {"v": 2, "op": "enrollment.challenge"}
+    left, right = socket.socketpair()
+    try:
+        right.sendall(frame(json.dumps(accepted).encode()))
+        assert read_request(left) == accepted
+    finally:
+        left.close()
+        right.close()
+    for bad in (
+        {"v": 2, "op": "enrollment.challenge", "actor_id": str(ACTOR)},
+        {
+            "v": 2,
+            "op": "enrollment.attest",
+            "subject_uid": 502,
+            "proof_sha256": "a" * 64,
+            "reason": "proof",
+            "operator_actor_id": str(ACTOR),
+        },
+        {
+            "v": 2,
+            "op": "evidence.review",
+            "project_id": str(PROJECT),
+            "evidence_id": str(ACTOR),
+            "basis": "basis",
+            "request_id": str(PROJECT),
+            "principal": "owner",
+        },
+    ):
+        left, right = socket.socketpair()
+        try:
+            right.sendall(frame(json.dumps(bad).encode()))
+            with pytest.raises(BadRequest):
+                read_request(left)
+        finally:
+            left.close()
+            right.close()
+
+
+def test_v2_dispatch_uses_server_coordinator_and_never_owner_fallback():
+    class Coordinator:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, uid, value):
+            self.calls.append((uid, value))
+            return {"accepted_uid": uid}
+
+    coordinator = Coordinator()
+    payload = {"v": 2, "op": "enrollment.challenge"}
+    assert dispatch(payload, 60001, services(), os.geteuid(), coordinator) == {
+        "accepted_uid": 60001
+    }
+    assert coordinator.calls == [(60001, payload)]
+    with pytest.raises(Denied):
+        dispatch(payload, os.geteuid(), services(), os.geteuid())
+
+
+def test_v2_denial_keeps_versioned_fail_closed_response():
+    class Coordinator:
+        def allowed_uid(self, uid):
+            return uid == os.geteuid()
+
+        def execute(self, _uid, _value):
+            raise Denied("no current authority")
+
+    server = RunnerServer(
+        services(), coordinator=Coordinator(), parent=Path("/private/tmp"), max_requests=1
+    )
+    path = server.start()
+    thread = threading.Thread(target=server.serve)
+    thread.start()
+    try:
+        result = request(path, {"v": 2, "op": "enrollment.challenge"})
+        assert result == {"v": 2, "ok": False, "error": "DENIED"}
+    finally:
+        thread.join(timeout=3)
+        server.stop()
+
+
 def test_other_peer_uid_never_reaches_application():
     bundle = services()
     with pytest.raises(Denied):

@@ -79,6 +79,8 @@ def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def _validate(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or type(value.get("v")) is not int:
         raise BadRequest("invalid request")
+    if value["v"] == 2:
+        return _validate_v2(value)
     if value["v"] != PROTOCOL_VERSION:
         raise BadRequest("unsupported protocol version")
     if value.get("op") == "whoami" and set(value) == {"v", "op"}:
@@ -94,6 +96,87 @@ def _validate(value: Any) -> dict[str, Any]:
             raise BadRequest("invalid project ID") from exc
         return value
     raise BadRequest("unknown operation or fields")
+
+
+def _validate_v2(value: dict[str, Any]) -> dict[str, Any]:
+    op = value.get("op")
+    required = {
+        "enrollment.challenge": set(),
+        "enrollment.prove": {"challenge_id", "nonce"},
+        "enrollment.attest": {"subject_uid", "proof_sha256", "reason"},
+        "enrollment.provision": {"subject_uid", "display_name", "request_id"},
+        "reviewer.assign": {"subject_uid", "project_id", "reason", "request_id"},
+        "source.inspect": {"project_id", "source_version_id"},
+        "evidence.get": {"project_id", "evidence_id"},
+        "evidence.review": {"project_id", "evidence_id", "basis", "request_id"},
+        "support.create": {
+            "project_id",
+            "target_type",
+            "target_id",
+            "evidence_id",
+            "qualification",
+            "request_id",
+        },
+    }
+    optional = {"source.inspect": {"paragraph"}}
+    if not isinstance(op, str) or op not in required:
+        raise BadRequest("unknown operation")
+    if not {"v", "op", *required[op]} <= value.keys() or value.keys() - {
+        "v",
+        "op",
+        *required[op],
+        *optional.get(op, set()),
+    }:
+        raise BadRequest("unknown or missing operation fields")
+    for key in (
+        "project_id",
+        "source_version_id",
+        "evidence_id",
+        "request_id",
+        "target_id",
+        "challenge_id",
+    ):
+        if key in value:
+            raw = value[key]
+            if not isinstance(raw, str) or len(raw) != 36:
+                raise BadRequest("invalid UUID")
+            try:
+                if str(UUID(raw)) != raw:
+                    raise BadRequest("noncanonical UUID")
+            except ValueError as exc:
+                raise BadRequest("invalid UUID") from exc
+    if "subject_uid" in value and (
+        type(value["subject_uid"]) is not int or value["subject_uid"] <= 0
+    ):
+        raise BadRequest("invalid subject UID")
+    for key, limit in (
+        ("reason", 512),
+        ("display_name", 200),
+        ("basis", 4096),
+        ("qualification", 4096),
+    ):
+        if key in value and (
+            not isinstance(value[key], str) or not 1 <= len(value[key].strip()) <= limit
+        ):
+            raise BadRequest("invalid bounded text")
+    for key in ("nonce", "proof_sha256"):
+        if key in value and (
+            not isinstance(value[key], str)
+            or len(value[key]) != 64
+            or any(char not in "0123456789abcdef" for char in value[key])
+        ):
+            raise BadRequest("invalid digest")
+    if "paragraph" in value and (
+        type(value["paragraph"]) is not int or not 1 <= value["paragraph"] <= 100000
+    ):
+        raise BadRequest("invalid paragraph")
+    if "target_type" in value and (
+        not isinstance(value["target_type"], str)
+        or value["target_type"]
+        not in {"ClaimVersion", "HypothesisVersion", "ResearchQuestionVersion"}
+    ):
+        raise BadRequest("invalid target type")
+    return value
 
 
 def read_request(connection: socket.socket, *, deadline: float | None = None) -> dict[str, Any]:
@@ -116,8 +199,19 @@ def _send(connection: socket.socket, value: dict[str, Any]) -> None:
     connection.sendall(struct.pack("!I", len(body)) + body)
 
 
-def dispatch(value: dict[str, Any], peer_uid: int, services: Any, owner_uid: int) -> dict[str, str]:
+def dispatch(
+    value: dict[str, Any], peer_uid: int, services: Any, owner_uid: int, coordinator: Any = None
+) -> dict[str, Any]:
     request_value = _validate(value)
+    if request_value["v"] == 2:
+        if coordinator is None:
+            raise Denied("HG1-02 authority is not configured")
+        try:
+            return coordinator.execute(peer_uid, request_value)
+        except Denied:
+            raise
+        except Exception as exc:
+            raise Denied("current canonical authority unavailable") from exc
     if peer_uid != owner_uid or peer_uid == 0:
         raise Denied("peer is not the bound installation owner")
     local = getattr(services, "local_identity", None)
@@ -152,6 +246,7 @@ class RunnerServer:
         self,
         services: Any,
         *,
+        coordinator: Any = None,
         parent: Path = Path("/private/tmp"),
         max_requests: int = 32,
         lifetime_seconds: int = 60,
@@ -159,6 +254,7 @@ class RunnerServer:
         if not 1 <= max_requests <= 32 or not 1 <= lifetime_seconds <= 60:
             raise ValueError("Runner lifetime or request count outside HG1-01 bounds")
         self.services = services
+        self.coordinator = coordinator
         self.parent = parent
         self.max_requests = max_requests
         self.lifetime_seconds = lifetime_seconds
@@ -206,28 +302,35 @@ class RunnerServer:
                 except TimeoutError:
                     continue
                 with connection:
+                    response_version = PROTOCOL_VERSION
                     try:
                         uid, _gid = peer_credentials(connection)
-                        if uid != self.owner_uid or uid == 0:
+                        if uid == 0 or (
+                            uid != self.owner_uid
+                            and (self.coordinator is None or not self.coordinator.allowed_uid(uid))
+                        ):
                             self._safe_error(connection, "DENIED")
                             continue
                         handled += 1
                         value = read_request(connection, deadline=deadline)
+                        response_version = value["v"]
                         if time.monotonic() >= deadline:
                             raise TimeoutError("Runner request deadline reached")
-                        result = dispatch(value, uid, self.services, self.owner_uid)
-                        _send(connection, {"v": PROTOCOL_VERSION, "ok": True, "result": result})
+                        result = dispatch(
+                            value, uid, self.services, self.owner_uid, self.coordinator
+                        )
+                        _send(connection, {"v": value["v"], "ok": True, "result": result})
                     except BadRequest:
-                        self._safe_error(connection, "BAD_REQUEST")
-                    except (Denied, OSError, TimeoutError):
-                        self._safe_error(connection, "DENIED")
+                        self._safe_error(connection, "BAD_REQUEST", response_version)
+                    except Exception:
+                        self._safe_error(connection, "DENIED", response_version)
         finally:
             self.close()
 
     @staticmethod
-    def _safe_error(connection: socket.socket, code: str) -> None:
+    def _safe_error(connection: socket.socket, code: str, version: int = PROTOCOL_VERSION) -> None:
         try:
-            _send(connection, {"v": PROTOCOL_VERSION, "ok": False, "error": code})
+            _send(connection, {"v": version, "ok": False, "error": code})
         except (OSError, TimeoutError):
             pass
 
@@ -259,7 +362,7 @@ def request(path: Path, value: dict[str, Any]) -> dict[str, Any]:
         if not 1 <= size <= MAX_MESSAGE:
             raise BadRequest("invalid response size")
         result = json.loads(_exact(connection, size).decode("utf-8"))
-        if not isinstance(result, dict) or result.get("v") != PROTOCOL_VERSION:
+        if not isinstance(result, dict) or result.get("v") != value.get("v"):
             raise BadRequest("invalid response")
         return result
 
@@ -275,6 +378,7 @@ def main() -> int:
     from sqlalchemy.engine import make_url
 
     from researchbase.cli.composition import build_services
+    from researchbase.hg1_runtime import build_hg1_coordinator
     from researchbase.persistence.config import load_settings
 
     settings = load_settings()
@@ -297,8 +401,12 @@ def main() -> int:
     ) or settings.artifact_store_root != str(durable / f"rb-m2-{tag}-artifacts"):
         raise SystemExit("HG1-01 requires the durable matching M2 installation and CAS roots")
     services = build_services()
+    coordinator = build_hg1_coordinator(tag, services, settings)
     server = RunnerServer(
-        services, max_requests=args.max_requests, lifetime_seconds=args.lifetime_seconds
+        services,
+        coordinator=coordinator,
+        max_requests=args.max_requests,
+        lifetime_seconds=args.lifetime_seconds,
     )
     path = server.start()
     print(path, flush=True)

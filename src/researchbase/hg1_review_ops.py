@@ -20,7 +20,9 @@ def _principal(value: VerifiedPrincipal) -> None:
         raise TypeError("trusted verified principal required")
 
 
-def _fields(payload: dict[str, Any], required: set[str], optional: set[str] = frozenset()) -> None:
+def _fields(
+    payload: dict[str, Any], required: set[str], optional: set[str] | frozenset[str] = frozenset()
+) -> None:
     if (
         not isinstance(payload, dict)
         or not required <= payload.keys()

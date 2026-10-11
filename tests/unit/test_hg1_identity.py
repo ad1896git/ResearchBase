@@ -225,3 +225,13 @@ def test_revoked_binding_and_credential_fail_closed(tmp_path):
     with pytest.raises(ResearchBaseError):
         policy.authenticate_subject(502)
     assert not policy.is_valid(VerifiedSubject("deployment-1", "OS_UID", "502", "wrong"), NOW)
+
+
+def test_host_policy_change_revokes_live_peer_authority(tmp_path):
+    policy, *_ = _fixture(tmp_path)
+    policy._config_guard = lambda: False
+    assert not policy.is_valid(
+        VerifiedSubject("deployment-1", "OS_UID", "502", "b-credential"), NOW
+    )
+    with pytest.raises(ResearchBaseError):
+        policy.authenticate_subject(502)
