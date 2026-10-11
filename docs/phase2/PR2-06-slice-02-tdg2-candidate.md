@@ -84,3 +84,64 @@ transitive lock/security review, timeout/rate-limit deployment settings, and
 approved failure/compatibility evidence. The retained-M3 registry remains
 disabled. M3 Human Gate remains blocked. No live provider, database, CAS,
 scientific record, or human-verification evidence was touched.
+
+## E. Slice 03 requirement matrix (candidate, not activation)
+
+Reviewed official public pages at `2026-10-11T17:17:15Z` through read-only
+documentation access. No Works API request was made. Candidate implementation
+commit: `ed6edceaa91c0a116679dbcd06410873d224367c`. Local artifact SHA-256:
+
+- `src/researchbase/adapters/literature_http.py`:
+  `c09f104bdcf959cc2386473fd38c6d5360a05bc79abf8c66be3d1c046708f69d`
+- `src/researchbase/adapters/openalex.py`:
+  `27da1c7ec17888a91c7b31b9ba7c4a2a66e61945299d7d8bfab7473ccb8841dc`
+- `tests/unit/phase2/test_pr2_06_transport_boundary.py`:
+  `88dc2f9bfa917040f115f9a45d78b2bf56ee876d32b1d1999b473ba841fd500a`
+- `tests/fixtures/openalex_works_v1_offline.json`:
+  `dc39ef73028ba19ab73966463f7fb296cbd956974ac9d25bb3bc5f26fc155a9e`
+- `uv.lock`: `e7155e4cbfe7f43157cba3f1c6fc0e7961f466d58810b09024f34487078b3ba6`
+
+| Requirement | Authoritative source | Evidence / verification | Status |
+| --- | --- | --- | --- |
+| TDG2-01 OpenAlex Works discovery behind SearchCapability | `docs/architecture/11_TDG2_Phase2_Technology_Decision_Gate_v1.0.md`; [OpenAlex search](https://help.openalex.org/api/searching/) | Fixed endpoint, local `works-v1` projection, offline fixture and adapter tests at candidate SHA; retained-M3 registration test. Live registration is separately unauthorized | REQUIRES_AUTHORIZATION |
+| TDG2-02 Crossref DOI verification and noncanonical provider IDs | same frozen TDG2; `src/researchbase/adapters/crossref.py` | Normalization and M2 OpenAlex/Crossref regression tests; no canonical schema change | SATISFIED |
+| TDG2-03 licensed full-text boundary | same frozen TDG2; [OpenAlex full-text licensing](https://help.openalex.org/access/fulltext/) | Adapter returns bibliographic candidates only; no PDF retention. Per-work rights decisions belong to a later full-text PR | UNRESOLVED |
+| TDG2-04 scientific RAG adapter | same frozen TDG2 | Outside PR2-06; no PaperQA2 activation or dependency added | UNRESOLVED |
+| TDG2-05 native STORM-like strategy | same frozen TDG2 | Outside PR2-06; no strategy change | UNRESOLVED |
+| TDG2-06 bounded I/O, uncertainty, cancellation and provenance | same frozen TDG2; `src/researchbase/application/literature_search_execution.py` | Disconnected transport tests distinguish pre-dispatch, uncertain open, observed response, timeout, cancellation and secret-free error chains. Application execution tests: 16 passed; two separately listed baseline cancellation failures persist | UNRESOLVED |
+| TDG2-07 rate limit and bounded retry | same frozen TDG2; [OpenAlex authentication/rate limits](https://help.openalex.org/api/authentication/) | Offline 429/5xx/401 tests, numeric `Retry-After`, no adapter retry; Application owns retry. Live quotas and deployment limits are unconfigured | REQUIRES_AUTHORIZATION |
+| TDG2-08 cache policy | same frozen TDG2 | No cache introduced or retained response used; cache access-scope policy remains a later activation concern | SATISFIED |
+| TDG2-09 credentials, egress, rights, and logging | same frozen TDG2; [OpenAlex key guidance](https://help.openalex.org/api/authentication/), [dataset CC0 statement](https://help.openalex.org/data/how-its-built/), [current Terms](https://openalex.org/OpenAlex_termsofservice.pdf), [full-text rights](https://help.openalex.org/access/fulltext/) | Synthetic-secret tests, fixed HTTPS host, no redirects, response cap, no raw exception chaining, request-ID allowlist. No real key or egress policy installed. Terms' service restrictions and CC0 statement need a rights decision; a metadata response grants no PDF rights | REQUIRES_AUTHORIZATION |
+| TDG2-10 vendor-neutral canonical state | same frozen TDG2; `SearchCapability` port | Provider projection remains adapter-local; no schema, migration, canonical ID or scientific hash changed | SATISFIED |
+| Live-adapter pin/access gate | final paragraph of frozen TDG2; [search](https://help.openalex.org/api/searching/), [paging](https://help.openalex.org/api/paging/), [auth](https://help.openalex.org/api/authentication/) | `works-v1` pins local mapping only. Public pages can change; raw upstream bytes/hashes and fixed upstream release/compatibility decision are not archived. `uv.lock` is pinned locally, but live access/security/license review is incomplete | UNRESOLVED |
+
+The public pages above were inspected as references, not downloaded as
+byte-for-byte archival artifacts. Their original SHA-256 values are therefore
+**not verified**. A later authorized gate must archive exact upstream source
+bytes, record retrieval and hash, resolve the CC0/Terms and attribution scope,
+approve API access and secret injection, pin compatibility assumptions, and
+approve egress, rate, timeout, retry and logging settings before registration.
+
+Offline reproduction from this worktree (Python 3.12.14 environment used):
+
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/m1-identity-onboarding/.venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/phase2/test_pr2_06_transport_boundary.py tests/unit/phase2/test_pr2_06_openalex_offline_compat.py tests/unit/test_m2_openalex.py tests/unit/test_m2_crossref.py tests/unit/phase2/test_pr2_06_m3_provider_gate.py tests/test_architecture.py tests/architecture/test_import_boundaries.py -k 'not migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration'`
+
+Result: 78 passed. The broader execution-service file has two identical
+baseline/candidate cancellation failures; the legacy migration-list assertion
+also fails identically on both. These are not passing tests or Slice 03 fixes.
+No live provider credential, API call, retained scientific record, or M3
+registration change was made. Formal TDG2 activation remains unauthorized.
+
+Retained-state read-only check: two peer-authenticated `pg_dump --data-only
+--no-owner --no-privileges researchbase_m3_retained_20261011` outputs, with
+only pg_dump's generated `\\restrict`/`\\unrestrict` lines removed before
+hashing, each had 23,890 bytes and SHA-256
+`667463cbab78976953066e11f8ccebe432a4aa7c0bc2489c2b3fab3aff9ad589`.
+Raw pg_dump stream hashes differ because those lines contain a random token;
+they are not valid comparison evidence. The durable M3 CAS inventory before
+and after evidence preparation has zero files and SHA-256
+`2e9f267c0305f69e9abb2ca8b63bf0e30183e4e40ca26cd0e0bf06aebc5776bd`
+over sorted relative paths, modes, sizes and content hashes. No retained M3
+write was made. The data-only dump emitted PostgreSQL's existing circular-FK
+restore warnings; this hash is an integrity comparison, not a recovery-backup
+claim.
