@@ -8,8 +8,11 @@ Cross-Phase Contract §19; Schema Registry `ResearchBrief` artifact role.
 
 **Scope:** Add the provider-neutral `ScientificRAGCapability.answer` request,
 response, and deterministic test adapter. Enforce exact requested
-`SourceVersion` set confinement, nonblank source locators, bounded candidate
-text, stable order, and explicit candidate provenance. The fake may use only
+`SourceVersion` set confinement, typed source-span locators matching the
+frozen page/section/paragraph/figure/table/quote-span shape, bounded candidate
+text, stable order, and explicit candidate provenance. Locator syntax is only
+candidate screening; exact source bytes are verified by the existing M3
+Application promotion path. The fake may use only
 caller-supplied test material. No answer or evidence candidate is canonical.
 
 **Exclusions:** No PaperQA2 package, model, index deserialization, network,

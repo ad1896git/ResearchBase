@@ -12,6 +12,7 @@ from researchbase.application.scientific_rag_provider import (
     ScientificRAGCallContext,
     ScientificRAGRequest,
     ScientificRAGResponse,
+    SourceLocator,
 )
 
 
@@ -23,7 +24,8 @@ def request(source_ids):
     )
 
 
-def response(source_id, *, locator="page 2, paragraph 3", excerpt="Measured result"):
+def response(source_id, *, locator=None, excerpt="Measured result"):
+    locator = locator if locator is not None else SourceLocator(page=2, paragraph="3")
     return ScientificRAGResponse(
         answer_candidate="Candidate answer",
         evidence_candidates=(EvidenceCandidate(source_id, locator, excerpt),),
@@ -47,7 +49,7 @@ def test_offline_candidate_preserves_source_locator_and_provenance():
     fake = FakeScientificRAGCapability(response(source_id))
     result = fake.answer(request((source_id,)), context())
     assert result.evidence_candidates[0].source_version_id == source_id
-    assert result.evidence_candidates[0].locator == "page 2, paragraph 3"
+    assert result.evidence_candidates[0].locator == SourceLocator(page=2, paragraph="3")
     assert (result.adapter_id, result.adapter_version, result.provider_id) == (
         "fake-scientific-rag", "1", "test-only"
     )
@@ -78,9 +80,24 @@ def test_unverifiable_or_unbounded_locator_is_rejected(locator):
         EvidenceCandidate(source_id, locator, "excerpt")
 
 
+def test_internal_index_identifier_cannot_be_used_as_source_locator():
+    with pytest.raises(ValueError, match="locator"):
+        EvidenceCandidate(uuid4(), "internal-index:opaque-42", "excerpt")
+    with pytest.raises(ValueError, match="index"):
+        SourceLocator(section="internal-index:opaque-42")
+
+
+def test_structured_char_span_is_bounded_and_source_addressed():
+    assert SourceLocator(paragraph="1", quote_span="char:0:7").quote_span == "char:0:7"
+    with pytest.raises(ValueError, match="span"):
+        SourceLocator(paragraph="1", quote_span="char:7:7")
+    with pytest.raises(ValueError, match="span"):
+        SourceLocator(page=1, quote_span="char:0:7")
+
+
 def test_duplicate_source_locator_and_candidate_budget_are_rejected():
     source_id = uuid4()
-    candidate = EvidenceCandidate(source_id, "page 2", "excerpt")
+    candidate = EvidenceCandidate(source_id, SourceLocator(page=2), "excerpt")
     result = response(source_id)
     from dataclasses import replace
 
@@ -96,7 +113,7 @@ def test_duplicate_source_locator_and_candidate_budget_are_rejected():
 def test_answer_and_excerpt_are_bounded_and_answer_requires_evidence():
     source_id = uuid4()
     with pytest.raises(ValueError):
-        EvidenceCandidate(source_id, "page 2", "x" * 4001)
+        EvidenceCandidate(source_id, SourceLocator(page=2), "x" * 4001)
     result = response(source_id)
     from dataclasses import replace
 

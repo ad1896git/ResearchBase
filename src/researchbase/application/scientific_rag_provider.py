@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -50,15 +51,56 @@ class ScientificRAGCallContext:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceLocator:
+    """A candidate source span shape; exact bytes are verified on promotion."""
+
+    page: int | None = None
+    section: str | None = None
+    paragraph: str | None = None
+    figure: str | None = None
+    table: str | None = None
+    quote_span: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.page is not None and (type(self.page) is not int or self.page < 1):
+            raise ValueError("locator page must be positive")
+        if self.paragraph is not None and (
+            not isinstance(self.paragraph, str)
+            or re.fullmatch(r"[1-9][0-9]*", self.paragraph) is None
+        ):
+            raise ValueError("locator paragraph must be a positive ordinal")
+        for name in ("section", "figure", "table"):
+            value = getattr(self, name)
+            if value is not None:
+                _bounded_text(value, f"locator {name}", 128)
+                if "://" in value or value.lower().startswith(("internal-index:", "index:")):
+                    raise ValueError("locator cannot be a provider index reference")
+        if not any(
+            value is not None
+            for value in (self.page, self.section, self.paragraph, self.figure, self.table)
+        ):
+            raise ValueError("locator must identify a source span")
+        if self.quote_span is not None:
+            match = (
+                re.fullmatch(r"char:(0|[1-9][0-9]*):([1-9][0-9]*)", self.quote_span)
+                if isinstance(self.quote_span, str)
+                else None
+            )
+            if self.paragraph is None or match is None or int(match[2]) <= int(match[1]):
+                raise ValueError("locator quote span must be bounded within a paragraph")
+
+
+@dataclass(frozen=True, slots=True)
 class EvidenceCandidate:
     source_version_id: UUID
-    locator: str
+    locator: SourceLocator
     excerpt: str
 
     def __post_init__(self) -> None:
         if type(self.source_version_id) is not UUID:
             raise ValueError("candidate source_version_id must be a UUID")
-        _bounded_text(self.locator, "locator", 256)
+        if not isinstance(self.locator, SourceLocator):
+            raise ValueError("candidate locator must be a structured source span")
         _bounded_text(self.excerpt, "excerpt", 4_000)
 
 
@@ -107,7 +149,7 @@ def validate_scientific_rag_response(
     if response.answer_candidate is not None and not response.evidence_candidates:
         raise ValueError("answer candidate requires source evidence")
     permitted = set(request.source_version_ids)
-    seen: set[tuple[UUID, str]] = set()
+    seen: set[tuple[UUID, SourceLocator]] = set()
     for candidate in response.evidence_candidates:
         if candidate.source_version_id not in permitted:
             raise ValueError("candidate source is outside requested source set")
