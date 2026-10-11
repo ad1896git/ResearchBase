@@ -78,7 +78,7 @@ class Transcript:
             raise RuntimeError("evidence directory is not private and owner-controlled")
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.path = EVIDENCE / f"hg1-host-{stamp}-{os.getpid()}.jsonl"
-        self.file = self.path.open("x", encoding="utf-8", opener=lambda p, f: os.open(p, f, 0o600))
+        self.file = open(self.path, "x", encoding="utf-8", opener=lambda p, f: os.open(p, f, 0o600))
 
     def record(self, event: str, **fields: object) -> None:
         line = json.dumps({"at": now(), "event": event, **fields}, sort_keys=True)
@@ -90,7 +90,7 @@ class Transcript:
         self.file.close()
         digest = hashlib.sha256(self.path.read_bytes()).hexdigest()
         digest_path = pathlib.Path(str(self.path) + ".sha256")
-        with digest_path.open("x", encoding="ascii", opener=lambda p, f: os.open(p, f, 0o600)) as out:
+        with open(digest_path, "x", encoding="ascii", opener=lambda p, f: os.open(p, f, 0o600)) as out:
             out.write(f"{digest}  {self.path.name}\n")
         print(f"TRANSCRIPT={self.path}\nSHA256={digest}\nDIGEST_FILE={digest_path}", flush=True)
         return digest
