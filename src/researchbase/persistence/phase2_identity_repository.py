@@ -15,6 +15,30 @@ class SqlAlchemyPhase2IdentityRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    def resolve_bound_subject(self, subject: Any) -> dict[str, Any] | None:
+        """Resolve one current HUMAN binding without the bootstrap-only join."""
+        rows = (
+            self._session.execute(
+                text(
+                    "SELECT b.actor_id, b.bound_at, b.revoked_at, a.retired_at "
+                    "FROM actor_subject_bindings b "
+                    "JOIN actors a ON a.id=b.actor_id "
+                    "WHERE b.deployment_id=:deployment AND b.subject_kind=:kind "
+                    "AND b.subject_value=:subject AND b.subject_credential_id=:credential "
+                    "AND b.status='ACTIVE' AND a.actor_type='HUMAN'"
+                ),
+                {
+                    "deployment": subject.deployment_id,
+                    "kind": subject.subject_kind,
+                    "subject": subject.subject_value,
+                    "credential": subject.credential_id,
+                },
+            )
+            .mappings()
+            .all()
+        )
+        return dict(rows[0]) if len(rows) == 1 else None
+
     def resolve_local_binding(self, subject: Any) -> dict[str, Any] | None:
         rows = (
             self._session.execute(
