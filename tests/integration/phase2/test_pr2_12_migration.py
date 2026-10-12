@@ -38,6 +38,14 @@ def test_upgrade_to_pr212_and_empty_downgrade(start):
         config.set_main_option("sqlalchemy.url", url)
         if start != "base":
             command.upgrade(config, start)
+        command.upgrade(config, "0034_pr2_10_exact_transcript_binding")
+        engine = create_engine(url)
+        with engine.connect() as conn:
+            prior_indexes = set(conn.execute(text("""SELECT schemaname,tablename,
+              indexname,indexdef FROM pg_indexes WHERE schemaname='public'""")).all())
+            prior_tables = set(conn.execute(text("""SELECT tablename FROM pg_tables
+              WHERE schemaname='public'""")).scalars().all())
+        engine.dispose()
         command.upgrade(config, "head")
         engine = create_engine(url)
         with engine.connect() as conn:
@@ -54,8 +62,41 @@ def test_upgrade_to_pr212_and_empty_downgrade(start):
             assert conn.execute(text("""SELECT count(*) FROM information_schema.columns
               WHERE table_name='manuscript_versions' AND column_name='hash_scheme'
                 AND is_nullable='NO'""")).scalar_one() == 1
+            indexes = conn.execute(text("""SELECT t.relname, i.relname, am.amname,
+              x.indisunique, pg_get_expr(x.indpred,x.indrelid),
+              pg_get_indexdef(i.oid)
+              FROM pg_class t JOIN pg_index x ON x.indrelid=t.oid
+              JOIN pg_class i ON i.oid=x.indexrelid
+              JOIN pg_am am ON am.oid=i.relam
+              WHERE t.relname IN ('publications','manuscript_versions',
+                'publication_lifecycle_events')""")).all()
+            for table, column in (
+                ("publications", "created_by"),
+                ("manuscript_versions", "created_by"),
+                ("publication_lifecycle_events", "actor_id"),
+            ):
+                matching = [row for row in indexes if row[0] == table
+                            and row[5].endswith(f"USING btree ({column})")]
+                assert len(matching) == 1, (table, column, indexes)
+                assert matching[0][2:5] == ("btree", False, None)
+                fk = conn.execute(text("""SELECT count(*) FROM pg_constraint c
+                  JOIN pg_class t ON t.oid=c.conrelid
+                  JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=ANY(c.conkey)
+                  WHERE t.relname=:table AND a.attname=:column AND c.contype='f'"""),
+                                  {"table": table, "column": column}).scalar_one()
+                assert fk == 1
         engine.dispose()
         command.downgrade(config, "0034_pr2_10_exact_transcript_binding")
+        engine = create_engine(url)
+        with engine.connect() as conn:
+            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+                "0034_pr2_10_exact_transcript_binding"
+            )
+            assert set(conn.execute(text("""SELECT schemaname,tablename,indexname,indexdef
+              FROM pg_indexes WHERE schemaname='public'""")).all()) == prior_indexes
+            assert set(conn.execute(text("""SELECT tablename FROM pg_tables
+              WHERE schemaname='public'""")).scalars().all()) == prior_tables
+        engine.dispose()
     finally:
         with admin.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.execute(text("""SELECT pg_terminate_backend(pid) FROM pg_stat_activity

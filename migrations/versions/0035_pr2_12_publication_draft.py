@@ -67,8 +67,12 @@ def upgrade() -> None:
       UNIQUE (publication_id)
     );
     CREATE INDEX ix_pr212_publications_project ON publications(project_id,created_at,id);
+    CREATE INDEX ix_pr212_publications_created_by ON publications(created_by);
     CREATE INDEX ix_pr212_manuscript_document
       ON manuscript_versions(document_artifact_version_id);
+    CREATE INDEX ix_pr212_manuscript_created_by ON manuscript_versions(created_by);
+    CREATE INDEX ix_pr212_publication_event_actor
+      ON publication_lifecycle_events(actor_id);
     """)
     op.execute("""
     CREATE FUNCTION pr212_publication_guard() RETURNS trigger LANGUAGE plpgsql AS $$
