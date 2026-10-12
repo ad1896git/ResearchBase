@@ -71,21 +71,24 @@ def _dependencies(source: str, module: str, is_package: bool = False) -> set[str
         name = aliases.get(head, head) + (separator + tail if separator else "")
         if name.startswith("researchbase."):
             dependencies.add(name)
-        if (
-            isinstance(node, ast.Call)
-            and name in {"importlib.import_module", "builtins.__import__", "__import__"}
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
-        ):
-            target = node.args[0].value
+        if isinstance(node, ast.Call) and name in {
+            "importlib.import_module",
+            "builtins.__import__",
+            "__import__",
+        }:
+            keywords = {keyword.arg: keyword.value for keyword in node.keywords}
+            target_node = node.args[0] if node.args else keywords.get("name")
+            if not isinstance(target_node, ast.Constant) or not isinstance(target_node.value, str):
+                continue
+            target = target_node.value
             if target.startswith("."):
                 # Resolve only an explicit literal package; computed imports are not modeled.
-                if len(node.args) < 2 or not isinstance(node.args[1], ast.Constant):
+                package_node = node.args[1] if len(node.args) > 1 else keywords.get("package")
+                if not isinstance(package_node, ast.Constant):
                     continue
-                if not isinstance(node.args[1].value, str):
+                if not isinstance(package_node.value, str):
                     continue
-                target = resolve_name(target, node.args[1].value)
+                target = resolve_name(target, package_node.value)
             dependencies.add(target)
     return dependencies
 
@@ -101,9 +104,6 @@ def _boundary_violations(
             if forbidden in source.lower():
                 violations.append(f"{module}: {forbidden}")
     for root in sorted(PHASE1_GOVERNANCE):
-        for forbidden in ("decisionrecord", "approvalrequest", "approvaldecision", "approvalgrant"):
-            if forbidden in sources[root].lower():
-                violations.append(f"{root}: {forbidden}")
         pending: list[tuple[str, tuple[str, ...]]] = [(root, (root,))]
         seen: set[str] = set()
         while pending:
@@ -111,7 +111,23 @@ def _boundary_violations(
             if module in seen:
                 continue
             seen.add(module)
-            for dependency in sorted(_dependencies(sources[module], module, module in packages)):
+            for forbidden in (
+                "decisionrecord",
+                "approvalrequest",
+                "approvaldecision",
+                "approvalgrant",
+            ):
+                if forbidden in sources[module].lower():
+                    violations.append(f"{' -> '.join(route)}: {forbidden}")
+            dependencies = _dependencies(sources[module], module, module in packages)
+            # Importing a child executes its package initializers too, including
+            # when only the fully qualified child module appears in the source.
+            parents = {
+                package
+                for package in packages
+                if any(dependency.startswith(package + ".") for dependency in dependencies)
+            }
+            for dependency in sorted(dependencies | parents):
                 if any(
                     dependency == item or dependency.startswith(item + ".")
                     for item in DECISION_MODULES

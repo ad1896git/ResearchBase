@@ -120,3 +120,38 @@ def test_relative_dependency_inside_package_init_cannot_hide_reverse_edge():
     sources["researchbase.bridge"] = "from ..domain import decision"
     errors = boundary._boundary_violations(sources, frozenset({"researchbase.bridge"}))
     assert any("researchbase.bridge -> researchbase.domain.decision" in error for error in errors)
+
+
+def test_importing_package_child_checks_executed_package_initializers():
+    sources = _sources()
+    sources["researchbase.application.governance"] = "import researchbase.bridge.safe"
+    sources["researchbase.bridge.safe"] = ""
+    sources["researchbase.bridge"] = "from researchbase.domain import decision"
+    errors = boundary._boundary_violations(sources, frozenset({"researchbase.bridge"}))
+    assert any("researchbase.bridge -> researchbase.domain.decision" in error for error in errors)
+
+
+def test_keyword_literal_dynamic_import_is_not_an_escape():
+    sources = _sources()
+    sources["researchbase.application.governance"] = (
+        "import importlib\nimportlib.import_module(name='researchbase.domain.decision')"
+    )
+    assert boundary._boundary_violations(sources)
+
+
+def test_alias_cannot_hide_later_object_defined_by_transitive_helper():
+    sources = _sources()
+    sources["researchbase.application.governance"] = (
+        "from researchbase.bridge import Grant\nresult = Grant()"
+    )
+    sources["researchbase.bridge"] = "class ApprovalGrant: pass\nGrant = ApprovalGrant"
+    assert boundary._boundary_violations(sources)
+
+
+def test_keyword_relative_dynamic_import_checks_literal_package():
+    sources = _sources()
+    sources["researchbase.application.governance"] = (
+        "from importlib import import_module as load\n"
+        "load(name='.decision', package='researchbase.domain')"
+    )
+    assert boundary._boundary_violations(sources)
