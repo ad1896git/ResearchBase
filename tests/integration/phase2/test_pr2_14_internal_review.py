@@ -442,6 +442,70 @@ def test_credential_revocation_while_target_row_lock_waits_is_rechecked(
         assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
 
 
+def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
+    conclusion_env, phase2_database_url
+):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "head")
+    _, factory, evidence_service, author, reviewer, project, claim_id, _, engine, credentials = (
+        conclusion_env
+    )
+    service = InternalReviewService(factory, credentials, evidence_service)
+    with engine.begin() as conn:
+        role = conn.execute(text("""SELECT id FROM project_role_assignments
+          WHERE actor_id=:actor AND project_id=:project AND effective_until IS NULL"""),
+          {"actor": reviewer.actor_id, "project": project}).scalar_one()
+        until = conn.execute(text("""UPDATE project_role_assignments
+          SET effective_until=clock_timestamp() + interval '3 seconds',
+              row_version=row_version+1 WHERE id=:id RETURNING effective_until"""),
+          {"id": role}).scalar_one()
+        conn.execute(text("""INSERT INTO project_role_events
+          (id,role_assignment_id,actor_id,event_kind,occurred_at,reason,request_id)
+          VALUES (:id,:role,:actor,'CLOSED',:until,
+                  'Test-only scheduled upper bound',:request)"""),
+          {"id": uuid4(), "role": role, "actor": reviewer.actor_id,
+           "until": until, "request": uuid4()})
+        assert conn.execute(text("SELECT clock_timestamp() < :until"),
+                            {"until": until}).scalar_one()
+    checked = Event()
+    original = credentials.is_valid
+    initial_checks: list[bool] = []
+
+    def observed_valid(principal, at):
+        result = original(principal, at)
+        initial_checks.append(result)
+        checked.set()
+        return result
+
+    credentials.is_valid = observed_valid
+    request = uuid4()
+    identity = uuid5(
+        NAMESPACE_URL,
+        f"pr214:{reviewer.deployment_id}:{project}:{reviewer.actor_id}:{request}",
+    )
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with engine.begin() as holder:
+            holder.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+                           {"key": f"pr214:review:{identity}"})
+            pending = pool.submit(
+                service.create, reviewer, project, "CLAIM_VERSION", claim_id,
+                "SCIENTIFIC", "ACCEPT", "Expired during required lock wait", (), request,
+            )
+            assert checked.wait(timeout=2)
+            assert initial_checks == [True]
+            holder.execute(text("SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM "
+                                "(:until-clock_timestamp()))+0.1))"),
+                           {"until": until})
+            assert holder.execute(text("SELECT clock_timestamp() >= :until"),
+                                  {"until": until}).scalar_one()
+        with pytest.raises(ResearchBaseError):
+            pending.result(timeout=10)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
+        assert conn.execute(text("SELECT count(*) FROM review_issues")).scalar_one() == 0
+
+
 def test_empty_migration_downgrade_drops_only_new_review_objects(phase2_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
