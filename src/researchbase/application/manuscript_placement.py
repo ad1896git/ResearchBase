@@ -256,3 +256,109 @@ class ClaimPlacementService:
                                   or row["claim_version_id"], project,
                                   conclusion=row["scientific_conclusion_version_id"] is not None)
             ) for row in rows)
+
+
+_ARTIFACT_ROLES = frozenset({"FIGURE", "TABLE", "OTHER"})
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactPlacementTrace:
+    id: UUID
+    manuscript_version_id: UUID
+    artifact_version_id: UUID
+    section_id: str
+    locator: dict[str, str]
+    artifact_role: str
+    ordinal: int
+    artifact_content_hash: str
+    path_kind: str = "PLACEMENT_ONLY"
+
+
+class ArtifactPlacementService:
+    """Exact frozen artifact presentation; no scientific promotion."""
+
+    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any) -> None:
+        self._factory = factory
+        self._auth = PublicationService(factory, credentials, None)
+
+    @staticmethod
+    def _target(repo: Any, artifact: UUID, project: UUID) -> str:
+        row = repo.artifact_placement_target(artifact, project)
+        if (row is None or row["status"] not in ("FROZEN", "SUPERSEDED")
+            or row["frozen_at"] is None or not isinstance(row["content_hash"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", row["content_hash"]) is None):
+            raise ResearchBaseError(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                                    "exact frozen project artifact required")
+        return row["content_hash"]
+
+    @staticmethod
+    def _result(row: dict[str, Any], artifact_hash: str) -> ArtifactPlacementTrace:
+        return ArtifactPlacementTrace(
+            row["id"], row["manuscript_version_id"], row["artifact_version_id"],
+            row["section_id"], dict(row["locator"]), row["artifact_role"],
+            row["ordinal"], artifact_hash,
+        )
+
+    def add(
+        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
+        manuscript: UUID, artifact: UUID, section: str, locator: dict[str, str],
+        role: str, ordinal: int, request_id: UUID,
+    ) -> ArtifactPlacementTrace:
+        if (type(publication) is not UUID or type(manuscript) is not UUID
+            or type(artifact) is not UUID or type(request_id) is not UUID
+            or type(ordinal) is not int or ordinal < 0 or role not in _ARTIFACT_ROLES
+            or not isinstance(locator, dict) or set(locator) != {"kind", "value"}
+            or locator.get("kind") not in _KINDS):
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "typed artifact placement required")
+        section = _text(section)
+        location = {"kind": locator["kind"], "value": _text(locator["value"])}
+        with self._factory() as uow:
+            at = self._auth._authorize(uow, principal, project, _WRITERS)
+            repo = uow.publication
+            parent = repo.publication(publication, project, lock=True)
+            version = repo.version(manuscript, publication) if parent else None
+            if (parent is None or version is None or version["status"] != "DRAFT"
+                or version["frozen_at"] is not None):
+                raise ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION,
+                                        "draft manuscript unavailable")
+            artifact_hash = self._target(repo, artifact, project)
+            identity = uuid5(NAMESPACE_URL, f"pr213:artifact-placement:{principal.deployment_id}:"
+                             f"{project}:{principal.actor_id}:{manuscript}:{request_id}")
+            repo.lock_request(f"pr213:artifact-placement:{identity}")
+            prior = repo.artifact_placement(identity, manuscript)
+            if prior is None:
+                row: dict[str, Any] = {
+                    "id": identity, "manuscript_version_id": manuscript,
+                    "artifact_version_id": artifact, "section_id": section,
+                    "locator": location, "artifact_role": role, "ordinal": ordinal,
+                    "created_by": principal.actor_id, "created_at": at, "row_version": 1,
+                }
+                repo.insert_artifact_placement({
+                    **row, "locator": json.dumps(location, sort_keys=True),
+                })
+            else:
+                row = prior
+                if (prior["artifact_version_id"] != artifact
+                    or prior["section_id"] != section or prior["locator"] != location
+                    or prior["artifact_role"] != role or prior["ordinal"] != ordinal):
+                    raise ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT,
+                                            "artifact placement request replay differs")
+            uow.commit()
+        return self._result(row, artifact_hash)
+
+    def trace(
+        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
+        manuscript: UUID,
+    ) -> tuple[ArtifactPlacementTrace, ...]:
+        with self._factory() as uow:
+            self._auth._authorize(uow, principal, project, _READERS)
+            repo = uow.publication
+            parent = repo.publication(publication, project)
+            version = repo.version(manuscript, publication) if parent else None
+            if (version is None or version["status"] != "DRAFT"
+                or version["frozen_at"] is not None):
+                raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
+            rows = repo.artifact_placements(manuscript)
+            return tuple(self._result(
+                row, self._target(repo, row["artifact_version_id"], project)
+            ) for row in rows)

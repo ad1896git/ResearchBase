@@ -126,3 +126,30 @@ class SqlAlchemyPublicationRepository:
           WHERE manuscript_version_id=:manuscript ORDER BY section_id,ordinal,id"""),
           {"manuscript": manuscript}).mappings().all()
         return [dict(row) for row in rows]
+
+    def artifact_placement_target(self, identity: UUID, project: UUID):
+        row = self._session.execute(text("""SELECT v.id,v.status,v.frozen_at,v.content_hash,
+          a.artifact_type FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
+          WHERE v.id=:id AND a.project_id=:project FOR SHARE OF v,a"""),
+          {"id": identity, "project": project}).mappings().first()
+        return dict(row) if row else None
+
+    def insert_artifact_placement(self, values: dict[str, object]) -> None:
+        self._session.execute(text("""INSERT INTO manuscript_artifact_placements
+          (id,manuscript_version_id,artifact_version_id,section_id,locator,
+           artifact_role,ordinal,created_by,created_at,row_version)
+          VALUES (:id,:manuscript_version_id,:artifact_version_id,:section_id,
+                  CAST(:locator AS jsonb),:artifact_role,:ordinal,:created_by,
+                  :created_at,:row_version)"""), values)
+
+    def artifact_placement(self, identity: UUID, manuscript: UUID):
+        row = self._session.execute(text("""SELECT * FROM manuscript_artifact_placements
+          WHERE id=:id AND manuscript_version_id=:manuscript"""),
+          {"id": identity, "manuscript": manuscript}).mappings().first()
+        return dict(row) if row else None
+
+    def artifact_placements(self, manuscript: UUID):
+        rows = self._session.execute(text("""SELECT * FROM manuscript_artifact_placements
+          WHERE manuscript_version_id=:manuscript ORDER BY section_id,ordinal,id"""),
+          {"manuscript": manuscript}).mappings().all()
+        return [dict(row) for row in rows]
