@@ -618,6 +618,11 @@ class GovernanceRepository(Protocol):
 
 
 class UnitOfWork(Protocol):
+    def enable_decision_error_normalization(self) -> None: ...
+
+    @property
+    def decision(self) -> Any: ...
+
     @property
     def scientific_conclusion(self) -> Any: ...
 

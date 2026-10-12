@@ -208,6 +208,26 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
     return None
 
 
+def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
+    """PR2-15 opt-in classification from driver codes, never raw diagnostics."""
+    state = getattr(exc.orig, "sqlstate", None)
+    codes = {
+        "P17F1": ErrorCode.IMMUTABLE_RECORD,
+        "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+        "P17F3": ErrorCode.IDEMPOTENCY_CONFLICT,
+        "40001": ErrorCode.CONCURRENT_MODIFICATION,
+        "40P01": ErrorCode.CONCURRENT_MODIFICATION,
+    }
+    code = codes.get(state) if isinstance(state, str) else None
+    if code is not None:
+        return ResearchBaseError(code, "decision transaction rejected")
+    normalized = _normalize_database_error(exc)
+    if normalized is not None:
+        return normalized
+    # Unknown failures are not classified as safe to retry or as a successful commit.
+    return ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION, "decision transaction failed")
+
+
 class SqlAlchemyUnitOfWork:
     actors: ActorRepository
     projects: ProjectRepository
@@ -246,6 +266,7 @@ class SqlAlchemyUnitOfWork:
     ) -> None:
         self._session_factory = session_factory
         self._pr204_error_normalization = pr204_error_normalization
+        self._decision_error_normalization = False
         self._session: Session | None = None
 
         self._committed = False
@@ -295,6 +316,8 @@ class SqlAlchemyUnitOfWork:
         try:
             self._require_session().commit()
         except DBAPIError as exc:
+            if self._decision_error_normalization:
+                raise _decision_database_error(exc) from None
             normalized = _normalize_database_error(exc)
             if (
                 normalized is None
@@ -323,6 +346,34 @@ class SqlAlchemyUnitOfWork:
         self._require_session().rollback()
         self._committed = False
 
+    def enable_decision_error_normalization(self) -> None:
+        """Apply the command's nondisclosing boundary without changing older commands."""
+        self._decision_error_normalization = True
+
+    def _exit_decision(self, exc_value: BaseException | None) -> None:
+        session = self._require_session()
+        cleanup_error: BaseException | None = None
+        try:
+            if exc_value is not None or not self._committed:
+                try:
+                    session.rollback()
+                    emit_uow_rollback(getattr(getattr(exc_value, "code", None), "value", None))
+                except BaseException as exc:
+                    cleanup_error = exc
+        finally:
+            try:
+                session.close()
+            except BaseException as exc:
+                cleanup_error = cleanup_error or exc
+            finally:
+                self._session = None
+        if isinstance(exc_value, DBAPIError):
+            raise _decision_database_error(exc_value) from None
+        if exc_value is None and cleanup_error is not None:
+            if isinstance(cleanup_error, DBAPIError):
+                raise _decision_database_error(cleanup_error) from None
+            raise cleanup_error
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
@@ -330,6 +381,9 @@ class SqlAlchemyUnitOfWork:
         traceback: TracebackType | None,
     ) -> None:
         if self._session is None:
+            return
+        if self._decision_error_normalization:
+            self._exit_decision(exc_value)
             return
         if self._pr204_error_normalization:
             cleanup_error: BaseException | None = None
