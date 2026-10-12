@@ -165,3 +165,25 @@ def test_decider_authority_does_not_invent_human_only_policy(actor_type):
         lambda: pytest.fail("authorization unit test has an explicit UoW"), credentials, None
     )
     assert service._authorize(uow, principal, UUID(int=5), frozenset({"OWNER", "APPROVER"})) == at
+
+
+def test_decision_bounds_database_waits_before_request_coordination():
+    from sqlalchemy.orm import Session
+
+    from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
+
+    class RecordingSession:
+        def __init__(self):
+            self.statements: list[str] = []
+
+        def execute(self, statement, parameters=None):
+            self.statements.append(str(statement))
+
+    session = RecordingSession()
+    repository = SqlAlchemyDecisionRepository(cast(Session, session))
+    repository.lock_request(UUID(int=7))
+    assert session.statements[:2] == [
+        "SET LOCAL lock_timeout = '10s'",
+        "SET LOCAL statement_timeout = '30s'",
+    ]
+    assert "pg_advisory_xact_lock" in session.statements[2]

@@ -7,6 +7,11 @@ INSERT/UPDATE/DELETE, including normal-role SQL. It protects insertion phantoms
 in governance validity joins as well as mutable source/review/authority facts.
 The coarse locks are confined to this bounded command. A deadlock/serialization
 failure aborts the entire UoW; the caller retries a fresh transaction.
+The command's first repository operation installs transaction-local operational
+limits: 10 seconds per lock wait, 30 seconds per statement. These do not change
+scientific policy and cannot leak to the next transaction using this connection.
+Lock/query timeouts abort the attempt through the UoW's sanitized failure path;
+only deadlock/serialization failures qualify for the existing bounded retry.
 """
 
 from __future__ import annotations
@@ -65,6 +70,9 @@ class SqlAlchemyDecisionRepository:
         return [dict(row) for row in self._session.execute(text(sql), params).mappings()]
 
     def lock_request(self, identity: UUID) -> None:
+        # Install bounds before even the first request advisory lock can wait.
+        self._session.execute(text("SET LOCAL lock_timeout = '10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout = '30s'"))
         self._session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": f"pr215:decision:{identity}"},
