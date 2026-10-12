@@ -791,3 +791,139 @@ def test_proceed_creates_no_approval_release_disposition_or_scientific_transitio
     service.record_decision(actor, request)
     service.record_decision(actor, request)
     assert effects() == before
+
+
+def test_commit_uncertainty_recovers_by_exact_uuid_without_duplicate_history(decision_env):
+    """Inject loss of acknowledgement after a real successful PostgreSQL commit."""
+    from psycopg import OperationalError
+    from sqlalchemy.exc import OperationalError as SqlOperationalError
+
+    service, _, actor, _, base = decision_env
+    _review(decision_env)
+    request = _command(decision_env)
+
+    def uncertain_factory():
+        uow = base[1]()
+        commit = uow.commit
+
+        def uncertain_commit():
+            commit()
+            raise SqlOperationalError(
+                None, None, OperationalError("TEST ONLY lost acknowledgement")
+            )
+
+        uow.commit = uncertain_commit
+        return uow
+
+    uncertain = DecisionService(uncertain_factory, base[9], base[2])
+    try:
+        acknowledged = uncertain.record_decision(actor, request)
+    except ResearchBaseError as failure:
+        assert "lost acknowledgement" not in str(failure.to_dict())
+        acknowledged = None
+    assert _counts(base[8]) == (1, 1, 1)
+    saved = service.record_decision(actor, request)
+    assert acknowledged is None or acknowledged == saved
+    assert saved.id == request.id
+    assert service.record_decision(actor, request) == saved
+    assert _counts(base[8]) == (1, 1, 1)
+
+
+@pytest.mark.parametrize("sqlstate", ["40001", "40P01"])
+def test_aborted_attempt_retry_starts_clean_transaction(decision_env, sqlstate):
+    service, _, actor, _, base = decision_env
+    _review(decision_env)
+    request = _command(decision_env)
+
+    def inject(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("INSERT INTO DECISION_BASIS_REVIEWS"):
+            conn.execute(
+                text(
+                    f"DO $$ BEGIN RAISE EXCEPTION 'TEST ONLY abort' "
+                    f"USING ERRCODE='{sqlstate}'; END $$"
+                )
+            )
+
+    event.listen(base[8], "before_cursor_execute", inject)
+    try:
+        with pytest.raises(ResearchBaseError):
+            service.record_decision(actor, request)
+        assert _counts(base[8]) == (0, 0, 0)
+    finally:
+        event.remove(base[8], "before_cursor_execute", inject)
+    result = service.record_decision(actor, request)
+    assert result.id == request.id
+    assert _counts(base[8]) == (1, 1, 1)
+
+
+def test_different_independent_actor_cannot_replace_or_impersonate_replay(decision_env):
+    from tests.integration.phase2.test_pr2_00_ownership import _add_owner
+
+    service, _, actor, _, base = decision_env
+    _review(decision_env)
+    other_id = uuid4()
+    with base[8].begin() as conn:
+        now = conn.execute(text("SELECT clock_timestamp()")).scalar_one()
+        _add_owner(
+            conn,
+            actor_id=other_id,
+            project_id=base[5],
+            now=now,
+            event_kind="ACTIVATED",
+            request_id=uuid4(),
+        )
+    other = replace(
+        actor,
+        actor_id=other_id,
+        subject_value=str(other_id.int % 1_000_000),
+        credential_id=f"uid:{other_id.int}",
+    )
+    base[9].principals[other_id] = other
+    request = _command(decision_env)
+    result = service.record_decision(actor, request)
+    for candidate, code in (
+        (request, ErrorCode.FORBIDDEN),
+        (replace(request, id=uuid4()), ErrorCode.IDEMPOTENCY_CONFLICT),
+    ):
+        with pytest.raises(ResearchBaseError) as denied:
+            service.record_decision(other, candidate)
+        assert denied.value.code is code
+    assert service.record_decision(actor, request) == result
+    assert _counts(base[8]) == (1, 1, 1)
+
+
+def test_authority_writer_first_real_table_wait_refreshes_role(decision_env, normal_sql_role):
+    service, _, actor, _, base = decision_env
+    _review(decision_env)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with base[8].begin() as writer:
+            _normal(writer, normal_sql_role)
+            pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
+            row = writer.execute(
+                text("""UPDATE project_role_assignments
+              SET effective_until=clock_timestamp(),row_version=row_version+1
+              WHERE actor_id=:actor AND project_id=:project AND effective_until IS NULL
+              RETURNING id,effective_until"""),
+                {"actor": actor.actor_id, "project": base[5]},
+            ).one()
+            writer.execute(
+                text("""INSERT INTO project_role_events
+              (id,role_assignment_id,actor_id,event_kind,occurred_at,reason,request_id)
+              VALUES (:id,:role,:actor,'CLOSED',:until,'TEST ONLY concurrent closure',:request)"""),
+                {
+                    "id": uuid4(),
+                    "role": row.id,
+                    "actor": actor.actor_id,
+                    "until": row.effective_until,
+                    "request": uuid4(),
+                },
+            )
+            pending = pool.submit(service.record_decision, actor, _command(decision_env))
+            witness = _wait_for_pg_blocker(base[8], pid, "relation")
+            assert "LOCK TABLE" in witness["query"]
+            assert witness["relation"] in {"project_role_assignments", "projects"}
+            assert not pending.done()
+        with pytest.raises(ResearchBaseError) as denied:
+            pending.result(timeout=10)
+        assert denied.value.code is ErrorCode.FORBIDDEN
+    assert _counts(base[8]) == (0, 0, 0)
