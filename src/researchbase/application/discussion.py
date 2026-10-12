@@ -18,6 +18,7 @@ from researchbase.application.discussion_artifacts import (
 )
 from researchbase.application.ports import UnitOfWork
 from researchbase.domain.phase2_identity import VerifiedPrincipal
+from researchbase.foundation.artifact_store import ArtifactStore
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_canonical_json
 
@@ -66,6 +67,7 @@ class DiscussionReadback:
     source_version_ids: tuple[UUID, ...]
     turns: tuple[DiscussionTurnSnapshot, ...]
     derived_candidates: tuple[DerivedDiscussionArtifactCandidate, ...]
+    transcript_artifact_version_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,9 +78,11 @@ class DiscussionCommandResult:
 
 
 class DiscussionService:
-    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any) -> None:
+    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any,
+                 artifact_store: ArtifactStore | None = None) -> None:
         self._factory = factory
         self._credentials = credentials
+        self._artifact_store = artifact_store
 
     def _authorize(
         self, uow: UnitOfWork, principal: VerifiedPrincipal, project: UUID,
@@ -311,8 +315,76 @@ class DiscussionService:
             uow.commit()
             return result
 
-    @staticmethod
-    def _readback(repo: Any, project: UUID, session_id: UUID) -> DiscussionReadback:
+    def bind_transcript(
+        self, principal: VerifiedPrincipal, project: UUID, session_id: UUID,
+        artifact_version_id: UUID, request_id: UUID,
+    ) -> DiscussionCommandResult:
+        _request(request_id)
+        if type(session_id) is not UUID or type(artifact_version_id) is not UUID:
+            _fail(ErrorCode.VALIDATION_ERROR, "session and artifact version UUID required")
+        digest = str(sha256_canonical_json({
+            "command": "BIND_TRANSCRIPT", "project_id": str(project),
+            "session_id": str(session_id), "artifact_version_id": str(artifact_version_id),
+        }))
+
+        def once() -> UUID:
+            with self._factory() as uow:
+                uow.begin_serializable()
+                at = self._authorize(uow, principal, project, _WRITER_ROLES)
+                repo = uow.discussion
+                repo.lock_command(principal.deployment_id, project, principal.actor_id,
+                                  "BIND_TRANSCRIPT", request_id)
+                prior = self._prior(repo.receipt(principal, project, "BIND_TRANSCRIPT", request_id),
+                                    digest)
+                if not prior:
+                    session = repo.session(session_id, project, lock=True)
+                    if session is None:
+                        _fail(ErrorCode.NOT_FOUND, "discussion session not found")
+                    if (
+                        session["status"] != "CLOSED"
+                        or session.get("transcript_artifact_version_id")
+                    ):
+                        _fail(ErrorCode.INVALID_STATE_TRANSITION,
+                              "closed unbound discussion required")
+                    view = self._readback(repo, project, session_id)
+                    self._verify_version(repo, project, artifact_version_id,
+                                         view.derived_candidates[0], binding=True)
+                    repo.bind_transcript(session_id, project, artifact_version_id)
+                    repo.save_receipt(self._receipt(principal, project, "BIND_TRANSCRIPT",
+                                                    request_id, digest, session_id, None, at))
+                self._authorize(uow, principal, project, _WRITER_ROLES)
+                uow.commit()
+                return session_id
+
+        return DiscussionCommandResult("BIND_TRANSCRIPT", self._run(once))
+
+    def _verify_version(
+        self, repo: Any, project: UUID, version_id: UUID,
+        candidate: DerivedDiscussionArtifactCandidate, *, binding: bool,
+    ) -> None:
+        row = repo.transcript_version(version_id, project)
+        statuses = {"FROZEN"} if binding else {"FROZEN", "SUPERSEDED"}
+        if (
+            row is None or row["status"] not in statuses
+            or row["artifact_type"] != "discussion_transcript"
+            or row["media_type"] != candidate.media_type
+            or row["content_hash"] != str(candidate.content_hash)
+            or row["byte_size"] != len(candidate.content)
+            or self._artifact_store is None
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                  "exact transcript ArtifactVersion unavailable")
+        identity = str(candidate.content_hash)
+        try:
+            valid = self._artifact_store.verify(identity)
+            bytes_ = self._artifact_store.open(identity) if valid else None
+        except (OSError, ValueError):
+            valid, bytes_ = False, None
+        if not valid or bytes_ != candidate.content:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                  "exact transcript ArtifactVersion bytes unavailable")
+
+    def _readback(self, repo: Any, project: UUID, session_id: UUID) -> DiscussionReadback:
         session = repo.session(session_id, project)
         if session is None:
             _fail(ErrorCode.NOT_FOUND, "discussion session not found")
@@ -337,11 +409,17 @@ class DiscussionService:
                     sources, claims, turns, questions,
                 )
             )
+        bound = session.get("transcript_artifact_version_id")
+        if bound is not None:
+            if session["status"] != "CLOSED" or not derived:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                      "bound discussion state invalid")
+            self._verify_version(repo, project, bound, derived[0], binding=False)
         return DiscussionReadback(
             session_id, project, session["topic"], session["status"],
             session["created_by"], session["created_at"], session["closed_by"],
             session["closed_at"], session["row_version"], questions, claims,
-            sources, turns, derived,
+            sources, turns, derived, bound,
         )
 
     def request_promotion(self, *_args: object, **_kwargs: object) -> NoReturn:

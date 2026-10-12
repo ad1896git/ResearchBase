@@ -119,6 +119,21 @@ class SqlAlchemyDiscussionRepository:
             {"actor": actor, "at": at, "id": session_id, "project": project},
         )
 
+    def transcript_version(self, version_id: UUID, project: UUID):
+        row = self._session.execute(text("""SELECT v.id,v.status,v.content_hash,
+            v.byte_size,v.media_type,a.artifact_type,a.project_id
+            FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
+            WHERE v.id=:version AND a.project_id=:project"""),
+            {"version": version_id, "project": project}).mappings().first()
+        return dict(row) if row else None
+
+    def bind_transcript(self, session_id: UUID, project: UUID, version_id: UUID) -> None:
+        self._session.execute(text("""UPDATE discussion_sessions
+            SET transcript_artifact_version_id=:version,row_version=row_version+1
+            WHERE id=:session AND project_id=:project AND status='CLOSED'
+              AND transcript_artifact_version_id IS NULL"""),
+            {"version": version_id, "session": session_id, "project": project})
+
     def input_ids(self, session_id: UUID, kind: str) -> tuple[UUID, ...]:
         table = _INPUT_TABLES[kind]
         return tuple(self._session.execute(

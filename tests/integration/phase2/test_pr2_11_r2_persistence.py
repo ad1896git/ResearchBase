@@ -67,7 +67,8 @@ def phase2_database_url(monkeypatch):
         engine.dispose()
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", url)
-        command.upgrade(config, "head")
+        # This suite verifies the exact accepted R2 revision, not future heads.
+        command.upgrade(config, "0033_pr2_11_r2_scientific_conclusion")
         engine = create_engine(url)
         with engine.connect() as conn:
             revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
