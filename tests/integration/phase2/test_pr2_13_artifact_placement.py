@@ -49,6 +49,10 @@ def test_artifact_exact_readback_and_no_promotion(
     assert placed.path_kind == "PLACEMENT_ONLY"
     assert placed.artifact_version_id == figure
     assert service.trace(principal, project, publication.id, draft.id) == (placed,)
+    engine.dispose()
+    assert ArtifactPlacementService(factory, credentials).trace(
+        principal, project, publication.id, draft.id
+    ) == (placed,)
     with engine.connect() as conn:
         assert conn.execute(text("SELECT placement_set_hash FROM manuscript_versions WHERE id=:id"),
                             {"id": draft.id}).scalar_one() is None
@@ -157,6 +161,21 @@ def test_artifact_fail_closed_direct_sql_and_reparent(
                       'FIGURE',0,:actor,now(),1)"""),
               {"id": uuid4(), "manuscript": draft.id, "artifact": artifact,
                "actor": principal.actor_id})
+    rolled_back = uuid4()
+    with pytest.raises(RuntimeError):
+        with engine.begin() as conn:
+            conn.execute(text("""INSERT INTO manuscript_artifact_placements
+              (id,manuscript_version_id,artifact_version_id,section_id,locator,
+               artifact_role,ordinal,created_by,created_at,row_version)
+              VALUES (:id,:manuscript,:artifact,'METHOD',
+                      '{"kind":"CAPTION","value":"temporary"}'::jsonb,
+                      'OTHER',2,:actor,now(),1)"""),
+              {"id": rolled_back, "manuscript": draft.id,
+               "artifact": artifact, "actor": principal.actor_id})
+            raise RuntimeError("force test transaction rollback")
+    with engine.connect() as conn:
+        assert conn.execute(text("""SELECT count(*) FROM manuscript_artifact_placements
+          WHERE id=:id"""), {"id": rolled_back}).scalar_one() == 0
     assert service.trace(principal, project, publication.id, draft.id) == (placed,)
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
