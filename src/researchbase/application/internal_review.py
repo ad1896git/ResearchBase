@@ -1,4 +1,4 @@
-"""Authenticated initial review of an exact frozen ClaimVersion (PR2-14 slice)."""
+"""Authenticated initial review of exact frozen PR2-14 scientific targets."""
 
 from __future__ import annotations
 
@@ -81,6 +81,7 @@ class InternalReviewReadback:
     summary: str
     content_hash: str
     issues: tuple[ReviewIssueReadback, ...]
+    target_kind: str
 
 
 class InternalReviewService:
@@ -92,12 +93,12 @@ class InternalReviewService:
         self._literature = literature_evidence
 
     @staticmethod
-    def _hash(project: UUID, target_id: UUID, digest: str, actor: UUID,
+    def _hash(project: UUID, target_kind: str, target_id: UUID, digest: str, actor: UUID,
               review_type: str, recommendation: str, summary: str) -> str:
         material = {
             "type": "InternalReviewRecord", "material_version": 1,
             "project_id": str(project),
-            "target": {"type": "ClaimVersion", "id": str(target_id),
+            "target": {"type": target_kind, "id": str(target_id),
                        "content_hash": digest},
             "reviewer_actor_id": str(actor), "review_type": review_type,
             "recommendation": recommendation, "summary": summary,
@@ -105,25 +106,38 @@ class InternalReviewService:
         return str(sha256_canonical_json(material))
 
     def _verify(self, uow: UnitOfWork, row: dict) -> None:
-        target_id = row["claim_version_id"]
-        if target_id is None:
+        claim_id = row["claim_version_id"]
+        conclusion_id = row["scientific_conclusion_version_id"]
+        if (claim_id is None) == (conclusion_id is None):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                   "unsupported review target in this read boundary")
-        target = uow.literature_evidence.target("ClaimVersion", target_id, row["project_id"])
+        kind = "ClaimVersion" if claim_id is not None else "ScientificConclusionVersion"
+        target_id = claim_id if claim_id is not None else conclusion_id
+        if kind == "ClaimVersion":
+            target = uow.literature_evidence.target(kind, target_id, row["project_id"])
+        else:
+            target = uow.internal_review.conclusion_target(target_id, row["project_id"])
         if (target is None or target["content_hash"] != row["target_content_hash"]
-            or self._hash(row["project_id"], target_id, row["target_content_hash"],
+            or self._hash(row["project_id"], kind, target_id, row["target_content_hash"],
                           row["reviewer_actor_id"], row["review_type"],
                           row["recommendation"], row["summary"]) != row["content_hash"]):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                   "review hash or frozen target binding mismatch")
-        self._literature._target(uow, "ClaimVersion", target_id, row["project_id"])
+        if kind == "ClaimVersion":
+            self._literature._target(uow, kind, target_id, row["project_id"])
+        else:
+            self._auth._view(uow, row["project_id"],
+                             target["scientific_conclusion_id"], target_id,
+                             require_current=True)
 
     @staticmethod
     def _view(row: dict, issues: list[dict]) -> InternalReviewReadback:
+        claim_id = row["claim_version_id"]
+        kind = "CLAIM_VERSION" if claim_id is not None else "SCIENTIFIC_CONCLUSION_VERSION"
         return InternalReviewReadback(
             row["id"],
             row["project_id"],
-            row["claim_version_id"],
+            claim_id if claim_id is not None else row["scientific_conclusion_version_id"],
             row["target_content_hash"],
             row["reviewer_actor_id"],
             row["review_type"],
@@ -136,6 +150,7 @@ class InternalReviewService:
                 )
                 for i in issues
             ),
+            kind,
         )
 
     def create(
@@ -151,7 +166,7 @@ class InternalReviewService:
         request: UUID,
     ) -> InternalReviewReadback:
         if (
-            target_kind != "CLAIM_VERSION"
+            target_kind not in {"CLAIM_VERSION", "SCIENTIFIC_CONCLUSION_VERSION"}
             or type(target_id) is not UUID
             or type(request) is not UUID
             or review_type not in _TYPES
@@ -159,7 +174,7 @@ class InternalReviewService:
             or not isinstance(issues, tuple)
             or len(issues) > 100
         ):
-            _fail(ErrorCode.VALIDATION_ERROR, "bounded exact Claim review required")
+            _fail(ErrorCode.VALIDATION_ERROR, "bounded exact frozen review required")
         clean_summary = _text(summary, "review summary")
         clean_issues: list[ReviewIssueRequest] = []
         for issue in issues:
@@ -184,7 +199,11 @@ class InternalReviewService:
             repo.lock_request(identity)
             # The advisory lock can wait past role or credential expiry (R4 TEMP-AUTH-01).
             at = self._auth._authorize(uow, principal, project, _REVIEWERS)
-            target = uow.literature_evidence.target("ClaimVersion", target_id, project)
+            is_claim = target_kind == "CLAIM_VERSION"
+            if is_claim:
+                target = uow.literature_evidence.target("ClaimVersion", target_id, project)
+            else:
+                target = repo.conclusion_target(target_id, project, lock=True)
             if (
                 target is None
                 or target["status"] not in {"FROZEN", "SUPERSEDED"}
@@ -196,16 +215,23 @@ class InternalReviewService:
                 )
             if target["created_by"] == principal.actor_id:
                 _fail(ErrorCode.CONFLICT_OF_INTEREST, "reviewer must be independent")
-            checked = self._literature._target(uow, "ClaimVersion", target_id, project)
-            if checked["current_validity"] != "VALID":
-                _fail(
-                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                    "review target current validity is not valid",
-                )
+            if is_claim:
+                checked = self._literature._target(uow, "ClaimVersion", target_id, project)
+                if checked["current_validity"] != "VALID":
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                          "review target current validity is not valid")
+            else:
+                checked = self._auth._view(uow, project,
+                                           target["scientific_conclusion_id"], target_id,
+                                           require_current=True)
+                if checked.validity != "VALID":
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                          "review target current validity is not valid")
             # Target validation can wait on its own row lock after the request lock.
             at = self._auth._authorize(uow, principal, project, _REVIEWERS)
             digest = str(target["content_hash"])
-            own_hash = self._hash(project, target_id, digest, principal.actor_id,
+            kind = "ClaimVersion" if is_claim else "ScientificConclusionVersion"
+            own_hash = self._hash(project, kind, target_id, digest, principal.actor_id,
                                   review_type, recommendation, clean_summary)
             existing = repo.review(identity, project)
             if existing is not None:
@@ -231,7 +257,8 @@ class InternalReviewService:
                 {
                     "id": identity,
                     "project_id": project,
-                    "claim_version_id": target_id,
+                    "claim_version_id": target_id if is_claim else None,
+                    "scientific_conclusion_version_id": None if is_claim else target_id,
                     "target_content_hash": digest,
                     "reviewer_actor_id": principal.actor_id,
                     "review_type": review_type,

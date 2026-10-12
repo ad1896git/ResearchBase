@@ -30,6 +30,17 @@ class SqlAlchemyInternalReviewRepository:
         )
         return dict(row) if row else None
 
+    def conclusion_target(self, identity: UUID, project: UUID,
+                          *, lock: bool = False) -> dict | None:
+        suffix = " FOR UPDATE OF v,c" if lock else ""
+        row = self._session.execute(text("""SELECT v.id,v.scientific_conclusion_id,
+          v.status,v.frozen_at,v.content_hash,v.created_by
+          FROM scientific_conclusion_versions v
+          JOIN scientific_conclusions c ON c.id=v.scientific_conclusion_id
+          WHERE v.id=:id AND c.project_id=:project""" + suffix),
+          {"id": identity, "project": project}).mappings().one_or_none()
+        return dict(row) if row else None
+
     def issues(self, identity: UUID) -> list[dict]:
         rows = (
             self._session.execute(
@@ -45,9 +56,11 @@ class SqlAlchemyInternalReviewRepository:
     def insert_review(self, values: dict[str, object]) -> None:
         self._session.execute(
             text("""INSERT INTO internal_review_records
-          (id,project_id,claim_version_id,target_content_hash,reviewer_actor_id,
+          (id,project_id,claim_version_id,scientific_conclusion_version_id,
+           target_content_hash,reviewer_actor_id,
            review_type,recommendation,summary,created_at,content_hash,hash_scheme)
-          VALUES (:id,:project_id,:claim_version_id,:target_content_hash,
+          VALUES (:id,:project_id,:claim_version_id,:scientific_conclusion_version_id,
+           :target_content_hash,
            :reviewer_actor_id,:review_type,:recommendation,:summary,:created_at,
            :content_hash,:hash_scheme)"""),
             values,
