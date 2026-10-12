@@ -104,8 +104,8 @@ def test_conclusion_review_exact_frozen_target_and_initial_issue(
         assert row.target_content_hash == created.target_content_hash
         assert conn.execute(text("SELECT count(*) FROM review_issue_events")).scalar_one() == 1
         assert conn.execute(
-            text("SELECT to_regclass('public.decision_records')")
-        ).scalar_one() is None
+            text("SELECT count(*) FROM decision_records")
+        ).scalar_one() == 0
     with pytest.raises(DBAPIError), engine.begin() as conn:
         conn.execute(text("""INSERT INTO internal_review_records
           (id,project_id,scientific_conclusion_version_id,target_content_hash,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from threading import Event
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -12,11 +13,6 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import event, text
 from sqlalchemy.exc import DBAPIError
-from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
-from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
-from tests.integration.phase2.test_pr2_11_r2_persistence import conclusion_env as _conclusion_env
-from tests.integration.phase2.test_pr2_11_r2_persistence import phase2_database_url as _database_url
-from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 
 from researchbase.application.decision import DecisionService, RecordDecisionCommand
 from researchbase.application.governance import (
@@ -32,6 +28,11 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.time import SystemClock
+from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
+from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
+from tests.integration.phase2.test_pr2_11_r2_persistence import conclusion_env as _conclusion_env
+from tests.integration.phase2.test_pr2_11_r2_persistence import phase2_database_url as _database_url
+from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 
 pytestmark = pytest.mark.integration
 pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
@@ -310,7 +311,7 @@ def test_closed_command_rejects_unsupported_material(decision_env, changes):
     assert denied.value.code is ErrorCode.VALIDATION_ERROR
     assert _counts(base[8]) == (0, 0, 0)
     with pytest.raises(TypeError):
-        RecordDecisionCommand(
+        cast(Any, RecordDecisionCommand)(
             uuid4(), base[5], decision_env[3].version_id, "Q", "R", decided_by=base[3].actor_id
         )
 

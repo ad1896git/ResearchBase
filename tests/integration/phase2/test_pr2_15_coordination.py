@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 
@@ -141,6 +142,7 @@ def test_history_stays_immutable(coordination_env, table, operation):
 
 def test_catalog_and_downgrade_refuses_to_remove_history_guarantees(coordination_env):
     config, engine, _, review, _ = coordination_env
+    installed_head = ScriptDirectory.from_config(config).get_current_head()
     with engine.connect() as conn:
         before = conn.execute(text("SELECT * FROM internal_review_records WHERE id=:id"),
                               {"id": review.id}).one()
@@ -150,7 +152,7 @@ def test_catalog_and_downgrade_refuses_to_remove_history_guarantees(coordination
         assert {"pr214_review_guard", "pr214_issue_guard", "pr214_open_event"} <= names
         assert conn.execute(
             text("SELECT version_num FROM alembic_version")
-        ).scalar_one() == REVISION
+        ).scalar_one() == installed_head
     with pytest.raises(DBAPIError):
         command.downgrade(config, "0040_pr2_14_initial_internal_review")
     with engine.connect() as conn:
@@ -158,7 +160,7 @@ def test_catalog_and_downgrade_refuses_to_remove_history_guarantees(coordination
                             {"id": review.id}).one() == before
         assert conn.execute(
             text("SELECT version_num FROM alembic_version")
-        ).scalar_one() == REVISION
+        ).scalar_one() == installed_head
 
 
 def test_empty_upgrade_downgrade_round_trip(phase2_database_url):
