@@ -227,6 +227,33 @@ def test_conclusion_review_rejects_currently_stale_input(
         assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
 
 
+def test_historical_conclusion_review_remains_readable_after_upstream_stales(
+    conclusion_env, phase2_database_url,
+):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "head")
+    service, author, reviewer, project, version, engine = _frozen_conclusion(conclusion_env)
+    prior = service.create(
+        reviewer, project, "SCIENTIFIC_CONCLUSION_VERSION", version,
+        "SCIENTIFIC", "UNCERTAIN", "Test-only historical assessment", (), uuid4(),
+    )
+    _, factory, _, _, _, _, claim_id, _, _, _ = conclusion_env
+    context = ExecutionContext(actor_id=author.actor_id, request_id=uuid4(), client_type="test")
+    governance = GovernanceService(factory, SystemClock())
+    finding = governance.create_audit_finding(CreateAuditFindingCommand(
+        project, "code_bug", "major", "Test-only late impact", "Claim needs recheck",
+        "claim_version", claim_id, context,
+    ))
+    governance.create_impact_assessment(CreateImpactAssessmentCommand(
+        project, finding.id, {"basis": "test-only"}, "stale",
+        (ProposedImpactTarget("claim_version", claim_id, "stale"),), context,
+    ))
+    assert service.read(reviewer, project, prior.id) == prior
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 1
+
+
 def test_conclusion_review_rechecks_credential_after_observed_target_lock_wait(
     conclusion_env, phase2_database_url,
 ):

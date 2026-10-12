@@ -128,7 +128,7 @@ class InternalReviewService:
         else:
             self._auth._view(uow, row["project_id"],
                              target["scientific_conclusion_id"], target_id,
-                             require_current=True)
+                             require_current=False)
 
     @staticmethod
     def _view(row: dict, issues: list[dict]) -> InternalReviewReadback:
