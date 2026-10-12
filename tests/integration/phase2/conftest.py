@@ -23,6 +23,14 @@ def phase2_database_url(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
             connection.execute(text(f"CREATE DATABASE {quoted_name}"))
         test_url = base_url.set(database=database_name)
         rendered_url = test_url.render_as_string(hide_password=False)
+        # Config.set_main_option() is used by these tests. Keep a Unix socket
+        # host as literal slashes so ConfigParser does not reject SQLAlchemy's
+        # otherwise equivalent percent-escaped rendering before migration.
+        socket_host = test_url.query.get("host")
+        if isinstance(socket_host, str) and socket_host.startswith("/"):
+            rendered_url = rendered_url.replace(
+                f"host={socket_host.replace('/', '%2F')}", f"host={socket_host}"
+            )
         monkeypatch.setenv("DATABASE_URL", rendered_url)
         yield rendered_url
     finally:

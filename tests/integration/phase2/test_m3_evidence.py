@@ -544,14 +544,38 @@ def test_pg_m3_migration_from_phase1_and_empty_roundtrip(phase2_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     command.upgrade(config, "0018_current_pointer_same_parent_integrity")
-    command.upgrade(config, "head")
+    command.upgrade(config, "0031_m3_snapshot_relation_cardinality")
     command.downgrade(config, "0029_metadata_observations")
-    command.upgrade(config, "head")
+    command.upgrade(config, "0031_m3_snapshot_relation_cardinality")
     engine = create_engine(phase2_database_url)
     with engine.connect() as connection:
         assert (
             connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
             == "0031_m3_snapshot_relation_cardinality"
+        )
+    engine.dispose()
+
+
+def test_pg_m3_alembic_env_preserves_percent_escaped_socket_url(
+    phase2_database_url, monkeypatch
+):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    encoded_url = phase2_database_url.replace("host=/private/tmp", "host=%2Fprivate%2Ftmp")
+    assert encoded_url != phase2_database_url
+    monkeypatch.setenv("DATABASE_URL", encoded_url)
+    config = Config("alembic.ini")
+    command.upgrade(config, "0031_m3_snapshot_relation_cardinality")
+    assert config.get_main_option("sqlalchemy.url") == encoded_url
+    engine = create_engine(encoded_url)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT current_database()")).scalar_one() == (
+            engine.url.database
+        )
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0031_m3_snapshot_relation_cardinality"
         )
     engine.dispose()
 
