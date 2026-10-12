@@ -12,6 +12,10 @@ PR2-09 official STORM adapter is a SHOULD and may be deferred when native strate
 | Field contract shared physical and correction §7 | One linear migration adds only `manuscript_citation_placements`, its exact FKs, uniqueness, indexes and frozen-target/parent guards. | Disposable PostgreSQL catalog and direct-SQL rejection; empty downgrade restores 0035 catalog; nonempty downgrade refuses. |
 | Existing PR2-12 Application/UoW | Owner/Researcher write, project-scoped authorized read, one transaction, request replay serialized and payload checked. | Unauthorized, cross-project, duplicate and concurrent replay tests. |
 
+The citation command bounds both `section_id` and locator `value` to 2000
+Unicode code points after NFC normalization. The database repeats these limits
+for direct SQL writes.
+
 Exclusions: Claim/Conclusion and Artifact placements, placement-set or manuscript
 content hashes, manuscript freeze, formal promotion, review, approval, retained
 M2/M3 writes, live provider contact. This slice cannot claim full PR2-13 or

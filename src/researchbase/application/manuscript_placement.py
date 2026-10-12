@@ -18,6 +18,7 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 _PURPOSES = frozenset({"BACKGROUND", "METHOD", "COMPARISON", "EVIDENCE",
                        "PRIOR_ART", "DATASET", "OTHER"})
 _KINDS = frozenset({"PARAGRAPH", "SPAN", "CAPTION", "ANCHOR"})
+_MAX_PLACEMENT_TEXT = 2000
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,8 +42,9 @@ def _text(value: object) -> str:
         normalized.encode("utf-8", "strict")
     except UnicodeError as exc:
         raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid Unicode") from exc
-    if not normalized.strip():
-        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "nonblank text required")
+    if not normalized.strip() or len(normalized) > _MAX_PLACEMENT_TEXT:
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR,
+                                "placement text must be nonblank and at most 2000 characters")
     return normalized
 
 
@@ -73,6 +75,7 @@ class CitationPlacementService:
         manuscript: UUID, source: UUID, section: str, locator: dict[str, str],
         purpose: str, ordinal: int, request_id: UUID,
     ) -> CitationTrace:
+        """Add a citation; section and locator value are each limited to 2000 characters."""
         if (type(publication) is not UUID or type(manuscript) is not UUID
             or type(source) is not UUID or type(request_id) is not UUID
             or type(ordinal) is not int or ordinal < 0 or purpose not in _PURPOSES

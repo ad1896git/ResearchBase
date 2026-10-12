@@ -100,6 +100,11 @@ def test_citation_rejects_tampering_and_bad_authority(
     with pytest.raises(ResearchBaseError):
         placements.add(*args[:6], {"kind": "PAGE", "value": "p1"}, *args[7:], uuid4())
     with pytest.raises(ResearchBaseError):
+        placements.add(*args[:5], "S" * 2001, *args[6:], uuid4())
+    with pytest.raises(ResearchBaseError):
+        placements.add(*args[:6], {"kind": "PARAGRAPH", "value": "p" * 2001},
+                       *args[7:], uuid4())
+    with pytest.raises(ResearchBaseError):
         placements.add(*args[:6], {"kind": "PARAGRAPH", "value": "p2"},
                        *args[7:], key)
     with pytest.raises(ResearchBaseError):
@@ -122,6 +127,17 @@ def test_citation_rejects_tampering_and_bad_authority(
               VALUES (:id,:manuscript,:source,'INTRO',CAST(:locator AS jsonb),
                       'BACKGROUND',0,:actor,now(),1)"""),
               {"id": uuid4(), "manuscript": draft.id, "source": source_version,
+               "locator": '{"kind":"PARAGRAPH","value":"p1"}',
+               "actor": principal.actor_id})
+    with pytest.raises(DBAPIError):
+        with engine.begin() as conn:
+            conn.execute(text("""INSERT INTO manuscript_citation_placements
+              (id,manuscript_version_id,source_version_id,section_id,locator,
+               citation_purpose,ordinal,created_by,created_at,row_version)
+              VALUES (:id,:manuscript,:source,:section,CAST(:locator AS jsonb),
+                      'BACKGROUND',1,:actor,now(),1)"""),
+              {"id": uuid4(), "manuscript": draft.id, "source": source_version,
+               "section": "S" * 2001,
                "locator": '{"kind":"PARAGRAPH","value":"p1"}',
                "actor": principal.actor_id})
     draft_source = uuid4()

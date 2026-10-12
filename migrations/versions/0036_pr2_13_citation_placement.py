@@ -14,13 +14,15 @@ def upgrade() -> None:
       id UUID PRIMARY KEY,
       manuscript_version_id UUID NOT NULL REFERENCES manuscript_versions(id) ON DELETE RESTRICT,
       source_version_id UUID NOT NULL REFERENCES source_versions(id) ON DELETE RESTRICT,
-      section_id TEXT NOT NULL CHECK (length(btrim(section_id)) > 0),
+      section_id TEXT NOT NULL CHECK (length(btrim(section_id)) > 0
+                                      AND char_length(section_id) <= 2000),
       locator JSONB NOT NULL CHECK (
         jsonb_typeof(locator)='object' AND locator - 'kind' - 'value' = '{}'::jsonb
         AND locator ? 'kind' AND locator ? 'value'
         AND locator->>'kind' IN ('PARAGRAPH','SPAN','CAPTION','ANCHOR')
         AND jsonb_typeof(locator->'value')='string'
-        AND length(btrim(locator->>'value')) > 0),
+        AND length(btrim(locator->>'value')) > 0
+        AND char_length(locator->>'value') <= 2000),
       citation_purpose VARCHAR(16) NOT NULL CHECK (citation_purpose IN
         ('BACKGROUND','METHOD','COMPARISON','EVIDENCE','PRIOR_ART','DATASET','OTHER')),
       ordinal INT NOT NULL CHECK (ordinal >= 0),
