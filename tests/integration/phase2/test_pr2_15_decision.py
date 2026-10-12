@@ -379,7 +379,7 @@ def test_replay_current_read_authority_survives_write_role_loss(decision_env):
     identity, _, _ = identity_service(str(base[8].url))
     identity.assign_project_role(
         AssignProjectRole(
-            base[3], base[5], actor.actor_id, "VIEWER", "TEST ONLY historical read", uuid4()
+            actor, base[5], actor.actor_id, "VIEWER", "TEST ONLY historical read", uuid4()
         )
     )
     with base[8].connect() as conn:
