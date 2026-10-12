@@ -63,3 +63,31 @@ class SqlAlchemyPublicationRepository:
                   :title,:abstract,:semantic_change_class,:placement_set_hash,:content_hash,
                   :hash_scheme,
                   :created_by,:created_at,:frozen_at,:row_version)"""), values)
+
+    def citation_source(self, identity: UUID, project: UUID):
+        row = self._session.execute(text("""SELECT v.id,v.status,v.frozen_at,v.content_hash
+          FROM source_versions v JOIN literature_source_project_links l
+            ON l.literature_source_id=v.literature_source_id
+          WHERE v.id=:id AND l.project_id=:project FOR SHARE OF v,l"""),
+          {"id": identity, "project": project}).mappings().first()
+        return dict(row) if row else None
+
+    def insert_citation(self, values: dict[str, object]) -> None:
+        self._session.execute(text("""INSERT INTO manuscript_citation_placements
+          (id,manuscript_version_id,source_version_id,section_id,locator,
+           citation_purpose,ordinal,created_by,created_at,row_version)
+          VALUES (:id,:manuscript_version_id,:source_version_id,:section_id,
+                  CAST(:locator AS jsonb),:citation_purpose,:ordinal,:created_by,
+                  :created_at,:row_version)"""), values)
+
+    def citation(self, identity: UUID, manuscript: UUID):
+        row = self._session.execute(text("""SELECT * FROM manuscript_citation_placements
+          WHERE id=:id AND manuscript_version_id=:manuscript"""),
+          {"id": identity, "manuscript": manuscript}).mappings().first()
+        return dict(row) if row else None
+
+    def citations(self, manuscript: UUID):
+        rows = self._session.execute(text("""SELECT * FROM manuscript_citation_placements
+          WHERE manuscript_version_id=:manuscript ORDER BY section_id,ordinal,id"""),
+          {"manuscript": manuscript}).mappings().all()
+        return [dict(row) for row in rows]

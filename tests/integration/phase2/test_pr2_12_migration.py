@@ -46,7 +46,8 @@ def test_upgrade_to_pr212_and_empty_downgrade(start):
             prior_tables = set(conn.execute(text("""SELECT tablename FROM pg_tables
               WHERE schemaname='public'""")).scalars().all())
         engine.dispose()
-        command.upgrade(config, "head")
+        # This test verifies the exact PR2-12 revision, not later Phase 2 heads.
+        command.upgrade(config, "0035_pr2_12_publication_draft")
         engine = create_engine(url)
         with engine.connect() as conn:
             assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
