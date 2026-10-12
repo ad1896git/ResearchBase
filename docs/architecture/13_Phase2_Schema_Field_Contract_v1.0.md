@@ -52,6 +52,8 @@ The exhaustive `literature_sources`, `source_identifiers` and `source_identifier
 
 ## Governance, prepared package and novelty
 
+Addendum A23 and [PR2-15-S1 Minimal Decision Command §2–6](20_PR2_15_Minimal_Decision_Command_Contract_v1.0.md) refine only the initial INTERNAL_SCIENTIFIC_RELEASE/PROCEED command: canonical DecisionRecord `id` is its request UUID; typed conclusion/review basis seals the service-selected complete evidence set; no second decision may replace the same project/exact conclusion/purpose even under a new UUID. Future database guards must enforce that scope, immutability and shared review/Issue coordination without new semantic columns, receipts or digests. The field inventory and existing R2 hash payloads remain unchanged; implementation and a forward migration require separate authorization.
+
 | Table | Semantic columns beyond shared columns | Keys, state and immutability |
 |---|---|---|
 | `internal_review_records` | `project_id UUID`, XOR `manuscript_version_id`, `claim_version_id`, `scientific_conclusion_version_id`, `research_brief_artifact_version_id` UUIDs, `target_content_hash CHAR(64)`, `reviewer_actor_id UUID`, `review_type VARCHAR(24)`, `recommendation VARCHAR(24)`, `summary TEXT`, `content_hash CHAR(64)` | Exact frozen target FK and XOR CHECK; immutable; index on each target and reviewer. |

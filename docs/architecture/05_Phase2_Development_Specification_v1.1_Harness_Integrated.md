@@ -1740,6 +1740,8 @@ If external adapter instability blocks this PR, it MAY be deferred without block
 - immutable decision；
 - revision trace。
 
+The first, bounded `record_decision(INTERNAL_SCIENTIFIC_RELEASE, PROCEED)` command is refined by Addendum A23 and [Minimal Decision Command Contract v1.0](20_PR2_15_Minimal_Decision_Command_Contract_v1.0.md), under the scoped freeze declaration. It selects the complete eligible exact-target review basis and does not replace an earlier scoped decision. No other Decision purpose, RevisionAction, Issue disposition, implementation, migration or formal milestone admission is authorized by this contract freeze.
+
 ## PR2-16 — Basic Approval
 
 - request/decision/grant；
