@@ -137,6 +137,7 @@ def test_unreviewed_contradiction_is_not_promoted_or_inferred_from_citation(
     )
     assert len(trace.literature_evidence) == 1
     path = trace.literature_evidence[0]
+    assert path.conclusion_version_id == conclusion.version_id
     assert path.relation_type == "CONTRADICTS"
     assert path.review_status == "UNREVIEWED"
     assert path.review_event_id is None
@@ -175,3 +176,42 @@ def test_empty_duplicate_and_unauthorized_trace(
     assert len(trace.claim_experiment_evidence) == 1
     assert [p.section_id for p in trace.placements] == ["DISCUSSION", "RESULTS"]
     assert _counts(engine)[0] == 2
+
+
+def test_conclusion_trace_uses_only_its_pinned_claim_snapshot(
+    conclusion_env, phase2_database_url, tmp_path,
+):
+    (scientific, factory, _engine, credentials, principal, project, claim_id,
+     publication, draft) = _draft(conclusion_env, phase2_database_url, tmp_path)
+    evidence_service = conclusion_env[2]
+    source = conclusion_env[7]
+    evidence = evidence_service.create(
+        principal, project, source, "improved recall", uuid4()
+    )
+    edge = {"evidence_id": evidence["id"], "relation_type": "CONTRADICTS",
+            "qualification": "test-only contradictory observation"}
+    old = evidence_service.snapshot(
+        principal, project, "ClaimVersion", claim_id, [edge], uuid4()
+    )
+    newer = evidence_service.snapshot(
+        principal, project, "ClaimVersion", claim_id,
+        [{**edge, "qualification": "test-only later interpretation"}], uuid4(),
+    )
+    conclusion = scientific.create(
+        principal, project, "Test-only pinned snapshot", SCOPE, "MIXED", None,
+        (ClaimInputRequest(claim_id, "SUPPORTS", UUID(old["id"])),), (), uuid4(),
+    )
+    scientific.freeze(principal, project, conclusion.conclusion_id,
+                      conclusion.version_id, uuid4())
+    ClaimPlacementService(factory, credentials).add(
+        principal, project, publication.id, draft.id, None, conclusion.version_id,
+        "DISCUSSION", {"kind": "SPAN", "value": "s2"}, "SUGGESTIVE", 0, uuid4(),
+    )
+    trace = ManuscriptScientificTraceService(factory, credentials).trace(
+        principal, project, publication.id, draft.id
+    )
+    assert trace.conclusion_claim_inputs[0].literature_support_snapshot_id == UUID(old["id"])
+    assert len(trace.literature_evidence) == 1
+    assert trace.literature_evidence[0].conclusion_version_id == conclusion.version_id
+    assert trace.literature_evidence[0].snapshot_id == UUID(old["id"])
+    assert trace.literature_evidence[0].snapshot_id != UUID(newer["id"])

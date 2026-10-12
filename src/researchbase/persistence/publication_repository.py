@@ -250,16 +250,9 @@ class SqlAlchemyPublicationRepository:
 
     def scientific_trace_literature_evidence(self, manuscript: UUID, project: UUID):
         rows = self._session.execute(text("""
-          WITH trace_claims AS (
-            SELECT claim_version_id AS id FROM manuscript_claim_placements
-              WHERE manuscript_version_id=:manuscript AND claim_version_id IS NOT NULL
-            UNION
-            SELECT i.claim_version_id AS id FROM manuscript_claim_placements p
-              JOIN scientific_conclusion_claim_inputs i
-                ON i.conclusion_version_id=p.scientific_conclusion_version_id
-              WHERE p.manuscript_version_id=:manuscript
-          ), links AS (
+          WITH links AS (
             SELECT 'CONCLUSION_INPUT'::text AS link_kind,
+              i.conclusion_version_id AS conclusion_version_id,
               i.conclusion_version_id AS owner_version_id,
               NULL::uuid AS snapshot_id,NULL::uuid AS relation_id,
               NULL::uuid AS snapshot_project_id,
@@ -269,13 +262,20 @@ class SqlAlchemyPublicationRepository:
               ON i.conclusion_version_id=p.scientific_conclusion_version_id
             WHERE p.manuscript_version_id=:manuscript
             UNION ALL
-            SELECT 'CLAIM_SNAPSHOT',s.claim_version_id,s.id,r.id,s.project_id,
+            SELECT 'CLAIM_SNAPSHOT',i.conclusion_version_id,
+              s.claim_version_id,s.id,r.id,s.project_id,
               r.literature_evidence_id,r.relation_type,r.ordinal
-            FROM trace_claims t
-            JOIN literature_support_snapshots s ON s.claim_version_id=t.id
+            FROM manuscript_claim_placements p
+            JOIN scientific_conclusion_claim_inputs i
+              ON i.conclusion_version_id=p.scientific_conclusion_version_id
+            JOIN literature_support_snapshots s
+              ON s.id=i.literature_support_snapshot_id
+                AND s.claim_version_id=i.claim_version_id
             JOIN literature_evidence_relations r ON r.literature_support_snapshot_id=s.id
+            WHERE p.manuscript_version_id=:manuscript
           )
-          SELECT l.link_kind,l.owner_version_id,l.snapshot_id,l.relation_id,
+          SELECT l.link_kind,l.conclusion_version_id,l.owner_version_id,
+            l.snapshot_id,l.relation_id,
             l.snapshot_project_id,
             l.evidence_id,l.relation_type,l.ordinal,
             e.project_id AS evidence_project_id,e.source_version_id,

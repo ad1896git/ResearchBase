@@ -65,6 +65,7 @@ class ClaimExperimentEvidenceTrace:
 @dataclass(frozen=True, slots=True)
 class LiteratureEvidenceTrace:
     link_kind: str
+    conclusion_version_id: UUID
     owner_version_id: UUID
     snapshot_id: UUID | None
     relation_id: UUID | None
@@ -174,7 +175,8 @@ class ManuscriptScientificTraceService:
             if reviewed and row["review_event_status"] != row["review_status"]:
                 _unresolved()
             result.append(LiteratureEvidenceTrace(
-                row["link_kind"], row["owner_version_id"], row["snapshot_id"],
+                row["link_kind"], row["conclusion_version_id"],
+                row["owner_version_id"], row["snapshot_id"],
                 row["relation_id"], row["evidence_id"], row["relation_type"],
                 row["ordinal"], row["source_version_id"],
                 row["evidence_content_hash"], row["source_content_hash"],
