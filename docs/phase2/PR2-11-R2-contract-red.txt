@@ -1,0 +1,17 @@
+
+==================================== ERRORS ====================================
+________ ERROR collecting tests/unit/phase2/test_pr2_11_r2_contract.py _________
+ImportError while importing test module '/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/pr2-11-r2-recovery/tests/unit/phase2/test_pr2_11_r2_contract.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.14/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/phase2/test_pr2_11_r2_contract.py:9: in <module>
+    from researchbase.domain.scientific_conclusion import (
+E   ModuleNotFoundError: No module named 'researchbase.domain.scientific_conclusion'
+=========================== short test summary info ============================
+ERROR tests/unit/phase2/test_pr2_11_r2_contract.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+
+TEST_PROCESS_EXIT_STATUS=2
