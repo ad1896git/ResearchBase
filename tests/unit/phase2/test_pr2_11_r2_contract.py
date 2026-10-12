@@ -15,7 +15,6 @@ from researchbase.domain.scientific_conclusion import (
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.hashing import sha256_canonical_json
 
-
 CLAIM = UUID("00000000-0000-0000-0000-000000000002")
 CONCLUSION = UUID("00000000-0000-0000-0000-000000000003")
 EVIDENCE = UUID("00000000-0000-0000-0000-000000000016")
