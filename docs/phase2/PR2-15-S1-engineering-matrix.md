@@ -16,7 +16,7 @@ Authority: frozen companion 20 v1.0, SHA-256 `e22b6b4f5f5a93863a3d1f3fe06e1ece4e
 | §6 | canonical DecisionRecord.id=request UUID; compare normalized existing caller material + authenticated actor/project/command, never server-selected basis as caller payload | Same/conflicting UUID; concurrent duplicates; unknown UUID |
 | §6 | Existing immutable DecisionReadback: id/project/type/value/question/rationale/decided_by/decided_at, target hash, typed saved basis and basis/content hashes | Exact replay after STALE/original write-role loss only with current independent read authority; nondisclosing denial |
 | §4 | At most one initial decision per project/exact-target/purpose across actors and UUIDs; existing typed relations enforce database scope guard | New UUID replacement/concurrent/direct SQL rejection |
-| §3,6 | Literal R2 basis/content payload; no receipt/new digest/semantic column; transaction-scoped creation audit via existing audit mechanism only | Golden R2 shape/hash tests; rollback/no duplicate audit |
+| §3,6 | Literal R2 basis/content payload; no receipt/new digest/semantic column; immutable attributable decision fact; any existing creation audit mechanism is conditional, with no new audit schema | Golden R2 shape/hash tests; rollback/no duplicate audit |
 | §6 | Existing ErrorCode categories; sanitize database errors and forbidden history | No protected identity or raw exception leak |
 | §7 | Forward-only accepted migration changes: 0041 review coordination; 0042 minimal DecisionRecord and typed conclusion/review basis only; preserve every required physical FK/index/immutability rule | Single head; catalog inventory; data-preserving upgrade/downgrade |
 | §1,7 | No Approval/grant/release/Issue disposition/RevisionAction/VERIFIED/manuscript or formal gate changes | Database side-effect assertions |
@@ -30,10 +30,10 @@ Existing canonical field/hash rules are inherited, never expanded. Anything not 
 - Agent B isolated worktree: Application `decision.py`, persistence `decision_repository.py`, domain decision hash/readback helpers if necessary, migration 0042, focused unit tests. Does not edit UoW/ports or A/C files. Develop 0042 down_revision against agreed 0041 identifier `0041_pr2_15_review_coordination`.
 - Agent C isolated worktree: `test_pr2_15_decision.py` and separate test helpers only; independently contract-derived adversarial PostgreSQL tests. No production/migration changes.
 
-- [ ] A writes red SQL coordination tests, witnesses old behavior, implements forward guards, verifies upgrade/downgrade and original PR2-14.
-- [ ] B writes red hash/command tests, implements frozen command and typed persistence, records any unresolved authority/closure writer issue immediately.
-- [ ] C writes independent tests against agreed command interface; fixtures stay TEST ONLY.
-- [ ] Integrator freezes/reviews Gate A before integrating B/C; separate evidence commit.
-- [ ] Integrator runs integrated disposable PostgreSQL, PR2-10–14 regression, Ruff/focused Pyright and architecture checks; freezes/reviews Gate B; separate evidence commit.
+- [x] A writes red SQL coordination tests, witnesses old behavior, implements forward guards, verifies upgrade/downgrade and original PR2-14.
+- [x] B writes red hash/command tests, implements frozen command and typed persistence, records any unresolved authority/closure writer issue immediately.
+- [x] C writes independent tests against agreed command interface; fixtures stay TEST ONLY.
+- [x] Integrator freezes/reviews Gate A before integrating B/C; separate evidence commit.
+- [x] Integrator runs integrated disposable PostgreSQL, PR2-10–14 regression, Ruff/focused Pyright and architecture checks; freezes/reviews Gate B; separate evidence commit.
 
 All test databases must be newly created, individually fixture-owned on port 55442. Read-only preflight verified `onephone|postgres|55442|/private/tmp/rb-m3-postgres|7695073913076924777`. Existing accepted conclusion fixture verifies identity before CREATE and uses UUID-named databases with cleanup. Agents use independent fixture-created databases, never retained state. Any production dependency/writer inconsistency or normative gap blocks affected gate. Two narrow remediation rounds maximum per gate. No remote push/protected merge/deployment.
