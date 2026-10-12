@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from uuid import UUID, uuid4
+from threading import Event
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from alembic import command
@@ -12,6 +13,13 @@ from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
+from researchbase.application.commands import CreateProjectCommand
+from researchbase.application.governance import (
+    CreateAuditFindingCommand,
+    CreateImpactAssessmentCommand,
+    GovernanceService,
+    ProposedImpactTarget,
+)
 from researchbase.application.internal_review import InternalReviewService, ReviewIssueRequest
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
@@ -252,6 +260,147 @@ def test_draft_and_cross_project_review_targets_fail_closed(
             uuid4(),
         )
     assert engine is not None
+
+
+def test_missing_claim_and_denied_review_leave_no_partial_history(
+    conclusion_env, phase2_database_url
+):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "head")
+    _, factory, evidence_service, author, reviewer, project, claim_id, _, engine, credentials = (
+        conclusion_env
+    )
+    service = InternalReviewService(factory, credentials, evidence_service)
+    issue = ReviewIssueRequest("MAJOR", "UNSUPPORTED_CLAIM", "Test-only issue")
+    for principal, target in ((reviewer, uuid4()), (author, claim_id)):
+        with pytest.raises(ResearchBaseError):
+            service.create(
+                principal, project, "CLAIM_VERSION", target, "SCIENTIFIC",
+                "MAJOR_REVISION", "Denied exact review", (issue,), uuid4(),
+            )
+    with engine.connect() as conn:
+        for table in ("internal_review_records", "review_issues", "review_issue_events"):
+            assert conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one() == 0
+
+
+def test_reviewer_role_expiry_and_revocation_deny_review(
+    conclusion_env, phase2_database_url
+):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "head")
+    _, factory, evidence_service, author, reviewer, project, claim_id, _, engine, credentials = (
+        conclusion_env
+    )
+    service = InternalReviewService(factory, credentials, evidence_service)
+    with engine.connect() as conn:
+        role = conn.execute(text("""SELECT id FROM project_role_assignments
+          WHERE actor_id=:actor AND project_id=:project AND effective_until IS NULL"""),
+          {"actor": reviewer.actor_id, "project": project}).scalar_one()
+    from researchbase.application.phase2_identity import CloseProjectRole
+    from tests.integration.phase2.test_pr2_00_challenges import _service
+
+    identity, _, _ = _service(str(engine.url))
+    identity.close_project_role(CloseProjectRole(
+        author, project, role, "Test-only role revocation", uuid4()))
+    with engine.connect() as conn:
+        ended = conn.execute(text("""SELECT effective_until FROM project_role_assignments
+          WHERE id=:id"""), {"id": role}).scalar_one()
+        assert ended is not None
+        assert conn.execute(text("""SELECT count(*) FROM project_role_events
+          WHERE role_assignment_id=:id AND event_kind='CLOSED'"""),
+          {"id": role}).scalar_one() == 1
+    with pytest.raises(ResearchBaseError):
+        service.create(reviewer, project, "CLAIM_VERSION", claim_id, "SCIENTIFIC",
+                       "ACCEPT", "Role closed", (), uuid4())
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
+
+
+def test_currently_stale_claim_and_cross_project_issue_reference_fail_closed(
+    conclusion_env, phase2_database_url, tmp_path
+):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "head")
+    _, factory, evidence_service, author, reviewer, project, claim_id, _, engine, credentials = (
+        conclusion_env
+    )
+    service = InternalReviewService(factory, credentials, evidence_service)
+    app = ApplicationService(
+        factory, SystemClock(), ContentAddressedFilesystemArtifactStore(tmp_path / "issue-cas")
+    )
+    context = ExecutionContext(actor_id=author.actor_id, request_id=uuid4(), client_type="test")
+    other = app.create_project(CreateProjectCommand("Other test project", None, context))
+    _, other_draft = seed_claim(app, ProjectId(other.id), context, "Other project claim")
+    created = service.create(
+        reviewer, project, "CLAIM_VERSION", claim_id, "SCIENTIFIC", "MAJOR_REVISION",
+        "Independent test review", (ReviewIssueRequest("MAJOR", "CITATION", "Check source"),),
+        uuid4(),
+    )
+    with pytest.raises(DBAPIError), engine.begin() as conn:
+        conn.execute(text("""INSERT INTO review_issues
+          (id,review_record_id,severity,issue_type,description,related_claim_version_id,
+           status,created_at,ordinal)
+          VALUES (:id,:review,'MAJOR','CITATION','Cross-project test reference',
+                  :claim,'OPEN',clock_timestamp(),1)"""),
+          {"id": uuid4(), "review": created.id, "claim": UUID(str(other_draft.id))})
+    governance = GovernanceService(factory, SystemClock())
+    finding = governance.create_audit_finding(CreateAuditFindingCommand(
+        project, "code_bug", "major", "Test-only finding", "Claim needs recheck",
+        "claim_version", claim_id, context,
+    ))
+    governance.create_impact_assessment(CreateImpactAssessmentCommand(
+        project, finding.id, {"basis": "test-only"}, "stale",
+        (ProposedImpactTarget("claim_version", claim_id, "stale"),), context,
+    ))
+    with pytest.raises(ResearchBaseError):
+        service.create(reviewer, project, "CLAIM_VERSION", claim_id, "SCIENTIFIC",
+                       "ACCEPT", "Stale target", (), uuid4())
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 1
+        assert conn.execute(text("SELECT count(*) FROM review_issues")).scalar_one() == 1
+
+
+def test_credential_revocation_while_request_lock_waits_is_rechecked(
+    conclusion_env, phase2_database_url
+):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "head")
+    _, factory, evidence_service, _, reviewer, project, claim_id, _, engine, credentials = (
+        conclusion_env
+    )
+    service = InternalReviewService(factory, credentials, evidence_service)
+    request = uuid4()
+    identity = uuid5(
+        NAMESPACE_URL,
+        f"pr214:{reviewer.deployment_id}:{project}:{reviewer.actor_id}:{request}",
+    )
+    checked = Event()
+    original = credentials.is_valid
+
+    def observed_valid(principal, at):
+        result = original(principal, at)
+        checked.set()
+        return result
+
+    credentials.is_valid = observed_valid
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with engine.begin() as holder:
+            holder.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+                           {"key": f"pr214:review:{identity}"})
+            pending = pool.submit(
+                service.create, reviewer, project, "CLAIM_VERSION", claim_id,
+                "SCIENTIFIC", "ACCEPT", "Must recheck after lock wait", (), request,
+            )
+            assert checked.wait(timeout=10)
+            credentials.enabled = False
+        with pytest.raises(ResearchBaseError):
+            pending.result(timeout=10)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
 
 
 def test_empty_migration_downgrade_drops_only_new_review_objects(phase2_database_url):

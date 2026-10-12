@@ -176,6 +176,14 @@ class InternalReviewService:
             )
         with self._factory() as uow:
             at = self._auth._authorize(uow, principal, project, _REVIEWERS)
+            identity = uuid5(
+                NAMESPACE_URL,
+                f"pr214:{principal.deployment_id}:{project}:{principal.actor_id}:{request}",
+            )
+            repo = uow.internal_review
+            repo.lock_request(identity)
+            # The advisory lock can wait past role or credential expiry (R4 TEMP-AUTH-01).
+            at = self._auth._authorize(uow, principal, project, _REVIEWERS)
             target = uow.literature_evidence.target("ClaimVersion", target_id, project)
             if (
                 target is None
@@ -197,12 +205,6 @@ class InternalReviewService:
             digest = str(target["content_hash"])
             own_hash = self._hash(project, target_id, digest, principal.actor_id,
                                   review_type, recommendation, clean_summary)
-            identity = uuid5(
-                NAMESPACE_URL,
-                f"pr214:{principal.deployment_id}:{project}:{principal.actor_id}:{request}",
-            )
-            repo = uow.internal_review
-            repo.lock_request(identity)
             existing = repo.review(identity, project)
             if existing is not None:
                 self._verify(uow, existing)
