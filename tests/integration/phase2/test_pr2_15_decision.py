@@ -927,3 +927,60 @@ def test_authority_writer_first_real_table_wait_refreshes_role(decision_env, nor
             pending.result(timeout=10)
         assert denied.value.code is ErrorCode.FORBIDDEN
     assert _counts(base[8]) == (0, 0, 0)
+
+
+@pytest.mark.parametrize("first", ["governance", "decision"])
+def test_upstream_impact_writer_and_decision_actual_table_wait_both_orders(decision_env, first):
+    service, _, actor, _, base = decision_env
+    _review(decision_env)
+    request = _command(decision_env)
+    held, release = Event(), Event()
+    pids = []
+    prefix = (
+        "INSERT INTO IMPACT_TARGETS" if first == "governance" else "INSERT INTO DECISION_RECORDS"
+    )
+
+    def pause(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith(prefix) and not held.is_set():
+            pids.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
+            held.set()
+            assert release.wait(15)
+
+    event.listen(base[8], "after_cursor_execute", pause)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            leading = (
+                pool.submit(_stale, decision_env)
+                if first == "governance"
+                else pool.submit(service.record_decision, actor, request)
+            )
+            try:
+                assert held.wait(10), "leading transaction did not write"
+                following = (
+                    pool.submit(service.record_decision, actor, request)
+                    if first == "governance"
+                    else pool.submit(_stale, decision_env)
+                )
+                witness = _wait_for_pg_blocker(base[8], pids[0], "relation")
+                assert witness["relation"] in {
+                    "audit_findings",
+                    "impact_assessments",
+                    "impact_targets",
+                }
+                assert not following.done()
+            finally:
+                release.set()
+            if first == "governance":
+                leading.result(timeout=10)
+                with pytest.raises(ResearchBaseError) as denied:
+                    following.result(timeout=10)
+                assert denied.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+                assert _counts(base[8]) == (0, 0, 0)
+            else:
+                saved = leading.result(timeout=10)
+                following.result(timeout=10)
+                assert service.record_decision(actor, request) == saved
+                assert _counts(base[8]) == (1, 1, 1)
+    finally:
+        release.set()
+        event.remove(base[8], "after_cursor_execute", pause)
