@@ -45,6 +45,7 @@ from researchbase.persistence.metadata_observation_repository import (
     SqlAlchemyMetadataObservationRepository,
 )
 from researchbase.persistence.phase2_identity_repository import SqlAlchemyPhase2IdentityRepository
+from researchbase.persistence.publication_repository import SqlAlchemyPublicationRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
     SqlAlchemyArtifactRepository,
@@ -234,6 +235,7 @@ class SqlAlchemyUnitOfWork:
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
     discussion: SqlAlchemyDiscussionRepository
     scientific_conclusion: SqlAlchemyScientificConclusionRepository
+    publication: SqlAlchemyPublicationRepository
 
     def __init__(
         self,
@@ -279,6 +281,7 @@ class SqlAlchemyUnitOfWork:
         )
         self.discussion = SqlAlchemyDiscussionRepository(self._session)
         self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(self._session)
+        self.publication = SqlAlchemyPublicationRepository(self._session)
         return self
 
     def begin_serializable(self) -> None:

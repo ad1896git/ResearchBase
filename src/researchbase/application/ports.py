@@ -622,6 +622,9 @@ class UnitOfWork(Protocol):
     def scientific_conclusion(self) -> Any: ...
 
     @property
+    def publication(self) -> Any: ...
+
+    @property
     def discussion(self) -> Any: ...
 
     @property
