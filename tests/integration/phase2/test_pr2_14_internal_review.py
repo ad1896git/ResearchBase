@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from uuid import uuid4
+from dataclasses import replace
+from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
@@ -12,7 +13,12 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from researchbase.application.internal_review import InternalReviewService, ReviewIssueRequest
+from researchbase.domain.organization import ProjectId
+from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.errors import ResearchBaseError
+from researchbase.foundation.execution_context import ExecutionContext
+from researchbase.foundation.time import SystemClock
+from tests.application_compat import LegacyApplicationService as ApplicationService
 from tests.integration.phase2.test_pr2_11_r2_persistence import (
     conclusion_env as _conclusion_env,
 )
@@ -20,6 +26,7 @@ from tests.integration.phase2.test_pr2_11_r2_persistence import (
     phase2_database_url as _phase2_database_url,
 )
 from tests.integration.phase2.test_pr2_13_claim_placement import _draft
+from tests.integration.test_pr12_application import seed_claim
 
 pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
@@ -70,10 +77,22 @@ def test_independent_frozen_claim_review_and_issue_are_immutable(
         == created
     )
     with ThreadPoolExecutor(max_workers=2) as pool:
-        concurrent = list(pool.map(lambda _: service.create(
-            reviewer, project, "CLAIM_VERSION", claim_id, "SCIENTIFIC",
-            "MAJOR_REVISION", "Independent test-only assessment", (issue,), request,
-        ), range(2)))
+        concurrent = list(
+            pool.map(
+                lambda _: service.create(
+                    reviewer,
+                    project,
+                    "CLAIM_VERSION",
+                    claim_id,
+                    "SCIENTIFIC",
+                    "MAJOR_REVISION",
+                    "Independent test-only assessment",
+                    (issue,),
+                    request,
+                ),
+                range(2),
+            )
+        )
     assert concurrent == [created, created]
     with pytest.raises(ResearchBaseError):
         service.create(
@@ -107,16 +126,69 @@ def test_independent_frozen_claim_review_and_issue_are_immutable(
             text("DELETE FROM review_issues WHERE review_record_id=:id"), {"id": created.id}
         )
     with pytest.raises(DBAPIError), engine.begin() as conn:
-        conn.execute(text("""INSERT INTO internal_review_records
+        conn.execute(
+            text("UPDATE review_issue_events SET new_status='OPEN' WHERE issue_id=:id"),
+            {"id": created.issues[0].id},
+        )
+    with pytest.raises(DBAPIError), engine.begin() as conn:
+        conn.execute(
+            text("""INSERT INTO internal_review_records
           (id,project_id,claim_version_id,target_content_hash,reviewer_actor_id,
            review_type,recommendation,summary,created_at,content_hash,hash_scheme)
           SELECT :new_id,project_id,claim_version_id,:wrong_hash,reviewer_actor_id,
            review_type,recommendation,summary,created_at,content_hash,hash_scheme
           FROM internal_review_records WHERE id=:id"""),
-          {"new_id": uuid4(), "wrong_hash": "0" * 64, "id": created.id})
+            {"new_id": uuid4(), "wrong_hash": "0" * 64, "id": created.id},
+        )
+    with engine.connect() as conn:
+        artifact_id = conn.execute(text("SELECT id FROM artifact_versions LIMIT 1")).scalar_one()
+    with pytest.raises(DBAPIError), engine.begin() as conn:
+        conn.execute(
+            text("""INSERT INTO internal_review_records
+          (id,project_id,claim_version_id,artifact_version_id,target_content_hash,
+           reviewer_actor_id,review_type,recommendation,summary,created_at,
+           content_hash,hash_scheme)
+          SELECT :new_id,project_id,claim_version_id,:artifact_id,target_content_hash,
+           reviewer_actor_id,review_type,recommendation,summary,created_at,
+           content_hash,hash_scheme FROM internal_review_records WHERE id=:id"""),
+            {"new_id": uuid4(), "artifact_id": artifact_id, "id": created.id},
+        )
     with pytest.raises(ResearchBaseError):
-        service.create(reviewer, project, "CLAIM_VERSION", claim_id,
-                       "SCIENTIFIC", "ACCEPT", "Changed replay", (issue,), request)
+        service.create(
+            reviewer,
+            project,
+            "CLAIM_VERSION",
+            claim_id,
+            "SCIENTIFIC",
+            "ACCEPT",
+            "Changed replay",
+            (issue,),
+            request,
+        )
+    with pytest.raises(ResearchBaseError):
+        service.create(
+            reviewer,
+            project,
+            "CLAIM_VERSION",
+            claim_id,
+            "SCIENTIFIC",
+            "MAJOR_REVISION",
+            "Independent test-only assessment",
+            (),
+            request,
+        )
+    with pytest.raises(ResearchBaseError):
+        service.create(
+            replace(reviewer, credential_id="forged-test-only"),
+            project,
+            "CLAIM_VERSION",
+            claim_id,
+            "SCIENTIFIC",
+            "ACCEPT",
+            "Forged credential",
+            (),
+            uuid4(),
+        )
     with pytest.raises(DBAPIError):
         command.downgrade(config, "0039_pr2_13_citation_rebinding_guard")
     engine.dispose()
@@ -133,17 +205,52 @@ def test_draft_and_cross_project_review_targets_fail_closed(
     phase2_database_url,
     tmp_path,
 ):
-    _, factory, engine, credentials, _author, project, claim_id, _, draft = _draft(
+    _, factory, engine, credentials, author, project, claim_id, _, draft = _draft(
         conclusion_env, phase2_database_url, tmp_path
     )
     evidence_service, reviewer = conclusion_env[2], conclusion_env[4]
     service = InternalReviewService(factory, credentials, evidence_service)
     with pytest.raises(ResearchBaseError):
-        service.create(reviewer, uuid4(), "CLAIM_VERSION", claim_id,
-                       "SCIENTIFIC", "ACCEPT", "No cross-project review", (), uuid4())
+        service.create(
+            reviewer,
+            uuid4(),
+            "CLAIM_VERSION",
+            claim_id,
+            "SCIENTIFIC",
+            "ACCEPT",
+            "No cross-project review",
+            (),
+            uuid4(),
+        )
     with pytest.raises(ResearchBaseError):
-        service.create(reviewer, project, "MANUSCRIPT_VERSION", draft.id,
-                       "EDITORIAL", "ACCEPT", "Draft is ineligible", (), uuid4())
+        service.create(
+            reviewer,
+            project,
+            "MANUSCRIPT_VERSION",
+            draft.id,
+            "EDITORIAL",
+            "ACCEPT",
+            "Draft is ineligible",
+            (),
+            uuid4(),
+        )
+    app = ApplicationService(
+        factory, SystemClock(), ContentAddressedFilesystemArtifactStore(tmp_path / "draft-cas")
+    )
+    context = ExecutionContext(actor_id=author.actor_id, request_id=uuid4(), client_type="test")
+    _, draft_claim = seed_claim(app, ProjectId(project), context, "Draft review target")
+    with pytest.raises(ResearchBaseError):
+        service.create(
+            reviewer,
+            project,
+            "CLAIM_VERSION",
+            UUID(str(draft_claim.id)),
+            "SCIENTIFIC",
+            "ACCEPT",
+            "Draft claim is ineligible",
+            (),
+            uuid4(),
+        )
     assert engine is not None
 
 
@@ -159,8 +266,8 @@ def test_empty_migration_downgrade_drops_only_new_review_objects(phase2_database
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
             "0039_pr2_13_citation_rebinding_guard"
         )
-        assert conn.execute(text("SELECT to_regclass('internal_review_records')"))\
-            .scalar_one() is None
-        assert conn.execute(text("SELECT to_regclass('claim_versions')"))\
-            .scalar_one() is not None
+        assert (
+            conn.execute(text("SELECT to_regclass('internal_review_records')")).scalar_one() is None
+        )
+        assert conn.execute(text("SELECT to_regclass('claim_versions')")).scalar_one() is not None
     engine.dispose()
