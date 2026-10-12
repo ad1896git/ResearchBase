@@ -136,6 +136,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("""
+    LOCK TABLE publications,manuscript_versions,publication_lifecycle_events
+      IN ACCESS EXCLUSIVE MODE;
     DO $$ BEGIN
       IF EXISTS (SELECT 1 FROM publications) OR EXISTS (SELECT 1 FROM manuscript_versions)
          OR EXISTS (SELECT 1 FROM publication_lifecycle_events) THEN

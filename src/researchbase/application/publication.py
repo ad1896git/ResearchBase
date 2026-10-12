@@ -184,12 +184,23 @@ class PublicationService:
                     "created_by": principal.actor_id, "created_at": at,
                     "frozen_at": None, "row_version": 1,
                 })
+                result = DraftReadback(identity, publication_id, 1, "DRAFT", document_id,
+                                       title, abstract, change_class, None, None)
             elif (prior["document_artifact_version_id"] != document_id
                   or prior["title"] != title or prior["abstract"] != abstract
                   or prior["semantic_change_class"] != change_class):
                 _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "draft request replay differs")
+            else:
+                self._document(repo, document_id, project)
+                if (prior["status"] != "DRAFT" or prior["placement_set_hash"] is not None
+                    or prior["content_hash"] is not None or prior["frozen_at"] is not None):
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                          "draft replay material invalid")
+                result = DraftReadback(identity, publication_id, prior["version_number"],
+                                       prior["status"], document_id, title, abstract,
+                                       change_class, None, None)
             uow.commit()
-        return self.read_draft(principal, project, publication_id, identity)
+        return result
 
     def read_draft(
         self, principal: VerifiedPrincipal, project: UUID,

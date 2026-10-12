@@ -199,6 +199,15 @@ def test_concurrent_replay_and_direct_sql_history_guards(
               SET current_manuscript_version_id=:wrong,row_version=row_version+1
               WHERE id=:publication"""),
               {"wrong": other_draft.id, "publication": publication.id})
+    with pytest.raises(DBAPIError) as exc:
+        with engine.begin() as conn:
+            # Isolate the composite FK from the stricter draft-only update guard.
+            conn.execute(text("ALTER TABLE publications DISABLE TRIGGER pr212_publication_guard"))
+            conn.execute(text("""UPDATE publications
+              SET current_manuscript_version_id=:wrong,row_version=row_version+1
+              WHERE id=:publication"""),
+              {"wrong": other_draft.id, "publication": publication.id})
+    assert getattr(exc.value.orig, "sqlstate", None) == "23503"
     with pytest.raises(DBAPIError):
         with engine.begin() as conn:
             conn.execute(text("""UPDATE manuscript_versions SET title='tampered',
@@ -212,3 +221,32 @@ def test_concurrent_replay_and_direct_sql_history_guards(
             conn.execute(text("""UPDATE artifacts SET artifact_type='other_artifact'
               WHERE id=(SELECT artifact_id FROM artifact_versions WHERE id=:id)"""),
               {"id": document})
+
+
+def test_create_draft_response_is_atomic_with_command(
+    discussion_env, discussion_database_url, tmp_path
+):
+    service, factory, store, engine, principal, project = _setup(
+        discussion_env, discussion_database_url, tmp_path
+    )
+    publication = service.create_publication(principal, project, "PAPER", "Study", uuid4())
+    document = _artifact(factory, store, principal, project, b"Draft", "manuscript")
+
+    class OnceVerifiedStore:
+        def __init__(self):
+            self.checks = 0
+
+        def verify(self, digest):
+            self.checks += 1
+            return self.checks == 1 and store.verify(digest)
+
+        def open(self, digest):
+            return store.open(digest)
+
+    bounded = OnceVerifiedStore()
+    command = PublicationService(factory, discussion_env[2], bounded)
+    draft = command.create_draft(principal, project, publication.id, document,
+                                 "Study", None, "INITIAL", uuid4())
+    assert bounded.checks == 1
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT id FROM manuscript_versions")).scalar_one() == draft.id

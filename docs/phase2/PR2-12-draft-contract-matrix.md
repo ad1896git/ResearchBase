@@ -19,4 +19,7 @@ Request replay uses a deterministic UUID derived from the verified deployment,
 project, actor, command, parent and request UUID; a changed payload under the
 same identity conflicts. A transaction-scoped advisory lock serializes exact
 replays. No separate receipt table or unlisted semantic column is persisted.
+The command returns its result from the same Unit of Work that commits the
+draft; no post-commit read can turn a successful write into a reported failure.
+Empty-table downgrade locks all new tables before testing for retained rows.
 All write tests use only newly created disposable PostgreSQL 55442 databases.
