@@ -103,7 +103,8 @@ def upgrade() -> None:
       project_id UUID NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
       actor_id UUID NOT NULL REFERENCES actors(id) ON DELETE RESTRICT,
       command_name VARCHAR(24) NOT NULL
-        CHECK (command_name IN ('CREATE_CONCLUSION','FREEZE_CONCLUSION','REVISE_CONCLUSION')),
+        CHECK (command_name IN
+          ('CREATE_CONCLUSION','FREEZE_CONCLUSION','REVISE_CONCLUSION','REPLACE_INPUTS')),
       request_id UUID NOT NULL,
       input_hash CHAR(64) NOT NULL CHECK (input_hash ~ '^[0-9a-f]{64}$'),
       result_conclusion_id UUID NOT NULL,
@@ -375,6 +376,38 @@ def upgrade() -> None:
       AFTER INSERT OR UPDATE OR DELETE ON scientific_conclusion_literature_inputs
       DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
       EXECUTE FUNCTION pr211_validate_input_cardinality();
+
+    CREATE FUNCTION pr211_current_frozen_at_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE parent_id UUID; pointer UUID; state TEXT;
+    BEGIN
+      IF TG_TABLE_NAME='scientific_conclusions' THEN
+        parent_id := NEW.id;
+      ELSE
+        parent_id := NEW.scientific_conclusion_id;
+      END IF;
+      SELECT current_version_id INTO pointer FROM scientific_conclusions WHERE id=parent_id;
+      IF pointer IS NOT NULL THEN
+        SELECT status INTO state FROM scientific_conclusion_versions
+          WHERE id=pointer AND scientific_conclusion_id=parent_id;
+        IF state IS DISTINCT FROM 'FROZEN' THEN
+          RAISE EXCEPTION 'current conclusion pointer must resolve to frozen version'
+            USING ERRCODE='P17D3';
+        END IF;
+      ELSIF EXISTS (SELECT 1 FROM scientific_conclusion_versions
+                    WHERE scientific_conclusion_id=parent_id AND status='FROZEN') THEN
+        RAISE EXCEPTION 'frozen conclusion requires current pointer'
+          USING ERRCODE='P17D3';
+      END IF;
+      RETURN NULL;
+    END $$;
+    CREATE CONSTRAINT TRIGGER pr211_current_parent_commit
+      AFTER INSERT OR UPDATE ON scientific_conclusions
+      DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+      EXECUTE FUNCTION pr211_current_frozen_at_commit();
+    CREATE CONSTRAINT TRIGGER pr211_current_version_commit
+      AFTER INSERT OR UPDATE ON scientific_conclusion_versions
+      DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+      EXECUTE FUNCTION pr211_current_frozen_at_commit();
     """)
 
 
@@ -390,6 +423,7 @@ def downgrade() -> None:
     for table in TABLES:
         op.execute(f"DROP TABLE {table}")
     op.execute("""
+      DROP FUNCTION pr211_current_frozen_at_commit();
       DROP FUNCTION pr211_validate_input_cardinality();
       DROP FUNCTION pr211_input_guard();
       DROP FUNCTION pr211_version_guard();

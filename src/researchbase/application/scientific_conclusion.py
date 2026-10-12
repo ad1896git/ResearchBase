@@ -335,6 +335,75 @@ class ScientificConclusionService:
 
         return self._retry(once)
 
+    def replace_inputs(
+        self, principal: VerifiedPrincipal, project: UUID, conclusion_id: UUID,
+        version_id: UUID, claims: tuple[ClaimInputRequest, ...],
+        literature: tuple[LiteratureInputRequest, ...], request_id: UUID,
+    ) -> ConclusionCommandResult:
+        if any(type(x) is not UUID for x in (conclusion_id, version_id, request_id)):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact conclusion and request UUIDs required")
+        self._validated_requests(claims, literature)
+        digest = str(sha256_canonical_json({
+            "command": "REPLACE_INPUTS", "project_id": str(project),
+            "conclusion_id": str(conclusion_id), "version_id": str(version_id),
+            "claims": [
+                [str(x.claim_version_id), x.relation_type,
+                 str(x.literature_support_snapshot_id)
+                 if x.literature_support_snapshot_id else None]
+                for x in claims
+            ],
+            "literature": [[str(x.literature_evidence_id), x.relation_type]
+                           for x in literature],
+        }))
+
+        def once():
+            with self._factory() as uow:
+                uow.begin_serializable()
+                at = self._authorize(uow, principal, project, _WRITERS)
+                repo = uow.scientific_conclusion
+                repo.lock_command(principal.deployment_id, project, principal.actor_id,
+                                  "REPLACE_INPUTS", request_id)
+                prior = repo.receipt(principal, project, "REPLACE_INPUTS", request_id)
+                if prior:
+                    if prior["input_hash"] != digest:
+                        _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "conclusion request replay conflicts")
+                    result = ConclusionCommandResult(prior["result_conclusion_id"],
+                                                     prior["result_version_id"])
+                else:
+                    parent = repo.conclusion(conclusion_id, project, lock=True)
+                    version = repo.version(version_id, conclusion_id, lock=True) if parent else None
+                    if version is None or version["status"] != "DRAFT":
+                        _fail(ErrorCode.INVALID_STATE_TRANSITION,
+                              "only a current draft input set may change")
+                    claim_rows = tuple(self._claim(uow, project, x, i)
+                                       for i, x in enumerate(claims))
+                    literature_rows = tuple(self._evidence(
+                        uow, project, x, i, author=version["created_by"]
+                    ) for i, x in enumerate(literature))
+                    repo.clear_draft_inputs(version_id)
+                    for x in claim_rows:
+                        repo.insert_claim_input({
+                            "conclusion_version_id": version_id,
+                            "claim_version_id": x.claim_version_id,
+                            "literature_support_snapshot_id": x.literature_support_snapshot_id,
+                            "relation_type": x.relation_type, "ordinal": x.ordinal,
+                        })
+                    for x in literature_rows:
+                        repo.insert_literature_input({
+                            "conclusion_version_id": version_id,
+                            "literature_evidence_id": x.literature_evidence_id,
+                            "relation_type": x.relation_type, "ordinal": x.ordinal,
+                        })
+                    result = ConclusionCommandResult(conclusion_id, version_id)
+                    repo.save_receipt(self._receipt(
+                        principal, project, "REPLACE_INPUTS", request_id, digest, result, at
+                    ))
+                self._authorize(uow, principal, project, _WRITERS)
+                uow.commit()
+                return result
+
+        return self._retry(once)
+
     def _view(self, uow, project, conclusion_id, version_id, *, require_current=False):
         repo = uow.scientific_conclusion
         parent = repo.conclusion(conclusion_id, project)

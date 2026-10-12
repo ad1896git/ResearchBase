@@ -115,6 +115,12 @@ class SqlAlchemyScientificConclusionRepository:
     def insert_literature_input(self, row: dict[str, object]) -> None:
         self._insert("scientific_conclusion_literature_inputs", row)
 
+    def clear_draft_inputs(self, version: UUID) -> None:
+        self._session.execute(text("""DELETE FROM scientific_conclusion_claim_inputs
+           WHERE conclusion_version_id=:version"""), {"version": version})
+        self._session.execute(text("""DELETE FROM scientific_conclusion_literature_inputs
+           WHERE conclusion_version_id=:version"""), {"version": version})
+
     def freeze(
         self, conclusion: UUID, version: UUID, actor: UUID, at,
         support_hash: str, content_hash: str, previous: UUID | None,

@@ -340,3 +340,87 @@ def test_pg_frozen_science_rejects_direct_mutation(conclusion_env):
               WHERE conclusion_version_id=:id"""), {"id": result.version_id})
     view = service.read(author, project, result.conclusion_id, result.version_id)
     assert view.statement == "Immutable synthesis." and view.status == "FROZEN"
+
+
+def test_pg_current_pointer_cannot_reference_superseded_at_commit(conclusion_env):
+    service, _, _, author, _, project, claim_id, _, engine, _ = conclusion_env
+    result = service.create(
+        author, project, "Current pointer invariant.", SCOPE, "WEAK", None,
+        (ClaimInputRequest(claim_id, "SUPPORTS"),), (), uuid4(),
+    )
+    service.freeze(author, project, result.conclusion_id, result.version_id, uuid4())
+    with pytest.raises(DBAPIError):
+        with engine.begin() as conn:
+            conn.execute(text("""UPDATE scientific_conclusion_versions
+              SET status='SUPERSEDED',row_version=row_version+1 WHERE id=:version"""),
+              {"version": result.version_id})
+    with engine.connect() as conn:
+        status = conn.execute(text("""SELECT status FROM scientific_conclusion_versions
+          WHERE id=:version"""), {"version": result.version_id}).scalar_one()
+    assert status == "FROZEN"
+
+
+def test_pg_draft_inputs_change_only_through_authorized_application_command(conclusion_env):
+    service, _, _, author, _, project, claim_id, _, engine, credentials = conclusion_env
+    draft = service.create(
+        author, project, "Draft composition.", SCOPE, "WEAK", None, (), (), uuid4(),
+    )
+    request = uuid4()
+    changed = service.replace_inputs(
+        author, project, draft.conclusion_id, draft.version_id,
+        (ClaimInputRequest(claim_id, "SUPPORTS"),), (), request,
+    )
+    assert changed == draft
+    assert service.replace_inputs(
+        author, project, draft.conclusion_id, draft.version_id,
+        (ClaimInputRequest(claim_id, "SUPPORTS"),), (), request,
+    ) == draft
+    service.freeze(author, project, draft.conclusion_id, draft.version_id, uuid4())
+    with pytest.raises(ResearchBaseError) as sealed:
+        service.replace_inputs(
+            author, project, draft.conclusion_id, draft.version_id, (), (), uuid4(),
+        )
+    assert sealed.value.code is ErrorCode.INVALID_STATE_TRANSITION
+    credentials.enabled = False
+    with pytest.raises(ResearchBaseError) as denied:
+        service.replace_inputs(
+            author, project, draft.conclusion_id, draft.version_id, (), (), uuid4(),
+        )
+    assert denied.value.code is ErrorCode.FORBIDDEN
+    with engine.connect() as conn:
+        count = conn.execute(text("""SELECT count(*) FROM scientific_conclusion_claim_inputs
+           WHERE conclusion_version_id=:version"""), {"version": draft.version_id}).scalar_one()
+    assert count == 1
+
+
+def test_pg_empty_0033_downgrade_and_nonempty_history_protection(
+    phase2_database_url, conclusion_env
+):
+    service, _, _, author, _, project, claim_id, _, engine, _ = conclusion_env
+    result = service.create(
+        author, project, "History protected.", SCOPE, "WEAK", None,
+        (ClaimInputRequest(claim_id, "SUPPORTS"),), (), uuid4(),
+    )
+    service.freeze(author, project, result.conclusion_id, result.version_id, uuid4())
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    with pytest.raises(Exception, match="preserves scientific history"):
+        command.downgrade(config, "0032_pr2_10_discussion")
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0033_pr2_11_r2_scientific_conclusion"
+        )
+
+
+def test_pg_empty_0033_downgrade_succeeds(phase2_database_url):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.downgrade(config, "0032_pr2_10_discussion")
+    engine = create_engine(phase2_database_url)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0032_pr2_10_discussion"
+        )
+        assert not conn.execute(text("""SELECT to_regclass('public.scientific_conclusions')"""))\
+            .scalar_one()
+    engine.dispose()
