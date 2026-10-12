@@ -39,6 +39,8 @@ def upgrade() -> None:
         ('INITIAL','EDITORIAL','SCIENTIFIC_MINOR','SCIENTIFIC_MATERIAL')),
       placement_set_hash CHAR(64),
       content_hash CHAR(64),
+      -- Phase 2 field contract shared physical rule for every content_hash row.
+      hash_scheme VARCHAR(32) NOT NULL CHECK (hash_scheme='sha256-cjson-v1'),
       created_by UUID NOT NULL REFERENCES actors(id) ON DELETE RESTRICT,
       created_at TIMESTAMPTZ NOT NULL,
       frozen_at TIMESTAMPTZ,

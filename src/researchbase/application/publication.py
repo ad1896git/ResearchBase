@@ -123,7 +123,6 @@ class PublicationService:
         title = _title(title)
         identity = self._identity(principal, project, request_id, "publication")
         with self._factory() as uow:
-            uow.begin_serializable()
             at = self._authorize(uow, principal, project, _WRITERS)
             repo = uow.publication
             repo.lock_request(f"pr212:publication:{identity}")
@@ -159,7 +158,6 @@ class PublicationService:
             abstract = unicodedata.normalize("NFC", abstract)
         identity = self._identity(principal, project, request_id, "draft", publication_id)
         with self._factory() as uow:
-            uow.begin_serializable()
             at = self._authorize(uow, principal, project, _WRITERS)
             repo = uow.publication
             repo.lock_request(f"pr212:draft:{identity}")
@@ -182,6 +180,7 @@ class PublicationService:
                     "title": title, "abstract": abstract,
                     "semantic_change_class": change_class,
                     "placement_set_hash": None, "content_hash": None,
+                    "hash_scheme": "sha256-cjson-v1",
                     "created_by": principal.actor_id, "created_at": at,
                     "frozen_at": None, "row_version": 1,
                 })

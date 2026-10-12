@@ -57,8 +57,9 @@ class SqlAlchemyPublicationRepository:
     def insert_version(self, values: dict[str, object]) -> None:
         self._session.execute(text("""INSERT INTO manuscript_versions
           (id,publication_id,version_number,status,document_artifact_version_id,
-           title,abstract,semantic_change_class,placement_set_hash,content_hash,
+           title,abstract,semantic_change_class,placement_set_hash,content_hash,hash_scheme,
            created_by,created_at,frozen_at,row_version)
           VALUES (:id,:publication_id,:version_number,:status,:document_artifact_version_id,
                   :title,:abstract,:semantic_change_class,:placement_set_hash,:content_hash,
+                  :hash_scheme,
                   :created_by,:created_at,:frozen_at,:row_version)"""), values)

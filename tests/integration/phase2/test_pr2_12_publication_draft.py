@@ -87,6 +87,38 @@ def test_invalid_document_and_direct_sql_pointer_rejected(
               {"id": uuid4(), "publication": publication.id, "document": wrong_kind,
                "actor": principal.actor_id})
     assert getattr(exc.value.orig, "sqlstate", None) == "P17D3"
+    foreign_project, foreign_artifact, foreign_version = uuid4(), uuid4(), uuid4()
+    draft_artifact, unfrozen_version = uuid4(), uuid4()
+    with engine.begin() as conn:
+        conn.execute(text("""INSERT INTO projects(id,name,created_by,created_at)
+          VALUES (:id,'Test-only other publication project',:actor,now())"""),
+          {"id": foreign_project, "actor": principal.actor_id})
+        for artifact_id, owner in ((foreign_artifact, foreign_project),
+                                   (draft_artifact, project)):
+            conn.execute(text("""INSERT INTO artifacts(id,project_id,artifact_type,name,
+              created_by,created_at)
+              VALUES (:id,:project,'manuscript','Test-only',:actor,now())"""),
+              {"id": artifact_id, "project": owner, "actor": principal.actor_id})
+        for version_id, artifact_id, status, frozen_at in (
+            (foreign_version, foreign_artifact, "FROZEN", "now()"),
+            (unfrozen_version, draft_artifact, "DRAFT", "NULL"),
+        ):
+            conn.execute(text(f"""INSERT INTO artifact_versions(id,artifact_id,version_number,
+              status,media_type,byte_size,content_hash,created_by,created_at,frozen_at)
+              VALUES (:id,:artifact,1,:status,'text/plain',1,:digest,:actor,now(),{frozen_at})"""),
+              {"id": version_id, "artifact": artifact_id, "status": status,
+               "digest": "a" * 64, "actor": principal.actor_id})
+    for invalid_id in (foreign_version, unfrozen_version):
+        with pytest.raises(DBAPIError) as exc:
+            with engine.begin() as conn:
+                conn.execute(text("""INSERT INTO manuscript_versions
+                  (id,publication_id,version_number,status,document_artifact_version_id,
+                   title,semantic_change_class,created_by,created_at,row_version)
+                  VALUES (:id,:publication,1,'DRAFT',:document,'Study','INITIAL',
+                          :actor,now(),1)"""),
+                  {"id": uuid4(), "publication": publication.id, "document": invalid_id,
+                   "actor": principal.actor_id})
+        assert getattr(exc.value.orig, "sqlstate", None) == "P17D3"
     with pytest.raises(DBAPIError):
         with engine.begin() as conn:
             conn.execute(text("""UPDATE publications SET current_manuscript_version_id=:id,
@@ -128,6 +160,15 @@ def test_idempotency_authority_and_missing_bytes_fail_closed(
         missing.read_draft(principal, project, publication.id, draft.id)
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM manuscript_versions")).scalar_one() == 1
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", discussion_database_url)
+    with pytest.raises(DBAPIError) as exc:
+        command.downgrade(config, "0034_pr2_10_exact_transcript_binding")
+    assert getattr(exc.value.orig, "sqlstate", None) == "P17D4"
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0035_pr2_12_publication_draft"
+        )
 
 
 def test_concurrent_replay_and_direct_sql_history_guards(
@@ -145,6 +186,19 @@ def test_concurrent_replay_and_direct_sql_history_guards(
         results = [future.result() for future in futures]
     assert results[0] == results[1]
     draft = results[0]
+    other_publication = service.create_publication(
+        principal, project, "REPORT", "Other study", uuid4()
+    )
+    other_draft = service.create_draft(
+        principal, project, other_publication.id, document,
+        "Other study", None, "INITIAL", uuid4()
+    )
+    with pytest.raises(DBAPIError):
+        with engine.begin() as conn:
+            conn.execute(text("""UPDATE publications
+              SET current_manuscript_version_id=:wrong,row_version=row_version+1
+              WHERE id=:publication"""),
+              {"wrong": other_draft.id, "publication": publication.id})
     with pytest.raises(DBAPIError):
         with engine.begin() as conn:
             conn.execute(text("""UPDATE manuscript_versions SET title='tampered',

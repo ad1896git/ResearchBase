@@ -50,7 +50,10 @@ def test_upgrade_to_pr212_and_empty_downgrade(start):
                                     {"name": table}).scalar_one() == table
             columns = conn.execute(text("""SELECT column_name FROM information_schema.columns
               WHERE table_name='manuscript_versions'""")).scalars().all()
-            assert "hash_scheme" not in columns
+            assert "hash_scheme" in columns
+            assert conn.execute(text("""SELECT count(*) FROM information_schema.columns
+              WHERE table_name='manuscript_versions' AND column_name='hash_scheme'
+                AND is_nullable='NO'""")).scalar_one() == 1
         engine.dispose()
         command.downgrade(config, "0034_pr2_10_exact_transcript_binding")
     finally:
