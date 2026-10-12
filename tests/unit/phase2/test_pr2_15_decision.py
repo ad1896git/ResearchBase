@@ -121,3 +121,37 @@ def test_service_rejects_unverified_actor_before_opening_transaction():
             None, RecordDecisionCommand(UUID(int=1), UUID(int=2), UUID(int=3), "Q", "R")
         )
     assert error.value.code == ErrorCode.AUTHENTICATION_REQUIRED
+
+
+@pytest.mark.parametrize("actor_type", ["HUMAN", "AGENT", "SERVICE"])
+def test_decider_authority_does_not_invent_human_only_policy(actor_type):
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from researchbase.application.decision import DecisionService
+    from researchbase.domain.phase2_identity import VerifiedPrincipal
+
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    principal = VerifiedPrincipal(UUID(int=4), "test", "MTLS_URI", "test:actor", "test", at)
+    row = dict(
+        actor_type=actor_type,
+        retired_at=None,
+        membership_status="ACTIVE",
+        binding_status="ACTIVE",
+        role="APPROVER",
+        effective_from=at,
+        effective_until=None,
+        bound_at=at,
+        revoked_at=None,
+    )
+    uow = SimpleNamespace(
+        literature_search_plan=SimpleNamespace(
+            lock_project=lambda project: None,
+            authorize=lambda actor, project: [row],
+            project_active=lambda project: True,
+        ),
+        source_version=SimpleNamespace(at=lambda: at),
+    )
+    credentials = SimpleNamespace(is_valid=lambda actor, clock: True)
+    service = DecisionService(None, credentials, None)
+    assert service._authorize(uow, principal, UUID(int=5), frozenset({"OWNER", "APPROVER"})) == at
