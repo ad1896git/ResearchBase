@@ -331,10 +331,10 @@ def test_conclusion_review_rechecks_scheduled_role_expiry_after_request_lock_wai
         assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
 
 
-def test_existing_issue_insert_locks_review_but_not_conclusion_target(
+def test_existing_issue_insert_coordinates_target_before_review(
     conclusion_env, phase2_database_url,
 ):
-    """Diagnostic for future PR2-15 design; no DecisionRecord is created."""
+    """Frozen PR2-15 prerequisite; no DecisionRecord is created by this test."""
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     command.upgrade(config, "head")
@@ -352,10 +352,14 @@ def test_existing_issue_insert_locks_review_but_not_conclusion_target(
               {"id": uuid4(), "review": created.id, "ordinal": ordinal})
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as target_holder:
+            holder_pid = target_holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
             target_holder.execute(text("""SELECT id FROM scientific_conclusion_versions
               WHERE id=:id FOR UPDATE"""), {"id": version}).scalar_one()
-            # Existing issue trigger locks the review row, not the scientific target.
-            pool.submit(insert_issue, 0).result(timeout=3)
+            pending = pool.submit(insert_issue, 0)
+            witness = _wait_for_pg_blocker(engine, holder_pid, "transactionid")
+            assert "review_issues" in witness["query"]
+            assert not pending.done()
+        pending.result(timeout=10)
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as review_holder:
             holder_pid = review_holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
