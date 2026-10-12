@@ -202,6 +202,8 @@ class InternalReviewService:
                     ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                     "review target current validity is not valid",
                 )
+            # Target validation can wait on its own row lock after the request lock.
+            at = self._auth._authorize(uow, principal, project, _REVIEWERS)
             digest = str(target["content_hash"])
             own_hash = self._hash(project, target_id, digest, principal.actor_id,
                                   review_type, recommendation, clean_summary)

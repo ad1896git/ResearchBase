@@ -403,6 +403,45 @@ def test_credential_revocation_while_request_lock_waits_is_rechecked(
         assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
 
 
+def test_credential_revocation_while_target_row_lock_waits_is_rechecked(
+    conclusion_env, phase2_database_url
+):
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", phase2_database_url)
+    command.upgrade(config, "head")
+    _, factory, evidence_service, _, reviewer, project, claim_id, _, engine, credentials = (
+        conclusion_env
+    )
+    service = InternalReviewService(factory, credentials, evidence_service)
+    checked = Event()
+    checks = 0
+    original = credentials.is_valid
+
+    def observed_valid(principal, at):
+        nonlocal checks
+        result = original(principal, at)
+        checks += 1
+        if checks == 2:
+            checked.set()
+        return result
+
+    credentials.is_valid = observed_valid
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with engine.begin() as holder:
+            holder.execute(text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"),
+                           {"id": claim_id}).scalar_one()
+            pending = pool.submit(
+                service.create, reviewer, project, "CLAIM_VERSION", claim_id,
+                "SCIENTIFIC", "ACCEPT", "Must recheck after target wait", (), uuid4(),
+            )
+            assert checked.wait(timeout=10)
+            credentials.enabled = False
+        with pytest.raises(ResearchBaseError):
+            pending.result(timeout=10)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
+
+
 def test_empty_migration_downgrade_drops_only_new_review_objects(phase2_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
