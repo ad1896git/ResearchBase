@@ -340,3 +340,31 @@ def test_citation_order_is_database_enforced(discussion_env):
         assert connection.execute(
             text("SELECT count(*) FROM discussion_turn_source_citations")
         ).scalar_one() == 0
+
+
+def test_committed_turn_citations_cannot_change(discussion_env):
+    service, engine, _, principal, project, _, source = discussion_env
+    created = _create(discussion_env)
+    appended = service.append(principal, project, created.session_id,
+                              "human", "Sealed citation fixture", (), (), uuid4())
+    with pytest.raises(DBAPIError):
+        with engine.begin() as connection:
+            connection.execute(text("""INSERT INTO discussion_turn_source_citations
+                (turn_id,version_id,ordinal) VALUES (:turn,:version,0)"""),
+                {"turn": appended.turn_id, "version": source})
+    readback = service.read(principal, project, created.session_id)
+    assert readback.turns[0].cited_source_version_ids == ()
+
+
+def test_direct_close_cannot_precede_latest_turn(discussion_env):
+    service, engine, _, principal, project, _, _ = discussion_env
+    created = _create(discussion_env)
+    service.append(principal, project, created.session_id,
+                   "human", "Later turn fixture", (), (), uuid4())
+    with pytest.raises(DBAPIError):
+        with engine.begin() as connection:
+            connection.execute(text("""UPDATE discussion_sessions
+                SET status='CLOSED',closed_by=:actor,closed_at=created_at,
+                    row_version=row_version+1 WHERE id=:session"""),
+                {"actor": principal.actor_id, "session": created.session_id})
+    assert service.read(principal, project, created.session_id).status == "OPEN"

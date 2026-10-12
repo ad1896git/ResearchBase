@@ -121,6 +121,8 @@ def upgrade() -> None:
         AND NEW.topic=OLD.topic AND NEW.created_by=OLD.created_by
         AND NEW.created_at=OLD.created_at AND NEW.closed_by IS NOT NULL
         AND NEW.closed_at>=OLD.created_at
+        AND NEW.closed_at >= (SELECT max(created_at) FROM discussion_turns
+                              WHERE session_id=OLD.id)
         AND EXISTS (SELECT 1 FROM discussion_turns WHERE session_id=OLD.id) THEN
         RETURN NEW;
       END IF;
@@ -153,6 +155,14 @@ def upgrade() -> None:
                         WHERE id=sid AND xmin::text::bigint=
                           pg_current_xact_id()::text::bigint) THEN
         RAISE EXCEPTION 'discussion input set is sealed' USING ERRCODE='P17D1';
+      END IF;
+      IF TG_TABLE_NAME IN ('discussion_turn_source_citations',
+                           'discussion_turn_claim_citations') THEN
+        IF NOT EXISTS(SELECT 1 FROM discussion_turns
+                      WHERE id=NEW.turn_id AND xmin::text::bigint=
+                        pg_current_xact_id()::text::bigint) THEN
+          RAISE EXCEPTION 'discussion turn citations are sealed' USING ERRCODE='P17D1';
+        END IF;
       END IF;
       IF TG_TABLE_NAME='discussion_session_question_inputs' THEN
         SELECT EXISTS(SELECT 1 FROM research_question_versions v
