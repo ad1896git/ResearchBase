@@ -42,6 +42,10 @@ def upgrade() -> None:
     CREATE FUNCTION pr213_claim_placement_guard() RETURNS trigger LANGUAGE plpgsql AS $$
     DECLARE manuscript_project UUID;
     BEGIN
+      IF TG_OP='UPDATE' AND OLD.manuscript_version_id IS DISTINCT FROM
+          NEW.manuscript_version_id THEN
+        RAISE EXCEPTION 'claim placement manuscript is immutable' USING ERRCODE='P17D3';
+      END IF;
       SELECT p.project_id INTO manuscript_project
         FROM manuscript_versions m JOIN publications p ON p.id=m.publication_id
         WHERE m.id=CASE WHEN TG_OP='DELETE' THEN OLD.manuscript_version_id

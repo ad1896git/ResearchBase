@@ -109,6 +109,25 @@ def test_claim_placement_fail_closed_and_concurrent_replay(
     key = uuid4()
     placed = placements.add(*args, key)
     assert placements.add(*args, key) == placed
+    with engine.connect() as conn:
+        document = conn.execute(text("""SELECT document_artifact_version_id
+          FROM manuscript_versions WHERE id=:id"""), {"id": draft.id}).scalar_one()
+    publications = PublicationService(
+        factory, credentials, ContentAddressedFilesystemArtifactStore(tmp_path / "cas")
+    )
+    other_publication = publications.create_publication(
+        principal, project, "PAPER", "Other test-only manuscript", uuid4()
+    )
+    other_draft = publications.create_draft(
+        principal, project, other_publication.id, document,
+        "Other test-only manuscript", None, "INITIAL", uuid4()
+    )
+    with pytest.raises(DBAPIError) as exc:
+        with engine.begin() as conn:
+            conn.execute(text("""UPDATE manuscript_claim_placements
+              SET manuscript_version_id=:other WHERE id=:id"""),
+              {"other": other_draft.id, "id": placed.id})
+    assert getattr(exc.value.orig, "sqlstate", None) == "P17D3"
     with pytest.raises(ResearchBaseError):
         placements.add(*args[:7], {"kind": "PARAGRAPH", "value": "p2"},
                        *args[8:], key)
