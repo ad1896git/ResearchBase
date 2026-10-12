@@ -153,7 +153,8 @@ def upgrade() -> None:
         payload := pr210_transcript_cjson(OLD.id);
         PERFORM 1 FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
          WHERE v.id=NEW.transcript_artifact_version_id
-           AND v.status='FROZEN' AND v.media_type='application/json'
+           AND v.status='FROZEN' AND v.frozen_at IS NOT NULL
+           AND v.media_type='application/json'
            AND v.content_hash=encode(sha256(convert_to(payload,'UTF8')),'hex')
            AND v.byte_size=octet_length(convert_to(payload,'UTF8'))
            AND a.project_id=NEW.project_id AND a.artifact_type='discussion_transcript'

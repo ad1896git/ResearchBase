@@ -237,3 +237,50 @@ def test_downgrade_preserves_unbound_history_and_refuses_bound_history(
         )
         assert conn.execute(text("""SELECT transcript_artifact_version_id
           FROM discussion_sessions WHERE id=:id"""), {"id": session_id}).scalar_one() == version_id
+
+
+def test_direct_sql_cannot_bind_version_without_frozen_at(
+    discussion_env, discussion_database_url, tmp_path
+):
+    _upgrade(discussion_database_url)
+    service, factory, store = _service(discussion_env, tmp_path)
+    _, engine, _, principal, project, _, _ = discussion_env
+    session_id = _closed(discussion_env)
+    content = service.read(principal, project, session_id).derived_candidates[0].content
+    valid_id = _artifact(factory, store, principal, project, content)
+    version_id, artifact_id = uuid4(), uuid4()
+    with engine.begin() as conn:
+        conn.execute(text("""INSERT INTO artifacts(id,project_id,artifact_type,name,
+          created_by,created_at) VALUES (:id,:project,'discussion_transcript',
+          'Test-only malformed frozen version',:actor,now())"""),
+          {"id": artifact_id, "project": project, "actor": principal.actor_id})
+        conn.execute(text("""INSERT INTO artifact_versions(id,artifact_id,version_number,
+          status,media_type,byte_size,content_hash,created_by,created_at,frozen_at)
+          SELECT :id,:artifact,1,'FROZEN','application/json',byte_size,content_hash,
+                 :actor,now(),NULL FROM artifact_versions WHERE id=:source"""),
+          {"id": version_id, "artifact": artifact_id,
+           "actor": principal.actor_id, "source": valid_id})
+    with pytest.raises(DBAPIError) as exc:
+        with engine.begin() as conn:
+            conn.execute(text("""UPDATE discussion_sessions SET
+              transcript_artifact_version_id=:version,row_version=row_version+1
+              WHERE id=:session"""), {"version": version_id, "session": session_id})
+    assert getattr(exc.value.orig, "sqlstate", None) == "P17D3"
+
+
+def test_direct_sql_cannot_clear_bound_version_frozen_at(
+    discussion_env, discussion_database_url, tmp_path
+):
+    _upgrade(discussion_database_url)
+    service, factory, store = _service(discussion_env, tmp_path)
+    _, engine, _, principal, project, _, _ = discussion_env
+    session_id = _closed(discussion_env)
+    content = service.read(principal, project, session_id).derived_candidates[0].content
+    version_id = _artifact(factory, store, principal, project, content)
+    service.bind_transcript(principal, project, session_id, version_id, uuid4())
+    with pytest.raises(DBAPIError) as exc:
+        with engine.begin() as conn:
+            conn.execute(text("""UPDATE artifact_versions SET frozen_at=NULL,
+              row_version=row_version+1 WHERE id=:id"""),
+                         {"id": version_id})
+    assert getattr(exc.value.orig, "sqlstate", None) in {"P17D1", "P17D2"}

@@ -366,6 +366,7 @@ class DiscussionService:
         statuses = {"FROZEN"} if binding else {"FROZEN", "SUPERSEDED"}
         if (
             row is None or row["status"] not in statuses
+            or row["frozen_at"] is None
             or row["artifact_type"] != "discussion_transcript"
             or row["media_type"] != candidate.media_type
             or row["content_hash"] != str(candidate.content_hash)

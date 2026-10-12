@@ -120,7 +120,7 @@ class SqlAlchemyDiscussionRepository:
         )
 
     def transcript_version(self, version_id: UUID, project: UUID):
-        row = self._session.execute(text("""SELECT v.id,v.status,v.content_hash,
+        row = self._session.execute(text("""SELECT v.id,v.status,v.frozen_at,v.content_hash,
             v.byte_size,v.media_type,a.artifact_type,a.project_id
             FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
             WHERE v.id=:version AND a.project_id=:project"""),
