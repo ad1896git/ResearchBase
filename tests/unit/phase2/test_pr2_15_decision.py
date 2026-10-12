@@ -1,6 +1,7 @@
 """Independent literal R2 and closed PR2-15 command contract checks."""
 
 from dataclasses import FrozenInstanceError
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -60,7 +61,12 @@ def test_literal_r2_golden_basis_and_content():
 def test_basis_requires_canonical_contiguous_order_and_no_duplicates():
     a = DecisionBasisReference("InternalReviewRecord", UUID(int=2), "a" * 64, 0)
     b = DecisionBasisReference("ScientificConclusionVersion", UUID(int=1), "b" * 64, 1)
-    assert decision_basis_material((b, a))["basis"][0]["target"]["id"] == str(a.id)
+    rows = decision_basis_material((b, a))["basis"]
+    assert isinstance(rows, list)
+    assert isinstance(rows[0], dict)
+    target = rows[0]["target"]
+    assert isinstance(target, dict)
+    assert target["id"] == str(a.id)
     with pytest.raises(ValueError):
         decision_basis_material((a, a))
     with pytest.raises(ValueError):
@@ -78,9 +84,11 @@ def test_command_is_frozen_closed_and_normalizes_nfc():
     assert command.decision_type == "INTERNAL_SCIENTIFIC_RELEASE"
     assert command.decision == "PROCEED"
     with pytest.raises(FrozenInstanceError):
-        command.question = "Changed"
+        cast(Any, command).question = "Changed"
     with pytest.raises(TypeError):
-        RecordDecisionCommand(UUID(int=1), UUID(int=2), UUID(int=3), "Q", "R", actor_id=UUID(int=4))
+        cast(Any, RecordDecisionCommand)(
+            UUID(int=1), UUID(int=2), UUID(int=3), "Q", "R", actor_id=UUID(int=4)
+        )
 
 
 @pytest.mark.parametrize(
@@ -96,7 +104,7 @@ def test_command_is_frozen_closed_and_normalizes_nfc():
 def test_command_rejects_invalid_material(field, value):
     from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-    values = dict(
+    values: dict[str, Any] = dict(
         id=UUID(int=1),
         project_id=UUID(int=2),
         scientific_conclusion_version_id=UUID(int=3),
@@ -118,7 +126,7 @@ def test_service_rejects_unverified_actor_before_opening_transaction():
     )
     with pytest.raises(ResearchBaseError) as error:
         service.record_decision(
-            None, RecordDecisionCommand(UUID(int=1), UUID(int=2), UUID(int=3), "Q", "R")
+            cast(Any, None), RecordDecisionCommand(UUID(int=1), UUID(int=2), UUID(int=3), "Q", "R")
         )
     assert error.value.code == ErrorCode.AUTHENTICATION_REQUIRED
 
@@ -153,5 +161,7 @@ def test_decider_authority_does_not_invent_human_only_policy(actor_type):
         source_version=SimpleNamespace(at=lambda: at),
     )
     credentials = SimpleNamespace(is_valid=lambda actor, clock: True)
-    service = DecisionService(None, credentials, None)
+    service = DecisionService(
+        lambda: pytest.fail("authorization unit test has an explicit UoW"), credentials, None
+    )
     assert service._authorize(uow, principal, UUID(int=5), frozenset({"OWNER", "APPROVER"})) == at
