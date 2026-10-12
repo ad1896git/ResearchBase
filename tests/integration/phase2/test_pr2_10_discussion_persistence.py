@@ -98,7 +98,9 @@ class _TestCredentials:
 
 @pytest.fixture
 def discussion_env(discussion_database_url, tmp_path):
-    engine, _, sources, principal, project = _authorized_service(discussion_database_url)
+    engine, _, sources, principal, project = _authorized_service(
+        discussion_database_url, migration_revision="0032_pr2_10_discussion"
+    )
     _, question_id, _ = _question(engine, project, principal.actor_id)
     credentials = _TestCredentials(principal)
     sf = sessionmaker(engine, expire_on_commit=False, autoflush=False)

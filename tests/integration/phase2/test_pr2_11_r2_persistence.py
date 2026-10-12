@@ -10,6 +10,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
 
 from researchbase.application.commands import FreezeClaimVersionCommand, LinkEvidenceCommand
@@ -105,7 +106,7 @@ def conclusion_env(request, tmp_path):
     frozen = app.freeze_claim_version(FreezeClaimVersionCommand(
         claim.id, linked.id, context, linked.row_version
     ))
-    service = ScientificConclusionService(factory, credentials)
+    service = ScientificConclusionService(factory, credentials, evidence_service)
     return (service, factory, evidence_service, author, reviewer, project,
             UUID(str(frozen.id)), source, engine, credentials)
 
@@ -115,7 +116,9 @@ SCOPE = {"population": "Adults", "conditions": None,
 
 
 def test_pg_claim_only_freeze_exact_hash_restart_and_supersession(conclusion_env):
-    service, factory, _, author, _, project, claim_id, _, engine, credentials = conclusion_env
+    (
+        service, factory, evidence_service, author, _, project, claim_id, _, engine, credentials
+    ) = conclusion_env
     request = uuid4()
     created = service.create(
         author, project, "Evidence supports the effect.", SCOPE,
@@ -128,7 +131,7 @@ def test_pg_claim_only_freeze_exact_hash_restart_and_supersession(conclusion_env
     draft = service.read(author, project, created.conclusion_id, created.version_id)
     assert draft.status == "DRAFT" and draft.support_set_hash is None
     service.freeze(author, project, created.conclusion_id, created.version_id, uuid4())
-    restarted = ScientificConclusionService(factory, credentials)
+    restarted = ScientificConclusionService(factory, credentials, evidence_service)
     frozen = restarted.read(author, project, created.conclusion_id, created.version_id)
     assert frozen.status == "FROZEN"
     assert frozen.claim_inputs[0].claim_version_id == claim_id
@@ -142,6 +145,7 @@ def test_pg_claim_only_freeze_exact_hash_restart_and_supersession(conclusion_env
     assert stored.content_hash == frozen.content_hash
     assert str(sha256_canonical_json(frozen.support_material)) == frozen.support_set_hash
     assert str(sha256_canonical_json(frozen.content_material)) == frozen.content_hash
+    assert frozen.content_material is not None
     assert frozen.content_material["scientific_conclusion_id"] == str(created.conclusion_id)
 
 
@@ -163,6 +167,7 @@ def test_pg_snapshot_exact_claim_and_project_binding(conclusion_env):
     service.freeze(author, project, created.conclusion_id, created.version_id, uuid4())
     view = service.read(author, project, created.conclusion_id, created.version_id)
     assert view.claim_inputs[0].literature_support_snapshot_id == snapshot_id
+    assert view.support_material is not None
     snapshot_ref = view.support_material["claim_inputs"][0]["literature_support_snapshot"]
     assert snapshot_ref["id"] == str(snapshot_id)
     with engine.connect() as conn:
@@ -206,3 +211,132 @@ def test_pg_duplicate_request_concurrent_and_unauthorized(conclusion_env):
     assert denied.value.code is ErrorCode.FORBIDDEN
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM scientific_conclusions")).scalar_one() == 1
+
+
+def test_pg_literature_only_freeze_and_hash_readback(conclusion_env):
+    service, _, evidence_service, author, reviewer, project, _, source, _, _ = conclusion_env
+    evidence = evidence_service.create(author, project, source, "improved recall", uuid4())
+    evidence_id = UUID(evidence["id"])
+    evidence_service.review(
+        reviewer, project, evidence_id, "VERIFIED", "Test-only exact inspection", uuid4()
+    )
+    result = service.create(
+        author, project, "Direct reviewed evidence supports recall.", SCOPE, "WEAK", None,
+        (), (LiteratureInputRequest(evidence_id, "SUPPORTS"),), uuid4(),
+    )
+    service.freeze(author, project, result.conclusion_id, result.version_id, uuid4())
+    view = service.read(author, project, result.conclusion_id, result.version_id)
+    assert view.status == "FROZEN" and view.claim_inputs == ()
+    assert view.literature_inputs[0].literature_evidence_id == evidence_id
+    assert str(sha256_canonical_json(view.support_material)) == view.support_set_hash
+
+
+def test_pg_positive_review_must_be_independent_of_conclusion_author(conclusion_env):
+    service, _, evidence_service, author, reviewer, project, _, source, engine, _ = conclusion_env
+    evidence = evidence_service.create(reviewer, project, source, "improved recall", uuid4())
+    evidence_id = UUID(evidence["id"])
+    evidence_service.review(
+        author, project, evidence_id, "VERIFIED", "Test-only exact inspection", uuid4()
+    )
+    with pytest.raises(ResearchBaseError) as denied:
+        service.create(
+            author, project, "Self-reviewed support cannot promote.", SCOPE,
+            "WEAK", None, (), (LiteratureInputRequest(evidence_id, "SUPPORTS"),), uuid4(),
+        )
+    assert denied.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM scientific_conclusions")).scalar_one() == 0
+
+
+def test_pg_direct_evidence_dispute_blocks_freeze_without_partial_write(conclusion_env):
+    service, _, evidence_service, author, reviewer, project, _, source, engine, _ = conclusion_env
+    evidence = evidence_service.create(author, project, source, "improved recall", uuid4())
+    evidence_id = UUID(evidence["id"])
+    evidence_service.review(
+        reviewer, project, evidence_id, "VERIFIED", "Test-only exact inspection", uuid4()
+    )
+    result = service.create(
+        author, project, "Evidence under review.", SCOPE, "WEAK", None, (),
+        (LiteratureInputRequest(evidence_id, "SUPPORTS"),), uuid4(),
+    )
+    evidence_service.review(
+        reviewer, project, evidence_id, "DISPUTED", "Test-only dispute", uuid4()
+    )
+    with pytest.raises(ResearchBaseError) as blocked:
+        service.freeze(author, project, result.conclusion_id, result.version_id, uuid4())
+    assert blocked.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    with engine.connect() as conn:
+        row = conn.execute(text("""SELECT status,support_set_hash,content_hash
+           FROM scientific_conclusion_versions WHERE id=:id"""),
+           {"id": result.version_id}).one()
+    assert row.status == "DRAFT"
+    assert row.support_set_hash is None and row.content_hash is None
+
+
+def test_pg_dispute_projects_stale_without_rewriting_frozen_history(conclusion_env):
+    service, _, evidence_service, author, reviewer, project, _, source, _, _ = conclusion_env
+    evidence = evidence_service.create(author, project, source, "improved recall", uuid4())
+    evidence_id = UUID(evidence["id"])
+    evidence_service.review(
+        reviewer, project, evidence_id, "VERIFIED", "Test-only exact inspection", uuid4()
+    )
+    result = service.create(
+        author, project, "Historical exact support.", SCOPE, "WEAK", None,
+        (), (LiteratureInputRequest(evidence_id, "SUPPORTS"),), uuid4(),
+    )
+    service.freeze(author, project, result.conclusion_id, result.version_id, uuid4())
+    before = service.read(author, project, result.conclusion_id, result.version_id)
+    evidence_service.review(
+        reviewer, project, evidence_id, "DISPUTED", "Test-only later dispute", uuid4()
+    )
+    after = service.read(author, project, result.conclusion_id, result.version_id)
+    assert after.validity == "STALE"
+    assert after.status == "FROZEN"
+    assert after.support_set_hash == before.support_set_hash
+    assert after.content_hash == before.content_hash
+
+
+def test_pg_revision_preserves_prior_hashes_and_moves_same_parent_pointer(conclusion_env):
+    service, _, _, author, _, project, claim_id, _, engine, _ = conclusion_env
+    first = service.create(
+        author, project, "First synthesis.", SCOPE, "WEAK", None,
+        (ClaimInputRequest(claim_id, "SUPPORTS"),), (), uuid4(),
+    )
+    service.freeze(author, project, first.conclusion_id, first.version_id, uuid4())
+    original = service.read(author, project, first.conclusion_id, first.version_id)
+    revised = service.revise(
+        author, project, first.conclusion_id, "Revised synthesis.", SCOPE,
+        "MODERATE", None, (ClaimInputRequest(claim_id, "SUPPORTS"),), (), uuid4(),
+    )
+    assert revised.conclusion_id == first.conclusion_id
+    assert revised.version_id != first.version_id
+    draft = service.read(author, project, revised.conclusion_id, revised.version_id)
+    assert draft.status == "DRAFT"
+    service.freeze(author, project, revised.conclusion_id, revised.version_id, uuid4())
+    prior = service.read(author, project, first.conclusion_id, first.version_id)
+    current = service.read(author, project, revised.conclusion_id, revised.version_id)
+    assert prior.status == "SUPERSEDED" and prior.content_hash == original.content_hash
+    assert current.status == "FROZEN" and current.version_number == 2
+    with engine.connect() as conn:
+        pointer = conn.execute(text("""SELECT current_version_id FROM scientific_conclusions
+           WHERE id=:id"""), {"id": first.conclusion_id}).scalar_one()
+    assert pointer == revised.version_id
+
+
+def test_pg_frozen_science_rejects_direct_mutation(conclusion_env):
+    service, _, _, author, _, project, claim_id, _, engine, _ = conclusion_env
+    result = service.create(
+        author, project, "Immutable synthesis.", SCOPE, "WEAK", None,
+        (ClaimInputRequest(claim_id, "SUPPORTS"),), (), uuid4(),
+    )
+    service.freeze(author, project, result.conclusion_id, result.version_id, uuid4())
+    with pytest.raises(DBAPIError):
+        with engine.begin() as conn:
+            conn.execute(text("""UPDATE scientific_conclusion_versions SET statement='tampered',
+              row_version=row_version+1 WHERE id=:id"""), {"id": result.version_id})
+    with pytest.raises(DBAPIError):
+        with engine.begin() as conn:
+            conn.execute(text("""DELETE FROM scientific_conclusion_claim_inputs
+              WHERE conclusion_version_id=:id"""), {"id": result.version_id})
+    view = service.read(author, project, result.conclusion_id, result.version_id)
+    assert view.statement == "Immutable synthesis." and view.status == "FROZEN"

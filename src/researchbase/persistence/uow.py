@@ -63,6 +63,9 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
     SqlAlchemyWorkspaceRepository,
 )
+from researchbase.persistence.scientific_conclusion_repository import (
+    SqlAlchemyScientificConclusionRepository,
+)
 from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
 from researchbase.persistence.source_version_repository import SqlAlchemySourceVersionRepository
@@ -230,6 +233,7 @@ class SqlAlchemyUnitOfWork:
     literature_evidence: SqlAlchemyLiteratureEvidenceRepository
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
     discussion: SqlAlchemyDiscussionRepository
+    scientific_conclusion: SqlAlchemyScientificConclusionRepository
 
     def __init__(
         self,
@@ -274,6 +278,7 @@ class SqlAlchemyUnitOfWork:
             self._session
         )
         self.discussion = SqlAlchemyDiscussionRepository(self._session)
+        self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(self._session)
         return self
 
     def begin_serializable(self) -> None:

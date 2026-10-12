@@ -54,7 +54,9 @@ class TechnicalCredentials:
 def m3(phase2_database_url, tmp_path):
     from researchbase.application.literature_evidence import LiteratureEvidenceService
 
-    engine, identity, sources, author, project = _authorized_service(phase2_database_url)
+    engine, identity, sources, author, project = _authorized_service(
+        phase2_database_url, migration_revision="0031_m3_snapshot_relation_cardinality"
+    )
     reviewer_id = uuid4()
     with engine.begin() as conn:
         _add_owner(
