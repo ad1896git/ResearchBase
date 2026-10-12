@@ -30,6 +30,7 @@ from researchbase.application.ports import (
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
+from researchbase.persistence.discussion_repository import SqlAlchemyDiscussionRepository
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
 from researchbase.persistence.literature_evidence_repository import (
     SqlAlchemyLiteratureEvidenceRepository,
@@ -228,6 +229,7 @@ class SqlAlchemyUnitOfWork:
     metadata_observations: SqlAlchemyMetadataObservationRepository
     literature_evidence: SqlAlchemyLiteratureEvidenceRepository
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
+    discussion: SqlAlchemyDiscussionRepository
 
     def __init__(
         self,
@@ -271,6 +273,7 @@ class SqlAlchemyUnitOfWork:
         self.literature_search_execution = SqlAlchemyLiteratureSearchExecutionRepository(
             self._session
         )
+        self.discussion = SqlAlchemyDiscussionRepository(self._session)
         return self
 
     def begin_serializable(self) -> None:

@@ -619,6 +619,9 @@ class GovernanceRepository(Protocol):
 
 class UnitOfWork(Protocol):
     @property
+    def discussion(self) -> Any: ...
+
+    @property
     def literature_evidence(self) -> Any: ...
 
     @property
