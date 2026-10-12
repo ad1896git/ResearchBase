@@ -559,11 +559,18 @@ def test_pg_m3_migration_from_phase1_and_empty_roundtrip(phase2_database_url):
 def test_pg_m3_alembic_env_preserves_percent_escaped_socket_url(
     phase2_database_url, monkeypatch
 ):
+    from urllib.parse import quote
+
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
 
-    encoded_url = phase2_database_url.replace("host=/private/tmp", "host=%2Fprivate%2Ftmp")
+    socket_host = make_url(phase2_database_url).query.get("host")
+    assert isinstance(socket_host, str) and socket_host.startswith("/")
+    encoded_url = phase2_database_url.replace(
+        f"host={socket_host}", f"host={quote(socket_host, safe='')}"
+    )
     assert encoded_url != phase2_database_url
     monkeypatch.setenv("DATABASE_URL", encoded_url)
     config = Config("alembic.ini")
