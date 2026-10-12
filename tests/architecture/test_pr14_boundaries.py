@@ -1,29 +1,143 @@
 from __future__ import annotations
 
+import ast
+from importlib.util import resolve_name
 from pathlib import Path
 
 from researchbase.application.governance import TargetResolverRegistry
 from researchbase.domain.governance import GovernanceTargetType
 
 ROOT = Path(__file__).resolve().parents[2]
+PHASE1_GOVERNANCE = frozenset(
+    {
+        "researchbase.domain.governance",
+        "researchbase.application.governance",
+        "researchbase.application.governance_queries",
+        "researchbase.persistence.governance_repository",
+    }
+)
+DECISION_MODULES = frozenset(
+    {
+        "researchbase.domain.decision",
+        "researchbase.application.decision",
+        "researchbase.persistence.decision_repository",
+    }
+)
+PHASE1_TARGETS = frozenset(
+    {
+        "experiment_spec_version",
+        "dataset_snapshot",
+        "artifact_version",
+        "run",
+        "metric_definition_version",
+        "measurement",
+        "statistical_result",
+        "claim_version",
+    }
+)
+
+
+def _dotted(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return f"{_dotted(node.value)}.{node.attr}"
+    return ""
+
+
+def _dependencies(source: str, module: str, is_package: bool = False) -> set[str]:
+    """Static imports, namespace references and literal dynamic imports; no execution."""
+    tree = ast.parse(source)
+    package = module if is_package else module.rpartition(".")[0]
+    dependencies: set[str] = set()
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                dependencies.add(alias.name)
+                aliases[alias.asname or alias.name.split(".")[0]] = (
+                    alias.name if alias.asname else alias.name.split(".")[0]
+                )
+        elif isinstance(node, ast.ImportFrom):
+            base = resolve_name("." * node.level + (node.module or ""), package)
+            dependencies.add(base)
+            for alias in node.names:
+                child = f"{base}.{alias.name}"
+                dependencies.add(child)
+                aliases[alias.asname or alias.name] = child
+    for node in ast.walk(tree):
+        name = _dotted(node.func if isinstance(node, ast.Call) else node)
+        head, separator, tail = name.partition(".")
+        name = aliases.get(head, head) + (separator + tail if separator else "")
+        if name.startswith("researchbase."):
+            dependencies.add(name)
+        if (
+            isinstance(node, ast.Call)
+            and name in {"importlib.import_module", "builtins.__import__", "__import__"}
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            target = node.args[0].value
+            if target.startswith("."):
+                # Resolve only an explicit literal package; computed imports are not modeled.
+                if len(node.args) < 2 or not isinstance(node.args[1], ast.Constant):
+                    continue
+                if not isinstance(node.args[1].value, str):
+                    continue
+                target = resolve_name(target, node.args[1].value)
+            dependencies.add(target)
+    return dependencies
+
+
+def _boundary_violations(
+    sources: dict[str, str], packages: frozenset[str] = frozenset()
+) -> list[str]:
+    """Preserve PR-14 ownership, not its historical ban on all later phase source."""
+    assert PHASE1_GOVERNANCE <= sources.keys(), "missing protected Phase 1 module"
+    violations: list[str] = []
+    for module, source in sources.items():
+        for forbidden in ("load_any(", "find_any_target", "networkx", "graph cache"):
+            if forbidden in source.lower():
+                violations.append(f"{module}: {forbidden}")
+    for root in sorted(PHASE1_GOVERNANCE):
+        for forbidden in ("decisionrecord", "approvalrequest", "approvaldecision", "approvalgrant"):
+            if forbidden in sources[root].lower():
+                violations.append(f"{root}: {forbidden}")
+        pending: list[tuple[str, tuple[str, ...]]] = [(root, (root,))]
+        seen: set[str] = set()
+        while pending:
+            module, route = pending.pop()
+            if module in seen:
+                continue
+            seen.add(module)
+            for dependency in sorted(_dependencies(sources[module], module, module in packages)):
+                if any(
+                    dependency == item or dependency.startswith(item + ".")
+                    for item in DECISION_MODULES
+                ):
+                    violations.append(" -> ".join((*route, dependency)))
+                elif dependency in sources:
+                    pending.append((dependency, (*route, dependency)))
+    return violations
 
 
 def test_pr14_has_closed_registry_and_no_generic_graph_or_later_governance() -> None:
     assert TargetResolverRegistry().supported_types == frozenset(GovernanceTargetType)
-    source = "\n".join(
-        path.read_text() for path in (ROOT / "src/researchbase").rglob("*.py")
-    ).lower()
-    for forbidden in (
-        "load_any(",
-        "find_any_target",
-        "decisionrecord",
-        "approvalrequest",
-        "approvaldecision",
-        "approvalgrant",
-        "networkx",
-        "graph cache",
-    ):
-        assert forbidden not in source
+    assert frozenset(kind.value for kind in GovernanceTargetType) == PHASE1_TARGETS
+    # Phase 1 spec §20 PR-14 owns governance + queries, while frozen companion20
+    # §1 explicitly permits bounded Phase 2 DecisionRecord code. Shared ports and
+    # UoW are composition boundaries, not globally excluded from dependency checks.
+    source_root = ROOT / "src"
+    sources = {}
+    packages: set[str] = set()
+    for path in sorted((source_root / "researchbase").rglob("*.py")):
+        parts = path.relative_to(source_root).with_suffix("").parts
+        module = ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+        sources[module] = path.read_text()
+        if parts[-1] == "__init__":
+            packages.add(module)
+    assert _boundary_violations(sources, frozenset(packages)) == []
 
 
 def test_pr14_migration_has_exactly_four_business_tables() -> None:
