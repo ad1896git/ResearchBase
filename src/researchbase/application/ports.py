@@ -625,6 +625,9 @@ class UnitOfWork(Protocol):
     def publication(self) -> Any: ...
 
     @property
+    def internal_review(self) -> Any: ...
+
+    @property
     def discussion(self) -> Any: ...
 
     @property

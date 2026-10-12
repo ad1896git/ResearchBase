@@ -192,7 +192,8 @@ def test_empty_upgrade_downgrade_catalog_is_exact(discussion_database_url):
         triggers = set(conn.execute(text("""SELECT tgname FROM pg_trigger
           WHERE tgrelid='manuscript_citation_placements'::regclass
             AND NOT tgisinternal""")).scalars())
-    command.upgrade(config, "head")
+    # This catalog comparison isolates the 0038 -> 0039 citation guard delta.
+    command.upgrade(config, "0039_pr2_13_citation_rebinding_guard")
     with engine.connect() as conn:
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
             "0039_pr2_13_citation_rebinding_guard"
