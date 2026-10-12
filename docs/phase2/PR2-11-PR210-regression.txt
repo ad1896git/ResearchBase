@@ -1,0 +1,12 @@
+
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_durable_roundtrip_restart_exact_refs_and_no_promotion PASSED [ 11%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_replay_concurrency_and_conflict PASSED [ 22%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_distinct_concurrent_appends_have_contiguous_durable_ordinals PASSED [ 33%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_invalid_refs_authority_state_and_rollback PASSED [ 44%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_database_guards_reject_mutation_and_late_append PASSED [ 55%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_migration_downgrade_preserves_committed_discussion_history PASSED [ 66%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_citation_order_is_database_enforced PASSED [ 77%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_committed_turn_citations_cannot_change PASSED [ 88%]
+tests/integration/phase2/test_pr2_10_discussion_persistence.py::test_direct_close_cannot_precede_latest_turn PASSED [100%]
+
+======================== 9 passed, 19 warnings in 3.20s ========================

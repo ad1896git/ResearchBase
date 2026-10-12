@@ -1,0 +1,13 @@
+
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_claim_only_freeze_exact_hash_restart_and_supersession PASSED [ 10%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_snapshot_exact_claim_and_project_binding PASSED [ 20%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_empty_freeze_and_unreviewed_positive_support_fail_closed PASSED [ 30%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_duplicate_request_concurrent_and_unauthorized PASSED [ 40%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_literature_only_freeze_and_hash_readback PASSED [ 50%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_positive_review_must_be_independent_of_conclusion_author PASSED [ 60%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_direct_evidence_dispute_blocks_freeze_without_partial_write PASSED [ 70%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_dispute_projects_stale_without_rewriting_frozen_history PASSED [ 80%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_revision_preserves_prior_hashes_and_moves_same_parent_pointer PASSED [ 90%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_frozen_science_rejects_direct_mutation PASSED [100%]
+
+======================= 10 passed, 20 warnings in 4.12s ========================

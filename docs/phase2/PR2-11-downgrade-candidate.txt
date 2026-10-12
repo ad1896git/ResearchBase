@@ -1,0 +1,5 @@
+
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_empty_0033_downgrade_and_nonempty_history_protection PASSED [ 50%]
+tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_empty_0033_downgrade_succeeds PASSED [100%]
+
+================= 2 passed, 12 deselected, 5 warnings in 1.14s =================
