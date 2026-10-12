@@ -213,7 +213,7 @@ def test_citation_migration_catalog_and_empty_downgrade(discussion_database_url)
     with engine.connect() as conn:
         baseline = set(conn.execute(text("""SELECT tablename,indexname,indexdef
           FROM pg_indexes WHERE schemaname='public'""")).all())
-    command.upgrade(config, "head")
+    command.upgrade(config, "0036_pr2_13_citation_placement")
     with engine.connect() as conn:
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
             "0036_pr2_13_citation_placement"

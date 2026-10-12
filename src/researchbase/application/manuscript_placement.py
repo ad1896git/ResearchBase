@@ -132,3 +132,127 @@ class CitationPlacementService:
             rows = repo.citations(manuscript)
             return tuple(self._result(row, self._source(repo, row["source_version_id"],
                                                        project)) for row in rows)
+
+
+_STRENGTHS = frozenset({"DESCRIPTIVE", "SUGGESTIVE", "SUPPORTED", "STRONG"})
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimPlacementTrace:
+    id: UUID
+    manuscript_version_id: UUID
+    claim_version_id: UUID | None
+    scientific_conclusion_version_id: UUID | None
+    section_id: str
+    locator: dict[str, str]
+    rhetorical_strength: str
+    ordinal: int
+    target_kind: str
+    target_content_hash: str
+    path_kind: str = "PLACEMENT_ONLY"
+
+
+class ClaimPlacementService:
+    """Draft presentation links; no support, review or promotion is created."""
+
+    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any) -> None:
+        self._factory = factory
+        self._auth = PublicationService(factory, credentials, None)
+
+    @staticmethod
+    def _target(repo: Any, target: UUID, project: UUID, *, conclusion: bool) -> str:
+        row = repo.claim_placement_target(target, project, conclusion=conclusion)
+        if (row is None or row["status"] not in ("FROZEN", "SUPERSEDED")
+            or row["frozen_at"] is None or not isinstance(row["content_hash"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", row["content_hash"]) is None
+            or (conclusion and (not isinstance(row["support_set_hash"], str)
+                or re.fullmatch(r"[0-9a-f]{64}", row["support_set_hash"]) is None))):
+            raise ResearchBaseError(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                                    "exact frozen project claim or conclusion required")
+        return row["content_hash"]
+
+    @staticmethod
+    def _result(row: dict[str, Any], target_hash: str) -> ClaimPlacementTrace:
+        conclusion = row["scientific_conclusion_version_id"] is not None
+        return ClaimPlacementTrace(
+            row["id"], row["manuscript_version_id"], row["claim_version_id"],
+            row["scientific_conclusion_version_id"], row["section_id"],
+            dict(row["locator"]), row["rhetorical_strength"], row["ordinal"],
+            "SCIENTIFIC_CONCLUSION_VERSION" if conclusion else "CLAIM_VERSION", target_hash,
+        )
+
+    def add(
+        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
+        manuscript: UUID, claim: UUID | None, conclusion: UUID | None,
+        section: str, locator: dict[str, str], strength: str, ordinal: int,
+        request_id: UUID,
+    ) -> ClaimPlacementTrace:
+        """Add one exact frozen target to a draft; text values max 2000 characters."""
+        if (type(publication) is not UUID or type(manuscript) is not UUID
+            or (type(claim) is UUID) == (type(conclusion) is UUID)
+            or (claim is not None and type(claim) is not UUID)
+            or (conclusion is not None and type(conclusion) is not UUID)
+            or type(request_id) is not UUID or type(ordinal) is not int or ordinal < 0
+            or strength not in _STRENGTHS or not isinstance(locator, dict)
+            or set(locator) != {"kind", "value"} or locator.get("kind") not in _KINDS):
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "typed exact placement required")
+        section = _text(section)
+        location = {"kind": locator["kind"], "value": _text(locator["value"])}
+        target = conclusion if conclusion is not None else claim
+        assert target is not None
+        with self._factory() as uow:
+            at = self._auth._authorize(uow, principal, project, _WRITERS)
+            repo = uow.publication
+            parent = repo.publication(publication, project, lock=True)
+            version = repo.version(manuscript, publication) if parent else None
+            if (parent is None or version is None or version["status"] != "DRAFT"
+                or version["frozen_at"] is not None):
+                raise ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION,
+                                        "draft manuscript unavailable")
+            target_hash = self._target(repo, target, project, conclusion=conclusion is not None)
+            identity = uuid5(NAMESPACE_URL, f"pr213:claim-placement:{principal.deployment_id}:"
+                             f"{project}:{principal.actor_id}:{manuscript}:{request_id}")
+            repo.lock_request(f"pr213:claim-placement:{identity}")
+            prior = repo.claim_placement(identity, manuscript)
+            if prior is None:
+                row: dict[str, Any] = {
+                    "id": identity, "manuscript_version_id": manuscript,
+                    "claim_version_id": claim,
+                    "scientific_conclusion_version_id": conclusion,
+                    "section_id": section, "locator": location,
+                    "rhetorical_strength": strength, "ordinal": ordinal,
+                    "created_by": principal.actor_id, "created_at": at, "row_version": 1,
+                }
+                repo.insert_claim_placement({
+                    **row, "locator": json.dumps(location, sort_keys=True),
+                })
+            else:
+                row = prior
+                if (prior["claim_version_id"] != claim
+                    or prior["scientific_conclusion_version_id"] != conclusion
+                    or prior["section_id"] != section or prior["locator"] != location
+                    or prior["rhetorical_strength"] != strength or prior["ordinal"] != ordinal):
+                    raise ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT,
+                                            "claim placement request replay differs")
+            uow.commit()
+        return self._result(row, target_hash)
+
+    def trace(
+        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
+        manuscript: UUID,
+    ) -> tuple[ClaimPlacementTrace, ...]:
+        with self._factory() as uow:
+            self._auth._authorize(uow, principal, project, _READERS)
+            repo = uow.publication
+            parent = repo.publication(publication, project)
+            version = repo.version(manuscript, publication) if parent else None
+            if (version is None or version["status"] != "DRAFT"
+                or version["frozen_at"] is not None):
+                raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
+            rows = repo.claim_placements(manuscript)
+            return tuple(self._result(
+                row, self._target(repo,
+                                  row["scientific_conclusion_version_id"]
+                                  or row["claim_version_id"], project,
+                                  conclusion=row["scientific_conclusion_version_id"] is not None)
+            ) for row in rows)

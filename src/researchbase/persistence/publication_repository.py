@@ -91,3 +91,38 @@ class SqlAlchemyPublicationRepository:
           WHERE manuscript_version_id=:manuscript ORDER BY section_id,ordinal,id"""),
           {"manuscript": manuscript}).mappings().all()
         return [dict(row) for row in rows]
+
+    def claim_placement_target(self, identity: UUID, project: UUID, *, conclusion: bool):
+        if conclusion:
+            query = """SELECT v.id,v.status,v.frozen_at,v.content_hash,v.support_set_hash
+              FROM scientific_conclusion_versions v JOIN scientific_conclusions c
+                ON c.id=v.scientific_conclusion_id
+              WHERE v.id=:id AND c.project_id=:project FOR SHARE OF v,c"""
+        else:
+            query = """SELECT v.id,v.status,v.frozen_at,v.content_hash
+              FROM claim_versions v JOIN claims c ON c.id=v.claim_id
+              WHERE v.id=:id AND c.project_id=:project FOR SHARE OF v,c"""
+        row = self._session.execute(text(query), {"id": identity, "project": project})\
+            .mappings().first()
+        return dict(row) if row else None
+
+    def insert_claim_placement(self, values: dict[str, object]) -> None:
+        self._session.execute(text("""INSERT INTO manuscript_claim_placements
+          (id,manuscript_version_id,claim_version_id,scientific_conclusion_version_id,
+           section_id,locator,rhetorical_strength,ordinal,created_by,created_at,row_version)
+          VALUES (:id,:manuscript_version_id,:claim_version_id,
+                  :scientific_conclusion_version_id,:section_id,CAST(:locator AS jsonb),
+                  :rhetorical_strength,:ordinal,:created_by,:created_at,:row_version)"""),
+          values)
+
+    def claim_placement(self, identity: UUID, manuscript: UUID):
+        row = self._session.execute(text("""SELECT * FROM manuscript_claim_placements
+          WHERE id=:id AND manuscript_version_id=:manuscript"""),
+          {"id": identity, "manuscript": manuscript}).mappings().first()
+        return dict(row) if row else None
+
+    def claim_placements(self, manuscript: UUID):
+        rows = self._session.execute(text("""SELECT * FROM manuscript_claim_placements
+          WHERE manuscript_version_id=:manuscript ORDER BY section_id,ordinal,id"""),
+          {"manuscript": manuscript}).mappings().all()
+        return [dict(row) for row in rows]
