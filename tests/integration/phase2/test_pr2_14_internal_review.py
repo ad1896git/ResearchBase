@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from threading import Event
+from time import monotonic, sleep
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
@@ -23,7 +23,7 @@ from researchbase.application.governance import (
 from researchbase.application.internal_review import InternalReviewService, ReviewIssueRequest
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
-from researchbase.foundation.errors import ResearchBaseError
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.time import SystemClock
 from tests.application_compat import LegacyApplicationService as ApplicationService
@@ -40,6 +40,49 @@ pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 conclusion_env = _conclusion_env
 phase2_database_url = _phase2_database_url
+
+
+def _wait_for_pg_blocker(engine, holder_pid: int, expected_lock: str) -> dict:
+    """Witness a real backend blocked by this holder, with a bounded deadline."""
+    deadline = monotonic() + 10
+    while monotonic() < deadline:
+        with engine.connect() as observer:
+            row = observer.execute(text("""SELECT a.pid,a.state,a.wait_event_type,
+              a.wait_event,a.query,pg_blocking_pids(a.pid) AS blocking_pids,
+              l.locktype,l.mode,l.relation::regclass::text AS relation,
+              l.transactionid,l.classid,l.objid,l.objsubid,
+              clock_timestamp() AS observed_at
+              FROM pg_stat_activity a JOIN pg_locks l ON l.pid=a.pid AND NOT l.granted
+              WHERE a.pid<>:holder AND :holder=ANY(pg_blocking_pids(a.pid))
+                AND a.wait_event_type='Lock' AND l.locktype=:kind
+              ORDER BY a.pid LIMIT 1"""),
+              {"holder": holder_pid, "kind": expected_lock}).mappings().first()
+        if row is not None:
+            witness = dict(row)
+            assert witness["state"] == "active"
+            assert witness["wait_event_type"] == "Lock"
+            assert holder_pid in witness["blocking_pids"]
+            assert witness["pid"] != holder_pid
+            print("PR214_LOCK_WAIT_WITNESS", {
+                key: str(witness[key]) for key in (
+                    "pid", "wait_event", "locktype", "mode", "relation",
+                    "transactionid", "classid", "objid", "objsubid", "observed_at"
+                )
+            }, "blocking_pid", holder_pid)
+            return witness
+        sleep(0.02)
+    pytest.fail(f"no PostgreSQL {expected_lock} lock wait blocked by PID {holder_pid}")
+
+
+def _assert_no_review_history(engine) -> None:
+    with engine.connect() as conn:
+        for table in ("internal_review_records", "review_issues", "review_issue_events"):
+            assert conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one() == 0
+
+
+def _same_waiting_lock(before: dict, after: dict) -> bool:
+    fields = ("pid", "locktype", "mode", "transactionid", "classid", "objid", "objsubid")
+    return all(before[field] == after[field] for field in fields)
 
 
 def test_independent_frozen_claim_review_and_issue_are_immutable(
@@ -378,29 +421,31 @@ def test_credential_revocation_while_request_lock_waits_is_rechecked(
         NAMESPACE_URL,
         f"pr214:{reviewer.deployment_id}:{project}:{reviewer.actor_id}:{request}",
     )
-    checked = Event()
-    original = credentials.is_valid
-
-    def observed_valid(principal, at):
-        result = original(principal, at)
-        checked.set()
-        return result
-
-    credentials.is_valid = observed_valid
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as holder:
+            holder_pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
             holder.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
                            {"key": f"pr214:review:{identity}"})
             pending = pool.submit(
                 service.create, reviewer, project, "CLAIM_VERSION", claim_id,
                 "SCIENTIFIC", "ACCEPT", "Must recheck after lock wait", (), request,
             )
-            assert checked.wait(timeout=10)
+            witness = _wait_for_pg_blocker(engine, holder_pid, "advisory")
+            assert "pg_advisory_xact_lock" in witness["query"]
+            assert not pending.done()
+            print("PR214_VALID_AUTHORIZATION_THEN_WAIT", witness["pid"], holder_pid)
             credentials.enabled = False
-        with pytest.raises(ResearchBaseError):
+            assert not credentials.is_valid(reviewer, witness["observed_at"])
+            print("PR214_AUTHORIZATION_INVALID", witness["pid"], "credential_revoked")
+            assert _same_waiting_lock(
+                witness, _wait_for_pg_blocker(engine, holder_pid, "advisory")
+            )
+        print("PR214_LOCK_RELEASED", holder_pid)
+        with pytest.raises(ResearchBaseError) as denied:
             pending.result(timeout=10)
-    with engine.connect() as conn:
-        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
+        assert denied.value.code is ErrorCode.FORBIDDEN
+        print("PR214_REVALIDATION_DENIED", witness["pid"], denied.value.code.value)
+    _assert_no_review_history(engine)
 
 
 def test_credential_revocation_while_target_row_lock_waits_is_rechecked(
@@ -413,33 +458,31 @@ def test_credential_revocation_while_target_row_lock_waits_is_rechecked(
         conclusion_env
     )
     service = InternalReviewService(factory, credentials, evidence_service)
-    checked = Event()
-    checks = 0
-    original = credentials.is_valid
-
-    def observed_valid(principal, at):
-        nonlocal checks
-        result = original(principal, at)
-        checks += 1
-        if checks == 2:
-            checked.set()
-        return result
-
-    credentials.is_valid = observed_valid
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as holder:
+            holder_pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
             holder.execute(text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"),
                            {"id": claim_id}).scalar_one()
             pending = pool.submit(
                 service.create, reviewer, project, "CLAIM_VERSION", claim_id,
                 "SCIENTIFIC", "ACCEPT", "Must recheck after target wait", (), uuid4(),
             )
-            assert checked.wait(timeout=10)
+            witness = _wait_for_pg_blocker(engine, holder_pid, "transactionid")
+            assert "claim_versions" in witness["query"]
+            assert not pending.done()
+            print("PR214_VALID_AUTHORIZATION_THEN_WAIT", witness["pid"], holder_pid)
             credentials.enabled = False
-        with pytest.raises(ResearchBaseError):
+            assert not credentials.is_valid(reviewer, witness["observed_at"])
+            print("PR214_AUTHORIZATION_INVALID", witness["pid"], "credential_revoked")
+            assert _same_waiting_lock(
+                witness, _wait_for_pg_blocker(engine, holder_pid, "transactionid")
+            )
+        print("PR214_LOCK_RELEASED", holder_pid)
+        with pytest.raises(ResearchBaseError) as denied:
             pending.result(timeout=10)
-    with engine.connect() as conn:
-        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
+        assert denied.value.code is ErrorCode.FORBIDDEN
+        print("PR214_REVALIDATION_DENIED", witness["pid"], denied.value.code.value)
+    _assert_no_review_history(engine)
 
 
 def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
@@ -457,7 +500,7 @@ def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
           WHERE actor_id=:actor AND project_id=:project AND effective_until IS NULL"""),
           {"actor": reviewer.actor_id, "project": project}).scalar_one()
         until = conn.execute(text("""UPDATE project_role_assignments
-          SET effective_until=clock_timestamp() + interval '3 seconds',
+          SET effective_until=clock_timestamp() + interval '8 seconds',
               row_version=row_version+1 WHERE id=:id RETURNING effective_until"""),
           {"id": role}).scalar_one()
         conn.execute(text("""INSERT INTO project_role_events
@@ -468,17 +511,6 @@ def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
            "until": until, "request": uuid4()})
         assert conn.execute(text("SELECT clock_timestamp() < :until"),
                             {"until": until}).scalar_one()
-    checked = Event()
-    original = credentials.is_valid
-    initial_checks: list[bool] = []
-
-    def observed_valid(principal, at):
-        result = original(principal, at)
-        initial_checks.append(result)
-        checked.set()
-        return result
-
-    credentials.is_valid = observed_valid
     request = uuid4()
     identity = uuid5(
         NAMESPACE_URL,
@@ -486,24 +518,35 @@ def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
     )
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as holder:
+            holder_pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
             holder.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
                            {"key": f"pr214:review:{identity}"})
             pending = pool.submit(
                 service.create, reviewer, project, "CLAIM_VERSION", claim_id,
                 "SCIENTIFIC", "ACCEPT", "Expired during required lock wait", (), request,
             )
-            assert checked.wait(timeout=2)
-            assert initial_checks == [True]
+            before = _wait_for_pg_blocker(engine, holder_pid, "advisory")
+            assert before["observed_at"] < until
+            assert "pg_advisory_xact_lock" in before["query"]
+            assert not pending.done()
+            print("PR214_VALID_AUTHORIZATION_THEN_WAIT", before["pid"], holder_pid,
+                  "role_until", until.isoformat())
             holder.execute(text("SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM "
                                 "(:until-clock_timestamp()))+0.1))"),
                            {"until": until})
             assert holder.execute(text("SELECT clock_timestamp() >= :until"),
                                   {"until": until}).scalar_one()
-        with pytest.raises(ResearchBaseError):
+            after = _wait_for_pg_blocker(engine, holder_pid, "advisory")
+            assert _same_waiting_lock(before, after) and after["observed_at"] >= until
+            assert not pending.done()
+            print("PR214_AUTHORIZATION_INVALID", after["pid"], "role_expired",
+                  after["observed_at"].isoformat())
+        print("PR214_LOCK_RELEASED", holder_pid)
+        with pytest.raises(ResearchBaseError) as denied:
             pending.result(timeout=10)
-    with engine.connect() as conn:
-        assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
-        assert conn.execute(text("SELECT count(*) FROM review_issues")).scalar_one() == 0
+        assert denied.value.code is ErrorCode.FORBIDDEN
+        print("PR214_REVALIDATION_DENIED", after["pid"], denied.value.code.value)
+    _assert_no_review_history(engine)
 
 
 def test_empty_migration_downgrade_drops_only_new_review_objects(phase2_database_url):
