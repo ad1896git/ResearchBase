@@ -192,7 +192,7 @@ def test_artifact_migration_catalog_and_downgrade(phase2_database_url):
         baseline = set(conn.execute(text("""SELECT tablename,indexname,indexdef
           FROM pg_indexes WHERE schemaname='public'""")).all())
     engine.dispose()
-    command.upgrade(config, "head")
+    command.upgrade(config, "0038_pr2_13_artifact_placement")
     engine = create_engine(phase2_database_url)
     with engine.connect() as conn:
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
