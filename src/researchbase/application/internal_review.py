@@ -189,21 +189,27 @@ class InternalReviewService:
                     issue.severity, issue.issue_type, _text(issue.description, "issue description")
                 )
             )
+        is_claim = target_kind == "CLAIM_VERSION"
         with self._factory() as uow:
-            at = self._auth._authorize(uow, principal, project, _REVIEWERS)
+            if is_claim:
+                at = self._auth._authorize(uow, principal, project, _REVIEWERS)
+            elif not isinstance(principal, VerifiedPrincipal) or type(project) is not UUID:
+                _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
             identity = uuid5(
                 NAMESPACE_URL,
                 f"pr214:{principal.deployment_id}:{project}:{principal.actor_id}:{request}",
             )
             repo = uow.internal_review
             repo.lock_request(identity)
-            # The advisory lock can wait past role or credential expiry (R4 TEMP-AUTH-01).
-            at = self._auth._authorize(uow, principal, project, _REVIEWERS)
-            is_claim = target_kind == "CLAIM_VERSION"
             if is_claim:
+                # Preserve the accepted Claim review coordination and authorization.
+                at = self._auth._authorize(uow, principal, project, _REVIEWERS)
                 target = uow.literature_evidence.target("ClaimVersion", target_id, project)
             else:
+                # Request -> exact target -> parent -> project/authority -> reviews.
+                # No target information is disclosed until current authorization.
                 target = repo.conclusion_target(target_id, project, lock=True)
+                at = self._auth._authorize(uow, principal, project, _REVIEWERS)
             if (
                 target is None
                 or target["status"] not in {"FROZEN", "SUPERSEDED"}
