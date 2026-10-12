@@ -90,11 +90,13 @@ def upgrade() -> None:
           AND d.id<>NEW.decision_id) THEN
         RAISE EXCEPTION 'initial decision scope already recorded' USING ERRCODE='P17F3';
       END IF;
-      IF TG_TABLE_NAME='decision_basis_reviews' AND NOT EXISTS (
-          SELECT 1 FROM internal_review_records r WHERE r.id=NEW.internal_review_record_id
-            AND r.project_id=decision_project AND r.target_content_hash=target_hash
-            AND r.scientific_conclusion_version_id=target_id) THEN
-        RAISE EXCEPTION 'exact review binding required' USING ERRCODE='P17F2';
+      IF TG_TABLE_NAME='decision_basis_reviews' THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM internal_review_records r WHERE r.id=NEW.internal_review_record_id
+              AND r.project_id=decision_project AND r.target_content_hash=target_hash
+              AND r.scientific_conclusion_version_id=target_id) THEN
+          RAISE EXCEPTION 'exact review binding required' USING ERRCODE='P17F2';
+        END IF;
       END IF;
       RETURN NEW;
     END $$;
