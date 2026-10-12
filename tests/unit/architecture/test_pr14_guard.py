@@ -155,3 +155,12 @@ def test_keyword_relative_dynamic_import_checks_literal_package():
         "load(name='.decision', package='researchbase.domain')"
     )
     assert boundary._boundary_violations(sources)
+
+
+def test_protected_roots_check_their_own_package_initializers():
+    sources = _sources()
+    sources["researchbase.application"] = "from researchbase.domain import decision"
+    errors = boundary._boundary_violations(sources, frozenset({"researchbase.application"}))
+    assert any(
+        "researchbase.application -> researchbase.domain.decision" in error for error in errors
+    )

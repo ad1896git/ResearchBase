@@ -125,7 +125,8 @@ def _boundary_violations(
             parents = {
                 package
                 for package in packages
-                if any(dependency.startswith(package + ".") for dependency in dependencies)
+                if module.startswith(package + ".")
+                or any(dependency.startswith(package + ".") for dependency in dependencies)
             }
             for dependency in sorted(dependencies | parents):
                 if any(
