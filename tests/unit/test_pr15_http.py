@@ -269,6 +269,8 @@ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
         ErrorCode.NOT_FOUND: 404,
         ErrorCode.AUTHENTICATION_REQUIRED: 401,
         ErrorCode.FORBIDDEN: 403,
+        ErrorCode.REVIEW_TARGET_NOT_FROZEN: 409,
+        ErrorCode.CONFLICT_OF_INTEREST: 403,
         ErrorCode.SUBJECT_BINDING_UNPROVEN: 403,
         ErrorCode.INVALID_STATE_TRANSITION: 409,
         ErrorCode.VERSION_NOT_FROZEN: 409,

@@ -27,6 +27,8 @@ CLI_EXIT_CODES: dict[ErrorCode, int] = {
     ErrorCode.NOT_FOUND: 3,
     ErrorCode.AUTHENTICATION_REQUIRED: 3,
     ErrorCode.FORBIDDEN: 3,
+    ErrorCode.REVIEW_TARGET_NOT_FROZEN: 4,
+    ErrorCode.CONFLICT_OF_INTEREST: 3,
     ErrorCode.SUBJECT_BINDING_UNPROVEN: 3,
     ErrorCode.INVALID_STATE_TRANSITION: 4,
     ErrorCode.VERSION_NOT_FROZEN: 4,

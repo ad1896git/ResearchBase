@@ -121,14 +121,19 @@ def test_client_identity_claims_still_fail_exact_v2_protocol():
         _validate({"v": 2, "op": "evidence.review", "project_id": "x", "actor_id": "owner"})
 
 
-def test_m3_storage_rejects_symlinked_cas(tmp_path: Path):
+def test_m3_storage_rejects_symlinked_cas(tmp_path: Path, monkeypatch):
+    import researchbase.runner as runner
     from researchbase.runner import RunnerProfile, verify_m3_storage
 
-    installation = tmp_path / "installation"
-    actual_cas = tmp_path / "actual-cas"
+    tmp_path.chmod(0o700)
+    monkeypatch.setattr(runner, "_DURABLE", tmp_path.resolve())
+    installation = tmp_path.resolve() / "installation"
+    actual_cas = tmp_path.resolve() / "actual-cas"
     installation.mkdir(mode=0o700)
     actual_cas.mkdir(mode=0o700)
-    cas_link = tmp_path / "cas"
+    # First prove the private directories pass, so the rejection is the symlink.
+    verify_m3_storage(RunnerProfile("m3-retained", installation, actual_cas, True))
+    cas_link = tmp_path.resolve() / "cas"
     cas_link.symlink_to(actual_cas, target_is_directory=True)
     profile = RunnerProfile("m3-retained", installation, cas_link, True)
     with pytest.raises(ValueError):

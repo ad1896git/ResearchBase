@@ -1,0 +1,2653 @@
+{
+  "baseline_commit": "b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff",
+  "ruff": [
+    [
+      "scripts/pr2_04_suite_probe.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "scripts/pr2_04_suite_probe.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "scripts/pr2_04_verification_matrix.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "src/researchbase/api/app.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (122 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (173 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (253 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (254 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (263 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (192 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (330 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (242 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (317 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (227 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (198 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (149 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (151 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (121 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (115 > 100)"
+    ],
+    [
+      "src/researchbase/cli/commands/literature.py",
+      "E501",
+      "Line too long (115 > 100)"
+    ],
+    [
+      "src/researchbase/domain/literature_search_plan.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "src/researchbase/domain/literature_search_plan.py",
+      "E501",
+      "Line too long (121 > 100)"
+    ],
+    [
+      "src/researchbase/domain/literature_search_plan.py",
+      "E501",
+      "Line too long (118 > 100)"
+    ],
+    [
+      "src/researchbase/domain/literature_search_plan.py",
+      "E501",
+      "Line too long (118 > 100)"
+    ],
+    [
+      "src/researchbase/domain/literature_search_plan.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_00_bootstrap.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_00_identity.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_00_temporal_auth.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_01_source_identity.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_02_gov_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_02_source_version_migration.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "F401",
+      "`uuid.UUID` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (145 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (172 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (138 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (369 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (124 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (183 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_command_matrix.py",
+      "E501",
+      "Line too long (208 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_effective_authority.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_literature_search_plan_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py",
+      "E501",
+      "Line too long (148 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "F401",
+      "`datetime.UTC` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "F401",
+      "`datetime.datetime` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (401 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (276 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (125 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (145 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (479 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (351 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "E501",
+      "Line too long (181 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (120 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (119 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (123 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "F401",
+      "`sqlalchemy.text` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "F811",
+      "Redefinition of unused `execution_case` from line 20"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "E501",
+      "Line too long (120 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "F811",
+      "Redefinition of unused `text` from line 8"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "E501",
+      "Line too long (112 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_cas_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_cas_completion.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "F401",
+      "`queue.Queue` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "F401",
+      "`typing.Any` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (167 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (184 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (184 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E731",
+      "Do not assign a `lambda` expression, use a `def`"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (125 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (115 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (193 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E701",
+      "Multiple statements on one line (colon)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_context_guard_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_context_guard_repair.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_context_guard_repair.py",
+      "E501",
+      "Line too long (132 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_context_types.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (114 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_migration.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_migration.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_provenance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_provenance.py",
+      "E501",
+      "Line too long (112 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_provenance.py",
+      "E501",
+      "Line too long (112 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_provenance.py",
+      "E501",
+      "Line too long (122 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_shape_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_execution_shape_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (119 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "E501",
+      "Line too long (141 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "E501",
+      "Line too long (141 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "E501",
+      "Line too long (170 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "E501",
+      "Line too long (156 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "E501",
+      "Line too long (154 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "E501",
+      "Line too long (162 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (118 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (116 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_migration_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_migration_coverage.py",
+      "F401",
+      "`subprocess` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_shape_acceptance.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_ownership_races.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py",
+      "E501",
+      "Line too long (113 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "F401",
+      "`typing.Any` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (113 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_admission_guard_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_admission_guard_repair.py",
+      "F401",
+      "`tests.integration.phase2.test_pr2_03_review_guards._freeze` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_admission_guard_repair.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_binding_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_binding_coverage.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_binding_coverage.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_binding_coverage.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_binding_coverage.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_plan_binding_coverage.py",
+      "E501",
+      "Line too long (117 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_planned_sql_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_process_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "E501",
+      "Line too long (115 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "E501",
+      "Line too long (133 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "E501",
+      "Line too long (139 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_provider_pg_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_read_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "E501",
+      "Line too long (117 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "E501",
+      "Line too long (112 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "E501",
+      "Line too long (114 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "E501",
+      "Line too long (132 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_reservation_predecessor_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_response_atomicity_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_restart_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_restart_completion.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_restart_completion.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_restart_completion.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_restart_completion.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_schema_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+      "F401",
+      "`tests.integration.phase2.test_pr2_04_schema_coverage.A` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+      "F401",
+      "`tests.integration.phase2.test_pr2_04_schema_coverage.E` imported but unused"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+      "E501",
+      "Line too long (110 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "E501",
+      "Line too long (119 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_races.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (118 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (136 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (196 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (166 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (244 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (250 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (119 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (111 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (123 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_transaction_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_transaction_coverage.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/integration/pr12_support.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_p1_fcr1_enum_migration.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_p1_fcr4_boundary_corruption.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_p1_fcr4_corruption_matrix.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_p1_fcr4_ownership_matrix.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_p1_fcr4_postgres_digest_invariance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr02_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr04_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr05_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr06_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr07_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr08_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr09_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr09r2_proof.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr10_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr11_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr11r2_migration.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr12_application.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr12_atomicity.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr12_closure.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr12_concurrency.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr12_fk.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr13_queries.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr15_api.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr17dr2_adversarial.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr17dr2_concurrency.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr17dr_catalog.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr17dr_error_contract.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr17dr_migration.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/integration/test_pr18_hardening.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_literature_search_execution_domain.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_literature_search_execution_migration_contract.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_literature_search_execution_service.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_literature_search_execution_uow.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_literature_search_plan.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_literature_search_plan.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_literature_search_provider.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_admission_limits_contract.py",
+      "F811",
+      "Redefinition of unused `test_invalid_integer_types_reject_before_opening_any_uow` from line 128"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_cli_validation_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_closed_provider_dtos.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disclosure_repair.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disclosure_repair.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disclosure_repair.py",
+      "E501",
+      "Line too long (107 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disclosure_repair.py",
+      "E501",
+      "Line too long (160 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disclosure_repair.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disclosure_repair.py",
+      "E501",
+      "Line too long (124 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disconnect_isolation.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_disconnect_isolation.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_evidence.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_matrix_tool.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_matrix_tool.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_matrix_tool.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_phase_crash_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_phase_crash_coverage.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_recovery_contract.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retry_policy_acceptance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retry_policy_acceptance.py",
+      "E501",
+      "Line too long (108 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_completion.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_completion.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "F401",
+      "`uuid.UUID` imported but unused"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (106 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (126 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (105 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (101 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (103 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (102 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (109 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "E501",
+      "Line too long (104 > 100)"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_validator_coverage.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/phase2/test_search_plan_review_regressions.py",
+      "F401",
+      "`typing.Never` imported but unused"
+    ],
+    [
+      "tests/unit/phase2/test_search_plan_review_regressions.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/test_p1_fcr4_digest_invariance.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/test_p1_fcr4r1_frozen_json_backing.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/test_p1_fcr4r2_intrinsic_immutability.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ],
+    [
+      "tests/unit/test_pr18_explain_contract.py",
+      "I001",
+      "Import block is un-sorted or un-formatted"
+    ]
+  ],
+  "pyright": [
+    [
+      "tests/integration/phase2/test_hg1_bound_subject.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_hg1_review_integration.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"__wrapped__\" for class \"FixtureFunctionDefinition\"\n  Attribute \"__wrapped__\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "error",
+      "reportCallIssue",
+      "Arguments missing for parameters \"name\", \"request_id\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Expired\" cannot be assigned to parameter \"credential_verifier\" of type \"CredentialVerifier | None\" in function \"__init__\"\n  Type \"Expired\" is not assignable to type \"CredentialVerifier | None\"\n    \"Expired\" is incompatible with protocol \"CredentialVerifier\"\n      \"is_valid\" is an incompatible type\n        Type \"(supplied: Unknown, at: Unknown) -> Literal[False]\" is not assignable to type \"(principal: VerifiedPrincipal, at: datetime) -> bool\"\n          Parameter name mismatch: \"principal\" versus \"supplied\"\n    \"Expired\" is not assignable to \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_cancellation_coverage.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"checkedout\" for class \"Pool\"\n  Attribute \"checkedout\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_cancellation_coverage.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"checkedout\" for class \"Pool\"\n  Attribute \"checkedout\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['admission']\" cannot be assigned to parameter \"key\" of type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\" in function \"__getitem__\"\n  Type \"Literal['admission']\" is not assignable to type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\"\n    \"Literal['admission']\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"Literal['admission']\" is not assignable to \"slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['admission']\" cannot be assigned to parameter \"key\" of type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\" in function \"__getitem__\"\n  Type \"Literal['admission']\" is not assignable to type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\"\n    \"Literal['admission']\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"Literal['admission']\" is not assignable to \"slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['drive_c2']\" cannot be assigned to parameter \"key\" of type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\" in function \"__getitem__\"\n  Type \"Literal['drive_c2']\" is not assignable to type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\"\n    \"Literal['drive_c2']\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"Literal['drive_c2']\" is not assignable to \"slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['drive_c2']\" cannot be assigned to parameter \"key\" of type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\" in function \"__getitem__\"\n  Type \"Literal['drive_c2']\" is not assignable to type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\"\n    \"Literal['drive_c2']\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"Literal['drive_c2']\" is not assignable to \"slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['admission']\" cannot be assigned to parameter \"key\" of type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\" in function \"__getitem__\"\n  Type \"Literal['admission']\" is not assignable to type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\"\n    \"Literal['admission']\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"Literal['admission']\" is not assignable to \"slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['terminal']\" cannot be assigned to parameter \"key\" of type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\" in function \"__getitem__\"\n  Type \"Literal['terminal']\" is not assignable to type \"SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\"\n    \"Literal['terminal']\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"Literal['terminal']\" is not assignable to \"slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_context_guard_repair.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"sqlstate\" for class \"BaseException\"\n  Attribute \"sqlstate\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_context_guard_repair.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"sqlstate\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_completion.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot assign to attribute \"observer\" for class \"ScriptedProvider\"\n  Type \"(request: SearchRequest) -> dict[str, Any]\" is not assignable to type \"((SearchRequest) -> None) | None\"\n    Type \"(request: SearchRequest) -> dict[str, Any]\" is not assignable to type \"(SearchRequest) -> None\"\n      Function return type \"dict[str, Any]\" is incompatible with type \"None\"\n        \"dict[str, Any]\" is not assignable to \"None\"\n    \"FunctionType\" is not assignable to \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_completion.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot assign to attribute \"observer\" for class \"ScriptedProvider\"\n  Type \"(request: SearchRequest) -> dict[str, Any]\" is not assignable to type \"((SearchRequest) -> None) | None\"\n    Type \"(request: SearchRequest) -> dict[str, Any]\" is not assignable to type \"(SearchRequest) -> None\"\n      Function return type \"dict[str, Any]\" is incompatible with type \"None\"\n        \"dict[str, Any]\" is not assignable to \"None\"\n    \"FunctionType\" is not assignable to \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_completion.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot assign to attribute \"stop_query_index\" for class \"LiteratureSearchExecutionService\"\n  Attribute \"stop_query_index\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal[1]\" cannot be assigned to parameter \"value\" of type \"tuple[str, ...] | tuple[*tuple[str, ...], Literal['never sent query']]\" in function \"__setitem__\"\n  Type \"Literal[1]\" is not assignable to type \"tuple[str, ...] | tuple[*tuple[str, ...], Literal['never sent query']]\"\n    \"Literal[1]\" is not assignable to \"tuple[str, ...]\"\n    \"Literal[1]\" is not assignable to \"tuple[*tuple[str, ...], Literal['never sent query']]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal[1]\" cannot be assigned to parameter \"timeout_seconds\" of type \"tuple[str, ...] | tuple[*tuple[str, ...], Literal['never sent query']]\" in function \"update\"\n  Type \"Literal[1]\" is not assignable to type \"tuple[str, ...] | tuple[*tuple[str, ...], Literal['never sent query']]\"\n    \"Literal[1]\" is not assignable to \"tuple[str, ...]\"\n    \"Literal[1]\" is not assignable to \"tuple[*tuple[str, ...], Literal['never sent query']]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_idempotency_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal[5]\" cannot be assigned to parameter \"execution_budget_seconds\" of type \"tuple[str, ...] | tuple[*tuple[str, ...], Literal['never sent query']]\" in function \"update\"\n  Type \"Literal[5]\" is not assignable to type \"tuple[str, ...] | tuple[*tuple[str, ...], Literal['never sent query']]\"\n    \"Literal[5]\" is not assignable to \"tuple[str, ...]\"\n    \"Literal[5]\" is not assignable to \"tuple[*tuple[str, ...], Literal['never sent query']]\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"sqlstate\" for class \"BaseException\"\n  Attribute \"sqlstate\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"sqlstate\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"sqlstate\" for class \"BaseException\"\n  Attribute \"sqlstate\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"sqlstate\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"sqlstate\" for class \"BaseException\"\n  Attribute \"sqlstate\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"sqlstate\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"sqlstate\" for class \"BaseException\"\n  Attribute \"sqlstate\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"sqlstate\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"outcome_args\" for class \"LiteratureSearchExecutionService\"\n  Attribute \"outcome_args\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+      "error",
+      "reportGeneralTypeIssues",
+      "\"None\" is not iterable\n  \"__iter__\" method not defined"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_read_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"ExpiringCredential\" cannot be assigned to parameter \"credential_verifier\" of type \"CredentialVerifier | None\" in function \"__init__\"\n  Type \"ExpiringCredential\" is not assignable to type \"CredentialVerifier | None\"\n    \"ExpiringCredential\" is incompatible with protocol \"CredentialVerifier\"\n      \"is_valid\" is an incompatible type\n        Type \"(candidate: Unknown, at: Unknown) -> Literal[True]\" is not assignable to type \"(principal: VerifiedPrincipal, at: datetime) -> bool\"\n          Parameter name mismatch: \"principal\" versus \"candidate\"\n    \"ExpiringCredential\" is not assignable to \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"ProviderError\" cannot be assigned to parameter \"object\" of type \"SearchResponse\" in function \"append\"\n  \"ProviderError\" is not assignable to \"SearchResponse\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"None\" cannot be assigned to parameter \"value\" of type \"UUID | int | str\" in function \"__setitem__\"\n  Type \"None\" is not assignable to type \"UUID | int | str\"\n    \"None\" is not assignable to \"UUID\"\n    \"None\" is not assignable to \"int\"\n    \"None\" is not assignable to \"str\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"timezone\" for class \"TypeEngine[Any]\"\n  Attribute \"timezone\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"outcome_args\" for class \"LiteratureSearchExecutionService\"\n  Attribute \"outcome_args\" is unknown"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+      "error",
+      "reportCallIssue",
+      "Argument missing for parameter \"provider_request_id\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"setdefault\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"setdefault\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+      "error",
+      "reportOptionalSubscript",
+      "Object of type \"None\" is not subscriptable"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_admission_limits_contract.py",
+      "error",
+      "reportRedeclaration",
+      "Function declaration \"test_invalid_integer_types_reject_before_opening_any_uow\" is obscured by a declaration of the same name"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_recovery_static_gates.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"(files: list[str]) -> None\" cannot be assigned to parameter \"formatter\" of type \"((list[str]) -> int) | None\" in function \"format_changed\"\n  Type \"(files: list[str]) -> None\" is not assignable to type \"((list[str]) -> int) | None\"\n    Type \"(files: list[str]) -> None\" is not assignable to type \"(list[str]) -> int\"\n      Function return type \"None\" is incompatible with type \"int\"\n        \"None\" is not assignable to \"int\"\n    \"FunctionType\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_recovery_static_gates.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"(files: list[str]) -> None\" cannot be assigned to parameter \"formatter\" of type \"((list[str]) -> int) | None\" in function \"format_changed\"\n  Type \"(files: list[str]) -> None\" is not assignable to type \"((list[str]) -> int) | None\"\n    Type \"(files: list[str]) -> None\" is not assignable to type \"(list[str]) -> int\"\n      Function return type \"None\" is incompatible with type \"int\"\n        \"None\" is not assignable to \"int\"\n    \"FunctionType\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_recovery_static_gates.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"(files: list[str]) -> None\" cannot be assigned to parameter \"formatter\" of type \"((list[str]) -> int) | None\" in function \"format_changed\"\n  Type \"(files: list[str]) -> None\" is not assignable to type \"((list[str]) -> int) | None\"\n    Type \"(files: list[str]) -> None\" is not assignable to type \"(list[str]) -> int\"\n      Function return type \"None\" is incompatible with type \"int\"\n        \"None\" is not assignable to \"int\"\n    \"FunctionType\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_recovery_static_gates.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"(files: list[str]) -> None\" cannot be assigned to parameter \"formatter\" of type \"((list[str]) -> int) | None\" in function \"format_changed\"\n  Type \"(files: list[str]) -> None\" is not assignable to type \"((list[str]) -> int) | None\"\n    Type \"(files: list[str]) -> None\" is not assignable to type \"(list[str]) -> int\"\n      Function return type \"None\" is incompatible with type \"int\"\n        \"None\" is not assignable to \"int\"\n    \"FunctionType\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_recovery_static_gates.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"(files: list[str]) -> None\" cannot be assigned to parameter \"formatter\" of type \"((list[str]) -> int) | None\" in function \"format_changed\"\n  Type \"(files: list[str]) -> None\" is not assignable to type \"((list[str]) -> int) | None\"\n    Type \"(files: list[str]) -> None\" is not assignable to type \"(list[str]) -> int\"\n      Function return type \"None\" is incompatible with type \"int\"\n        \"None\" is not assignable to \"int\"\n    \"FunctionType\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_response_constructor_acceptance.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"str | None\" cannot be assigned to parameter \"provider_score\" of type \"Decimal | float | int | None\" in function \"__init__\"\n  Type \"str | None\" is not assignable to type \"Decimal | float | int | None\"\n    Type \"str\" is not assignable to type \"Decimal | float | int | None\"\n      \"str\" is not assignable to \"Decimal\"\n      \"str\" is not assignable to \"float\"\n      \"str\" is not assignable to \"int\"\n      \"str\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "error",
+      "reportOptionalMemberAccess",
+      "\"tzinfo\" is not a known attribute of \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "error",
+      "reportGeneralTypeIssues",
+      "\"None\" is not iterable\n  \"__iter__\" method not defined"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"retries\" for class \"PausedFinalization\"\n  Attribute \"retries\" is unknown"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"retries\" for class \"PausedFinalization\"\n  Attribute \"retries\" is unknown"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_retry_policy_acceptance.py",
+      "error",
+      "reportOperatorIssue",
+      "Operator \"+\" not supported for types \"object\" and \"timedelta\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"openapi\" for class \"_WrapASGI2\"\n  Attribute \"openapi\" is unknown"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+      "error",
+      "reportAttributeAccessIssue",
+      "Cannot access attribute \"commands\" for class \"Command\"\n  Attribute \"commands\" is unknown"
+    ],
+    [
+      "tests/unit/phase2/test_pr2_06_openalex_offline_compat.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"(*_: Unknown) -> None\" cannot be assigned to parameter \"get\" of type \"(str, dict[str, str], float) -> HttpObservation\" in function \"__init__\"\n  Type \"(*_: Unknown) -> None\" is not assignable to type \"(str, dict[str, str], float) -> HttpObservation\"\n    Function return type \"None\" is incompatible with type \"HttpObservation\"\n      \"None\" is not assignable to \"HttpObservation\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['internal-index:opaque-42']\" cannot be assigned to parameter \"locator\" of type \"SourceLocator\" in function \"__init__\"\n  \"Literal['internal-index:opaque-42']\" is not assignable to \"SourceLocator\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_11_r2_contract.py",
+      "error",
+      "reportIndexIssue",
+      "\"__getitem__\" method not defined on type \"object\""
+    ],
+    [
+      "tests/unit/phase2/test_pr2_11_r2_contract.py",
+      "error",
+      "reportIndexIssue",
+      "\"__getitem__\" method not defined on type \"object\""
+    ],
+    [
+      "tests/unit/phase2/test_search_plan_review_regressions.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Services\" cannot be assigned to parameter \"services\" of type \"HttpServices | None\" in function \"create_app\"\n  Type \"Services\" is not assignable to type \"HttpServices | None\"\n    \"Services\" is incompatible with protocol \"HttpServices\"\n      \"application\" is not present\n      \"provenance\" is not present\n      \"governance\" is not present\n      \"governance_queries\" is not present\n    \"Services\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_search_plan_review_regressions.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"() -> None\" cannot be assigned to parameter \"uow_factory\" of type \"() -> UnitOfWork\" in function \"__init__\"\n  Type \"() -> None\" is not assignable to type \"() -> UnitOfWork\"\n    Function return type \"None\" is incompatible with type \"UnitOfWork\"\n      \"None\" is incompatible with protocol \"UnitOfWork\"\n        \"enable_serializable_retry_normalization\" is not present\n        \"enable_decision_error_normalization\" is not present\n        \"decision\" is not present\n        \"scientific_conclusion\" is not present\n        \"publication\" is not present\n  ..."
+    ],
+    [
+      "tests/unit/phase2/test_search_plan_review_regressions.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"SimpleNamespace\" cannot be assigned to parameter \"credential_verifier\" of type \"SearchPlanCredentialVerifier | None\" in function \"__init__\"\n  Type \"SimpleNamespace\" is not assignable to type \"SearchPlanCredentialVerifier | None\"\n    \"SimpleNamespace\" is incompatible with protocol \"SearchPlanCredentialVerifier\"\n      \"is_valid\" is not present\n    \"SimpleNamespace\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/phase2/test_search_plan_review_regressions.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"() -> None\" cannot be assigned to parameter \"uow_factory\" of type \"() -> UnitOfWork\" in function \"__init__\"\n  Type \"() -> None\" is not assignable to type \"() -> UnitOfWork\"\n    Function return type \"None\" is incompatible with type \"UnitOfWork\"\n      \"None\" is incompatible with protocol \"UnitOfWork\"\n        \"enable_serializable_retry_normalization\" is not present\n        \"enable_decision_error_normalization\" is not present\n        \"decision\" is not present\n        \"scientific_conclusion\" is not present\n        \"publication\" is not present\n  ..."
+    ],
+    [
+      "tests/unit/phase2/test_search_plan_review_regressions.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Services\" cannot be assigned to parameter \"services\" of type \"HttpServices | None\" in function \"create_app\"\n  Type \"Services\" is not assignable to type \"HttpServices | None\"\n    \"Services\" is incompatible with protocol \"HttpServices\"\n      \"application\" is not present\n      \"provenance\" is not present\n      \"governance\" is not present\n      \"governance_queries\" is not present\n    \"Services\" is not assignable to \"None\""
+    ],
+    [
+      "tests/unit/test_hg1_review_ops.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Service\" cannot be assigned to parameter \"service\" of type \"LiteratureEvidenceService\" in function \"__init__\"\n  \"Service\" is not assignable to \"LiteratureEvidenceService\""
+    ],
+    [
+      "tests/unit/test_hg1_review_ops.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Service\" cannot be assigned to parameter \"service\" of type \"LiteratureEvidenceService\" in function \"__init__\"\n  \"Service\" is not assignable to \"LiteratureEvidenceService\""
+    ],
+    [
+      "tests/unit/test_hg1_review_ops.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Service\" cannot be assigned to parameter \"service\" of type \"LiteratureEvidenceService\" in function \"__init__\"\n  \"Service\" is not assignable to \"LiteratureEvidenceService\""
+    ],
+    [
+      "tests/unit/test_hg1_review_ops.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Service\" cannot be assigned to parameter \"service\" of type \"LiteratureEvidenceService\" in function \"__init__\"\n  \"Service\" is not assignable to \"LiteratureEvidenceService\""
+    ],
+    [
+      "tests/unit/test_hg1_review_ops.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Service\" cannot be assigned to parameter \"service\" of type \"LiteratureEvidenceService\" in function \"__init__\"\n  \"Service\" is not assignable to \"LiteratureEvidenceService\""
+    ],
+    [
+      "tests/unit/test_hg1_review_ops.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"SimpleNamespace\" cannot be assigned to parameter \"principal\" of type \"VerifiedPrincipal\" in function \"inspect\"\n  \"SimpleNamespace\" is not assignable to \"VerifiedPrincipal\""
+    ],
+    [
+      "tests/unit/test_m3_runner_binding.py",
+      "error",
+      "reportCallIssue",
+      "No overloads for \"__setitem__\" match the provided arguments"
+    ],
+    [
+      "tests/unit/test_m3_runner_binding.py",
+      "error",
+      "reportArgumentType",
+      "Argument of type \"Literal['wrong-system-id']\" cannot be assigned to parameter \"value\" of type \"Literal['researchbase_m3_retained_20261011', 'onephone', '/Users/onephone/ResearchBaseData/rb-m2-pg', '55440', '/private/tmp', '/Users/onephone/ResearchBaseData/rb-m2-pg/pg_hba.c…', '127.0.0.1', '7695048034454027996', '0031_m3_snapshot_relation_cardinality']\" in function \"__setitem__\"\n  Type \"Literal['wrong-system-id']\" is not assignable to type \"Literal['researchbase_m3_retained_20261011', 'onephone', '/Users/onephone/ResearchBaseData/rb-m2-pg', '55440', '/private/tmp', '/Users/onephone/ResearchBaseData/rb-m2-pg/pg_hba.c…', '127.0.0.1', '7695048034454027996', '0031_m3_snapshot_relation_cardinality']\"\n    \"Literal['wrong-system-id']\" is not assignable to type \"Literal['researchbase_m3_retained_20261011']\"\n    \"Literal['wrong-system-id']\" is not assignable to type \"Literal['onephone']\"\n    \"Literal['wrong-system-id']\" is not assignable to type \"Literal['/Users/onephone/ResearchBaseData/rb-m2-pg']\"\n    \"Literal['wrong-system-id']\" is not assignable to type \"Literal['55440']\"\n    \"Literal['wrong-system-id']\" is not assignable to type \"Literal['/private/tmp']\"\n    \"Literal['wrong-system-id']\" is not assignable to type \"Literal['/Users/onephone/ResearchBaseData/rb-m2-pg/pg_hba.c…']\"\n    \"Literal['wrong-system-id']\" is not assignable to type \"Literal['127.0.0.1']\""
+    ]
+  ],
+  "formatter": [
+    "migrations/versions/0004_experiment_spec.py",
+    "migrations/versions/0023a_search_plan_review_guards.py",
+    "migrations/versions/0024_literature_search_execution.py",
+    "migrations/versions/0039_pr2_13_citation_rebinding_guard.py",
+    "migrations/versions/0041_pr2_15_review_coordination.py",
+    "scripts/pr17dr_evidence.py",
+    "scripts/pr2_04_suite_probe.py",
+    "scripts/pr2_04_verification_matrix.py",
+    "src/researchbase/application/discussion_artifacts.py",
+    "src/researchbase/application/internal_review.py",
+    "src/researchbase/application/manuscript_placement.py",
+    "src/researchbase/application/manuscript_scientific_trace.py",
+    "src/researchbase/application/publication.py",
+    "src/researchbase/cli/commands/literature.py",
+    "src/researchbase/cli/commands/literature_search_execution.py",
+    "src/researchbase/domain/literature_search_plan.py",
+    "src/researchbase/domain/scientific_conclusion.py",
+    "src/researchbase/persistence/discussion_repository.py",
+    "src/researchbase/persistence/in_memory_literature_search_execution.py",
+    "src/researchbase/persistence/internal_review_repository.py",
+    "src/researchbase/persistence/literature_search_execution_uow.py",
+    "src/researchbase/persistence/publication_repository.py",
+    "src/researchbase/persistence/scientific_conclusion_repository.py",
+    "tests/integration/phase2/test_hg1_bound_subject.py",
+    "tests/integration/phase2/test_m3_evidence.py",
+    "tests/integration/phase2/test_pr2_03_command_matrix.py",
+    "tests/integration/phase2/test_pr2_03_literature_search_plan_application.py",
+    "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py",
+    "tests/integration/phase2/test_pr2_03_review_guards.py",
+    "tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_authority_coverage.py",
+    "tests/integration/phase2/test_pr2_04_cas_completion.py",
+    "tests/integration/phase2/test_pr2_04_concurrency_completion.py",
+    "tests/integration/phase2/test_pr2_04_context_guard_repair.py",
+    "tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_execution_migration.py",
+    "tests/integration/phase2/test_pr2_04_execution_provenance.py",
+    "tests/integration/phase2/test_pr2_04_execution_recovery.py",
+    "tests/integration/phase2/test_pr2_04_execution_shape_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_idempotency_coverage.py",
+    "tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py",
+    "tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_migration_coverage.py",
+    "tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_outcome_shape_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_ownership_races.py",
+    "tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py",
+    "tests/integration/phase2/test_pr2_04_plan_admission_guard_repair.py",
+    "tests/integration/phase2/test_pr2_04_plan_binding_coverage.py",
+    "tests/integration/phase2/test_pr2_04_provider_budget_completion.py",
+    "tests/integration/phase2/test_pr2_04_provider_coverage.py",
+    "tests/integration/phase2/test_pr2_04_provider_pg_coverage.py",
+    "tests/integration/phase2/test_pr2_04_read_completion.py",
+    "tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py",
+    "tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_response_atomicity_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_restart_completion.py",
+    "tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py",
+    "tests/integration/phase2/test_pr2_04_structural_guard_repair.py",
+    "tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py",
+    "tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py",
+    "tests/integration/phase2/test_pr2_04_transaction_coverage.py",
+    "tests/integration/phase2/test_pr2_10_binding_contract.py",
+    "tests/integration/phase2/test_pr2_10_discussion_persistence.py",
+    "tests/integration/phase2/test_pr2_11_r2_persistence.py",
+    "tests/integration/phase2/test_pr2_12_migration.py",
+    "tests/integration/phase2/test_pr2_12_publication_draft.py",
+    "tests/integration/phase2/test_pr2_13_artifact_placement.py",
+    "tests/integration/phase2/test_pr2_13_citation_placement.py",
+    "tests/integration/phase2/test_pr2_13_citation_rebinding.py",
+    "tests/integration/phase2/test_pr2_13_claim_placement.py",
+    "tests/integration/phase2/test_pr2_13_scientific_trace.py",
+    "tests/integration/phase2/test_pr2_14_conclusion_review.py",
+    "tests/integration/phase2/test_pr2_14_internal_review.py",
+    "tests/integration/phase2/test_pr2_15_coordination.py",
+    "tests/integration/test_pr04_application.py",
+    "tests/integration/test_pr04_schema.py",
+    "tests/integration/test_pr05_application.py",
+    "tests/integration/test_pr05_schema.py",
+    "tests/integration/test_pr06_application.py",
+    "tests/integration/test_pr11r2_migration.py",
+    "tests/test_architecture.py",
+    "tests/unit/domain/test_pr05_experiment.py",
+    "tests/unit/phase2/test_literature_search_execution_migration_contract.py",
+    "tests/unit/phase2/test_literature_search_execution_uow.py",
+    "tests/unit/phase2/test_literature_search_plan.py",
+    "tests/unit/phase2/test_pr2_04_cli_validation_repair.py",
+    "tests/unit/phase2/test_pr2_04_closed_provider_dtos.py",
+    "tests/unit/phase2/test_pr2_04_disclosure_repair.py",
+    "tests/unit/phase2/test_pr2_04_disconnect_isolation.py",
+    "tests/unit/phase2/test_pr2_04_evidence.py",
+    "tests/unit/phase2/test_pr2_04_failed_phase_observations.py",
+    "tests/unit/phase2/test_pr2_04_full_suite_observation.py",
+    "tests/unit/phase2/test_pr2_04_host_node_ids.py",
+    "tests/unit/phase2/test_pr2_04_matrix_tool.py",
+    "tests/unit/phase2/test_pr2_04_phase_crash_coverage.py",
+    "tests/unit/phase2/test_pr2_04_response_constructor_acceptance.py",
+    "tests/unit/phase2/test_pr2_04_response_retrieval_contract.py",
+    "tests/unit/phase2/test_pr2_04_retrieval_observation_repair.py",
+    "tests/unit/phase2/test_pr2_04_retry_policy_acceptance.py",
+    "tests/unit/phase2/test_pr2_04_transport_completion.py",
+    "tests/unit/phase2/test_pr2_04_transport_coverage.py",
+    "tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py",
+    "tests/unit/phase2/test_pr2_08_native_strategy.py",
+    "tests/unit/phase2/test_pr2_10_discussion_artifacts.py",
+    "tests/unit/phase2/test_pr2_11_r2_contract.py",
+    "tests/unit/phase2/test_pr2_15_uow_errors.py",
+    "tests/unit/test_pr15r_route_contract.py",
+    "tests/unit/test_pr17dr2_evidence.py"
+  ]
+}
