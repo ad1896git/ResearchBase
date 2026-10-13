@@ -96,6 +96,28 @@ DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/resea
   uv run pytest -o addopts='' -ra
 ```
 
+The PR2-10 through PR2-15 disposable-cluster suites require an explicit admin selector:
+
+```bash
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres \
+  uv run pytest tests/integration/phase2/test_pr2_1*.py
+```
+
+This opts the selected local PostgreSQL cluster into creating and dropping random
+`researchbase_pr210_test_`, `researchbase_pr211_r2_test_`, and `researchbase_pr212_test_`
+databases. Use a disposable cluster with an admin role that can create databases,
+inspect `pg_control_system()`, and terminate test connections. Missing or empty selectors,
+remote hosts, and admin URLs naming application databases fail rather than skip.
+`RB_PR210_TEST_ADMIN_URL` and `RB_PR211_R2_TEST_ADMIN_URL` remain suite-specific aliases;
+`RB_TEST_ADMIN_URL` takes precedence when present. Existing suites outside this group
+retain their own configuration requirements.
+
+Optionally pin the server identity with `RB_TEST_ADMIN_USER`, `RB_TEST_ADMIN_PORT`,
+`RB_TEST_ADMIN_DATA_DIRECTORY`, and `RB_TEST_ADMIN_SYSTEM_ID`. Every supplied value must
+match the connected server before a test database is created. These replace the original
+machine-specific username, port, data directory, and system identifier assertions;
+the connected database must still be `postgres` and its user must match the URL.
+
 ## Repository structure
 
 ```text
