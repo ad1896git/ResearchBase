@@ -40,6 +40,8 @@ addopts = "-q"
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+# Migration bytes are pinned by recovery baselines and frozen-history tests.
+extend-exclude = ["migrations/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

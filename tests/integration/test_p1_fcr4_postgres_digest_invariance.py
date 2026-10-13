@@ -8,12 +8,12 @@ from typing import Any, cast
 
 import pytest
 from sqlalchemy import select, text
-from tests.e2e.support import fresh_fixture, run_workflow
-from tests.integration.test_p1_fcr4_ownership_matrix import PERSISTENCE_FAMILIES
-from tests.oracles.p1_fcr4_digest_corpus import independent_digest
 
 from researchbase.foundation.frozen_json import thaw_json
 from researchbase.persistence.models import EvidenceRelationModel
+from tests.e2e.support import fresh_fixture, run_workflow
+from tests.integration.test_p1_fcr4_ownership_matrix import PERSISTENCE_FAMILIES
+from tests.oracles.p1_fcr4_digest_corpus import independent_digest
 
 pytestmark = pytest.mark.integration
 

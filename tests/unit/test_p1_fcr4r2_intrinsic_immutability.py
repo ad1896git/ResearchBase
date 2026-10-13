@@ -13,7 +13,6 @@ from operator import setitem
 from typing import Any, cast
 
 import pytest
-from tests.integration.test_p1_fcr4_ownership_matrix import domain_factories, nested_json
 
 from researchbase.foundation.frozen_json import (
     FrozenJSONArray,
@@ -22,6 +21,7 @@ from researchbase.foundation.frozen_json import (
     thaw_json,
 )
 from researchbase.foundation.hashing import sha256_canonical_json
+from tests.integration.test_p1_fcr4_ownership_matrix import domain_factories, nested_json
 
 
 def _containers(value: object) -> Iterator[FrozenJSONObject | FrozenJSONArray]:

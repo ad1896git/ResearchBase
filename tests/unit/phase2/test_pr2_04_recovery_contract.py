@@ -4,8 +4,6 @@ These tests do not establish PostgreSQL locking/trigger acceptance. They catch
 replacement of a specific durable failure reason by a generic recovery reason.
 """
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -30,6 +28,7 @@ from researchbase.persistence.in_memory_literature_search_execution import (
     InMemoryExecutionUnitOfWork,
     InMemoryLiteratureSearchExecutionRepository,
 )
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 class ControlledClockRepository(InMemoryLiteratureSearchExecutionRepository):

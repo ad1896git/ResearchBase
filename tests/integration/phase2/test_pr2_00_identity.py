@@ -8,7 +8,6 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
-from tests.integration.phase2.test_pr2_00_challenges import _service
 
 from researchbase.application.phase2_identity import (
     BindLegacyActorSubject,
@@ -16,6 +15,7 @@ from researchbase.application.phase2_identity import (
     OnboardingAttestation,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.integration.phase2.test_pr2_00_challenges import _service
 
 
 def _upgrade(database_url: str) -> None:

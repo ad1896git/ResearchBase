@@ -7,14 +7,6 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
-from tests.application_compat import LegacyApplicationService as ApplicationService
-from tests.integration.pr12_support import postgres_resources
-from tests.integration.test_pr09_application import (
-    frozen_artifact,
-    frozen_dataset,
-    frozen_spec,
-)
-from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 from researchbase.application.closure import (
     BatchLookup,
@@ -58,6 +50,14 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
 )
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
+from tests.integration.pr12_support import postgres_resources
+from tests.integration.test_pr09_application import (
+    frozen_artifact,
+    frozen_dataset,
+    frozen_spec,
+)
+from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 pytestmark = pytest.mark.integration
 

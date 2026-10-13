@@ -12,7 +12,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
-from tests.integration.test_pr14_governance_integration import _seed_graph
 
 from researchbase.api.app import ServiceBundle, create_app
 from researchbase.application.commands import (
@@ -38,6 +37,7 @@ from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObjec
 from researchbase.foundation.time import SystemClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.test_pr14_governance_integration import _seed_graph
 
 pytestmark = pytest.mark.integration
 

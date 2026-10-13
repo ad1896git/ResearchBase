@@ -4,8 +4,6 @@ SQLSTATE injection uses PostgreSQL RAISE, not synthetic driver exceptions. It
 tests normalization/retry, not a claim that an actual deadlock was induced.
 """
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -14,10 +12,6 @@ from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-)
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 
 from researchbase.application.literature_search_execution import (
     CreateLiteratureSearchExecution,
@@ -28,6 +22,11 @@ from researchbase.application.literature_search_provider import FakeSearchCapabi
 from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+)
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 class ObservedTransactions:
@@ -209,8 +208,9 @@ def _prepared(url, trace, *, retry=False):
             provider_id="provider-a",
             provider_version="1",
             normalized_query="normalization evidence",
-            provider_request_id="observed-response", retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+            provider_request_id="observed-response",
+            retrieved_at=PROVIDER_RETRIEVED_AT,
+        )
     ]
     if retry:
         responses.insert(
@@ -285,8 +285,7 @@ def test_pg_provider_entry_wait_and_backoff_hold_no_service_transaction(
         assert provenance["events"][0]["prior_row_version"] is None
         assert provenance["events"][0]["new_row_version"] == 1
         assert all(
-            e["new_row_version"] == e["prior_row_version"] + 1
-            for e in provenance["events"][1:]
+            e["new_row_version"] == e["prior_row_version"] + 1 for e in provenance["events"][1:]
         )
     finally:
         engine.dispose()
@@ -406,8 +405,12 @@ def test_pg_outstanding_provider_barrier_releases_all_database_resources(
         admission = service.create(command)
         execution_id = UUID(admission["execution_id"])
         execute = ExecuteLiteratureSearchExecution(
-            execution_id, command.actor_id, command.deployment_id, uuid4(),
-            project_id=command.project_id, principal=command.principal,
+            execution_id,
+            command.actor_id,
+            command.deployment_id,
+            uuid4(),
+            project_id=command.project_id,
+            principal=command.principal,
         )
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(service.execute, execute)
@@ -415,9 +418,12 @@ def test_pg_outstanding_provider_barrier_releases_all_database_resources(
                 assert entered.wait(10), "provider never entered"
                 assert not future.done()
                 observations.observe_no_transaction("EXTERNALLY_OBSERVED_PROVIDER_WAIT")
-                pending = service.get_provenance(command.principal, command.project_id, execution_id)
-                pr204_trace.record(point="OUTSTANDING_CALL", provenance=pending,
-                                   future_done=future.done())
+                pending = service.get_provenance(
+                    command.principal, command.project_id, execution_id
+                )
+                pr204_trace.record(
+                    point="OUTSTANDING_CALL", provenance=pending, future_done=future.done()
+                )
                 assert pending["execution"]["status"] == "RUNNING"
                 assert [a["status"] for a in pending["attempts"]] == ["RESERVED"]
                 assert pending["queries"] == [] and pending["results"] == []
@@ -429,7 +435,10 @@ def test_pg_outstanding_provider_barrier_releases_all_database_resources(
         pr204_trace.record(admission=result, provenance=after, provider_calls=len(provider.calls))
         assert after["execution"]["status"] == "SUCCEEDED" and len(provider.calls) == 1
         assert [e["kind"] for e in after["events"]] == [
-            "CREATED", "ATTEMPT_RESERVED", "OUTCOME_RECORDED", "FINISHED"
+            "CREATED",
+            "ATTEMPT_RESERVED",
+            "OUTCOME_RECORDED",
+            "FINISHED",
         ]
     finally:
         release.set()

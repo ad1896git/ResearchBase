@@ -93,15 +93,25 @@ class InternalReviewService:
         self._literature = literature_evidence
 
     @staticmethod
-    def _hash(project: UUID, target_kind: str, target_id: UUID, digest: str, actor: UUID,
-              review_type: str, recommendation: str, summary: str) -> str:
+    def _hash(
+        project: UUID,
+        target_kind: str,
+        target_id: UUID,
+        digest: str,
+        actor: UUID,
+        review_type: str,
+        recommendation: str,
+        summary: str,
+    ) -> str:
         material = {
-            "type": "InternalReviewRecord", "material_version": 1,
+            "type": "InternalReviewRecord",
+            "material_version": 1,
             "project_id": str(project),
-            "target": {"type": target_kind, "id": str(target_id),
-                       "content_hash": digest},
-            "reviewer_actor_id": str(actor), "review_type": review_type,
-            "recommendation": recommendation, "summary": summary,
+            "target": {"type": target_kind, "id": str(target_id), "content_hash": digest},
+            "reviewer_actor_id": str(actor),
+            "review_type": review_type,
+            "recommendation": recommendation,
+            "summary": summary,
         }
         return str(sha256_canonical_json(material))
 
@@ -109,26 +119,45 @@ class InternalReviewService:
         claim_id = row["claim_version_id"]
         conclusion_id = row["scientific_conclusion_version_id"]
         if (claim_id is None) == (conclusion_id is None):
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                  "unsupported review target in this read boundary")
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "unsupported review target in this read boundary",
+            )
         kind = "ClaimVersion" if claim_id is not None else "ScientificConclusionVersion"
         target_id = claim_id if claim_id is not None else conclusion_id
         if kind == "ClaimVersion":
             target = uow.literature_evidence.target(kind, target_id, row["project_id"])
         else:
             target = uow.internal_review.conclusion_target(target_id, row["project_id"])
-        if (target is None or target["content_hash"] != row["target_content_hash"]
-            or self._hash(row["project_id"], kind, target_id, row["target_content_hash"],
-                          row["reviewer_actor_id"], row["review_type"],
-                          row["recommendation"], row["summary"]) != row["content_hash"]):
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                  "review hash or frozen target binding mismatch")
+        if (
+            target is None
+            or target["content_hash"] != row["target_content_hash"]
+            or self._hash(
+                row["project_id"],
+                kind,
+                target_id,
+                row["target_content_hash"],
+                row["reviewer_actor_id"],
+                row["review_type"],
+                row["recommendation"],
+                row["summary"],
+            )
+            != row["content_hash"]
+        ):
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "review hash or frozen target binding mismatch",
+            )
         if kind == "ClaimVersion":
             self._literature._target(uow, kind, target_id, row["project_id"])
         else:
-            self._auth._view(uow, row["project_id"],
-                             target["scientific_conclusion_id"], target_id,
-                             require_current=False)
+            self._auth._view(
+                uow,
+                row["project_id"],
+                target["scientific_conclusion_id"],
+                target_id,
+                require_current=False,
+            )
 
     @staticmethod
     def _view(row: dict, issues: list[dict]) -> InternalReviewReadback:
@@ -224,21 +253,37 @@ class InternalReviewService:
             if is_claim:
                 checked = self._literature._target(uow, "ClaimVersion", target_id, project)
                 if checked["current_validity"] != "VALID":
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                          "review target current validity is not valid")
+                    _fail(
+                        ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                        "review target current validity is not valid",
+                    )
             else:
-                checked = self._auth._view(uow, project,
-                                           target["scientific_conclusion_id"], target_id,
-                                           require_current=True)
+                checked = self._auth._view(
+                    uow,
+                    project,
+                    target["scientific_conclusion_id"],
+                    target_id,
+                    require_current=True,
+                )
                 if checked.validity != "VALID":
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                          "review target current validity is not valid")
+                    _fail(
+                        ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                        "review target current validity is not valid",
+                    )
             # Target validation can wait on its own row lock after the request lock.
             at = self._auth._authorize(uow, principal, project, _REVIEWERS)
             digest = str(target["content_hash"])
             kind = "ClaimVersion" if is_claim else "ScientificConclusionVersion"
-            own_hash = self._hash(project, kind, target_id, digest, principal.actor_id,
-                                  review_type, recommendation, clean_summary)
+            own_hash = self._hash(
+                project,
+                kind,
+                target_id,
+                digest,
+                principal.actor_id,
+                review_type,
+                recommendation,
+                clean_summary,
+            )
             existing = repo.review(identity, project)
             if existing is not None:
                 self._verify(uow, existing)

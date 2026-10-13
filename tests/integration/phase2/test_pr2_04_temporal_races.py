@@ -12,9 +12,6 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
-from tests.integration.phase2.test_pr2_03_effective_authority import _authority_rows, _provision
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 
 from researchbase.application.literature_search_execution import (
     CreateLiteratureSearchExecution,
@@ -27,6 +24,9 @@ from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
+from tests.integration.phase2.test_pr2_03_effective_authority import _authority_rows, _provision
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 
 
 @pytest.mark.parametrize("run", range(1, 6))

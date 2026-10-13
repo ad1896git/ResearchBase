@@ -10,9 +10,6 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
-from tests.integration.phase2.test_pr2_00_challenges import (
-    _service,
-)
 
 from researchbase.application.phase2_identity import (
     AssignProjectRole,
@@ -28,6 +25,9 @@ from researchbase.application.phase2_identity import (
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.integration.phase2.test_pr2_00_challenges import (
+    _service,
+)
 
 
 class _BootstrapProofVerifier:

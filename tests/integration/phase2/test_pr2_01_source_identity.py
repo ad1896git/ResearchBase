@@ -17,7 +17,6 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from typer.testing import CliRunner
 
 from researchbase.api.app import create_app as create_http_app
@@ -35,6 +34,7 @@ from researchbase.domain.source_identity import IdentifierType, SourceKind
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 
 
 class _BootstrapProofVerifier:

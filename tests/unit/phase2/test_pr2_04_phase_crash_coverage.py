@@ -1,7 +1,5 @@
 """Deterministic crash-position semantics, not PostgreSQL isolation evidence."""
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -21,6 +19,7 @@ from researchbase.persistence.in_memory_literature_search_execution import (
     InMemoryExecutionUnitOfWork,
     InMemoryLiteratureSearchExecutionRepository,
 )
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 @pytest.mark.parametrize(
@@ -100,8 +99,9 @@ def test_interrupted_phase_replay_retains_only_committed_facts(
                 provider_version="1",
                 normalized_query="query",
                 provider_request_id="known-response",
-                hits=(SearchHit("hit", "Paper", None, None, None),), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+                hits=(SearchHit("hit", "Paper", None, None, None),),
+                retrieved_at=PROVIDER_RETRIEVED_AT,
+            )
         ]
     )
     factory = lambda: InMemoryExecutionUnitOfWork(repository)  # noqa: E731

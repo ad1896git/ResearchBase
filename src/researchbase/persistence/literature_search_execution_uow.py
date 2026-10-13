@@ -16,9 +16,7 @@ def literature_search_execution_uow_factory(
     session_factory: Callable[[], Session] | Any,
 ) -> Callable[[], SqlAlchemyUnitOfWork]:
     """Create PR2-04 transactions with its narrowly scoped deadlock mapping."""
-    return lambda: SqlAlchemyUnitOfWork(
-        session_factory, pr204_error_normalization=True
-    )
+    return lambda: SqlAlchemyUnitOfWork(session_factory, pr204_error_normalization=True)
 
 
 def normalize_literature_search_execution_error(

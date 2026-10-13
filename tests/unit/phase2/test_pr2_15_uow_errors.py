@@ -22,14 +22,17 @@ def _error(sqlstate):
     return DBAPIError("SELECT SYNTHETIC_SECRET", {}, _DriverFailure(sqlstate), False)
 
 
-@pytest.mark.parametrize("sqlstate,expected", [
-    ("P17F1", ErrorCode.IMMUTABLE_RECORD),
-    ("P17F2", ErrorCode.PROVENANCE_CLOSURE_VIOLATION),
-    ("P17F3", ErrorCode.IDEMPOTENCY_CONFLICT),
-    ("40001", ErrorCode.CONCURRENT_MODIFICATION),
-    ("40P01", ErrorCode.CONCURRENT_MODIFICATION),
-    ("XX000", ErrorCode.INVALID_STATE_TRANSITION),
-])
+@pytest.mark.parametrize(
+    "sqlstate,expected",
+    [
+        ("P17F1", ErrorCode.IMMUTABLE_RECORD),
+        ("P17F2", ErrorCode.PROVENANCE_CLOSURE_VIOLATION),
+        ("P17F3", ErrorCode.IDEMPOTENCY_CONFLICT),
+        ("40001", ErrorCode.CONCURRENT_MODIFICATION),
+        ("40P01", ErrorCode.CONCURRENT_MODIFICATION),
+        ("XX000", ErrorCode.INVALID_STATE_TRANSITION),
+    ],
+)
 @pytest.mark.parametrize("boundary", ["commit", "execute", "cleanup"])
 def test_decision_database_failures_are_sanitized(sqlstate, expected, boundary):
     session = Mock()

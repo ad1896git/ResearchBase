@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy.exc import DBAPIError
+
 from tests.integration.phase2.test_pr2_04_schema_coverage import (
     E,
     V,

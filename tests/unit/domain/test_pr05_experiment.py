@@ -116,9 +116,7 @@ def _material_hash(version: ExperimentSpecVersion) -> str:
     return sha256_canonical_json(version.material_payload())
 
 
-def _identity_material_hash(
-    identity: ExperimentSpec, version: ExperimentSpecVersion
-) -> str:
+def _identity_material_hash(identity: ExperimentSpec, version: ExperimentSpecVersion) -> str:
     assert identity.id == version.experiment_spec_id
     return _material_hash(version)
 
@@ -216,17 +214,12 @@ def test_each_material_field_changes_the_frozen_hash(
 ) -> None:
     baseline = baseline_version
     changed = replace(baseline, **{field: value})
-    assert (
-        _changed_fields(baseline, changed, MATERIAL_FIELDS + EXCLUDED_VERSION_FIELDS) == {field}
-    )
-    assert (
-        {
-            name
-            for name in MATERIAL_FIELDS
-            if baseline.material_payload()[name] != changed.material_payload()[name]
-        }
-        == {field}
-    )
+    assert _changed_fields(baseline, changed, MATERIAL_FIELDS + EXCLUDED_VERSION_FIELDS) == {field}
+    assert {
+        name
+        for name in MATERIAL_FIELDS
+        if baseline.material_payload()[name] != changed.material_payload()[name]
+    } == {field}
     baseline = baseline.freeze(FixedClock(BASE_FROZEN_AT))
     changed = changed.freeze(FixedClock(BASE_FROZEN_AT))
     assert baseline.content_hash != changed.content_hash

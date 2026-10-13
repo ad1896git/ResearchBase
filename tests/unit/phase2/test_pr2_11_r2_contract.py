@@ -86,7 +86,9 @@ def test_r2_order_is_ordinal_not_insertion_order_and_gaps_reject() -> None:
 def test_r2_snapshot_is_typed_hashed_reference_and_hash_sensitive() -> None:
     material = conclusion_support_material((claim_input(snapshot=SNAPSHOT),), ())
     assert material["claim_inputs"][0]["literature_support_snapshot"] == {
-        "type": "LiteratureSupportSnapshot", "id": str(SNAPSHOT), "content_hash": C
+        "type": "LiteratureSupportSnapshot",
+        "id": str(SNAPSHOT),
+        "content_hash": C,
     }
     assert str(sha256_canonical_json(material)) != SUPPORT_HASH
     with pytest.raises(ValueError, match="snapshot"):
@@ -94,14 +96,20 @@ def test_r2_snapshot_is_typed_hashed_reference_and_hash_sensitive() -> None:
 
 
 def test_r2_scope_exact_keys_uppercase_enum_and_nfc() -> None:
-    scope = {"population": "Cafe\u0301", "conditions": None,
-             "time_window": None, "applicability": None}
-    normalized = conclusion_content_material(CONCLUSION, "Cafe\u0301", scope,
-                                              "MODERATE", None, SUPPORT_HASH)
+    scope = {
+        "population": "Cafe\u0301",
+        "conditions": None,
+        "time_window": None,
+        "applicability": None,
+    }
+    normalized = conclusion_content_material(
+        CONCLUSION, "Cafe\u0301", scope, "MODERATE", None, SUPPORT_HASH
+    )
     assert normalized["statement"] == "Caf\u00e9"
     assert normalized["scope"]["population"] == "Caf\u00e9"
     with pytest.raises(ValueError, match="scope"):
-        conclusion_content_material(CONCLUSION, "x", {"population": "Adults"},
-                                    "MODERATE", None, SUPPORT_HASH)
+        conclusion_content_material(
+            CONCLUSION, "x", {"population": "Adults"}, "MODERATE", None, SUPPORT_HASH
+        )
     with pytest.raises(ValueError, match="confidence"):
         conclusion_content_material(CONCLUSION, "x", scope, "moderate", None, SUPPORT_HASH)

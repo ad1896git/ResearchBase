@@ -6,7 +6,6 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
 
 from researchbase.application.literature_search_plan import (
     CreateLiteratureSearchPlan,
@@ -23,6 +22,7 @@ from researchbase.domain.literature_search_plan import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
 
 
 class _AlwaysValidCredential:
@@ -86,10 +86,12 @@ def _material(plan_id: UUID, refs=(), language_scope=None) -> LiteratureSearchPl
 
 def test_plan_draft_cardinality_language_freeze_and_immutability(phase2_database_url: str) -> None:
     engine, _, _, principal, project_id = _authorized_service(phase2_database_url)
+
     def factory():
         return SqlAlchemyUnitOfWork(
             sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
         )
+
     service = LiteratureSearchPlanService(factory, _AlwaysValidCredential())
     empty_draft = service.create(
         CreateLiteratureSearchPlan(

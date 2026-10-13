@@ -7,9 +7,6 @@ from uuid import UUID
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from tests.application_compat import LegacyApplicationService as ApplicationService
-from tests.integration.pr12_support import postgres_resources
-from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 from researchbase.application import commands as commands_module
 from researchbase.application.commands import (
@@ -24,6 +21,9 @@ from researchbase.domain.measurement import MeasurementId
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
+from tests.integration.pr12_support import postgres_resources
+from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 pytestmark = pytest.mark.integration
 

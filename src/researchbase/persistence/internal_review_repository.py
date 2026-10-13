@@ -30,20 +30,33 @@ class SqlAlchemyInternalReviewRepository:
         )
         return dict(row) if row else None
 
-    def conclusion_target(self, identity: UUID, project: UUID,
-                          *, lock: bool = False) -> dict | None:
+    def conclusion_target(
+        self, identity: UUID, project: UUID, *, lock: bool = False
+    ) -> dict | None:
         if lock:
             # Lock exact target before the parent; a joined locking query cannot
             # guarantee that order. The subsequent statement rereads after waits.
-            self._session.execute(text("""SELECT id FROM scientific_conclusion_versions
-              WHERE id=:id FOR UPDATE"""), {"id": identity}).one_or_none()
+            self._session.execute(
+                text("""SELECT id FROM scientific_conclusion_versions
+              WHERE id=:id FOR UPDATE"""),
+                {"id": identity},
+            ).one_or_none()
         suffix = " FOR UPDATE OF c" if lock else ""
-        row = self._session.execute(text("""SELECT v.id,v.scientific_conclusion_id,
+        row = (
+            self._session.execute(
+                text(
+                    """SELECT v.id,v.scientific_conclusion_id,
           v.status,v.frozen_at,v.content_hash,v.created_by
           FROM scientific_conclusion_versions v
           JOIN scientific_conclusions c ON c.id=v.scientific_conclusion_id
-          WHERE v.id=:id AND c.project_id=:project""" + suffix),
-          {"id": identity, "project": project}).mappings().one_or_none()
+          WHERE v.id=:id AND c.project_id=:project"""
+                    + suffix
+                ),
+                {"id": identity, "project": project},
+            )
+            .mappings()
+            .one_or_none()
+        )
         return dict(row) if row else None
 
     def issues(self, identity: UUID) -> list[dict]:

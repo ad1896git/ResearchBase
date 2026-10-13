@@ -94,7 +94,9 @@ def test_execute_preserves_exact_source_spans_and_candidate_provenance():
     result = strategy.execute(plan, rag, _context(source_id))
     assert [call.source_version_ids for call in rag.calls] == [(source_id,)] * 3
     assert [section.perspective for section in result.research_brief_candidate.sections] == [
-        "methods", "findings", "limitations"
+        "methods",
+        "findings",
+        "limitations",
     ]
     assert all(
         section.answer_candidate == "Unverified candidate"

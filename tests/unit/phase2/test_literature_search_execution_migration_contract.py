@@ -1,8 +1,6 @@
-
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
+import re
 from datetime import UTC, datetime
 from pathlib import Path
-import re
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
@@ -21,20 +19,17 @@ from researchbase.persistence.literature_search_execution_repository import (
     SqlAlchemyLiteratureSearchExecutionRepository,
 )
 from researchbase.persistence.models import (
-    LiteratureSearchExecutionModel,
     LiteratureSearchExecutionCommandReceiptModel,
     LiteratureSearchExecutionEventModel,
+    LiteratureSearchExecutionModel,
     LiteratureSearchProviderAttemptModel,
     LiteratureSearchQueryRecordModel,
     LiteratureSearchResultRecordModel,
 )
-
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 MIGRATION = (
-    Path(__file__).parents[3]
-    / "migrations"
-    / "versions"
-    / "0024_literature_search_execution.py"
+    Path(__file__).parents[3] / "migrations" / "versions" / "0024_literature_search_execution.py"
 )
 
 
@@ -84,7 +79,7 @@ def test_provider_outcome_constraints_validate_complete_tx_b_at_commit() -> None
 
     assert '"fk_lspa_query_record"' in source
     assert "deferrable=True" in source
-    assert 'CREATE FUNCTION pr204_validate_attempt_provenance()' in source
+    assert "CREATE FUNCTION pr204_validate_attempt_provenance()" in source
     assert "CREATE CONSTRAINT TRIGGER trg_pr204_attempt_outcome_commit" in source
     assert "CREATE CONSTRAINT TRIGGER trg_pr204_query_outcome_commit" in source
     assert "CREATE CONSTRAINT TRIGGER trg_pr204_result_outcome_commit" in source
@@ -173,8 +168,9 @@ def test_tx_b_result_append_can_read_query_pending_in_same_unit_of_work() -> Non
         provider_version="1",
         normalized_query="cortex",
         provider_request_id="request-1",
-        hits=(SearchHit("doi:1", "Paper", None, None, None),), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+        hits=(SearchHit("doi:1", "Paper", None, None, None),),
+        retrieved_at=PROVIDER_RETRIEVED_AT,
+    )
 
     repository.append_results(query_id, response, now)
 
@@ -247,9 +243,7 @@ def test_query_and_result_creator_attribution_follows_provider_attempt_actor() -
     query_id, execution_id, attempt_id = (uuid4() for _ in range(3))
     requested_by, executed_by = uuid4(), uuid4()
     execution = SimpleNamespace(id=execution_id, requested_by=requested_by)
-    attempt = SimpleNamespace(
-        id=attempt_id, execution_id=execution_id, created_by=executed_by
-    )
+    attempt = SimpleNamespace(id=attempt_id, execution_id=execution_id, created_by=executed_by)
     session = Mock()
     session.get.side_effect = [execution, attempt]
     session.scalar.return_value = now

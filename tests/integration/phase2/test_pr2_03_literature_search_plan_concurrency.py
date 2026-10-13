@@ -9,12 +9,6 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-    _material,
-    _question,
-)
 
 from researchbase.application.literature_search_plan import (
     CreateLiteratureSearchPlan,
@@ -30,6 +24,12 @@ from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+    _material,
+    _question,
+)
 
 
 def _setup(database_url: str):
@@ -66,7 +66,9 @@ def _race(database_url: str, winner: str, loser: str, record_property):
     engine, service, principal, project_id, plan_id, version_id, question_id, reference = _setup(
         database_url
     )
-    addition = _question(engine, project_id, principal.actor_id) if "add" in {winner, loser} else None
+    addition = (
+        _question(engine, project_id, principal.actor_id) if "add" in {winner, loser} else None
+    )
     winner_locked = Event()
     release_winner = Event()
     loser_started = Event()
@@ -100,9 +102,11 @@ def _race(database_url: str, winner: str, loser: str, record_property):
                 ), None
             if operation == "add":
                 assert addition is not None
-                return service.add_question(EditLiteratureSearchPlanQuestions(
-                    principal, project_id, plan_id, version_id, addition[1], uuid4()
-                )), None
+                return service.add_question(
+                    EditLiteratureSearchPlanQuestions(
+                        principal, project_id, plan_id, version_id, addition[1], uuid4()
+                    )
+                ), None
             if operation == "remove":
                 return service.remove_question(
                     RemoveLiteratureSearchPlanQuestion(
@@ -301,7 +305,9 @@ def test_language_edit_races_freeze_hashes_locked_durable_state(
 @pytest.mark.parametrize("winner", ["add", "freeze"])
 def test_addition_races_freeze_rereads_durable_refs(phase2_database_url, winner, record_property):
     loser = "freeze" if winner == "add" else "add"
-    engine, outcomes, state, plan, version, _ = _race(phase2_database_url, winner, loser, record_property)
+    engine, outcomes, state, plan, version, _ = _race(
+        phase2_database_url, winner, loser, record_property
+    )
     assert outcomes[winner][1] is None
     if winner == "add":
         assert outcomes["freeze"][1] is None
@@ -313,11 +319,25 @@ def test_addition_races_freeze_rereads_durable_refs(phase2_database_url, winner,
     assert state["status"] == "FROZEN"
     assert state["current_version_id"] == version
     with engine.connect() as connection:
-        rows = connection.execute(text("SELECT qv.research_question_id,qv.id,qv.content_hash "
+        rows = connection.execute(
+            text(
+                "SELECT qv.research_question_id,qv.id,qv.content_hash "
                 "FROM search_plan_question_inputs i JOIN research_question_versions qv "
-                "ON qv.id=i.research_question_version_id WHERE i.plan_version_id=:id"), {"id": version}).all()
+                "ON qv.id=i.research_question_version_id WHERE i.plan_version_id=:id"
+            ),
+            {"id": version},
+        ).all()
     refs = tuple(FrozenResearchQuestionReference(*row) for row in rows)
     expected = _material(plan, refs, language_scope=("en",)).digest()
     assert state["content_hash"] == expected
-    record_property("addition_hash", json.dumps({"expected_hash": expected, "durable_hash": state["content_hash"], "durable_ref_count": len(refs)}))
+    record_property(
+        "addition_hash",
+        json.dumps(
+            {
+                "expected_hash": expected,
+                "durable_hash": state["content_hash"],
+                "durable_ref_count": len(refs),
+            }
+        ),
+    )
     engine.dispose()

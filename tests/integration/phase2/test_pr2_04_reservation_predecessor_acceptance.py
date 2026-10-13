@@ -6,6 +6,13 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
+
+from researchbase.application.literature_search_execution import (
+    CancelLiteratureSearchExecution,
+    CreateLiteratureSearchExecution,
+    ExecuteLiteratureSearchExecution,
+)
+from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 from tests.integration.phase2.test_pr2_04_outcome_reapplication_acceptance import OutcomeOnly
 from tests.integration.phase2.test_pr2_04_pg_retrieval_observation_repair import material
 from tests.integration.phase2.test_pr2_04_schema_coverage import (
@@ -17,13 +24,6 @@ from tests.integration.phase2.test_pr2_04_schema_coverage import (
     _rows,
 )
 from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
-from researchbase.application.literature_search_execution import (
-    CancelLiteratureSearchExecution,
-    CreateLiteratureSearchExecution,
-    ExecuteLiteratureSearchExecution,
-)
-from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 
 
 @pytest.mark.pr204_requirements("PR204-DB-01", "PR204-DB-05")

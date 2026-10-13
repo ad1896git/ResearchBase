@@ -9,8 +9,6 @@ the evidence records the actual PostgreSQL backstop, including deferred COMMIT g
 
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 import json
 from collections.abc import Callable
 from datetime import timedelta
@@ -22,15 +20,6 @@ from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-    _material as _plan_material,
-)
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
-from tests.integration.phase2.test_pr2_04_execution_recovery import (
-    OutcomeBeforeFinalization,
-    ReservedBeforeInvocation,
-)
 
 from researchbase.application.literature_search_execution import (
     CreateLiteratureSearchExecution,
@@ -44,6 +33,18 @@ from researchbase.domain.literature_search_execution import SearchHit, SearchRes
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+)
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _material as _plan_material,
+)
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+from tests.integration.phase2.test_pr2_04_execution_recovery import (
+    OutcomeBeforeFinalization,
+    ReservedBeforeInvocation,
+)
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 TABLES = (
     "literature_search_executions",
@@ -119,8 +120,9 @@ def _material(url: str, stage: str = "sealed", hits: int = 1) -> dict[str, Any]:
                 provider_request_id="observed-request",
                 hits=tuple(
                     SearchHit(f"hit-{i}", f"Title {i}", None, None, None) for i in range(hits)
-                ), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+                ),
+                retrieved_at=PROVIDER_RETRIEVED_AT,
+            )
         ],
     )
     service_type = {
@@ -686,16 +688,30 @@ def test_query_same_parent_and_atomic_observation_guards(
         )
         if case == "same_parent":
             principal = material["principal"]
-            second = material["service"].create(CreateLiteratureSearchExecution(
-                material["project"], material["version"], principal.actor_id,
-                principal.deployment_id, uuid4(), "provider-a", "1",
-                ("normalization evidence",), principal=principal,
-            ))
+            second = material["service"].create(
+                CreateLiteratureSearchExecution(
+                    material["project"],
+                    material["version"],
+                    principal.actor_id,
+                    principal.deployment_id,
+                    uuid4(),
+                    "provider-a",
+                    "1",
+                    ("normalization evidence",),
+                    principal=principal,
+                )
+            )
             second_id = UUID(second["execution_id"])
-            material["service"].execute(ExecuteLiteratureSearchExecution(
-                second_id, principal.actor_id, principal.deployment_id, uuid4(),
-                project_id=material["project"], principal=principal,
-            ))
+            material["service"].execute(
+                ExecuteLiteratureSearchExecution(
+                    second_id,
+                    principal.actor_id,
+                    principal.deployment_id,
+                    uuid4(),
+                    project_id=material["project"],
+                    principal=principal,
+                )
+            )
             row["provider_attempt_id"] = next(
                 a["id"] for a in _rows(engine)[A] if a["execution_id"] == second_id
             )

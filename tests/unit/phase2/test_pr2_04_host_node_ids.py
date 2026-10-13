@@ -57,7 +57,7 @@ def test_exact_shared_r7b_host_failure_input(tmp_path, gate):
     assert gate in {"PR204-EVID-02", "PR204-REG-02"}
     name = (
         "test_snapshot_trigger_rejects_update_of_every_field"
-        "[selection_definition-'{\"split\":\"changed\"}'::jsonb]"
+        '[selection_definition-\'{"split":"changed"}\'::jsonb]'
     )
     record, path = _record(
         tmp_path,
@@ -73,7 +73,9 @@ def test_exact_shared_r7b_host_failure_input(tmp_path, gate):
 )
 def test_host_identity_repair_remains_fail_closed(tmp_path, defect):
     record, path = _record(
-        tmp_path, "tests/example.py::test_name[value::jsonb]", "tests.example",
+        tmp_path,
+        "tests/example.py::test_name[value::jsonb]",
+        "tests.example",
         "test_name[value::jsonb]",
     )
     record = deepcopy(record)

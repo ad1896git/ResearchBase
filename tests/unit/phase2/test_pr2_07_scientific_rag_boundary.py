@@ -51,7 +51,9 @@ def test_offline_candidate_preserves_source_locator_and_provenance():
     assert result.evidence_candidates[0].source_version_id == source_id
     assert result.evidence_candidates[0].locator == SourceLocator(page=2, paragraph="3")
     assert (result.adapter_id, result.adapter_version, result.provider_id) == (
-        "fake-scientific-rag", "1", "test-only"
+        "fake-scientific-rag",
+        "1",
+        "test-only",
     )
     assert result.retrieval_query == "What does the source report?"
     assert fake.calls == [request((source_id,))]
@@ -148,9 +150,9 @@ def test_query_and_adapter_provenance_cannot_be_substituted():
     source_id = uuid4()
     original = response(source_id)
     with pytest.raises(ValueError, match="query"):
-        FakeScientificRAGCapability(
-            replace(original, retrieval_query="unrelated query")
-        ).answer(request((source_id,)), context())
+        FakeScientificRAGCapability(replace(original, retrieval_query="unrelated query")).answer(
+            request((source_id,)), context()
+        )
     with pytest.raises(ValueError, match="provenance"):
         FakeScientificRAGCapability(replace(original, provider_id="unapproved")).answer(
             request((source_id,)), context()

@@ -36,14 +36,18 @@ def test_success_without_observation_is_rejected():
 def test_attempt_provenance_projection_excludes_unregistered_persistence_fields():
     row = {"status": "SUCCEEDED", "retrieved_at": T1, "future_private_column": "private"}
     assert LiteratureSearchExecutionService._attempt_read(row) == {
-        "status": "SUCCEEDED", "retrieved_at": T1,
+        "status": "SUCCEEDED",
+        "retrieved_at": T1,
     }
 
 
 def response(hits=0, at=T1):
     return SearchResponse.success(
-        provider_id="fake", provider_version="1", normalized_query="cortex",
-        provider_request_id="observed", retrieved_at=at,
+        provider_id="fake",
+        provider_version="1",
+        normalized_query="cortex",
+        provider_request_id="observed",
+        retrieved_at=at,
         hits=tuple(SearchHit(str(i), f"Paper {i}", None, None, None) for i in range(hits)),
     )
 
@@ -51,8 +55,9 @@ def response(hits=0, at=T1):
 @pytest.mark.parametrize("at", [None, "2020-01-02T03:04:05Z", True, datetime(2020, 1, 2)])
 def test_success_requires_aware_datetime_observation(at):
     with pytest.raises(ValueError, match="retrieved_at"):
-        SearchResponse("fake", "1", "cortex", None, DeliveryCertainty.RESPONSE_RECEIVED,
-                       retrieved_at=at)
+        SearchResponse(
+            "fake", "1", "cortex", None, DeliveryCertainty.RESPONSE_RECEIVED, retrieved_at=at
+        )
 
 
 def test_provider_observation_normalizes_offset_without_ordering_rule():
@@ -63,8 +68,9 @@ def test_provider_observation_normalizes_offset_without_ordering_rule():
     assert response(at=T1 + timedelta(days=36500)).retrieved_at == T1 + timedelta(days=36500)
 
 
-@pytest.mark.parametrize("certainty", [DeliveryCertainty.NOT_SENT,
-                                      DeliveryCertainty.MAY_HAVE_BEEN_SENT])
+@pytest.mark.parametrize(
+    "certainty", [DeliveryCertainty.NOT_SENT, DeliveryCertainty.MAY_HAVE_BEEN_SENT]
+)
 def test_non_success_cannot_claim_retrieval_observation(certainty):
     with pytest.raises(ValueError, match="retrieved_at"):
         SearchResponse("fake", "1", "cortex", None, certainty, retrieved_at=T1)
@@ -84,13 +90,21 @@ class PausedFinalization(LiteratureSearchExecutionService):
 def harness(hits, service_type=PausedFinalization):
     repo = InMemoryLiteratureSearchExecutionRepository()
     provider = FakeSearchCapability(responses=[response(hits)])
-    service = service_type(lambda: InMemoryExecutionUnitOfWork(repo), provider,
-                           allow_unverified_principal=True, sleep=lambda _: None)
+    service = service_type(
+        lambda: InMemoryExecutionUnitOfWork(repo),
+        provider,
+        allow_unverified_principal=True,
+        sleep=lambda _: None,
+    )
     actor, project = uuid4(), uuid4()
-    admission = service.create(CreateLiteratureSearchExecution(
-        project, uuid4(), actor, "test", uuid4(), "fake", "1", ("cortex",)))
-    command = ExecuteLiteratureSearchExecution(UUID(admission["execution_id"]), actor,
-                                              "test", uuid4())
+    admission = service.create(
+        CreateLiteratureSearchExecution(
+            project, uuid4(), actor, "test", uuid4(), "fake", "1", ("cortex",)
+        )
+    )
+    command = ExecuteLiteratureSearchExecution(
+        UUID(admission["execution_id"]), actor, "test", uuid4()
+    )
     return repo, provider, service, command, project
 
 
@@ -118,9 +132,14 @@ def test_sealed_provider_observation_and_internal_reapplication(hits, pr204_trac
     assert service.execute(command) == admission
     assert service.get_provenance(None, project, command.execution_id) == before
     assert len(provider.calls) == 1
-    pr204_trace.record(hits=hits, provider_T1=T1, before=before,
-                       after=service.get_provenance(None, project, command.execution_id),
-                       different_T2_error=caught.value.code.value, provider_calls=len(provider.calls))
+    pr204_trace.record(
+        hits=hits,
+        provider_T1=T1,
+        before=before,
+        after=service.get_provenance(None, project, command.execution_id),
+        different_T2_error=caught.value.code.value,
+        provider_calls=len(provider.calls),
+    )
 
 
 class LostAcknowledgment(PausedFinalization):
@@ -135,7 +154,9 @@ class LostAcknowledgment(PausedFinalization):
 
 
 @pytest.mark.parametrize("hits", [0, 2])
-def test_tx_b_retry_retains_provider_observation_and_one_invocation(hits, pr204_trace: FactRecorder):
+def test_tx_b_retry_retains_provider_observation_and_one_invocation(
+    hits, pr204_trace: FactRecorder
+):
     repo, provider, service, command, project = harness(hits, LostAcknowledgment)
     service.execute(command)
     data = service.get_provenance(None, project, command.execution_id)
@@ -145,4 +166,6 @@ def test_tx_b_retry_retains_provider_observation_and_one_invocation(hits, pr204_
     assert all(row["retrieved_at"] == T1 for row in data["results"])
     assert len(data["queries"]) == 1 and len(data["results"]) == hits
     assert sum(e["kind"] == "OUTCOME_RECORDED" for e in repo.events) == 1
-    pr204_trace.record(tx_b_calls=service.retries, provider_calls=len(provider.calls), provenance=data)
+    pr204_trace.record(
+        tx_b_calls=service.retries, provider_calls=len(provider.calls), provenance=data
+    )

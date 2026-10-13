@@ -1,4 +1,5 @@
 """PG evidence for constructor faults at the actual invoked adapter boundary."""
+
 import json
 
 import pytest
@@ -6,14 +7,18 @@ import pytest
 from tests.integration.phase2.test_pr2_04_idempotency_coverage import _snapshot
 from tests.integration.phase2.test_pr2_04_provider_pg_coverage import QUERY, setup_case
 from tests.unit.phase2.test_pr2_04_response_constructor_acceptance import (
-    CANARY, CASES, assert_unknown, constructor_fault,
+    CANARY,
+    CASES,
+    assert_unknown,
+    constructor_fault,
 )
 
 
 @pytest.mark.pr204_requirements("PR204-PROV-04")
 @pytest.mark.parametrize("kind", CASES)
-def test_pg_constructor_failure_has_no_salvaged_results(phase2_database_url, kind,
-                                                        caplog, pr204_trace):
+def test_pg_constructor_failure_has_no_salvaged_results(
+    phase2_database_url, kind, caplog, pr204_trace
+):
     engine, provider, service, principal, project, command, _ = setup_case(phase2_database_url, [])
     provider.search = constructor_fault(provider, kind, QUERY, "provider-a")
     try:

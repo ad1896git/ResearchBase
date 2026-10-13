@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from typing import Never
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -106,9 +105,8 @@ def test_literal_contract_15_golden_vectors():
     import json
     from pathlib import Path
 
-    from tests.unit.phase2.test_literature_search_plan import material
-
     from researchbase.foundation.canonical_json import canonical_json_bytes
+    from tests.unit.phase2.test_literature_search_plan import material
 
     vectors = json.loads(Path(__file__).with_name("search_plan_golden_vectors.json").read_text())
     for vector in vectors:

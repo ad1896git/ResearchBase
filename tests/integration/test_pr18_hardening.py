@@ -12,9 +12,9 @@ import pytest
 from scripts import pr18_evidence
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from tests.contracts.pr18_manifest import FROZEN_REQUIRED_INDEXES
 
 from researchbase.persistence.database import create_database_engine
+from tests.contracts.pr18_manifest import FROZEN_REQUIRED_INDEXES
 
 pytestmark = pytest.mark.integration
 

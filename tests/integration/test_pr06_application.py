@@ -10,7 +10,6 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.exc import IntegrityError
-from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
     CreateActorCommand,
@@ -27,6 +26,7 @@ from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 pytestmark = pytest.mark.integration
 
@@ -344,7 +344,7 @@ def test_snapshot_immutability_trigger_rejects_direct_update(
     [
         ("dataset_id", "'88888888-8888-7888-8888-888888888888'"),
         ("manifest_hash", "repeat('c', 64)"),
-        ("selection_definition", "'{\"split\":\"changed\"}'::jsonb"),
+        ("selection_definition", '\'{"split":"changed"}\'::jsonb'),
         ("manifest_locator", "'file:///changed'"),
         ("content_hash", "repeat('d', 64)"),
         ("created_by", "'99999999-9999-7999-8999-999999999999'"),
@@ -447,10 +447,7 @@ def test_snapshot_late_failure_rolls_back_and_retry_is_single_row(
     try:
         with verification_engine.connect() as connection:
             persisted = connection.execute(
-                text(
-                    "SELECT id FROM dataset_snapshots "
-                    "WHERE dataset_id = :dataset_id"
-                ),
+                text("SELECT id FROM dataset_snapshots WHERE dataset_id = :dataset_id"),
                 {"dataset_id": dataset.id},
             ).all()
     finally:

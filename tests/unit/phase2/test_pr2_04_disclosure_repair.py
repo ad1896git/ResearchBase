@@ -6,7 +6,6 @@ from uuid import UUID, uuid4
 
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
-from tests.unit.phase2.test_pr2_04_transport_coverage import _Authority, _Credential, _body, _transport
 
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
@@ -14,6 +13,12 @@ from researchbase.application.literature_search_execution import (
     RecoverLiteratureSearchExecution,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.unit.phase2.test_pr2_04_transport_coverage import (
+    _Authority,
+    _body,
+    _Credential,
+    _transport,
+)
 
 
 @pytest.mark.parametrize("action", ["execute", "cancel", "recover"])
@@ -35,8 +40,12 @@ def test_disclosure_denial_preserves_committed_facts_without_replaying_work(
     if action == "recover":
         service.execute(
             ExecuteLiteratureSearchExecution(
-                execution_id, principal.actor_id, principal.deployment_id, uuid4(),
-                project_id=UUID(body["project_id"]), principal=principal,
+                execution_id,
+                principal.actor_id,
+                principal.deployment_id,
+                uuid4(),
+                project_id=UUID(body["project_id"]),
+                principal=principal,
             )
         )
     armed = False
@@ -78,7 +87,9 @@ def test_disclosure_denial_preserves_committed_facts_without_replaying_work(
             stages.append("credential_check")
         return not (armed and loss == "credential")
 
-    boundary = {"execute": "_drive", "cancel": "_finalize_cancel", "recover": "_cancel_or_recover"}[action]
+    boundary = {"execute": "_drive", "cancel": "_finalize_cancel", "recover": "_cancel_or_recover"}[
+        action
+    ]
     original_boundary = getattr(service, boundary)
 
     def lose_after_commit(*args, **kwargs):
@@ -96,21 +107,41 @@ def test_disclosure_denial_preserves_committed_facts_without_replaying_work(
     monkeypatch.setattr(_Authority, "at", clock)
     monkeypatch.setattr(_Credential, "is_valid", credential)
     monkeypatch.setattr(service, boundary, lose_after_commit)
-    command_type = {"execute": ExecuteLiteratureSearchExecution, "cancel": CancelLiteratureSearchExecution, "recover": RecoverLiteratureSearchExecution}[action]
+    command_type = {
+        "execute": ExecuteLiteratureSearchExecution,
+        "cancel": CancelLiteratureSearchExecution,
+        "recover": RecoverLiteratureSearchExecution,
+    }[action]
     command = command_type(
-        execution_id, principal.actor_id, principal.deployment_id, uuid4(),
-        project_id=UUID(body["project_id"]), principal=principal,
+        execution_id,
+        principal.actor_id,
+        principal.deployment_id,
+        uuid4(),
+        project_id=UUID(body["project_id"]),
+        principal=principal,
     )
     with pytest.raises(ResearchBaseError) as denied:
         getattr(service, action)(command)
     pr204_trace.record(
-        action=action, loss=loss, lock_retry=lock_retry, error=denied.value.code.value,
-        stages=stages, saved=repr(saved), after=repr(vars(repo)), provider_calls=len(provider.calls),
+        action=action,
+        loss=loss,
+        lock_retry=lock_retry,
+        error=denied.value.code.value,
+        stages=stages,
+        saved=repr(saved),
+        after=repr(vars(repo)),
+        provider_calls=len(provider.calls),
         orchestration_count=orchestration_count,
     )
     assert denied.value.code is ErrorCode.FORBIDDEN
     assert vars(repo) == saved and len(provider.calls) == calls
     assert orchestration_count == 1
     assert lock_count == (2 if lock_retry else 1)
-    assert stages[-5:] == ["project_lock", "locked_execution_reread", "authority_reread", "fresh_clock", "credential_check"]
+    assert stages[-5:] == [
+        "project_lock",
+        "locked_execution_reread",
+        "authority_reread",
+        "fresh_clock",
+        "credential_check",
+    ]
     assert len(repo.receipts) == (3 if action == "recover" else 2)

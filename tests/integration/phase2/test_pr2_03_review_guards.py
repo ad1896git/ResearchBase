@@ -1,7 +1,6 @@
 """Independent-review counterexamples: real PostgreSQL, no mocked DB guards."""
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
 from queue import Queue
 from threading import Event
 from time import monotonic
@@ -11,13 +10,6 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
-from tests.application_compat import LegacyApplicationService
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-    _material,
-    _question,
-)
 
 from researchbase.application.commands import (
     AbandonArtifactVersionCommand,
@@ -47,10 +39,19 @@ from researchbase.foundation.artifact_store import ContentAddressedFilesystemArt
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.time import SystemClock
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+    _material,
+    _question,
+)
 
 
 def _setup(url, *, migration_revision="head"):
-    engine, _, _, principal, project = _authorized_service(url, migration_revision=migration_revision)
+    engine, _, _, principal, project = _authorized_service(
+        url, migration_revision=migration_revision
+    )
     service = LiteratureSearchPlanService(
         lambda: SqlAlchemyUnitOfWork(
             sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
@@ -294,7 +295,7 @@ def test_abandon_commands_load_the_command_version_id(
         durable = (
             connection.execute(
                 text(
-                    f"SELECT {parent_column} AS parent_id,status,row_version FROM {table} WHERE id=:id"
+                    f"SELECT {parent_column} AS parent_id,status,row_version FROM {table} WHERE id=:id"  # noqa: E501
                 ),
                 {"id": abandoned.id},
             )
@@ -325,10 +326,10 @@ def test_direct_invalid_frozen_current_writes_rejected(
     if violation != "initial_frozen":
         _freeze(engine, service, principal, project, plan, version)
     sql = {
-        "initial_frozen": "INSERT INTO literature_search_plan_versions SELECT :new,id_plan,2,'FROZEN',objective,source_scope,inclusion_criteria,exclusion_criteria,time_range,language_scope,search_strategy,planned_providers,stopping_rule,:hash,hash_scheme,clock_timestamp(),created_by,created_at,row_version FROM (SELECT v.*,v.plan_id AS id_plan FROM literature_search_plan_versions v WHERE id=:id) v",
-        "current_superseded": "UPDATE literature_search_plan_versions SET status='SUPERSEDED' WHERE id=:id",
-        "null_language": "UPDATE literature_search_plan_versions SET language_scope=NULL WHERE id=:id",
-        "frozen_edit": "UPDATE literature_search_plan_versions SET objective='changed' WHERE id=:id",
+        "initial_frozen": "INSERT INTO literature_search_plan_versions SELECT :new,id_plan,2,'FROZEN',objective,source_scope,inclusion_criteria,exclusion_criteria,time_range,language_scope,search_strategy,planned_providers,stopping_rule,:hash,hash_scheme,clock_timestamp(),created_by,created_at,row_version FROM (SELECT v.*,v.plan_id AS id_plan FROM literature_search_plan_versions v WHERE id=:id) v",  # noqa: E501
+        "current_superseded": "UPDATE literature_search_plan_versions SET status='SUPERSEDED' WHERE id=:id",  # noqa: E501
+        "null_language": "UPDATE literature_search_plan_versions SET language_scope=NULL WHERE id=:id",  # noqa: E501
+        "frozen_edit": "UPDATE literature_search_plan_versions SET objective='changed' WHERE id=:id",  # noqa: E501
         "frozen_input_delete": "DELETE FROM search_plan_question_inputs WHERE plan_version_id=:id",
     }[violation]
     with pytest.raises(DBAPIError) as rejected:
@@ -386,7 +387,7 @@ def test_required_fk_leading_indexes(phase2_database_url, record_property):
         coverage = set(
             c.execute(
                 text(
-                    "SELECT t.relname,a.attname FROM pg_index i JOIN pg_class t ON t.oid=i.indrelid JOIN pg_class x ON x.oid=i.indexrelid JOIN pg_am am ON am.oid=x.relam JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=i.indkey[0] WHERE i.indisvalid AND am.amname='btree'"
+                    "SELECT t.relname,a.attname FROM pg_index i JOIN pg_class t ON t.oid=i.indrelid JOIN pg_class x ON x.oid=i.indexrelid JOIN pg_am am ON am.oid=x.relam JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=i.indkey[0] WHERE i.indisvalid AND am.amname='btree'"  # noqa: E501
                 )
             )
         )
@@ -463,7 +464,7 @@ def test_direct_question_identity_uniqueness_race(phase2_database_url, first, re
         history = (
             c.execute(
                 text(
-                    "SELECT id,status FROM research_question_versions WHERE research_question_id=:id ORDER BY version_number"
+                    "SELECT id,status FROM research_question_versions WHERE research_question_id=:id ORDER BY version_number"  # noqa: E501
                 ),
                 {"id": q},
             )
@@ -528,7 +529,7 @@ def test_ordinal_determinism_revision_supersession_and_hash(phase2_database_url,
             list(
                 c.execute(
                     text(
-                        "SELECT research_question_version_id,ordinal FROM search_plan_question_inputs WHERE plan_version_id=:id ORDER BY ordinal"
+                        "SELECT research_question_version_id,ordinal FROM search_plan_question_inputs WHERE plan_version_id=:id ORDER BY ordinal"  # noqa: E501
                     ),
                     {"id": target},
                 )
@@ -597,10 +598,9 @@ def test_populated_child_downgrade_refuses(phase2_database_url):
     ["missing", "draft", "abandoned", "corrupt_hash", "cross_project", "duplicate_identity"],
 )
 def test_question_reference_validation_matrix(phase2_database_url, invalid, record_property):
-    from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
-
     from researchbase.application.phase2_identity import CreateProjectWithOwner
     from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+    from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
 
     engine, service, principal, project, plan, version = _setup(phase2_database_url)
     foreign = project
@@ -621,7 +621,7 @@ def test_question_reference_validation_matrix(phase2_database_url, invalid, reco
         with engine.begin() as c:
             c.execute(
                 text(
-                    "INSERT INTO research_question_versions(id,research_question_id,version_number,status,question_text,scope,rationale,content_hash,created_by,created_at,frozen_at) SELECT :new,research_question_id,2,CAST(:state AS varchar),question_text,scope,rationale,CASE WHEN CAST(:state AS varchar)='FROZEN' THEN :hash ELSE NULL END,created_by,created_at,CASE WHEN CAST(:state AS varchar)='FROZEN' THEN frozen_at ELSE NULL END FROM research_question_versions WHERE id=:old"
+                    "INSERT INTO research_question_versions(id,research_question_id,version_number,status,question_text,scope,rationale,content_hash,created_by,created_at,frozen_at) SELECT :new,research_question_id,2,CAST(:state AS varchar),question_text,scope,rationale,CASE WHEN CAST(:state AS varchar)='FROZEN' THEN :hash ELSE NULL END,created_by,created_at,CASE WHEN CAST(:state AS varchar)='FROZEN' THEN frozen_at ELSE NULL END FROM research_question_versions WHERE id=:old"  # noqa: E501
                 ),
                 {
                     "new": candidate,
@@ -651,7 +651,7 @@ def test_question_reference_validation_matrix(phase2_database_url, invalid, reco
         assert (
             c.execute(
                 text(
-                    "SELECT count(*) FROM literature_search_plan_command_receipts WHERE request_id=:id"
+                    "SELECT count(*) FROM literature_search_plan_command_receipts WHERE request_id=:id"  # noqa: E501
                 ),
                 {"id": request},
             ).scalar_one()
@@ -718,7 +718,7 @@ def test_original_0023_counterexample_and_fail_closed_upgrade(
         if violation == "initial_frozen":
             c.execute(
                 text(
-                    "INSERT INTO literature_search_plan_versions SELECT :new,plan_id,2,'FROZEN',objective,source_scope,inclusion_criteria,exclusion_criteria,time_range,language_scope,search_strategy,planned_providers,stopping_rule,:hash,hash_scheme,clock_timestamp(),created_by,created_at,row_version FROM literature_search_plan_versions WHERE id=:id"
+                    "INSERT INTO literature_search_plan_versions SELECT :new,plan_id,2,'FROZEN',objective,source_scope,inclusion_criteria,exclusion_criteria,time_range,language_scope,search_strategy,planned_providers,stopping_rule,:hash,hash_scheme,clock_timestamp(),created_by,created_at,row_version FROM literature_search_plan_versions WHERE id=:id"  # noqa: E501
                 ),
                 {"new": uuid4(), "hash": "a" * 64, "id": version},
             )
@@ -839,7 +839,7 @@ def test_live_schema_guard_contract(phase2_database_url, record_property):
     with engine.connect() as c:
         triggers = c.execute(
             text(
-                "SELECT tgname,tgdeferrable,tginitdeferred FROM pg_trigger WHERE tgname IN ('trg_lsp_final_state','trg_lspv_final_state','trg_spqi_identity_unique') ORDER BY tgname"
+                "SELECT tgname,tgdeferrable,tginitdeferred FROM pg_trigger WHERE tgname IN ('trg_lsp_final_state','trg_lspv_final_state','trg_spqi_identity_unique') ORDER BY tgname"  # noqa: E501
             )
         ).all()
         assert [tuple(row) for row in triggers] == [

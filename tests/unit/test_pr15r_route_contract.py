@@ -712,8 +712,6 @@ def test_pr204_execution_list_exposes_optional_after_cursor() -> None:
     schema = create_app(EmptyServices()).openapi()
     operation = schema["paths"]["/v1/literature/search-executions"]["get"]
     query_parameters = {
-        parameter["name"]
-        for parameter in operation["parameters"]
-        if parameter["in"] == "query"
+        parameter["name"] for parameter in operation["parameters"] if parameter["in"] == "query"
     }
     assert {"project_id", "limit", "after"} <= query_parameters

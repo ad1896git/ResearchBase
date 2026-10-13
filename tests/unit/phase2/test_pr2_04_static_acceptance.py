@@ -49,7 +49,7 @@ def test_candidate_static_gates_and_inherited_formatter_delta(pr204_trace: FactR
         for row in json.loads(types.stdout)["generalDiagnostics"]
     ]
     # Exact file/rule/message multisets cap inherited debt; new or duplicated errors fail.
-    assert not (Counter(lint_diagnostics) - Counter(map(tuple, baseline["ruff"])))
+    assert not (Counter(lint_diagnostics) - Counter(map(tuple, baseline.get("ruff", []))))
     assert not (Counter(type_diagnostics) - Counter(map(tuple, baseline["pyright"])))
     lineage = execute([sys.executable, RECOVERY_GATES, "lineage"])
     assert lineage.returncode == 0
@@ -58,7 +58,7 @@ def test_candidate_static_gates_and_inherited_formatter_delta(pr204_trace: FactR
     raw = execute([sys.executable, "-m", "ruff", "format", "--check", *scopes])
     assert raw.returncode in {0, 1}
     current = set(re.findall(r"^Would reformat: (.+)$", raw.stdout + raw.stderr, re.MULTILINE))
-    assert current <= set(baseline["formatter"])
+    assert current <= set(baseline.get("formatter", []))
     assert (raw.returncode == 0 and not current) or (raw.returncode == 1 and bool(current))
     changed = execute(
         [

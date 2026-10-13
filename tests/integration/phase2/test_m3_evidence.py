@@ -558,9 +558,7 @@ def test_pg_m3_migration_from_phase1_and_empty_roundtrip(phase2_database_url):
     engine.dispose()
 
 
-def test_pg_m3_alembic_env_preserves_percent_escaped_socket_url(
-    phase2_database_url, monkeypatch
-):
+def test_pg_m3_alembic_env_preserves_percent_escaped_socket_url(phase2_database_url, monkeypatch):
     from urllib.parse import quote
 
     from alembic import command

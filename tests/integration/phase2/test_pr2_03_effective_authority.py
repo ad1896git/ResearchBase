@@ -9,12 +9,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-    _material,
-)
 
 from researchbase.application.literature_search_plan import (
     CreateLiteratureSearchPlan,
@@ -31,6 +25,12 @@ from researchbase.application.phase2_identity import (
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+    _material,
+)
 
 
 def _provision(identity, owner):

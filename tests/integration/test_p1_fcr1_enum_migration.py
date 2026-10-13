@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
 from tests.integration.test_pr17dr_migration import _run_alembic, _temporary_database
 
 pytestmark = pytest.mark.integration

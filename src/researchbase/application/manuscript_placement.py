@@ -15,8 +15,9 @@ from researchbase.application.publication import _READERS, _WRITERS, Publication
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-_PURPOSES = frozenset({"BACKGROUND", "METHOD", "COMPARISON", "EVIDENCE",
-                       "PRIOR_ART", "DATASET", "OTHER"})
+_PURPOSES = frozenset(
+    {"BACKGROUND", "METHOD", "COMPARISON", "EVIDENCE", "PRIOR_ART", "DATASET", "OTHER"}
+)
 _KINDS = frozenset({"PARAGRAPH", "SPAN", "CAPTION", "ANCHOR"})
 _MAX_PLACEMENT_TEXT = 2000
 
@@ -43,8 +44,10 @@ def _text(value: object) -> str:
     except UnicodeError as exc:
         raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid Unicode") from exc
     if not normalized.strip() or len(normalized) > _MAX_PLACEMENT_TEXT:
-        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR,
-                                "placement text must be nonblank and at most 2000 characters")
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "placement text must be nonblank and at most 2000 characters",
+        )
     return normalized
 
 
@@ -56,31 +59,57 @@ class CitationPlacementService:
     @staticmethod
     def _source(repo: Any, source: UUID, project: UUID) -> str:
         row = repo.citation_source(source, project)
-        if (row is None or row["status"] not in ("FROZEN", "SUPERSEDED")
-            or row["frozen_at"] is None or not isinstance(row["content_hash"], str)
-            or re.fullmatch(r"[0-9a-f]{64}", row["content_hash"]) is None):
-            raise ResearchBaseError(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                                    "exact frozen project source required")
+        if (
+            row is None
+            or row["status"] not in ("FROZEN", "SUPERSEDED")
+            or row["frozen_at"] is None
+            or not isinstance(row["content_hash"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", row["content_hash"]) is None
+        ):
+            raise ResearchBaseError(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact frozen project source required"
+            )
         return row["content_hash"]
 
     @staticmethod
     def _result(row: dict[str, Any], source_hash: str) -> CitationTrace:
-        return CitationTrace(row["id"], row["manuscript_version_id"],
-                             row["source_version_id"], row["section_id"],
-                             dict(row["locator"]), row["citation_purpose"], row["ordinal"],
-                             source_hash)
+        return CitationTrace(
+            row["id"],
+            row["manuscript_version_id"],
+            row["source_version_id"],
+            row["section_id"],
+            dict(row["locator"]),
+            row["citation_purpose"],
+            row["ordinal"],
+            source_hash,
+        )
 
     def add(
-        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
-        manuscript: UUID, source: UUID, section: str, locator: dict[str, str],
-        purpose: str, ordinal: int, request_id: UUID,
+        self,
+        principal: VerifiedPrincipal,
+        project: UUID,
+        publication: UUID,
+        manuscript: UUID,
+        source: UUID,
+        section: str,
+        locator: dict[str, str],
+        purpose: str,
+        ordinal: int,
+        request_id: UUID,
     ) -> CitationTrace:
         """Add a citation; section and locator value are each limited to 2000 characters."""
-        if (type(publication) is not UUID or type(manuscript) is not UUID
-            or type(source) is not UUID or type(request_id) is not UUID
-            or type(ordinal) is not int or ordinal < 0 or purpose not in _PURPOSES
-            or not isinstance(locator, dict) or set(locator) != {"kind", "value"}
-            or locator.get("kind") not in _KINDS):
+        if (
+            type(publication) is not UUID
+            or type(manuscript) is not UUID
+            or type(source) is not UUID
+            or type(request_id) is not UUID
+            or type(ordinal) is not int
+            or ordinal < 0
+            or purpose not in _PURPOSES
+            or not isinstance(locator, dict)
+            or set(locator) != {"kind", "value"}
+            or locator.get("kind") not in _KINDS
+        ):
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "typed citation required")
         section = _text(section)
         location = {"kind": locator["kind"], "value": _text(locator["value"])}
@@ -89,36 +118,57 @@ class CitationPlacementService:
             repo = uow.publication
             parent = repo.publication(publication, project, lock=True)
             version = repo.version(manuscript, publication) if parent else None
-            if (parent is None or version is None or version["status"] != "DRAFT"
-                or version["frozen_at"] is not None):
-                raise ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION,
-                                        "draft manuscript unavailable")
+            if (
+                parent is None
+                or version is None
+                or version["status"] != "DRAFT"
+                or version["frozen_at"] is not None
+            ):
+                raise ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION, "draft manuscript unavailable"
+                )
             source_hash = self._source(repo, source, project)
-            identity = uuid5(NAMESPACE_URL, f"pr213:citation:{principal.deployment_id}:"
-                             f"{project}:{principal.actor_id}:{manuscript}:{request_id}")
+            identity = uuid5(
+                NAMESPACE_URL,
+                f"pr213:citation:{principal.deployment_id}:"
+                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+            )
             repo.lock_request(f"pr213:citation:{identity}")
             prior = repo.citation(identity, manuscript)
             if prior is None:
                 row: dict[str, Any] = {
-                    "id": identity, "manuscript_version_id": manuscript,
-                    "source_version_id": source, "section_id": section,
-                    "locator": location, "citation_purpose": purpose,
-                    "ordinal": ordinal, "created_by": principal.actor_id,
-                    "created_at": at, "row_version": 1,
+                    "id": identity,
+                    "manuscript_version_id": manuscript,
+                    "source_version_id": source,
+                    "section_id": section,
+                    "locator": location,
+                    "citation_purpose": purpose,
+                    "ordinal": ordinal,
+                    "created_by": principal.actor_id,
+                    "created_at": at,
+                    "row_version": 1,
                 }
                 repo.insert_citation({**row, "locator": json.dumps(location, sort_keys=True)})
             else:
                 row = prior
-                if (prior["source_version_id"] != source or prior["section_id"] != section
-                    or prior["locator"] != location or prior["citation_purpose"] != purpose
-                    or prior["ordinal"] != ordinal):
-                    raise ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT,
-                                            "citation request replay differs")
+                if (
+                    prior["source_version_id"] != source
+                    or prior["section_id"] != section
+                    or prior["locator"] != location
+                    or prior["citation_purpose"] != purpose
+                    or prior["ordinal"] != ordinal
+                ):
+                    raise ResearchBaseError(
+                        ErrorCode.IDEMPOTENCY_CONFLICT, "citation request replay differs"
+                    )
             uow.commit()
         return self._result(row, source_hash)
 
     def trace(
-        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
+        self,
+        principal: VerifiedPrincipal,
+        project: UUID,
+        publication: UUID,
         manuscript: UUID,
     ) -> tuple[CitationTrace, ...]:
         with self._factory() as uow:
@@ -126,12 +176,13 @@ class CitationPlacementService:
             repo = uow.publication
             parent = repo.publication(publication, project)
             version = repo.version(manuscript, publication) if parent else None
-            if (version is None or version["status"] != "DRAFT"
-                or version["frozen_at"] is not None):
+            if version is None or version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.citations(manuscript)
-            return tuple(self._result(row, self._source(repo, row["source_version_id"],
-                                                       project)) for row in rows)
+            return tuple(
+                self._result(row, self._source(repo, row["source_version_id"], project))
+                for row in rows
+            )
 
 
 _STRENGTHS = frozenset({"DESCRIPTIVE", "SUGGESTIVE", "SUPPORTED", "STRONG"})
@@ -162,39 +213,71 @@ class ClaimPlacementService:
     @staticmethod
     def _target(repo: Any, target: UUID, project: UUID, *, conclusion: bool) -> str:
         row = repo.claim_placement_target(target, project, conclusion=conclusion)
-        if (row is None or row["status"] not in ("FROZEN", "SUPERSEDED")
-            or row["frozen_at"] is None or not isinstance(row["content_hash"], str)
+        if (
+            row is None
+            or row["status"] not in ("FROZEN", "SUPERSEDED")
+            or row["frozen_at"] is None
+            or not isinstance(row["content_hash"], str)
             or re.fullmatch(r"[0-9a-f]{64}", row["content_hash"]) is None
-            or (conclusion and (not isinstance(row["support_set_hash"], str)
-                or re.fullmatch(r"[0-9a-f]{64}", row["support_set_hash"]) is None))):
-            raise ResearchBaseError(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                                    "exact frozen project claim or conclusion required")
+            or (
+                conclusion
+                and (
+                    not isinstance(row["support_set_hash"], str)
+                    or re.fullmatch(r"[0-9a-f]{64}", row["support_set_hash"]) is None
+                )
+            )
+        ):
+            raise ResearchBaseError(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "exact frozen project claim or conclusion required",
+            )
         return row["content_hash"]
 
     @staticmethod
     def _result(row: dict[str, Any], target_hash: str) -> ClaimPlacementTrace:
         conclusion = row["scientific_conclusion_version_id"] is not None
         return ClaimPlacementTrace(
-            row["id"], row["manuscript_version_id"], row["claim_version_id"],
-            row["scientific_conclusion_version_id"], row["section_id"],
-            dict(row["locator"]), row["rhetorical_strength"], row["ordinal"],
-            "SCIENTIFIC_CONCLUSION_VERSION" if conclusion else "CLAIM_VERSION", target_hash,
+            row["id"],
+            row["manuscript_version_id"],
+            row["claim_version_id"],
+            row["scientific_conclusion_version_id"],
+            row["section_id"],
+            dict(row["locator"]),
+            row["rhetorical_strength"],
+            row["ordinal"],
+            "SCIENTIFIC_CONCLUSION_VERSION" if conclusion else "CLAIM_VERSION",
+            target_hash,
         )
 
     def add(
-        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
-        manuscript: UUID, claim: UUID | None, conclusion: UUID | None,
-        section: str, locator: dict[str, str], strength: str, ordinal: int,
+        self,
+        principal: VerifiedPrincipal,
+        project: UUID,
+        publication: UUID,
+        manuscript: UUID,
+        claim: UUID | None,
+        conclusion: UUID | None,
+        section: str,
+        locator: dict[str, str],
+        strength: str,
+        ordinal: int,
         request_id: UUID,
     ) -> ClaimPlacementTrace:
         """Add one exact frozen target to a draft; text values max 2000 characters."""
-        if (type(publication) is not UUID or type(manuscript) is not UUID
+        if (
+            type(publication) is not UUID
+            or type(manuscript) is not UUID
             or (type(claim) is UUID) == (type(conclusion) is UUID)
             or (claim is not None and type(claim) is not UUID)
             or (conclusion is not None and type(conclusion) is not UUID)
-            or type(request_id) is not UUID or type(ordinal) is not int or ordinal < 0
-            or strength not in _STRENGTHS or not isinstance(locator, dict)
-            or set(locator) != {"kind", "value"} or locator.get("kind") not in _KINDS):
+            or type(request_id) is not UUID
+            or type(ordinal) is not int
+            or ordinal < 0
+            or strength not in _STRENGTHS
+            or not isinstance(locator, dict)
+            or set(locator) != {"kind", "value"}
+            or locator.get("kind") not in _KINDS
+        ):
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "typed exact placement required")
         section = _text(section)
         location = {"kind": locator["kind"], "value": _text(locator["value"])}
@@ -205,40 +288,64 @@ class ClaimPlacementService:
             repo = uow.publication
             parent = repo.publication(publication, project, lock=True)
             version = repo.version(manuscript, publication) if parent else None
-            if (parent is None or version is None or version["status"] != "DRAFT"
-                or version["frozen_at"] is not None):
-                raise ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION,
-                                        "draft manuscript unavailable")
+            if (
+                parent is None
+                or version is None
+                or version["status"] != "DRAFT"
+                or version["frozen_at"] is not None
+            ):
+                raise ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION, "draft manuscript unavailable"
+                )
             target_hash = self._target(repo, target, project, conclusion=conclusion is not None)
-            identity = uuid5(NAMESPACE_URL, f"pr213:claim-placement:{principal.deployment_id}:"
-                             f"{project}:{principal.actor_id}:{manuscript}:{request_id}")
+            identity = uuid5(
+                NAMESPACE_URL,
+                f"pr213:claim-placement:{principal.deployment_id}:"
+                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+            )
             repo.lock_request(f"pr213:claim-placement:{identity}")
             prior = repo.claim_placement(identity, manuscript)
             if prior is None:
                 row: dict[str, Any] = {
-                    "id": identity, "manuscript_version_id": manuscript,
+                    "id": identity,
+                    "manuscript_version_id": manuscript,
                     "claim_version_id": claim,
                     "scientific_conclusion_version_id": conclusion,
-                    "section_id": section, "locator": location,
-                    "rhetorical_strength": strength, "ordinal": ordinal,
-                    "created_by": principal.actor_id, "created_at": at, "row_version": 1,
+                    "section_id": section,
+                    "locator": location,
+                    "rhetorical_strength": strength,
+                    "ordinal": ordinal,
+                    "created_by": principal.actor_id,
+                    "created_at": at,
+                    "row_version": 1,
                 }
-                repo.insert_claim_placement({
-                    **row, "locator": json.dumps(location, sort_keys=True),
-                })
+                repo.insert_claim_placement(
+                    {
+                        **row,
+                        "locator": json.dumps(location, sort_keys=True),
+                    }
+                )
             else:
                 row = prior
-                if (prior["claim_version_id"] != claim
+                if (
+                    prior["claim_version_id"] != claim
                     or prior["scientific_conclusion_version_id"] != conclusion
-                    or prior["section_id"] != section or prior["locator"] != location
-                    or prior["rhetorical_strength"] != strength or prior["ordinal"] != ordinal):
-                    raise ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT,
-                                            "claim placement request replay differs")
+                    or prior["section_id"] != section
+                    or prior["locator"] != location
+                    or prior["rhetorical_strength"] != strength
+                    or prior["ordinal"] != ordinal
+                ):
+                    raise ResearchBaseError(
+                        ErrorCode.IDEMPOTENCY_CONFLICT, "claim placement request replay differs"
+                    )
             uow.commit()
         return self._result(row, target_hash)
 
     def trace(
-        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
+        self,
+        principal: VerifiedPrincipal,
+        project: UUID,
+        publication: UUID,
         manuscript: UUID,
     ) -> tuple[ClaimPlacementTrace, ...]:
         with self._factory() as uow:
@@ -246,16 +353,21 @@ class ClaimPlacementService:
             repo = uow.publication
             parent = repo.publication(publication, project)
             version = repo.version(manuscript, publication) if parent else None
-            if (version is None or version["status"] != "DRAFT"
-                or version["frozen_at"] is not None):
+            if version is None or version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.claim_placements(manuscript)
-            return tuple(self._result(
-                row, self._target(repo,
-                                  row["scientific_conclusion_version_id"]
-                                  or row["claim_version_id"], project,
-                                  conclusion=row["scientific_conclusion_version_id"] is not None)
-            ) for row in rows)
+            return tuple(
+                self._result(
+                    row,
+                    self._target(
+                        repo,
+                        row["scientific_conclusion_version_id"] or row["claim_version_id"],
+                        project,
+                        conclusion=row["scientific_conclusion_version_id"] is not None,
+                    ),
+                )
+                for row in rows
+            )
 
 
 _ARTIFACT_ROLES = frozenset({"FIGURE", "TABLE", "OTHER"})
@@ -284,31 +396,56 @@ class ArtifactPlacementService:
     @staticmethod
     def _target(repo: Any, artifact: UUID, project: UUID) -> str:
         row = repo.artifact_placement_target(artifact, project)
-        if (row is None or row["status"] not in ("FROZEN", "SUPERSEDED")
-            or row["frozen_at"] is None or not isinstance(row["content_hash"], str)
-            or re.fullmatch(r"[0-9a-f]{64}", row["content_hash"]) is None):
-            raise ResearchBaseError(ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-                                    "exact frozen project artifact required")
+        if (
+            row is None
+            or row["status"] not in ("FROZEN", "SUPERSEDED")
+            or row["frozen_at"] is None
+            or not isinstance(row["content_hash"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", row["content_hash"]) is None
+        ):
+            raise ResearchBaseError(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact frozen project artifact required"
+            )
         return row["content_hash"]
 
     @staticmethod
     def _result(row: dict[str, Any], artifact_hash: str) -> ArtifactPlacementTrace:
         return ArtifactPlacementTrace(
-            row["id"], row["manuscript_version_id"], row["artifact_version_id"],
-            row["section_id"], dict(row["locator"]), row["artifact_role"],
-            row["ordinal"], artifact_hash,
+            row["id"],
+            row["manuscript_version_id"],
+            row["artifact_version_id"],
+            row["section_id"],
+            dict(row["locator"]),
+            row["artifact_role"],
+            row["ordinal"],
+            artifact_hash,
         )
 
     def add(
-        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
-        manuscript: UUID, artifact: UUID, section: str, locator: dict[str, str],
-        role: str, ordinal: int, request_id: UUID,
+        self,
+        principal: VerifiedPrincipal,
+        project: UUID,
+        publication: UUID,
+        manuscript: UUID,
+        artifact: UUID,
+        section: str,
+        locator: dict[str, str],
+        role: str,
+        ordinal: int,
+        request_id: UUID,
     ) -> ArtifactPlacementTrace:
-        if (type(publication) is not UUID or type(manuscript) is not UUID
-            or type(artifact) is not UUID or type(request_id) is not UUID
-            or type(ordinal) is not int or ordinal < 0 or role not in _ARTIFACT_ROLES
-            or not isinstance(locator, dict) or set(locator) != {"kind", "value"}
-            or locator.get("kind") not in _KINDS):
+        if (
+            type(publication) is not UUID
+            or type(manuscript) is not UUID
+            or type(artifact) is not UUID
+            or type(request_id) is not UUID
+            or type(ordinal) is not int
+            or ordinal < 0
+            or role not in _ARTIFACT_ROLES
+            or not isinstance(locator, dict)
+            or set(locator) != {"kind", "value"}
+            or locator.get("kind") not in _KINDS
+        ):
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "typed artifact placement required")
         section = _text(section)
         location = {"kind": locator["kind"], "value": _text(locator["value"])}
@@ -317,37 +454,62 @@ class ArtifactPlacementService:
             repo = uow.publication
             parent = repo.publication(publication, project, lock=True)
             version = repo.version(manuscript, publication) if parent else None
-            if (parent is None or version is None or version["status"] != "DRAFT"
-                or version["frozen_at"] is not None):
-                raise ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION,
-                                        "draft manuscript unavailable")
+            if (
+                parent is None
+                or version is None
+                or version["status"] != "DRAFT"
+                or version["frozen_at"] is not None
+            ):
+                raise ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION, "draft manuscript unavailable"
+                )
             artifact_hash = self._target(repo, artifact, project)
-            identity = uuid5(NAMESPACE_URL, f"pr213:artifact-placement:{principal.deployment_id}:"
-                             f"{project}:{principal.actor_id}:{manuscript}:{request_id}")
+            identity = uuid5(
+                NAMESPACE_URL,
+                f"pr213:artifact-placement:{principal.deployment_id}:"
+                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+            )
             repo.lock_request(f"pr213:artifact-placement:{identity}")
             prior = repo.artifact_placement(identity, manuscript)
             if prior is None:
                 row: dict[str, Any] = {
-                    "id": identity, "manuscript_version_id": manuscript,
-                    "artifact_version_id": artifact, "section_id": section,
-                    "locator": location, "artifact_role": role, "ordinal": ordinal,
-                    "created_by": principal.actor_id, "created_at": at, "row_version": 1,
+                    "id": identity,
+                    "manuscript_version_id": manuscript,
+                    "artifact_version_id": artifact,
+                    "section_id": section,
+                    "locator": location,
+                    "artifact_role": role,
+                    "ordinal": ordinal,
+                    "created_by": principal.actor_id,
+                    "created_at": at,
+                    "row_version": 1,
                 }
-                repo.insert_artifact_placement({
-                    **row, "locator": json.dumps(location, sort_keys=True),
-                })
+                repo.insert_artifact_placement(
+                    {
+                        **row,
+                        "locator": json.dumps(location, sort_keys=True),
+                    }
+                )
             else:
                 row = prior
-                if (prior["artifact_version_id"] != artifact
-                    or prior["section_id"] != section or prior["locator"] != location
-                    or prior["artifact_role"] != role or prior["ordinal"] != ordinal):
-                    raise ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT,
-                                            "artifact placement request replay differs")
+                if (
+                    prior["artifact_version_id"] != artifact
+                    or prior["section_id"] != section
+                    or prior["locator"] != location
+                    or prior["artifact_role"] != role
+                    or prior["ordinal"] != ordinal
+                ):
+                    raise ResearchBaseError(
+                        ErrorCode.IDEMPOTENCY_CONFLICT, "artifact placement request replay differs"
+                    )
             uow.commit()
         return self._result(row, artifact_hash)
 
     def trace(
-        self, principal: VerifiedPrincipal, project: UUID, publication: UUID,
+        self,
+        principal: VerifiedPrincipal,
+        project: UUID,
+        publication: UUID,
         manuscript: UUID,
     ) -> tuple[ArtifactPlacementTrace, ...]:
         with self._factory() as uow:
@@ -355,10 +517,10 @@ class ArtifactPlacementService:
             repo = uow.publication
             parent = repo.publication(publication, project)
             version = repo.version(manuscript, publication) if parent else None
-            if (version is None or version["status"] != "DRAFT"
-                or version["frozen_at"] is not None):
+            if version is None or version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.artifact_placements(manuscript)
-            return tuple(self._result(
-                row, self._target(repo, row["artifact_version_id"], project)
-            ) for row in rows)
+            return tuple(
+                self._result(row, self._target(repo, row["artifact_version_id"], project))
+                for row in rows
+            )

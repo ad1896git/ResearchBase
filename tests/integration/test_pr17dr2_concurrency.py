@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
-from tests.integration.test_pr17dr_adversarial import _seed_planned_run_with_snapshot
 
 from researchbase.persistence.database import create_database_engine
+from tests.integration.test_pr17dr_adversarial import _seed_planned_run_with_snapshot
 
 pytestmark = pytest.mark.integration
 

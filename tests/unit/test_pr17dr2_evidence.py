@@ -92,9 +92,7 @@ def test_authoritative_main_rejects_stored_command_drift_before_database_or_writ
         commands["postgresql_integration"] = []
     else:
         del commands["postgresql_integration"]["command_tokens"]
-    artifact_path, original, events = _run_main_until_database(
-        monkeypatch, tmp_path, artifact
-    )
+    artifact_path, original, events = _run_main_until_database(monkeypatch, tmp_path, artifact)
 
     with pytest.raises(RuntimeError, match="stored command evidence"):
         pr17dr_evidence.main()
@@ -232,12 +230,7 @@ def test_xfail_and_xpass_are_not_counted_as_ordinary_outcomes() -> None:
 
 
 def test_incomplete_or_inconsistent_pytest_counts_are_not_verified() -> None:
-    assert (
-        pr17dr_evidence._validated_pytest_counts(
-            "...ss...", "10 tests collected", None
-        )
-        is None
-    )
+    assert pr17dr_evidence._validated_pytest_counts("...ss...", "10 tests collected", None) is None
     assert (
         pr17dr_evidence._validated_pytest_counts(
             "8 passed", "10 tests collected", '<testsuite tests="9"/>'
@@ -273,9 +266,7 @@ def test_stored_command_drift_is_rejected_structurally() -> None:
             tokens.insert(tokens.index("pytest") + 1, replacement)
         else:
             tokens[tokens.index("integration")] = replacement
-        assert pr17dr_evidence._stored_command_mismatches(drifted) == [
-            "postgresql_integration"
-        ]
+        assert pr17dr_evidence._stored_command_mismatches(drifted) == ["postgresql_integration"]
 
 
 def test_command_fingerprint_is_bound_to_normalized_tokens() -> None:

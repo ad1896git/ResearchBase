@@ -94,14 +94,19 @@ class LiteratureConclusionInput:
 
 
 def _sorted_unique(rows: tuple[Any, ...], kind: str) -> tuple[Any, ...]:
-    ordered = tuple(sorted(rows, key=lambda row: (row.ordinal, str(
-        row.claim_version_id if kind == "claim" else row.literature_evidence_id
-    ))))
+    ordered = tuple(
+        sorted(
+            rows,
+            key=lambda row: (
+                row.ordinal,
+                str(row.claim_version_id if kind == "claim" else row.literature_evidence_id),
+            ),
+        )
+    )
     if [row.ordinal for row in ordered] != list(range(len(ordered))):
         raise ValueError(f"{kind} ordinals must be contiguous from zero")
     identities = [
-        (row.claim_version_id if kind == "claim" else row.literature_evidence_id,
-         row.relation_type)
+        (row.claim_version_id if kind == "claim" else row.literature_evidence_id, row.relation_type)
         for row in ordered
     ]
     if len(set(identities)) != len(identities):
@@ -149,7 +154,8 @@ def conclusion_support_material(
         "literature_inputs": [
             {
                 "literature_evidence": _ref(
-                    "LiteratureEvidence", x.literature_evidence_id,
+                    "LiteratureEvidence",
+                    x.literature_evidence_id,
                     x.literature_evidence_content_hash,
                 ),
                 "relation_type": x.relation_type,
@@ -187,7 +193,8 @@ def conclusion_content_material(
         "confidence": confidence,
         "limitation_summary": (
             _text(limitation_summary, "limitation summary")
-            if limitation_summary is not None else None
+            if limitation_summary is not None
+            else None
         ),
         "support_set_hash": _digest(support_set_hash, "support set hash"),
     }

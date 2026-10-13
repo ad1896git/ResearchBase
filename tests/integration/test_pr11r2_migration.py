@@ -16,6 +16,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
+
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.persistence.database import create_database_engine
@@ -112,9 +113,7 @@ def _seed_historical_project(engine: Engine, label: str):
     )
 
 
-def _seed_historical_measurement(
-    engine: Engine, project_id: UUID, actor_id: UUID
-) -> UUID:
+def _seed_historical_measurement(engine: Engine, project_id: UUID, actor_id: UUID) -> UUID:
     metric, metric_version = uuid4(), uuid4()
     spec, spec_version = uuid4(), uuid4()
     run, measurement = uuid4(), uuid4()

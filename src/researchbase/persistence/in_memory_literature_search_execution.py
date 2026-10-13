@@ -44,8 +44,7 @@ class InMemoryLiteratureSearchExecutionRepository:
 
     def create(self, execution: LiteratureSearchExecution, receipt: dict[str, object]) -> None:
         if any(
-            e.project_id == execution.project_id
-            and e.idempotency_key == execution.idempotency_key
+            e.project_id == execution.project_id and e.idempotency_key == execution.idempotency_key
             for e in self.executions.values()
         ):
             raise ResearchBaseError(
@@ -127,8 +126,7 @@ class InMemoryLiteratureSearchExecutionRepository:
         if previous is not None and previous.get("retry_after_seconds"):
             completed_at = previous.get("completed_at")
             retry_at = (
-                completed_at
-                + timedelta(seconds=int(cast(int, previous["retry_after_seconds"])))
+                completed_at + timedelta(seconds=int(cast(int, previous["retry_after_seconds"])))
                 if isinstance(completed_at, datetime)
                 else None
             )
@@ -157,9 +155,7 @@ class InMemoryLiteratureSearchExecutionRepository:
             self.events.append(
                 {
                     "execution_id": execution.id,
-                    "sequence": sum(
-                        event["execution_id"] == execution.id for event in self.events
-                    ),
+                    "sequence": sum(event["execution_id"] == execution.id for event in self.events),
                     "kind": "ATTEMPT_RESERVED",
                     "prior_status": "PLANNED",
                     "new_status": "RUNNING",
@@ -189,9 +185,9 @@ class InMemoryLiteratureSearchExecutionRepository:
             raise ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "provider attempt is sealed")
         self.attempt_rows[attempt_id].update(values)
         self.attempt_rows[attempt_id]["completed_at"] = datetime.now(UTC)
-        self.attempt_rows[attempt_id]["row_version"] = int(
-            cast(int, self.attempt_rows[attempt_id]["row_version"])
-        ) + 1
+        self.attempt_rows[attempt_id]["row_version"] = (
+            int(cast(int, self.attempt_rows[attempt_id]["row_version"])) + 1
+        )
 
     def append_query(self, record: SearchQueryRecord) -> None:
         self.queries.append(record)
@@ -227,9 +223,7 @@ class InMemoryLiteratureSearchExecutionRepository:
         self.events.append(
             {
                 "execution_id": execution.id,
-                "sequence": sum(
-                    event["execution_id"] == execution.id for event in self.events
-                ),
+                "sequence": sum(event["execution_id"] == execution.id for event in self.events),
                 "kind": kind,
                 "prior_status": (
                     None
@@ -313,11 +307,7 @@ class InMemoryLiteratureSearchExecutionRepository:
                 )
             ],
             "events": sorted(
-                [
-                    deepcopy(event)
-                    for event in self.events
-                    if event["execution_id"] == execution_id
-                ],
+                [deepcopy(event) for event in self.events if event["execution_id"] == execution_id],
                 key=lambda event: int(cast(int, event["sequence"])),
             ),
             "receipts": [
@@ -333,8 +323,7 @@ class InMemoryLiteratureSearchExecutionRepository:
                 for key, value in self.receipts.items()
                 if key[2] == execution.project_id
                 and isinstance(value.get("dto"), dict)
-                and cast(dict[str, object], value["dto"]).get("execution_id")
-                == str(execution_id)
+                and cast(dict[str, object], value["dto"]).get("execution_id") == str(execution_id)
             ],
         }
 

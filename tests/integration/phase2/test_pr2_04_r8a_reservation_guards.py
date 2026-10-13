@@ -13,14 +13,14 @@ import pytest
 from alembic import command
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
+
+from researchbase.application.literature_search_execution import CreateLiteratureSearchExecution
+from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 from tests.integration.phase2.test_pr2_04_cas_completion import _event
 from tests.integration.phase2.test_pr2_04_execution_migration import _alembic
 from tests.integration.phase2.test_pr2_04_outcome_reapplication_acceptance import OutcomeOnly
 from tests.integration.phase2.test_pr2_04_pg_retrieval_observation_repair import material
 from tests.integration.phase2.test_pr2_04_schema_coverage import A, E, V, _insert, _reject, _rows
-
-from researchbase.application.literature_search_execution import CreateLiteratureSearchExecution
-from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 
 HEAD = "0025_pr2_04_reservation_guards"
 PARENT = "0024_literature_search_execution"

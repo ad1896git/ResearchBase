@@ -6,11 +6,11 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.engine import Engine
-from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 
 def postgres_resources() -> Iterator[tuple[Callable[[], ApplicationService], Engine]]:

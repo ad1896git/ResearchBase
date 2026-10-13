@@ -9,11 +9,6 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-    _material,
-)
 
 from researchbase.application.literature_search_plan import (
     CreateLiteratureSearchPlan,
@@ -28,6 +23,11 @@ from researchbase.domain.literature_search_plan import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+    _material,
+)
 
 
 def _service(engine):

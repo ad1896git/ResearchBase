@@ -7,8 +7,6 @@ from uuid import UUID
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from tests.integration.pr12_support import postgres_resources
-from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 from researchbase.application.closure import ClosureReport
 from researchbase.application.commands import (
@@ -23,6 +21,8 @@ from researchbase.application.dto import ClaimVersionReadModel, EvidenceRelation
 from researchbase.domain.measurement import MeasurementId
 from researchbase.domain.statistical_result import StatisticalResultId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.integration.pr12_support import postgres_resources
+from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 pytestmark = pytest.mark.integration
 

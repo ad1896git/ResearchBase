@@ -15,8 +15,15 @@ from researchbase.foundation.hashing import ContentHash, sha256_bytes
 from researchbase.foundation.time import format_utc, to_utc
 
 _ROLES = frozenset(
-    {"human", "moderator", "literature_expert", "method_expert",
-     "statistician", "domain_critic", "other"}
+    {
+        "human",
+        "moderator",
+        "literature_expert",
+        "method_expert",
+        "statistician",
+        "domain_critic",
+        "other",
+    }
 )
 
 
@@ -127,8 +134,12 @@ def _candidate(
 ) -> DerivedDiscussionArtifactCandidate:
     content = canonical_json_bytes(payload)
     return DerivedDiscussionArtifactCandidate(
-        artifact_type, snapshot.session_id, snapshot.project_id,
-        "application/json", content, sha256_bytes(content)
+        artifact_type,
+        snapshot.session_id,
+        snapshot.project_id,
+        "application/json",
+        content,
+        sha256_bytes(content),
     )
 
 
@@ -145,7 +156,8 @@ def build_discussion_artifact_candidates(
     transcript = _candidate(
         snapshot,
         "discussion_transcript",
-        common | {
+        common
+        | {
             "artifact_role": "discussion_transcript",
             "created_by": str(snapshot.created_by),
             "created_at": format_utc(snapshot.created_at),
@@ -186,7 +198,8 @@ def build_discussion_artifact_candidates(
     concept_map = _candidate(
         snapshot,
         "concept_map",
-        common | {
+        common
+        | {
             "artifact_role": "concept_map",
             "derived_only": True,
             "edges": edges,

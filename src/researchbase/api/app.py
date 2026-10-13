@@ -13,8 +13,8 @@ from researchbase.application.commands import ApplicationService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
+from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
@@ -25,10 +25,10 @@ from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
 from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 
 class HttpServices(Protocol):

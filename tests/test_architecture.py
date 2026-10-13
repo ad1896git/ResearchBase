@@ -42,8 +42,8 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
         not in {
             "0030_literature_evidence.py",
             "0031_m3_snapshot_relation_cardinality.py",
-                "0032_pr2_10_discussion.py",
-                "0033_pr2_11_r2_scientific_conclusion.py",
+            "0032_pr2_10_discussion.py",
+            "0033_pr2_11_r2_scientific_conclusion.py",
         }
     )
     forbidden_tables = (

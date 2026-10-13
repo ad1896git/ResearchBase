@@ -103,7 +103,9 @@ class LiteratureSearchPlanMaterial:
         time_range = _time_range(self.time_range)
         stopping_rule = _stopping_rule(self.stopping_rule)
         object.__setattr__(self, "time_range", freeze_json(time_range) if time_range else None)
-        object.__setattr__(self, "stopping_rule", freeze_json(stopping_rule) if stopping_rule else None)
+        object.__setattr__(
+            self, "stopping_rule", freeze_json(stopping_rule) if stopping_rule else None
+        )
 
         if self.language_scope is not None:
             languages = tuple(canonical_language_identifier(raw) for raw in self.language_scope)
@@ -111,7 +113,10 @@ class LiteratureSearchPlanMaterial:
                 raise ValueError("duplicate canonical language identifier")
             object.__setattr__(self, "language_scope", tuple(sorted(languages)))
 
-        providers = tuple(_text(value, "planned provider", trim=True, nonblank=True) for value in self.planned_providers)
+        providers = tuple(
+            _text(value, "planned provider", trim=True, nonblank=True)
+            for value in self.planned_providers
+        )
         if len(set(providers)) != len(providers):
             raise ValueError("duplicate canonical planned provider")
         object.__setattr__(self, "planned_providers", tuple(sorted(providers)))
@@ -130,13 +135,19 @@ class LiteratureSearchPlanMaterial:
             "research_question_refs": refs,
             "objective": self.objective,
             "source_scope": self.source_scope.value,
-            "inclusion_criteria": thaw_json(self.inclusion_criteria) if self.inclusion_criteria is not None else None,
-            "exclusion_criteria": thaw_json(self.exclusion_criteria) if self.exclusion_criteria is not None else None,
+            "inclusion_criteria": thaw_json(self.inclusion_criteria)
+            if self.inclusion_criteria is not None
+            else None,
+            "exclusion_criteria": thaw_json(self.exclusion_criteria)
+            if self.exclusion_criteria is not None
+            else None,
             "time_range": thaw_json(self.time_range) if self.time_range is not None else None,
             "language_scope": list(self.language_scope),
             "search_strategy": self.search_strategy.value,
             "planned_providers": list(self.planned_providers),
-            "stopping_rule": thaw_json(self.stopping_rule) if self.stopping_rule is not None else None,
+            "stopping_rule": thaw_json(self.stopping_rule)
+            if self.stopping_rule is not None
+            else None,
         }
 
     def digest(self) -> str:

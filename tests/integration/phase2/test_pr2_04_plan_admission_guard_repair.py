@@ -6,19 +6,6 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-    _material as _plan_material,
-)
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze
-from tests.integration.phase2.test_pr2_04_schema_coverage import (
-    E,
-    V,
-    _execution_with_created_event,
-    _material,
-    _reject,
-    _rows,
-)
 
 from researchbase.application.literature_search_execution import (
     CreateLiteratureSearchExecution,
@@ -33,6 +20,20 @@ from researchbase.application.literature_search_plan import (
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+)
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _material as _plan_material,
+)
+from tests.integration.phase2.test_pr2_04_schema_coverage import (
+    E,
+    V,
+    _execution_with_created_event,
+    _material,
+    _reject,
+    _rows,
+)
 
 
 def _version(engine, version):
@@ -41,7 +42,9 @@ def _version(engine, version):
             connection.execute(
                 text("SELECT * FROM literature_search_plan_versions WHERE id=:id"),
                 {"id": version},
-            ).mappings().one()
+            )
+            .mappings()
+            .one()
         )
 
 
@@ -52,7 +55,9 @@ def _supersede(material):
     )
     revised = plans.revise(ReviseLiteratureSearchPlan(principal, project, plan, version, uuid4()))
     successor = UUID(revised["version_id"])
-    plans.freeze(TransitionLiteratureSearchPlanVersion(principal, project, plan, successor, uuid4()))
+    plans.freeze(
+        TransitionLiteratureSearchPlanVersion(principal, project, plan, successor, uuid4())
+    )
     assert _version(material["engine"], version)["status"] == "SUPERSEDED"
     assert _version(material["engine"], successor)["status"] == "FROZEN"
     return successor
@@ -73,23 +78,33 @@ def test_direct_sql_rejects_ineligible_initial_plan_state(
         else:
             draft = material["plans"].create(
                 CreateLiteratureSearchPlan(
-                    material["principal"], material["project"],
-                    _plan_material(UUID(int=0), language_scope=()), uuid4(),
+                    material["principal"],
+                    material["project"],
+                    _plan_material(UUID(int=0), language_scope=()),
+                    uuid4(),
                 )
             )
             row["search_plan_version_id"] = UUID(draft["version_id"])
             if state == "ABANDONED":
                 material["plans"].abandon(
                     TransitionLiteratureSearchPlanVersion(
-                        material["principal"], material["project"], UUID(draft["plan_id"]),
-                        row["search_plan_version_id"], uuid4(),
+                        material["principal"],
+                        material["project"],
+                        UUID(draft["plan_id"]),
+                        row["search_plan_version_id"],
+                        uuid4(),
                     )
                 )
         version = _version(engine, row["search_plan_version_id"])
         assert version["status"] == state
         pr204_trace.record(initial_plan=version, expected_sqlstate="P17D5")
-        _reject(engine, lambda c: _execution_with_created_event(c, row, before[V][0]),
-                "P17D5", pr204_trace, case=state)
+        _reject(
+            engine,
+            lambda c: _execution_with_created_event(c, row, before[V][0]),
+            "P17D5",
+            pr204_trace,
+            case=state,
+        )
         assert _version(engine, row["search_plan_version_id"]) == version
         assert material["provider"].calls == []
     finally:
@@ -98,7 +113,8 @@ def test_direct_sql_rejects_ineligible_initial_plan_state(
 
 @pytest.mark.pr204_requirements("PR204-DB-01")
 def test_direct_sql_accepts_exact_frozen_plan_in_same_project(
-    phase2_database_url, pr204_trace: FactRecorder,
+    phase2_database_url,
+    pr204_trace: FactRecorder,
 ):
     material = _material(phase2_database_url, "planned")
     engine = material["engine"]
@@ -114,9 +130,13 @@ def test_direct_sql_accepts_exact_frozen_plan_in_same_project(
             _execution_with_created_event(connection, row, before[V][0])
         after = _rows(engine)
         admitted = next(x for x in after[E] if x["id"] == row["id"])
-        pr204_trace.record(plan=version, owning_project=project, execution=admitted,
-                           before_counts={t: len(v) for t, v in before.items()},
-                           after_counts={t: len(v) for t, v in after.items()})
+        pr204_trace.record(
+            plan=version,
+            owning_project=project,
+            execution=admitted,
+            before_counts={t: len(v) for t, v in before.items()},
+            after_counts={t: len(v) for t, v in after.items()},
+        )
         assert version["status"] == "FROZEN"
         assert project == row["project_id"]
         assert admitted["search_plan_version_id"] == material["version"]
@@ -132,7 +152,8 @@ def test_direct_sql_accepts_exact_frozen_plan_in_same_project(
 
 @pytest.mark.pr204_requirements("PR204-DB-01")
 def test_started_execution_recovers_and_replays_after_canonical_plan_supersession(
-    phase2_database_url, pr204_trace: FactRecorder,
+    phase2_database_url,
+    pr204_trace: FactRecorder,
 ):
     material = _material(phase2_database_url, "sealed")
     engine = material["engine"]
@@ -150,29 +171,50 @@ def test_started_execution_recovers_and_replays_after_canonical_plan_supersessio
         service = LiteratureSearchExecutionService(
             literature_search_execution_uow_factory(
                 sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
-            ), material["provider"], credential_verifier=_AlwaysValidCredential(),
+            ),
+            material["provider"],
+            credential_verifier=_AlwaysValidCredential(),
         )
         principal = material["principal"]
         command = RecoverLiteratureSearchExecution(
-            material["execution"], principal.actor_id, principal.deployment_id, uuid4(),
-            project_id=material["project"], principal=principal,
+            material["execution"],
+            principal.actor_id,
+            principal.deployment_id,
+            uuid4(),
+            project_id=material["project"],
+            principal=principal,
         )
         calls = len(material["provider"].calls)
         result = service.recover(command)
         after = _rows(engine)
         replay = service.recover(command)
         assert _rows(engine) == after
-        create_replay = service.create(CreateLiteratureSearchExecution(
-            material["project"], material["version"], principal.actor_id,
-            principal.deployment_id, before[E][0]["idempotency_key"], "provider-a", "1",
-            ("normalization evidence",), principal=principal,
-        ))
+        create_replay = service.create(
+            CreateLiteratureSearchExecution(
+                material["project"],
+                material["version"],
+                principal.actor_id,
+                principal.deployment_id,
+                before[E][0]["idempotency_key"],
+                "provider-a",
+                "1",
+                ("normalization evidence",),
+                principal=principal,
+            )
+        )
         assert _rows(engine) == after
-        pr204_trace.record(original_plan=original, historical_plan=historical,
-                           successor_version=successor, execution_before=before[E],
-                           execution_after=after[E], recovery=result, replay=replay,
-                           create_replay=create_replay, provider_calls_before=calls,
-                           provider_calls_after=len(material["provider"].calls))
+        pr204_trace.record(
+            original_plan=original,
+            historical_plan=historical,
+            successor_version=successor,
+            execution_before=before[E],
+            execution_after=after[E],
+            recovery=result,
+            replay=replay,
+            create_replay=create_replay,
+            provider_calls_before=calls,
+            provider_calls_after=len(material["provider"].calls),
+        )
         assert result == replay
         assert create_replay["execution_id"] == str(material["execution"])
         assert after[E][0]["status"] == "SUCCEEDED"

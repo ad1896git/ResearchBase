@@ -1,4 +1,5 @@
 """Actual PostgreSQL lifecycle timestamps and attribution for zero/one-hit success."""
+
 from datetime import timedelta
 
 import pytest
@@ -14,8 +15,11 @@ from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 @pytest.mark.parametrize("hits", [0, 1], ids=["zero-hit", "one-hit"])
 def test_pg_success_full_coordinates_and_admission(phase2_database_url, hits, pr204_trace):
     response = SearchResponse.success(
-        provider_id="provider-a", provider_version="1", normalized_query=QUERY,
-        provider_request_id="coordinates", retrieved_at=PROVIDER_RETRIEVED_AT,
+        provider_id="provider-a",
+        provider_version="1",
+        normalized_query=QUERY,
+        provider_request_id="coordinates",
+        retrieved_at=PROVIDER_RETRIEVED_AT,
         hits=tuple(SearchHit(str(i), "Paper", None, None, None) for i in range(hits)),
     )
     engine, provider, service, principal, project, command, frozen = setup_case(
@@ -61,16 +65,29 @@ def test_pg_success_full_coordinates_and_admission(phase2_database_url, hits, pr
         assert all(row["search_query_record_id"] == query["id"] for row in rows["results"])
         events = sorted(rows["events"], key=lambda row: row["sequence"])
         assert [row["kind"] for row in events] == [
-            "CREATED", "ATTEMPT_RESERVED", "OUTCOME_RECORDED", "FINISHED",
+            "CREATED",
+            "ATTEMPT_RESERVED",
+            "OUTCOME_RECORDED",
+            "FINISHED",
         ]
         assert [row["sequence"] for row in events] == [0, 1, 2, 3]
         assert [row["new_row_version"] for row in events] == [1, 2, 3, 4]
         assert [row["prior_row_version"] for row in events] == [None, 1, 2, 3]
-        assert [row["new_status"] for row in events] == ["PLANNED", "RUNNING", "RUNNING", "SUCCEEDED"]
+        assert [row["new_status"] for row in events] == [
+            "PLANNED",
+            "RUNNING",
+            "RUNNING",
+            "SUCCEEDED",
+        ]
         assert execution["row_version"] == 4
         assert all(row["created_by"] == principal.actor_id for row in events)
         assert len(rows["receipts"]) == 2
-        assert set(admission) == {"execution_id", "command_name", "accepted_at", "accepted_row_version"}
+        assert set(admission) == {
+            "execution_id",
+            "command_name",
+            "accepted_at",
+            "accepted_row_version",
+        }
         assert admission["accepted_row_version"] == 2
         receipt = next(row for row in rows["receipts"] if row["request_id"] == command.request_id)
         assert receipt["result_execution_id"] == execution["id"]
@@ -80,7 +97,13 @@ def test_pg_success_full_coordinates_and_admission(phase2_database_url, hits, pr
         assert service.execute(command) == admission
         assert _snapshot(engine, project) == rows
         assert len(provider.calls) == 1
-        pr204_trace.record(provider_calls=1, admission=admission, db_before=before, db_after=after,
-                           provenance=data, rows=rows)
+        pr204_trace.record(
+            provider_calls=1,
+            admission=admission,
+            db_before=before,
+            db_after=after,
+            provenance=data,
+            rows=rows,
+        )
     finally:
         engine.dispose()

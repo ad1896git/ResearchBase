@@ -1,4 +1,5 @@
 """Legitimate DTO constructor faults during observed adapter invocation."""
+
 import json
 
 import pytest
@@ -18,20 +19,25 @@ def constructor_fault(provider, kind, query, provider_id):
         try:
             if kind in {"nan", "inf", "negative-inf", "blank-title"}:
                 score = {"nan": "NaN", "inf": "Infinity", "negative-inf": "-Infinity"}.get(kind)
-                bad = SearchHit("bad", " " if kind == "blank-title" else "Bad hit",
-                                None, None, score)
+                bad = SearchHit(
+                    "bad", " " if kind == "blank-title" else "Bad hit", None, None, score
+                )
                 hits = (good, bad)
             else:
                 hits = (good,)
             return SearchResponse.success(
-                provider_id=provider_id, provider_version="1", normalized_query=query,
+                provider_id=provider_id,
+                provider_version="1",
+                normalized_query=query,
                 provider_request_id="x" * 257 if kind == "request-id" else None,
-                hits=hits, retrieved_at=PROVIDER_RETRIEVED_AT,
+                hits=hits,
+                retrieved_at=PROVIDER_RETRIEVED_AT,
                 **({"warning_codes": ("INVALID",)} if kind == "warning" else {}),
                 **({"retry_after_seconds": True} if kind == "retry-type" else {}),
             )
         except (ValueError, TypeError) as error:
             raise ValueError(CANARY) from error
+
     return search
 
 

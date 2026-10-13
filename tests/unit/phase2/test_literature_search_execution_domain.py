@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -16,6 +14,7 @@ from researchbase.domain.literature_search_execution import (
     SearchQueryRecord,
     SearchResponse,
 )
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 def test_planned_execution_transitions_to_running_then_succeeded() -> None:
