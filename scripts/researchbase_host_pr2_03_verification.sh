@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-readonly REPO="/private/tmp/ResearchBase-phase2-recovered"
+readonly REVIEW_TMP_ROOT="${RB_REVIEW_TMP_ROOT:-/private/tmp}"
+
+readonly REPO="${RB_REVIEW_REPO:-/private/tmp/ResearchBase-phase2-recovered}"
 readonly PG_BIN="${PG_BIN:-}"
 readonly POSTGRES_VERSION="${POSTGRES_VERSION:-}"
-readonly PYTHON="/Users/onephone/Documents/Codex/ResearchBase/.venv/bin/python"
-readonly TOOLS="/Users/onephone/Documents/Codex/ResearchBase/.venv/bin"
-readonly EXPECTED_BRANCH="phase2/entry-gate"
+readonly PYTHON_ENV_ROOT="${RB_REVIEW_PYTHON_ENV_ROOT:-/Users/onephone/Documents/Codex/ResearchBase}"
+readonly PYTHON="${RB_REVIEW_PYTHON:-$PYTHON_ENV_ROOT/.venv/bin/python}"
+readonly TOOLS="${RB_REVIEW_TOOLS:-$PYTHON_ENV_ROOT/.venv/bin}"
+readonly EXPECTED_BRANCH="${RB_REVIEW_BRANCH:-phase2/entry-gate}"
 readonly IMPLEMENTATION="14e3aaeaea8f3673a7672f07a98a6fc37ac7b9fc"
 readonly DESIGN="8c4355b7b8f25450a97436c1989e254c023ad34e"
 readonly PHASE1="d2400fbeca835c89bd802a4e9d647bda01cfd115"
@@ -79,7 +82,7 @@ temporal_trace=json.loads((out/"temporal_trace.json").read_text()) if (out/"temp
 required_xml = ['focused.xml','concurrency.xml','idempotency.xml','temporal.xml'] + [c['id']+'.xml' for c in checks if c['id'].startswith('pr2_03_') and c['id'] not in {'pr2_03_concurrency','pr2_03_idempotency'}]
 missing_or_skipped = [name for name in required_xml if not counts(name) or counts(name)['collected']==0 or counts(name)['skipped'] or counts(name)['failed'] or counts(name)['errors']]
 if missing_or_skipped: failed=1
-matrix=json.loads(Path("/private/tmp/ResearchBase-phase2-recovered/execution/phase2/PR2-03_Verification_Matrix.json").read_text())
+matrix=json.loads((Path(os.environ.get("RB_REVIEW_REPO", "/private/tmp/ResearchBase-phase2-recovered")) / "execution/phase2/PR2-03_Verification_Matrix.json").read_text())
 observations=[]
 for xml_path in (out/"logs").glob("*.xml"):
     for case in ET.parse(xml_path).getroot().iter("testcase"):
@@ -210,7 +213,7 @@ fi
 "$PYTHON" -c 'import sqlalchemy, psycopg, pytest' || exit 2
 implementation_sha="$IMPLEMENTATION"
 export RB_IMPLEMENTATION_SHA="$implementation_sha"
-RUN_TMP="$(mktemp -d /private/tmp/researchbase-pr2-03-host.XXXXXX)" || exit 2
+RUN_TMP="$(mktemp -d "$REVIEW_TMP_ROOT/researchbase-pr2-03-host.XXXXXX")" || exit 2
 PGDATA="$RUN_TMP/data"
 PGLOG="$RUN_TMP/postgres.log"
 PORT="$("$PYTHON" -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
@@ -310,7 +313,7 @@ export PR11R2_MIGRATION_DB_URL="postgresql+psycopg://researchbase@127.0.0.1:$POR
 DATABASE_URL="$PHASE1_DATABASE_URL" "$TOOLS/pytest" -o 'addopts=' -ra --junitxml="$OUT/logs/full_suite.xml" > "$OUT/logs/full_suite.log" 2>&1
 record full_suite "$?" 'pytest full suite with Phase 1 catalog boundary database'
 "$TOOLS/ruff" check . > "$OUT/logs/ruff.log" 2>&1; record ruff "$?" 'ruff check .'
-"$TOOLS/pyright" --venvpath /Users/onephone/Documents/Codex/ResearchBase > "$OUT/logs/pyright.log" 2>&1; record pyright "$?" 'pyright --venvpath ResearchBase'
+"$TOOLS/pyright" --venvpath "$PYTHON_ENV_ROOT" > "$OUT/logs/pyright.log" 2>&1; record pyright "$?" 'pyright --venvpath ResearchBase'
 "$TOOLS/ruff" format --check . > "$OUT/logs/formatter_raw.log" 2>&1; raw=$?; record formatter_raw "$raw" 'ruff format --check .'
 "$PYTHON" - "$OUT/logs/formatter_raw.log" "$REPO/artifacts/pr_evidence/PR2-00/formatter_baseline.json" "$OUT/formatter_delta.json" <<'PY' > "$OUT/logs/formatter_delta.log" 2>&1
 import json,re,sys
@@ -328,11 +331,12 @@ exit "$FAIL"
 #!/usr/bin/env bash
 set -uo pipefail
 
-readonly REPO="/private/tmp/ResearchBase-phase2-recovered"
-readonly PG_BIN="/opt/homebrew/opt/postgresql@18/bin"
-readonly PYTHON="/Users/onephone/Documents/Codex/ResearchBase/.venv/bin/python"
-readonly TOOLS="/Users/onephone/Documents/Codex/ResearchBase/.venv/bin"
-readonly EXPECTED_BRANCH="phase2/entry-gate"
+readonly REPO="${RB_REVIEW_REPO:-/private/tmp/ResearchBase-phase2-recovered}"
+readonly PG_BIN="${PG_BIN:-/opt/homebrew/opt/postgresql@18/bin}"
+readonly PYTHON_ENV_ROOT="${RB_REVIEW_PYTHON_ENV_ROOT:-/Users/onephone/Documents/Codex/ResearchBase}"
+readonly PYTHON="${RB_REVIEW_PYTHON:-$PYTHON_ENV_ROOT/.venv/bin/python}"
+readonly TOOLS="${RB_REVIEW_TOOLS:-$PYTHON_ENV_ROOT/.venv/bin}"
+readonly EXPECTED_BRANCH="${RB_REVIEW_BRANCH:-phase2/entry-gate}"
 readonly IMPLEMENTATION="14e3aaeaea8f3673a7672f07a98a6fc37ac7b9fc"
 readonly DESIGN="8c4355b7b8f25450a97436c1989e254c023ad34e"
 readonly PHASE1="d2400fbeca835c89bd802a4e9d647bda01cfd115"
@@ -500,7 +504,7 @@ fi
 "$PYTHON" -c 'import sqlalchemy, psycopg, pytest' || exit 2
 implementation_sha="$IMPLEMENTATION"
 export RB_IMPLEMENTATION_SHA="$implementation_sha"
-RUN_TMP="$(mktemp -d /private/tmp/researchbase-pr2-03-host.XXXXXX)" || exit 2
+RUN_TMP="$(mktemp -d "$REVIEW_TMP_ROOT/researchbase-pr2-03-host.XXXXXX")" || exit 2
 PGDATA="$RUN_TMP/data"
 PGLOG="$RUN_TMP/postgres.log"
 PORT="$("$PYTHON" -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
@@ -586,7 +590,7 @@ export PR11R2_MIGRATION_DB_URL="postgresql+psycopg://researchbase@127.0.0.1:$POR
 DATABASE_URL="$PHASE1_DATABASE_URL" "$TOOLS/pytest" -o 'addopts=' -ra --junitxml="$OUT/logs/full_suite.xml" > "$OUT/logs/full_suite.log" 2>&1
 record full_suite "$?" 'pytest full suite with Phase 1 catalog boundary database'
 "$TOOLS/ruff" check . > "$OUT/logs/ruff.log" 2>&1; record ruff "$?" 'ruff check .'
-"$TOOLS/pyright" --venvpath /Users/onephone/Documents/Codex/ResearchBase > "$OUT/logs/pyright.log" 2>&1; record pyright "$?" 'pyright --venvpath ResearchBase'
+"$TOOLS/pyright" --venvpath "$PYTHON_ENV_ROOT" > "$OUT/logs/pyright.log" 2>&1; record pyright "$?" 'pyright --venvpath ResearchBase'
 "$TOOLS/ruff" format --check . > "$OUT/logs/formatter_raw.log" 2>&1; raw=$?; record formatter_raw "$raw" 'ruff format --check .'
 "$PYTHON" - "$OUT/logs/formatter_raw.log" "$REPO/artifacts/pr_evidence/PR2-00/formatter_baseline.json" "$OUT/formatter_delta.json" <<'PY' > "$OUT/logs/formatter_delta.log" 2>&1
 import json,re,sys

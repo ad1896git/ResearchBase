@@ -98,7 +98,7 @@ def test_root_policy_tag_is_a_single_explicit_m3_name(monkeypatch):
     seen = []
     monkeypatch.setattr(runtime, "read_trusted_config", lambda path: seen.append(path) or None)
     assert runtime.build_hg1_coordinator("m3-retained", object(), object()) is None
-    assert seen == [runtime.TRUST_ROOT / "hg1-02-m3-retained.json"]
+    assert seen == [runtime.load_host_settings().trust_root / "hg1-02-m3-retained.json"]
     with pytest.raises(ValueError):
         runtime.build_hg1_coordinator("m3-other", object(), object())
 
@@ -122,11 +122,10 @@ def test_client_identity_claims_still_fail_exact_v2_protocol():
 
 
 def test_m3_storage_rejects_symlinked_cas(tmp_path: Path, monkeypatch):
-    import researchbase.runner as runner
     from researchbase.runner import RunnerProfile, verify_m3_storage
 
     tmp_path.chmod(0o700)
-    monkeypatch.setattr(runner, "_DURABLE", tmp_path.resolve())
+    monkeypatch.setenv("RB_HOST_DURABLE_ROOT", str(tmp_path.resolve()))
     installation = tmp_path.resolve() / "installation"
     actual_cas = tmp_path.resolve() / "actual-cas"
     installation.mkdir(mode=0o700)

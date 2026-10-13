@@ -168,3 +168,74 @@ The one-use bootstrap secret is removed after commit; PostgreSQL permanently clo
 The protected `installation.json` is operational deployment policy, not canonical identity. `enabled=false` disables the local credential; `not_after` may set an aware ISO-8601 expiry. Each authorization rereads that policy at fresh DB time after required locks. Default validity is unbounded while the trusted OS account and installation remain enabled. Canonical membership/binding revocation and actor retirement still deny access. Keep the database/server sessions in UTC. PostgreSQL's OWNER-coverage guards prevent revoking the only structural Owner; they are not weakened for local operation.
 
 This profile trusts code running as that OS account and its database administration authority. It does not isolate malicious code within the same account or guarantee identity across cloned machine identifiers/privileged UID reuse. Do not give untrusted Agent processes this account, installation files or PostgreSQL credentials. No Agent sandbox, multi-user isolation, PKI, certificate enrollment or network deployment is supplied by M1. See ADR-0012 for the boundary.
+
+### Retained host configuration
+
+The local Runner and HG1 server checks read the following environment variables
+at startup. Unset variables retain the accepted host defaults. Set these together
+with `DATABASE_URL`, `RESEARCHBASE_LOCAL_ROOT`, and `ARTIFACT_STORE_ROOT` for the
+intended deployment; the URL and storage roots must match the configured profile.
+
+| Variable | Default |
+| --- | --- |
+| `RB_HOST_DURABLE_ROOT` | `/Users/onephone/ResearchBaseData` |
+| `RB_HOST_TRUST_ROOT` | `/Library/Application Support/ResearchBase` |
+| `RB_HOST_OWNER_UID` | `502` |
+| `RB_HOST_DATABASE_USER` | `onephone` |
+| `RB_HOST_SOCKET_DIR` | `/private/tmp` |
+| `RB_HOST_DATABASE_PORT` | `55440` |
+| `RB_HOST_RUNNER_SOCKET_DIR` | `/private/tmp` |
+| `RB_HOST_M3_DATABASE` | `researchbase_m3_retained_20261011` |
+| `RB_HOST_M2_FINAL_DATABASE` | `researchbase_m2_final` |
+| `RB_HOST_M2_LIVE_DATABASE` | `researchbase_m2_live` |
+| `RB_HOST_M2_LIVE2_DATABASE` | `researchbase_m2_live2` |
+| `RB_HOST_M2_LIVE3_DATABASE` | `researchbase_m2_live3` |
+| `RB_HOST_PGDATA` | `$RB_HOST_DURABLE_ROOT/rb-m2-pg` |
+| `RB_HOST_HBA_FILE` | `$RB_HOST_PGDATA/pg_hba.conf` |
+| `RB_HOST_SYSTEM_IDENTIFIER` | `7695048034454027996` |
+| `RB_HOST_M3_REVISION` | `0031_m3_snapshot_relation_cardinality` |
+
+The five database names must be distinct. Paths must be absolute; blank or padded
+values, a root UID, and invalid ports fail closed. M2 installation and artifact
+roots remain `rb-m2-<tag>-installation` and `rb-m2-<tag>-artifacts` beneath the
+configured durable root; M3 uses `rb-m3-retained-installation` and
+`rb-m3-retained-artifacts`. The Runner still requires macOS native peer credentials,
+a non-root matching process UID, and a password-free PostgreSQL Unix-socket URL.
+M3 still checks every server identity field, its exact revision, loopback listeners,
+and the exact peer/reject HBA rules (using the configured database user).
+HG1 policy files and their parents must still be protected by root ownership;
+changing `RB_HOST_TRUST_ROOT` does not bypass those checks or install a policy.
+
+The historical `scripts/researchbase_host*.sh` verification scripts also support:
+
+| Variable | Default / effect |
+| --- | --- |
+| `RB_REVIEW_REPO` | Original checkout: `/private/tmp/ResearchBase-phase2-recovered`; PR2-04: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-p1-remediation` |
+| `RB_REVIEW_BRANCH` | `phase2/entry-gate`; PR2-04: `recovery/f2-p1-remediation` |
+| `RB_REVIEW_PYTHON_ENV_ROOT` | `/Users/onephone/Documents/Codex/ResearchBase` |
+| `RB_REVIEW_PYTHON` | `$RB_REVIEW_PYTHON_ENV_ROOT/.venv/bin/python` (review and PR2-03 scripts) |
+| `RB_REVIEW_TOOLS` | `$RB_REVIEW_PYTHON_ENV_ROOT/.venv/bin` (review and PR2-03 scripts) |
+| `RB_REVIEW_TMP_ROOT` | `/private/tmp`; temporary clusters are unique children with the original script-specific prefix |
+| `PG_BIN` | PostgreSQL 18 binary directory; main script discovers Homebrew when unset |
+
+Historical commit/content, branch, PostgreSQL-version, cleanup, and acceptance
+checks remain active. `PR204_DRY_RUN_*` inputs retain their existing dry-run-only
+rules. PR2-04 continues to use `python3` and `uv` from `PATH`.
+
+To run the previously host-dependent four-installation Runner integration test
+against the local cluster:
+
+```sh
+export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
+export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+HG1_RUN_LOCAL=1 uv run pytest tests/integration/phase2/test_hg1_runner_live.py
+```
+
+This mode creates and drops four uniquely named disposable databases, migrates
+and onboards four real private installations under pytest's temporary directory,
+and tests authentication, project reads, and socket cleanup through separate
+Runner processes. It discovers the local cluster's socket and port through the
+admin connection and uses password-free socket connections for the Runner.
+`HG1_RUN_LIVE=1` retains the read-only check of existing installations and their
+`migration-evidence/postcutover-cli-verification.json`. With neither flag set,
+the live test remains opt-in and skips.
