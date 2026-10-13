@@ -1,5 +1,4 @@
 # Historical schema fixtures preserve literal SQL for migration-boundary review.
-# ruff: noqa: E501
 
 from __future__ import annotations
 
@@ -120,15 +119,20 @@ def _seed_historical_measurement(engine: Engine, project_id: UUID, actor_id: UUI
     with engine.begin() as connection:
         connection.execute(
             text(
-                "INSERT INTO metric_definitions(id,project_id,name,current_version_id,created_by,created_at) "
+                "INSERT INTO "
+                "metric_definitions(id,project_id,name,current_version_id,created_by,created_at) "
                 "VALUES (:id,:project,'historical metric',NULL,:actor,:at)"
             ),
             {"id": metric, "project": project_id, "actor": actor_id, "at": at},
         )
         connection.execute(
             text(
-                "INSERT INTO metric_definition_versions(id,metric_definition_id,version_number,status,definition,unit,aggregation,content_hash,created_by,created_at,frozen_at) "
-                "VALUES (:id,:parent,1,'FROZEN','{\"kind\":\"mean\"}'::jsonb,'ms','mean',:hash,:actor,:at,:at)"
+                "INSERT INTO "
+                "metric_definition_versions(id,metric_definition_id,"
+                "version_number,status,definition,unit,aggregation,"
+                "content_hash,created_by,created_at,frozen_at) "
+                "VALUES "
+                "(:id,:parent,1,'FROZEN','{\"kind\":\"mean\"}'::jsonb,'ms','mean',:hash,:actor,:at,:at)"
             ),
             {
                 "id": metric_version,
@@ -144,15 +148,20 @@ def _seed_historical_measurement(engine: Engine, project_id: UUID, actor_id: UUI
         )
         connection.execute(
             text(
-                "INSERT INTO experiment_specs(id,project_id,current_version_id,created_by,created_at) "
+                "INSERT INTO "
+                "experiment_specs(id,project_id,current_version_id,created_by,created_at) "
                 "VALUES (:id,:project,NULL,:actor,:at)"
             ),
             {"id": spec, "project": project_id, "actor": actor_id, "at": at},
         )
         connection.execute(
             text(
-                "INSERT INTO experiment_spec_versions(id,experiment_spec_id,version_number,status,title,objective,protocol,content_hash,created_by,created_at,frozen_at) "
-                "VALUES (:id,:parent,1,'FROZEN','historical spec','historical objective','{\"steps\":[\"execute\"]}'::jsonb,:hash,:actor,:at,:at)"
+                "INSERT INTO "
+                "experiment_spec_versions(id,experiment_spec_id,"
+                "version_number,status,title,objective,protocol,content_hash,"
+                "created_by,created_at,frozen_at) "
+                "VALUES (:id,:parent,1,'FROZEN','historical spec','historical "
+                'objective\',\'{"steps":["execute"]}\'::jsonb,:hash,:actor,:at,:at)'
             ),
             {
                 "id": spec_version,
@@ -168,7 +177,10 @@ def _seed_historical_measurement(engine: Engine, project_id: UUID, actor_id: UUI
         )
         connection.execute(
             text(
-                "INSERT INTO runs(id,project_id,experiment_spec_version_id,status,inputs_sealed_at,started_at,finished_at,exit_code,created_by,created_at) "
+                "INSERT INTO "
+                "runs(id,project_id,experiment_spec_version_id,status,"
+                "inputs_sealed_at,started_at,finished_at,exit_code,"
+                "created_by,created_at) "
                 "VALUES (:id,:project,:spec,'SUCCEEDED',:at,:at,:at,0,:actor,:at)"
             ),
             {
@@ -181,7 +193,10 @@ def _seed_historical_measurement(engine: Engine, project_id: UUID, actor_id: UUI
         )
         connection.execute(
             text(
-                "INSERT INTO measurements(id,run_id,metric_definition_version_id,numeric_value,unit,evaluation_scope,content_hash,created_by,created_at) "
+                "INSERT INTO "
+                "measurements(id,run_id,metric_definition_version_id,"
+                "numeric_value,unit,evaluation_scope,content_hash,created_by,"
+                "created_at) "
                 "VALUES (:id,:run,:metric,1.25,'ms','{\"split\":\"test\"}'::jsonb,:hash,:actor,:at)"
             ),
             {

@@ -14,6 +14,7 @@ down_revision = "0040_pr2_14_initial_internal_review"
 branch_labels = None
 depends_on = None
 
+
 def upgrade() -> None:
     op.execute("""
     CREATE OR REPLACE FUNCTION pr214_review_guard() RETURNS trigger LANGUAGE plpgsql AS $$
