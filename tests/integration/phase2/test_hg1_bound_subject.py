@@ -66,7 +66,9 @@ def test_provisioned_subject_resolution_is_unique_and_revocation_sensitive(
         )
     with Session(engine) as session:
         repo = SqlAlchemyPhase2IdentityRepository(session)
-        assert repo.resolve_bound_subject(subject)["actor_id"] == actor_id
+        resolved = repo.resolve_bound_subject(subject)
+        assert resolved is not None
+        assert resolved["actor_id"] == actor_id
         assert (
             repo.resolve_bound_subject(
                 VerifiedSubject("test-deployment", "OS_UID", "60001", "wrong")

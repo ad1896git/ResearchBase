@@ -80,6 +80,7 @@ def test_pg_all_outcome_exact_reapplication_and_changed_tuple(
             }[kind]
         )
         assert attempt["row_version"] == 2
+        assert service.outcome_args is not None
         args, kwargs = service.outcome_args
         service._persist_outcome(*args, **kwargs)
         assert _snapshot(engine, project) == before

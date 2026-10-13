@@ -12,7 +12,7 @@ from sqlalchemy import text
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
 from researchbase.application.literature_search_provider import ProviderError, ProviderFailureKind
 from researchbase.application.phase2_identity import AssignProjectRole
-from researchbase.domain.literature_search_execution import DeliveryCertainty
+from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from tests.integration.phase2.test_pr2_03_effective_authority import _provision
@@ -154,7 +154,7 @@ def test_pg_recovery_stops_known_incomplete_work_and_preserves_prior_hits(
     completion_case, boundary, pr204_trace: FactRecorder
 ):
     engine, _, _, principal, project, create = completion_case
-    script = [success("first query", "provider-a", 2)]
+    script: list[SearchResponse | ProviderError] = [success("first query", "provider-a", 2)]
     if boundary == "retry_backoff":
         script.append(
             ProviderError(

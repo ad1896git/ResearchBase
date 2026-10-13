@@ -38,7 +38,7 @@ def _observe_context(phase2_database_url, pr204_trace, changes, accepted):
         except DBAPIError as error:
             caught = error
         after = _rows(engine)
-        sqlstate = caught.orig.sqlstate if caught is not None else None
+        sqlstate = getattr(caught.orig, "sqlstate", None) if caught is not None else None
         pr204_trace.record(
             supplied_context_changes=changes,
             expected_acceptance=accepted,

@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import DateTime, create_engine, inspect, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
 
@@ -29,7 +29,9 @@ from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 from tests.unit.phase2.test_pr2_04_retrieval_observation_repair import T1, PausedFinalization
 
 
-def material(url, hits=0, service_type=LiteratureSearchExecutionService):
+def material[S: LiteratureSearchExecutionService](
+    url, hits=0, service_type: type[S] = LiteratureSearchExecutionService
+):
     engine, plans, principal, project, plan, version = _setup(url)
     _freeze(engine, plans, principal, project, plan, version)
     response = SearchResponse.success(
@@ -148,7 +150,9 @@ def test_pg_provider_observation_survives_fresh_context_and_public_replay(
             for c in inspect(fresh_engine).get_columns("literature_search_provider_attempts")
         }
         assert columns["retrieved_at"]["nullable"] is True
-        assert columns["retrieved_at"]["type"].timezone is True
+        column_type = columns["retrieved_at"]["type"]
+        assert isinstance(column_type, DateTime)
+        assert column_type.timezone is True
         pr204_trace.record(
             provider_T1=T1,
             hits=hits,
@@ -177,6 +181,7 @@ def test_pg_internal_same_T1_noop_and_T2_immutable_mismatch(
     try:
         service.execute(command)
         before = deepcopy(service.get_provenance(principal, project, command.execution_id))
+        assert service.outcome_args is not None
         args, kwargs = service.outcome_args
         service._persist_outcome(*args, **kwargs)
         assert service.get_provenance(principal, project, command.execution_id) == before

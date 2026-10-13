@@ -31,7 +31,9 @@ from tests.unit.phase2.test_pr2_04_retrieval_observation_repair import T1, Pause
 pytestmark = pytest.mark.pr204_requirements("PR204-SUCCESS-01")
 
 
-def material(url, hits=0, service_type=LiteratureSearchExecutionService):
+def material[S: LiteratureSearchExecutionService](
+    url, hits=0, service_type: type[S] = LiteratureSearchExecutionService
+):
     engine, plans, principal, project, plan, version = _setup(url)
     _freeze(engine, plans, principal, project, plan, version)
     response = SearchResponse.success(
@@ -180,6 +182,7 @@ def test_pg_internal_same_T1_noop_and_T2_immutable_mismatch(
         service.execute(command)
         before = deepcopy(service.get_provenance(principal, project, command.execution_id))
         assert isinstance(service, PausedFinalization)
+        assert service.outcome_args is not None
         args, kwargs = service.outcome_args
         service._persist_outcome(*args, **kwargs)
         assert service.get_provenance(principal, project, command.execution_id) == before

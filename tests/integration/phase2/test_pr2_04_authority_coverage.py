@@ -348,9 +348,9 @@ def test_pg_current_credential_expiry_denies_reads_writes_and_receipt_replay(
     observations = []
 
     class Expired:
-        def is_valid(self, supplied, at):
+        def is_valid(self, principal, at):
             observations.append(
-                {"principal": supplied.actor_id, "authorization_time": at, "decision": False}
+                {"principal": principal.actor_id, "authorization_time": at, "decision": False}
             )
             return False
 

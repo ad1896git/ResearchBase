@@ -247,10 +247,18 @@ def test_pg_same_cancel_key_contenders_before_c1_commit_or_rollback(
     if rollback:
         assert results[winner] == "ROLLED_BACK"
     else:
+        assert isinstance(results["A"], dict)
+        assert isinstance(results["B"], dict)
         assert results["A"]["admission"] == results["B"]["admission"]
-        assert results[winner]["drive_c2"] is True
-        assert results["B" if winner == "A" else "A"]["drive_c2"] is False
-    admission = results[admitted]["admission"]
+        winning_result = results[winner]
+        losing_result = results["B" if winner == "A" else "A"]
+        assert isinstance(winning_result, dict)
+        assert isinstance(losing_result, dict)
+        assert winning_result["drive_c2"] is True
+        assert losing_result["drive_c2"] is False
+    admitted_result = results[admitted]
+    assert isinstance(admitted_result, dict)
+    admission = admitted_result["admission"]
     after_c1 = _snapshot(engine, project)
     assert after_c1["executions"][0]["status"] == "PLANNED"
     assert after_c1["executions"][0]["row_version"] == 2
@@ -354,6 +362,7 @@ def test_pg_saved_owner_response_versus_expired_recovery_has_one_durable_outcome
     service = _service(engine, provider)
     after = _snapshot(engine, project)
     if winner == "A":
+        assert isinstance(results["A"], dict)
         assert results["A"]["terminal"] == "SUCCEEDED"
         _assert_unique_terminal(after, "SUCCEEDED")
         assert len(after["queries"]) == 1 and len(after["results"]) == 2

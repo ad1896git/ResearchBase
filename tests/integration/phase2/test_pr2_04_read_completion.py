@@ -71,14 +71,16 @@ def test_pg_each_read_rechecks_clock_expired_credential_without_authority_mutati
     engine, original, provider, principal, project, create = read_case
     execution_id = UUID(original.create(create)["execution_id"])
 
+    command_principal = principal
+
     class ExpiringCredential:
         expiry = None
 
         def __init__(self):
             self.observations = []
 
-        def is_valid(self, candidate, at):
-            assert candidate == principal
+        def is_valid(self, principal, at):
+            assert principal == command_principal
             self.observations.append(at)
             return self.expiry is None or at < self.expiry
 

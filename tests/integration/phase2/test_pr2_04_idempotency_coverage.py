@@ -39,7 +39,9 @@ COMMANDS = {
 }
 
 
-def _service(engine, provider, cls=LiteratureSearchExecutionService, **kwargs):
+def _service[S: LiteratureSearchExecutionService](
+    engine, provider, cls: type[S] = LiteratureSearchExecutionService, **kwargs
+) -> S:
     return cls(
         literature_search_execution_uow_factory(
             sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)

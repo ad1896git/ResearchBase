@@ -146,8 +146,9 @@ class PhaseExpiry:
         class ObservedUow(SqlAlchemyUnitOfWork):
             def __enter__(self):
                 super().__enter__()
-                self.observation = control.current
-                if self.observation is None:
+                observation = control.current
+                self.observation = observation
+                if observation is None:
                     return self
                 plan = self.literature_search_plan
                 execution = self.literature_search_execution
@@ -159,42 +160,42 @@ class PhaseExpiry:
                 validate_plan = execution.validate_plan_version
 
                 def plan_validation(*args, **kwargs):
-                    self.observation["order"].append("plan_lock_enter")
+                    observation["order"].append("plan_lock_enter")
                     result = validate_plan(*args, **kwargs)
-                    self.observation["order"].append("plan_lock_return")
+                    observation["order"].append("plan_lock_return")
                     return result
 
                 execution.validate_plan_version = plan_validation
 
                 def project(*args, **kwargs):
-                    self.observation["order"].append("project_lock_enter")
+                    observation["order"].append("project_lock_enter")
                     result = lock_project(*args, **kwargs)
-                    self.observation["order"].append("project_lock_return")
+                    observation["order"].append("project_lock_return")
                     return result
 
                 def receipt(*args, **kwargs):
-                    self.observation["order"].append("receipt_lock_enter")
+                    observation["order"].append("receipt_lock_enter")
                     result = lock_receipt(*args, **kwargs)
-                    self.observation["order"].append("receipt_lock_return")
+                    observation["order"].append("receipt_lock_return")
                     return result
 
                 def execution_row(*args, **kwargs):
-                    self.observation["order"].append("execution_lock_enter")
+                    observation["order"].append("execution_lock_enter")
                     result = lock_execution(*args, **kwargs)
-                    self.observation["order"].append("execution_lock_return")
+                    observation["order"].append("execution_lock_return")
                     return result
 
                 def authority(*args, **kwargs):
-                    self.observation["order"].append("authority_lock_enter")
+                    observation["order"].append("authority_lock_enter")
                     result = authorize(*args, **kwargs)
-                    self.observation["authority_facts"] = result
-                    self.observation["order"].append("authority_lock_return")
+                    observation["authority_facts"] = result
+                    observation["order"].append("authority_lock_return")
                     return result
 
                 def at():
                     value = database_time()
-                    self.observation["order"].append("fresh_database_time")
-                    self.observation.setdefault("authorization_times", []).append(value)
+                    observation["order"].append("fresh_database_time")
+                    observation.setdefault("authorization_times", []).append(value)
                     return value
 
                 plan.lock_project = project
@@ -512,6 +513,7 @@ def test_pg_remaining_required_lock_sites_reauthorize_after_expiry(
                     ):
                         break
                     Event().wait(0.01)
+                assert observed_wait is not None
                 assert observed_wait["wait_event_type"] == "Lock"
                 assert blocker_pid in observed_wait["blockers"] and not future.done()
                 order = blocked["order"]

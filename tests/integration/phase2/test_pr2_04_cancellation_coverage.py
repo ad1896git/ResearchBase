@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
+from sqlalchemy.pool import QueuePool
 
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
@@ -78,6 +79,7 @@ def test_pg_cancellation_during_provider_distinguishes_remote_certainty(
                     attempt_id=request.attempt_id,
                     provider_request_key=request.provider_request_key,
                 )
+            assert isinstance(engine.pool, QueuePool)
             assert engine.pool.checkedout() == 0
             receipt = service.cancel(
                 CancelLiteratureSearchExecution(
@@ -153,6 +155,7 @@ def test_pg_prestart_cancel_commits_admission_then_separate_finalization(
         observations = ObservedTransactions(engine, pr204_trace)
 
         def observe_committed_c1():
+            assert isinstance(engine.pool, QueuePool)
             assert observations.active == 0 and engine.pool.checkedout() == 0
             pending = base.get_provenance(principal, project, execution_id)
             pr204_trace.record(phase="C1_COMMITTED_BEFORE_C2", provenance=pending)

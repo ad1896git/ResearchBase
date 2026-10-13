@@ -61,13 +61,13 @@ def test_pg_every_remaining_terminal_source_rejects_every_target(
                 ),
                 {"status": target, "id": execution},
             )
-    assert caught.value.orig.sqlstate == "P17D1"
+    assert getattr(caught.value.orig, "sqlstate", None) == "P17D1"
     assert _snapshot(engine, project) == before
     assert len(provider.calls) == 1
     pr204_trace.record(
         source=source,
         target=target,
-        sqlstate=caught.value.orig.sqlstate,
+        sqlstate=getattr(caught.value.orig, "sqlstate", None),
         before=before,
         after=_snapshot(engine, project),
         provider_calls=1,
@@ -91,12 +91,12 @@ def test_pg_running_cannot_rewind_to_planned(lifecycle_case, pr204_trace: FactRe
                 ),
                 {"id": execution},
             )
-    assert caught.value.orig.sqlstate == "P17D4"
+    assert getattr(caught.value.orig, "sqlstate", None) == "P17D4"
     assert _snapshot(engine, project) == before and provider.calls == []
     pr204_trace.record(
         source="RUNNING",
         target="PLANNED",
-        sqlstate=caught.value.orig.sqlstate,
+        sqlstate=getattr(caught.value.orig, "sqlstate", None),
         before=before,
         after=_snapshot(engine, project),
         provider_calls=0,

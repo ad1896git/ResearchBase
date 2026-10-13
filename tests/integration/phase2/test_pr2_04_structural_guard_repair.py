@@ -42,6 +42,7 @@ def _additional_execution(material, *, reserved=False):
                 provider_id="provider-a",
                 provider_version="1",
                 normalized_query="normalization evidence",
+                provider_request_id=None,
                 hits=(),
                 retrieved_at=PROVIDER_RETRIEVED_AT,
             )

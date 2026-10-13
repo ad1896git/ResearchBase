@@ -122,7 +122,12 @@ def test_provider_request_id_cannot_echo_injected_api_key(echo):
 
 def test_oversized_search_url_is_rejected_before_dispatch():
     called = []
-    capability = OpenAlexSearchCapability(get=lambda *_: called.append(True))
+
+    def unexpected_get(*_) -> HttpObservation:
+        called.append(True)
+        raise AssertionError("oversized query must fail before HTTP dispatch")
+
+    capability = OpenAlexSearchCapability(get=unexpected_get)
     asked = request()
     from dataclasses import replace
 

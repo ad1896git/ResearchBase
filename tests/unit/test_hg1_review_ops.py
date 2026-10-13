@@ -6,6 +6,7 @@ from uuid import UUID
 
 import pytest
 
+from researchbase.application.literature_evidence import LiteratureEvidenceService
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.hg1_review_ops import HG1ReviewOperations
 
@@ -27,7 +28,7 @@ def principal():
     )
 
 
-class Service:
+class Service(LiteratureEvidenceService):
     def __init__(self):
         self.calls = []
 
@@ -177,7 +178,8 @@ def test_non_verified_principal_fails_before_service():
     service = Service()
     with pytest.raises(TypeError):
         HG1ReviewOperations(service).inspect(
-            SimpleNamespace(actor_id=UUID(TARGET)),
+            # Deliberately pass an unverified identity to exercise the runtime rejection.
+            SimpleNamespace(actor_id=UUID(TARGET)),  # pyright: ignore[reportArgumentType]
             {
                 "project_id": PROJECT,
                 "evidence_id": EVIDENCE,

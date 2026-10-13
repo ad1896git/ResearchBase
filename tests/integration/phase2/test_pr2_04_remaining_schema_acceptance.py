@@ -1,7 +1,7 @@
 """Targeted remaining closed schema/FK contracts with valid full-TX controls."""
 
-from datetime import timedelta
-from uuid import uuid4
+from datetime import datetime, timedelta
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
@@ -99,7 +99,7 @@ def complete(connection, m, probe=None):
     connection.execute(
         text(f"UPDATE {E} SET row_version=row_version+1 WHERE id=:id"), {"id": execution["id"]}
     )
-    event = dict(
+    event: dict[str, UUID | datetime | int | str | None] = dict(
         id=uuid4(),
         execution_id=execution["id"],
         sequence=2,

@@ -186,7 +186,7 @@ def test_m3_server_identity_and_hba_are_checked_before_socket(monkeypatch):
 
     monkeypatch.setattr(runtime, "create_database_engine", lambda _url: Engine(expected))
     runtime.verify_m3_server(SimpleNamespace(database_url=url(M3)))
-    bad = list(expected)
+    bad: list[str] = list(expected)
     bad[7] = "wrong-system-id"
     monkeypatch.setattr(runtime, "create_database_engine", lambda _url: Engine(tuple(bad)))
     with pytest.raises(ValueError):

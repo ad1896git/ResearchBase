@@ -64,6 +64,7 @@ def test_provider_observation_normalizes_offset_without_ordering_rule():
     at = T1.astimezone(timezone(timedelta(hours=8)))
     value = response(at=at)
     assert value.retrieved_at == T1
+    assert value.retrieved_at is not None
     assert value.retrieved_at.tzinfo is UTC
     assert response(at=T1 + timedelta(days=36500)).retrieved_at == T1 + timedelta(days=36500)
 
@@ -87,7 +88,7 @@ class PausedFinalization(LiteratureSearchExecutionService):
         return None
 
 
-def harness(hits, service_type=PausedFinalization):
+def harness[S: PausedFinalization](hits, service_type: type[S] = PausedFinalization):
     repo = InMemoryLiteratureSearchExecutionRepository()
     provider = FakeSearchCapability(responses=[response(hits)])
     service = service_type(
@@ -119,6 +120,7 @@ def test_sealed_provider_observation_and_internal_reapplication(hits, pr204_trac
     assert attempt["returned_at"] != T1
     assert len(before["results"]) == hits
     assert all(row["retrieved_at"] == T1 for row in before["results"])
+    assert service.outcome_args is not None
     args, kwargs = service.outcome_args
     same = service._persist_outcome(*args, **kwargs)
     assert same == (None if False else same)  # transition is verified by exact durable no-op below

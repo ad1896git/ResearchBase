@@ -7,8 +7,10 @@ from typing import Any, cast
 from uuid import uuid4
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from scripts.pr2_04_pytest_evidence import FactRecorder
+from typer.core import TyperGroup
 from typer.testing import CliRunner
 
 from researchbase.api.app import create_app as http_app
@@ -493,6 +495,7 @@ def test_execution_route_and_cli_surface_has_no_result_injection_or_later_pr_com
 
     client, cli, *_ = _transport()
     prefix = "/v1/literature/search-executions"
+    assert isinstance(client.app, FastAPI)
     paths = client.app.openapi()["paths"]
     actual = {
         (p, method)
@@ -512,7 +515,9 @@ def test_execution_route_and_cli_surface_has_no_result_injection_or_later_pr_com
         },
     }
     root = get_command(cli)
+    assert isinstance(root, TyperGroup)
     group = root.commands["literature-search-execution"]
+    assert isinstance(group, TyperGroup)
     commands = set(group.commands)
     pr204_trace.record(http_operations=sorted(actual), cli_commands=sorted(commands))
     assert actual == expected

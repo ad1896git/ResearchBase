@@ -84,7 +84,8 @@ def test_unverifiable_or_unbounded_locator_is_rejected(locator):
 
 def test_internal_index_identifier_cannot_be_used_as_source_locator():
     with pytest.raises(ValueError, match="locator"):
-        EvidenceCandidate(uuid4(), "internal-index:opaque-42", "excerpt")
+        # Deliberately pass a raw string to verify the runtime typed-locator boundary.
+        EvidenceCandidate(uuid4(), "internal-index:opaque-42", "excerpt")  # pyright: ignore[reportArgumentType]
     with pytest.raises(ValueError, match="locator"):
         SourceLocator(section="internal-index:opaque-42")
 

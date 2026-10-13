@@ -598,7 +598,6 @@ def test_populated_child_downgrade_refuses(phase2_database_url):
     ["missing", "draft", "abandoned", "corrupt_hash", "cross_project", "duplicate_identity"],
 )
 def test_question_reference_validation_matrix(phase2_database_url, invalid, record_property):
-    from researchbase.application.phase2_identity import CreateProjectWithOwner
     from researchbase.foundation.errors import ErrorCode, ResearchBaseError
     from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
 
@@ -607,7 +606,7 @@ def test_question_reference_validation_matrix(phase2_database_url, invalid, reco
     if invalid == "cross_project":
         identity, _, _ = identity_service(phase2_database_url)
         foreign = identity.create_project_with_owner(
-            CreateProjectWithOwner(principal, "foreign review project", uuid4())
+            principal, name="foreign review project", request_id=uuid4()
         )
     q, qv, _ = _question(engine, foreign, principal.actor_id)
     candidate = qv

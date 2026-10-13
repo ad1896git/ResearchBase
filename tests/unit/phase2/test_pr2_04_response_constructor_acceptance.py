@@ -18,7 +18,11 @@ def constructor_fault(provider, kind, query, provider_id):
         good = SearchHit("good", "Valid first hit", None, None, None)
         try:
             if kind in {"nan", "inf", "negative-inf", "blank-title"}:
-                score = {"nan": "NaN", "inf": "Infinity", "negative-inf": "-Infinity"}.get(kind)
+                score = {
+                    "nan": float("nan"),
+                    "inf": float("inf"),
+                    "negative-inf": float("-inf"),
+                }.get(kind)
                 bad = SearchHit(
                     "bad", " " if kind == "blank-title" else "Bad hit", None, None, score
                 )

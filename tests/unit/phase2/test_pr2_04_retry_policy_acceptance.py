@@ -47,7 +47,9 @@ def drive(*, fraction, retry_after, budget=300):
         assert rows[-1]["status"] == "RESERVED"
         assert all(row["status"] != "RESERVED" for row in rows[:-1])
         if len(rows) > 1 and retry_after is not None:
-            assert repo.now >= rows[-2]["completed_at"] + timedelta(seconds=retry_after)
+            completed_at = rows[-2]["completed_at"]
+            assert isinstance(completed_at, datetime)
+            assert repo.now >= completed_at + timedelta(seconds=retry_after)
         entries.append(repo.now)
 
     provider.observer = observe
