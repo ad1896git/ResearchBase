@@ -74,7 +74,9 @@ from researchbase.persistence.source_merge_repository import SqlAlchemySourceMer
 from researchbase.persistence.source_version_repository import SqlAlchemySourceVersionRepository
 
 
-def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
+def _normalize_database_error(
+    exc: BaseException, *, retry_deadlocks: bool = False
+) -> ResearchBaseError | None:
     """Classify expected PostgreSQL failures from stable driver metadata."""
     if not isinstance(exc, DBAPIError):
         return None
@@ -82,6 +84,11 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
     sqlstate = getattr(original, "sqlstate", None)
     diagnostic = getattr(original, "diag", None)
     constraint = getattr(diagnostic, "constraint_name", None)
+    if sqlstate == "40P01" and retry_deadlocks:
+        return ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION,
+            "deadlocked serializable transaction must be retried",
+        )
     if sqlstate == "40001":
         return ResearchBaseError(
             ErrorCode.CONCURRENT_MODIFICATION,
@@ -269,11 +276,13 @@ class SqlAlchemyUnitOfWork:
         self._session_factory = session_factory
         self._pr204_error_normalization = pr204_error_normalization
         self._decision_error_normalization = False
+        self._serializable_retry_normalization = False
         self._session: Session | None = None
 
         self._committed = False
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
+        self._serializable_retry_normalization = False
         self._session = self._session_factory()
         self._session.begin()
         self.actors = SqlAlchemyActorRepository(self._session)
@@ -321,7 +330,9 @@ class SqlAlchemyUnitOfWork:
         except DBAPIError as exc:
             if self._decision_error_normalization:
                 raise _decision_database_error(exc) from None
-            normalized = _normalize_database_error(exc)
+            normalized = _normalize_database_error(
+                exc, retry_deadlocks=self._serializable_retry_normalization
+            )
             if (
                 normalized is None
                 and self._pr204_error_normalization
@@ -348,6 +359,10 @@ class SqlAlchemyUnitOfWork:
     def rollback(self) -> None:
         self._require_session().rollback()
         self._committed = False
+
+    def enable_serializable_retry_normalization(self) -> None:
+        """Opt in to deadlock translation for Discussion/Conclusion retries only."""
+        self._serializable_retry_normalization = True
 
     def enable_decision_error_normalization(self) -> None:
         """Apply the command's nondisclosing boundary without changing older commands."""
@@ -437,7 +452,9 @@ class SqlAlchemyUnitOfWork:
             self._session.close()
             self._session = None
         if exc_value is not None:
-            normalized = _normalize_database_error(exc_value)
+            normalized = _normalize_database_error(
+                exc_value, retry_deadlocks=self._serializable_retry_normalization
+            )
             if (
                 normalized is None
                 and self._pr204_error_normalization

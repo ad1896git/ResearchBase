@@ -618,6 +618,8 @@ class GovernanceRepository(Protocol):
 
 
 class UnitOfWork(Protocol):
+    def enable_serializable_retry_normalization(self) -> None: ...
+
     def enable_decision_error_normalization(self) -> None: ...
 
     @property

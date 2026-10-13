@@ -110,6 +110,8 @@ def test_production_does_not_import_shared_test_contracts() -> None:
 
 
 def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration() -> None:
+    # Exact allowlist through authorized PR2-15 minimal Decision. Phase 1 and
+    # earlier Phase 2 entries remain mandatory; unapproved additions still fail.
     migrations = Path(__file__).parents[2] / "migrations" / "versions"
     assert sorted(path.name for path in migrations.glob("*.py")) == [
         "0001_empty_bootstrap.py",
@@ -140,6 +142,22 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0024_literature_search_execution.py",
         "0025_pr2_04_reservation_guards.py",
         "0026_pr2_04_p1_contract_guards.py",
+        "0027_pr2_04_hash_scheme_guards.py",
+        "0028_provider_cancellation.py",
+        "0029_metadata_observations.py",
+        "0030_literature_evidence.py",
+        "0031_m3_snapshot_relation_cardinality.py",
+        "0032_pr2_10_discussion.py",
+        "0033_pr2_11_r2_scientific_conclusion.py",
+        "0034_pr2_10_exact_transcript_binding.py",
+        "0035_pr2_12_publication_draft.py",
+        "0036_pr2_13_citation_placement.py",
+        "0037_pr2_13_claim_placement.py",
+        "0038_pr2_13_artifact_placement.py",
+        "0039_pr2_13_citation_rebinding_guard.py",
+        "0040_pr2_14_initial_internal_review.py",
+        "0041_pr2_15_review_coordination.py",
+        "0042_pr2_15_minimal_decision.py",
     ]
 
 
