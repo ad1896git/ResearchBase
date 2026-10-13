@@ -30,6 +30,7 @@ _STATUS = {
     ErrorCode.NOT_FOUND: 404,
     ErrorCode.AUTHENTICATION_REQUIRED: 401,
     ErrorCode.FORBIDDEN: 403,
+    # Both review mappings are provisional: planning/REVIEW_ERROR_MAPPING_ARCHITECTURE_QUESTION.md.
     ErrorCode.REVIEW_TARGET_NOT_FROZEN: 409,
     ErrorCode.CONFLICT_OF_INTEREST: 403,
     ErrorCode.SUBJECT_BINDING_UNPROVEN: 403,

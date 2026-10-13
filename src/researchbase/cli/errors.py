@@ -27,6 +27,7 @@ CLI_EXIT_CODES: dict[ErrorCode, int] = {
     ErrorCode.NOT_FOUND: 3,
     ErrorCode.AUTHENTICATION_REQUIRED: 3,
     ErrorCode.FORBIDDEN: 3,
+    # Both review mappings are provisional: planning/REVIEW_ERROR_MAPPING_ARCHITECTURE_QUESTION.md.
     ErrorCode.REVIEW_TARGET_NOT_FROZEN: 4,
     ErrorCode.CONFLICT_OF_INTEREST: 3,
     ErrorCode.SUBJECT_BINDING_UNPROVEN: 3,
