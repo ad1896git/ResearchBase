@@ -418,14 +418,15 @@ def test_pg_equal_created_at_cursor_uses_uuid_tiebreak_without_duplicates_or_omi
         cursor = UUID(page[-1]["execution_id"])
         assert len(pages) <= 4
     with engine.connect() as connection:
-        stored = list(
-            connection.execute(
+        stored = [
+            dict(row)
+            for row in connection.execute(
                 text(
                     "SELECT id,created_at FROM literature_search_executions WHERE project_id=:id ORDER BY created_at,id"  # noqa: E501
                 ),
                 {"id": project},
             ).mappings()
-        )
+        ]
     pr204_trace.record(
         equal_timestamp=timestamp, stored_rows=stored, pages=pages, expected_ids=expected
     )

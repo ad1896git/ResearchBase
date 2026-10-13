@@ -35,24 +35,26 @@ def test_no_forbidden_runtime_dependencies_or_parallel_manifests() -> None:
 
 
 def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
-    migration_text = "\n".join(
-        path.read_text()
-        for path in _python_files(ROOT / "migrations")
-        if path.name
-        not in {
-            "0030_literature_evidence.py",
-            "0031_m3_snapshot_relation_cardinality.py",
-            "0032_pr2_10_discussion.py",
-            "0033_pr2_11_r2_scientific_conclusion.py",
-        }
-    )
-    forbidden_tables = (
-        "literature_evidence",
-        "scientific_conclusions",
-        "manuscripts",
-    )
-    assert not any(table in migration_text for table in forbidden_tables)
-    assert "run_versions" not in migration_text
+    # Exact accepted Phase 2 ownership/references; future migrations get no exemption.
+    authorized_tables = {
+        "0030_literature_evidence.py": {"literature_evidence"},
+        "0031_m3_snapshot_relation_cardinality.py": {"literature_evidence"},
+        "0032_pr2_10_discussion.py": {"literature_evidence"},
+        "0033_pr2_11_r2_scientific_conclusion.py": {
+            "literature_evidence",
+            "scientific_conclusions",
+        },
+        "0037_pr2_13_claim_placement.py": {"scientific_conclusions"},
+        "0040_pr2_14_initial_internal_review.py": {"scientific_conclusions"},
+        "0041_pr2_15_review_coordination.py": {"scientific_conclusions"},
+        "0042_pr2_15_minimal_decision.py": {"scientific_conclusions"},
+    }
+    for path in _python_files(ROOT / "migrations"):
+        contents = path.read_text()
+        permitted = authorized_tables.get(path.name, set())
+        for table in ("literature_evidence", "scientific_conclusions", "manuscripts"):
+            assert table in permitted or table not in contents, (path.name, table)
+        assert "run_versions" not in contents, path.name
 
 
 def test_pr12_adds_only_claim_evidence_schema_slice() -> None:

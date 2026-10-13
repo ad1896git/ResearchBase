@@ -91,7 +91,7 @@ def test_pg_success_full_coordinates_and_admission(phase2_database_url, hits, pr
         assert admission["accepted_row_version"] == 2
         receipt = next(row for row in rows["receipts"] if row["request_id"] == command.request_id)
         assert receipt["result_execution_id"] == execution["id"]
-        assert receipt["result_json"] == admission
+        assert receipt["result_dto"] == admission
         data = service.get_provenance(principal, project, command.execution_id)
         assert data["plan"]["content_hash"] == frozen["content_hash"]
         assert service.execute(command) == admission

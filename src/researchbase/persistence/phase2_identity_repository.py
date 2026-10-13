@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
@@ -152,7 +152,7 @@ class SqlAlchemyPhase2IdentityRepository:
         value = self._session.execute(text("SELECT clock_timestamp()")).scalar_one()
         if not isinstance(value, datetime):
             raise TypeError("PostgreSQL clock_timestamp() did not return a datetime")
-        return value
+        return value.astimezone(UTC)
 
     def actor_for_update(self, actor_id: UUID) -> dict[str, object] | None:
         row = (

@@ -52,7 +52,13 @@ def test_pg_all_outcome_exact_reapplication_and_changed_tuple(
     provider.responses = [response]
     if kind == "cancelled":
 
-        def cancel(_request):
+        def cancel(request):
+            provider.responses[0] = replace(
+                response,
+                execution_id=request.execution_id,
+                attempt_id=request.attempt_id,
+                provider_request_key=request.provider_request_key,
+            )
             service.cancel(
                 CancelLiteratureSearchExecution(
                     command.execution_id,

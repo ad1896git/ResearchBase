@@ -5,12 +5,23 @@ from uuid import UUID, uuid4
 
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
+from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
 
 from researchbase.application.literature_search_plan import (
+    CreateLiteratureSearchPlan,
+    LiteratureSearchPlanService,
     ReviseLiteratureSearchPlan,
     TransitionLiteratureSearchPlanVersion,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+    _material,
+)
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze
 from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
     _command,
     _execution_setup,
@@ -28,10 +39,25 @@ def execution_case(phase2_database_url):
 def test_pg_admission_rejects_invalid_exact_plan_without_effects(
     execution_case, phase2_database_url, case, pr204_trace: FactRecorder
 ):
-    from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
-
     engine, service, provider, principal, project, command = execution_case
-    other_engine, plans, other, other_project, plan, version = _setup(phase2_database_url)
+    identity, _, _ = _identity_service(phase2_database_url)
+    other = principal
+    other_project = identity.create_project_with_owner(
+        other, name="invalid execution plan fixture", request_id=uuid4()
+    )
+    other_engine = engine
+    plans = LiteratureSearchPlanService(
+        lambda: SqlAlchemyUnitOfWork(
+            sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+        ),
+        _AlwaysValidCredential(),
+    )
+    created = plans.create(
+        CreateLiteratureSearchPlan(
+            other, other_project, _material(UUID(int=0), language_scope=()), uuid4()
+        )
+    )
+    plan, version = UUID(str(created["plan_id"])), UUID(str(created["version_id"]))
     try:
         if case in {"foreign", "superseded"}:
             _freeze(other_engine, plans, other, other_project, plan, version)
@@ -40,7 +66,30 @@ def test_pg_admission_rejects_invalid_exact_plan_without_effects(
                 TransitionLiteratureSearchPlanVersion(other, other_project, plan, version, uuid4())
             )
         if case == "superseded":
-            plans.revise(ReviseLiteratureSearchPlan(other, other_project, plan, version, uuid4()))
+            successor = plans.revise(
+                ReviseLiteratureSearchPlan(other, other_project, plan, version, uuid4())
+            )
+            successor_id = UUID(str(successor["version_id"]))
+            plans.freeze(
+                TransitionLiteratureSearchPlanVersion(
+                    other, other_project, plan, successor_id, uuid4()
+                )
+            )
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT status FROM literature_search_plan_versions WHERE id=:id"),
+                        {"id": version},
+                    )
+                    == "SUPERSEDED"
+                )
+                assert (
+                    connection.scalar(
+                        text("SELECT current_version_id FROM literature_search_plans WHERE id=:id"),
+                        {"id": plan},
+                    )
+                    == successor_id
+                )
         # Foreign is a real frozen version, queried under the original authorized project.
         # Other cases use their valid same-project authority, isolating lifecycle validation.
         target = replace(command, plan_version_id=version)
@@ -82,14 +131,6 @@ def test_pg_admission_rejects_invalid_exact_plan_without_effects(
 def test_pg_plan_supersession_never_substitutes_current_version(
     execution_case, phase2_database_url, timing, pr204_trace: FactRecorder
 ):
-    from sqlalchemy.orm import sessionmaker
-
-    from researchbase.application.literature_search_plan import LiteratureSearchPlanService
-    from researchbase.persistence.uow import SqlAlchemyUnitOfWork
-    from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-        _AlwaysValidCredential,
-    )
-
     engine, service, provider, principal, project, create = execution_case
     plans = LiteratureSearchPlanService(
         lambda: SqlAlchemyUnitOfWork(
@@ -100,7 +141,7 @@ def test_pg_plan_supersession_never_substitutes_current_version(
     admitted = service.create(create)
     execution_id = UUID(admitted["execution_id"])
     initial = service.get_provenance(principal, project, execution_id)
-    plan_id = UUID(initial["plan"]["plan_id"])
+    plan_id = UUID(initial["plan"]["material"]["plan_id"])
     successors = []
 
     def supersede(_request=None):
@@ -111,6 +152,27 @@ def test_pg_plan_supersession_never_substitutes_current_version(
                 )
             )
         )
+        successor_id = UUID(str(successors[-1]["version_id"]))
+        plans.freeze(
+            TransitionLiteratureSearchPlanVersion(
+                principal, project, plan_id, successor_id, uuid4()
+            )
+        )
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(
+                    text("SELECT status FROM literature_search_plan_versions WHERE id=:id"),
+                    {"id": create.plan_version_id},
+                )
+                == "SUPERSEDED"
+            )
+            assert (
+                connection.scalar(
+                    text("SELECT current_version_id FROM literature_search_plans WHERE id=:id"),
+                    {"id": plan_id},
+                )
+                == successor_id
+            )
 
     if timing == "before_first_start":
         supersede()
@@ -144,8 +206,6 @@ def test_pg_plan_supersession_never_substitutes_current_version(
 def test_pg_corrupt_exact_plan_hash_rejects_without_current_pointer_substitution(
     execution_case, boundary, pr204_trace: FactRecorder
 ):
-    from sqlalchemy import text
-
     engine, service, provider, principal, project, create = execution_case
     execution_id = None
     if boundary != "create":

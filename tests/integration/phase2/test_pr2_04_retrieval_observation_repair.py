@@ -327,7 +327,9 @@ def test_pg_atomic_observation_shape_and_result_owner_guard(
         engine.dispose()
 
 
-@pytest.mark.parametrize("field,expected", [("attempt", "P17D1"), ("result", "P17D1")])
+# This fixture is terminal; its parent guard precedes sealed-attempt immutability.
+# The pg_retrieval companion separately proves P17D1 while the parent is RUNNING.
+@pytest.mark.parametrize("field,expected", [("attempt", "P17D3"), ("result", "P17D1")])
 def test_pg_sealed_retrieval_observations_are_immutable(
     phase2_database_url,
     field,

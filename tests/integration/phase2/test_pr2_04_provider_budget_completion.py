@@ -66,7 +66,7 @@ def test_pg_lowered_provider_cap_preserves_mixed_failure_history(
     assert rows["executions"][0]["status"] == "FAILED"
     assert rows["executions"][0]["failure_code"] == "PROVIDER_RETRY_EXHAUSTED"
     assert len(rows["receipts"]) == 2
-    assert len([e for e in rows["events"] if e["event_kind"] == "OUTCOME_RECORDED"]) == cap
+    assert len([e for e in rows["events"] if e["kind"] == "OUTCOME_RECORDED"]) == cap
     assert service.execute(command) == receipt
     assert _snapshot(engine, project) == rows
     assert len(provider.calls) == cap

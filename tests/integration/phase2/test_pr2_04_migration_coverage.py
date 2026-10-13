@@ -13,7 +13,6 @@ from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
 from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 from tests.integration.phase2.test_pr2_04_execution_migration import (
     PARENT,
@@ -93,14 +92,12 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
     engine = create_engine(phase2_database_url)
     try:
         if origin == PARENT:
-            # Route only fixture migration selection to the accepted parent. All
-            # identity, question, review and freeze behavior remains actual code/PG.
-            with patch(
-                "tests.integration.phase2.test_pr2_03_review_guards._authorized_service",
-                side_effect=lambda url: _authorized_service(url, migration_revision=PARENT),
-            ):
-                setup_engine, plans, principal, project, plan, version = _setup(phase2_database_url)
-                _freeze(setup_engine, plans, principal, project, plan, version)
+            # Select the accepted parent through the fixture's explicit revision
+            # parameter; identity, question and freeze behavior stays actual code/PG.
+            setup_engine, plans, principal, project, plan, version = _setup(
+                phase2_database_url, migration_revision=PARENT
+            )
+            _freeze(setup_engine, plans, principal, project, plan, version)
             setup_engine.dispose()
         elif origin != "base":
             _upgrade(phase2_database_url, origin)
@@ -144,7 +141,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
         )
         assert before == after
         assert revisions == [REVISION]
-        assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
+        assert scripts.get_heads() == ["0042_pr2_15_minimal_decision"]
         assert revision.down_revision == PARENT
         if origin == PARENT:
             assert after_tables - before_tables == set(TABLES)
@@ -273,7 +270,7 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
     scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
     child = scripts.get_revision("0025_pr2_04_reservation_guards")
     assert child is not None and child.down_revision == REVISION
-    assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
+    assert scripts.get_heads() == ["0042_pr2_15_minimal_decision"]
     pr204_trace.record(
         historical_reference=FROZEN_PR204,
         historical_ancestry_recovered=False,

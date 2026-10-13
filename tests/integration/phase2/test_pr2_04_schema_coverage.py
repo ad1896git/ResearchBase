@@ -198,7 +198,15 @@ def _insert(connection, table: str, row: dict[str, Any]) -> None:
     )
 
 
-def _reject(engine, operation: Callable, sqlstate: str, trace: FactRecorder, *, case: str) -> None:
+def _reject(
+    engine,
+    operation: Callable,
+    sqlstate: str,
+    trace: FactRecorder,
+    *,
+    case: str,
+    diagnostic: str | None = None,
+) -> None:
     before = _rows(engine)
     caught = None
     try:
@@ -207,10 +215,14 @@ def _reject(engine, operation: Callable, sqlstate: str, trace: FactRecorder, *, 
     except DBAPIError as exc:
         caught = exc
     actual = getattr(caught.orig, "sqlstate", None) if caught is not None else None
+    primary = (
+        getattr(getattr(caught.orig, "diag", None), "message_primary", None) if caught else None
+    )
     after = _rows(engine)
     trace.record(
         case=case,
         rejected_sqlstate=actual,
+        primary_diagnostic=primary,
         expected_sqlstate=sqlstate,
         before_counts={t: len(r) for t, r in before.items()},
         after_counts={t: len(r) for t, r in after.items()},
@@ -218,6 +230,8 @@ def _reject(engine, operation: Callable, sqlstate: str, trace: FactRecorder, *, 
     )
     assert caught is not None, f"database accepted forbidden SQL case {case}"
     assert actual == sqlstate
+    if diagnostic is not None:
+        assert primary == diagnostic
     assert after == before
 
 
@@ -410,12 +424,14 @@ def test_direct_insert_required_column_null_is_rejected(
         if table == A:
             row["provider_request_key"] = row["id"]
         row[column] = None
+        attribution = table == E and column in {"requested_by", "executed_by", "created_by"}
         _reject(
             engine,
             lambda c: _insert(c, table, row),
-            "23502",
+            "P17D5" if attribution else "23502",
             pr204_trace,
             case=f"{table}.{column}=NULL",
+            diagnostic="PR2-04 initial attribution must equal requester" if attribution else None,
         )
     finally:
         engine.dispose()
@@ -725,7 +741,7 @@ def test_query_same_parent_and_atomic_observation_guards(
             if case in ("ordinal_gap", "input_mismatch"):
                 connection.execute(
                     text(f"""UPDATE {A} SET status='SUCCEEDED',query_record_id=:q,
-                    invoked_at=:now,returned_at=:now,completed_at=clock_timestamp(),
+                    invoked_at=:now,returned_at=:now,retrieved_at=:now,completed_at=clock_timestamp(),
                     delivery_certainty='RESPONSE_RECEIVED',result_count=0,warning_codes='[]'::jsonb,
                     row_version=2 WHERE id=:id"""),
                     {"q": row["id"], "now": row["executed_at"], "id": attempt["id"]},
@@ -856,8 +872,8 @@ INVALID_INSERTS = [
     (E, "strategy_version", "2", "23514"),
     (E, "row_version", 0, "23514"),
     (E, "failure_code", "PROVIDER_PERMANENT", "23514"),
-    (E, "requested_by", "absent_uuid", "23503"),
-    (E, "created_by", "absent_uuid", "23503"),
+    (E, "requested_by", "absent_uuid", "P17D5"),
+    (E, "created_by", "absent_uuid", "P17D5"),
     (E, "search_plan_version_id", "absent_uuid", "23503"),
     (E, "project_id", "absent_uuid", "23503"),
     (A, "query_index", -1, "23514"),
@@ -903,10 +919,31 @@ def test_direct_insert_checks_lengths_and_missing_foreign_parents(
     pr204_trace: FactRecorder,
 ) -> None:
     stage = "planned" if table == E else "reserved" if table == A else "sealed"
+    query_creator = table == Q and column == "created_by"
+    if query_creator:
+        stage = "reserved"
     material = _material(phase2_database_url, stage)
     engine = material["engine"]
     try:
-        row = _rows(engine)[table][0].copy()
+        if query_creator:
+            attempt = _rows(engine)[A][0]
+            row = dict(
+                id=uuid4(),
+                literature_search_execution_id=material["execution"],
+                provider_attempt_id=attempt["id"],
+                query_text="normalization evidence",
+                perspective=None,
+                provider_id="provider-a",
+                provider_version="1",
+                ordinal=0,
+                executed_at=attempt["reserved_at"],
+                query_hash="a" * 64,
+                hash_scheme="sha256-cjson-v1",
+                created_by=material["principal"].actor_id,
+                created_at=attempt["reserved_at"],
+            )
+        else:
+            row = _rows(engine)[table][0].copy()
         row["id"] = uuid4()
         if table == E:
             row["idempotency_key"] = uuid4()
@@ -914,7 +951,7 @@ def test_direct_insert_checks_lengths_and_missing_foreign_parents(
             row["provider_request_key"] = row["id"]
         if table == C:
             row["request_id"] = uuid4()
-        if table == Q:
+        if table == Q and not query_creator:
             row.update(ordinal=1, query_hash="b" * 64)
         if table == R:
             row["rank"] = 1
@@ -925,14 +962,38 @@ def test_direct_insert_checks_lengths_and_missing_foreign_parents(
                 connection.execute(
                     text(f"""UPDATE {A} SET status='RETRYABLE_FAILURE',
                     completed_at=clock_timestamp(),delivery_certainty='NOT_SENT',
-                    failure_code='PROVIDER_NOT_SENT',warning_codes='[]'::jsonb,
+                    failure_code='PROVIDER_TRANSIENT',warning_codes='[]'::jsonb,
                     result_count=0,row_version=2 WHERE execution_id=:execution"""),
                     {"execution": material["execution"]},
                 )
                 row["attempt_number"] = 2
             _insert(connection, table, row)
 
-        _reject(engine, mutate, sqlstate, pr204_trace, case=f"{table}.{column}")
+        attribution = table == E and column in {"requested_by", "created_by"}
+        _reject(
+            engine,
+            mutate,
+            sqlstate,
+            pr204_trace,
+            case=f"{table}.{column}",
+            diagnostic="PR2-04 initial attribution must equal requester" if attribution else None,
+        )
+        if attribution:
+            # Also reach the actor FK with a coherent initial attribution tuple.
+            absent_actor = row[column]
+            coherent = {
+                **row,
+                "requested_by": absent_actor,
+                "executed_by": absent_actor,
+                "created_by": absent_actor,
+            }
+            _reject(
+                engine,
+                lambda c: _insert(c, E, coherent),
+                "23503",
+                pr204_trace,
+                case=f"{table}.{column}-coherent-missing-actor",
+            )
     finally:
         engine.dispose()
 
@@ -963,7 +1024,7 @@ def test_reservation_uniqueness_contiguity_and_input_bounds(
                 connection.execute(
                     text(f"""UPDATE {A} SET status='RETRYABLE_FAILURE',
                     completed_at=clock_timestamp(),delivery_certainty='NOT_SENT',
-                    failure_code='PROVIDER_NOT_SENT',warning_codes='[]'::jsonb,
+                    failure_code='PROVIDER_TRANSIENT',warning_codes='[]'::jsonb,
                     result_count=0,row_version=2 WHERE execution_id=:execution"""),
                     {"execution": material["execution"]},
                 )
@@ -1346,11 +1407,13 @@ def test_atomic_outcome_rejects_invalid_complete_response_set(
                 text(f"""UPDATE {A} SET status=:status,query_record_id=:q,
                 invoked_at=:now,returned_at=:now,completed_at=clock_timestamp(),
                 delivery_certainty='RESPONSE_RECEIVED',failure_code=:reason,
+                retrieved_at=:retrieved,
                 result_count=:count,warning_codes='[]'::jsonb,row_version=2 WHERE id=:id"""),
                 {
                     "id": attempt["id"],
                     "q": query["id"],
                     "now": now,
+                    "retrieved": None if case == "failed_attempt_has_results" else now,
                     "status": "PERMANENT_FAILURE"
                     if case == "failed_attempt_has_results"
                     else "SUCCEEDED",

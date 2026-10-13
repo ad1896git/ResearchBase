@@ -32,12 +32,25 @@ def test_pg_referenced_parent_delete_cannot_remove_provenance(
         state = getattr(caught.value.orig, "sqlstate", None)
         # An immutable-parent trigger can reject before PostgreSQL checks its RESTRICT FK.
         # Existing catalog inventory separately proves every FK's RESTRICT declaration.
-        assert state in {"23503", "P17D1"}
+        assert state in {"23001", "23503", "P17D1"}
+        constraint = getattr(getattr(caught.value.orig, "diag", None), "constraint_name", None)
+        if state in {"23001", "23503"}:
+            # Prove that the native diagnostic names a real RESTRICT FK to
+            # this parent, rather than accepting an unrelated rejection.
+            with engine.connect() as connection:
+                assert connection.execute(
+                    text(
+                        "SELECT EXISTS (SELECT 1 FROM pg_constraint "
+                        "WHERE conname=:name AND contype='f' AND confdeltype='r' "
+                        "AND confrelid=CAST(:parent AS regclass))"
+                    ),
+                    {"name": constraint, "parent": parent},
+                ).scalar_one()
         assert _rows(engine) == before
         pr204_trace.record(
             parent_table=parent,
             rejected_sqlstate=state,
-            constraint=getattr(getattr(caught.value.orig, "diag", None), "constraint_name", None),
+            constraint=constraint,
             before=before,
             after=_rows(engine),
             provider_calls=len(material["provider"].calls),

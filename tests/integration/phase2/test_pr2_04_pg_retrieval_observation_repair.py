@@ -32,9 +32,15 @@ pytestmark = pytest.mark.pr204_requirements("PR204-SUCCESS-01")
 
 
 def material[S: LiteratureSearchExecutionService](
-    url, hits=0, service_type: type[S] = LiteratureSearchExecutionService
+    url,
+    hits=0,
+    service_type: type[S] = LiteratureSearchExecutionService,
+    *,
+    migration_revision="head",
 ):
-    engine, plans, principal, project, plan, version = _setup(url)
+    engine, plans, principal, project, plan, version = _setup(
+        url, migration_revision=migration_revision
+    )
     _freeze(engine, plans, principal, project, plan, version)
     response = SearchResponse.success(
         provider_id="provider-a",

@@ -239,12 +239,14 @@ def test_sql_status_or_code_cannot_forge_provider_confirmation(case):
 def test_migration_empty_roundtrip_and_populated_downgrade(case, phase2_database_url):
     engine, healthy, _, _, _, create = case
     healthy.create(create)
+    with engine.connect() as connection:
+        installed_revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
     # Existing valid history cannot be downgraded into the old C1-only semantics.
     with pytest.raises(DBAPIError, match="cannot downgrade populated"):
         command.downgrade(_alembic(phase2_database_url), PARENT)
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0031_m3_snapshot_relation_cardinality"
+        assert (
+            connection.scalar(text("SELECT version_num FROM alembic_version")) == installed_revision
         )
 
 

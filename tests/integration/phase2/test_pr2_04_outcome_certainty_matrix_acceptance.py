@@ -62,6 +62,7 @@ def complete_outcome(connection, m, outcome, reason, certainty):
         text(
             f"UPDATE {A} SET status=:status,query_record_id=:query,invoked_at=:at,"
             "returned_at=:at,completed_at=:at,delivery_certainty=:certainty,"
+            "provider_request_id=:provider_request_id,"
             "failure_code=:reason,warning_codes='[]'::jsonb,result_count=0,"
             "retrieved_at=:retrieved,row_version=2 WHERE id=:id"
         ),
@@ -71,6 +72,7 @@ def complete_outcome(connection, m, outcome, reason, certainty):
             at=at,
             certainty=certainty,
             reason=reason,
+            provider_request_id="confirmed-remote" if outcome == "CANCELLED" else None,
             retrieved=at if outcome == "SUCCEEDED" else None,
             id=attempt["id"],
         ),

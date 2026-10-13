@@ -20,16 +20,9 @@ from sqlalchemy.exc import DBAPIError
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.persistence.database import create_database_engine
+from tests.integration.phase2.conftest import phase2_database_url as phase2_database_url
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        not os.getenv("PR11R2_MIGRATION_DB_URL"),
-        reason=(
-            "PR11R2_MIGRATION_DB_URL is not set; run migration matrix against disposable PostgreSQL"
-        ),
-    ),
-]
+pytestmark = pytest.mark.integration
 
 REPOSITORY_ROOT = Path(__file__).parents[2]
 PREVIOUS_HEAD = "0012_statistical_result_input_guard"
@@ -49,8 +42,14 @@ def _repository_head() -> str:
     return head
 
 
-@pytest.fixture(scope="module", autouse=True)
-def restore_migration_database_to_repository_head() -> Iterator[None]:
+@pytest.fixture(autouse=True)
+def restore_migration_database_to_repository_head(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    # Use a fresh, owned DB for each destructive historical migration matrix.
+    database_url = request.getfixturevalue("phase2_database_url")
+    assert isinstance(database_url, str)
+    monkeypatch.setenv("PR11R2_MIGRATION_DB_URL", database_url)
     yield
     head = _repository_head()
     restored = _alembic("upgrade", head)
@@ -63,7 +62,7 @@ def restore_migration_database_to_repository_head() -> Iterator[None]:
 def _alembic(*arguments: str) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["DATABASE_URL"] = _migration_db_url()
-    environment["UV_CACHE_DIR"] = "/private/tmp/researchbase-uv-cache"
+    environment["UV_CACHE_DIR"] = str(REPOSITORY_ROOT / ".uv-cache")
     return subprocess.run(
         ["uv", "run", "alembic", *arguments],
         cwd=REPOSITORY_ROOT,
