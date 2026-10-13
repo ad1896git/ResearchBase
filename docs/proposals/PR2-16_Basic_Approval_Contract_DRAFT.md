@@ -431,4 +431,3 @@ status, sole draft change and no trailing whitespace verified. `git diff --check
 exits 0. The explicit content check covers this untracked proposal, which ordinary
 git diff does not include. This is draft verification, not independent architecture
 review or owner approval.
-
