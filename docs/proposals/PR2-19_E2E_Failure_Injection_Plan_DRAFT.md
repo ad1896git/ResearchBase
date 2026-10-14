@@ -214,8 +214,8 @@ that obligation remains blocked rather than adding a persisted status in tests.
 
 ## 8. Error expectations and compatibility
 
-Pin exact expected codes per owning command in the future execution matrix.
-No PR2-19 error enum or transport mapping is proposed. Authenticate and establish
+Use the pinned mappings and command oracles in §13 and §14.
+PR2-19 adds no product error enum or transport mapping. Authenticate and establish
 entitlement before protected existence/hash/conflict diagnostics; compare
 sanitized bounded public diagnostics, not driver exceptions or SQL strings.
 
@@ -226,7 +226,7 @@ sanitized bounded public diagnostics, not driver exceptions or SQL strings.
 | Existing FROZEN_REFERENCE_REQUIRED, VERSION_NOT_FROZEN, REVIEW_TARGET_NOT_FROZEN, SOURCE_VERSION_NOT_FREEZABLE, INVALID_SOURCE_VERSION_LINEAGE | Owning frozen-state/lineage checks; expected code depends on tested command. |
 | Existing PROVENANCE_CLOSURE_VIOLATION, REFERENTIAL_INTEGRITY_ERROR, IMMUTABLE_RECORD, SOURCE_VERSION_IMMUTABLE | Corrupt or unresolved closure, strong-reference or immutable-write attempts. HASH_MISMATCH in design text is not an implemented ErrorCode member here. |
 | Existing IDEMPOTENCY_CONFLICT, CONCURRENT_MODIFICATION, INVALID_STATE_TRANSITION | Changed replay, bounded concurrency exhaustion and unavailable lifecycle transition. No automatic retry of permanent denial. |
-| Design/base APPROVAL_GATE_FAILED, DECISION_BASIS_INVALID, APPROVAL_TARGET_STALE, APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, REJECTION_RECONSIDERATION_REQUIRED, GRANT_INVALID, GRANT_STALE | Require PR2-16/effect implementation's approved exact enums/mappings before tests freeze. These are not implemented ErrorCode members in this baseline. |
+| Design/base APPROVAL_GATE_FAILED, DECISION_BASIS_INVALID, APPROVAL_TARGET_STALE, APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, REJECTION_RECONSIDERATION_REQUIRED, GRANT_INVALID, GRANT_STALE | Use the proposed mappings in §13; activation belongs to PR2-16/effect contracts. These are not implemented ErrorCode members in this baseline. |
 
 Candidate-level unresolved citations may produce a structured rejection/warning
 rather than a command error. Capture the actual candidate contract and zero
@@ -241,12 +241,11 @@ Do not hold a scientific transaction across provider/LLM network work. Use
 provider doubles to observe transaction closure at call time and retain separate
 execution/query/result history; timeout/cancel/unknown outcome is not success.
 
-Test the accepted shared lock matrix rather than inventing PR2-19 lock order.
-PR2-15 request coordination → exact target → sorted SHARE-table snapshot and
-PR2-14 target-coordinated writers must remain compatible with approved
-PR2-16 rejection-scope/authority/target coordination. Inventory all participating
-writers before future tests freeze. A missing participant is a P1 finding in its
-owning PR, not permission for test code to add an Application-only safety lock.
+Use the exact baseline lock orders in §14. They describe existing commands,
+not new locks added by tests. Future approval, revision and consuming commands
+are outside this slice. Their own contracts must supply compatible writer and
+lock inventories before their blocked cases can be activated. A missing
+participant is a P1 finding in its owning PR.
 
 Mandatory two-session schedules: review/Issue versus Decision/request/approval
 in both commit orders (including zero-Issue review INSERT); upstream invalidity
@@ -276,8 +275,7 @@ now(), caller time and cached authority are not final authorization clocks.
 
 Propose dedicated `tests/integration/phase2/test_pr2_19_*.py` modules for golden,
 failure, replay/atomicity and races; pure candidate/DTO unit tests under existing
-Phase 2 unit paths; architecture tests under `tests/architecture/`. Exact files
-are future execution-pack choices, not files created by this draft.
+Phase 2 unit paths; architecture tests under `tests/architecture/`. Exact files and cases are pinned in §14; this documentation change creates none.
 
 All thirteen 05 §49 obligations require executable evidence:
 
@@ -318,7 +316,7 @@ reported without weakening deterministic required coverage.
 
 Draft acceptance: exact status, resolved local links, only this proposal changed,
 all requested topics covered, base approval provenance explicit and actual
-verification results reported. Before freeze: owner resolves §12, independent
+verification results reported. Before implementation: owner approves or overrules the §13 decisions, independent
 spec/diff/evidence review has no open P0 BLOCKER/P1 MAJOR, and every mandatory
 row has an approved prerequisite, exact command/error oracle and executable
 node-ID mapping. No actor/test runner may self-authorize missing contracts.
@@ -332,9 +330,84 @@ revision, lock/hash/row-count evidence and cleanup proof. An implemented prefix
 may be reviewed as a bounded slice only by explicit owner decision; it cannot
 claim full PR2-19 or Phase 2 acceptance.
 
-## 12. Open questions for the owner — recommended conservative answers
+## 12. Glossary
 
-| Question | Recommended answer and consequence |
+Definitions apply from the first occurrence above. Document numbers refer to
+§1's authority table unless a path is supplied here.
+
+| Shorthand | Meaning and governing document |
+| --- | --- |
+| R2 | Second Phase 2 remediation package: gap, hash, identity and governance contracts 14–17; Addendum 02 A18. |
+| R3 | Targeted remediation refining R2; Architecture 18 and Addendum 02 A19. |
+| R4 | Temporal authorization remediation refining R3; Architecture 19 and Addendum 02 A20. |
+| A-numbers | Sections of Correction Addendum 02, not test identifiers. |
+| A2 | Execution naming: LiteratureSearchExecution differs from AgentExecution; Addendum 02. |
+| A3 | Formal targets require concrete references; Addendum 02. |
+| A4 | Strong canonical reference versus operational locator; Addendum 02. |
+| A5 | Minimal Phase 2 identity and authorization; Addendum 02. |
+| A10 | Canonical ID collections use relation tables; Addendum 02. |
+| A17 | Initial Phase 2 gap closure; Addendum 02. |
+| A18 | Normative R2 package precedence; Addendum 02. |
+| A19 | Normative R3 package precedence; Addendum 02. |
+| A20 | R4 expiry and receipt replay precedence; Addendum 02. |
+| A21 | Completed receipt replay requires current read entitlement; Addendum 02. |
+| A22 | Legacy preflight and observable cross-expiry proof; Addendum 02. |
+| A23 | Bounded minimal DecisionRecord command; Addendum 02 and Architecture 20. |
+| TEMP-AUTH-01 | Lock, reread, then fresh trusted time and authorization before effect; Architecture 19 §1. |
+| TEMP-AUTH-EVIDENCE-01 | Five database timestamps prove actual wait across expiry; Addendum 02 A22. |
+| R-ref | Typed exact hash reference `{type,id,content_hash}`; Hash R2 15 common rules. |
+| I-ref | Typed identity reference `{type,id}` without hash (including Run in revision payloads); Hash R2 15 common rules. |
+| sealed set | Complete immutable relation set fixed at seal/freeze, not a mutable list; System 01 §§8, 12 and Hash R2 15. |
+| frozen closure | Every material dependency resolves to an exact immutable version/record; System 01 §12. |
+| basis | Complete saved typed review/target references underlying a Decision; Architecture 20 §§3–6. |
+| exact replay | Same scoped UUID and normalized caller material returns saved result under current read entitlement; Architecture 20 §6 and Addendum 02 A21. |
+| UUID | Universally unique identifier; canonical identity representation, System 01 foundation/serialization rules. |
+| ID | Canonical identifier of an entity/version/record; Registry 03. |
+| SHA-256 | Content digest algorithm; Hash R2 15. |
+| CAS | Content-addressed artifact storage; Addendum 02 A6. |
+| FK / XOR | Foreign key / exactly one allowed concrete target; Registry 03 and Correction 12. |
+| DB / SQL / DDL | Database / Structured Query Language / Data Definition Language; System 01 persistence rules. |
+| ORM | Object-relational mapper, confined to persistence adapters; System 01 layering rules. |
+| UoW | Unit of Work: transaction boundary behind Application ports; System 01 transaction rules. |
+| API / HTTP / DTO | Application programming interface / HTTP transport / typed data transfer object; Cross-Phase 08 API contracts. |
+| CLI | Command-line interface sharing the Application boundary; Cross-Phase 08. |
+| E2E | End-to-end scenario across owning services and durable readback; Phase 2 Specification 05 §42. |
+| G0–G7 | This draft's golden rows; G1–G6 correspond to Specification 05 §42; G0 to Cross-Phase 08 §41. |
+| F1–F9, b/c suffixes | This draft's failure rows/subcases; F1–F5 derive from Specification 05 §43. |
+| RAG | Retrieval-augmented generation; candidate output only, Specification 05 PR2-07. |
+| LLM | Large language model; output is candidate state, System 01/Harness 09. |
+| DOI | Digital object identifier, external source identity rather than evidence; Registry 03 literature rules. |
+| STORM / Co-STORM | Research-method references for replaceable native strategies; Harness 09 §10. |
+| PaperQA / PaperQA2 | Optional replaceable scientific-RAG adapter; Specification 05 PR2-07/09. |
+| HUMAN / Agent / OWNER | Canonical actor class / caller class / project role; Identity R2 16. OWNER is not independent approval. |
+| PROCEED / INTERNAL_SCIENTIFIC_RELEASE | Only shipped Decision value/purpose in the minimal command; Architecture 20 §2. |
+| OPEN / BLOCKING | Initial Issue state / severity defining a blocker; Architecture 20 §4. |
+| DRAFT / FROZEN / SUPERSEDED | Version lifecycle states; System 01 and each owning contract. SUPERSEDED does not erase history. |
+| STALE / INVALID / VALID | Derived current validity, separate from immutable content; System 01 §19 and Correction 12. |
+| VERIFIED | Evidence-review status reached only through authorized independent verification; Specification 05 literature rules. |
+| CITATION_ONLY / PLACEMENT_ONLY | Presentation trace semantics, not scientific support; Correction 12 and PR2-13 placement services. |
+| READY | Manuscript lifecycle state requiring its own transition contract; Governance R2 17. |
+| NO_CHANGE | Deferred revision result with no scientific replacement; PR2-15 base. |
+| APPROVE / REJECT | Approval decision values; Governance R2 17, distinct from review recommendations. |
+| RESTRICT / SHARE / FOR UPDATE | PostgreSQL delete restriction / table lock / row lock modes; System 01 DB rules and Architecture 20 §5. |
+| UTC / NFC / UTF-8 | Coordinated Universal Time / Unicode canonical composition / UTF-8 text encoding; Hash R2 15 and temporal R4 19. |
+| Path | Python pathlib filesystem path, test report DTO only; this draft §13 under Harness 09 evidence rules. |
+| PID / SSI | PostgreSQL backend process ID / Serializable Snapshot Isolation; transaction evidence under Architecture 20 §5. |
+| CI | Continuous integration; engineering verification, Harness 09 §§18–19. |
+| ADR | Architecture Decision Record; deviations require review under AGENTS.md §11. |
+| PR / PR2-nn | Pull request / Phase 2 work package; Specification 05 implementation sequence. |
+| TDG2 / M4 / Human Gate | Phase 2 technology decision / final milestone / owner acceptance gates; Specification 05 and Technology Gate 11. |
+| P0/P1/P2/P3 | BLOCKER/MAJOR/MINOR/SUGGESTION review severity; AGENTS.md §10. |
+| PASS / BLOCKED / ERROR / SKIP | Passed assertions / absent prerequisite / setup or execution error / explicit optional omission; Harness 09 §19. None are interchangeable. |
+| node-ID | Pytest module plus test name (and parameter ID); this draft §14 evidence convention under Harness 09 §19. |
+
+## 13. Decisions taken in this draft
+
+Every recommended answer from the former open-question table is adopted below.
+The owner may overrule a draft decision. Until then these are the build defaults,
+not choices delegated to the implementing engineer.
+
+| Decision topic | Adopted decision and consequence |
 | --- | --- |
 | Full PR2-19 now or a bounded baseline slice while PR2-15/16 implement? | Freeze the full matrix with dependency blockers; authorize only available tests separately. No full gate until required suffixes exist and pass. |
 | How is the supplied 2026-10-14 base approval recorded given current DRAFT banners? | Treat task-supplied approval as base authority; record its exact approved revision in the later execution pack. Do not alter the two base files here or infer implementation acceptance. |
@@ -348,112 +421,379 @@ claim full PR2-19 or Phase 2 acceptance.
 | Can missing DB/prerequisites count as expected failure or SKIP success? | No. Record BLOCKED/setup ERROR and prohibit full gate success; optional live-adapter skips are separately scoped and counted. |
 | Are new schema/dependencies or deferred-path fixes allowed in PR2-19? | No by default. Return defects to the owning authorized PR; any material architecture deviation needs ADR/review before implementation. |
 
-## 13. Documentation-task verification
+### Error and replay decisions
 
-Executed 2026-10-13 against HEAD
-`4d19c36b851af824c4dea5c5cd18b270e603e0b4`. These are documentation/baseline
-checks, not execution of the proposed future matrix. Only this draft is added to
-the tracked-file change set. Scratch/cache/logs remain in ignored
-`tmp/pr2-19-verification/`; no commit, push or branch was created.
+The table below is the single transport mapping inventory for this plan. Existing
+values are copied from [HTTP errors](../../src/researchbase/api/errors.py) and
+[CLI errors](../../src/researchbase/cli/errors.py). Review mappings remain
+provisional in their source; this draft preserves them. Proposed values do not
+add ErrorCode members and cannot be used as an implemented oracle.
 
-The local `.venv` initially lacked pytest. The first two invocations of
-`uv --cache-dir tmp/pr2-19-verification/uv-cache run --offline --no-sync pytest
--o addopts='' -ra --tb=short tests/unit tests/architecture` exited 2 before
-collection: **0 tests executed**, `Failed to spawn: pytest`. The first
-`uv --cache-dir tmp/pr2-19-verification/uv-cache sync --offline --locked`
-exited 1 because the empty scratch cache lacked the locked Ruff wheel. Recovery
-used the existing local uv cache without network or dependency-file changes:
+| Error code | HTTP status | CLI exit | Standing |
+| --- | ---: | ---: | --- |
+| VALIDATION_ERROR | 422 | 2 | Existing |
+| NOT_FOUND | 404 | 3 | Existing |
+| AUTHENTICATION_REQUIRED | 401 | 3 | Existing |
+| FORBIDDEN | 403 | 3 | Existing |
+| REVIEW_TARGET_NOT_FROZEN | 409 | 4 | Existing |
+| CONFLICT_OF_INTEREST | 403 | 3 | Existing |
+| SUBJECT_BINDING_UNPROVEN | 403 | 3 | Existing |
+| INVALID_STATE_TRANSITION | 409 | 4 | Existing |
+| VERSION_NOT_FROZEN | 409 | 4 | Existing |
+| FROZEN_REFERENCE_REQUIRED | 409 | 5 | Existing |
+| IMMUTABLE_RECORD | 409 | 4 | Existing |
+| CONCURRENT_MODIFICATION | 409 | 4 | Existing |
+| DUPLICATE_CONTENT | 409 | 4 | Existing |
+| REFERENTIAL_INTEGRITY_ERROR | 409 | 5 | Existing |
+| PROVENANCE_CLOSURE_VIOLATION | 409 | 5 | Existing |
+| SUBJECT_ALREADY_BOUND | 409 | 4 | Existing |
+| OWNER_COVERAGE_GAP | 409 | 4 | Existing |
+| OWNER_CREDENTIAL_UNAVAILABLE | 409 | 4 | Existing |
+| ENROLLMENT_CHALLENGE_EXPIRED | 409 | 4 | Existing |
+| BOOTSTRAP_CLOSED | 409 | 4 | Existing |
+| IDEMPOTENCY_CONFLICT | 409 | 4 | Existing |
+| LEGACY_STATE_INVALID | 409 | 4 | Existing |
+| IDENTIFIER_INVALID | 422 | 2 | Existing |
+| SOURCE_IDENTITY_CONFLICT | 409 | 4 | Existing |
+| IDENTIFIER_ALREADY_BOUND | 409 | 4 | Existing |
+| IDENTIFIER_BASIS_NOT_FROZEN | 409 | 4 | Existing |
+| SOURCE_NOT_FOUND | 404 | 3 | Existing |
+| SHARED_SOURCE_REJECTION_REQUIRES_REVIEW | 409 | 4 | Existing |
+| SOURCE_MERGE_PROPOSAL_NOT_FOUND | 404 | 3 | Existing |
+| SOURCE_MERGE_PROPOSAL_STALE | 409 | 4 | Existing |
+| SOURCE_MERGE_APPROVAL_MISSING | 409 | 4 | Existing |
+| SOURCE_MERGE_APPROVAL_FORBIDDEN | 403 | 3 | Existing |
+| SOURCE_MERGE_REJECTED | 409 | 4 | Existing |
+| SOURCE_MERGE_PROPOSAL_ALREADY_CONSUMED | 409 | 4 | Existing |
+| SOURCE_MERGE_BASIS_CONFLICT | 409 | 4 | Existing |
+| SOURCE_NOT_MERGEABLE | 409 | 4 | Existing |
+| SOURCE_MERGE_IDENTIFIER_CONFLICT | 409 | 4 | Existing |
+| SOURCE_VERSION_NOT_FOUND | 404 | 3 | Existing |
+| SOURCE_VERSION_NOT_FREEZABLE | 409 | 4 | Existing |
+| SOURCE_VERSION_ALREADY_FROZEN | 409 | 4 | Existing |
+| SOURCE_VERSION_IMMUTABLE | 409 | 4 | Existing |
+| INVALID_SOURCE_VERSION_LINEAGE | 409 | 4 | Existing |
+| SEARCH_PLAN_QUESTION_REQUIRED | 422 | 2 | Existing |
+| SEARCH_PLAN_LANGUAGE_SCOPE_REQUIRED | 422 | 2 | Existing |
+| SEARCH_PLAN_QUESTION_INVALID | 422 | 2 | Existing |
+| SEARCH_PLAN_QUESTION_SCOPE_MISMATCH | 403 | 3 | Existing |
+| SEARCH_PLAN_VERSION_IMMUTABLE | 409 | 4 | Existing |
+| SEARCH_PLAN_NOT_FROZEN | 409 | 4 | Existing |
+| ADAPTER_UNAVAILABLE | 503 | 5 | Existing |
+| ADAPTER_VERSION_MISMATCH | 409 | 4 | Existing |
+| HASH_MISMATCH | 409 | 5 | Proposed; owning contract must adopt |
+| APPROVAL_GATE_FAILED | 409 | 4 | Proposed; owning contract must adopt |
+| DECISION_BASIS_INVALID | 409 | 5 | Proposed; owning contract must adopt |
+| APPROVAL_TARGET_STALE | 409 | 4 | Proposed; owning contract must adopt |
+| APPROVAL_PURPOSE_TARGET_COMMAND_INVALID | 422 | 2 | Proposed; owning contract must adopt |
+| REJECTION_RECONSIDERATION_REQUIRED | 409 | 4 | Proposed; owning contract must adopt |
+| GRANT_INVALID | 409 | 4 | Proposed; owning contract must adopt |
+| GRANT_STALE | 409 | 4 | Proposed; owning contract must adopt |
 
-```bash
-mkdir -p tmp/pr2-19-verification
-cp -R /Users/fengwang/.cache/uv/. tmp/pr2-19-verification/uv-cache/
-uv --cache-dir tmp/pr2-19-verification/uv-cache sync --offline --locked
-uv --cache-dir tmp/pr2-19-verification/uv-cache run --offline --no-sync pytest -o addopts='' -ra --tb=short tests/unit tests/architecture
-uv --cache-dir tmp/pr2-19-verification/uv-cache run --offline --no-sync ruff check .
-uv --cache-dir tmp/pr2-19-verification/uv-cache run --offline --no-sync ruff format --check .
-uv --cache-dir tmp/pr2-19-verification/uv-cache run --offline --no-sync pyright
+For runnable cases: discussion promotion → FORBIDDEN; changed Decision material
+or second initial Decision scope → IDEMPOTENCY_CONFLICT; current invalid
+Decision closure or OPEN/BLOCKING Issue → PROVENANCE_CLOSURE_VIOLATION;
+non-frozen conclusion review → REVIEW_TARGET_NOT_FROZEN; reviewer/decider author
+equality → CONFLICT_OF_INTEREST. Missing principal → AUTHENTICATION_REQUIRED;
+current authority loss → FORBIDDEN. Source lineage and artifact-binding faults
+use INVALID_SOURCE_VERSION_LINEAGE and FROZEN_REFERENCE_REQUIRED respectively.
+Evidence quotation/locator rejection and evidence changed-receipt input use
+VALIDATION_ERROR in the current service; do not substitute IDEMPOTENCY_CONFLICT.
+Candidate validation raises ValueError, not a product ErrorCode. Raw PostgreSQL
+constraint probes assert SQLSTATE and rollback, not an invented HTTP response.
+
+Same UUID replay keeps the saved basis and result. New UUID is never a recovery
+policy. Decision retries at most three whole transactions on normalized
+CONCURRENT_MODIFICATION; permanent denials are not retried. Discussion and
+source commands retain their existing three-attempt serializable retry. Tests
+must distinguish an aborted transaction from a committed-but-lost response.
+PR2-14 review replay remains its existing current-target-validity behavior;
+this draft does not grant it the Decision's stale-target historical replay rule.
+
+### Closed test DTOs, limits and enums
+
+Create frozen, slotted dataclasses in the test helper named in §14. These are
+report DTOs only. Do not create product DTOs or a generic command interpreter.
+Each scenario is a named Python test calling typed owning commands directly.
+
+| DTO | Exact fields and Python types |
+| --- | --- |
+| ScenarioSpec | `scenario_id: str`, `authority_clause: str`, `prerequisite_contracts: tuple[str, ...]`, `actor_ids: tuple[UUID, ...]`, `fixture_case: str`, `command_steps: tuple[str, ...]`, `fault_point: str`, `expected_outcome: str`, `expected_error_code: str \| None` |
+| ScenarioObservation | `scenario_id: str`, `step_index: int`, `command_identity: str`, `result_ids: tuple[UUID, ...]`, `error_code: str \| None`, `state_deltas: tuple[StateDelta, ...]`, `verified_hashes: tuple[VerifiedHash, ...]`, `backend_pids: tuple[int, ...]`, `lock_events: tuple[LockEvent, ...]`, `evidence_paths: tuple[Path, ...]` |
+| StateDelta | `table_name: str`, `before_count: int`, `after_count: int` |
+| VerifiedHash | `record_id: UUID`, `hash_field: str`, `expected: str`, `actual: str` |
+| LockEvent | `backend_pid: int`, `event: str`, `at: datetime`, `blocker_pids: tuple[int, ...]` |
+| RecordDecisionCommand (existing) | `id: UUID`, `project_id: UUID`, `scientific_conclusion_version_id: UUID`, `question: str`, `rationale: str`, `decision_type: str = "INTERNAL_SCIENTIFIC_RELEASE"`, `decision: str = "PROCEED"` |
+| ClaimInputRequest (existing) | `claim_version_id: UUID`, `relation_type: str`, `literature_support_snapshot_id: UUID \| None = None` |
+| LiteratureInputRequest (existing) | `literature_evidence_id: UUID`, `relation_type: str` |
+| ReviewIssueRequest (existing) | `severity: str`, `issue_type: str`, `description: str` |
+
+Test DTO string limits: IDs and command labels 128 characters; authority clauses
+and prerequisite names 512; diagnostic text 1000. Collections: 32 command steps,
+16 actors, 32 prerequisites, 128 result IDs/deltas/hashes/lock events/paths.
+Counts and step indices are nonnegative integers; backend PIDs are positive.
+Hashes are 64 lowercase hexadecimal characters. All timestamps are timezone-aware
+UTC database observations. Evidence paths must remain under the test report
+root. Reject unknown fields and invalid values when constructing test DTOs.
+These report limits do not truncate or limit canonical review/basis sets.
+
+Pinned test enums: `fault_point` = NONE, AFTER_PARENT_INSERT,
+AFTER_RELATION_INSERT, AFTER_EVENT_INSERT, BEFORE_COMMIT, AFTER_COMMIT_RESPONSE,
+SERIALIZATION, DEADLOCK. `expected_outcome` = PASS, DENIED, BLOCKED, ERROR.
+`event` = TX_STARTED, WAIT_OBSERVED, LOCK_ACQUIRED, AUTH_CHECKED, COMMITTED,
+ROLLED_BACK. Scenario IDs are exactly the rows in §14; finite command labels
+come from that row's named owning methods. No eval, arbitrary SQL hook or dynamic
+import is allowed. Pure candidate DTO failures use a named ValueError assertion;
+`expected_error_code` is then None.
+
+Existing Decision text is NFC-normalized nonblank UTF-8, with no current maximum
+in its owning `_text`; do not add a product limit here. Review summary and Issue
+description are NFC-normalized nonblank UTF-8, at most 16000 characters; initial
+Issues are a tuple with at most 100 entries. Review types: SCIENTIFIC, STATISTICAL,
+LITERATURE, REPRODUCIBILITY, EDITORIAL, COMPREHENSIVE. Recommendations: ACCEPT,
+MINOR_REVISION, MAJOR_REVISION, REJECT, UNCERTAIN. Severities: INFO, MINOR, MAJOR,
+BLOCKING. Issue types: UNSUPPORTED_CLAIM, CITATION, STATISTICAL, METHODOLOGICAL,
+REPRODUCIBILITY, OVERCLAIM, CONTRADICTION, NOVELTY, WRITING, OTHER. Initial status
+is OPEN. Targets shipped by InternalReviewService are CLAIM_VERSION and
+SCIENTIFIC_CONCLUSION_VERSION; manuscript/artifact review is outside this slice.
+
+Conclusion claim/literature input collections are tuples, at most 100 each;
+relation_type is SUPPORTS, CONTRADICTS or QUALIFIES. Exact hashes and current
+validity are resolved by the owning service, never supplied by report DTOs.
+
+Use ScientificRAGRequest and EvidenceCandidate from
+[scientific_rag_provider.py](../../src/researchbase/application/scientific_rag_provider.py).
+Question is at most 16000 characters; source IDs are a nonempty unique UUID tuple;
+max_evidence_candidates is an integer 1–100, default 20; excerpt is nonblank and
+at most 4000 characters. Locator page is positive; paragraph is a positive decimal
+string; section/figure/table are bounded to 128 characters; quote_span has the
+`char:start:end` format and requires a paragraph. Provider/adapter IDs and version
+are bounded to 128, model ID to 256, notes to 1000, answer to 16000. There is no
+existing source-set maximum; use two sources and at most two candidates in the
+deterministic fixture. ResearchStrategyRequest topic is at most 255 characters.
+No contribution_role enum is introduced: authorship is blocked under PR2-17.
+
+## 14. Implementation guide
+
+### Exact DDL sketch: empty change set
+
+PR2-19 is test orchestration. Adding tables would violate §5 and AGENTS.md §4.
+The following is the complete DDL specification, not a placeholder:
+
+| Table | Column | SQL type | NULL/NOT NULL | Constraint name | Index name |
+| --- | --- | --- | --- | --- | --- |
+| None added or altered | None | Not applicable | Not applicable | None | None |
+
+```sql
+-- PR2-19 migration body: no SQL statements.
+-- Do not create an Alembic revision, temporary canonical table or test receipt.
 ```
 
-Locked sync exited 0 and installed 34 packages. Pytest exited 1: **1820 passed,
-5 failed, 0 skipped, 2 warnings** in 33.10s. Four failures in
-`tests/unit/test_hg1_runner.py` occur at Unix socket bind with
-`PermissionError: [Errno 1] Operation not permitted`. The fifth,
-`test_candidate_static_gates_and_inherited_formatter_delta`, fails the pinned
-baseline diff check because existing `docs/verification/task9/pyright.txt:4`
-has a new blank line at EOF relative to baseline
-`b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff`. Neither failure source was changed
-or suppressed. Ruff lint exited 0, **All checks passed**; format exited 0,
-**456 files already formatted**; Pyright exited 0, **0 errors, 0 warnings,
-0 informations**. These tools do not verify Markdown semantics.
+Use the existing Alembic head in disposable databases. Catalog probes enumerate
+existing FK, RESTRICT, immutable and sealed-set guards; they do not recreate them.
+RevisionAction, Approval and package DDL belongs to the contracts listed below.
 
-PostgreSQL checks and initialization attempt:
+### Runnable matrix and named fixtures
 
-```bash
-pg_isready -h 127.0.0.1 -p 5432
-pg_isready -h 127.0.0.1 -p 55440
-/opt/homebrew/opt/postgresql@18/bin/initdb -D tmp/pr2-19-verification/pgdata -U pr219_admin -A trust --no-locale
-```
+RUNNABLE NOW means buildable against current code, not already executed or
+accepted. A blocked full row cannot be satisfied by its runnable prefix.
+Every future module path below starts with `tests/integration/phase2/`, except
+G0's explicitly named existing E2E module. Named fixtures are defined below.
 
-Both readiness commands exited 2, **no response**. initdb exited 1 at `shmget`:
-**could not create shared memory segment: Operation not permitted**, then removed
-its incomplete cluster. No test server could start. The following exact suite
-selection was executed first with only RB_TEST_ADMIN_URL; it exited 1 with
-**111 setup errors**, including missing DATABASE_URL in the older shared fixture.
-It was rerun with both selectors to remove that configuration error:
+| Row | Full-row status | Exact test module and fixture / missing contract |
+| --- | --- | --- |
+| G0 | RUNNABLE NOW | Existing `tests/e2e/test_phase1_golden_scientific_workflow.py`; `fresh_fixture`, `run_workflow`, `projection` from `tests/e2e/support.py`. |
+| G1 | BLOCKED BY search-result-to-SourceVersion resolution admission | `test_pr2_19_search_evidence.py`; `pr219_evidence_env` + PR2-04 execution fixtures. Independent search and source/evidence prefixes are runnable; no persisted resolution bridge is supplied by this draft. |
+| G2 | BLOCKED BY successful strategy candidate-to-question/hypothesis DRAFT promotion | `test_pr2_19_candidates.py`; `pr219_candidate_env`. Native candidate prefix runnable. |
+| G3 | RUNNABLE NOW | `test_pr2_19_rag_evidence.py`; `pr219_evidence_env`, `pr219_candidate_env`. Offline ScientificRAG double → exact source/quotation checks → evidence create/review. Optional live PaperQA is not a prerequisite. |
+| G4 | BLOCKED BY successful discussion-to-HypothesisVersion DRAFT promotion | `test_pr2_19_discussion.py`; `pr219_discussion_env`; negative prefix F4 is runnable. |
+| G5 | BLOCKED BY manuscript freeze command | `test_pr2_19_citation_trace.py`; `pr219_trace_env`; draft/placements/trace prefix runnable. |
+| G6 | BLOCKED BY completed RevisionAction, Issue disposition, revision-purpose Decision, concern carry-forward, manuscript review and Basic Approval | `test_pr2_19_governance.py`; `pr219_decision_env`; no-blocker review → minimal PROCEED prefix runnable, request/grant suffix blocked. |
+| G7 | BLOCKED BY PR2-17 package/authorship/consent and PR2-18 coverage/prior-art/novelty contracts | `test_pr2_19_dependencies.py`; no synthetic READY/package/novelty fixtures. |
+| F1 | BLOCKED BY manuscript current-validity/audit projection and Basic Approval | `test_pr2_19_lineage.py`; `pr219_evidence_env`, `pr219_trace_env`; source/direct-literature/snapshot/conclusion prefix runnable; no automatic audit creation claim. |
+| F1b | RUNNABLE NOW | `test_pr2_19_lineage.py`; `pr219_evidence_env`; missing/wrong-source/unfrozen predecessor, bad correction basis and concurrent corrections. |
+| F2 | RUNNABLE NOW | `test_pr2_19_candidates.py`; `pr219_candidate_env`, `pr219_evidence_env`; invented/out-of-corpus IDs, absent paragraph and substituted quotation, valid control and zero canonical delta. |
+| F2b | BLOCKED BY contracted defensive read of unresolved formal FK under privileged corruption | `test_pr2_19_integrity.py`; `pr219_evidence_env`, `pr219_decision_env`; missing/corrupt CAS and saved Decision hash corruption prefixes runnable. Normal-role FK rejection is runnable separately. |
+| F3 | RUNNABLE NOW | `test_pr2_19_citation_trace.py`; `pr219_trace_env`; CITATION_ONLY and unchanged support hashes. Automatic unsupported-assertion audit remains outside this row until contracted. |
+| F4 | RUNNABLE NOW | `test_pr2_19_discussion.py`; `pr219_discussion_env`; Human/Agent instruction content, close/bind, current FORBIDDEN and zero scientific writes. Future positive promotion excluded. |
+| F5 | BLOCKED BY Basic Approval and manuscript READY transition/review | `test_pr2_19_governance.py`; `pr219_decision_env`; minimal Decision blocker/unknown-field prefix runnable. |
+| F5b | BLOCKED BY Basic Approval independence, stale-target and purpose tuple gates | `test_pr2_19_governance.py`; `pr219_decision_env`; existing Decision authority/closure prefix runnable. |
+| F5c | BLOCKED BY Basic Approval project/purpose rejection fence and reconsideration contract | `test_pr2_19_governance.py`; no fabricated rejection receipt fixture. |
+| F6 | BLOCKED BY completed RevisionAction seven-result-shape contract and implementation | `test_pr2_19_revision.py`; no synthetic action/result fixtures; NO_CHANGE also requires revision-purpose Decision. |
+| F7 | BLOCKED BY Basic Approval atomic decision/grant/event command | `test_pr2_19_atomicity.py`; `pr219_decision_env`, `pr219_discussion_env`; existing parent/relation/event and Decision basis rollback prefix runnable. |
+| F8 | RUNNABLE NOW | `test_pr2_19_replay.py`; `pr219_decision_env`, `pr219_discussion_env`; exact replay, changed material, concurrent UUID, restart, lost response and bounded aborted retry. This row covers existing commands only. |
+| F9 | BLOCKED BY grant consumption command, atomic result/receipt and current-read replay contract | `test_pr2_19_grant_consumption.py`; no grant fabrication. |
 
-```bash
-RB_TEST_ADMIN_URL=postgresql+psycopg://pr219_admin@127.0.0.1:55479/postgres \
-DATABASE_URL=postgresql+psycopg://pr219_admin@127.0.0.1:55479/postgres \
-uv --cache-dir tmp/pr2-19-verification/uv-cache run --offline --no-sync pytest -o addopts='' -ra --tb=short \
-  tests/integration/phase2/test_pr2_02_source_version_migration.py \
-  tests/integration/phase2/test_pr2_10_discussion_persistence.py \
-  tests/integration/phase2/test_pr2_11_r2_persistence.py \
-  tests/integration/phase2/test_pr2_13_scientific_trace.py \
-  tests/integration/phase2/test_pr2_14_internal_review.py \
-  tests/integration/phase2/test_pr2_14_conclusion_review.py \
-  tests/integration/phase2/test_pr2_15_decision.py \
-  tests/integration/phase2/test_pr2_15_decision_schema.py \
-  tests/integration/phase2/test_pr2_15_coordination.py
-```
+Create fixture wrappers in `tests/integration/phase2/pr2_19_support.py`, following
+PR2-14/15's helper/fixture reuse layout. Register wrapper fixtures in each new
+module by explicit imports; reuse the existing Phase 2 conftest. Paths here name
+future files and are deliberately not Markdown links to nonexistent files.
 
-Rerun exited 1: **0 passed, 0 failed assertions, 111 setup errors, 0 skipped**
-in 9.90s. PostgreSQL connection attempts failed with **Operation not permitted**.
-**BLOCKED, not PASS:** no integration or migration assertion completed. The
-first integration run took 9.47s. Approval escalation is unavailable here;
-rerun this selection on a permitted disposable PostgreSQL 18.x host for actual
-baseline integration evidence. Other scientific integration suites were not run:
-this non-authoritative document changes no executable/schema/frozen contract.
-The future full acceptance matrix remains NOT RUN and requires broader real-DB
-coverage under separate implementation authorization.
+- `pr219_evidence_env`: wrap `m3` from `test_m3_evidence.py`; upgrade its isolated
+  DB to head before commands; reuse TechnicalCredentials and tmp_path CAS.
+- `pr219_candidate_env`: fixed two-source corpus from pr219_evidence_env, offline
+  ScientificRAGCapability double and native strategy; use provider shapes from
+  `tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py` and
+  `test_pr2_08_native_strategy.py`. No DB-writing provider fake.
+- `pr219_decision_env`: reuse `decision_env`, `_command`, `_review` from
+  `test_pr2_15_decision.py` and its `normal_sql_role` fixture for adversarial SQL.
+- `pr219_trace_env`: reuse `conclusion_env`, `phase2_database_url` and `_draft`
+  as imported by `test_pr2_13_scientific_trace.py`; build citations through owning
+  services, never synthetic frozen manuscript rows.
+- `pr219_discussion_env`: reuse `discussion_env` from
+  `test_pr2_10_discussion_persistence.py`; retain its server-identity preflight.
 
-Documentation verification uses this exact command, rerun after final edits:
+All wrapper DBs are fixture-owned disposable PostgreSQL 18.x databases. Retain
+identity checks before CREATE and finally cleanup. Do not mix fixtures backed by
+different databases into one scenario. For a shared chain, derive services from
+one wrapper's factory/credentials/engine and create additional actors through
+that fixture's accepted test setup. Preserve separate author, verifier, reviewer
+and independent decider; later HUMAN approver cannot be fabricated by the test.
 
-```bash
-uv --cache-dir tmp/pr2-19-verification/uv-cache run --offline --no-sync python - <<'PY'
-from pathlib import Path
-import re
-import subprocess
-p = Path('docs/proposals/PR2-19_E2E_Failure_Injection_Plan_DRAFT.md')
-s = p.read_text()
-links = re.findall(r'\]\(([^)]+)\)', s)
-assert all((p.parent / target).is_file() for target in links)
-assert '**Status: DRAFT — awaiting owner approval; not authorized for implementation**' in s
-assert subprocess.check_output(['git', 'status', '--short'], text=True).splitlines() == [f'?? {p.as_posix()}']
-assert all(line == line.rstrip() for line in s.splitlines())
-assert len(re.findall(r'^```', s, re.M)) % 2 == 0
-required = ['Purpose', 'Scope', 'Invariants', 'Commands, DTOs', 'Schema proposal', 'Error expectations', 'Concurrency', 'Architecture tests', 'Dependencies, acceptance', 'Open questions']
-assert all(term in s for term in required)
-architecture = Path('docs/architecture/05_Phase2_Development_Specification_v1.1_Harness_Integrated.md').read_text().split('# 49. Architecture Tests')[1].split('# 50.')[0]
-names = re.findall(r'^test_\w+', architecture, re.M)
-assert len(names) == 13 and all(name in s for name in names)
-assert all(token in s for token in ['G1 /', 'G2 /', 'G3 /', 'G4 /', 'G5 /', 'G6 /', 'F1 /', 'F2 /', 'F3 /', 'F4 /', 'F5 /'])
-print(f'8 checks passed: {len(links)} local links; exact status; sole draft change; whitespace; fences; topic coverage; 13 architecture obligations; six golden/five failure families')
-PY
-git diff --check
-```
+### Ordered build steps and test cases
 
-Result: **8 checks passed, 22 local links resolve**; git diff whitespace check
-exited 0. Explicit content checks cover this untracked draft, which ordinary
-git diff does not include. Manual review checked authority/dependency separation,
-schema restraint and expected durable outcomes; it is not independent review,
-owner approval or a future PR2-19 gate PASS.
+1. Build `pr2_19_support.py`: the §13 records, count/hash observations, fixed corpus,
+   fresh-connection readback and barrier helpers. Reuse
+   `_wait_for_pg_blocker` from `test_pr2_14_internal_review.py`. Helpers may wrap
+   UoW/repository calls for finite fault injection; no changes to production.
+2. Create `tests/unit/phase2/test_pr2_19_report_contract.py`: every DTO field/type,
+   unknown field, limit edge, enum, path confinement and aware timestamp case.
+   This is a new report contract, not duplicate tests of existing DTO constructors.
+3. Create runnable candidate and RAG modules: G3/F2 cases from the matrix, plus
+   independently verified quotation bytes, independent HUMAN review, restart,
+   no evidence on source creation/retrieval alone and no provider DB access.
+4. Create lineage, integrity and citation modules for the runnable prefixes/F1b/F3:
+   both direct-literature and Claim snapshot paths, correction/retraction preserves
+   old bytes, invalid new admission, normal-role FK/immutability rejection,
+   CAS failures, CITATION_ONLY and separate experiment/literature trace paths.
+5. Create discussion module: F4 valid control, Human/Agent malicious turn content,
+   transcript binding, restart, zero new canonical scientific rows and FORBIDDEN.
+6. Create governance module for the minimal Decision prefix: complete ACCEPT/REJECT/
+   UNCERTAIN basis, OPEN/BLOCKING denial, unrelated Issue control, author conflict,
+   cross-project/no-principal/expired-role denials, unchanged target/history and
+   no approval/effect. Test unknown command fields at the closed boundary.
+7. Create atomicity and replay modules: finite mid-write faults, pre-commit abort,
+   post-commit lost response, concurrent same UUID, changed material, fresh service,
+   three-attempt serialization/deadlock exhaustion and no duplicate history.
+8. Create `test_pr2_19_races.py`: Decision versus zero-Issue review INSERT and
+   BLOCKING Issue INSERT in both orders, upstream impact and authority writers in
+   both orders, actual lock observations, fresh complete basis/blocker checks and
+   cross-expiry five-timestamp proof. Reuse PR2-15's coordinated normal-role probes.
+9. Create `tests/architecture/test_pr2_19_boundaries.py`: all thirteen §10 names.
+   Import/catalog checks are static; behavioral cases call the integration
+   helpers. Approval-invalid-fact obligation stays BLOCKED. Create
+   `test_pr2_19_dependencies.py` to inventory every blocked row/contract and fail
+   the full-gate report if any mandatory blocker remains; do not mark them xfail
+   or skip to obtain success. Do not create blocked-only test modules until their
+   prerequisite is authorized; reserve their exact names in the report.
+10. Run unit/architecture and runnable integration modules plus existing Phase 1
+    golden, PR2-10–15 regression and affected migration suites. Record exact
+    command/node-IDs and counts under `artifacts/pr_evidence/PR2-19/`. Full gate
+    fails while any matrix row or architecture obligation remains BLOCKED.
+
+Owning production paths are `src/researchbase/application/internal_review.py`,
+`decision.py`, `literature_evidence.py`, `discussion.py`,
+`manuscript_placement.py`, `manuscript_scientific_trace.py`;
+ports are `src/researchbase/application/ports.py`, persistence is
+`src/researchbase/persistence/internal_review_repository.py`,
+`decision_repository.py`, `publication_repository.py`, `uow.py`.
+Follow this separation in test composition. Do not create a PR2-19 Application
+service, persistence adapter, route or CLI command. Return production defects
+to the owning authorized PR instead of fixing them in the test slice.
+
+### Exact lock orders for exercised commands
+
+These are baseline observation oracles. All locks last until commit/rollback.
+`P` below means `rb_phase2_lock_project(project_id)` then `projects FOR UPDATE`.
+`A` means the existing authorization query locks actors, membership, role and
+subject binding rows (`FOR UPDATE OF a,m,r,b`, ordered by those IDs in the search
+plan repository), followed by fresh `clock_timestamp()` credential/role checks.
+The source-version repository retains its own authorization selection order.
+P and A are defined here only as abbreviations, not new lock primitives.
+
+| Command | Exact acquisition order |
+| --- | --- |
+| DecisionService.record_decision, including replay | Set local lock_timeout=10s, statement_timeout=30s → advisory `pr215:decision:{id}` → exact conclusion version FOR UPDATE → the sorted SHARE table list below → P → A → eligible reviews ORDER BY id FOR SHARE → Issue reads/basis writes → fresh A before commit. Replay verifies saved basis instead of selecting a new basis. |
+| InternalReviewService.create, conclusion target | Advisory `pr214:review:{derived_id}` → exact conclusion version FOR UPDATE → scientific_conclusions parent FOR UPDATE → P → A → target closure/read → fresh A after possible waits → review INSERT/initial Issue INSERT → commit. Derived id is the existing uuid5 scoped request identity. |
+| InternalReviewService.create, Claim target | P → A → advisory `pr214:review:{derived_id}` → P → A → literature_evidence.target Claim lookup/closure → fresh A → review/Issue writes. Do not apply the conclusion order to Claim reviews. |
+| Normal-role conclusion Review INSERT | 0041 trigger: exact conclusion version FOR UPDATE before validating/writing review; parent/closure guards follow; never begin with target FOR SHARE and upgrade. |
+| Normal-role conclusion Issue INSERT | Resolve immutable review's target → exact conclusion version FOR UPDATE → review row lock/reread → validate binding → Issue write. |
+| DiscussionService.create | Begin serializable → P → A → scoped CREATE_SESSION advisory receipt lock → validate exact inputs → session/input writes → fresh A → commit. |
+| DiscussionService.append / close / bind_transcript | Begin serializable → P → A → scoped APPEND_TURN / CLOSE_SESSION / BIND_TRANSCRIPT advisory receipt lock → discussion session FOR UPDATE → validate/write turn, close or binding → fresh A → commit. |
+| DiscussionService.request_promotion | No locks or writes; unconditional FORBIDDEN in this baseline. |
+| SourceVersionService.create | Begin serializable → P → scoped CREATE_SOURCE_VERSION advisory receipt lock → literature_sources FOR UPDATE → source authorization row locks → validate frozen artifact/predecessor → draft/receipt writes. |
+| SourceVersionService.freeze | Begin serializable → nonlocking version lookup → P → scoped FREEZE_SOURCE_VERSION advisory receipt lock → literature_sources FOR UPDATE → exact source_versions FOR UPDATE → current source version FOR UPDATE where present → source authorization locks → freeze/current-pointer/receipt writes. |
+| LiteratureEvidenceService.import_document / create / review / snapshot | Begin serializable → P → A → scoped source-version receipt advisory lock → operation locks detailed below → fresh A → receipt → commit. These operations rely on SSI; do not add row locks to test doubles. |
+| ScientificConclusionService.create / revise | Begin serializable → P → A → scoped CREATE_CONCLUSION / REVISE_CONCLUSION receipt advisory lock → Claim parent/version FOR UPDATE in input order, snapshot evidence FOR UPDATE in saved edge order → direct literature_evidence FOR UPDATE in input order → new parent INSERT for create, existing scientific_conclusions parent FOR UPDATE for revise → version/input writes and readback → fresh A → receipt/commit. |
+| ScientificConclusionService.freeze | Begin serializable → P → A → scoped FREEZE_CONCLUSION receipt advisory lock → scientific_conclusions parent FOR UPDATE → exact conclusion version FOR UPDATE → Claim and evidence closure locks in saved input/edge order → seal/current-pointer writes → fresh A → receipt/commit. |
+| PublicationService.create_publication | P → A → advisory `pr212:publication:{derived_id}` → parent/initial event insert or replay read → commit. |
+| PublicationService.create_draft | P → A → advisory `pr212:draft:{derived_id}` → publications parent FOR UPDATE → document/version validation reads → draft INSERT or replay read → commit. |
+| ClaimPlacementService.add / ArtifactPlacementService.add | P → A → publications parent FOR UPDATE → manuscript and exact target reads → advisory `pr213:claim-placement:{derived_id}` / `pr213:artifact-placement:{derived_id}` → placement read/insert → commit. |
+| CitationPlacementService.add | P → A → publications parent FOR UPDATE → manuscript/source validation reads → advisory `pr213:citation:{derived_id}` → citation read/insert → commit. |
+
+Decision SHARE table list in exact lexicographic order:
+`actor_subject_bindings`, `actors`, `artifact_versions`, `artifacts`,
+`audit_findings`, `claim_versions`, `claims`, `correction_records`, `datasets`,
+`experiment_spec_versions`, `experiment_specs`, `impact_assessments`,
+`impact_targets`, `literature_evidence`, `literature_evidence_review_events`,
+`literature_source_project_links`, `literature_sources`, `metric_definition_versions`,
+`metric_definitions`, `project_membership_events`, `project_memberships`,
+`project_role_assignments`, `projects`, `runs`, `scientific_conclusions`,
+`source_versions`. See
+[Decision repository](../../src/researchbase/persistence/decision_repository.py)
+and [review repository](../../src/researchbase/persistence/internal_review_repository.py).
+Literature operation locks after the receipt lock: import_document writes new
+artifact/version rows; create reads source/artifact then locks its newly inserted
+literature_evidence row FOR UPDATE during readback; review locks the existing
+evidence row FOR UPDATE before events; snapshot locks target parent and version
+`FOR UPDATE OF p,v`, then each evidence row FOR UPDATE in caller input order.
+Conclusion/Decision closure validation can also lock literature_evidence rows
+FOR UPDATE while checking saved snapshots, in persisted input/edge order. Include
+these actual waits in race observations and repeat fresh authorization afterward.
+Claim review target lookup likewise takes parent/version FOR UPDATE before
+checking evidence closure. No test wrapper may reorder these owning operations.
+Readback commands take their owning P → A authorization locks where used;
+conclusion and trace readback can then acquire Claim/evidence closure locks in
+saved input order. Source read uses its source authorization locks. No replay or
+readback may add a mutating step. Phase 1 setup is the unchanged `run_workflow`
+sequence; its command-local locking remains governed by Cross-Phase 08 and the
+existing Phase 1 tests, not by a new cross-command lock plan. PR2-19 does not
+compose commands into one transaction or hold cross-command locks. If a future
+contract changes an order, update its race oracle before activating that row.
+
+### Not in this slice
+
+| Missing contract | Blocked artifact/behavior |
+| --- | --- |
+| Search-result resolution admission | Exact persisted search result → frozen SourceVersion bridge for complete G1; no fabricated resolution relation. |
+| Strategy candidate promotion | Explicit question/hypothesis DRAFT admission with validation, authority, provenance and replay; G2 suffix. |
+| Discussion candidate promotion | Same owning boundary for discussion-derived HypothesisVersion DRAFT; G4 positive suffix. |
+| Manuscript freeze | Frozen material/placements/hash seal and admission command; G5 and package prerequisites. |
+| Manuscript READY transition | Readiness predicate, authorization and lifecycle command; F5/G7. |
+| Manuscript review | Exact frozen target, current validity and complete review basis; G6/F5. |
+| Completed RevisionAction | Seven finite completed-result fields, relevance, predecessor/supersession, replay and shared lock order; G6/F6. |
+| Issue disposition | Authority/basis for transition out of OPEN, immutable disposition history; G6. |
+| Revision-purpose Decision | Eligible revision and NO_CHANGE decisions; minimal PROCEED is insufficient; G6/F6. |
+| Concern carry-forward | Mapping old concerns to exact new result/re-review targets; G6. |
+| Basic Approval | Request/decision/grant commands, tuples, independence, rejection fence, replay, full lock/writer inventory; G6/F5–F7. |
+| Reconsideration | Explicit evidence permitting request after project/purpose rejection; F5c. |
+| READY_FOR_SUBMISSION Decision purpose | Readiness choice cannot be inferred from internal PROCEED; G7. |
+| PREPARE_SUBMISSION Decision purpose | Separate preparation choice/basis; G7. |
+| Grant consumption | Atomic consuming command/result/receipt with entitlement replay and blocker/expiry races; F9 and package freeze suffix. |
+| Manuscript validity/audit projection | Contracted downstream stale/invalid and unsupported-assertion readback; F1 and optional F3 audit. |
+| Automatic finding/impact propagation | Only if an owning contract requires automation; no automatic rows inferred from retraction. |
+| Defensive unresolved-FK read | Contract for fail-closed read of privileged corrupt closure; F2b suffix. Normal SQL FK denial remains runnable. |
+| PR2-17 preparation | Package, contribution/authorship/consent fields/limits/resolver; G7. No consent-to-grant resolver is invented here. |
+| PR2-18 novelty | Serializable coverage capture, prior-art relations, INCONCLUSIVE-only first slice and DB guard; G7. |
+
+## 15. Open questions for the owner — override only
+
+There are no unresolved engineering choices in the runnable slice. The owner may
+overrule any §13 decision or authorize a narrower test slice. Record an override
+and its governing contract before changing the affected oracle. Approval of this
+draft alone does not authorize implementation or activate blocked contracts.
+
+## 16. Documentation verification note
+
+This documentation change is verified by local-link and format checks only.
+No executable, schema or frozen contract changed; integration suites are not affected or claimed PASS.
