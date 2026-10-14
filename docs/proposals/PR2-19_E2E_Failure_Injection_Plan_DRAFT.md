@@ -2,6 +2,37 @@
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
 
+## Start here (for the implementer)
+
+Once separately authorized, the first slice builds tests around the existing literature, discussion, publication and decision services.
+It adds shared fixtures, fixed provider responses, failure injection and evidence reports, using real PostgreSQL 18.x databases.
+Tests verify committed facts through fresh service instances after success, failure and replay.
+Missing promotion, manuscript, revision, approval and submission contracts remain explicit blockers; this slice cannot pass the full gate.
+
+**Build in this order** (the detailed file names and cases are in [Ordered build steps and test cases](#ordered-build-steps-and-test-cases)):
+
+1. Build shared fixtures and observation helpers: [Runnable matrix and named fixtures](#runnable-matrix-and-named-fixtures).
+2. Define and test the report records, limits and enums: [Closed test DTOs, limits and enums](#closed-test-dtos-limits-and-enums).
+3. Add candidate and literature retrieval tests: [Ordered build steps, step 3](#ordered-build-steps-and-test-cases).
+4. Add lineage, integrity and citation tests: [Ordered build steps, step 4](#ordered-build-steps-and-test-cases).
+5. Add discussion and forbidden promotion tests: [Ordered build steps, step 5](#ordered-build-steps-and-test-cases).
+6. Add the existing decision command tests: [Ordered build steps, step 6](#ordered-build-steps-and-test-cases), using [Error and replay decisions](#error-and-replay-decisions).
+7. Add rollback, lost-response and replay tests: [Ordered build steps, step 7](#ordered-build-steps-and-test-cases).
+8. Add coordinated race tests: [Exact lock orders for exercised commands](#exact-lock-orders-for-exercised-commands) and [Concurrency and transaction proof](#9-concurrency-and-transaction-proof).
+9. Add architecture checks and the blocked-dependency inventory: [Ordered build steps, step 9](#ordered-build-steps-and-test-cases).
+10. Run the required checks and report exact commands and counts: [Ordered build steps, step 10](#ordered-build-steps-and-test-cases) and [Dependencies, acceptance and evidence gate](#11-dependencies-acceptance-and-evidence-gate).
+
+**First-read shortcuts:** [Section 1](#1-purpose-authorities-and-inspected-baseline) supplies authority/background; [Section 12](#12-glossary) is a reference glossary. Skip their full detail initially.
+Defer the full future-path detail in [Section 6](#6-golden-paths-to-add-later--not-implemented) and [Section 7](#7-failure-injection-matrix--not-implemented) until selecting cases from the runnable matrix; they remain required coverage for the full gate.
+
+**Five rules that fail review if broken:**
+
+- Keep this slice test-only: no production fixes, new canonical schema, runtime dependencies or implementation of blocked contracts ([Scope](#2-scope-and-non-goals), [Not in this slice](#not-in-this-slice)).
+- Preserve exact frozen references, historical bytes and Phase 1 hashes; citation, generated text and approval cannot establish scientific truth ([Invariants](#3-invariants-and-evidence-oracle)).
+- Use authenticated owning Application commands and enforce actor independence; never fabricate canonical results or bypass authority in fixtures ([Commands](#4-commands-dtos-and-orchestration-proposal), [Fixture rules](#runnable-matrix-and-named-fixtures)).
+- Prove command rollback and durable outcomes on real PostgreSQL with fresh readback; races require observed locks and fresh authorization after waits ([Transaction proof](#9-concurrency-and-transaction-proof)).
+- Report missing prerequisites as blocked and actual failures as failures; never use skips, expected failures or runnable prefixes to claim full acceptance ([Evidence gate](#11-dependencies-acceptance-and-evidence-gate)).
+
 **Scope:** documentation proposal only. This plan is not an architecture freeze,
 ADR, execution pack, migration authorization, PR acceptance or Phase 2 exit
 declaration. No tests, production commands, schema or governing files are changed.
