@@ -24,8 +24,9 @@ TARGETS = {
 
 
 class SqlAlchemyLiteratureEvidenceRepository:
-    def __init__(self, session):
+    def __init__(self, session, *, protected_reads: bool = False):
         self._session = session
+        self._protected_reads = protected_reads
 
     def _one(self, sql, values):
         row = self._session.execute(text(sql), values).mappings().first()
@@ -40,7 +41,8 @@ class SqlAlchemyLiteratureEvidenceRepository:
 
     def evidence(self, identity, project):
         return self._one(
-            "SELECT * FROM literature_evidence WHERE id=:id AND project_id=:project FOR UPDATE",
+            "SELECT * FROM literature_evidence WHERE id=:id AND project_id=:project"
+            + ("" if self._protected_reads else " FOR UPDATE"),
             {"id": identity, "project": project},
         )
 
@@ -63,7 +65,8 @@ class SqlAlchemyLiteratureEvidenceRepository:
         _, versions, parents, fk = TARGETS[kind]
         return self._one(
             f"""SELECT v.*,p.project_id FROM {versions} v JOIN {parents} p ON p.id=v.{fk}
-            WHERE v.id=:id AND p.project_id=:project FOR UPDATE OF p,v""",
+            WHERE v.id=:id AND p.project_id=:project"""
+            + ("" if self._protected_reads else " FOR UPDATE OF p,v"),
             {"id": identity, "project": project},
         )
 

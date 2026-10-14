@@ -1,0 +1,94 @@
+{
+  "unit": {
+    "tests": 1802,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 1802
+  },
+  "architecture": {
+    "tests": 117,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 117
+  },
+  "revision_action": {
+    "tests": 84,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 84
+  },
+  "task12_compatibility": {
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 9
+  },
+  "pyright": {
+    "errors": 0,
+    "warnings": 0,
+    "informations": 0
+  },
+  "ruff": {
+    "lint": "PASS",
+    "format": "PASS",
+    "formatted_files": 471
+  },
+  "full_postgresql": {
+    "status": "PASS",
+    "server_version": "PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin27.0.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+    "collected": 5058,
+    "passed": 5058,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "complete_unique_node_coverage": true,
+    "evidence": [
+      {
+        "worker": 0,
+        "xml": "docs/verification/task13/final-run/full-sharded/shard-0.xml",
+        "passed": 2812,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "worker": 1,
+        "xml": "docs/verification/task13/final-run/full-sharded/shard-1.xml",
+        "passed": 562,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "worker": 2,
+        "xml": "docs/verification/task13/final-run/full-sharded/shard-2.xml",
+        "passed": 560,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "worker": 3,
+        "xml": "docs/verification/task13/final-run/full-sharded/shard-3.xml",
+        "passed": 562,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "worker": 4,
+        "xml": "docs/verification/task13/final-run/repaired-shard-4.xml",
+        "passed": 562,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "repair": "Shard 4 was rerun in full after Task 12's table-preservation test was pinned to its own 0043 revision. The original failed XML and summary are retained, not relabeled as passing.",
+    "disposable_shared_databases_dropped": true
+  }
+}

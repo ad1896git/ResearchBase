@@ -18,9 +18,16 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
         assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == digest, name
     assert {
         str(path.relative_to(ROOT)) for path in (ROOT / "migrations/versions").glob("*.py")
-    } == (set(pinned) | {"migrations/versions/0043_pr2_04_schema_contract.py"})
+    } == (
+        set(pinned)
+        | {
+            "migrations/versions/0043_pr2_04_schema_contract.py",
+            "migrations/versions/0044_pr2_15_revision_action.py",
+        }
+    )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0043_pr2_04_schema_contract"]
+    assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0042_pr2_15_minimal_decision"
+        scripts.get_revision("0043_pr2_04_schema_contract").down_revision
+        == "0042_pr2_15_minimal_decision"
     )

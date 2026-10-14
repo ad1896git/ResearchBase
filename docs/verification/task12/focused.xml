@@ -9,8 +9,8 @@ stage = 'planned'
 &gt;       other = _parent_material(url, stage)
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/phase2/test_task12_schema_migration.py:155: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
     return coverage._material(url, stage)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -35,7 +35,7 @@ tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_servi
     bootstrap = identity.bootstrap_first_owner(
 src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
     return self._bootstrap_first_owner_once(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10c962ba0&gt;
 authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('22558407-7b61-41c...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
@@ -68,7 +68,7 @@ authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=
             uuid4() for _ in range(6)
         )
         external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
-    
+&#32;&#32;&#32;&#32;
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
@@ -91,8 +91,8 @@ stage = 'reserved'
 &gt;       other = _parent_material(url, stage)
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/phase2/test_task12_schema_migration.py:155: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
     return coverage._material(url, stage)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -117,7 +117,7 @@ tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_servi
     bootstrap = identity.bootstrap_first_owner(
 src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
     return self._bootstrap_first_owner_once(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10d894320&gt;
 authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('0219030f-9982-4f1...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
@@ -150,7 +150,7 @@ authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=
             uuid4() for _ in range(6)
         )
         external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
-    
+&#32;&#32;&#32;&#32;
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
@@ -173,8 +173,8 @@ stage = 'sealed'
 &gt;       other = _parent_material(url, stage)
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/phase2/test_task12_schema_migration.py:155: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
     return coverage._material(url, stage)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -199,7 +199,7 @@ tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_servi
     bootstrap = identity.bootstrap_first_owner(
 src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
     return self._bootstrap_first_owner_once(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10cc4c260&gt;
 authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('a926873b-c028-427...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
@@ -232,7 +232,7 @@ authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=
             uuid4() for _ in range(6)
         )
         external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
-    
+&#32;&#32;&#32;&#32;
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
@@ -255,8 +255,8 @@ stage = 'terminal'
 &gt;       other = _parent_material(url, stage)
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/phase2/test_task12_schema_migration.py:155: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
     return coverage._material(url, stage)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -281,7 +281,7 @@ tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_servi
     bootstrap = identity.bootstrap_first_owner(
 src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
     return self._bootstrap_first_owner_once(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10cd2c7d0&gt;
 authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('fd3dd4a2-c704-4f0...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
@@ -314,7 +314,7 @@ authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=
             uuid4() for _ in range(6)
         )
         external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
-    
+&#32;&#32;&#32;&#32;
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
@@ -336,8 +336,8 @@ corruption = 'attempt_query'
 &gt;       other = _parent_material(url, "sealed")
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/phase2/test_task12_schema_migration.py:185: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_task12_schema_migration.py:185:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
     return coverage._material(url, stage)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -362,7 +362,7 @@ tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_servi
     bootstrap = identity.bootstrap_first_owner(
 src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
     return self._bootstrap_first_owner_once(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10ccc4e30&gt;
 authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('c4706f3f-b3b6-4d6...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
@@ -395,7 +395,7 @@ authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=
             uuid4() for _ in range(6)
         )
         external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
-    
+&#32;&#32;&#32;&#32;
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
@@ -417,8 +417,8 @@ corruption = 'scoped_query'
 &gt;       other = _parent_material(url, "sealed")
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/phase2/test_task12_schema_migration.py:185: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_task12_schema_migration.py:185:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
     return coverage._material(url, stage)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -443,7 +443,7 @@ tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_servi
     bootstrap = identity.bootstrap_first_owner(
 src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
     return self._bootstrap_first_owner_once(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10d1555b0&gt;
 authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('ad8072a3-15ac-439...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
@@ -476,7 +476,7 @@ authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=
             uuid4() for _ in range(6)
         )
         external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
-    
+&#32;&#32;&#32;&#32;
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
@@ -498,8 +498,8 @@ corruption = 'receipt_range'
 &gt;       other = _parent_material(url, "sealed")
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests/integration/phase2/test_task12_schema_migration.py:185: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_task12_schema_migration.py:185:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
     return coverage._material(url, stage)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -524,7 +524,7 @@ tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_servi
     bootstrap = identity.bootstrap_first_owner(
 src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
     return self._bootstrap_first_owner_once(
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10cc24470&gt;
 authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('a532dd96-6fce-4e4...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
@@ -557,7 +557,7 @@ authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=
             uuid4() for _ in range(6)
         )
         external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
-    
+&#32;&#32;&#32;&#32;
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.phase2_identity
@@ -584,11 +584,11 @@ parameters = [{}]
     ) -&gt; CursorResult[Any]:
         """continue the _execute_context() method for a single DBAPI
         cursor.execute() or cursor.executemany() call.
-    
+&#32;&#32;&#32;&#32;
         """
         if dialect.bind_typing is BindTyping.SETINPUTSIZES:
             generic_setinputsizes = context._prepare_set_input_sizes()
-    
+&#32;&#32;&#32;&#32;
             if generic_setinputsizes:
                 try:
                     dialect.do_set_input_sizes(
@@ -598,20 +598,20 @@ parameters = [{}]
                     self._handle_dbapi_exception(
                         e, str(statement), parameters, None, context
                     )
-    
+&#32;&#32;&#32;&#32;
         cursor, str_statement, parameters = (
             context.cursor,
             context.statement,
             context.parameters,
         )
-    
+&#32;&#32;&#32;&#32;
         effective_parameters: Optional[_AnyExecuteParams]
-    
+&#32;&#32;&#32;&#32;
         if not context.executemany:
             effective_parameters = parameters[0]
         else:
             effective_parameters = parameters
-    
+&#32;&#32;&#32;&#32;
         if self._has_events or self.engine._has_events:
             for fn in self.dispatch.before_cursor_execute:
                 str_statement, effective_parameters = fn(
@@ -622,12 +622,12 @@ parameters = [{}]
                     context,
                     context.executemany,
                 )
-    
+&#32;&#32;&#32;&#32;
         if self._echo:
             self._log_info(str_statement)
-    
+&#32;&#32;&#32;&#32;
             stats = context._get_cache_stats()
-    
+&#32;&#32;&#32;&#32;
             if not self.engine.hide_parameters:
                 self._log_info(
                     "[%s] %r",
@@ -643,7 +643,7 @@ parameters = [{}]
                     "[%s] [SQL parameters hidden due to hide_parameters=True]",
                     stats,
                 )
-    
+&#32;&#32;&#32;&#32;
         evt_handled: bool = False
         try:
             if context.execute_style is ExecuteStyle.EXECUTEMANY:
@@ -696,11 +696,11 @@ parameters = [{}]
                         cursor, str_statement, effective_parameters, context
                     )
 
-.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 .venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
     cursor.execute(statement, parameters)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;psycopg.Cursor [closed] [BAD] at 0x10d4b0290&gt;
 query = '\n                CREATE TEMP TABLE r5_scoped_query_probe (\n                  execution_id uuid, query_id uuid,\n   ...    REFERENCES search_query_records(literature_search_execution_id,id)\n                ) ON COMMIT DROP\n            '
@@ -755,8 +755,8 @@ pr204_trace = &lt;scripts.pr2_04_pytest_evidence.FactRecorder object at 0x1110ca
                 """)
                 )
 
-tests/integration/phase2/test_pr2_04_structural_guard_repair.py:103: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/phase2/test_pr2_04_structural_guard_repair.py:103:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 .venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
     return meth(
 .venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
@@ -773,7 +773,7 @@ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
     self.dialect.do_execute(
 .venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
     cursor.execute(statement, parameters)
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
 
 self = &lt;psycopg.Cursor [closed] [BAD] at 0x10d4b0290&gt;
 query = '\n                CREATE TEMP TABLE r5_scoped_query_probe (\n                  execution_id uuid, query_id uuid,\n   ...    REFERENCES search_query_records(literature_search_execution_id,id)\n                ) ON COMMIT DROP\n            '
@@ -798,7 +798,7 @@ params = {}
         except e._NO_TRACEBACK as ex:
 &gt;           raise ex.with_traceback(None)
 E           sqlalchemy.exc.ProgrammingError: (psycopg.errors.InvalidTableDefinition) constraints on temporary tables may reference only temporary tables
-E           [SQL: 
+E           [SQL:&#32;
 E                           CREATE TEMP TABLE r5_scoped_query_probe (
 E                             execution_id uuid, query_id uuid,
 E                             FOREIGN KEY(execution_id,query_id)

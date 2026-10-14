@@ -145,12 +145,13 @@ def test_empty_upgrade_downgrade_and_reupgrade(phase2_database_url):
     try:
         before = _snapshot(engine)
         _downgrade(url)  # Already at parent: no-op sanity check.
-        _upgrade(url, "head")
+        # Task 12 tests its own exact revision; Task 13 admits an additive table.
+        _upgrade(url, REVISION)
         _assert_repaired(engine)
         assert _snapshot(engine)["rows"] == before["rows"]
         _downgrade(url)
         assert _snapshot(engine) == before
-        _upgrade(url, "head")
+        _upgrade(url, REVISION)
         _assert_repaired(engine)
     finally:
         engine.dispose()

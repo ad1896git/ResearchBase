@@ -11,8 +11,9 @@ from researchbase.foundation.canonical_json import canonical_json_text
 
 
 class SqlAlchemyScientificConclusionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, protected_reads: bool = False) -> None:
         self._session = session
+        self._protected_reads = protected_reads
 
     def lock_command(
         self, deployment: str, project: UUID, actor: UUID, command: str, request: UUID
@@ -75,7 +76,8 @@ class SqlAlchemyScientificConclusionRepository:
         return self._one(
             """SELECT v.id,v.content_hash,v.status,c.project_id FROM claim_versions v
                JOIN claims c ON c.id=v.claim_id
-               WHERE v.id=:id AND c.project_id=:project FOR UPDATE OF v,c""",
+               WHERE v.id=:id AND c.project_id=:project"""
+            + ("" if self._protected_reads else " FOR UPDATE OF v,c"),
             {"id": identity, "project": project},
         )
 

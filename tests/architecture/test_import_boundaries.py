@@ -159,6 +159,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0041_pr2_15_review_coordination.py",
         "0042_pr2_15_minimal_decision.py",
         "0043_pr2_04_schema_contract.py",
+        "0044_pr2_15_revision_action.py",
     ]
 
 

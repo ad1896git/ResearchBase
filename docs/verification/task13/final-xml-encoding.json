@@ -1,0 +1,8 @@
+[
+  {
+    "path": "docs/verification/task13/final-run/full-sharded/shard-4.xml",
+    "before_sha256": "c82fbf6019a2bf670ef8b737b77bf5e2b7fd7025c97167bcc45bf65e5fd4e972",
+    "after_sha256": "ef9b36c67856dde3c6bd9441c7bfc0fb33e9961675e8bd33a56da31166dfa203",
+    "parsed_content_identical": true
+  }
+]

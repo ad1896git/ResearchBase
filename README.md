@@ -75,7 +75,11 @@ uv run alembic upgrade head
 uv run alembic current
 ```
 
-The current Alembic head is `0043_pr2_04_schema_contract` (owner-approved Task 12).
+RevisionAction records completed issue-only Claim/conclusion successor changes via the
+Application service. It preserves OPEN Issues and defers Decision-purpose, NO_CHANGE
+and other result paths per the approved contract. No HTTP/CLI route is added.
+
+The current Alembic head is `0044_pr2_15_revision_action` (owner-approved Task 13).
 It repairs the PR2-04 schema contract, checks existing duplicate keys and SMALLINT
 range under table locks, and preserves rows. Conflicting data aborts the migration
 with a diagnostic; resolve it through governed corrections before retrying.

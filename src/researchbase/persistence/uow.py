@@ -66,6 +66,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
     SqlAlchemyWorkspaceRepository,
 )
+from researchbase.persistence.revision_action_repository import SqlAlchemyRevisionActionRepository
 from researchbase.persistence.scientific_conclusion_repository import (
     SqlAlchemyScientificConclusionRepository,
 )
@@ -220,6 +221,7 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     """PR2-15 opt-in classification from driver codes, never raw diagnostics."""
     state = getattr(exc.orig, "sqlstate", None)
     codes = {
+        "P17R1": ErrorCode.INVALID_STATE_TRANSITION,
         "P17F1": ErrorCode.IMMUTABLE_RECORD,
         "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
         "P17F3": ErrorCode.IDEMPOTENCY_CONFLICT,
@@ -265,6 +267,7 @@ class SqlAlchemyUnitOfWork:
     discussion: SqlAlchemyDiscussionRepository
     scientific_conclusion: SqlAlchemyScientificConclusionRepository
     publication: SqlAlchemyPublicationRepository
+    revision_action: SqlAlchemyRevisionActionRepository
     decision: SqlAlchemyDecisionRepository
 
     def __init__(
@@ -316,6 +319,7 @@ class SqlAlchemyUnitOfWork:
         self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(self._session)
         self.publication = SqlAlchemyPublicationRepository(self._session)
         self.internal_review = SqlAlchemyInternalReviewRepository(self._session)
+        self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
         return self
 
@@ -363,6 +367,22 @@ class SqlAlchemyUnitOfWork:
     def enable_serializable_retry_normalization(self) -> None:
         """Opt in to deadlock translation for Discussion/Conclusion retries only."""
         self._serializable_retry_normalization = True
+
+    def enable_revision_action_snapshot_reads(self) -> None:
+        """Read-only closure adapters after RevisionAction's protected table snapshot.
+
+        Ordinary commands keep their locking adapters. Frozen Claim material is
+        immutable; mutable source/evidence and ownership facts are SHARE-protected
+        for this UoW, avoiding late row-lock inversions with owning writers.
+        """
+        session = self._require_session()
+        self.literature_evidence = SqlAlchemyLiteratureEvidenceRepository(
+            session, protected_reads=True
+        )
+        self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(
+            session, protected_reads=True
+        )
+        self.source_version = SqlAlchemySourceVersionRepository(session, protected_reads=True)
 
     def enable_decision_error_normalization(self) -> None:
         """Apply the command's nondisclosing boundary without changing older commands."""

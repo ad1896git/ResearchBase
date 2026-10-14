@@ -1,0 +1,16 @@
+[
+  {
+    "path": "docs/verification/task12/focused.xml",
+    "before_sha256": "95fb43f2e4560a708f02decd5cd2f7dc798d7576d8f22f673e61a8c16da78acb",
+    "after_sha256": "c542bd69fc68677698eeb090837d88aac9641fcc2537516a4d3c9d29464895d4",
+    "parsed_content_identical": true,
+    "encoding": "trailing literal spaces/tabs encoded as numeric XML entities"
+  },
+  {
+    "path": "docs/verification/task12/full-pytest-serial.xml",
+    "before_sha256": "552dbf298720d3301e3ec0ad0fd0945768c835ade42c775dc0099f18a9bb2f6b",
+    "after_sha256": "b48dd367c27ddcdd453c46122c94433c032e2647fd20f8c98dd1295a36e30b0d",
+    "parsed_content_identical": true,
+    "encoding": "trailing literal spaces/tabs encoded as numeric XML entities"
+  }
+]

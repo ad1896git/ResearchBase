@@ -1,12 +1,11 @@
-# PR2-15 RevisionAction Command Contract — DRAFT
+# PR2-15 RevisionAction Command Contract — APPROVED
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-14 — authorized for implementation**
 
-**Scope:** documentation proposal only. This file is not an architecture freeze,
-ADR, execution pack, migration authorization, scientific decision, or PR2-15
-acceptance declaration. All proposed command and policy choices below require
-owner approval and contract consistency review before separate engineering
-authorization. Existing approved contracts retain precedence.
+**Scope:** Owner-authorized Task 13 implementation of the conservative first slice below.
+Existing approved architecture retains precedence; this authorization does not
+advance a phase or acceptance gate. Historical proposal wording below is retained
+for traceability; the decisions in §10 supersede its draft-only restrictions.
 
 ## 1. Purpose, authority and current baseline
 
@@ -71,8 +70,8 @@ Excluded: edit planning/scheduling, performing experiments or edits, creating or
 freezing results, automatic re-review, Issue ADDRESSED/DISMISSED/VERIFIED,
 Approval/grant/consumption, publication transitions, prepared submission, venue
 sending, ExternalEffect, Agent Runtime and new generic governance infrastructure.
-No schema, migration, code, tests or authoritative architecture file is changed
-by this task. Future implementation requires its own authorized execution pack.
+Task 13 authorizes the implementation slice selected in §10, including its
+forward migration and verification. No broader phase or architecture gate is advanced.
 
 ## 3. Domain invariants and revision trace
 
@@ -200,7 +199,7 @@ unique by Issue: one concern can cause multiple completed changes. There is no
 automatic semantic deduplication or mutation of an existing root. The correction
 policy requires owner approval and must not enable Decision supersession.
 
-## 5. Persistence and hash proposal — no migration
+## 5. Persistence and hash contract
 
 Use the already design-admitted `revision_actions` record, not a new top-level
 schema. Proposed physical columns are exhaustive:
@@ -314,7 +313,7 @@ successful audit event. Failure to record does not erase the previously complete
 result; retry the same action UUID. Unknown commit outcome is recovered by replay,
 not by replacing history. Persisted hash verification after restart is mandatory.
 
-## 8. Architecture tests to add after authorization — planned, NOT RUN
+## 8. Architecture test obligations
 
 | Proposed test obligation | Required evidence |
 | --- | --- |
@@ -326,7 +325,8 @@ not by replacing history. Persisted hash verification after restart is mandatory
 | Authority/disclosure/replay | Human/Agent attribution, role expiry/revocation after waits, inaccessible refs nondisclosing, same-actor exact replay after stale/write-role loss only with current read right; no nested-review policy bypass. |
 | Coordination | Shared writer inventory/order, actual PostgreSQL blocking witness, both commit orders for role/validity change and correction race; no sleep-only concurrency proof. |
 
-These are future obligations. No new executable test is part of this draft.
+These are implementation obligations for the admitted slice; unavailable shapes
+are tested for closed admission. Task 13 evidence is recorded separately.
 
 ## 9. Acceptance criteria and evidence boundary
 
@@ -354,23 +354,21 @@ implemented and verified. Contract review or existing baseline tests do not clos
 that cycle. No formal PR2-14/15, M4, approval, deployment or phase gate is advanced
 by this draft.
 
-## 10. Open questions for the owner — blockers to contract freeze
+## 10. Owner questions resolved — conservative choices, 2026-10-14
 
-| Question | Proposed default / decision required |
+| Question | Chosen option |
 | --- | --- |
-| Initial breadth | Admit issue-driven recording for current Claim/conclusion reviews; keep unavailable target/purpose combinations closed. Approve all seven shapes together or name a smaller first slice. |
-| Revision-purpose Decision | Which exact finite purpose/value records material-change intent and no-change acceptance, with what typed issue/target/review basis and independence? Separate contract required; never reuse INTERNAL_SCIENTIFIC_RELEASE/PROCEED. |
-| Open-Issue correction path | Approve completed issue-only recording while Issue remains OPEN, without prior PROCEED? This enables trace but does not resolve the blocking-Issue cycle. |
-| Writer/read authority | Approve OWNER/RESEARCHER recorders and existing Decision read roles; can Agents record their attributable completion? Define nested review disclosure explicitly. No HUMAN reviewer/approver rule is weakened. |
-| Deterministic relevance | Approve §3.1's cross-domain matrix and exact accepted paths; identify any action combination the existing model cannot prove. Keep it deferred or obtain a bounded ADR; do not invent a generic target field. |
-| Historical admission | Require current-valid results at first recording but allow stale old basis and authorized historical replay? Is late documentation of an already stale completed result needed under a separately specified history-only admission rule? |
-| Correction semantics | Approve nonforking same-basis corrections and multiple roots per Issue? How should an erroneous basis attribution be represented without rewriting history or adding an unapproved invalidation schema? |
-| Issue lifecycle dependency | Separately define ADDRESSED/DISMISSED/VERIFIED, independent reviewer, exact result validation and append-only IssueEvent semantics before any transition implementation. |
-| Transaction realization | Approve a complete writer/lock inventory and order extending current target/SHARE-table protocol; specify sanitized operational timeout and retry limits in the engineering pack. |
+| Initial breadth | Smaller first slice: issue-only CLAIM_CHANGE for Claim reviews and CONCLUSION_CHANGE for conclusion reviews, each a later frozen version of the same owning identity. All seven R2 shapes remain represented in the closed DTO and literal hash; other command paths fail closed. |
+| Revision-purpose Decision | Deferred pending its separate approved contract. Any Decision basis and NO_CHANGE deny; never reinterpret PROCEED. |
+| Open-Issue correction path | Completed issue-only recording is admitted without PROCEED; Issue stays OPEN. |
+| Writer/read authority | Active OWNER/RESEARCHER recorder through the same Human/Agent boundary; existing Decision read roles. Existing canonical subject binding currently admits HUMAN only, so unbound Agents fail closed; no identity guard is weakened or new Agent authentication invented. Return verified typed review references only, with no nested review text or Issue descriptions, so no expansion of review disclosure. |
+| Deterministic relevance | Admit only same-identity, strictly increasing accepted version_number for the matching target type. All cross-domain paths and other shapes deferred; no soft references or narrative causality. |
+| Historical admission | Current-valid first-write results; stale old target allowed; authorized exact historical replay allowed after result invalidity/write-role loss. No stale-result first admission. |
+| Correction semantics | One nonforking same-basis predecessor chain; multiple independent roots per Issue. Different basis requires a separate root. |
+| Issue lifecycle dependency | ADDRESSED/DISMISSED/VERIFIED and all Issue transitions deferred to a separate contract. |
+| Transaction realization | Existing Decision request → exact old target FOR UPDATE → sorted SHARE snapshot → review/Issue → predecessor order; selected results are read under the protected table snapshot. Reuse the existing Decision inventory of mutable closure/authority facts, excluding immutable frozen ClaimVersion material (FROZEN/SUPERSEDED both admissible). Closure adapters use protected reads only in this UoW, without late parent/result row locks; authority also reads under the snapshot rather than taking the project lock after it. Owning command defaults are unchanged. Immutable review/Issue basis uses row locks; frozen conclusion versions/inputs rely on their existing immutable SQL guards, without extra SHARE table locks that invert trigger coordination. Existing 10s lock/30s statement limits and maximum three deadlock/serialization transaction attempts; uncertainty recovered by exact UUID. |
 
-Until these decisions are approved, consistency-reviewed and incorporated through
-the governing contract/ADR process, this document stays DRAFT and grants no
-implementation authority.
+No Decision-purpose, Issue-lifecycle, approval or phase gate is authorized here.
 
 ## 11. Documentation-task verification — 2026-10-13
 
@@ -433,3 +431,63 @@ must rerun the four selected suites to obtain baseline integration evidence.
 Other scientific integration suites were not run: this proposal changes no
 executable, schema or frozen contract behavior. Broader suites in §9 remain
 obligations of a later authorized implementation, not claims about this draft.
+
+## 12. Task 13 implementation and verification — 2026-10-14
+
+Implemented the §10 first slice: issue-only, same-identity successor CLAIM_CHANGE
+and CONCLUSION_CHANGE; immutable command/readback, literal R2 material, existing
+UoW/ports, protected closure reads, fresh authority, UUID replay and nonforking
+correction. Other shapes, Decision bases, NO_CHANGE, Issue disposition, approval,
+release and API/CLI routes remain unavailable. All seven physical result FKs and
+literal hash shapes are represented. Migration 0044 follows 0043; all 45 previous
+migration files are byte-identical to HEAD.
+
+Final evidence: [check results](../verification/task13/checks.json),
+[complete PostgreSQL coverage](../verification/task13/full-verified-summary.json),
+[read-only review](../verification/task13/read-only-review.json), and
+[historical migration hashes](../verification/task13/historical-migration-sha256.json).
+
+| Check | Actual final result |
+| --- | --- |
+| Pyright | 0 errors, 0 warnings, 0 informations |
+| Ruff lint/format | PASS; 471 files already formatted |
+| Unit | 1,802 passed; 0 failed/errors/skipped |
+| Architecture | 117 passed; 0 failed/errors/skipped |
+| RevisionAction unit/integration | 84 passed; 0 failed/errors/skipped |
+| Task 12 migration compatibility | 9 passed; 0 failed/errors/skipped |
+| Complete suite, PostgreSQL 18.6 | 5,058 unique collected tests passed; 0 failed/errors/skipped |
+
+The complete suite ran in five partitions. Initial empty-database bootstrap was
+corrected, and the final run migrated a newly created shared database first.
+Task 12's no-new-table test was pinned to its own 0043 revision; its entire
+562-test partition was rerun and passed. Final coverage verifies the union of
+passing partition XML against fresh complete collection, without omissions or
+duplicates. Original failed results remain recorded as failures. Every shared
+verification database was deleted; Phase 2 fixtures also use disposable databases.
+
+Two inherited Task 12 XML reports required trailing-space entity encoding for
+the unchanged whitespace gate. Parsed XML content was verified identical; see
+[encoding evidence](../verification/task13/xml-evidence-encoding.json). No governing
+Harness rule was modified and no historical result was relabeled.
+
+Commands ran from the repository with `UV_CACHE_DIR=$PWD/.uv-cache`:
+
+```bash
+uv run --offline --no-sync pyright
+uv run --offline --no-sync ruff check .
+uv run --offline --no-sync ruff format --check .
+uv run --offline --no-sync pytest -o addopts='' -q -ra tests/unit --junitxml=docs/verification/task13/unit-final.xml
+uv run --offline --no-sync pytest -o addopts='' -q -ra tests/architecture tests/unit/architecture --junitxml=docs/verification/task13/architecture-final.xml
+uv run --offline --no-sync pytest -o addopts='' -q -ra tests/integration/phase2/test_revision_action.py tests/unit/phase2/test_revision_action.py --junitxml=docs/verification/task13/revision-final.xml
+uv run --offline --no-sync pytest -o addopts='' -q -ra tests/integration/phase2/test_task12_schema_migration.py --junitxml=docs/verification/task13/task12-compatibility.xml
+RB_TASK13_RUN_DIR=$PWD/docs/verification/task13/final-run RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres HG1_RUN_LOCAL=1 uv run --offline --no-sync python docs/verification/task13/run_full_verification.py
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres HG1_RUN_LOCAL=1 uv run --offline --no-sync python docs/verification/task13/run_single_shard.py 4
+uv run --offline --no-sync python docs/verification/task13/verify_complete_suite.py
+git diff --check
+```
+
+The targeted integration commands used
+`DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase`
+and the same PostgreSQL admin URL; each test created its own disposable database.
+Expanded per-partition Python/pytest argument lists are retained as command JSON
+beside their XML. No commit, push, branch creation or formal phase-gate action occurred.

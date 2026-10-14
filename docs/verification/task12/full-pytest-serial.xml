@@ -11,7 +11,7 @@
                 stderr=result.stderr,
             )
             return result
-    
+&#32;&#32;&#32;&#32;
         baseline = json.loads(BASELINE.read_text())
         assert ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini"))).get_heads() == [
             baseline["migration_head"]
