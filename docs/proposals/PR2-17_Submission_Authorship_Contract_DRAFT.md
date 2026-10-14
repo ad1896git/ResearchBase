@@ -2,6 +2,38 @@
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
 
+## Start here (for the implementer)
+
+The first slice records contributions to a publication and creates immutable
+authorship snapshots that preserve author order and contribution evidence.
+It provides exact-record reads for both kinds of record.
+Every listed author must be human and have a contribution attributed to that author.
+Package preparation, author consent, package freezing and sending are outside this slice.
+Implementation requires contract approval and separate execution authorization.
+
+Build in this order, following [the detailed file plan](#123-ordered-build-steps-and-file-paths):
+
+1. Obtain authorization, check the actual migration head, and add only the first-slice migration ([scope exclusions](#121-not-in-this-slice), [schema and guards](#122-exact-ddl-sketch)).
+2. Build pure contribution and authorship validation and canonical hash material ([fields and bounds](#112-dto-fields-types-limits-and-enums), [domain step](#123-ordered-build-steps-and-file-paths)).
+3. Add the two creation commands, two exact-record reads and Application service ([command contract](#4-proposed-commands-closed-dtos-and-readback), [service step](#123-ordered-build-steps-and-file-paths)).
+4. Add repository and transaction ports, then persistence wiring ([port and adapter steps](#123-ordered-build-steps-and-file-paths), [lock order](#124-exact-s1-lock-order-per-command)).
+5. Add thin web and command-line adapters only if separately authorized ([adapter step](#123-ordered-build-steps-and-file-paths), [error mappings](#113-error-code-transport-mappings)).
+6. Run required tests and dependent PostgreSQL suites, record exact results, then stop ([test files and cases](#125-test-files-and-required-cases)).
+
+On first read, skim the [authority table and baseline](#1-purpose-authority-and-current-baseline);
+defer the future package material in [manifest projection](#31-manifest-projection-and-hash-ordering)
+and [package adversarial tests](#8-architecture-and-adversarial-tests-to-add-later--not-implemented).
+Use the [glossary](#10-glossary) as a lookup; the [owner questions](#13-open-questions-for-the-owner)
+are approval context. These sections remain relevant before broader work is authorized.
+
+The five rules whose violation fails review:
+
+1. Ship exactly the four first-slice methods; no package, consent, freeze or send workflow ([scope boundary](#121-not-in-this-slice)).
+2. Preserve human-only ordered authorship, same-publication contribution coverage and sealed immutable records ([invariants](#3-invariants-and-prepared-package-closure), [database guards](#122-exact-ddl-sketch)).
+3. Use exact typed references and the specified canonical hashes; attribution or authority cannot establish scientific truth ([invariants](#3-invariants-and-prepared-package-closure), [hash builders](#123-ordered-build-steps-and-file-paths)).
+4. Write through the Application boundary in one transaction; follow the exact lock order and recheck authorization with fresh database time after waits ([transactions](#7-concurrency-transactions-and-replay), [lock order](#124-exact-s1-lock-order-per-command)).
+5. Replay only matching saved material with current read entitlement, and claim completion only from executed checks; this slice is not full acceptance ([replay](#7-concurrency-transactions-and-replay), [verification and stop boundary](#9-dependencies-acceptance-criteria-and-stop-boundary)).
+
 **Scope:** documentation proposal only: package manifest, AuthorshipSnapshot and
 basic AuthorConsent, with no ExternalEffect. This is not an architecture freeze,
 ADR, execution pack, migration authorization or PR2-17 acceptance declaration.
@@ -506,12 +538,14 @@ JOIN approval_requests r
  AND r.approval_purpose = 'PREPARE_SUBMISSION'
 JOIN approval_decisions d ON d.approval_request_id = r.id
 JOIN approval_grants g ON g.approval_decision_id = d.id
-WHERE p.id = :package_id AND pub.project_id = :project_id
+WHERE p.id = $1 AND pub.project_id = $2
   AND g.project_id = pub.project_id AND g.purpose = 'PREPARE_SUBMISSION'
   AND g.status = 'ACTIVE'
   AND NOT EXISTS (SELECT 1 FROM approval_grant_consumptions c WHERE c.grant_id = g.id)
 ORDER BY g.id;
 ```
+
+Bind `$1` to package_id and `$2` to project_id as PostgreSQL query parameters.
 
 Expiry does not permit consumption even if status still says ACTIVE. Withdrawal
 must include those ACTIVE rows in atomic staling, without rewriting CONSUMED or
@@ -701,9 +735,11 @@ an executable migration and introduces no new semantic fields.
 For each table `t` below, first expand `BASE(t)` into these columns/constraints:
 
 ```sql
+CREATE TABLE t (
 id UUID NOT NULL CONSTRAINT pk_t PRIMARY KEY,
 created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
 created_by UUID NOT NULL CONSTRAINT fk_t_created_by REFERENCES actors(id) ON DELETE RESTRICT
+);
 ```
 
 Replace the literal suffix `t` with the full table name. `HASH(t, nullable)` adds
@@ -731,12 +767,12 @@ In the two composite FKs above, `snapshot_id` is explanatory abbreviation for th
 actual column `authorship_snapshot_id`. The exact definitions are:
 
 ```sql
-CONSTRAINT fk_corresponding_author
+ALTER TABLE authorship_snapshot_corresponding_authors ADD CONSTRAINT fk_corresponding_author
   FOREIGN KEY (authorship_snapshot_id, actor_id)
-  REFERENCES authorship_snapshot_authors(authorship_snapshot_id, actor_id) ON DELETE RESTRICT
-CONSTRAINT fk_equal_group_author
+  REFERENCES authorship_snapshot_authors(authorship_snapshot_id, actor_id) ON DELETE RESTRICT;
+ALTER TABLE authorship_snapshot_equal_groups ADD CONSTRAINT fk_equal_group_author
   FOREIGN KEY (authorship_snapshot_id, actor_id)
-  REFERENCES authorship_snapshot_authors(authorship_snapshot_id, actor_id) ON DELETE RESTRICT
+  REFERENCES authorship_snapshot_authors(authorship_snapshot_id, actor_id) ON DELETE RESTRICT;
 ```
 
 The four remaining tables below are deferred S2/full-design DDL. Do not install
@@ -753,25 +789,25 @@ Exact deferred composite FKs and nontrivial checks:
 
 ```sql
 -- prepared_submission_versions
-CONSTRAINT fk_prepared_manuscript_same_publication
+ALTER TABLE prepared_submission_versions ADD CONSTRAINT fk_prepared_manuscript_same_publication
   FOREIGN KEY (publication_id, manuscript_version_id)
-  REFERENCES manuscript_versions(publication_id, id) ON DELETE RESTRICT
-CONSTRAINT fk_prepared_snapshot_same_publication
+  REFERENCES manuscript_versions(publication_id, id) ON DELETE RESTRICT;
+ALTER TABLE prepared_submission_versions ADD CONSTRAINT fk_prepared_snapshot_same_publication
   FOREIGN KEY (publication_id, authorship_snapshot_id)
-  REFERENCES authorship_snapshots(publication_id, id) ON DELETE RESTRICT
-CONSTRAINT ck_prepared_submission_versions_hash_state CHECK (
+  REFERENCES authorship_snapshots(publication_id, id) ON DELETE RESTRICT;
+ALTER TABLE prepared_submission_versions ADD CONSTRAINT ck_prepared_submission_versions_hash_state CHECK (
   (status = 'PREPARED' AND content_hash IS NULL
     AND package_manifest_hash IS NULL AND frozen_at IS NULL)
   OR (status IN ('FROZEN','SUPERSEDED','WITHDRAWN') AND content_hash IS NOT NULL
     AND package_manifest_hash IS NOT NULL AND frozen_at IS NOT NULL)
   OR (status = 'WITHDRAWN' AND content_hash IS NULL
     AND package_manifest_hash IS NULL AND frozen_at IS NULL)
-)
+);
 -- prepared_submission_manifest_items
-CONSTRAINT fk_manifest_consent_same_package
+ALTER TABLE prepared_submission_manifest_items ADD CONSTRAINT fk_manifest_consent_same_package
   FOREIGN KEY (prepared_submission_version_id, author_consent_id)
-  REFERENCES author_consents(prepared_submission_version_id, id) ON DELETE RESTRICT
-CONSTRAINT ck_prepared_submission_manifest_items_target CHECK (
+  REFERENCES author_consents(prepared_submission_version_id, id) ON DELETE RESTRICT;
+ALTER TABLE prepared_submission_manifest_items ADD CONSTRAINT ck_prepared_submission_manifest_items_target CHECK (
   num_nonnulls(artifact_version_id, source_version_id, claim_version_id,
     scientific_conclusion_version_id, author_consent_id) = 1
   AND ((category IN ('FIGURE','TABLE') AND artifact_version_id IS NOT NULL)
@@ -779,15 +815,15 @@ CONSTRAINT ck_prepared_submission_manifest_items_target CHECK (
     OR (category = 'CLAIM' AND claim_version_id IS NOT NULL)
     OR (category = 'CONCLUSION' AND scientific_conclusion_version_id IS NOT NULL)
     OR (category = 'AUTHOR_CONSENT' AND author_consent_id IS NOT NULL))
-)
+);
 -- prepared_submission_events
-CONSTRAINT ck_prepared_submission_events_transition CHECK (
+ALTER TABLE prepared_submission_events ADD CONSTRAINT ck_prepared_submission_events_transition CHECK (
   (prior_status IS NULL AND new_status = 'PREPARED' AND reason IS NULL)
   OR (prior_status = 'PREPARED' AND new_status = 'FROZEN' AND reason IS NULL)
   OR (prior_status = 'FROZEN' AND new_status = 'SUPERSEDED' AND reason IS NULL)
   OR (prior_status IN ('PREPARED','FROZEN') AND new_status = 'WITHDRAWN'
     AND reason IS NOT NULL)
-)
+);
 CREATE UNIQUE INDEX uq_prepared_submission_versions_frozen_publication
   ON prepared_submission_versions(publication_id) WHERE status = 'FROZEN';
 CREATE UNIQUE INDEX uq_author_consents_root
