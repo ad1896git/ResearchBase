@@ -1,0 +1,46 @@
+# Run from repository root. Local test credentials as in Task 9.
+export UV_CACHE_DIR="$PWD/.uv-cache"
+export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
+export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+
+uv run pytest tests/integration/phase2/test_task12_schema_migration.py -o addopts='' -q -ra --junitxml=docs/verification/task12/lifecycle.xml > docs/verification/task12/lifecycle.log 2>&1
+uv run pytest tests/integration/phase2/test_task12_schema_migration.py tests/integration/phase2/test_pr2_04_structural_guard_repair.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/unit/test_task12_migration_history.py -o addopts='' -q -ra --junitxml=docs/verification/task12/migration-regression.xml > docs/verification/task12/migration-regression.log 2>&1
+
+# Exact nine node IDs loaded without shell expansion:
+uv run python - <<'PY'
+import subprocess
+from pathlib import Path
+nodes=Path('docs/verification/task9/remaining-schema-failures.txt').read_text().splitlines()
+with Path('docs/verification/task12/known-nine.log').open('w') as output:
+ result=subprocess.run(['uv','run','pytest','-o','addopts=','-q','-ra','--junitxml=docs/verification/task12/known-nine.xml',*nodes],stdout=output,stderr=subprocess.STDOUT)
+print(Path('docs/verification/task12/known-nine.log').read_text())
+raise SystemExit(result.returncode)
+PY
+
+HG1_RUN_LOCAL=1 uv run pytest -o addopts='' -q -ra -p no:cacheprovider --junitxml=docs/verification/task12/full-pytest.xml > docs/verification/task12/full-pytest.log 2>&1
+uv run ruff check . > docs/verification/task12/ruff-check.log 2>&1
+uv run ruff format --check . > docs/verification/task12/ruff-format.log 2>&1
+uv run pyright > docs/verification/task12/pyright.log 2>&1
+for script in scripts/*.sh; do bash -n "$script" || exit; done
+git diff --check > docs/verification/task12/diff-check.log 2>&1
+/opt/homebrew/opt/postgresql@18/bin/psql postgresql://researchbase:researchbase@localhost:5432/postgres -Atc 'SELECT version()' > docs/verification/task12/postgresql-version.log
+
+# Earlier development runs are not completion evidence:
+# focused.log/xml: initial run, 230 passed / 8 failed (test-fixture defects and TEMP FK probe).
+# debug.log: isolated fixture investigation, 1 failed (second first-owner bootstrap).
+# full-pytest-interrupted.log: SIGINT before completion so the final run could collect corrected tests.
+# lifecycle and migration-regression commands reran after corrections; their files show final results.
+# First completed serial full suite: 4973 passed / 1 failed, retained as full-pytest-serial.log/xml.
+# Its sole failure was a trailing blank line in committed docs/verification/task9/pyright.txt.
+# Removed exactly that blank line, preserving diagnostic text and the strict baseline/gate.
+uv run pytest tests/unit/phase2/test_pr2_04_static_acceptance.py -o addopts='' -q -ra -p no:cacheprovider --junitxml=docs/verification/task12/static-fix.xml > docs/verification/task12/static-fix.log 2>&1
+# Final full-suite rerun: every collected node exactly once, shared Phase 1 DB serial.
+HG1_RUN_LOCAL=1 uv run python docs/verification/task12/run_full_sharded.py > docs/verification/task12/full-sharded.log 2>&1
+# Full partition, pytest flags, per-worker exit codes, logs and JUnit are under full-sharded/.
+# full-sharded-interrupted* records the early interrupted helper run; not PASS evidence.
+
+# Final strict baseline whitespace check, after documentation reconciliation:
+git diff --check b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff > docs/verification/task12/diff-check.log 2>&1
+# Each static command above was rerun after the helper and EOF fix and exited 0.
+# Final aggregate: 4974 passed / 0 failed / 0 errors / 0 skipped, runner exit 0.
+/opt/homebrew/opt/postgresql@18/bin/psql postgresql://researchbase:researchbase@localhost:5432/postgres -Atc "SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY datname" > docs/verification/task12/database-inventory.txt

@@ -8,6 +8,8 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from scripts.pr2_04_pytest_evidence import FactRecorder
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -28,6 +30,9 @@ def test_candidate_static_gates_and_inherited_formatter_delta(pr204_trace: FactR
         return result
 
     baseline = json.loads(BASELINE.read_text())
+    assert ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini"))).get_heads() == [
+        baseline["migration_head"]
+    ]
     assert baseline["baseline_commit"] == "b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff"
     assert (
         execute(

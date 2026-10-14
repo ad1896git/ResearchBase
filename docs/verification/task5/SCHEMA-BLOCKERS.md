@@ -1,6 +1,9 @@
 # Task 5: PostgreSQL schema blockers
 
-These are **P1 MAJOR / (a) production database contract gaps**, not environment
+Status: **APPROVED**, implemented in **0043**; final verification: **4974 passed,
+0 failed, 0 errors, 0 skipped** (see [Task 12](../task12/REPORT.md)).
+
+The Task 5 findings were **P1 MAJOR / (a) production database contract gaps**, not environment
 limitations or NOT_RUN items. Tests remain enabled and their expectations remain
 unchanged. `schema-investigation.log` records their failures; the independent
 read-only catalog in `schema-live-catalog.json` identifies PostgreSQL 18.6,
@@ -27,9 +30,10 @@ receipts) and five parameters of `test_every_fk_has_unconditional_leading_btree_
 `tests/integration/phase2/test_pr2_04_schema_coverage.py`. The ninth failure is
 `test_pr2_04_structural_guard_repair.py::test_exact_scoped_query_key_supports_concrete_fk`: PostgreSQL refuses a real dependent composite FK because the required scoped UNIQUE target is missing.
 
-## Reviewable proposed action, not applied
+## Decision: APPROVED — implemented in 0043
 
-If expressly authorized, add **one additive child migration after 0042** containing
+Owner approval: **2026-10-14**, Task 12. Implemented in
+`migrations/versions/0043_pr2_04_schema_contract.py`, one child after 0042 containing
 only these existing-contract repairs. Preserve every historical migration byte;
 add no canonical objects, fields, dependencies or new command behavior. Preflight
 existing duplicate keys and SMALLINT range; fail closed rather than rewriting
@@ -38,10 +42,15 @@ identical, that indexes cover the exact FK leading columns, and that the chain h
 one head. Update current-head test expectations while retaining historical target
 revision checks. Run migration/constraint/regression suites and the full suite.
 
-No DDL has been executed to apply these repairs. Implementing schema changes in
+The governed forward migration applies these repairs. Implementing schema changes in
 `src/` at application startup would bypass the governed migration path and is not
 an acceptable workaround.
 
-The current authorization explicitly says **"Do not modify migrations/"**. Under
-that rule these failures must remain FAIL; a zero-failure suite cannot honestly be
-reported until the proper repair is authorized and verified.
+The earlier Task 5 restriction on modifying `migrations/` is superseded only for
+this owner-approved forward migration. Historical migration bytes remain unchanged.
+Upgrade locks all affected tables before checking duplicate non-NULL query keys,
+duplicate scoped query keys, and SMALLINT range. Failure aborts the transaction
+without changing rows or revision. Downgrade restores INTEGER and removes only
+0043's constraints/indexes, without CASCADE. Historical evidence above describes
+the pre-repair database; Task 12 verification is recorded in
+[the verification report](../task12/REPORT.md).

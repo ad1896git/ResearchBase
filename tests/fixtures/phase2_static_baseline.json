@@ -1,4 +1,5 @@
 {
   "baseline_commit": "b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff",
-  "pyright": []
+  "pyright": [],
+  "migration_head": "0043_pr2_04_schema_contract"
 }

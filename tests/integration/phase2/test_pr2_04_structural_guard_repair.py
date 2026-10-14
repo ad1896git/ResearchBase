@@ -98,15 +98,16 @@ def test_exact_scoped_query_key_supports_concrete_fk(
         before = _rows(engine)
         query = before[Q][0]
         uniques = inspect(engine).get_unique_constraints(Q)
-        # Temporary dependent is a catalog capability probe, not canonical persistence.
+        # Disposable dependent probes a real FK to a permanent canonical table.
+        # PostgreSQL forbids a TEMP table FK referencing a permanent table.
         with engine.begin() as connection:
             connection.execute(
                 text("""
-                CREATE TEMP TABLE r5_scoped_query_probe (
+                CREATE TABLE r5_scoped_query_probe (
                   execution_id uuid, query_id uuid,
                   FOREIGN KEY(execution_id,query_id)
                     REFERENCES search_query_records(literature_search_execution_id,id)
-                ) ON COMMIT DROP
+                )
             """)
             )
             connection.execute(
@@ -124,6 +125,7 @@ def test_exact_scoped_query_key_supports_concrete_fk(
                         {"e": uuid4(), "q": query["id"]},
                     )
             assert getattr(getattr(caught.value, "orig", None), "sqlstate", None) == "23503"
+            connection.execute(text("DROP TABLE r5_scoped_query_probe"))
         pr204_trace.record(
             unique_constraints=uniques,
             query=query,

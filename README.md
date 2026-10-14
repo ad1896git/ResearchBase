@@ -75,6 +75,11 @@ uv run alembic upgrade head
 uv run alembic current
 ```
 
+The current Alembic head is `0043_pr2_04_schema_contract` (owner-approved Task 12).
+It repairs the PR2-04 schema contract, checks existing duplicate keys and SMALLINT
+range under table locks, and preserves rows. Conflicting data aborts the migration
+with a diagnostic; resolve it through governed corrections before retrying.
+
 The development configuration uses the local-only credentials documented in `.env.example`.
 Override `DATABASE_URL` for any non-development environment.
 

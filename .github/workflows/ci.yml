@@ -38,5 +38,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0042_pr2_15_minimal_decision (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0043_pr2_04_schema_contract (head)"
       - run: uv run pytest
