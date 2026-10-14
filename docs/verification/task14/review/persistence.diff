@@ -1,0 +1,278 @@
+diff --git a/src/researchbase/persistence/approval_repository.py b/src/researchbase/persistence/approval_repository.py
+new file mode 100644
+index 0000000..06223cf
+--- /dev/null
++++ b/src/researchbase/persistence/approval_repository.py
+@@ -0,0 +1,164 @@
++"""Concrete approval relations; same target/snapshot order as RevisionAction."""
++
++from datetime import datetime
++
++from sqlalchemy import text
++
++from researchbase.foundation.time import to_utc
++from researchbase.persistence.decision_repository import (
++    _SNAPSHOT_TABLES,
++    SqlAlchemyDecisionRepository,
++)
++from researchbase.persistence.revision_action_repository import SqlAlchemyRevisionActionRepository
++
++
++class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
++    def _one(self, sql, params):
++        row = super()._one(sql, params)
++        if row is not None:
++            return {
++                key: to_utc(value) if isinstance(value, datetime) else value
++                for key, value in row.items()
++            }
++        return None
++
++    def lock_request(self, identity):
++        self._session.execute(text("SET LOCAL lock_timeout = '10s'"))
++        self._session.execute(text("SET LOCAL statement_timeout = '30s'"))
++        self._session.execute(
++            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
++            {"key": f"pr216:uuid:{identity}"},
++        )
++
++    def lock_snapshot(self):
++        # Include insertable input relations so the complete closure has no phantoms.
++        tables = sorted(
++            (set(_SNAPSHOT_TABLES) - {"claim_versions"})
++            | {"run_artifact_inputs", "run_dataset_inputs", "statistical_result_inputs"}
++        )
++        self._session.execute(text("LOCK TABLE " + ",".join(tables) + " IN SHARE MODE"))
++
++    def lock_scope(self, project):
++        self._session.execute(
++            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
++            {"key": f"pr216:scope:{project}:INTERNAL_SCIENTIFIC_RELEASE"},
++        )
++
++    def target(self, identity, project):
++        return SqlAlchemyDecisionRepository(self._session).target(identity, project)
++
++    def request(self, identity, project):
++        return self._one(
++            "SELECT * FROM approval_requests WHERE id=:id AND project_id=:project",
++            {"id": identity, "project": project},
++        )
++
++    def decision(self, identity, project):
++        return self._one(
++            """SELECT d.* FROM approval_decisions d JOIN approval_requests r
++            ON r.id=d.approval_request_id WHERE d.id=:id AND r.project_id=:project""",
++            {"id": identity, "project": project},
++        )
++
++    def grant(self, identity, project):
++        return self._one(
++            "SELECT * FROM approval_grants WHERE id=:id AND project_id=:project",
++            {"id": identity, "project": project},
++        )
++
++    def exists(self, table, identity):
++        assert table in {"approval_requests", "approval_decisions", "approval_grants"}
++        return self._one(f"SELECT id FROM {table} WHERE id=:id", {"id": identity}) is not None
++
++    def reviews(self, identity):
++        return [
++            dict(row)
++            for row in self._session.execute(
++                text("""SELECT v.*
++            FROM approval_request_reviews b JOIN internal_review_records v
++            ON v.id=b.internal_review_record_id WHERE b.request_id=:id ORDER BY v.id"""),
++                {"id": identity},
++            ).mappings()
++        ]
++
++    def events(self, kind, identity):
++        assert kind in {"request", "grant"}
++        return tuple(
++            self._session.execute(
++                text(
++                    f"SELECT id FROM approval_{kind}_events WHERE {kind}_id=:id "
++                    "ORDER BY occurred_at,id"
++                ),
++                {"id": identity},
++            ).scalars()
++        )
++
++    def rejected(self, project):
++        return (
++            self._one(
++                """SELECT d.id FROM approval_decisions d JOIN approval_requests r
++            ON r.id=d.approval_request_id WHERE r.project_id=:project AND d.decision='REJECT'
++            LIMIT 1""",
++                {"project": project},
++            )
++            is not None
++        )
++
++    def pending(self, project, target):
++        return (
++            self._one(
++                """SELECT id FROM approval_requests WHERE project_id=:project
++            AND scientific_conclusion_version_id=:target AND status='PENDING'""",
++                {"project": project, "target": target},
++            )
++            is not None
++        )
++
++    def decision_for_request(self, identity):
++        return self._one(
++            "SELECT * FROM approval_decisions WHERE approval_request_id=:id", {"id": identity}
++        )
++
++    def grant_for_decision(self, identity):
++        return self._one(
++            "SELECT * FROM approval_grants WHERE approval_decision_id=:id", {"id": identity}
++        )
++
++    def decision_creation_authorized(self, identity):
++        return self._session.execute(
++            text(
++                "SELECT public.pr216_decision_authorized(d) FROM decision_records d WHERE d.id=:id"
++            ),
++            {"id": identity},
++        ).scalar_one()
++
++    def human(self, actor):
++        return (
++            self._one("SELECT id FROM actors WHERE id=:id AND actor_type='HUMAN'", {"id": actor})
++            is not None
++        )
++
++    def approver_active(self, actor, project):
++        return self._session.execute(
++            text("SELECT pr216_approver_active(:actor,:project)"),
++            {"actor": actor, "project": project},
++        ).scalar_one()
++
++    def committed(self, table, identity):
++        assert table in {"decision_records", "internal_review_records"}
++        return self._session.execute(
++            text(
++                f"SELECT xmin::text::bigint <> "
++                f"pg_current_xact_id()::text::bigint FROM {table} WHERE id=:id"
++            ),
++            {"id": identity},
++        ).scalar_one()
++
++    def insert(self, table, row):
++        assert table in {
++            "approval_requests",
++            "approval_request_reviews",
++            "approval_decisions",
++            "approval_grants",
++        }
++        SqlAlchemyDecisionRepository(self._session)._insert(table, row)
+diff --git a/src/researchbase/persistence/uow.py b/src/researchbase/persistence/uow.py
+index 15179f8..6039a3c 100644
+--- a/src/researchbase/persistence/uow.py
++++ b/src/researchbase/persistence/uow.py
+@@ -30,6 +30,7 @@ from researchbase.application.ports import (
+ )
+ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+ from researchbase.foundation.structured_logging import emit_uow_rollback
++from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
+ from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
+ from researchbase.persistence.discussion_repository import SqlAlchemyDiscussionRepository
+ from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
+@@ -238,6 +239,23 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
+     return ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION, "decision transaction failed")
+
+
++def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
++    state = getattr(exc.orig, "sqlstate", None)
++    codes = {
++        "P16T1": ErrorCode.APPROVAL_TARGET_STALE,
++        "P16R1": ErrorCode.REJECTION_RECONSIDERATION_REQUIRED,
++        "P16B1": ErrorCode.DECISION_BASIS_INVALID,
++        "P16G1": ErrorCode.APPROVAL_GATE_FAILED,
++        "P16C1": ErrorCode.CONFLICT_OF_INTEREST,
++        "P16A1": ErrorCode.FORBIDDEN,
++    }
++    if state in {"55P03", "57014"}:
++        return ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "database wait timed out")
++    if state in codes:
++        return ResearchBaseError(codes[state], "approval transaction rejected")
++    return _decision_database_error(exc)
++
++
+ class SqlAlchemyUnitOfWork:
+     actors: ActorRepository
+     projects: ProjectRepository
+@@ -268,6 +286,7 @@ class SqlAlchemyUnitOfWork:
+     scientific_conclusion: SqlAlchemyScientificConclusionRepository
+     publication: SqlAlchemyPublicationRepository
+     revision_action: SqlAlchemyRevisionActionRepository
++    approval: SqlAlchemyApprovalRepository
+     decision: SqlAlchemyDecisionRepository
+
+     def __init__(
+@@ -279,12 +298,15 @@ class SqlAlchemyUnitOfWork:
+         self._session_factory = session_factory
+         self._pr204_error_normalization = pr204_error_normalization
+         self._decision_error_normalization = False
++        self._approval_error_normalization = False
+         self._serializable_retry_normalization = False
+         self._session: Session | None = None
+
+         self._committed = False
+
+     def __enter__(self) -> SqlAlchemyUnitOfWork:
++        self._decision_error_normalization = False
++        self._approval_error_normalization = False
+         self._serializable_retry_normalization = False
+         self._session = self._session_factory()
+         self._session.begin()
+@@ -321,6 +343,7 @@ class SqlAlchemyUnitOfWork:
+         self.internal_review = SqlAlchemyInternalReviewRepository(self._session)
+         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
+         self.decision = SqlAlchemyDecisionRepository(self._session)
++        self.approval = SqlAlchemyApprovalRepository(self._session)
+         return self
+
+     def begin_serializable(self) -> None:
+@@ -333,7 +356,7 @@ class SqlAlchemyUnitOfWork:
+             self._require_session().commit()
+         except DBAPIError as exc:
+             if self._decision_error_normalization:
+-                raise _decision_database_error(exc) from None
++                raise self._command_database_error(exc) from None
+             normalized = _normalize_database_error(
+                 exc, retry_deadlocks=self._serializable_retry_normalization
+             )
+@@ -384,6 +407,17 @@ class SqlAlchemyUnitOfWork:
+         )
+         self.source_version = SqlAlchemySourceVersionRepository(session, protected_reads=True)
+
++    def enable_approval_error_normalization(self) -> None:
++        self._decision_error_normalization = True
++        self._approval_error_normalization = True
++
++    def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
++        return (
++            _approval_database_error(exc)
++            if self._approval_error_normalization
++            else _decision_database_error(exc)
++        )
++
+     def enable_decision_error_normalization(self) -> None:
+         """Apply the command's nondisclosing boundary without changing older commands."""
+         self._decision_error_normalization = True
+@@ -406,10 +440,10 @@ class SqlAlchemyUnitOfWork:
+             finally:
+                 self._session = None
+         if isinstance(exc_value, DBAPIError):
+-            raise _decision_database_error(exc_value) from None
++            raise self._command_database_error(exc_value) from None
+         if exc_value is None and cleanup_error is not None:
+             if isinstance(cleanup_error, DBAPIError):
+-                raise _decision_database_error(cleanup_error) from None
++                raise self._command_database_error(cleanup_error) from None
+             raise cleanup_error
+
+     def __exit__(

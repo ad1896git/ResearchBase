@@ -55,6 +55,13 @@ def test_normative_error_codes_are_stable() -> None:
         "SEARCH_PLAN_NOT_FROZEN",
         "ADAPTER_UNAVAILABLE",
         "ADAPTER_VERSION_MISMATCH",
+        "APPROVAL_PURPOSE_TARGET_COMMAND_INVALID",
+        "APPROVAL_GATE_FAILED",
+        "DECISION_BASIS_INVALID",
+        "APPROVAL_TARGET_STALE",
+        "REJECTION_RECONSIDERATION_REQUIRED",
+        "GRANT_INVALID",
+        "GRANT_STALE",
     ]
 
 

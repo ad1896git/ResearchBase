@@ -1,0 +1,193 @@
+{
+  "collected": 5163,
+  "unique_verified": 5163,
+  "totals": {
+    "passed": 5163,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "method": "fresh full invocation; every current identity exactly once across five shards",
+  "cohorts": [
+    {
+      "path": "tmp/task14-verification/full-final/full-sharded/shard-0.xml",
+      "tests": 2854,
+      "passed": 2854,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e6d2bb88dfd6b4a73216844c5b52320bbc930d24c1b6b981662db9b8b99bd015"
+    },
+    {
+      "path": "tmp/task14-verification/full-final/full-sharded/shard-1.xml",
+      "tests": 578,
+      "passed": 578,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "4b68eb83016dcee17a91ec754696bef43070b5342f9ac3bc3a811d35925d0836"
+    },
+    {
+      "path": "tmp/task14-verification/full-final/full-sharded/shard-2.xml",
+      "tests": 577,
+      "passed": 577,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "eda68be73b645bdb9c59584f115a006c5e0c262d5eca09a4c0471d9b70562ada"
+    },
+    {
+      "path": "tmp/task14-verification/full-final/full-sharded/shard-3.xml",
+      "tests": 577,
+      "passed": 577,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "066888838568647cb6ba04f18444c17281afe7df1fb09216dfe8e0f1d4a1007e"
+    },
+    {
+      "path": "tmp/task14-verification/full-final/full-sharded/shard-4.xml",
+      "tests": 577,
+      "passed": 577,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "a1419d093c7cd069fa8a30fcb1dc734d80c7613a50896dcea5047342b750f4ab"
+    }
+  ],
+  "nonpassing": {},
+  "first_attempt": {
+    "collected": 5154,
+    "workers": [
+      {
+        "worker": 0,
+        "exit_code": 1,
+        "counts": {
+          "tests": 2854,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 1,
+        "exit_code": 0,
+        "counts": {
+          "tests": 576,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 2,
+        "exit_code": 0,
+        "counts": {
+          "tests": 574,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 3,
+        "exit_code": 1,
+        "counts": {
+          "tests": 575,
+          "failures": 2,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 4,
+        "exit_code": 0,
+        "counts": {
+          "tests": 575,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      }
+    ],
+    "totals": {
+      "tests": 5154,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 5151
+    }
+  },
+  "final_attempt": {
+    "collected": 5163,
+    "workers": [
+      {
+        "worker": 0,
+        "exit_code": 0,
+        "counts": {
+          "tests": 2854,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 1,
+        "exit_code": 0,
+        "counts": {
+          "tests": 578,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 2,
+        "exit_code": 0,
+        "counts": {
+          "tests": 577,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 3,
+        "exit_code": 0,
+        "counts": {
+          "tests": 577,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      {
+        "worker": 4,
+        "exit_code": 0,
+        "counts": {
+          "tests": 577,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      }
+    ],
+    "totals": {
+      "tests": 5163,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 5163
+    }
+  },
+  "database_cleanups": [
+    {
+      "database": "researchbase_task13_test_ae707b6f972f427a8aca857995e92351",
+      "dropped": true
+    },
+    {
+      "database": "researchbase_task13_test_e9a7cd8c8d44457d9caeea004e5d0ff7",
+      "dropped": true
+    }
+  ]
+}

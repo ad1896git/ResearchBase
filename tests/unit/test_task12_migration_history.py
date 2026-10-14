@@ -23,10 +23,11 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
         | {
             "migrations/versions/0043_pr2_04_schema_contract.py",
             "migrations/versions/0044_pr2_15_revision_action.py",
+            "migrations/versions/0045_pr2_16_basic_approval.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
+    assert scripts.get_heads() == ["0045_pr2_16_basic_approval"]
     assert (
         scripts.get_revision("0043_pr2_04_schema_contract").down_revision
         == "0042_pr2_15_minimal_decision"

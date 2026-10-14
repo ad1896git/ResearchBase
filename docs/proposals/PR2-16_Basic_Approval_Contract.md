@@ -1,11 +1,10 @@
-# PR2-16 Basic Approval Command Contract — DRAFT
+# PR2-16 Basic Approval Command Contract — Approved bounded slice
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-14 — authorized for implementation**
 
-**Scope:** documentation proposal only. This is not an architecture freeze, ADR,
-execution pack, migration authorization, scientific approval or PR2-16 acceptance.
-Proposed choices require owner approval and contract consistency review, followed
-by separate engineering authorization. Existing authoritative contracts prevail.
+**Scope:** owner-authorized bounded internal request/decision/grant implementation,
+with one forward migration and required verification. Existing authoritative
+contracts prevail; consumption, effects and manuscript approval remain deferred.
 
 ## 1. Purpose, hierarchy and inspected baseline
 
@@ -40,9 +39,9 @@ exact conclusion FOR UPDATE and a sorted SHARE-table snapshot inventory.
 baseline evidence, not files to edit. No Basic Approval command/schema is supplied
 by these components. Source presence is not formal milestone acceptance.
 
-## 2. Proposed scope and non-goals
+## 2. Approved scope and non-goals
 
-Propose a first slice with `request_approval`, `decide_approval` and authorized
+The approved first slice provides `request_approval`, `decide_approval` and authorized
 exact-ID read queries, restricted to INTERNAL_SCIENTIFIC_RELEASE. The full R2
 design remains the compatibility ceiling:
 
@@ -62,8 +61,8 @@ Issue ADDRESSED/DISMISSED, reconsideration Decisions, other Decision purposes,
 full Authority/Delegation/COI/Appeal engine, Agent Runtime, queues or new runtime
 dependencies. Request withdrawal and explicit grant revocation require separate
 lifecycle command definitions before implementation; their states are retained
-in the compatibility proposal below. No migration, code, tests or authoritative
-architecture changes are authorized by this draft.
+in the compatibility proposal below. The owner authorized this bounded implementation on 2026-10-14; later purposes,
+consumption and lifecycle commands remain separately contracted.
 
 ## 3. Domain invariants, blocking gate and revision trace
 
@@ -97,7 +96,7 @@ architecture changes are authorized by this draft.
    also inspected for corrupt material, eligibility changes and applicable
    concerns; a corrupt exact-target record fails closed. Later reviews never
    alter the old Decision basis. The distinction between required saved reviews
-   and later gate evidence needs owner resolution in §10 before freezing.
+   and later gate evidence is resolved in §10.
 6. **Blocking predicate.** Inspect all Issues through authoritative ReviewRecord
    relations independently of caller review IDs or display filters. An applicable
    blocker is exactly same-project, exact target version,
@@ -112,7 +111,7 @@ architecture changes are authorized by this draft.
    reviewers differ from requester and material authors. Use canonical Actor IDs
    and historical review-creation evidence, not role names alone. OWNER alone,
    Agent APPROVER or acting_on_behalf_of cannot substitute. Existing decider
-   policy gains no HUMAN-only requirement from this draft.
+   policy gains no HUMAN-only requirement from this bounded contract.
 8. **Grant scope and time.** Exactly one grant for APPROVE or
    APPROVE_WITH_CONDITIONS; none for REJECT. Scope is project, purpose, exact
    request target/hash, sole allowed command, max_uses=1 and finite expiry. Null
@@ -137,7 +136,7 @@ architecture changes are authorized by this draft.
     own contracted policy; exact-target blocking is not permission to clone away
     an unresolved concern. The broader blocking-Issue cycle remains OPEN.
 
-## 4. Proposed commands and DTOs
+## 4. Approved commands and DTOs
 
 Commands are closed, typed immutable DTOs with canonical UUID/NFC text
 normalization under R2. Unknown fields, duplicate IDs, blank/invalid text, naive
@@ -156,7 +155,7 @@ Conditional approval permits only the two R2 typed fields. A true consent
 condition for a conclusion has no contracted author-consent resolver in the
 current baseline: propose denying it rather than treating it as satisfied.
 PREPARE_SUBMISSION's mandatory true consent condition remains deferred, not
-removed. Owner must resolve this narrowing before contract freeze.
+removed. Section 10 adopts this conservative denial for the approved slice.
 
 Request readback: canonical ID/project, exact target/hash/scheme, purpose,
 requester/time, immutable basis Decision ID/hash, exact saved review refs/hashes,
@@ -167,7 +166,7 @@ status and events. Historical outcome and current usability are separate DTO
 fields; an old APPROVE is not a present authorization assertion. No mutable
 reverse arrays become canonical facts.
 
-## 5. Persistence/schema proposal — no migration
+## 5. Bounded persistence/schema contract
 
 Use the already registered governance objects and relation/event patterns. Do
 not add a universal ApprovalTarget, DecisionVersion, request receipt entity,
@@ -210,11 +209,11 @@ material deviations. Use a forward migration, one Alembic head, legacy preflight
 immutable normal-role SQL guards and data-preserving downgrade/refusal. Never
 edit accepted 0040–0042 or frozen Phase 1 hashes to fit this proposal.
 
-## 6. Proposed error contract
+## 6. Approved error contract
 
 Authenticate and establish current project entitlement before returning existence,
 conflict or protected target details. Wrong-project IDs must not disclose foreign
-history. Transport mappings are proposals: 401 authentication, 403 forbidden,
+history. The approved transport mappings are: 401 authentication, 403 forbidden,
 404 authorized missing record, 422 malformed command, 409 gate/state/conflict.
 Use bounded sanitized diagnostics; no SQL, driver or credential exception chains.
 
@@ -224,16 +223,16 @@ Use bounded sanitized diagnostics; no SQL, driver or credential exception chains
 | VALIDATION_ERROR / NOT_FOUND | Malformed closed DTO; authorized exact ID absent | Existing categories. |
 | CONFLICT_OF_INTEREST | Requester/reviewer/decider/author/approver independence failure | Existing category. |
 | IDEMPOTENCY_CONFLICT | Same UUID changed canonical material; second decision/new UUID for terminal request | Existing category. |
-| CONCURRENT_MODIFICATION | Exhausted bounded serialization/deadlock retry; no partial commit | Existing category; operational timeout mapping must be pinned before implementation. |
+| CONCURRENT_MODIFICATION | Exhausted bounded serialization/deadlock retry; no partial commit | Existing category; timeout and bounded retry policy is fixed in §10. |
 | PROVENANCE_CLOSURE_VIOLATION / REFERENTIAL_INTEGRITY_ERROR / IMMUTABLE_RECORD | Corrupt hash/basis, broken strong FK or forbidden mutation | Existing categories. |
-| APPROVAL_PURPOSE_TARGET_COMMAND_INVALID | Unlisted or unavailable purpose/target/command tuple | R2 design code, not yet an implemented ErrorCode here. |
-| APPROVAL_GATE_FAILED / DECISION_BASIS_INVALID | Missing required review/affirmative basis; OPEN/BLOCKING Issue; request target not eligible | 12 design codes; proposed approval mapping. |
+| APPROVAL_PURPOSE_TARGET_COMMAND_INVALID | Unlisted or unavailable purpose/target/command tuple | R2 code added by this authorized slice. |
+| APPROVAL_GATE_FAILED / DECISION_BASIS_INVALID | Missing required review/affirmative basis; OPEN/BLOCKING Issue; request target not eligible | 12 codes with the approved approval mapping. |
 | APPROVAL_TARGET_STALE | Request's target/hash/current validity no longer passes decision gate | 12 design code; no scientific mutation. |
 | REJECTION_RECONSIDERATION_REQUIRED | Any prior same-project/purpose rejection without contracted complete reconsideration | R2 design code; first slice always denies new recovery. |
 | GRANT_INVALID / GRANT_STALE | Deferred consumption has wrong scope/terminal/expired grant or current eligibility loss | 12/17 design codes; no consumption implementation in this task. |
 
-Adding any absent enum or API/CLI mapping belongs to separately authorized
-implementation. A free-text error must not quietly authorize a deferred path.
+The owner authorized the enum additions and transport mappings in this slice.
+A free-text error must not authorize a deferred path.
 
 ## 7. Concurrency, transactions and replay
 
@@ -276,7 +275,7 @@ rewrite approval history. Prove both orders, including zero-Issue review INSERT.
 Concurrent APPROVE/REJECT on one request yield one decision and at most one grant;
 different pending requests in one project/purpose cannot bypass a committed
 rejection. Proposed duplicate pending exact-target/purpose requests are denied
-under scope coordination (owner to freeze uniqueness/lifecycle policy in §10).
+under scope coordination, as resolved in §10.
 
 Canonical request identity is `ApprovalRequest.id`; decision command identity is
 `ApprovalDecision.id`. Compare normalized caller fields, project, command and
@@ -298,9 +297,9 @@ authority or executing again. First consumption still needs all current gates,
 one unique receipt and atomic effect. Those obligations are not fulfilled by an
 ACTIVE grant from this proposed slice.
 
-## 8. Architecture and adversarial tests to add later — NOT IMPLEMENTED
+## 8. Required architecture and adversarial tests
 
-| Test group | Required assertions in a separately authorized PR |
+| Test group | Required assertions for the authorized slice; deferred paths remain excluded |
 | --- | --- |
 | Layer/boundary | Domain has no persistence/web/CLI/Harness imports; Human/Agent callers use identical Application commands; DTOs contain no ORM entities. |
 | Semantic separation | Approval/replay never creates release, publication transition, prepared package, ExternalEffect, Issue disposition, RevisionAction, VERIFIED or changed scientific material. PROCEED/approval cannot override invalid facts. |
@@ -312,7 +311,7 @@ ACTIVE grant from this proposed slice.
 | Rejection/revision | Scope-wide clone/UUID/hash/approver shopping denies; pending request versus other-target REJECT race; no PROCEED dismissal/reconsideration substitution; preserved old Issue/review/rejection/new-result trace once separately contracted. |
 | Replay/failure | Same UUID once, reordered identical review set, changed fields conflict, nondisclosure, write-role loss with read role, STALE historical read; fault between decision/grant/event rolls back everything; uncertain commit and bounded retry do not duplicate. |
 | Lifecycle/effect dependency | Unused grant becomes unusable after new blocker/authority loss; no terminal reactivation; separate future consumption tests one receipt/effect under concurrency, exact scope/results, R3/R4 completed replay. |
-| Migration/regression | Disposable PostgreSQL upgrade/catalog/legacy preflight/downgrade preservation and one head; PR2-14/15 suites and Phase 1 golden compatibility. No migration added for this draft. |
+| Migration/regression | Disposable PostgreSQL upgrade/catalog/legacy preflight/downgrade preservation and one head; PR2-14/15 suites and Phase 1 golden compatibility. One forward migration after 0044; accepted migrations remain byte-identical. |
 
 Race evidence must identify separate backend PIDs, actual lock wait via
 pg_stat_activity/pg_blocking_pids()/pg_locks, commit order, protected reads and
@@ -321,38 +320,35 @@ including a second required wait when present. Sleeps alone do not prove safety.
 
 ## 9. Acceptance criteria and evidence boundary
 
-Draft acceptance requires resolved local source links, exact DRAFT status, only
-this proposal added, no authoritative/code/schema/test edits, and clear separation
-of inherited invariants, proposed choices and unresolved owner decisions.
-Verification must report exact commands and actual counts, including unavailable
-PostgreSQL evidence; source inspection is not execution PASS.
+The owner approved this contract and explicitly authorized implementation on
+2026-10-14. The conservative resolutions in §10 freeze the bounded scope;
+remaining finite-policy purposes, effects and explicit lifecycle commands require
+separate contracts. No broader milestone or Human Gate success is inferred.
 
-Before any contract freeze: resolve §10, verify consistency against 01/02/03/05/
-08/12 and R2/R3/R4/20, explicitly approve the bounded slice and its dependency
-limits, and record independent review with no open P0 BLOCKER or P1 MAJOR. Owner
-approval of this document alone does not grant IMPLEMENTATION_GO.
-
-Before future implementation acceptance: all in-slice §8 requirements pass on
+Implementation acceptance requires: all in-slice §8 requirements pass on
 PostgreSQL 18.x, required lint/type/unit/architecture/golden checks pass, forward
 migration and normal-role SQL evidence pass, restart/replay/race/failure evidence
 is recorded, and a concrete grant-usability policy exists. Full PR2-16 acceptance
 cannot be claimed from only the internal request/decision/grant slice if owner
 requires the remaining finite-policy/lifecycle/effect paths. No Human Gate, TDG2,
-PR2-14/15/16 or M4 gate status changes are inferred from this draft.
+PR2-14/15/16 or M4 gate status changes are inferred from this bounded contract.
 
-## 10. Open questions for the owner — resolve before freeze
+## 10. Owner questions — resolved conservatively 2026-10-14
 
-| Question | Proposed disposition and consequence |
+| Question | Selected disposition |
 | --- | --- |
-| Is PR2-16 initially internal request/decision/grant only, or all three R2 purposes and grant consumption? | Approve the bounded slice explicitly; manuscript review, new Decision purposes, effects and lifecycle commands otherwise require separate contracts. Do not claim full PR acceptance prematurely. |
-| Must later matching reviews join the request's required Decision-backed set, or only the current gate evidence? | Propose required IDs equal immutable PROCEED basis, with all later concerns inspected. Requiring a refreshed complete Decision basis conflicts with minimal Decision no-replacement; do not silently supersede it. Resolve requester-independence failures and unfavorable recommendations explicitly. |
-| What is the exact duplicate-request policy after withdrawal, expiry or stale grant? | Propose no duplicate pending exact-target/purpose requests. Freeze uniqueness, successor links and resubmission rules; every historical rejection retains project/purpose equivalence guard. |
-| How are concern carry-forward, ADDRESSED/DISMISSED and rejection recovery authorized? | Separate Issue/RevisionAction/revision-purpose/RECONSIDER_REJECTION contracts; current BLOCKING cycle remains open. The existing RevisionAction draft is not authority. |
-| Which typed conditions are executable for conclusion approval? | Permit finite valid_until only in first-slice conditional approval; deny true author-consent condition until its target-specific resolver is contracted. Never add generic condition JSON. |
-| Must REJECT still require all frozen/review/validity gates? | R2 requires request and decision rechecks; propose symmetric denial if stale/blocked rather than recording rejection on invalid pending material. A withdrawal/administrative termination path needs separate definition. |
-| Which lifecycle commands and writer coordination must accompany grant creation? | Freeze withdrawal/revocation authority, duplicate scope, stale events and lock matrix before implementation. No unsafe usable grant can rely solely on eventual projection. |
-| How does first-observer stale/expiry persistence coexist with failed-command atomic rollback? | Choose a separately committed lifecycle-evaluation command or explicit approved transaction exception; current first-slice reads report unusability without pretending an error committed events. |
-| Are proposed request/decision replay and transport/error mappings approved? | Pin closed DTO normalization, current read roles, same-actor replay, conditional-field bounds, timeout mapping and unavailable-purpose errors before implementation. Preserve R3/R4/A21 consumption receipt semantics. |
+| Initial scope? | INTERNAL_SCIENTIFIC_RELEASE request/decision/grant and exact-ID reads only; no consumption or effects. |
+| Later reviews? | Required IDs equal complete immutable PROCEED basis. Inspect all later matching reviews as gate evidence. Preserve unfavorable recommendations. Required reviewer/requester or author conflict denies rather than dropping reviews. |
+| Duplicate/resubmission? | Deny duplicate PENDING exact-target/purpose requests. No withdrawal or successor/recovery command; terminal history is never reused. Any historical project/purpose REJECT denies new requests and pending decisions. |
+| Concern/rejection recovery? | Deferred. Task 13 completed RevisionAction history cannot dispose of Issues or substitute for RECONSIDER_REJECTION. OPEN/BLOCKING remains blocking. |
+| Executable conditions? | Finite valid_until only, strictly after decision time and within 30 days. Consent true denies. APPROVE/REJECT require default conditions. |
+| REJECT gates? | Symmetric full gate revalidation; stale/blocked material cannot be rejected through this command. |
+| Lifecycle/coordination? | No withdrawal/revocation/consumption commands. UUID, project/purpose, exact target and protected snapshot coordination applies to Application and normal SQL writers. Immediate issuing authority loss appends STALE atomically; newer selected approval target stales older unused grants and prevents a later decision on an older pending request. Reads derive usability from all current gates and expiry. |
+| Observer persistence/rollback? | No transaction exception. Reads report unusability without writes; separate lifecycle-evaluation command deferred. Failed commands roll back all events/projections. |
+| Replay/transport/errors? | Closed normalized DTOs; same-actor replay needs live credential and current OWNER/RESEARCHER/REVIEWER/VIEWER/APPROVER read entitlement, including after write-role loss or target staleness. Changed material conflicts. HTTP 401/403/404/422/409; existing CLI categories. Lock/query timeouts map sanitized CONCURRENT_MODIFICATION without retry; only deadlock/serialization retry at most three whole attempts. Unsupported purposes fail APPROVAL_PURPOSE_TARGET_COMMAND_INVALID. |
+
+No API routes or CLI command surfaces are required; implement transport error
+mappings only. Historical draft verification below is not implementation evidence.
 
 ## 11. Documentation-task verification — 2026-10-13
 
@@ -431,3 +427,68 @@ status, sole draft change and no trailing whitespace verified. `git diff --check
 exits 0. The explicit content check covers this untracked proposal, which ordinary
 git diff does not include. This is draft verification, not independent architecture
 review or owner approval.
+
+## 12. Implementation coordination and verification — 2026-10-14
+
+The bounded implementation uses [ApprovalService](../../src/researchbase/application/approval.py),
+[literal ApprovalDecision material](../../src/researchbase/domain/approval.py), the
+[repository adapter](../../src/researchbase/persistence/approval_repository.py) and
+[0045](../../migrations/versions/0045_pr2_16_basic_approval.py). Approval creates
+no scientific release, publication transition, Issue disposition or RevisionAction.
+Task 13 history remains immutable and is not a reconsideration authorization.
+
+The common coordination order is UUID advisory → fixed project/purpose advisory →
+exact conclusion UPDATE → sorted closure/authority table SHARE inventory →
+protected reads and UUID-ordered reviews → request/decision/grant/event writes.
+The inventory extends RevisionAction's protected snapshot with insertable Run and
+StatisticalResult input relations; claim_versions is excluded to avoid its accepted
+target-trigger inversion. SQL request/decision guards participate in the same
+scope/target/snapshot protocol, including zero-Issue review and cross-target rejection.
+Existing review/Issue writers coordinate on the exact conclusion through 0041.
+RevisionAction retains its own target/snapshot protocol. Source, scientific parent,
+project, membership and role writers participate through PostgreSQL table locks;
+approval performs no late parent/authority row locks after its SHARE inventory.
+Immediate actor/binding/membership/role loss updates affected ACTIVE grants and
+appends STALE events in the owning transaction, without acquiring approval scope
+or target locks. Explicit withdrawal/revocation/consumption remain deferred.
+
+PostgreSQL derives request and approval decision times after protected gates.
+Conditional expiry is finite, strictly later and within 30 elapsed UTC days
+(720 hours), independent of the database session time zone. Fresh DB time
+and issuing authority are rechecked after current grant gate evaluation. Read
+queries and historical replay do not write lifecycle events. Each command uses
+one synchronous transaction; only serialization/deadlock errors retry (three
+whole attempts maximum). Lock waits are bounded at 10 seconds and statements at
+30 seconds; timeouts are sanitized, non-retried CONCURRENT_MODIFICATION. These
+mappings are scoped to Approval and preserve the older Decision timeout behavior.
+
+Database gates verify literal governance and typed scientific closure hashes,
+strong project/target bindings, complete sealed basis, independence and current
+claim/source/evidence validity. Raw ArtifactVersion CAS bytes remain verified by
+the existing Application/store; SQL verifies their frozen stored byte bindings.
+The migration preflights legacy Decision basis without rewriting it, refuses a
+downgrade containing approval history, and supports empty downgrade/re-upgrade.
+Historical Decision authority is verified at its creation time. SQL helpers pin
+the canonical schema; grant staleness requires a contracted authority-loss or
+new-target-selection cause, including when invoked through nested triggers.
+No new runtime dependency, API route or CLI command surface was introduced.
+
+The restart review additionally aligns normal-role SQL with Application NFC/nonblank
+rationale and effective credential-binding checks. Newer different-target request
+selection also prevents a late decision on an older pending request; all decision
+outcomes use the same gate. Historical replay remains readable and separately
+reports grant usability.
+
+The contract was renamed from its former proposal filename to
+`PR2-16_Basic_Approval_Contract.md` to match owner approval. Section 11 preserves
+dated pre-implementation evidence, including its former filename/status; it does
+not describe current authorization or checks.
+
+Current verification and the reason for **each modified accepted test file** are
+recorded in [the current review summary](../verification/task14/round3/README.md).
+The prior local-mode sharded run is separately scoped in
+[the historical restart summary](../verification/task14/restart/README.md); its
+5,169 passes must not be reported as the reviewer command's result.
+Earlier artifacts under `docs/verification/task14/`, including `review/`, are
+historical runs or snapshots; their counts and source hashes are not the final
+restart verification. No commit, branch or push was performed.

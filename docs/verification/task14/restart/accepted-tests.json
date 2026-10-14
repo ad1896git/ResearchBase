@@ -1,0 +1,120 @@
+{
+  "files": 14,
+  "tests_removed": 0,
+  "assertion_count_decreases": 0,
+  "note": "AST inventory plus read-only diff review; reasons per function in README.md",
+  "details": [
+    {
+      "file": "tests/architecture/test_import_boundaries.py",
+      "old_test_functions": 7,
+      "new_test_functions": 7,
+      "old_assertions": 8,
+      "new_assertions": 8,
+      "sha256": "28ac41c9ccf6a1c497c2ae38815cb4b34e5d801ce1aa414f5d8aaabeb287cb9a"
+    },
+    {
+      "file": "tests/e2e/test_phase1_failure_recovery.py",
+      "old_test_functions": 3,
+      "new_test_functions": 3,
+      "old_assertions": 29,
+      "new_assertions": 29,
+      "sha256": "6d78732829e0987445018102ed513ef7cca9cd98e3400f1bbfb62b2d1df9a6ea"
+    },
+    {
+      "file": "tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py",
+      "old_test_functions": 3,
+      "new_test_functions": 3,
+      "old_assertions": 5,
+      "new_assertions": 5,
+      "sha256": "707f307b5cde9ad5af16d7b593bbacf846028ae3816d79f8103b23a07667e81d"
+    },
+    {
+      "file": "tests/integration/phase2/test_pr2_03_review_guards.py",
+      "old_test_functions": 13,
+      "new_test_functions": 13,
+      "old_assertions": 42,
+      "new_assertions": 42,
+      "sha256": "226f12e59ad912f742b6a7e1472af690488c58a64fb41095761d7c89acfe66ac"
+    },
+    {
+      "file": "tests/integration/phase2/test_pr2_04_execution_migration.py",
+      "old_test_functions": 5,
+      "new_test_functions": 5,
+      "old_assertions": 15,
+      "new_assertions": 15,
+      "sha256": "3110593b476a46f28a57d215b8311e453121c6632fbde0c8b76a03ef09852484"
+    },
+    {
+      "file": "tests/integration/phase2/test_pr2_04_migration_coverage.py",
+      "old_test_functions": 4,
+      "new_test_functions": 4,
+      "old_assertions": 26,
+      "new_assertions": 26,
+      "sha256": "6969693d7b5be39ed594fda69b2853113bcb493dcfa8315e05a86f4f142998ce"
+    },
+    {
+      "file": "tests/integration/phase2/test_pr2_15_decision_schema.py",
+      "old_test_functions": 3,
+      "new_test_functions": 3,
+      "old_assertions": 17,
+      "new_assertions": 17,
+      "sha256": "07f4e33d3d7af0b15dde00fc2f9a871acacd6c368d1955b7cf291fc6c601db7c"
+    },
+    {
+      "file": "tests/integration/phase2/test_revision_action.py",
+      "old_test_functions": 26,
+      "new_test_functions": 26,
+      "old_assertions": 93,
+      "new_assertions": 93,
+      "sha256": "57b7c38666fcfad549aaefea23f84d66bde0c2a1be939a4471443daa8acb97e5"
+    },
+    {
+      "file": "tests/test_architecture.py",
+      "old_test_functions": 12,
+      "new_test_functions": 12,
+      "old_assertions": 40,
+      "new_assertions": 40,
+      "sha256": "d4becb5186683a556832c0cc7bfc8c6a6d6c619009f78c2ba0a8a2e01f1c02c6"
+    },
+    {
+      "file": "tests/unit/foundation/test_errors.py",
+      "old_test_functions": 2,
+      "new_test_functions": 2,
+      "old_assertions": 6,
+      "new_assertions": 6,
+      "sha256": "a329f8f4634d97afdae4d9ef97739e8edc1e19c2a5a43c8f839ed5638ab36377"
+    },
+    {
+      "file": "tests/unit/phase2/test_pr2_04_r8a_host_topology.py",
+      "old_test_functions": 2,
+      "new_test_functions": 2,
+      "old_assertions": 6,
+      "new_assertions": 6,
+      "sha256": "9c8ac371e90f67155571170e568bc37bceb490f6eedcb3a8e5ea0e86ac666a77"
+    },
+    {
+      "file": "tests/unit/test_pr15_http.py",
+      "old_test_functions": 9,
+      "new_test_functions": 9,
+      "old_assertions": 37,
+      "new_assertions": 37,
+      "sha256": "71d56961aef97680b530577858c75f1ab16809d4a3618775c37eb85cd1625e9b"
+    },
+    {
+      "file": "tests/unit/test_pr16_cli_errors.py",
+      "old_test_functions": 4,
+      "new_test_functions": 4,
+      "old_assertions": 19,
+      "new_assertions": 19,
+      "sha256": "4be71a431ba1262c2f3a7639bf146ae097a1fd17648a0149012589950e1426e4"
+    },
+    {
+      "file": "tests/unit/test_task12_migration_history.py",
+      "old_test_functions": 1,
+      "new_test_functions": 1,
+      "old_assertions": 4,
+      "new_assertions": 4,
+      "sha256": "9bc6ab2f5434d0f80a8a4112d8abd883361f2e5b701c0f90b4abf491028adaaa"
+    }
+  ]
+}

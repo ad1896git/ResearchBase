@@ -23,6 +23,13 @@ class CliTransportError(Exception):
 
 
 CLI_EXIT_CODES: dict[ErrorCode, int] = {
+    ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 4,
+    ErrorCode.APPROVAL_GATE_FAILED: 4,
+    ErrorCode.DECISION_BASIS_INVALID: 4,
+    ErrorCode.APPROVAL_TARGET_STALE: 4,
+    ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 4,
+    ErrorCode.GRANT_INVALID: 4,
+    ErrorCode.GRANT_STALE: 4,
     ErrorCode.VALIDATION_ERROR: 2,
     ErrorCode.NOT_FOUND: 3,
     ErrorCode.AUTHENTICATION_REQUIRED: 3,

@@ -265,6 +265,13 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
 
 def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
     expected = {
+        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 409,
+        ErrorCode.APPROVAL_GATE_FAILED: 409,
+        ErrorCode.DECISION_BASIS_INVALID: 409,
+        ErrorCode.APPROVAL_TARGET_STALE: 409,
+        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 409,
+        ErrorCode.GRANT_INVALID: 409,
+        ErrorCode.GRANT_STALE: 409,
         ErrorCode.VALIDATION_ERROR: 422,
         ErrorCode.NOT_FOUND: 404,
         ErrorCode.AUTHENTICATION_REQUIRED: 401,

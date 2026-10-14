@@ -58,6 +58,10 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
         "migrations/versions/0042_pr2_15_minimal_decision.py": {"scientific_conclusions"},
         # Task 13: approved RevisionAction exact conclusion result and scope guards.
         "migrations/versions/0044_pr2_15_revision_action.py": {"scientific_conclusions"},
+        "migrations/versions/0045_pr2_16_basic_approval.py": {
+            "scientific_conclusions",
+            "literature_evidence",
+        },
     }
     for path in _python_files(ROOT / "migrations"):
         contents = path.read_text()

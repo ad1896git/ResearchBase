@@ -1,0 +1,14 @@
+[
+  "/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python",
+  "-m",
+  "pytest",
+  "-o",
+  "addopts=",
+  "-q",
+  "-ra",
+  "-p",
+  "no:cacheprovider",
+  "--junitxml=/Users/fengwang/Documents/ResearchBaseProject/docs/verification/task14/restart/full/shard-0.xml",
+  "tests",
+  "--ignore=tests/integration/phase2"
+]

@@ -30,6 +30,7 @@ from researchbase.application.ports import (
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
+from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 from researchbase.persistence.discussion_repository import SqlAlchemyDiscussionRepository
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
@@ -238,6 +239,23 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     return ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION, "decision transaction failed")
 
 
+def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
+    state = getattr(exc.orig, "sqlstate", None)
+    codes = {
+        "P16T1": ErrorCode.APPROVAL_TARGET_STALE,
+        "P16R1": ErrorCode.REJECTION_RECONSIDERATION_REQUIRED,
+        "P16B1": ErrorCode.DECISION_BASIS_INVALID,
+        "P16G1": ErrorCode.APPROVAL_GATE_FAILED,
+        "P16C1": ErrorCode.CONFLICT_OF_INTEREST,
+        "P16A1": ErrorCode.FORBIDDEN,
+    }
+    if state in {"55P03", "57014"}:
+        return ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "database wait timed out")
+    if state in codes:
+        return ResearchBaseError(codes[state], "approval transaction rejected")
+    return _decision_database_error(exc)
+
+
 class SqlAlchemyUnitOfWork:
     actors: ActorRepository
     projects: ProjectRepository
@@ -268,6 +286,7 @@ class SqlAlchemyUnitOfWork:
     scientific_conclusion: SqlAlchemyScientificConclusionRepository
     publication: SqlAlchemyPublicationRepository
     revision_action: SqlAlchemyRevisionActionRepository
+    approval: SqlAlchemyApprovalRepository
     decision: SqlAlchemyDecisionRepository
 
     def __init__(
@@ -279,12 +298,15 @@ class SqlAlchemyUnitOfWork:
         self._session_factory = session_factory
         self._pr204_error_normalization = pr204_error_normalization
         self._decision_error_normalization = False
+        self._approval_error_normalization = False
         self._serializable_retry_normalization = False
         self._session: Session | None = None
 
         self._committed = False
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
+        self._decision_error_normalization = False
+        self._approval_error_normalization = False
         self._serializable_retry_normalization = False
         self._session = self._session_factory()
         self._session.begin()
@@ -321,6 +343,7 @@ class SqlAlchemyUnitOfWork:
         self.internal_review = SqlAlchemyInternalReviewRepository(self._session)
         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
+        self.approval = SqlAlchemyApprovalRepository(self._session)
         return self
 
     def begin_serializable(self) -> None:
@@ -333,7 +356,7 @@ class SqlAlchemyUnitOfWork:
             self._require_session().commit()
         except DBAPIError as exc:
             if self._decision_error_normalization:
-                raise _decision_database_error(exc) from None
+                raise self._command_database_error(exc) from None
             normalized = _normalize_database_error(
                 exc, retry_deadlocks=self._serializable_retry_normalization
             )
@@ -384,6 +407,17 @@ class SqlAlchemyUnitOfWork:
         )
         self.source_version = SqlAlchemySourceVersionRepository(session, protected_reads=True)
 
+    def enable_approval_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._approval_error_normalization = True
+
+    def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        return (
+            _approval_database_error(exc)
+            if self._approval_error_normalization
+            else _decision_database_error(exc)
+        )
+
     def enable_decision_error_normalization(self) -> None:
         """Apply the command's nondisclosing boundary without changing older commands."""
         self._decision_error_normalization = True
@@ -406,10 +440,10 @@ class SqlAlchemyUnitOfWork:
             finally:
                 self._session = None
         if isinstance(exc_value, DBAPIError):
-            raise _decision_database_error(exc_value) from None
+            raise self._command_database_error(exc_value) from None
         if exc_value is None and cleanup_error is not None:
             if isinstance(cleanup_error, DBAPIError):
-                raise _decision_database_error(cleanup_error) from None
+                raise self._command_database_error(cleanup_error) from None
             raise cleanup_error
 
     def __exit__(

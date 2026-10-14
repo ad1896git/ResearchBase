@@ -226,6 +226,13 @@ def test_cli_recovery_sequence_has_no_stale_request_id_or_context(tmp_path: Path
 
 def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> None:
     expected_http = {
+        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 409,
+        ErrorCode.APPROVAL_GATE_FAILED: 409,
+        ErrorCode.DECISION_BASIS_INVALID: 409,
+        ErrorCode.APPROVAL_TARGET_STALE: 409,
+        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 409,
+        ErrorCode.GRANT_INVALID: 409,
+        ErrorCode.GRANT_STALE: 409,
         ErrorCode.VALIDATION_ERROR: 422,
         ErrorCode.NOT_FOUND: 404,
         ErrorCode.AUTHENTICATION_REQUIRED: 401,
@@ -278,6 +285,13 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.ADAPTER_VERSION_MISMATCH: 409,
     }
     expected_cli = {
+        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 4,
+        ErrorCode.APPROVAL_GATE_FAILED: 4,
+        ErrorCode.DECISION_BASIS_INVALID: 4,
+        ErrorCode.APPROVAL_TARGET_STALE: 4,
+        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 4,
+        ErrorCode.GRANT_INVALID: 4,
+        ErrorCode.GRANT_STALE: 4,
         ErrorCode.VALIDATION_ERROR: 2,
         ErrorCode.NOT_FOUND: 3,
         ErrorCode.AUTHENTICATION_REQUIRED: 3,

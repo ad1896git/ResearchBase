@@ -46,7 +46,7 @@ def _catalog(engine) -> dict:
             "revision": connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one(),
-            "tables": inspector.get_table_names(),
+            "tables": sorted(inspector.get_table_names()),
             "constraints": [
                 list(row)
                 for row in connection.execute(
@@ -141,7 +141,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
         )
         assert before == after
         assert revisions == [REVISION]
-        assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
+        assert scripts.get_heads() == ["0045_pr2_16_basic_approval"]
         assert revision.down_revision == PARENT
         if origin == PARENT:
             assert after_tables - before_tables == set(TABLES)
@@ -270,7 +270,7 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
     scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
     child = scripts.get_revision("0025_pr2_04_reservation_guards")
     assert child is not None and child.down_revision == REVISION
-    assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
+    assert scripts.get_heads() == ["0045_pr2_16_basic_approval"]
     pr204_trace.record(
         historical_reference=FROZEN_PR204,
         historical_ancestry_recovered=False,
