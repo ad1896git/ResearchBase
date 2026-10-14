@@ -12,6 +12,7 @@ from researchbase.application.ports import (
     ActorRepository,
     ArtifactRepository,
     ArtifactVersionRepository,
+    AuthorshipRepository,
     ClaimRepository,
     DatasetRepository,
     DatasetSnapshotRepository,
@@ -31,6 +32,7 @@ from researchbase.application.ports import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
+from researchbase.persistence.authorship_repository import SqlAlchemyAuthorshipRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 from researchbase.persistence.discussion_repository import SqlAlchemyDiscussionRepository
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
@@ -256,7 +258,33 @@ def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
     return _decision_database_error(exc)
 
 
+def _authorship_database_error(exc: DBAPIError) -> ResearchBaseError:
+    state = getattr(exc.orig, "sqlstate", None)
+    codes = {
+        "P17A1": ErrorCode.IMMUTABLE_RECORD,
+        "P17A2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+        "P17A3": ErrorCode.VALIDATION_ERROR,
+        "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+        "23514": ErrorCode.VALIDATION_ERROR,
+        "23502": ErrorCode.VALIDATION_ERROR,
+        "23505": ErrorCode.CONCURRENT_MODIFICATION,
+        "40001": ErrorCode.CONCURRENT_MODIFICATION,
+        "40P01": ErrorCode.CONCURRENT_MODIFICATION,
+        "55P03": ErrorCode.CONCURRENT_MODIFICATION,
+        "57014": ErrorCode.CONCURRENT_MODIFICATION,
+    }
+    error = ResearchBaseError(
+        codes.get(state, ErrorCode.INVALID_STATE_TRANSITION)
+        if isinstance(state, str)
+        else ErrorCode.INVALID_STATE_TRANSITION,
+        "authorship transaction rejected",
+    )
+    error._authorship_retryable = state in {"40001", "40P01"}  # type: ignore[attr-defined]
+    return error
+
+
 class SqlAlchemyUnitOfWork:
+    authorship: AuthorshipRepository
     actors: ActorRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
@@ -299,6 +327,7 @@ class SqlAlchemyUnitOfWork:
         self._pr204_error_normalization = pr204_error_normalization
         self._decision_error_normalization = False
         self._approval_error_normalization = False
+        self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._session: Session | None = None
 
@@ -307,6 +336,7 @@ class SqlAlchemyUnitOfWork:
     def __enter__(self) -> SqlAlchemyUnitOfWork:
         self._decision_error_normalization = False
         self._approval_error_normalization = False
+        self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._session = self._session_factory()
         self._session.begin()
@@ -344,6 +374,7 @@ class SqlAlchemyUnitOfWork:
         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
+        self.authorship = SqlAlchemyAuthorshipRepository(self._session)
         return self
 
     def begin_serializable(self) -> None:
@@ -411,7 +442,13 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = True
         self._approval_error_normalization = True
 
+    def enable_authorship_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._authorship_error_normalization = True
+
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if self._authorship_error_normalization:
+            return _authorship_database_error(exc)
         return (
             _approval_database_error(exc)
             if self._approval_error_normalization
