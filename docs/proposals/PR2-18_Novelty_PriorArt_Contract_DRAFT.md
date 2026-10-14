@@ -2,6 +2,39 @@
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
 
+## Start here (for the implementer)
+
+After separate authorization, the first slice records the coverage of completed
+literature searches, six kinds of evidence-backed comparison between an exact
+frozen claim version and an exact frozen source version, and inconclusive novelty
+assessments. It provides three recording commands and three reads by exact
+identifier, shared by human and agent callers through the application boundary.
+Records are immutable; reads preserve saved material and separately report current
+limitations and validity warnings. It does not search for literature, establish
+that no close prior work exists, prove priority, or advance review or approval.
+
+**Build in this order** (module paths are in [the ordered build guide](#123-ordered-build-steps-and-module-paths)):
+
+1. Define domain records, enums and normalization using [types and limits](#113-dto-fields-python-types-and-limits) and [literal hash material](#5-schema-and-literal-hash-proposal--no-migration).
+2. Define application commands, reads and repository ports using [command behavior](#4-proposed-commands-dtos-and-historical-readback), [accounting](#31-searchcoverage-accounting--proposed-definitions) and [scope guards](#111-scope-and-policy-decisions).
+3. Add the forward migration and persistence repository using [tables and guards](#121-ddl-sketch-and-guard-inventory) and [exact lock order](#122-exact-lock-order-and-transactions).
+4. Wire transactions, constraint errors and bounded retries using [transaction sequences](#122-exact-lock-order-and-transactions) and [error mappings](#112-pinned-error-mappings).
+5. Wire the application service and web routes using [the route and composition instructions](#123-ordered-build-steps-and-module-paths), step 5.
+6. Add the command-line commands and sanitized errors using [the command-line instructions](#123-ordered-build-steps-and-module-paths), step 6, and [error mappings](#112-pinned-error-mappings).
+7. Add and run [the required tests and regressions](#124-test-artifacts-and-required-cases), cover [the architecture obligations](#8-tests-to-add-after-authorization--planned-not-implemented), record evidence and stop at [bounded acceptance](#9-acceptance-criteria-and-evidence-boundary).
+
+**Background to skip on first read:** [authority and inspected baseline](#1-purpose-authority-and-inspected-baseline),
+[the glossary](#10-glossary) and [the owner override register](#13-open-questions-for-the-owner--override-register).
+Consult these for provenance, unfamiliar terms or an owner override; they do not replace the build contracts.
+
+**Five rules that would fail review if broken:**
+
+1. Admit only inconclusive assessments; deny both stronger outcomes before writing. Add no missing assessment or screening schema ([scope decisions](#111-scope-and-policy-decisions)).
+2. Bind exact frozen claim, source and plan versions; require independently verified comparison evidence, matching project access and trusted caller attribution ([invariants](#3-invariants-and-conservative-judgments)).
+3. Seal parent and child material atomically, preserve literal registered hashes and append corrections; never rewrite history or select a judgment by “latest wins” ([schema and hashes](#5-schema-and-literal-hash-proposal--no-migration)).
+4. Count persisted observations honestly, retain failures and uncertainty, and separate saved counts from current diagnostics; never imply exhaustive coverage or first-ever priority ([accounting](#31-searchcoverage-accounting--proposed-definitions)).
+5. Use the shared application boundary and prescribed PostgreSQL transactions, locks and fresh authorization checks; create no scientific-support, review, approval or release effects ([transactions](#7-transactions-concurrency-and-failure-recovery), [separation](#3-invariants-and-conservative-judgments)).
+
 **Scope:** documentation proposal only. This document is not an architecture
 freeze, ADR, execution pack, migration authorization, scientific finding, owner
 approval or PR2-18 acceptance declaration. Proposed refinements require owner
@@ -840,10 +873,15 @@ may precede coverage's N lock. Initial principal shape validation is in memory.
 
 | Command | Exact ordered operations |
 | --- | --- |
-| record_search_coverage | New UoW; begin_serializable before any SQL; SET LOCAL lock_timeout='10s', statement_timeout='30s'; lock N SHARE; request advisory lock `pg_advisory_xact_lock(hashtextextended('pr218:coverage:' + canonical id,0))`; authorize current readers at DB clock; read existing parent/children for replay; if new, authorize writers, read exact plan then UUID-sorted execution/attempt/query/result/resolution rows in the same snapshot; no FOR UPDATE on capture rows; compute material; final clock/authorization/validity check; insert parent and UUID-sorted children; force deferred checks, final clock check, commit. |
-| record_prior_art_relation | READ COMMITTED UoW; same timeouts; request advisory `pr218:prior_art:<id>`; ClaimVersion FOR UPDATE by exact ID; lock N SHARE; authorize readers; replay check; if new, authorize writers; read Claim owning row, SourceVersion, UUID-sorted evidence under held N; verify exact closure/hashes/validity; final clock check; insert parent and UUID-sorted children; force deferred checks, final clock check, commit. |
-| record_novelty_assessment | READ COMMITTED UoW; same timeouts; request advisory `pr218:novelty:<id>`; ClaimVersion FOR UPDATE; lock N SHARE; authorize readers; replay check; if new, authorize writers and INCONCLUSIVE guard; read Claim owning row, immutable coverage and UUID-sorted execution children; lock predecessor FOR UPDATE when nonnull; reread successor existence after any wait; verify chain/closure/hashes/validity; final clock check; insert parent; force deferred checks, final clock check, commit. |
+| record_search_coverage | New UoW; begin_serializable before any SQL; `SET LOCAL lock_timeout='10s'; SET LOCAL statement_timeout='30s';` lock N SHARE; request advisory lock `SELECT pg_advisory_xact_lock(hashtextextended('pr218:coverage:' \|\| $1::uuid::text, 0))` with the canonical request ID bound as parameter $1; authorize current readers at DB clock; read existing parent/children for replay; if new, authorize writers, read exact plan then UUID-sorted execution/attempt/query/result/resolution rows in the same snapshot; no FOR UPDATE on capture rows; compute material; final clock/authorization/validity check; insert parent and UUID-sorted children; force deferred checks, final clock check, commit. |
+| record_prior_art_relation | READ COMMITTED UoW; same timeouts; request advisory `SELECT pg_advisory_xact_lock(hashtextextended('pr218:prior_art:' \|\| $1::uuid::text, 0))` with the canonical request ID bound as parameter $1; ClaimVersion FOR UPDATE by exact ID; lock N SHARE; authorize readers; replay check; if new, authorize writers; read Claim owning row, SourceVersion, UUID-sorted evidence under held N; verify exact closure/hashes/validity; final clock check; insert parent and UUID-sorted children; force deferred checks, final clock check, commit. |
+| record_novelty_assessment | READ COMMITTED UoW; same timeouts; request advisory `SELECT pg_advisory_xact_lock(hashtextextended('pr218:novelty:' \|\| $1::uuid::text, 0))` with the canonical request ID bound as parameter $1; ClaimVersion FOR UPDATE; lock N SHARE; authorize readers; replay check; if new, authorize writers and INCONCLUSIVE guard; read Claim owning row, immutable coverage and UUID-sorted execution children; lock predecessor FOR UPDATE when nonnull; reread successor existence after any wait; verify chain/closure/hashes/validity; final clock check; insert parent; force deferred checks, final clock check, commit. |
 | Three exact-ID reads | REPEATABLE READ UoW with no Application writes; lock N SHARE before first data SELECT; authorize at fresh clock; read parent then UUID-sorted children and exact hash refs, then timestamped current quality/validity; final current read-entitlement clock check; return typed DTO. No advisory, target row locks, writes or retries that create records. Do not set PostgreSQL READ ONLY: table SHARE is prohibited in that mode. |
+
+The bound request ID uses the canonical lowercase hyphenated UUID text required
+by [§11.3](#113-dto-fields-python-types-and-limits); `$1::uuid::text` preserves
+that lock-key format. Copy SQL from the rendered table: raw Markdown escapes
+`\|\|` render as PostgreSQL's `||` concatenation operator.
 
 The request namespaces are distinct; no command acquires a second namespace.
 No project row lock precedes a Claim row lock. Source/evidence locks are covered

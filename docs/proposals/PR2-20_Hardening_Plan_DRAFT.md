@@ -2,6 +2,40 @@
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
 
+## Start here (for the implementer)
+
+After owner approval and separate implementation authorization, the first slice
+builds file-based report helpers, disposable database fixtures and tests of existing
+commands. It measures source lookup, manuscript scientific trace and review and
+decision behavior without changing their contracts, queries or database schema.
+It collects migration, adapter, license and security evidence and produces six
+reports, marking missing prerequisites as blocked. These reports support a later
+owner decision; completing this slice does not establish full Phase 2 exit.
+
+**Build in this order** (exact paths and commands are in [the build guide](#132-ordered-build-steps-and-ownership-paths)):
+
+1. Define the file-only evidence records and unit tests using [types and limits](#123-file-only-dtos-limits-and-enums).
+2. Add the disposable PostgreSQL support helper and reuse the fixtures named in [build step 2](#132-ordered-build-steps-and-ownership-paths).
+3. Build small correctness fixtures, then scaled fixtures using [benchmark defaults](#122-benchmark-defaults--owner-adjustable) and [build step 3](#132-ordered-build-steps-and-ownership-paths).
+4. Add [the PostgreSQL test cases](#134-exact-test-files-and-required-cases), retaining [the existing lock sequences](#133-exact-lock-order-per-exercised-commandquery).
+5. Add the opt-in benchmark using [the measurement protocol](#51-measurement-protocol) and [build step 5](#132-ordered-build-steps-and-ownership-paths).
+6. Collect migration and adapter inventories and license/security sources using [build step 6](#132-ordered-build-steps-and-ownership-paths) and [the required inventory cases](#134-exact-test-files-and-required-cases).
+7. Generate [all six documentation artifacts and the exit report](#10-documentation-deliverables-and-phase-2-exit-report), retaining every required row.
+8. Run the checks and separate benchmark command in [build step 8](#132-ordered-build-steps-and-ownership-paths); record exact results.
+9. Review specifications, diff and evidence independently, resolve blocking findings, attach owner dispositions and stop before Phase 3 ([acceptance criteria](#92-proposed-acceptance-criteria-for-the-future-pr)).
+
+**Background to skip on first read:** [authority and baseline observations](#1-purpose-authority-and-inspected-baseline),
+[the glossary](#11-glossary) and [dependency and owner-override rationale](#14-dependencies-and-owner-override-points).
+Consult them when needed; [the draft decisions](#12-decisions-taken-in-this-draft) and [deferred work](#135-not-in-this-slice) still govern the build.
+
+**Five rules that would fail review if broken:**
+
+1. Build only the authorized slice: no missing prerequisite features, new public commands, schema changes, query changes or indexes ([scope decisions](#121-scope-subject-and-exit-decisions), [first-slice database boundary](#131-exact-ddl-sketch-and-catalog-assertions)).
+2. Preserve exact frozen versions, hashes and immutable history; never substitute latest versions or repair historical facts ([invariants](#3-invariants-and-evidence-boundaries)).
+3. Use existing application boundaries and fresh authorization; retain complete blockers, review basis, closure, replay and lock protection ([invariants](#3-invariants-and-evidence-boundaries), [lock sequences](#133-exact-lock-order-per-exercised-commandquery)).
+4. Use disposable PostgreSQL fixtures and record reproducible, sanitized evidence; never expose secrets or treat fake adapter tests as real acceptance ([required cases](#134-exact-test-files-and-required-cases), [evidence limits](#123-file-only-dtos-limits-and-enums)).
+5. Keep failed, blocked, unrun and skipped results distinct from passes; missing mandatory paths or open blocker/major findings prevent exit success ([exit decisions](#121-scope-subject-and-exit-decisions)).
+
 **Scope:** documentation proposal only. This file is not an architecture freeze,
 ADR, execution pack, migration authorization, security certification, scientific
 approval or Phase 2 exit declaration. Owner approval of this plan must precede a
