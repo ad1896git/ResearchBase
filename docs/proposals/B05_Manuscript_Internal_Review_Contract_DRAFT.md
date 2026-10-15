@@ -1,6 +1,6 @@
 # B05 Manuscript Internal Review Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-15 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -599,3 +599,45 @@ architecture fixtures requiring explicit `RB_TEST_ADMIN_URL`. No PostgreSQL PASS
 is claimed. A read-only Python check also confirmed the unchanged status line,
 24 resolving local links, snapshot-read protocol text and the planned nonblocking
 INSERT case. The whole test suite was not run; the loop's check supplies that evidence.
+
+## 15. First-slice implementation notes — 2026-10-15
+
+Owner authorization covers this first slice. The earlier documentation-only
+verification records above remain historical records, not implementation evidence.
+
+Substitutions and deferrals:
+
+- Actual predecessor is `0048_b04_manuscript_freeze`; the sole new migration is
+  `0049_b05_manuscript_review`. Existing migrations are unchanged.
+- `ManuscriptFreezeService.verify_in_uow` is the existing same-UoW B04 verifier.
+  Review-side predicates accept FROZEN/SUPERSEDED. For SUPERSEDED verification,
+  the review adapter verifies the immutable seal with B04's existing literal
+  algorithm, without treating the Publication's current pointer as historical
+  provenance. No persisted status or pointer is changed. B04 currently makes
+  SUPERSEDED manuscripts unreachable; the integration case is explicitly skipped
+  until a later supersession contract permits their creation. This is a deferred
+  reachable-state test, not a reason to block the FROZEN first slice.
+- `InternalReviewService.collect_manuscript_review_basis(uow, project_id,
+  manuscript_version_id)` is an instance helper so it reuses the configured CAS
+  verifier. It opens no UoW and commits nothing. The caller must first prepare
+  the SHARE inventory and authorize in that write UoW; the helper rejects an
+  unprepared repository, reuses target/project/Publication locks, and verifies
+  the complete basis. The caller must recheck authority before its own effect.
+- B05 reuses B04's fixed 41-table inventory and protected closure adapters.
+  `create_database_engine(..., b05_write_timeouts=True)` supplies the existing
+  bounded initial connection settings for B05 write factories. Exact reads do
+  not take that inventory or any explicit row/advisory locks.
+- The existing `pr214_issue_events_immutable` trigger delegates to `m2_immutable`
+  and emits `P17D1`, rather than `P17E1`. The scoped B05 normalizer maps both to
+  IMMUTABLE_RECORD; the trigger and historical migrations are preserved.
+
+No readiness, manuscript Decision/Approval, Issue disposition, revision,
+supersession command or external effect is introduced. B05 technical verification
+is not full G6/F5 acceptance or owner milestone acceptance.
+
+The B05 deferred triggers use INSERT-time `WHEN` predicates over immutable target
+bindings, so only manuscript rows queue the new final-state checks. Issue/event
+predicates perform nonlocking typed FK lookups; final validation still takes the
+exact manuscript before review-row locks. The predicates are VOLATILE to see
+current-command inserts. Legacy target writes therefore retain their original
+commit behavior, including temporary SQL-role grant revocation before commit.

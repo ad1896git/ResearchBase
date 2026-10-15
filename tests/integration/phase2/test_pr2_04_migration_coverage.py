@@ -141,7 +141,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
         )
         assert before == after
         assert revisions == [REVISION]
-        assert scripts.get_heads() == ["0048_b04_manuscript_freeze"]
+        assert scripts.get_heads() == ["0049_b05_manuscript_review"]
         assert revision.down_revision == PARENT
         if origin == PARENT:
             assert after_tables - before_tables == set(TABLES)
@@ -270,7 +270,7 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
     scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
     child = scripts.get_revision("0025_pr2_04_reservation_guards")
     assert child is not None and child.down_revision == REVISION
-    assert scripts.get_heads() == ["0048_b04_manuscript_freeze"]
+    assert scripts.get_heads() == ["0049_b05_manuscript_review"]
     pr204_trace.record(
         historical_reference=FROZEN_PR204,
         historical_ancestry_recovered=False,

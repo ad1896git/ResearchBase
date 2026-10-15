@@ -19,7 +19,9 @@ def database_url() -> str:
     return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
-def create_database_engine(url: str | None = None, *, b04_write_timeouts: bool = False) -> Engine:
+def create_database_engine(
+    url: str | None = None, *, b04_write_timeouts: bool = False, b05_write_timeouts: bool = False
+) -> Engine:
     """Opt B04 write factories into the guide's bounded first SHARE wait.
 
     Connection options apply before BEGIN; ordinary callers retain server defaults.
@@ -27,7 +29,7 @@ def create_database_engine(url: str | None = None, *, b04_write_timeouts: bool =
     """
     options = (
         {"options": "-c lock_timeout=10000 -c statement_timeout=30000"}
-        if b04_write_timeouts
+        if b04_write_timeouts or b05_write_timeouts
         else {}
     )
     return create_engine(url or database_url(), future=True, connect_args=options)

@@ -175,7 +175,7 @@ class SqlAlchemyDecisionRepository:
             ).scalar_one()
         )
 
-    def material_authors(self, target: UUID) -> frozenset[UUID]:
+    def material_authors(self, target: UUID, *, manuscript: bool = False) -> frozenset[UUID]:
         # Fixed typed dependency edges. No live/current substitution is used.
         edges = []
         parents = {
@@ -190,6 +190,8 @@ class SqlAlchemyDecisionRepository:
             "metric_definition_versions": ("metric_definitions", "metric_definition_id"),
             "experiment_spec_versions": ("experiment_specs", "experiment_spec_id"),
         }
+        if manuscript:
+            parents["manuscript_versions"] = ("publications", "publication_id")
         for child, (parent, fk) in parents.items():
             edges.append(
                 f"SELECT '{child}'::text AS kind,id,'{parent}'::text AS child_kind,"
@@ -303,11 +305,37 @@ class SqlAlchemyDecisionRepository:
             " UNION ALL SELECT 'literature_support_snapshots',"
             "literature_support_snapshot_id,created_by FROM literature_evidence_relations"
         )
+        if manuscript:
+            edges.append(
+                "SELECT 'manuscript_versions',id,'artifact_versions',document_artifact_version_id "
+                "FROM manuscript_versions"
+            )
+            for table, refs in (
+                (
+                    "manuscript_claim_placements",
+                    (
+                        ("claim_versions", "claim_version_id"),
+                        ("scientific_conclusion_versions", "scientific_conclusion_version_id"),
+                    ),
+                ),
+                ("manuscript_citation_placements", (("source_versions", "source_version_id"),)),
+                ("manuscript_artifact_placements", (("artifact_versions", "artifact_version_id"),)),
+            ):
+                for child, fk in refs:
+                    edges.append(
+                        f"SELECT 'manuscript_versions',manuscript_version_id,'{child}',{fk} "
+                        f"FROM {table} WHERE {fk} IS NOT NULL"
+                    )
+                authors += (
+                    " UNION ALL SELECT 'manuscript_versions',manuscript_version_id,created_by "
+                    f"FROM {table}"
+                )
+        seed = "manuscript_versions" if manuscript else "scientific_conclusion_versions"
         sql = (
             "WITH RECURSIVE edges AS ("
             + " UNION ALL ".join(edges)
             + """),
-          closure(kind,id) AS (SELECT 'scientific_conclusion_versions'::text,CAST(:target AS uuid)
+          closure(kind,id) AS (SELECT CAST(:seed AS text),CAST(:target AS uuid)
             UNION SELECT e.child_kind,e.child_id FROM closure c JOIN edges e
               ON e.kind=c.kind AND e.id=c.id), authors AS ("""
             + authors
@@ -315,7 +343,9 @@ class SqlAlchemyDecisionRepository:
           SELECT DISTINCT a.created_by FROM authors a JOIN closure c
             ON c.kind=a.kind AND c.id=a.id"""
         )
-        return frozenset(self._session.execute(text(sql), {"target": target}).scalars())
+        return frozenset(
+            self._session.execute(text(sql), {"target": target, "seed": seed}).scalars()
+        )
 
     def _insert(self, table, row) -> None:
         keys = tuple(row)

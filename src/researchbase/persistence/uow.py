@@ -360,6 +360,7 @@ class SqlAlchemyUnitOfWork:
         self._serializable_retry_normalization = False
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
+        self._internal_review_error_normalization = False
         self._session: Session | None = None
 
         self._committed = False
@@ -371,6 +372,7 @@ class SqlAlchemyUnitOfWork:
         self._serializable_retry_normalization = False
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
+        self._internal_review_error_normalization = False
         self._session = self._session_factory()
         self._session.begin()
         self.actors = SqlAlchemyActorRepository(self._session)
@@ -490,7 +492,33 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = True
         self._authorship_error_normalization = True
 
+    def enable_internal_review_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._internal_review_error_normalization = True
+
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if self._internal_review_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            codes = {
+                "P05R1": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "P17D1": ErrorCode.IMMUTABLE_RECORD,
+                "P17E1": ErrorCode.IMMUTABLE_RECORD,
+                "P17E2": ErrorCode.REVIEW_TARGET_NOT_FROZEN,
+                "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "23514": ErrorCode.VALIDATION_ERROR,
+                "23502": ErrorCode.VALIDATION_ERROR,
+                **{
+                    key: ErrorCode.CONCURRENT_MODIFICATION
+                    for key in ("23505", "40001", "40P01", "55P03", "57014")
+                },
+            }
+            if state in codes:
+                return ResearchBaseError(
+                    codes[state],
+                    "review transaction rejected",
+                    {"retryable_b05": state in {"40001", "40P01"}},
+                )
+            raise RuntimeError("review transaction failed; recover by exact request ID") from None
         if self._manuscript_freeze_error_normalization:
             return _manuscript_freeze_database_error(exc)
         if self._authorship_error_normalization:

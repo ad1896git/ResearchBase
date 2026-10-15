@@ -164,6 +164,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0046_pr2_17_authorship_preparation.py",
         "0047_pr2_18_novelty_prior_art.py",
         "0048_b04_manuscript_freeze.py",
+        "0049_b05_manuscript_review.py",
     ]
 
 
