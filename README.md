@@ -21,8 +21,13 @@ Phase 1 includes:
   CLI;
 - a content-addressed filesystem artifact store and Alembic-managed schema.
 
-Phase 2 is not implemented or authorized. In particular, this repository does not claim
-publication, manuscript, formal review/approval, submission, or agent-runtime capabilities.
+Phase 2 has bounded implementations and owning tests for literature, discussion, conclusions,
+manuscript drafts/placements, review, Decision, RevisionAction, Basic Approval, authorship and
+novelty. Code presence does not establish whole-PR acceptance or Phase 2 exit. The owner-approved
+PR2-20 first slice adds engineering evidence only; see the
+[exit report](docs/phase2/phase2_exit_report.md) for blocked prerequisites and limitations.
+Manuscript freeze/readiness, grant-consuming package release, external submission and Phase 3
+Agent Runtime remain outside this slice.
 
 ## Architecture
 
@@ -248,3 +253,43 @@ admin connection and uses password-free socket connections for the Runner.
 `HG1_RUN_LIVE=1` retains the read-only check of existing installations and their
 `migration-evidence/postcutover-cli-verification.json`. With neither flag set,
 the live test remains opt-in and skips.
+
+
+## PR2-20 focused hardening evidence
+
+Report helpers are file-only, under `tests/contracts/pr2_20_evidence.py`; database
+observers and disposable fixture generators are under `tests/integration/phase2/pr2_20_*`.
+They add no public command, query change, migration or scientific schema.
+
+Use the explicitly selected disposable local PostgreSQL 18 administrator from the
+existing `RB_TEST_ADMIN_URL` policy. Keep credentials in the environment. For example:
+
+```sh
+UV_CACHE_DIR=.uv-cache uv sync --locked --group dev
+UV_CACHE_DIR=.uv-cache uv run python scripts/pr2_20_verify.py
+UV_CACHE_DIR=.uv-cache uv run python -m tests.contracts.pr2_20_reports
+```
+
+The verifier runs static checks, unit/architecture tests and the listed owning/changed
+PostgreSQL suites. It does not run the whole suite. Machine evidence records the exact
+revision and authored dirty diff (including untracked source); generated reports and their
+evidence are excluded from that digest to avoid self-reference. Changed authored files
+require a fresh run. Logs are sanitized; JSON plans omit parameter-bearing expressions
+while retaining all plan nodes, timing and buffer statistics. No retained database is used.
+
+Large timing is separately opt-in:
+
+```sh
+RB_PR220_BENCHMARK=1 UV_CACHE_DIR=.uv-cache uv run pytest tests/e2e/test_pr2_20_benchmark.py
+```
+
+The declared dedicated Ubuntu benchmark host/settings and superseded-manuscript history
+are prerequisites; unavailable prerequisites produce BLOCKED evidence and skipped timing
+cases, never passing performance acceptance. Small CI timings are informational. Real
+PaperQA2 intake/index security, dated license/advisory review and owner exit dispositions
+remain unresolved. The retrieval transport's private-network destination protection is an
+open finding; no security clearance or provider activation is implied. Repository license
+selection remains with the owner; fixture text is TEST ONLY and unrestricted, and no
+restricted query/fulltext or public cache export is added here. Restore checks reconnect to
+disposable databases; test failures must be resolved under the owning predicate, without
+repairing immutable history. STOP before Phase 3.
