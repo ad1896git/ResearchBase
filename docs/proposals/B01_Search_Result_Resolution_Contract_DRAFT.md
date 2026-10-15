@@ -9,12 +9,38 @@ B01 gives an authenticated caller one command to append an exact search-result
 admission gap identified by PR2-19 G1. It does not retrieve, create a source,
 choose its current version, or create/verify LiteratureEvidence.
 
-M2 already implements `search_result_resolutions`. Reuse that relation and its
-literal hash; do not introduce a second resolution store. The proposed first
-slice admits DOI-bearing hits with an independently VERIFIED source identifier
-and compatible exact-version title. Other identifier families and ambiguous
-matches remain outside this slice. These are draft policy choices, not claims
-about an already accepted B01 implementation.
+**Already implemented in M2 — reuse, do not rebuild:**
+
+- `src/researchbase/application/metadata_observation.py` provides
+  `MetadataObservationService.observe()`, `get()` and `list_for_result()` for
+  retained observations and per-result resolution history. Its `resolve()` takes
+  an observation ID, uses existing identity/version commands to find or register
+  a source, verify its DOI, and select its current version or create/freeze one.
+  `_append_resolution()` then reuses an existing exact tuple or appends a hashed
+  resolution with a server-generated UUID; this is already a working writer.
+- `src/researchbase/persistence/metadata_observation_repository.py` already has
+  `resolution()` (exact-tuple lookup), `resolutions()` (result history) and
+  `insert_resolution()`. Migration 0029 already supplies the relation, tuple
+  uniqueness, immutable-history and BEFORE INSERT closure guards. Reuse its
+  columns and literal hash; do not introduce a second resolution store.
+- `src/researchbase/cli/commands/metadata_observation.py` exposes
+  `researchbase literature-metadata observe|resolve|get|list`, wired through
+  `src/researchbase/cli/composition.py` and `src/researchbase/persistence/uow.py`.
+  Here `get` reads an observation; `list` includes resolutions for a result.
+
+**New in the proposed B01 slice:** an Application-only
+`record_search_result_resolution` command accepting caller-supplied resolution,
+result, source and exact frozen version IDs plus basis, and
+`get_search_result_resolution` reading that exact resolution ID. Unlike M2's
+observation-driven orchestration and tuple reuse, B01 adds closed DTOs,
+same-ID/material replay and duplicate-tuple rejection, independent VERIFIED DOI
+and exact-version title/usability admission checks, and the SHARE-first write
+and historical-read protocols in §12.2. Its new domain/service/typed port/PostgreSQL
+adapter paths are listed in §12.3; M2's working writer and orchestration remain in
+place. The sole DDL addition is the deferred closure guard in §12.1. B01 adds no provider call,
+source/version creation or public CLI/HTTP surface. Other identifier families
+and ambiguous matches remain outside this slice. These are draft additions,
+not claims about an already accepted B01 implementation.
 
 Build in this order after owner approval **and separate execution authorization**:
 
