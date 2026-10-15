@@ -104,8 +104,9 @@ external effect or persistence mechanism is proposed.
    Publication. Document belongs to the same Project, has artifact type `manuscript`,
    exact FROZEN material, frozen_at, byte_size and verified CAS SHA-256 bytes.
    Freeze rereads/verifies bytes and size; it does not trust draft-time verification.
-2. All three placement sets are complete, locked and materialized. Claim and
-   Conclusion share one placement kind/array and the existing target XOR. Sources
+2. All three placement sets are complete and materialized within one transaction;
+   freeze locks them, while exact reads use the nonlocking snapshot in §12.2.
+   Claim and Conclusion share one placement kind/array and the existing target XOR. Sources
    require an exact project-access link; scientific and artifact targets require
    same-project ownership. Frozen material may be FROZEN or SUPERSEDED with preserved
    hash/frozen_at; supersession alone does not invalidate history. New admission retains the document
@@ -214,11 +215,13 @@ PROVENANCE_CLOSURE_VIOLATION. No unmapped `HASH_MISMATCH` or new
 
 ## 7. Transactions, concurrency and failure recovery
 
-One command = one synchronous READ COMMITTED UoW. Protect mutable read facts and
-insertable relation sets with first-statement table SHARE locks (§12.2); do not
-reuse an earlier request's snapshot, open nested services or switch to SERIALIZABLE
-without a reviewed change. Enable existing protected-read adapters so owner closure
-helpers do not introduce late row-lock inversions.
+One write command = one synchronous READ COMMITTED UoW. Protect mutable read facts
+and insertable relation sets with first-statement table SHARE locks (§12.2) only
+on write commands. Each exact-ID read uses one fresh REPEATABLE READ, READ ONLY
+UoW configured before the first query, with no explicit table, advisory or row locks.
+Do not reuse an earlier request's snapshot, open nested services or switch to
+SERIALIZABLE without a reviewed change. Enable nonlocking owner closure reads
+within the same UoW for both protocols.
 
 Freeze is naturally idempotent on the exact manuscript and its two expected
 hashes. No new request key or durable receipt is needed: after a lost response,
@@ -247,8 +250,10 @@ zero deadlocks. Do not weaken guards to avoid contention.
 §12.4 pins test files and cases. Use Application-created drafts/placements and
 actual verified-support fixtures for successful G5. Normal-role SQL tests are
 adversarial guard tests, not a replacement for the freeze command. Establish
-concurrency with barriers and separate connections; observe a blocked writer and
-verify both possible serial outcomes. A sleep-only test is insufficient.
+concurrency with barriers and separate connections; for freeze races, observe a
+blocked writer and verify both possible serial outcomes. For exact reads, prove
+a concurrent unrelated insert commits while the read remains open and is absent
+from that read's established snapshot. A sleep-only test is insufficient.
 
 ## 9. Acceptance criteria and evidence boundary
 
@@ -295,7 +300,7 @@ An override changes this contract before code, not silently during construction.
 | Replay | Exact ID plus two matching expectations, stored FROZEN record, current read entitlement; no receipt table. |
 | Artifact OTHER | Preserve accepted manuscript placement enum; package category restrictions belong to PR2-17. |
 | Support | Verify explicit transitive support and current validity; never attach a latest snapshot or infer support from citation/strength. |
-| SQL snapshots | Fixed table list, first statement SHARE, READ COMMITTED; protected owner reads within same UoW. |
+| SQL snapshots | Write commands: fixed table list, first statement SHARE, READ COMMITTED. Exact reads: fresh REPEATABLE READ, READ ONLY set before the first query, no explicit locks; nonlocking owner reads within the same UoW. |
 
 ### 11.2 Pinned error mappings
 
@@ -445,8 +450,10 @@ as well as frozen-history refusal on real PostgreSQL 18.x.
 
 ### 12.2 Exact lock order and transactions
 
-Define `B04_SNAPSHOT_TABLES` as the following **literal set**, sorted lexically for
-one `LOCK TABLE ... IN SHARE MODE` statement (not dynamic catalog discovery):
+For write commands only, define `B04_SNAPSHOT_TABLES` as the following **literal
+set**, sorted lexically for one `LOCK TABLE ... IN SHARE MODE` statement (not
+dynamic catalog discovery). Read paths must never acquire this SHARE inventory
+or advisory locks: they block writers without improving snapshot verification.
 
 ```text
 actor_subject_bindings actors artifact_versions artifacts audit_findings
@@ -473,20 +480,24 @@ review and race test before use; no unlisted mutable query in the command.
 | Operation | Exact sequence |
 | --- | --- |
 | `freeze_manuscript_version` | Begin fresh READ COMMITTED UoW → **first SQL statement** `LOCK TABLE <sorted B04_SNAPSHOT_TABLES> IN SHARE MODE` → `SET LOCAL lock_timeout='10s'`, `SET LOCAL statement_timeout='30s'` → project ownership advisory lock via existing `literature_search_plan.lock_project(project_id)` (advisory `rb_phase2_lock_project`, then Project `FOR UPDATE`) → scoped Publication `FOR UPDATE` → exact manuscript `FOR UPDATE` → read/check current entitlement using a nonlocking B04 authority query with fresh DB time → branch saved FROZEN replay or new DRAFT admission → read complete sets and owner closure through protected adapters (no further row locks) → verify CAS and recompute hashes → fresh credential/role check → atomic manuscript seal and pointer writes → `SET CONSTRAINTS ALL IMMEDIATE` → final fresh entitlement check → commit. |
-| `get_manuscript_version` / frozen placement and combined trace reads | Begin fresh READ COMMITTED UoW → first SQL statement the same sorted SHARE inventory → SET LOCAL limits as above → existing project lock helper (advisory, then Project FOR UPDATE) → scoped Publication FOR SHARE → exact manuscript FOR SHARE → nonlocking B04 authority query and fresh credential/time check → protected owner reads → recompute/compare sealed hashes or compute draft preview → fresh read entitlement → return; no writes. |
+| `get_manuscript_version` / frozen placement and combined trace reads | Begin one fresh UoW with REPEATABLE READ and READ ONLY set before the first query (including authorization) → authenticate reader and check project read entitlement using nonlocking B04 authority query and fresh DB time → scoped Publication and exact manuscript reads → complete placement sets and exact owner closure in the same snapshot through nonlocking adapters → verify CAS bytes and closure, recompute/compare saved sealed hashes or compute draft preview → final fresh credential/time and read-entitlement check → return typed DTO; no writes or explicit table, advisory or row locks. |
 
 Missing principal/invalid DTO rejects before SQL. For replay use fresh read-role
 checks at both authorization points; never fall through to writes. No receipt
 advisory lock is needed: exact manuscript+Publication rows serialize the sole effect.
 The B04 authority query uses the exact subject/deployment/credential binding and
 actor/membership/role predicates of PublicationService, with no FOR UPDATE: the
-first SHARE statement already protects those tables. Do not call its locking
-`_authorize` helper after closure reads. Existing draft/placement writers retain
+write command's first SHARE statement protects those tables; exact reads consult
+them within their REPEATABLE READ snapshot. As in B01's
+`get_search_result_resolution` and the PR2-18 exact-read fix, reads authenticate the
+reader and verify saved hashes/closure without locks. Do not call the locking
+`_authorize` or project lock helper on a read path, or after closure reads on a
+write path. Existing draft/placement writers retain
 their parent coordination; frozen guards
 are rechecked after any wait, including direct SQL UPDATE/DELETE/reparent.
 
-FIRST means before authorization queries, row locks, advisory locks, `SET LOCAL`,
-lookup or ORM autoflush. Install an initial 10s lock timeout/30s statement timeout
+For write commands, FIRST means before authorization queries, row locks, advisory
+locks, `SET LOCAL`, lookup or ORM autoflush. Install an initial 10s lock timeout/30s statement timeout
 on the connection before transaction start (engine connection options), so the
 first SHARE wait is bounded too; SET LOCAL retains the existing operational pattern.
 Use `autoflush=False`. PostgreSQL transaction-control BEGIN is not a data statement.
@@ -535,10 +546,10 @@ Paths marked **new** are proposed files, not current code:
 | --- | --- |
 | `tests/unit/phase2/test_b04_manuscript_contract.py` | Closed DTOs, UUID/digest/bool/Unicode bounds, enums, 10,000/10,001 admission, XOR, duplicate/gapped ordinals, repeated targets at distinct locations; no extra hash fields. |
 | `tests/unit/phase2/test_b04_manuscript_hash_vectors.py` | R3 18 exact 411-byte placement vector/digest `4dd9c22356a328ec182d0a4f2330f55ffe5b60b6ca65d48eee63ced773bddf95` and 439-byte manuscript vector/digest `2e910c3b0c9242184a0d4daf7fda5bd5f17defb41feb7e53fa46be1ff83830dc`; NFC/null/empty arrays, order invariance, each material field changes hash, status/timestamp/row IDs do not. |
-| `tests/architecture/test_b04_boundaries.py` | Domain imports; Application→port→adapter boundary; first emitted SQL is exact SHARE inventory; no nested transactions, caller bypass of Application or new canonical/receipt schema; frozen trace delegates verifier; read and write authority queries use the specified protected protocol. |
+| `tests/architecture/test_b04_boundaries.py` | Domain imports; Application→port→adapter boundary; write-command first emitted SQL is exact SHARE inventory; exact reads set REPEATABLE READ and READ ONLY before any query, with no explicit table/advisory/row locks (including authorization and closure helpers); no nested transactions, caller bypass of Application or new canonical/receipt schema; frozen trace delegates verifier; read and write authority queries use their respective §12.2 protocols. |
 | `tests/integration/phase2/test_b04_manuscript_migration.py` | Clean base and actual-head upgrades, retained drafts/placements, catalog types/FK/check/trigger definitions, deferred final-state checks, downgrade safety. Normal-role SQL rejects forged frozen insert, null/malformed seals, material/hash/time/parent/row_version edits, deletion, all placement mutations and old/new-parent moves, wrong-project document/target and pointer. |
 | `tests/integration/phase2/test_b04_manuscript_freeze.py` | Command success and restart/replay, changed expectations and permission expiry, concurrent calls, empty/citation-only seal, every placement kind, exact frozen/SUPERSEDED targets, CAS missing/corrupt/wrong-size document/figure, recomputed hash tamper, invalid Phase 1 closure, explicit snapshot mismatch, retracted/disputed/unreviewed positive support, contradiction retained, rollback between seal and pointer/at commit. |
-| `tests/integration/phase2/test_b04_manuscript_races.py` | Freeze versus placement INSERT/UPDATE/DELETE/reparent, Source correction/retraction, review VERIFIED→DISPUTED, governance finding/impact INSERT phantom, project/binding/credential expiry; observe blocking and assert complete old/new snapshot or full rollback/retry, no partial seal. Mixed Decision/Novelty/owner writer lock order and first SHARE timeout. |
+| `tests/integration/phase2/test_b04_manuscript_races.py` | Freeze versus placement INSERT/UPDATE/DELETE/reparent, Source correction/retraction, review VERIFIED→DISPUTED, governance finding/impact INSERT phantom, project/binding/credential expiry; observe blocking and assert complete old/new snapshot or full rollback/retry, no partial seal. Mixed Decision/Novelty/owner writer lock order and first SHARE timeout. Exact-ID manuscript, frozen placement and combined trace reads do not block a concurrent unrelated INSERT into a consulted table: use separate connections and barriers to hold the read open after its first query, assert REPEATABLE READ/READ ONLY and absence of explicit table/advisory/row locks, require the insert to commit before releasing the reader, and verify it stays outside the reader's snapshot while saved hashes/closure still verify. |
 | Existing `tests/integration/phase2/test_pr2_19_citation_trace.py` | Extend G5 through Application freeze then exact scientific trace; retain F3 citation-only negative, exact IDs/locators/ordinals/CAS/hashes and distinct support paths. Do not freeze a fixture by SQL. |
 
 Also run existing `test_pr2_12_migration.py`, `test_pr2_12_publication_draft.py`,
