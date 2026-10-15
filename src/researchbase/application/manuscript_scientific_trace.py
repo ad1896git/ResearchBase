@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from researchbase.application.manuscript_freeze import ManuscriptFreezeService
 from researchbase.application.ports import UnitOfWork
 from researchbase.application.publication import _READERS, PublicationService
 from researchbase.domain.phase2_identity import VerifiedPrincipal
@@ -97,9 +98,12 @@ class ManuscriptScientificTrace:
 class ManuscriptScientificTraceService:
     """Query persisted paths only; never infer support or human verification."""
 
-    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any) -> None:
+    def __init__(
+        self, factory: Callable[[], UnitOfWork], credentials: Any, store: Any = None
+    ) -> None:
         self._factory = factory
         self._auth = PublicationService(factory, credentials, None)
+        self._freeze = ManuscriptFreezeService(factory, credentials, store)
 
     @staticmethod
     def _placements(rows: list[dict[str, Any]]) -> tuple[PlacementTraceItem, ...]:
@@ -237,10 +241,13 @@ class ManuscriptScientificTraceService:
             raise ResearchBaseError(
                 ErrorCode.VALIDATION_ERROR, "exact publication and manuscript version required"
             )
+        self._freeze._principal(principal)
         with self._factory() as uow:
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.manuscript_freeze.prepare_read()
+            uow.enable_revision_action_snapshot_reads()
             repo = uow.publication
-            repo.begin_scientific_trace_snapshot()
-            self._auth._authorize(uow, principal, project, _READERS)
+            self._freeze.authorize(uow, principal, project, _READERS)
             parent = repo.publication(publication, project)
             version = repo.version(manuscript, publication) if parent else None
             if version is None:
@@ -249,6 +256,8 @@ class ManuscriptScientificTraceService:
                 version["frozen_at"] is None or not _valid_hash(version["content_hash"])
             ):
                 _unresolved()
+            if version["status"] == "FROZEN":
+                self._freeze.verify_in_uow(uow, project, parent, version)
             placements = self._placements(repo.scientific_trace_placements(manuscript, project))
             claims = self._conclusion_claims(
                 repo.scientific_trace_conclusion_claim_inputs(manuscript),
@@ -262,6 +271,7 @@ class ManuscriptScientificTraceService:
                 repo.scientific_trace_literature_evidence(manuscript, project),
                 project,
             )
+            self._freeze.authorize(uow, principal, project, _READERS)
             return ManuscriptScientificTrace(
                 project,
                 publication,

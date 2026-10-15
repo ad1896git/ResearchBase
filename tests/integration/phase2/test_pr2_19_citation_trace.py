@@ -16,6 +16,7 @@ from tests.integration.phase2.pr2_19_support import counts
 from tests.integration.phase2.pr2_19_support import m3 as _m3
 from tests.integration.phase2.pr2_19_support import phase2_database_url as _phase2_database_url
 from tests.integration.phase2.pr2_19_support import pr219_trace_env as _pr219_trace_env
+from tests.integration.phase2.test_b04_manuscript_freeze import b04_env as _b04_env
 
 pytestmark = pytest.mark.integration
 
@@ -94,3 +95,114 @@ conclusion_env = _conclusion_env
 m3 = _m3
 phase2_database_url = _phase2_database_url
 pr219_trace_env = _pr219_trace_env
+
+
+def test_g5_application_freeze_retains_exact_scientific_paths(b04_env):
+    from uuid import UUID
+
+    from researchbase.application.scientific_conclusion import (
+        ClaimInputRequest,
+        LiteratureInputRequest,
+    )
+    from tests.integration.phase2.test_b04_manuscript_freeze import freeze
+    from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
+
+    service, q, actor, factory, engine, credentials, store, claim, base = b04_env
+    scientific, _, evidence_service, _, reviewer, project, _, source, _, _ = base
+    evidence = evidence_service.create(actor, project, source, "improved recall", uuid4())
+    evidence_id = UUID(evidence["id"])
+    evidence_service.review(
+        reviewer, project, evidence_id, "VERIFIED", "Test-only independent inspection", uuid4()
+    )
+    snapshot = evidence_service.snapshot(
+        actor,
+        project,
+        "ClaimVersion",
+        claim,
+        [
+            {
+                "evidence_id": str(evidence_id),
+                "relation_type": "SUPPORTS",
+                "qualification": "Test support",
+            }
+        ],
+        uuid4(),
+    )
+    direct_evidence = evidence_service.create(actor, project, source, "measured effect", uuid4())
+    direct_id = UUID(direct_evidence["id"])
+    evidence_service.review(
+        reviewer, project, direct_id, "VERIFIED", "Independent inspection", uuid4()
+    )
+    conclusion = scientific.create(
+        actor,
+        project,
+        "Test synthesis",
+        SCOPE,
+        "MODERATE",
+        None,
+        (ClaimInputRequest(claim, "SUPPORTS", UUID(snapshot["id"])),),
+        (LiteratureInputRequest(direct_id, "SUPPORTS"),),
+        uuid4(),
+    )
+    scientific.freeze(actor, project, conclusion.conclusion_id, conclusion.version_id, uuid4())
+    placements = ClaimPlacementService(factory, credentials, store)
+    placements.add(
+        actor,
+        project,
+        q.publication_id,
+        q.manuscript_version_id,
+        claim,
+        None,
+        "RESULTS",
+        {"kind": "PARAGRAPH", "value": "p1"},
+        "SUPPORTED",
+        0,
+        uuid4(),
+    )
+    placements.add(
+        actor,
+        project,
+        q.publication_id,
+        q.manuscript_version_id,
+        None,
+        conclusion.version_id,
+        "DISCUSSION",
+        {"kind": "PARAGRAPH", "value": "p2"},
+        "SUPPORTED",
+        0,
+        uuid4(),
+    )
+    CitationPlacementService(factory, credentials, store).add(
+        actor,
+        project,
+        q.publication_id,
+        q.manuscript_version_id,
+        source,
+        "INTRO",
+        {"kind": "PARAGRAPH", "value": "p1"},
+        "BACKGROUND",
+        0,
+        uuid4(),
+    )
+    trace_service = ManuscriptScientificTraceService(factory, credentials, store)
+    before = trace_service.trace(actor, project, q.publication_id, q.manuscript_version_id)
+    frozen = freeze(service, actor, q)
+    after = trace_service.trace(actor, project, q.publication_id, q.manuscript_version_id)
+    assert (
+        after.manuscript_status == "FROZEN" and after.manuscript_content_hash == frozen.content_hash
+    )
+    assert before.placements == after.placements
+    assert {x.link_kind for x in after.literature_evidence} == {
+        "CLAIM_SNAPSHOT",
+        "CONCLUSION_INPUT",
+    }
+    assert after.claim_experiment_evidence and after.conclusion_claim_inputs
+    assert all(
+        store.verify(x.target_content_hash)
+        for x in after.placements
+        if x.placement_kind == "ARTIFACT"
+    )
+    assert all(x.target_id in {claim, conclusion.version_id, source} for x in after.placements)
+
+
+b04_env = _b04_env

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from researchbase.application.manuscript_freeze import ManuscriptFreezeService
 from researchbase.application.ports import UnitOfWork
 from researchbase.application.publication import _READERS, _WRITERS, PublicationService
 from researchbase.domain.phase2_identity import VerifiedPrincipal
@@ -52,9 +53,12 @@ def _text(value: object) -> str:
 
 
 class CitationPlacementService:
-    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any) -> None:
+    def __init__(
+        self, factory: Callable[[], UnitOfWork], credentials: Any, store: Any = None
+    ) -> None:
         self._factory = factory
         self._auth = PublicationService(factory, credentials, None)
+        self._freeze = ManuscriptFreezeService(factory, credentials, store)
 
     @staticmethod
     def _source(repo: Any, source: UUID, project: UUID) -> str:
@@ -171,18 +175,28 @@ class CitationPlacementService:
         publication: UUID,
         manuscript: UUID,
     ) -> tuple[CitationTrace, ...]:
+        self._freeze._principal(principal)
         with self._factory() as uow:
-            self._auth._authorize(uow, principal, project, _READERS)
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.manuscript_freeze.prepare_read()
+            uow.enable_revision_action_snapshot_reads()
+            self._freeze.authorize(uow, principal, project, _READERS)
             repo = uow.publication
             parent = repo.publication(publication, project)
             version = repo.version(manuscript, publication) if parent else None
-            if version is None or version["status"] != "DRAFT" or version["frozen_at"] is not None:
+            if version is None:
+                raise ResearchBaseError(ErrorCode.NOT_FOUND, "manuscript version not found")
+            if version["status"] == "FROZEN":
+                self._freeze.verify_in_uow(uow, project, parent, version)
+            elif version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.citations(manuscript)
-            return tuple(
+            result = tuple(
                 self._result(row, self._source(repo, row["source_version_id"], project))
                 for row in rows
             )
+            self._freeze.authorize(uow, principal, project, _READERS)
+            return result
 
 
 _STRENGTHS = frozenset({"DESCRIPTIVE", "SUGGESTIVE", "SUPPORTED", "STRONG"})
@@ -206,9 +220,12 @@ class ClaimPlacementTrace:
 class ClaimPlacementService:
     """Draft presentation links; no support, review or promotion is created."""
 
-    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any) -> None:
+    def __init__(
+        self, factory: Callable[[], UnitOfWork], credentials: Any, store: Any = None
+    ) -> None:
         self._factory = factory
         self._auth = PublicationService(factory, credentials, None)
+        self._freeze = ManuscriptFreezeService(factory, credentials, store)
 
     @staticmethod
     def _target(repo: Any, target: UUID, project: UUID, *, conclusion: bool) -> str:
@@ -348,15 +365,23 @@ class ClaimPlacementService:
         publication: UUID,
         manuscript: UUID,
     ) -> tuple[ClaimPlacementTrace, ...]:
+        self._freeze._principal(principal)
         with self._factory() as uow:
-            self._auth._authorize(uow, principal, project, _READERS)
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.manuscript_freeze.prepare_read()
+            uow.enable_revision_action_snapshot_reads()
+            self._freeze.authorize(uow, principal, project, _READERS)
             repo = uow.publication
             parent = repo.publication(publication, project)
             version = repo.version(manuscript, publication) if parent else None
-            if version is None or version["status"] != "DRAFT" or version["frozen_at"] is not None:
+            if version is None:
+                raise ResearchBaseError(ErrorCode.NOT_FOUND, "manuscript version not found")
+            if version["status"] == "FROZEN":
+                self._freeze.verify_in_uow(uow, project, parent, version)
+            elif version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.claim_placements(manuscript)
-            return tuple(
+            result = tuple(
                 self._result(
                     row,
                     self._target(
@@ -368,6 +393,8 @@ class ClaimPlacementService:
                 )
                 for row in rows
             )
+            self._freeze.authorize(uow, principal, project, _READERS)
+            return result
 
 
 _ARTIFACT_ROLES = frozenset({"FIGURE", "TABLE", "OTHER"})
@@ -389,9 +416,12 @@ class ArtifactPlacementTrace:
 class ArtifactPlacementService:
     """Exact frozen artifact presentation; no scientific promotion."""
 
-    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any) -> None:
+    def __init__(
+        self, factory: Callable[[], UnitOfWork], credentials: Any, store: Any = None
+    ) -> None:
         self._factory = factory
         self._auth = PublicationService(factory, credentials, None)
+        self._freeze = ManuscriptFreezeService(factory, credentials, store)
 
     @staticmethod
     def _target(repo: Any, artifact: UUID, project: UUID) -> str:
@@ -512,15 +542,25 @@ class ArtifactPlacementService:
         publication: UUID,
         manuscript: UUID,
     ) -> tuple[ArtifactPlacementTrace, ...]:
+        self._freeze._principal(principal)
         with self._factory() as uow:
-            self._auth._authorize(uow, principal, project, _READERS)
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.manuscript_freeze.prepare_read()
+            uow.enable_revision_action_snapshot_reads()
+            self._freeze.authorize(uow, principal, project, _READERS)
             repo = uow.publication
             parent = repo.publication(publication, project)
             version = repo.version(manuscript, publication) if parent else None
-            if version is None or version["status"] != "DRAFT" or version["frozen_at"] is not None:
+            if version is None:
+                raise ResearchBaseError(ErrorCode.NOT_FOUND, "manuscript version not found")
+            if version["status"] == "FROZEN":
+                self._freeze.verify_in_uow(uow, project, parent, version)
+            elif version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.artifact_placements(manuscript)
-            return tuple(
+            result = tuple(
                 self._result(row, self._target(repo, row["artifact_version_id"], project))
                 for row in rows
             )
+            self._freeze.authorize(uow, principal, project, _READERS)
+            return result

@@ -19,8 +19,18 @@ def database_url() -> str:
     return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
-def create_database_engine(url: str | None = None) -> Engine:
-    return create_engine(url or database_url(), future=True)
+def create_database_engine(url: str | None = None, *, b04_write_timeouts: bool = False) -> Engine:
+    """Opt B04 write factories into the guide's bounded first SHARE wait.
+
+    Connection options apply before BEGIN; ordinary callers retain server defaults.
+    B04 exact-read factories do not need this option.
+    """
+    options = (
+        {"options": "-c lock_timeout=10000 -c statement_timeout=30000"}
+        if b04_write_timeouts
+        else {}
+    )
+    return create_engine(url or database_url(), future=True, connect_args=options)
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

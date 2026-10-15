@@ -26,10 +26,11 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
             "migrations/versions/0045_pr2_16_basic_approval.py",
             "migrations/versions/0046_pr2_17_authorship_preparation.py",
             "migrations/versions/0047_pr2_18_novelty_prior_art.py",
+            "migrations/versions/0048_b04_manuscript_freeze.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0047_pr2_18_novelty_prior_art"]
+    assert scripts.get_heads() == ["0048_b04_manuscript_freeze"]
     assert (
         scripts.get_revision("0047_pr2_18_novelty_prior_art").down_revision
         == "0046_pr2_17_authorship"

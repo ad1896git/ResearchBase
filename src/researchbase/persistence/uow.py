@@ -46,6 +46,9 @@ from researchbase.persistence.literature_search_execution_repository import (
 from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
+from researchbase.persistence.manuscript_freeze_repository import (
+    SqlAlchemyManuscriptFreezeRepository,
+)
 from researchbase.persistence.metadata_observation_repository import (
     SqlAlchemyMetadataObservationRepository,
 )
@@ -284,7 +287,32 @@ def _authorship_database_error(exc: DBAPIError) -> ResearchBaseError:
     return error
 
 
+def _manuscript_freeze_database_error(exc: DBAPIError) -> ResearchBaseError:
+    state = getattr(exc.orig, "sqlstate", None)
+    codes = {
+        "P04M1": ErrorCode.IMMUTABLE_RECORD,
+        "P04M2": ErrorCode.INVALID_STATE_TRANSITION,
+        "P04M3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+        "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+        "23514": ErrorCode.VALIDATION_ERROR,
+        "23502": ErrorCode.VALIDATION_ERROR,
+        "23505": ErrorCode.CONCURRENT_MODIFICATION,
+        "40001": ErrorCode.CONCURRENT_MODIFICATION,
+        "40P01": ErrorCode.CONCURRENT_MODIFICATION,
+        "55P03": ErrorCode.CONCURRENT_MODIFICATION,
+        "57014": ErrorCode.CONCURRENT_MODIFICATION,
+    }
+    if state in codes:
+        return ResearchBaseError(
+            codes[state],
+            "manuscript transaction rejected",
+            {"retryable_b04": state in {"40001", "40P01"}},
+        )
+    return _decision_database_error(exc)
+
+
 class SqlAlchemyUnitOfWork:
+    manuscript_freeze: SqlAlchemyManuscriptFreezeRepository
     authorship: AuthorshipRepository
     actors: ActorRepository
     projects: ProjectRepository
@@ -331,6 +359,7 @@ class SqlAlchemyUnitOfWork:
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._novelty_error_normalization = False
+        self._manuscript_freeze_error_normalization = False
         self._session: Session | None = None
 
         self._committed = False
@@ -341,6 +370,7 @@ class SqlAlchemyUnitOfWork:
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._novelty_error_normalization = False
+        self._manuscript_freeze_error_normalization = False
         self._session = self._session_factory()
         self._session.begin()
         self.actors = SqlAlchemyActorRepository(self._session)
@@ -373,6 +403,7 @@ class SqlAlchemyUnitOfWork:
         self.discussion = SqlAlchemyDiscussionRepository(self._session)
         self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(self._session)
         self.publication = SqlAlchemyPublicationRepository(self._session)
+        self.manuscript_freeze = SqlAlchemyManuscriptFreezeRepository(self._session)
         self.internal_review = SqlAlchemyInternalReviewRepository(self._session)
         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
@@ -380,6 +411,10 @@ class SqlAlchemyUnitOfWork:
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)
         self.novelty = SqlAlchemyNoveltyRepository(self._session)
         return self
+
+    def enable_manuscript_freeze_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._manuscript_freeze_error_normalization = True
 
     def enable_novelty_error_normalization(self) -> None:
         self._decision_error_normalization = True
@@ -438,6 +473,7 @@ class SqlAlchemyUnitOfWork:
         for this UoW, avoiding late row-lock inversions with owning writers.
         """
         session = self._require_session()
+        self.publication = SqlAlchemyPublicationRepository(session, protected_reads=True)
         self.literature_evidence = SqlAlchemyLiteratureEvidenceRepository(
             session, protected_reads=True
         )
@@ -455,6 +491,8 @@ class SqlAlchemyUnitOfWork:
         self._authorship_error_normalization = True
 
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if self._manuscript_freeze_error_normalization:
+            return _manuscript_freeze_database_error(exc)
         if self._authorship_error_normalization:
             return _authorship_database_error(exc)
         if self._novelty_error_normalization:

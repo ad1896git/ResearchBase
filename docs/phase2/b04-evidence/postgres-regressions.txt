@@ -1,0 +1,30 @@
+........................................................................ [ 27%]
+........................................................................ [ 54%]
+........................................................................ [ 82%]
+...............................................                          [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b04_manuscript_freeze.py: 57 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b04_manuscript_races.py: 36 warnings
+tests/integration/phase2/test_pr2_12_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_12_publication_draft.py: 16 warnings
+tests/integration/phase2/test_pr2_13_citation_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_13_claim_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_13_artifact_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_13_citation_rebinding.py: 15 warnings
+tests/integration/phase2/test_pr2_13_scientific_trace.py: 12 warnings
+tests/integration/phase2/test_pr2_19_citation_trace.py: 9 warnings
+tests/integration/phase2/test_m3_evidence.py: 16 warnings
+tests/integration/phase2/test_pr2_11_r2_persistence.py: 34 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_review_guards.py: 42 warnings
+tests/integration/phase2/test_pr2_04_execution_migration.py: 11 warnings
+tests/integration/phase2/test_pr2_04_migration_coverage.py: 24 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_revision_action.py: 157 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane7/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+263 passed, 640 warnings in 185.65s (0:03:05)

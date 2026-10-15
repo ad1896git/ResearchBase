@@ -55,3 +55,4 @@ Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e
 | 0045_pr2_16_basic_approval | 0044_pr2_15_revision_action | 19fb8d0ba3af38347d293ffb3e478cddbef5c5047b41d49a8e1c49ed8323d187 |
 | 0046_pr2_17_authorship | 0045_pr2_16_basic_approval | bac73fbe714985a83a385712e91b56bfe5ba46f0b45327e97a158b22da0f1f65 |
 | 0047_pr2_18_novelty_prior_art | 0046_pr2_17_authorship | a58e2d44d9ee502a7906a92749db28923d2550ba843bb83ea1a64b2fbe4defde |
+| 0048_b04_manuscript_freeze | 0047_pr2_18_novelty_prior_art | 8dc9b61712aaf6fb02513ece31f12642e4fce7a8e8df947985e8346c85a43660 |

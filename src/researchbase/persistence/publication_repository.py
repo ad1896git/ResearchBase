@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 
 class SqlAlchemyPublicationRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, protected_reads: bool = False) -> None:
         self._session = session
+        self._protected_reads = protected_reads
 
     def lock_request(self, key: str) -> None:
         self._session.execute(
@@ -55,10 +56,13 @@ class SqlAlchemyPublicationRepository:
     def document(self, identity: UUID, project: UUID):
         row = (
             self._session.execute(
-                text("""SELECT v.id,v.status,v.frozen_at,
+                text(
+                    """SELECT v.id,v.status,v.frozen_at,
           v.content_hash,v.byte_size,a.artifact_type,a.project_id
           FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
-          WHERE v.id=:id AND a.project_id=:project FOR SHARE OF v,a"""),
+          WHERE v.id=:id AND a.project_id=:project"""
+                    + ("" if self._protected_reads else " FOR SHARE OF v,a")
+                ),
                 {"id": identity, "project": project},
             )
             .mappings()
@@ -100,10 +104,13 @@ class SqlAlchemyPublicationRepository:
     def citation_source(self, identity: UUID, project: UUID):
         row = (
             self._session.execute(
-                text("""SELECT v.id,v.status,v.frozen_at,v.content_hash
+                text(
+                    """SELECT v.id,v.status,v.frozen_at,v.content_hash
           FROM source_versions v JOIN literature_source_project_links l
             ON l.literature_source_id=v.literature_source_id
-          WHERE v.id=:id AND l.project_id=:project FOR SHARE OF v,l"""),
+          WHERE v.id=:id AND l.project_id=:project"""
+                    + ("" if self._protected_reads else " FOR SHARE OF v,l")
+                ),
                 {"id": identity, "project": project},
             )
             .mappings()
@@ -151,11 +158,15 @@ class SqlAlchemyPublicationRepository:
             query = """SELECT v.id,v.status,v.frozen_at,v.content_hash,v.support_set_hash
               FROM scientific_conclusion_versions v JOIN scientific_conclusions c
                 ON c.id=v.scientific_conclusion_id
-              WHERE v.id=:id AND c.project_id=:project FOR SHARE OF v,c"""
+              WHERE v.id=:id AND c.project_id=:project""" + (
+                "" if self._protected_reads else " FOR SHARE OF v,c"
+            )
         else:
             query = """SELECT v.id,v.status,v.frozen_at,v.content_hash
               FROM claim_versions v JOIN claims c ON c.id=v.claim_id
-              WHERE v.id=:id AND c.project_id=:project FOR SHARE OF v,c"""
+              WHERE v.id=:id AND c.project_id=:project""" + (
+                "" if self._protected_reads else " FOR SHARE OF v,c"
+            )
         row = (
             self._session.execute(text(query), {"id": identity, "project": project})
             .mappings()
@@ -201,9 +212,12 @@ class SqlAlchemyPublicationRepository:
     def artifact_placement_target(self, identity: UUID, project: UUID):
         row = (
             self._session.execute(
-                text("""SELECT v.id,v.status,v.frozen_at,v.content_hash,
+                text(
+                    """SELECT v.id,v.status,v.frozen_at,v.content_hash,
           a.artifact_type FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
-          WHERE v.id=:id AND a.project_id=:project FOR SHARE OF v,a"""),
+          WHERE v.id=:id AND a.project_id=:project"""
+                    + ("" if self._protected_reads else " FOR SHARE OF v,a")
+                ),
                 {"id": identity, "project": project},
             )
             .mappings()

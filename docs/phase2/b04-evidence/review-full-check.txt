@@ -1,0 +1,294 @@
+DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr212_test_20f1addd8c5e437c8d3f1387d87531ea
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+UV_CACHE_DIR=/private/tmp/researchbase-uv-cache
+$ uv run alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_empty, Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Running upgrade 0001_empty -> 0002_actor_project_workspace, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running upgrade 0002_actor_project_workspace -> 0003_research_question_hypothesis, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0003_research_question_hypothesis -> 0004_experiment_spec, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0004_experiment_spec -> 0005_dataset_snapshot, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_dataset_snapshot -> 0006_artifact_version, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0006_artifact_version -> 0007_metric_definition, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0007_metric_definition -> 0008_run_core, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running upgrade 0008_run_core -> 0009_run_input_seal_fix, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running upgrade 0009_run_input_seal_fix -> 0010_measurement, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running upgrade 0010_measurement -> 0011_statistical_result, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_statistical_result -> 0012_statistical_result_input_guard, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running upgrade 0012_statistical_result_input_guard -> 0013_statistical_result_legacy_input_precheck, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running upgrade 0013_statistical_result_legacy_input_precheck -> 0014_claim_evidence, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running upgrade 0014_claim_evidence -> 0015_governance_audit, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running upgrade 0015_governance_audit -> 0016_pr17d_history_protection, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running upgrade 0016_pr17d_history_protection -> 0017_persisted_canonical_enum_normalization, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running upgrade 0017_persisted_canonical_enum_normalization -> 0018_current_pointer_same_parent_integrity, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0018_current_pointer_same_parent_integrity -> 0019_phase2_bootstrap_membership, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running upgrade 0019_phase2_bootstrap_membership -> 0020_literature_source_identity, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running upgrade 0020_literature_source_identity -> 0021_source_merge_governance_bridge, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0021_source_merge_governance_bridge -> 0021a_source_merge_gov_guards, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running upgrade 0021a_source_merge_gov_guards -> 0022_source_version_and_merge_lineage, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_source_version_and_merge_lineage -> 0023_literature_search_plan, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running upgrade 0023_literature_search_plan -> 0023a_search_plan_review_guards, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running upgrade 0023a_search_plan_review_guards -> 0024_literature_search_execution, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0024_literature_search_execution -> 0025_pr2_04_reservation_guards, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0025_pr2_04_reservation_guards -> 0026_pr2_04_p1_contract_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0026_pr2_04_p1_contract_guards -> 0027_pr2_04_hash_scheme_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0027_pr2_04_hash_scheme_guards -> 0028_provider_cancellation, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running upgrade 0028_provider_cancellation -> 0029_metadata_observations, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running upgrade 0029_metadata_observations -> 0030_literature_evidence, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0030_literature_evidence -> 0031_m3_snapshot_relation_cardinality, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running upgrade 0031_m3_snapshot_relation_cardinality -> 0032_pr2_10_discussion, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running upgrade 0032_pr2_10_discussion -> 0033_pr2_11_r2_scientific_conclusion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0033_pr2_11_r2_scientific_conclusion -> 0034_pr2_10_exact_transcript_binding, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running upgrade 0034_pr2_10_exact_transcript_binding -> 0035_pr2_12_publication_draft, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running upgrade 0035_pr2_12_publication_draft -> 0036_pr2_13_citation_placement, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running upgrade 0036_pr2_13_citation_placement -> 0037_pr2_13_claim_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0037_pr2_13_claim_placement -> 0038_pr2_13_artifact_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0038_pr2_13_artifact_placement -> 0039_pr2_13_citation_rebinding_guard, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running upgrade 0039_pr2_13_citation_rebinding_guard -> 0040_pr2_14_initial_internal_review, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running upgrade 0040_pr2_14_initial_internal_review -> 0041_pr2_15_review_coordination, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running upgrade 0041_pr2_15_review_coordination -> 0042_pr2_15_minimal_decision, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running upgrade 0042_pr2_15_minimal_decision -> 0043_pr2_04_schema_contract, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running upgrade 0043_pr2_04_schema_contract -> 0044_pr2_15_revision_action, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running upgrade 0044_pr2_15_revision_action -> 0045_pr2_16_basic_approval, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running upgrade 0045_pr2_16_basic_approval -> 0046_pr2_17_authorship, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running upgrade 0046_pr2_17_authorship -> 0047_pr2_18_novelty_prior_art, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running upgrade 0047_pr2_18_novelty_prior_art -> 0048_b04_manuscript_freeze, B04 initial manuscript seal; retain scientific history and draft placement checks.
+$ uv run pyright && uv run ruff format --check . && uv run ruff check . && uv run pytest -o addopts='' -q -rfE -p no:cacheprovider
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+546 files already formatted
+All checks passed!
+........................................................................ [  1%]
+...................................................sssssssssssssssssssss [  2%]
+sssssssssssssssssssssssssss............................................. [  3%]
+........................................................................ [  4%]
+...................................s.................................... [  6%]
+........................................................................ [  7%]
+........................................................................ [  8%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 12%]
+........................................................................ [ 13%]
+........................................................................ [ 14%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+........................................................................ [ 18%]
+........................................................................ [ 19%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 23%]
+........................................................................ [ 24%]
+........................................................................ [ 25%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+........................................................................ [ 29%]
+........................................................................ [ 30%]
+........................................................................ [ 31%]
+........................................................................ [ 33%]
+........................................................................ [ 34%]
+........................................................................ [ 35%]
+........................................................................ [ 36%]
+........................................................................ [ 37%]
+........................................................................ [ 39%]
+........................................................................ [ 40%]
+........................................................................ [ 41%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 45%]
+........................................................................ [ 46%]
+........................................................................ [ 47%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 51%]
+........................................................................ [ 52%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 57%]
+........................................................................ [ 58%]
+........................................................................ [ 59%]
+........................................................................ [ 61%]
+........................................................................ [ 62%]
+........................................................................ [ 63%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 67%]
+........................................................................ [ 68%]
+........................................................................ [ 69%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 73%]
+........................................................................ [ 74%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 78%]
+........................................................................ [ 79%]
+........................................................................ [ 80%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+........................................................................ [ 84%]
+........................................................................ [ 85%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 89%]
+........................................................................ [ 90%]
+........................................................................ [ 91%]
+........................................................................ [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 95%]
+........................................................................ [ 96%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+......................................................                   [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py:29
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane7/tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py:29: PytestCollectionWarning: cannot collect test class 'TestOwnedInterruption' because it has a __init__ constructor (from: tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py)
+    class TestOwnedInterruption(RuntimeError):
+
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 34 warnings
+tests/e2e/test_pr2_20_benchmark.py: 6 warnings
+tests/integration/phase2/test_approval.py: 210 warnings
+tests/integration/phase2/test_b04_manuscript_freeze.py: 69 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b04_manuscript_races.py: 72 warnings
+tests/integration/phase2/test_hg1_bound_subject.py: 1 warning
+tests/integration/phase2/test_hg1_enrollment_integration.py: 2 warnings
+tests/integration/phase2/test_hg1_review_integration.py: 1 warning
+tests/integration/phase2/test_lean_p1_sql.py: 24 warnings
+tests/integration/phase2/test_m0_hash_scheme.py: 14 warnings
+tests/integration/phase2/test_m0_provider_cancellation.py: 32 warnings
+tests/integration/phase2/test_m1_local_onboarding.py: 5 warnings
+tests/integration/phase2/test_m2_metadata.py: 25 warnings
+tests/integration/phase2/test_m3_evidence.py: 16 warnings
+tests/integration/phase2/test_m3_p1r1.py: 13 warnings
+tests/integration/phase2/test_m3_p1r2.py: 8 warnings
+tests/integration/phase2/test_m3_real_cli.py: 1 warning
+tests/integration/phase2/test_pr2_00_bootstrap.py: 14 warnings
+tests/integration/phase2/test_pr2_00_challenges.py: 1 warning
+tests/integration/phase2/test_pr2_00_concurrency.py: 5 warnings
+tests/integration/phase2/test_pr2_00_identity.py: 2 warnings
+tests/integration/phase2/test_pr2_00_identity_guards.py: 4 warnings
+tests/integration/phase2/test_pr2_00_migration.py: 25 warnings
+tests/integration/phase2/test_pr2_00_ownership.py: 2 warnings
+tests/integration/phase2/test_pr2_00_temporal_auth.py: 1 warning
+tests/integration/phase2/test_pr2_01_migration.py: 6 warnings
+tests/integration/phase2/test_pr2_01_source_identity.py: 11 warnings
+tests/integration/phase2/test_pr2_02_gov_application.py: 5 warnings
+tests/integration/phase2/test_pr2_02_gov_migration.py: 5 warnings
+tests/integration/phase2/test_pr2_02_source_version_migration.py: 15 warnings
+tests/integration/phase2/test_pr2_03_command_matrix.py: 28 warnings
+tests/integration/phase2/test_pr2_03_effective_authority.py: 8 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_application.py: 1 warning
+tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py: 8 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py: 3 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_review_guards.py: 42 warnings
+tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py: 1 warning
+tests/integration/phase2/test_pr2_04_authority_coverage.py: 21 warnings
+tests/integration/phase2/test_pr2_04_cancellation_coverage.py: 5 warnings
+tests/integration/phase2/test_pr2_04_cas_completion.py: 3 warnings
+tests/integration/phase2/test_pr2_04_child_lock_acceptance.py: 20 warnings
+tests/integration/phase2/test_pr2_04_commit_fault_coverage.py: 15 warnings
+tests/integration/phase2/test_pr2_04_concurrency_completion.py: 50 warnings
+tests/integration/phase2/test_pr2_04_context_guard_repair.py: 53 warnings
+tests/integration/phase2/test_pr2_04_context_types.py: 22 warnings
+tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py: 2 warnings
+tests/integration/phase2/test_pr2_04_execution_migration.py: 11 warnings
+tests/integration/phase2/test_pr2_04_execution_provenance.py: 9 warnings
+tests/integration/phase2/test_pr2_04_execution_recovery.py: 4 warnings
+tests/integration/phase2/test_pr2_04_execution_shape_acceptance.py: 14 warnings
+tests/integration/phase2/test_pr2_04_fault_acceptance_completion.py: 42 warnings
+tests/integration/phase2/test_pr2_04_idempotency_completion.py: 33 warnings
+tests/integration/phase2/test_pr2_04_idempotency_coverage.py: 25 warnings
+tests/integration/phase2/test_pr2_04_lifecycle_acceptance_completion.py: 19 warnings
+tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py: 1 warning
+tests/integration/phase2/test_pr2_04_migration_coverage.py: 24 warnings
+tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py: 27 warnings
+tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py: 15 warnings
+tests/integration/phase2/test_pr2_04_outcome_shape_acceptance.py: 24 warnings
+tests/integration/phase2/test_pr2_04_ownership_races.py: 50 warnings
+tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py: 6 warnings
+tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py: 14 warnings
+tests/integration/phase2/test_pr2_04_plan_admission_guard_repair.py: 7 warnings
+tests/integration/phase2/test_pr2_04_plan_binding_coverage.py: 10 warnings
+tests/integration/phase2/test_pr2_04_planned_sql_completion.py: 9 warnings
+tests/integration/phase2/test_pr2_04_process_completion.py: 25 warnings
+tests/integration/phase2/test_pr2_04_provider_budget_completion.py: 6 warnings
+tests/integration/phase2/test_pr2_04_provider_coverage.py: 23 warnings
+tests/integration/phase2/test_pr2_04_provider_pg_coverage.py: 23 warnings
+tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py: 21 warnings
+tests/integration/phase2/test_pr2_04_read_completion.py: 4 warnings
+tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py: 4 warnings
+tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py: 15 warnings
+tests/integration/phase2/test_pr2_04_reservation_predecessor_acceptance.py: 8 warnings
+tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py: 8 warnings
+tests/integration/phase2/test_pr2_04_response_atomicity_acceptance.py: 7 warnings
+tests/integration/phase2/test_pr2_04_restart_completion.py: 2 warnings
+tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py: 14 warnings
+tests/integration/phase2/test_pr2_04_schema_coverage.py: 226 warnings
+tests/integration/phase2/test_pr2_04_structural_guard_repair.py: 3 warnings
+tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py: 2 warnings
+tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py: 240 warnings
+tests/integration/phase2/test_pr2_04_temporal_races.py: 10 warnings
+tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py: 630 warnings
+tests/integration/phase2/test_pr2_04_transaction_coverage.py: 16 warnings
+tests/integration/phase2/test_pr2_10_binding_contract.py: 21 warnings
+tests/integration/phase2/test_pr2_10_discussion_persistence.py: 19 warnings
+tests/integration/phase2/test_pr2_11_r2_persistence.py: 34 warnings
+tests/integration/phase2/test_pr2_12_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_12_publication_draft.py: 16 warnings
+tests/integration/phase2/test_pr2_13_artifact_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_13_citation_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_13_citation_rebinding.py: 15 warnings
+tests/integration/phase2/test_pr2_13_claim_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_13_scientific_trace.py: 12 warnings
+tests/integration/phase2/test_pr2_14_conclusion_review.py: 24 warnings
+tests/integration/phase2/test_pr2_14_internal_review.py: 28 warnings
+tests/integration/phase2/test_pr2_15_coordination.py: 46 warnings
+tests/integration/phase2/test_pr2_15_decision.py: 108 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+tests/integration/phase2/test_pr2_17_authorship.py: 8 warnings
+tests/integration/phase2/test_pr2_17_authorship_concurrency.py: 26 warnings
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_pr2_18_api.py: 3 warnings
+tests/integration/phase2/test_pr2_18_concurrency.py: 25 warnings
+tests/integration/phase2/test_pr2_18_novelty.py: 4 warnings
+tests/integration/phase2/test_pr2_18_prior_art.py: 13 warnings
+tests/integration/phase2/test_pr2_18_replay.py: 4 warnings
+tests/integration/phase2/test_pr2_18_schema.py: 29 warnings
+tests/integration/phase2/test_pr2_18_search_coverage.py: 9 warnings
+tests/integration/phase2/test_pr2_19_atomicity.py: 18 warnings
+tests/integration/phase2/test_pr2_19_candidates.py: 18 warnings
+tests/integration/phase2/test_pr2_19_citation_trace.py: 9 warnings
+tests/integration/phase2/test_pr2_19_discussion.py: 12 warnings
+tests/integration/phase2/test_pr2_19_governance.py: 33 warnings
+tests/integration/phase2/test_pr2_19_integrity.py: 30 warnings
+tests/integration/phase2/test_pr2_19_lineage.py: 27 warnings
+tests/integration/phase2/test_pr2_19_races.py: 30 warnings
+tests/integration/phase2/test_pr2_19_rag_evidence.py: 3 warnings
+tests/integration/phase2/test_pr2_19_replay.py: 30 warnings
+tests/integration/phase2/test_pr2_19_search_evidence.py: 2 warnings
+tests/integration/phase2/test_pr2_20_catalog_plans.py: 12 warnings
+tests/integration/phase2/test_pr2_20_governance_races.py: 45 warnings
+tests/integration/phase2/test_pr2_20_migrations.py: 56 warnings
+tests/integration/phase2/test_pr2_20_security.py: 20 warnings
+tests/integration/phase2/test_revision_action.py: 157 warnings
+tests/integration/phase2/test_task12_schema_migration.py: 29 warnings
+tests/integration/test_pr11r2_migration.py: 2 warnings
+tests/integration/test_pr18_hardening.py: 2 warnings
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py: 1 warning
+tests/unit/phase2/test_pr2_04_static_acceptance.py: 1 warning
+tests/unit/test_ci_migration_head.py: 1 warning
+tests/unit/test_task12_migration_history.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane7/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5837 passed, 49 skipped, 3739 warnings in 5376.01s (1:29:36)
+
+CHECK_EXIT_CODE=0

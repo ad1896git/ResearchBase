@@ -52,5 +52,8 @@ def test_no_approval_effect_surface():
 
 def test_single_forward_revision():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0047_pr2_18_novelty_prior_art"]
-    assert scripts.get_revision(scripts.get_heads()[0]).down_revision == "0046_pr2_17_authorship"
+    assert scripts.get_heads() == ["0048_b04_manuscript_freeze"]
+    assert (
+        scripts.get_revision(scripts.get_heads()[0]).down_revision
+        == "0047_pr2_18_novelty_prior_art"
+    )

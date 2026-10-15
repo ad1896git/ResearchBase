@@ -1,0 +1,1 @@
+[{"calls":1,"external_latency_ms":null,"postgres_version":"18.6 (Homebrew)","scope":"small correctness fixture","warmups":0}]
