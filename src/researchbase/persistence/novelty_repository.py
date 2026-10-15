@@ -86,7 +86,6 @@ class SqlAlchemyNoveltyRepository:
 
     def repeatable_read(self):
         self._session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-        self.lock_snapshot()
 
     def force_constraints(self):
         self._session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))

@@ -44,6 +44,99 @@ def _witness(engine, writer_pid, before=None):
     pytest.fail("no PostgreSQL lock witness")
 
 
+@pytest.mark.parametrize("kind", ["coverage", "prior_art", "novelty"])
+def test_exact_read_does_not_block_unrelated_insert(novelty_env, monkeypatch, kind):
+    from researchbase.application.novelty import (
+        ExactReadQuery,
+        RecordNoveltyAssessmentCommand,
+        RecordPriorArtRelationCommand,
+    )
+    from researchbase.domain.novelty import NoveltyOutcome, PriorArtKind
+    from researchbase.persistence.novelty_repository import SqlAlchemyNoveltyRepository
+
+    e = novelty_env
+    row = e["service"].record_search_coverage(
+        e["author"],
+        RecordSearchCoverageCommand(
+            uuid4(), e["project"], e["plan"], e["executions"], "Selected scope."
+        ),
+    )
+    if kind == "prior_art":
+        row = e["service"].record_prior_art_relation(
+            e["author"],
+            RecordPriorArtRelationCommand(
+                uuid4(),
+                e["project"],
+                e["claim"],
+                e["source"],
+                PriorArtKind.RELATED,
+                "Comparison.",
+                (e["evidence"],),
+            ),
+        )
+    elif kind == "novelty":
+        row = e["service"].record_novelty_assessment(
+            e["author"],
+            RecordNoveltyAssessmentCommand(
+                uuid4(),
+                e["project"],
+                e["claim"],
+                row.id,
+                NoveltyOutcome.INCONCLUSIVE,
+                "Limited coverage.",
+            ),
+        )
+    ready, release = Event(), Event()
+    reader_pids = []
+    actor = uuid4()
+    original = SqlAlchemyNoveltyRepository.parent
+
+    def pause_after_parent(repo, record_kind, identity):
+        result = original(repo, record_kind, identity)
+        if record_kind == kind and identity == row.id:
+            assert repo._session.execute(text("SHOW transaction_isolation")).scalar_one() == (
+                "repeatable read"
+            )
+            reader_pids.append(repo._session.execute(text("SELECT pg_backend_pid()")).scalar_one())
+            ready.set()
+            assert release.wait(10)
+            # The committed insert stays outside this read's original snapshot.
+            assert repo.one("SELECT id FROM actors WHERE id=:id", {"id": actor}) is None
+        return result
+
+    monkeypatch.setattr(SqlAlchemyNoveltyRepository, "parent", pause_after_parent)
+    read_method = {
+        "coverage": e["service"].read_search_coverage,
+        "prior_art": e["service"].read_prior_art_relation,
+        "novelty": e["service"].read_novelty_assessment,
+    }[kind]
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(read_method, e["author"], ExactReadQuery(e["project"], row.id))
+        try:
+            assert ready.wait(10)
+            with e["race_engine"].begin() as writer:
+                assert (
+                    writer.execute(text("SELECT pg_backend_pid()")).scalar_one() != reader_pids[0]
+                )
+                writer.execute(text("SET LOCAL lock_timeout='1s'"))
+                writer.execute(
+                    text("""INSERT INTO actors (id,actor_type,display_name,created_at)
+                        VALUES (:id,'HUMAN','Unrelated actor',clock_timestamp())"""),
+                    {"id": actor},
+                )
+            with e["race_engine"].connect() as observer:
+                assert (
+                    observer.execute(
+                        text("SELECT id FROM actors WHERE id=:id"), {"id": actor}
+                    ).scalar_one()
+                    == actor
+                )
+            assert not future.done()  # The read transaction is still open after commit.
+        finally:
+            release.set()
+        assert future.result(timeout=10).content_hash == row.content_hash
+
+
 def test_stale_serializable_capture_fails_closed(novelty_env):
     e = novelty_env
     with (

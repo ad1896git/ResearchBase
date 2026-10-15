@@ -148,8 +148,9 @@ The initial read-only reviews reported no open P0/P1 findings within their revie
 scope. That report did not establish full-suite success; the subsequent loop
 found the P1 migration-head regression described above.
 All thirteen named §8 architecture obligations are included in the architecture
-suite. The earlier `BLOCKED.md` and `snapshot_probe.py` are historical evidence
-superseded by director decision 3 and the passing stale-capture regression.
+suite. The obsolete blocker report and standalone snapshot probe were removed
+after director decisions 1–3. The race reproduction remains a PostgreSQL test:
+`test_pr2_18_concurrency.py::test_stale_serializable_capture_fails_closed`.
 
 ## Review remediation
 
@@ -187,3 +188,73 @@ collection warning. Pyright also printed an available-version notice separately
 from its zero diagnostic warnings. The reviewer-reported P1 full-suite regression
 is resolved by this observed passing command; the earlier focused review is not
 used as evidence of full-suite success.
+
+## Director-review defect fixes — 2026-10-14
+
+This section records the current focused verification, separately from the
+historical full-suite run above. The full suite was **not run** for this task;
+the owner's instruction reserves that check for the loop.
+
+- Novelty authorization now copies the search-plan service's explicit optional
+  verifier guard. Missing credentials fail closed with FORBIDDEN. Before this
+  fix the broad exception handler already caught AttributeError and denied the
+  request; it no longer relies on that exception for the None case.
+- Real API composition is tested against PostgreSQL: missing/revoked verifiers
+  return 403 without inserting an assessment; a configured live verifier permits
+  POST, GET and exact replay with the same persisted hash and actor attribution.
+- Exact-ID reads retain REPEATABLE READ without explicit table locks. All three
+  read paths are tested with distinct database backends: an unrelated actor INSERT
+  commits before the paused read resumes, and the reader still sees its original
+  snapshot. The coverage first-statement SHARE write locks remain unchanged.
+  The proposal's §12.2 read row was corrected to match the director instruction.
+- Removed the obsolete blocker report and standalone probe. The existing
+  `test_stale_serializable_capture_fails_closed` regression remains and passed.
+
+Environment: PostgreSQL **18.6 (Homebrew)**, disposable test databases. Every
+`uv` command below used `UV_CACHE_DIR="$PWD/.data/uv-cache"`. The PostgreSQL
+command additionally used `RB_TEST_ADMIN_URL="${RB_TEST_ADMIN_URL:-$DATABASE_URL}"`
+because RB_TEST_ADMIN_URL was initially unset and DATABASE_URL identified the
+available local test administrator.
+
+| Exact command (after the environment prefixes above) | Observed result |
+| --- | --- |
+| `uv run pyright` | 0 errors, 0 warnings, 0 informations; exit 0 |
+| `uv run ruff check .` | All checks passed; exit 0 |
+| `uv run ruff format --check .` | 507 files already formatted; exit 0 |
+| `uv run pytest tests/unit` | 1,964 passed, 4 warnings in 37.39s; exit 0 |
+| `uv run pytest tests/architecture tests/test_architecture.py` | 92 passed, 1 warning in 2.06s; exit 0 |
+| `uv run pytest -v tests/integration/phase2/test_pr2_18_*.py` | 83 passed, 87 warnings in 61.83s; exit 0 |
+| `git diff --check` | No output; exit 0 |
+
+All three final test runs had zero failures, errors or skips. Warnings were
+inherited Alembic path_separator deprecations. Pyright printed a version-update
+notice separately from its zero diagnostic warnings. The first static pass found
+a long line in the new verifier guard; formatting fixed it before the passing
+static checks above.
+
+Per-file PR2-18 counts (all included in the passing runs above):
+
+| Directory | Test file | Passed |
+| --- | --- | ---: |
+| unit/phase2 | test_pr2_18_hash_vectors.py | 1 |
+| unit/phase2 | test_pr2_18_novelty_contract.py | 32 |
+| unit/phase2 | test_pr2_18_transports.py | 28 |
+| architecture | test_pr2_18_boundaries.py | 17 |
+| integration/phase2 | test_pr2_18_api.py | 3 |
+| integration/phase2 | test_pr2_18_concurrency.py | 25 |
+| integration/phase2 | test_pr2_18_novelty.py | 4 |
+| integration/phase2 | test_pr2_18_prior_art.py | 13 |
+| integration/phase2 | test_pr2_18_replay.py | 4 |
+| integration/phase2 | test_pr2_18_schema.py | 25 |
+| integration/phase2 | test_pr2_18_search_coverage.py | 9 |
+| **PR2-18 total** | | **161** |
+
+The 92 architecture checks comprise 80 in tests/architecture and 12 in
+tests/test_architecture.py. Unit/architecture file counts were confirmed using
+`uv run pytest --collect-only -o addopts='' -qq tests/unit/phase2/test_pr2_18_*.py tests/architecture tests/test_architecture.py`;
+collection is count evidence, not an additional execution pass.
+
+The preliminary new-regression check was
+`uv run pytest tests/integration/phase2/test_pr2_18_api.py tests/integration/phase2/test_pr2_18_concurrency.py -k 'composed_services or exact_read_does_not_block'`:
+6 passed, 22 deselected, 6 warnings in 4.53s; exit 0. Those six cases are also
+included in the final 83-test PostgreSQL run.

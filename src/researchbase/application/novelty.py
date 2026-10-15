@@ -217,8 +217,11 @@ class NoveltyService:
     def _authorize(self, uow, principal, project, roles):
         rows = uow.novelty.authority(principal, project)
         at = uow.novelty.at()
+        verifier = self._credentials
         try:
-            live = principal.verified_at <= at and self._credentials.is_valid(principal, at)
+            live = principal.verified_at <= at and bool(
+                verifier and verifier.is_valid(principal, at)
+            )
         except Exception:
             live = False
         for r in rows:
