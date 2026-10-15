@@ -35,10 +35,10 @@ Consult these for provenance, unfamiliar terms or an owner override; they do not
 4. Count persisted observations honestly, retain failures and uncertainty, and separate saved counts from current diagnostics; never imply exhaustive coverage or first-ever priority ([accounting](#31-searchcoverage-accounting--proposed-definitions)).
 5. Use the shared application boundary and prescribed PostgreSQL transactions, locks and fresh authorization checks; create no scientific-support, review, approval or release effects ([transactions](#7-transactions-concurrency-and-failure-recovery), [separation](#3-invariants-and-conservative-judgments)).
 
-**Scope:** documentation proposal only. This document is not an architecture
-freeze, ADR, execution pack, migration authorization, scientific finding, owner
-approval or PR2-18 acceptance declaration. Proposed refinements require owner
-approval and consistency review before separate implementation authorization.
+**Scope:** owner-approved first-slice implementation contract, authorized
+2026-10-14. This authorization does not accept the implementation, advance a
+Phase gate, or authorize the deferred §12.5 behavior. Director decisions dated
+2026-10-14 resolve the exact-ID readback and coverage-isolation protocols below.
 
 ## 1. Purpose, authority and inspected baseline
 
@@ -116,7 +116,7 @@ or systematic-review certification, global novelty score, embedding thresholds,
 automatic similarity classification, new search providers, screening subsystem,
 Agent Runtime, queues/vector DBs, new dependencies, mutable novelty status,
 Approval consumption, Issue resolution, publication release or ExternalEffect.
-This task adds no migration, code, executable test or governing-file edit.
+The authorized first slice adds only the implementation and verification specified in §12.3–§12.4.
 
 ## 3. Invariants and conservative judgments
 
@@ -276,8 +276,13 @@ Use nonforking assessment supersession: predecessor same project and **same
 exact ClaimVersion**, new UUID, no existing successor, hash-valid, no self/cycle.
 New coverage may differ but must remain same project; a valid new assessment may
 document correction of a now-stale predecessor. Unique predecessor prevents two
-successors. Independent roots are allowed and returned together; no canonical
-“latest assessment” is selected. Different ClaimVersion starts a new root, never
+successors. Independent roots are allowed. First-slice reads use exact IDs only:
+`read_novelty_assessment` returns one assessment plus nullable, derived chain
+navigation fields `supersedes_assessment_id` and `superseded_by_assessment_id`.
+“Independent roots returned together” is deferred to a later slice; no list
+endpoint or canonical “latest assessment” is introduced (§12.3 stands).
+This resolves §4 versus §11.3 by director decision, 2026-10-14.
+Different ClaimVersion starts a new root, never
 retargets a chain. Replay does not allocate another successor.
 
 ## 5. Schema and literal hash proposal — no migration
@@ -365,21 +370,17 @@ recording cannot retroactively make retrieval and coverage one transaction.
 
 Use the exact command-specific sequences in §12.2. Relation and assessment
 commands keep the existing Decision target-before-sorted-SHARE-table protocol.
-Coverage uses `UoW.begin_serializable()` before any SQL. Acquire its fixed SHARE
-table inventory before the first snapshot-producing SELECT. Then take the request
-lock and read capture inputs. This keeps mutable authority/validity facts stable
-without claiming that a serializable reread advances an old snapshot.
-
-PostgreSQL serializable snapshot isolation (SSI) tracks predicate reads of
-`search_result_resolutions`, including empty result ranges. A concurrent INSERT
-cannot partly enter an aggregate: all capture queries use one snapshot. It either
-precedes capture in the serialization order, follows capture, or creates a
-serialization conflict requiring a fresh whole-transaction attempt. SSI does
-not force every overlapping resolution commit into coverage. No resolution table
-lock or change to resolution writers is needed. Resolution committed before the
-capture snapshot contributes; a later commit remains a current diagnostic.
-Read all resolution rows for every selected result, not just qualifying rows,
-so conflicting/source-only bindings are visible to accounting and SSI.
+Coverage uses an ordinary READ COMMITTED UoW. Its FIRST SQL statement is
+`LOCK TABLE <N> IN SHARE MODE`, before the request advisory lock or any read.
+The inventory includes every capture-input table, so SHARE blocks concurrent
+INSERT/UPDATE/DELETE, including resolution phantoms. Subsequent READ COMMITTED
+statements see rows committed before lock acquisition. Direct-SQL coverage
+insertion rejects unless isolation is READ COMMITTED and the backend already
+holds granted SHARE locks on every table in N; triggers do not acquire those
+locks on behalf of coverage callers. This replaces SSI capture by director
+decision 3, 2026-10-14, after the stale-capture reproduction. Read every resolution
+row, including conflicting and source-only bindings; later resolution commits
+remain separate current diagnostics.
 
 No graph walk adds executions or refreshes saved resolution membership on replay.
 Direct normal-role SQL participates in the structural guards in §12.1.
@@ -389,7 +390,7 @@ and obtain fresh trusted `clock_timestamp()` immediately before protected write
 to recheck credential, ACTIVE membership/effective role and relevant validity.
 Never use caller clock, now()/transaction-start time or cached pre-lock gates.
 Any further wait repeats checks. For coverage, authority/validity tables are
-locked before the snapshot, so rereads remain valid while the clock advances.
+locked before capture reads, so rereads remain valid while the clock advances.
 Retry at most three whole attempts for SQLSTATE 40001/40P01 only, each in a new
 transaction with fresh reads. Use the operational limits in §12.2.
 
@@ -538,8 +539,9 @@ where the named governing contract permits them.
 
 ## 11. Decisions taken in this draft
 
-All §13 recommended answers are adopted here. They are draft decisions, subject
-to owner override. They are not implementation authorization.
+All §13 recommended answers are adopted here. Owner approval on 2026-10-14
+authorizes the first slice, subject to the director decisions recorded in §4,
+§7 and §12.2. Deferred behavior still requires separate authorization.
 
 ### 11.1 Scope and policy decisions
 
@@ -583,7 +585,7 @@ to owner override. They are not implementation authorization.
    result. Preserve existing blockers and deterministic invalidity precedence.
 10. Later retraction/dispute never alters saved bytes or captured counts. Derive
     current warnings using existing validity readers, without a new propagation
-    engine. Coverage uses SSI and three attempts as specified in §12.2.
+    engine. Coverage uses READ COMMITTED with preheld SHARE locks and three attempts as specified in §12.2 (director decision 3, 2026-10-14).
 
 ### 11.2 Pinned error mappings
 
@@ -633,7 +635,7 @@ nonblank, length 1–16,384 after normalization; preserve meaningful whitespace.
 | HashRef | `type: Literal['LiteratureSearchPlanVersion','ClaimVersion','SourceVersion','LiteratureEvidence','SearchCoverage','NoveltyAssessment']`, `id: UUID`, `content_hash: str` (64 lowercase hexadecimal characters). |
 | SearchCoverageReadback | `id: UUID`, `project_id: UUID`, `search_plan_version: HashRef`, `search_execution_ids: tuple[UUID, ...]`, `providers: tuple[str, ...]`, `query_count: int`, `result_count: int`, `resolved_source_count: int`, `time_scope: TimeScope \| None`, `coverage_limitations: str`, `created_at: datetime`, `created_by: UUID`, `content_hash: str`, `hash_scheme: Literal['sha256-cjson-v1']`, `quality: CoverageQuality`. |
 | PriorArtReadback | `id: UUID`, `project_id: UUID`, `claim_version: HashRef`, `source_version: HashRef`, `relation: PriorArtKind`, `rationale: str`, `literature_evidence: tuple[HashRef, ...]`, `assessed_by: UUID`, `created_at: datetime`, `created_by: UUID`, `content_hash: str`, `hash_scheme: Literal['sha256-cjson-v1']`, `current_validity: CurrentValidity`. |
-| NoveltyReadback | `id: UUID`, `project_id: UUID`, `claim_version: HashRef`, `search_coverage: SearchCoverageReadback`, `assessment: NoveltyOutcome`, `limitations: str`, `supersedes_assessment: HashRef \| None`, `assessed_by: UUID`, `created_at: datetime`, `created_by: UUID`, `content_hash: str`, `hash_scheme: Literal['sha256-cjson-v1']`, `current_validity: CurrentValidity`. |
+| NoveltyReadback | `id: UUID`, `project_id: UUID`, `claim_version: HashRef`, `search_coverage: SearchCoverageReadback`, `assessment: NoveltyOutcome`, `limitations: str`, `supersedes_assessment: HashRef \| None`, `assessed_by: UUID`, `created_at: datetime`, `created_by: UUID`, `content_hash: str`, `hash_scheme: Literal['sha256-cjson-v1']`, `current_validity: CurrentValidity`, `supersedes_assessment_id: UUID \| None`, `superseded_by_assessment_id: UUID \| None` (derived chain navigation; director, 2026-10-14). |
 | CoverageQuality | `observed_at: datetime`, `captured_unresolved_result_count: None`, `current_unresolved_result_count: int`, `selected_scope: Literal[True]`, `screening_captured: Literal[False]`, `attempts: tuple[AttemptQuality, ...]`, `uninvoked_providers: tuple[str, ...]`, `warnings: tuple[QualityWarning, ...]`. |
 | AttemptQuality | `execution_id: UUID`, `attempt_id: UUID`, `provider_id: str`, `provider_version: str \| None`, `status: Literal['RESERVED','SUCCEEDED','RETRYABLE_FAILURE','PERMANENT_FAILURE','CANCELLED','UNKNOWN']` (existing PR2-04 enum unchanged), `failure_code: str \| None`. |
 | CurrentValidity | `observed_at: datetime`, `usable_for_current_judgment: bool`, `warnings: tuple[QualityWarning, ...]`. No mutation of historical outcome. |
@@ -816,7 +818,7 @@ No request-controlled session flag, superuser requirement or mutable seal column
 | Function / trigger name | Timing, tables and exact behavior |
 | --- | --- |
 | `pr218_immutable` / `trg_pr218_<table>_immutable` | BEFORE UPDATE OR DELETE on all five tables: raise SQLSTATE P17D1. |
-| `pr218_parent_guard` / `trg_pr218_<table>_parent_guard` | BEFORE INSERT on the three hashed parents: exact frozen plan/Claim/source/coverage hash shape and binding; derive project through existing owning parents; verify same-project/access/validity inputs. Coverage requires current transaction isolation SERIALIZABLE. Relation and novelty take Claim row FOR UPDATE before any closure-table locks, matching §12.2. Use P17D3 for structural violations. |
+| `pr218_parent_guard` / `trg_pr218_<table>_parent_guard` | BEFORE INSERT on the three hashed parents: exact frozen plan/Claim/source/coverage hash shape and binding; derive project through existing owning parents; verify same-project/access/validity inputs. Coverage rejects unless current transaction isolation is READ COMMITTED and pg_locks shows this backend already holding granted ShareLock on every table in N (director decision 3, 2026-10-14). Relation and novelty take Claim row FOR UPDATE before any closure-table locks, matching §12.2. Use P17D3 for structural violations. |
 | `pr218_child_guard` / `trg_pr218_<table>_child_guard` | BEFORE INSERT on both child tables: parent's `xmin::text::bigint = pg_current_xact_id()::text::bigint`; else P17D1. Check same exact plan and terminal execution, or same exact source/project and VERIFIED evidence, respectively. Lock no existing parent material for update; input checks use §12.2 order. Direct-SQL insertion invokes the same table coordination before validation; new child rows cannot upgrade old locks. |
 | `pr218_complete_coverage` / `trg_pr218_<table>_complete_coverage` | AFTER INSERT, DEFERRABLE INITIALLY DEFERRED constraint trigger on search_coverage and search_coverage_executions: 1–100 children, exact plan/project, terminal histories with no RESERVED attempt; recompute §3.1 counts/providers/time_scope from the transaction snapshot and require equality. Use P17D3. |
 | `pr218_complete_prior_art` / `trg_pr218_<table>_complete_prior_art` | AFTER INSERT, DEFERRABLE INITIALLY DEFERRED on prior_art_relations and prior_art_evidence_inputs: 1–100 children, exact source/project and VERIFIED inputs, no digest-null binding; P17D3. |
@@ -828,7 +830,7 @@ parent `created_by`, checked in pr218_child_guard. Shared times use one trusted
 creation instant per command. SHA recomputation and transitive closure remain
 Application responsibilities, following existing adapters; DB checks independently
 protect typed structure, state and aggregate honesty. An ordinary SQL role cannot
-insert stronger outcomes, nonserializable coverage, late children or false counts.
+insert stronger outcomes, coverage without READ COMMITTED and preheld N SHARE locks, late children or false counts.
 No trigger disables future valid source/review/impact events. Use the existing
 normal-role permissions; do not give callers permission to bypass triggers.
 
@@ -844,9 +846,9 @@ indexes, triggers and helper functions. Never alter accepted migration history.
 
 Define the immutable table inventory `N` in novelty_repository.py as the following
 literal, lexically sorted tuple. It matches the existing Decision closure/authority
-inventory, adding plan ownership. Do not dynamically import private Decision
-constants or lock an entire schema. No search-resolution/query/result/attempt table
-belongs to N; those capture predicates are protected by SSI.
+inventory, adding plan ownership and all capture inputs. Do not dynamically import
+private Decision constants or lock an entire schema. The capture-input additions
+implement director decision 3, 2026-10-14; SHARE locks protect their phantoms.
 
 ```python
 N = (
@@ -854,11 +856,15 @@ N = (
     'audit_findings', 'claim_versions', 'claims', 'correction_records',
     'datasets', 'experiment_spec_versions', 'experiment_specs',
     'impact_assessments', 'impact_targets', 'literature_evidence',
-    'literature_evidence_review_events', 'literature_search_plan_versions',
-    'literature_search_plans', 'literature_source_project_links',
-    'literature_sources', 'metric_definition_versions', 'metric_definitions',
+    'literature_evidence_review_events', 'literature_search_execution_events',
+    'literature_search_executions', 'literature_search_plan_versions',
+    'literature_search_plans', 'literature_search_provider_attempts',
+    'literature_source_project_links',
+    'literature_sources', 'metadata_observations', 'metric_definition_versions',
+    'metric_definitions',
     'project_membership_events', 'project_memberships',
     'project_role_assignments', 'projects', 'runs', 'scientific_conclusions',
+    'search_query_records', 'search_result_records', 'search_result_resolutions',
     'source_versions',
 )
 ```
@@ -867,13 +873,12 @@ N = (
 lock modes directly; no upgrades. A table SHARE lock blocks normal-role inserts,
 updates and deletes into mutable authority/validity inputs. No command writes to
 N. The distinction between coverage and the Claim commands below is intentional:
-coverage must not create its SSI snapshot before waiting for N. LOCK TABLE and
-SET LOCAL do not read scientific rows; no preliminary SELECT/authorization query
-may precede coverage's N lock. Initial principal shape validation is in memory.
+coverage uses READ COMMITTED and its N lock is the FIRST SQL statement; no
+SET LOCAL, advisory lock, SELECT or authorization query may precede it. Initial principal shape validation is in memory.
 
 | Command | Exact ordered operations |
 | --- | --- |
-| record_search_coverage | New UoW; begin_serializable before any SQL; `SET LOCAL lock_timeout='10s'; SET LOCAL statement_timeout='30s';` lock N SHARE; request advisory lock `SELECT pg_advisory_xact_lock(hashtextextended('pr218:coverage:' \|\| $1::uuid::text, 0))` with the canonical request ID bound as parameter $1; authorize current readers at DB clock; read existing parent/children for replay; if new, authorize writers, read exact plan then UUID-sorted execution/attempt/query/result/resolution rows in the same snapshot; no FOR UPDATE on capture rows; compute material; final clock/authorization/validity check; insert parent and UUID-sorted children; force deferred checks, final clock check, commit. |
+| record_search_coverage | New ordinary READ COMMITTED UoW; lock N SHARE as the FIRST SQL statement; then `SET LOCAL lock_timeout='10s'; SET LOCAL statement_timeout='30s';`; request advisory lock `SELECT pg_advisory_xact_lock(hashtextextended('pr218:coverage:' \|\| $1::uuid::text, 0))` with the canonical request ID bound as parameter $1; authorize current readers at DB clock; read existing parent/children for replay; if new, authorize writers, read exact plan then UUID-sorted execution/attempt/query/result/resolution rows under the held SHARE locks; no FOR UPDATE on capture rows; compute material; final clock/authorization/validity check; insert parent and UUID-sorted children; force deferred checks, final clock check, commit. |
 | record_prior_art_relation | READ COMMITTED UoW; same timeouts; request advisory `SELECT pg_advisory_xact_lock(hashtextextended('pr218:prior_art:' \|\| $1::uuid::text, 0))` with the canonical request ID bound as parameter $1; ClaimVersion FOR UPDATE by exact ID; lock N SHARE; authorize readers; replay check; if new, authorize writers; read Claim owning row, SourceVersion, UUID-sorted evidence under held N; verify exact closure/hashes/validity; final clock check; insert parent and UUID-sorted children; force deferred checks, final clock check, commit. |
 | record_novelty_assessment | READ COMMITTED UoW; same timeouts; request advisory `SELECT pg_advisory_xact_lock(hashtextextended('pr218:novelty:' \|\| $1::uuid::text, 0))` with the canonical request ID bound as parameter $1; ClaimVersion FOR UPDATE; lock N SHARE; authorize readers; replay check; if new, authorize writers and INCONCLUSIVE guard; read Claim owning row, immutable coverage and UUID-sorted execution children; lock predecessor FOR UPDATE when nonnull; reread successor existence after any wait; verify chain/closure/hashes/validity; final clock check; insert parent; force deferred checks, final clock check, commit. |
 | Three exact-ID reads | REPEATABLE READ UoW with no Application writes; lock N SHARE before first data SELECT; authorize at fresh clock; read parent then UUID-sorted children and exact hash refs, then timestamped current quality/validity; final current read-entitlement clock check; return typed DTO. No advisory, target row locks, writes or retries that create records. Do not set PostgreSQL READ ONLY: table SHARE is prohibited in that mode. |
@@ -886,9 +891,8 @@ that lock-key format. Copy SQL from the rendered table: raw Markdown escapes
 The request namespaces are distinct; no command acquires a second namespace.
 No project row lock precedes a Claim row lock. Source/evidence locks are covered
 by N and do not acquire FOR UPDATE. Coverage never takes Claim row locks, avoiding
-a cycle with Claim commands that take their target before N. Serializable
-predicates cover resolution INSERT phantoms; table SHARE is used only to stabilize
-mutable authorization/validity, not as the capture strategy for resolutions.
+a cycle with Claim commands that take their target before N. Table SHARE locks
+stabilize mutable authority/validity and protect capture-input INSERT phantoms.
 
 Force `SET CONSTRAINTS ALL IMMEDIATE` before the last clock check. This makes any
 trigger/FK wait happen before the final authorization. Use fresh `clock_timestamp()`
@@ -901,13 +905,13 @@ No separate novelty event table or audit-finding side effect is introduced.
 Replay/denial creates no record; use existing operational logging separately.
 
 Retry exactly three total fresh-UoW attempts for 40001/40P01, with no delay and
-no external call. Enable the existing serializable deadlock normalization for
-coverage. Classify retry eligibility from SQLSTATE, not every business
+no external call. Enable the existing SQLSTATE deadlock normalization for
+coverage, without begin_serializable. Classify retry eligibility from SQLSTATE, not every business
 CONCURRENT_MODIFICATION. The third conflict emits that code. Do not retry
 unique-predecessor loss, timeout or uncertain commit. Every retry redoes locks,
 reads, hashes and trusted-clock authorization. Race tests must demonstrate legal
-serialization outcomes; they must not require an SSI abort for every phantom
-INSERT, since some overlapping transactions have a valid serialization order.
+serialization outcomes; they must witness blocked resolution writes and rejection of stale capture
+without the READ COMMITTED/preheld-lock protocol.
 
 ### 12.3 Ordered build steps and module paths
 
@@ -970,8 +974,8 @@ and backend PIDs are required for race fixtures; expiry is database-derived.
 | `tests/integration/phase2/test_pr2_18_prior_art.py` | novelty_env; all six relations; wrong exact source/project, unfrozen/retracted source, evidence not VERIFIED, corrupt closure and empty evidence deny atomically; contradictory records retained; no EvidenceRelation/support/Issue/Decision/grant writes. |
 | `tests/integration/phase2/test_pr2_18_novelty.py` | novelty_env; INCONCLUSIVE creation/read, each stronger enum denied with zero new records, exact same-Claim chain, foreign/self/cycle/fork denial, stale predecessor correction, independent roots and new Claim root; warnings versus saved judgment; author identity and separate detail authorization. |
 | `tests/integration/phase2/test_pr2_18_replay.py` | novelty_env; all commands exact replay/restart, permuted ID set replay, changed material conflict, different actor and lost read entitlement deny, write-role loss/current invalidity historical read, no duplicate parents/children, unknown-commit exact UUID recovery. |
-| `tests/integration/phase2/test_pr2_18_schema.py` | Real catalog names/types/nullability/indexes; clean install and populated upgrade preservation; empty downgrade and populated refusal; normal-role SQL stronger outcomes, nonserializable capture, false counts/providers, late child insert/update/delete, empty deferred sets, wrong project/source, FK restrictions and named predecessor uniqueness. |
-| `tests/integration/phase2/test_pr2_18_concurrency.py` | Both resolution INSERT/capture orderings and empty-range phantoms; valid serial order or SSI retry; 40001/40P01 exactly three attempts, nonretryable business conflicts/timeouts; same UUID single parent/child set and successor single winner; source dispute/retraction, credential revocation and scheduled role/credential expiry across each wait; observable lock evidence and final clock; failure between parent/child and during deferred checks rolls back all writes. |
+| `tests/integration/phase2/test_pr2_18_schema.py` | Real catalog names/types/nullability/indexes; clean install and populated upgrade preservation; empty downgrade and populated refusal; normal-role SQL stronger outcomes, capture without READ COMMITTED/preheld N SHARE locks, false counts/providers, late child insert/update/delete, empty deferred sets, wrong project/source, FK restrictions and named predecessor uniqueness. |
+| `tests/integration/phase2/test_pr2_18_concurrency.py` | Both resolution INSERT/capture orderings and empty-range phantoms; SHARE lock ordering and fail-closed stale-capture reproduction (director decision 3, 2026-10-14); 40001/40P01 exactly three attempts, nonretryable business conflicts/timeouts; same UUID single parent/child set and successor single winner; source dispute/retraction, credential revocation and scheduled role/credential expiry across each wait; observable lock evidence and final clock; failure between parent/child and during deferred checks rolls back all writes. |
 | `tests/unit/phase2/test_pr2_18_transports.py` | Every pinned HTTP/CLI mapping, sanitized fallback, strict schemas and same principal boundary, all six route/CLI commands, POST first/replay 200, GET 200, no nested disclosure or ORM entities. |
 | `tests/architecture/test_pr2_18_boundaries.py` | All thirteen named §8 obligations, Domain import boundary, no provider call in DB transaction, no new semantic JSON owner, no missing-basis/approval/revision/publication side effects. |
 
@@ -1011,14 +1015,17 @@ approved implementation exists. Missing future contracts are not passing tests.
 | Correction, contradiction and supersession policy? | Nonforking same-exact-Claim assessment chains, independent roots visible; no “latest wins.” PriorArtRelation has no approved supersession field, so preserve conflicting records and defer authoritative correction selection. |
 | Who may record/read, and are new DTO bounds acceptable? | Effective OWNER/RESEARCHER writers; authenticated current project readers under §4; Human/Agent same boundary. Use 100-ID/16,384-character limits and per-object nested disclosure; owner authority cannot prove novelty. |
 | Must novelty be a new approval gate or review target? | No automatic gate, no new RevisionAction result shape, no new Decision purpose. Contract exact typed integration separately; preserve existing OPEN/BLOCKING and invalid-fact rules. |
-| How are retraction/dispute and historical captures coordinated? | Preserve immutable bytes, derive current unusability/warnings through existing validity/impact paths, and use §12.2’s exact lock order and SSI capture. Do not promise a new propagation engine or silently update saved counts. |
+| How are retraction/dispute and historical captures coordinated? | Preserve immutable bytes, derive current unusability/warnings through existing validity/impact paths, and use §12.2’s exact lock order and READ COMMITTED/preheld-SHARE capture (director decision 3, 2026-10-14). Do not promise a new propagation engine or silently update saved counts. |
 
 Every recommended answer above is adopted in §11. Owner override requires a
-recorded disposition and corresponding body edits before freeze. Pending owner
-approval, PR2-18 remains DRAFT and not authorized for implementation.
+recorded disposition and corresponding body edits before freeze. The owner approved first-slice implementation on 2026-10-14; deferred behavior
+requires separate approval.
 
 
 ## 14. Documentation verification note
 
-This is a documentation change, verified by local-link and format checks only.
-It provides no implementation, PostgreSQL acceptance or engineering gate evidence.
+The original proposal was verified as documentation only. Current first-slice
+engineering checks and their limits are recorded in
+[PR2-18 verification evidence](../../pr_evidence/PR2-18/VERIFICATION.md).
+The full suite is reserved for the loop by the owner's latest task instruction;
+no full-suite or Phase-exit success is implied by this contract.

@@ -12,9 +12,11 @@ from researchbase import __version__
 from researchbase.application.commands import ApplicationService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
+from researchbase.application.literature_evidence import LiteratureEvidenceService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
+from researchbase.application.novelty import NoveltyService
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
@@ -57,6 +59,7 @@ class ServiceBundle:
     source_merge_execution: SourceMergeExecutionService | None = None
     literature_search_plans: LiteratureSearchPlanService | None = None
     literature_search_executions: LiteratureSearchExecutionService | None = None
+    novelty: NoveltyService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -84,6 +87,7 @@ def build_services() -> ServiceBundle:
             literature_search_execution_uow_factory(session_factory),
             StaticSearchCapabilityRegistry(),
         ),
+        NoveltyService(uow_factory, None, LiteratureEvidenceService(uow_factory, None, store)),
     )
 
 

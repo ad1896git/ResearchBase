@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 from dataclasses import fields, is_dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -23,6 +23,10 @@ from .errors import CliTransportError, error_code, error_details
 def to_jsonable(value: object) -> object:
     if isinstance(value, FrozenJSONObject | FrozenJSONArray):
         return to_jsonable(thaw_json(value))
+    from researchbase.domain.novelty import TimeScope
+
+    if isinstance(value, TimeScope):
+        return value.material()
     if is_dataclass(value) and not isinstance(value, type):
         return {field.name: to_jsonable(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, Enum):
@@ -31,6 +35,8 @@ def to_jsonable(value: object) -> object:
         return str(value)
     if isinstance(value, datetime):
         return format_utc(value)
+    if isinstance(value, date):
+        return value.isoformat()
     if isinstance(value, Decimal):
         if not value.is_finite():
             raise ValueError("nonfinite CLI decimal")

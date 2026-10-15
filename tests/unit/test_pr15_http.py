@@ -244,6 +244,16 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
     }
     first = create_app(Services(FakeApplication())).openapi()
     second = create_app(Services(FakeApplication())).openapi()
+    expected.update(
+        {
+            ("post", "/v1/projects/{project_id}/search-coverage"),
+            ("get", "/v1/projects/{project_id}/search-coverage/{id}"),
+            ("post", "/v1/projects/{project_id}/prior-art-relations"),
+            ("get", "/v1/projects/{project_id}/prior-art-relations/{id}"),
+            ("post", "/v1/projects/{project_id}/novelty-assessments"),
+            ("get", "/v1/projects/{project_id}/novelty-assessments/{id}"),
+        }
+    )
     actual = {
         (method, path)
         for path, methods in first["paths"].items()

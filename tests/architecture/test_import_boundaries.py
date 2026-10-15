@@ -162,6 +162,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0044_pr2_15_revision_action.py",
         "0045_pr2_16_basic_approval.py",
         "0046_pr2_17_authorship_preparation.py",
+        "0047_pr2_18_novelty_prior_art.py",
     ]
 
 

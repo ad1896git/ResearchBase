@@ -23,6 +23,7 @@ from researchbase.application.literature_search_plan import LiteratureSearchPlan
 from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
 from researchbase.application.local_workbench import LocalWorkbenchService
 from researchbase.application.metadata_observation import MetadataObservationService
+from researchbase.application.novelty import NoveltyService
 from researchbase.application.phase2_identity import Phase2IdentityService, VerifiedSubject
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
@@ -76,6 +77,7 @@ class ServiceBundle:
     local_credentials: LocalIdentityAdapter | None = None
     metadata_observations: MetadataObservationService | None = None
     literature_evidence: LiteratureEvidenceService | None = None
+    novelty: NoveltyService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -143,6 +145,9 @@ def build_services() -> ServiceBundle:
             versions,
         ),
         LiteratureEvidenceService(uow_factory, credentials, store),
+        NoveltyService(
+            uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
     )
 
 

@@ -19,6 +19,12 @@ from researchbase.application.literature_search_plan import (
     TransitionLiteratureSearchPlanVersion,
     UpdateLiteratureSearchPlanDraft,
 )
+from researchbase.application.novelty import (
+    ExactReadQuery,
+    RecordNoveltyAssessmentCommand,
+    RecordPriorArtRelationCommand,
+    RecordSearchCoverageCommand,
+)
 from researchbase.application.source_identity import (
     AddSourceIdentifier,
     RegisterLiteratureSource,
@@ -42,6 +48,7 @@ from researchbase.domain.literature_search_plan import (
     LiteratureSearchStrategy,
     LiteratureSourceScope,
 )
+from researchbase.domain.novelty import NoveltyOutcome, PriorArtKind
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.source_identity import IdentifierType, SourceKind
 from researchbase.domain.source_version import (
@@ -51,8 +58,9 @@ from researchbase.domain.source_version import (
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
+from ..common import invoke
 from ..context import CliRuntime
-from ..errors import cli_exit_code
+from ..errors import INTERNAL_ERROR_EXIT_CODE, cli_exit_code
 from ..output import emit_error, emit_success
 from ..transport import add_command, command_group
 
@@ -923,4 +931,130 @@ def register(app: typer.Typer) -> None:
     literature.add_typer(identifier, name="identifier")
     literature.add_typer(version, name="version")
     literature.add_typer(search_plan, name="search-plan")
+    for name, operation in (
+        ("record-search-coverage", record_search_coverage),
+        ("read-search-coverage", read_search_coverage),
+        ("record-prior-art-relation", record_prior_art_relation),
+        ("read-prior-art-relation", read_prior_art_relation),
+        ("record-novelty-assessment", record_novelty_assessment),
+        ("read-novelty-assessment", read_novelty_assessment),
+    ):
+        add_command(literature, name, "Record or read exact immutable novelty material.", operation)
     app.add_typer(literature, name="literature")
+
+
+def _novelty(runtime):
+    service = getattr(runtime.services, "novelty", None)
+    if service is None:
+        raise ResearchBaseError(ErrorCode.AUTHENTICATION_REQUIRED, "novelty service unavailable")
+    return service
+
+
+def _novelty_record(ctx, project_id, material_json, json_mode, kind):
+    runtime = _runtime(ctx)
+
+    def operation():
+        try:
+            values = json.loads(material_json)
+            if type(values) is not dict:
+                raise ValueError("closed command object required")
+            for key in tuple(values):
+                if key.endswith("_ids"):
+                    values[key] = tuple(_novelty_id(x) for x in values[key])
+                elif key == "id" or key.endswith("_id"):
+                    values[key] = _novelty_id(values[key]) if values[key] is not None else None
+            if "relation" in values:
+                values["relation"] = PriorArtKind(values["relation"])
+            if "assessment" in values:
+                values["assessment"] = NoveltyOutcome(values["assessment"])
+            constructor = {
+                "coverage": RecordSearchCoverageCommand,
+                "prior_art": RecordPriorArtRelationCommand,
+                "novelty": RecordNoveltyAssessmentCommand,
+            }[kind]
+            command = constructor(project_id=_novelty_id(project_id), **values)
+        except (ValueError, TypeError):
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR, "invalid closed novelty command"
+            ) from None
+        method = {
+            "coverage": "record_search_coverage",
+            "prior_art": "record_prior_art_relation",
+            "novelty": "record_novelty_assessment",
+        }[kind]
+        return getattr(_novelty(runtime), method)(_principal(runtime), command)
+
+    invoke(runtime, json_mode, operation, internal_error_exit_code=INTERNAL_ERROR_EXIT_CODE)
+
+
+def _novelty_id(value):
+    if not isinstance(value, str) or str(UUID(value)) != value:
+        raise ValueError("canonical UUID required")
+    return UUID(value)
+
+
+def record_search_coverage(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    material_json: str = typer.Option(..., "--material-json"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _novelty_record(ctx, project_id, material_json, json_mode, "coverage")
+
+
+def record_prior_art_relation(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    material_json: str = typer.Option(..., "--material-json"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _novelty_record(ctx, project_id, material_json, json_mode, "prior_art")
+
+
+def record_novelty_assessment(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    material_json: str = typer.Option(..., "--material-json"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _novelty_record(ctx, project_id, material_json, json_mode, "novelty")
+
+
+def _novelty_read(ctx, project_id, identity, json_mode, method):
+    runtime = _runtime(ctx)
+
+    def operation():
+        try:
+            query = ExactReadQuery(_novelty_id(project_id), _novelty_id(identity))
+        except ValueError:
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "canonical UUID required") from None
+        return getattr(_novelty(runtime), method)(_principal(runtime), query)
+
+    invoke(runtime, json_mode, operation, internal_error_exit_code=INTERNAL_ERROR_EXIT_CODE)
+
+
+def read_search_coverage(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _novelty_read(ctx, project_id, id, json_mode, "read_search_coverage")
+
+
+def read_prior_art_relation(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _novelty_read(ctx, project_id, id, json_mode, "read_prior_art_relation")
+
+
+def read_novelty_assessment(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _novelty_read(ctx, project_id, id, json_mode, "read_novelty_assessment")

@@ -23,6 +23,7 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
+      RB_TEST_ADMIN_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,5 +39,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0046_pr2_17_authorship (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0047_pr2_18_novelty_prior_art (head)"
       - run: uv run pytest

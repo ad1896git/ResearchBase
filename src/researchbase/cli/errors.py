@@ -96,3 +96,6 @@ def error_details(error: ResearchBaseError | CliTransportError) -> dict[str, obj
 
 def error_code(error: ResearchBaseError | CliTransportError) -> str:
     return error.code.value
+
+
+INTERNAL_ERROR_EXIT_CODE = 1

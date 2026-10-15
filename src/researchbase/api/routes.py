@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, create_model
 from starlette.concurrency import run_in_threadpool
 
 from researchbase.api.context import execution_context
@@ -101,6 +101,15 @@ from researchbase.application.literature_search_plan import (
     TransitionLiteratureSearchPlanVersion,
     UpdateLiteratureSearchPlanDraft,
 )
+from researchbase.application.novelty import (
+    ExactReadQuery,
+    NoveltyReadback,
+    PriorArtReadback,
+    RecordNoveltyAssessmentCommand,
+    RecordPriorArtRelationCommand,
+    RecordSearchCoverageCommand,
+    SearchCoverageReadback,
+)
 from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
 from researchbase.application.source_identity import (
     AddSourceIdentifier,
@@ -140,6 +149,7 @@ from researchbase.domain.literature_search_plan import (
     LiteratureSearchStrategy,
     LiteratureSourceScope,
 )
+from researchbase.domain.novelty import NoveltyOutcome, PriorArtKind, TimeScope
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
 from researchbase.domain.source_identity import IdentifierType, SourceKind
@@ -184,7 +194,15 @@ def _response_schema(model: type[Any]) -> type[BaseModel]:
     schema = create_model(
         f"{model.__name__}Response",
         __config__=ConfigDict(extra="forbid"),
-        **{field.name: (_safe_type(hints[field.name]), ...) for field in fields(model)},
+        **{
+            field.name: (
+                _safe_type(hints[field.name]),
+                Field(..., alias={"from_date": "from", "through_date": "through"}[field.name])
+                if model is TimeScope
+                else ...,
+            )
+            for field in fields(model)
+        },
     )
     _SCHEMA_CACHE[model] = schema
     return schema
@@ -676,6 +694,8 @@ def _http_json_value(value: object) -> object:
         return {
             name: _http_json_value(getattr(value, name)) for name in value.__class__.model_fields
         }
+    if isinstance(value, TimeScope):
+        return value.material()
     if is_dataclass(value) and not isinstance(value, type):
         return {field.name: _http_json_value(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, dict):
@@ -2093,5 +2113,128 @@ def consume_source_merge_proposal(
                 ),
                 idempotency_key,
             )
+        )
+    )
+
+
+def _novelty_uuid(value):
+    if type(value) is UUID:
+        return value
+    if not isinstance(value, str):
+        raise ValueError("canonical UUID required")
+    parsed = UUID(value)
+    if str(parsed) != value:
+        raise ValueError("canonical UUID required")
+    return parsed
+
+
+NoveltyUUID = Annotated[UUID, BeforeValidator(_novelty_uuid)]
+
+
+class SearchCoverageIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    search_plan_version_id: NoveltyUUID
+    search_execution_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    coverage_limitations: str
+
+
+class PriorArtIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    claim_version_id: NoveltyUUID
+    source_version_id: NoveltyUUID
+    relation: PriorArtKind
+    rationale: str
+    literature_evidence_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+
+
+class NoveltyAssessmentIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    claim_version_id: NoveltyUUID
+    search_coverage_id: NoveltyUUID
+    assessment: NoveltyOutcome
+    limitations: str
+    supersedes_assessment_id: NoveltyUUID | None = None
+
+
+@router.post(
+    "/projects/{project_id}/search-coverage",
+    operation_id="record_search_coverage",
+    response_model=_response_schema(SearchCoverageReadback),
+)
+def record_search_coverage(project_id: NoveltyUUID, body: SearchCoverageIn, request: Request):
+    return _json(
+        _services(request).novelty.record_search_coverage(
+            _verified_principal(request),
+            RecordSearchCoverageCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/search-coverage/{id}",
+    operation_id="read_search_coverage",
+    response_model=_response_schema(SearchCoverageReadback),
+)
+def read_search_coverage(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).novelty.read_search_coverage(
+            _verified_principal(request), ExactReadQuery(project_id, id)
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/prior-art-relations",
+    operation_id="record_prior_art_relation",
+    response_model=_response_schema(PriorArtReadback),
+)
+def record_prior_art_relation(project_id: NoveltyUUID, body: PriorArtIn, request: Request):
+    return _json(
+        _services(request).novelty.record_prior_art_relation(
+            _verified_principal(request),
+            RecordPriorArtRelationCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/prior-art-relations/{id}",
+    operation_id="read_prior_art_relation",
+    response_model=_response_schema(PriorArtReadback),
+)
+def read_prior_art_relation(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).novelty.read_prior_art_relation(
+            _verified_principal(request), ExactReadQuery(project_id, id)
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/novelty-assessments",
+    operation_id="record_novelty_assessment",
+    response_model=_response_schema(NoveltyReadback),
+)
+def record_novelty_assessment(project_id: NoveltyUUID, body: NoveltyAssessmentIn, request: Request):
+    return _json(
+        _services(request).novelty.record_novelty_assessment(
+            _verified_principal(request),
+            RecordNoveltyAssessmentCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-assessments/{id}",
+    operation_id="read_novelty_assessment",
+    response_model=_response_schema(NoveltyReadback),
+)
+def read_novelty_assessment(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).novelty.read_novelty_assessment(
+            _verified_principal(request), ExactReadQuery(project_id, id)
         )
     )

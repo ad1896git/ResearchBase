@@ -49,6 +49,7 @@ from researchbase.persistence.literature_search_plan_repository import (
 from researchbase.persistence.metadata_observation_repository import (
     SqlAlchemyMetadataObservationRepository,
 )
+from researchbase.persistence.novelty_repository import SqlAlchemyNoveltyRepository
 from researchbase.persistence.phase2_identity_repository import SqlAlchemyPhase2IdentityRepository
 from researchbase.persistence.publication_repository import SqlAlchemyPublicationRepository
 from researchbase.persistence.repositories import (
@@ -329,6 +330,7 @@ class SqlAlchemyUnitOfWork:
         self._approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
+        self._novelty_error_normalization = False
         self._session: Session | None = None
 
         self._committed = False
@@ -338,6 +340,7 @@ class SqlAlchemyUnitOfWork:
         self._approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
+        self._novelty_error_normalization = False
         self._session = self._session_factory()
         self._session.begin()
         self.actors = SqlAlchemyActorRepository(self._session)
@@ -375,7 +378,12 @@ class SqlAlchemyUnitOfWork:
         self.decision = SqlAlchemyDecisionRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)
+        self.novelty = SqlAlchemyNoveltyRepository(self._session)
         return self
+
+    def enable_novelty_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._novelty_error_normalization = True
 
     def begin_serializable(self) -> None:
         """Set SERIALIZABLE before the first SQL statement in this UoW."""
@@ -449,6 +457,27 @@ class SqlAlchemyUnitOfWork:
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
         if self._authorship_error_normalization:
             return _authorship_database_error(exc)
+        if self._novelty_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"40001", "40P01"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "novelty transaction conflict",
+                    {"retryable_novelty": True},
+                )
+            if constraint == "uq_pr218_novelty_predecessor":
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION, "predecessor concurrently superseded"
+                )
+            if constraint == "ck_pr218_novelty_initial_slice":
+                return ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION, "only INCONCLUSIVE is available"
+                )
+            normalized = _normalize_database_error(exc)
+            if normalized is not None:
+                return normalized
+            raise RuntimeError("novelty transaction failed; recover by exact request ID") from None
         return (
             _approval_database_error(exc)
             if self._approval_error_normalization

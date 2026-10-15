@@ -658,6 +658,60 @@ ROUTES = (
         "SourceMergeRecordResult",
         "consume_source_merge_proposal",
     ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/search-coverage",
+        "record_search_coverage",
+        "record_search_coverage",
+        "SearchCoverageIn",
+        "SearchCoverageReadbackResponse",
+        "record_search_coverage",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/search-coverage/{id}",
+        "read_search_coverage",
+        "read_search_coverage",
+        None,
+        "SearchCoverageReadbackResponse",
+        "read_search_coverage",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/prior-art-relations",
+        "record_prior_art_relation",
+        "record_prior_art_relation",
+        "PriorArtIn",
+        "PriorArtReadbackResponse",
+        "record_prior_art_relation",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/prior-art-relations/{id}",
+        "read_prior_art_relation",
+        "read_prior_art_relation",
+        None,
+        "PriorArtReadbackResponse",
+        "read_prior_art_relation",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/novelty-assessments",
+        "record_novelty_assessment",
+        "record_novelty_assessment",
+        "NoveltyAssessmentIn",
+        "NoveltyReadbackResponse",
+        "record_novelty_assessment",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/novelty-assessments/{id}",
+        "read_novelty_assessment",
+        "read_novelty_assessment",
+        None,
+        "NoveltyReadbackResponse",
+        "read_novelty_assessment",
+    ),
 )
 
 
@@ -672,7 +726,7 @@ def _ref_name(schema: dict[str, object]) -> str:
 
 
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 70
+    assert len(ROUTES) == 76
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -682,7 +736,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 70
+    assert len({item.operation_id for item in ROUTES}) == 76
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]
