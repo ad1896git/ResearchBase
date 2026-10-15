@@ -15,7 +15,7 @@ Build in this order after authorization:
 1. Freeze the finite relevance rules and dependency exclusions (§§3, 11).
 2. Add a forward guard migration; preserve 0044 and its existing records (§12.1).
 3. Extend the existing domain, Application and repository modules (§12.3).
-4. Use the exact shared-lock protocol for writes, replay and reads (§12.2).
+4. Use the shared-lock protocol for writes/replay and lock-free snapshot reads (§12.2).
 5. Add the named tests, run focused checks, record results and stop (§12.4).
 
 Read §1 for authority and shipped scope, §3 for old-to-new relevance, §11 for
@@ -27,7 +27,8 @@ Five review rules:
 1. Preserve immutable history and exact typed references; use the existing R2 hash.
 2. Prove relevance through the saved basis graph, never text or project alone.
 3. Separate historical replay from first admission and current read entitlement.
-4. Protect mutable facts before reading them; recheck authority after lock waits.
+4. Protect mutable facts for writes; use one read-only snapshot for reads and
+   recheck authority with fresh DB time.
 5. Keep Decision/NO_CHANGE, manuscript freeze and Issue disposition dependencies
    closed until their own contracts and implementations exist.
 
@@ -48,7 +49,8 @@ The [domain](../../src/researchbase/domain/revision_action.py) and
 represent all seven shapes. The service's `_supported` and 0044's
 `pr215_revision_guard` admit only issue-only CLAIM_CHANGE/CONCLUSION_CHANGE,
 strictly later frozen versions of the matching owning identity. Correction,
-UUID replay, historical verification and shared snapshot reads already exist.
+UUID replay, historical verification and locked snapshot reads already exist;
+B06 replaces the read path with the lock-free snapshot protocol in §12.2.
 This is the baseline, not a claim that all PR2-15 acceptance gates passed.
 
 [Internal review](../../src/researchbase/application/internal_review.py) admits
@@ -62,7 +64,7 @@ currently takes request advisory → old target UPDATE → snapshot SHARE locks.
 [Decision](../../src/researchbase/persistence/decision_repository.py) supplies the
 mutable-table inventory; [novelty](../../src/researchbase/persistence/novelty_repository.py)
 uses a first-statement table lock for coverage, but target-first locking for other
-writes. B06's table-first/no-target-row-lock protocol below is a **proposed
+writes. B06's write-only table-first/no-target-row-lock protocol below is a **proposed
 refinement**, not a description of every existing command. It requires replacing
 0044's locking guard in a new migration, not simply moving one Application call.
 
@@ -163,10 +165,15 @@ object returns NOT_FOUND. Do not introduce HASH_MISMATCH or B06-specific codes.
 
 ## 7. Transactions, concurrency and failure recovery
 
-One synchronous READ COMMITTED UoW per attempt, one committed action. Take the
-snapshot SHARE lock as the first SQL statement, before SET LOCAL, advisory locks,
-lookups or credential queries (§12.2). Every mutable closure/authority fact read
-is protected; existing immutable SQL guards protect frozen material and inputs.
+Writes, including `record_revision_action` replay: one synchronous READ COMMITTED
+UoW per attempt, at most one committed action. Take the snapshot SHARE lock as
+the first SQL statement, before SET LOCAL, advisory locks, lookups or credential
+queries (§12.2). Every mutable closure/authority fact read by a write command is
+protected; existing immutable SQL guards protect frozen material and inputs.
+
+Exact-ID `read_revision_action`: one fresh REPEATABLE READ, read-only transaction,
+configured before the first query. Authenticate and verify saved hashes/closure
+within that snapshot, without explicit table, row or advisory locks (§12.2).
 
 First write: active project OWNER/RESEARCHER and live verified principal.
 Reads: existing Decision reader roles OWNER/RESEARCHER/REVIEWER/VIEWER/APPROVER.
@@ -228,7 +235,7 @@ before anyone claims full B06/PR2-15/Phase 2 completion. Stop after the approved
 | Supersession | New same-basis correction preserving predecessor history. |
 | Replay | Same actor/material/UUID historical return with current read entitlement. |
 | I-ref / R-ref | Typed identity reference / typed exact ID plus existing content hash. |
-| Snapshot locks | SHARE table locks protecting mutable facts across READ COMMITTED statements. |
+| Snapshot locks | Write-only SHARE table locks protecting mutable facts across READ COMMITTED statements. |
 
 ## 11. Decisions taken in this draft
 
@@ -239,7 +246,8 @@ Admit only the issue-based combinations in §3.1 whose prerequisites exist.
 Do not broaden review targets. Freeze the relevance predicates exactly as written;
 new data-only analysis and hypothesis-only experiment relevance stay excluded.
 Retain existing replay, roles, same-basis nonforking corrections and R2 hashes.
-Adopt table-first protected reads for B06 only, including the SQL guard changes.
+Adopt table-first protection for B06 write commands only, including the SQL guard
+changes; exact-ID reads use a lock-free read-only REPEATABLE READ snapshot.
 
 ### 11.2 Pinned error mappings
 
@@ -286,7 +294,7 @@ without exposing driver text; this constraint-specific addition needs tests.
 No text/list payloads or pagination limits are added. Exactly seven result slots,
 one basis Issue and at most one predecessor per action. Chain traversal is
 iterative, without an arbitrary historical depth cutoff; existing 30s statement
-and 10s post-acquisition lock limits bound operations (§12.2). Never truncate
+and, for writes, 10s lock limits bound operations (§12.2). Never truncate
 verification and report success. Unknown constructor fields are rejected; future
 transport adapters must use extra=forbid and UUID parsing before this boundary.
 
@@ -347,10 +355,11 @@ checking `alembic heads`; no reserved migration number here. Preflight preserved
 rows without rewriting them. Downgrade refuses when it would strand a newly
 admitted shape under 0044's narrower guard or discard retained history.
 
-### 12.2 Exact lock order and transactions
+### 12.2 Exact write lock order and read transactions
 
-Define B as the literal sorted table set `_SNAPSHOT_TABLES` in decision_repository.py
-**minus claim_versions**, exactly as the shipped revision repository does.
+For write commands only, define B as the literal sorted table set
+`_SNAPSHOT_TABLES` in decision_repository.py **minus claim_versions**, exactly as
+the shipped revision repository does.
 It covers actors/bindings/memberships/roles/projects, audit/impact/correction,
 literature evidence/review events, sources/project links, scientific owning
 identities, artifact/dataset/metric/spec material and runs. Pin that set in the
@@ -379,12 +388,30 @@ path is enabled, so no manuscript table inventory is silently assumed.
    check fresh authority/time, insert the single action, force deferred guards,
    verify readback, recheck authority with fresh DB time, commit.
 
-`read_revision_action`: steps 1–3 with the same request key, verify saved material,
-project current validity/successor, recheck live read entitlement, return without
-writing/committing canonical changes. No predecessor UPDATE lock for a read.
+`read_revision_action` uses a separate exact-ID read protocol, as in B01
+`get_search_result_resolution` and the PR2-18 exact-ID read fix:
 
-SHARE conflicts with normal writers' ROW EXCLUSIVE and prevents mutable-fact
-phantoms. Existing Decision/Review/novelty target-first commands may keep their
+1. Open one fresh UoW/transaction and set REPEATABLE READ and READ ONLY before
+   the first query (including authentication or existence lookups). Retain the
+   30s statement timeout configured before transaction start.
+2. Authenticate the reader and establish current read entitlement before
+   disclosing existence/material. Read the exact saved action and all typed
+   dependencies in that single snapshot; verify saved hashes and historical
+   closure, including the predecessor chain. Project validity and successor
+   presence from the same snapshot, without requiring current-valid admission.
+3. Recheck read entitlement with fresh `clock_timestamp()` immediately before
+   return, preserving credential, binding, role-interval and membership checks.
+   End the read-only transaction without canonical changes.
+
+Do not acquire table SHARE locks, advisory locks (including the request key),
+row locks or the write protocol's inventory B on this read path, including inside
+closure/authentication adapters. Snapshot consistency replaces write protection
+for reads: concurrent unrelated inserts must commit while the read remains open
+and remain outside its established snapshot. `record_revision_action` replay
+continues to use the write protocol above; it does not define the read protocol.
+
+For write commands, SHARE conflicts with normal writers' ROW EXCLUSIVE and
+prevents mutable-fact phantoms. Existing Decision/Review/novelty target-first commands may keep their
 protocol: B06 takes no scientific row lock while holding B, so it does not wait
 back on their prelocked targets. Immutable review rows cannot be updated by
 normal writers; action insertion writes outside B. Verify this reasoning with
@@ -409,7 +436,8 @@ requires an explicit inventory/protocol update before admitting its path.
 4. Update `src/researchbase/application/ports.py`,
    `src/researchbase/persistence/revision_action_repository.py` and
    `src/researchbase/persistence/uow.py` for protected typed traversals, table-first
-   acquisition and named-constraint error normalization; configure a dedicated
+   acquisition for writes, lock-free read-only REPEATABLE READ setup before the
+   first read query, and named-constraint error normalization; configure a dedicated
    connection timeout profile via `src/researchbase/persistence/database.py`
    before opening this UoW, without altering owning writers.
    Follow owning FK paths in `persistence/models.py`, migrations 0030/0033 and
@@ -427,7 +455,7 @@ requires an explicit inventory/protocol update before admitting its path.
 | `tests/architecture/test_b06_revision_action.py` (new) | Layering; concrete FK-only results, no JSON/receipt/status/entity expansion, unchanged Phase 1 material and no Issue disposition/effect. |
 | `tests/integration/phase2/test_revision_action.py` | Preserve same-identity paths, replay after stale/write loss, read loss, multiple roots, nonforking correction and no IssueEvent change. |
 | `tests/integration/phase2/test_b06_revision_action.py` (new) | Every new admitted combination, wrong project/identity/measurement/source, DRAFT/unsealed/nonterminal/wrong-Spec, bad lineage/artifact/hash, invalid result versus stale target; denied Decision/NO_CHANGE/manuscript; SQL constraint/catalog/forward upgrade and refused downgrade evidence. |
-| `tests/integration/phase2/test_b06_revision_concurrency.py` (new) | Assert first SQL statement and exact inventory; two-session witnesses with pg_blocking_pids/pg_stat_activity; both commit orders for source/evidence/validity/role writers; scheduled expiry during first table-lock wait; same UUID, predecessor fork race, direct SQL, review/Decision/claim-freeze/novelty overlaps; rollback, restart and lost commit acknowledgment. No sleep-only proof. |
+| `tests/integration/phase2/test_b06_revision_concurrency.py` (new) | Assert first SQL statement and exact inventory for writes/replay only; assert read-only REPEATABLE READ setup before the first read query and no explicit table/row/advisory locks on reads; pause an exact-ID read and prove a concurrent unrelated insert commits before the read ends and stays outside its snapshot (following PR2-18's `test_exact_read_does_not_block_unrelated_insert`); preserve read authentication/hash/closure checks; two-session witnesses with pg_blocking_pids/pg_stat_activity; both commit orders for source/evidence/validity/role writers; scheduled expiry during first table-lock wait; same UUID, predecessor fork race, direct SQL, review/Decision/claim-freeze/novelty overlaps; rollback, restart and lost commit acknowledgment. No sleep-only proof. |
 
 Run static checks, unit/architecture tests and focused PostgreSQL suites for
 RevisionAction, PR2-14 reviews, PR2-15 Decision/schema/coordination, PR2-18 concurrency,
@@ -447,8 +475,8 @@ cross-domain causality, new infrastructure and any Phase 2 acceptance declaratio
 ## 13. Open questions for the owner — override register
 
 Approval must explicitly accept or replace the §3.1 relevance predicates,
-§11 policies and §12.2 table-first protocol. In particular, same-experiment
-lineage and shared-Measurement analysis are conservative proposed boundaries;
+§11 policies and §12.2 write-only table-first / lock-free snapshot read protocols.
+In particular, same-experiment lineage and shared-Measurement analysis are conservative proposed boundaries;
 they do not claim every scientifically relevant response is representable.
 Missing Decision and manuscript contracts remain blocking dependencies for their
 paths. Approval of this document alone does not authorize implementation.
