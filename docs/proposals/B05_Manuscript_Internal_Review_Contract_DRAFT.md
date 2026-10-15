@@ -17,7 +17,8 @@ Build in this order after owner approval **and separate execution authorization*
 2. Extend exact manuscript target verification and immutable review hashing
    (§§3–5, 11); preserve the Claim/Conclusion branches.
 3. Extend Application create/read and add the same-UoW complete-basis helper
-   (§4), through repository ports with the precise lock order (§12.2).
+   (§4), through repository ports with the write lock order and lock-free read
+   protocol (§12.2).
 4. Add migration, authority, replay, phantom and rollback cases (§12.4).
 5. Run the named checks, retain actual results and stop. No readiness, Decision,
    Approval or Issue-disposition implementation belongs here (§12.5).
@@ -34,8 +35,9 @@ Five review rules:
    independent of the manuscript and its material provenance authors.
 3. Preserve every exact-target review, including unfavorable recommendations and
    zero-issue reviews; never accept a caller-selected favorable basis.
-4. Lock the exact manuscript before discovering reviews/issues, including normal
-   SQL insertion paths; recheck credential/role time after waits.
+4. Write commands lock the exact manuscript before discovering reviews/issues,
+   including normal SQL insertion paths; recheck credential/role time after waits.
+   Exact-ID reads use one lock-free REPEATABLE READ, READ ONLY snapshot.
 5. OPEN/BLOCKING anywhere in the exact-target review set fails the later gate.
    Review, Decision, Approval, revision and readiness remain separate facts.
 
@@ -154,7 +156,7 @@ corrupt provenance raises an error. Blockers remain listed even if the gate fail
 | Operation | Inputs / result |
 | --- | --- |
 | `InternalReviewService.create` | Existing principal, project, target_kind, target_id, review_type, recommendation, summary, issues, request; add only MANUSCRIPT_VERSION dispatch. Return existing InternalReviewReadback with explicit manuscript kind. |
-| `InternalReviewService.read` | Existing principal, project, review_id; exact historical review and all current appended issue history, ordered ordinal/id. Extend target/hash verifier explicitly. |
+| `InternalReviewService.read` | Existing principal, project, review_id; exact historical review and all appended issue history visible in its snapshot, ordered ordinal/id. Extend target/hash verifier explicitly. |
 | `collect_manuscript_review_basis(uow, project_id, manuscript_version_id)` | Internal Application helper after §12.2 locks/authorization; returns §11.3 projection, never opens another UoW or commits. No public readiness command. |
 
 Independent inputs comprise exact manuscript/document/trace, applicable frozen
@@ -189,12 +191,18 @@ approval commands translate it to their existing APPROVAL_GATE_FAILED boundary.
 
 ## 7. Transactions, concurrency and replay
 
-One synchronous PostgreSQL 18.x READ COMMITTED UoW per create/read. First take the
-fixed SHARE table inventory, then request advisory (create only), exact manuscript,
+One synchronous PostgreSQL 18.x READ COMMITTED UoW per create. First take the
+fixed SHARE table inventory, then request advisory, exact manuscript,
 Project coordination, Publication, authority, review rows and Issue reads in the
 order in §12.2. The target row serializes both review INSERT and Issue INSERT,
 including ordinary SQL and zero-issue reviews; SHARE guards protect mutable
 closure/authority INSERT phantoms without adding review-table lock upgrades.
+
+Each exact-ID read uses one fresh REPEATABLE READ, READ ONLY transaction, set
+before the first query including authorization. Authenticate the reader, verify
+saved hashes and exact B04 closure in that snapshot, and recheck fresh credential/
+time and read entitlement before return. No explicit table, advisory or row locks
+are taken, including by authorization and closure adapters (§12.2).
 
 Preserve the existing deterministic identity:
 `uuid5(NAMESPACE_URL, f"pr214:{deployment_id}:{project}:{actor_id}:{request}")`;
@@ -221,7 +229,9 @@ or event survives failed validation, credential expiry, trigger error or commit.
 ## 8. Tests to add after authorization — planned, NOT IMPLEMENTED
 
 Tests must show complete old-or-new observations for every competing writer.
-Observe actual blocking with independent connections and barriers, not sleeps.
+For write races, observe actual blocking with independent connections and barriers,
+not sleeps. For exact-ID reads, prove a concurrent unrelated INSERT commits while
+the reader remains open, with a consistent snapshot and no explicit locks.
 Normal application-role SQL must participate in the manuscript row protocol.
 At deferred constraint firing, the final review/issue/event structure must be
 complete. Do not pretend a hash verifies issue history, or that row locks on
@@ -252,7 +262,7 @@ those commands are unavailable. See [PR2-19 plan](PR2-19_E2E_Failure_Injection_P
 | Issue phantom | New issue committed after an earlier query, previously invisible to that query. |
 | Review phantom | New review, even without issues, missed by locking only existing review rows. |
 | Historical validity | Retained frozen material remains verifiable; today's derived scientific status can differ. |
-| SHARE inventory | Fixed table locks protecting every consulted mutable closure and authority fact for this UoW. |
+| SHARE inventory | Fixed table locks protecting every consulted mutable closure and authority fact for a write UoW. |
 | Gate projection | Transient typed observation used inside a command; never a persisted approval or truth flag. |
 | G6 / F5 | Review/revision workflow and blocking-issue bypass failure injection; broader than this slice. |
 
@@ -396,9 +406,11 @@ scoped mappings, not claims that today's UoW already implements them.
 
 ### 12.2 Exact lock order and transactions
 
-`B05_SNAPSHOT_TABLES` is this literal fixed set, sorted lexically into one SHARE
-statement. It matches the B04 closure inventory; new consulted facts require an
-inventory review and race test, not dynamic catalog discovery.
+For write commands only, `B05_SNAPSHOT_TABLES` is this literal fixed set, sorted
+lexically into one SHARE statement. Read paths must never take this inventory or
+advisory locks: they block writers without improving snapshot verification.
+The set matches the B04 closure inventory; new consulted facts require an inventory
+review and race test, not dynamic catalog discovery.
 
 ```text
 actor_subject_bindings actors artifact_versions artifacts audit_findings
@@ -415,8 +427,8 @@ scientific_conclusion_literature_inputs scientific_conclusion_versions
 scientific_conclusions source_versions statistical_result_inputs statistical_results
 ```
 
-**First means first SQL data statement**, before authorization, advisory/row locks,
-lookup, SET LOCAL or autoflush; BEGIN transaction control is excluded. Use fresh
+For write commands, **first means first SQL data statement**, before authorization,
+advisory/row locks, lookup, SET LOCAL or autoflush; BEGIN transaction control is excluded. Use fresh
 READ COMMITTED, autoflush=False, connection-level initial 10s lock/30s statement
 timeouts to bound the first wait. Then SET LOCAL those same limits. This follows
 Novelty coverage `prepare()`'s first SHARE pattern. Decision uses SHARE protection
@@ -428,19 +440,23 @@ the exact manuscript coordination in both SQL guards closes their phantoms.
 | Operation | Exact sequence after beginning UoW |
 | --- | --- |
 | Manuscript `create` | FIRST `LOCK TABLE <sorted B05_SNAPSHOT_TABLES> IN SHARE MODE` → SET LOCAL limits → existing review request advisory `pr214:review:<derived id>` → exact manuscript FOR UPDATE → existing `literature_search_plan.lock_project(project)` (project advisory then Project FOR UPDATE) → scoped Publication FOR SHARE → nonlocking exact-principal authority check/fresh DB time → saved replay branch or new target/closure/material-author validation → all exact manuscript review rows FOR SHARE sorted UUID → Issue reads ordered review UUID/ordinal/id → fresh writer authorization → review INSERT then issues in ordinal order (automatic events) → SET CONSTRAINTS ALL IMMEDIATE → fresh authorization → commit. |
-| Manuscript `read` | FIRST same SHARE statement → SET LOCAL limits → discover immutable review target identity without row lock → exact manuscript FOR UPDATE → project helper → Publication FOR SHARE → current read entitlement/fresh time → review rows FOR SHARE sorted UUID → verify saved review/B04 material with require_current=False → read all issues/events → fresh read entitlement → return, no commit/write effect. Missing or non-manuscript review dispatches to existing behavior; never take manuscript locks and then run an old target branch. |
-| Complete-basis helper | Caller has already taken FIRST SHARE statement → SET LOCAL limits → exact manuscript FOR UPDATE → project helper → Publication FOR SHARE → caller's fresh authority → B04 seal/current validity and author traversal → all exact manuscript reviews FOR SHARE sorted UUID → all Issue/event reads → verify §3 and project gate projection → caller rechecks authority before effect/return. No request advisory for this internal read. Reuse held locks; never invoke a public read that opens another UoW. |
+| Manuscript `read` | Begin one fresh UoW with REPEATABLE READ and READ ONLY set before the first query (including authorization) → authenticate reader and check project read entitlement using nonlocking authority query and fresh DB time → discover exact review target identity → scoped Publication, exact manuscript and review reads without row locks → verify saved review hash and B04 seal/CAS/exact closure with require_current=False through nonlocking adapters in the same snapshot → read all snapshot-visible issues/events → final fresh credential/time and read-entitlement check → return typed DTO; no writes or explicit table, advisory or row locks. Missing or non-manuscript review preserves accepted dispatch semantics within the lock-free read protocol. |
+| Complete-basis helper (inside a write command only) | Caller has already taken FIRST SHARE statement → SET LOCAL limits → exact manuscript FOR UPDATE → project helper → Publication FOR SHARE → caller's fresh authority → B04 seal/current validity and author traversal → all exact manuscript reviews FOR SHARE sorted UUID → all Issue/event reads → verify §3 and project gate projection → caller rechecks authority before effect/return. No separate request advisory for this helper in the caller’s write UoW. Reuse held locks; never invoke a public read that opens another UoW. |
 
-The read dispatcher needs a manuscript path with SHARE first; perform no DB target
-lookup before that statement. A unified protected read prelude may inspect target
-kind after SHARE, but must preserve the accepted branches' semantics and avoid
-late owning-adapter row locks. This requirement needs architecture regression tests.
+The read dispatcher sets REPEATABLE READ and READ ONLY before any query, including
+its target-kind lookup and authorization. As in B01's
+`get_search_result_resolution`, the PR2-18 exact-read fix and revised B04 reads,
+authenticate the reader and verify saved hashes/closure without locks. Never call
+the locking `_authorize` or project lock helper, take manuscript FOR UPDATE,
+Publication FOR SHARE or review FOR SHARE, or acquire table/advisory locks on a
+read path. Architecture regression tests must cover dispatch and nested adapters.
 
 Use a nonlocking authority query matching verified subject/deployment/credential,
-HUMAN actor, membership events, binding and effective role predicates; SHARE has
-already stabilized those rows. Do not call existing locking `_authorize` after
-closure reads. Enable `uow.enable_revision_action_snapshot_reads()` and use B04's
-same-UoW protected verifier/author queries; no hidden nested transactions.
+HUMAN actor, membership events, binding and effective role predicates. For writes,
+SHARE has stabilized those rows; reads consult them in their REPEATABLE READ
+snapshot. Do not call existing locking `_authorize` after closure reads on writes.
+Enable `uow.enable_revision_action_snapshot_reads()` and use B04's same-UoW
+nonlocking verifier/author queries for both protocols; no hidden nested transactions.
 
 Normal SQL review/Issue writers need not take the SHARE inventory; their triggers
 must take exact manuscript FOR UPDATE before any review row lock. A committed
@@ -463,8 +479,8 @@ continue with a stale snapshot. Test mixed B04/Decision/Novelty protocols.
    document and existing Decision material edges. Do not call public B04 read.
 4. `src/researchbase/application/ports.py`: typed review repository operations and
    required snapshot/authority methods. Extend
-   `src/researchbase/persistence/internal_review_repository.py` with literal SHARE
-   inventory, exact manuscript/parent locks, protected target queries, sorted
+   `src/researchbase/persistence/internal_review_repository.py` with write-only literal SHARE
+   inventory and exact manuscript/parent locks, lock-free snapshot read queries, sorted
    complete reviews/issues/events and historical authority verification (reuse
    `decision_repository.py` predicates). Queries returning dicts stay inside
    persistence/Application; no SQLAlchemy imports in domain.
@@ -483,11 +499,11 @@ Paths marked new are proposed, not existing tests or passes.
 | --- | --- |
 | **New** `tests/unit/phase2/test_b05_review_contract.py` | UUID/extra-key/tuple/type/enum failures; NFC and malformed UTF-8; 16,000/16,001 text; 0/100/101 initial issues; explicit manuscript dispatch; ordered issue replay; closed projection and no basis truncation. |
 | **New** `tests/unit/phase2/test_b05_review_hash_vectors.py` | Exact R2 manuscript review vector/digest (§5), every material field changes hash; issue/time/status excluded; Claim/Conclusion vectors unchanged; canonical basis includes every recommendation/type. |
-| **New** `tests/architecture/test_b05_review_boundaries.py` | First emitted SQL inventory for create/read/helper; no nested UoW, SQL in domain, ORM DTO, new schema/receipt or lifecycle effect; protected queries contain no late row locks; normal SQL triggers target-before-review. |
+| **New** `tests/architecture/test_b05_review_boundaries.py` | First emitted SQL inventory for create/helper in write commands; exact reads set REPEATABLE READ and READ ONLY before any query, including dispatch/authorization, with no explicit table/advisory/row locks in any nested adapter; no nested UoW, SQL in domain, ORM DTO, new schema/receipt or lifecycle effect; protected queries contain no late row locks; normal SQL triggers target-before-review. |
 | **New** `tests/integration/phase2/test_b05_review_migration.py` | Clean/actual-head upgrade, retained old-target reviews, preflight rejection, catalog trigger/constraint types/names, deferred checks at commit/SET CONSTRAINTS; zero issues succeeds, forged/missing/duplicate event and gapped ordinals fail; immutable UPDATE/DELETE, wrong project/hash/multiple FK/draft SQL rejected; populated-history downgrade refusal. |
 | **New** `tests/integration/phase2/test_b05_manuscript_review.py` | Application-frozen B04 target success, reconnect, same request replay, changed target/summary/issues conflicts, manuscript UUID reused across kinds; DRAFT/wrong project/unsealed/hash tamper/CAS corruption rejected; HUMAN/Agent, author and transitive creator COI; credential/role expiry after waits; historical read/replay after staleness and role change; rollback after review/each issue/event and commit failure. |
 | **New** `tests/integration/phase2/test_b05_review_basis.py` | Every type/recommendation, zero-issue and repeated-reviewer records included; empty reviews fail gate; no caller selection; old version/project/hash excluded or corrupt exact-target row fails closed; historical authority remains valid after reviewer retires; OPEN/BLOCKING under an unfavorable/unselected review blocks; no review/Decision/Approval equivalence. |
-| **New** `tests/integration/phase2/test_b05_review_races.py` | Review INSERT including zero issues and Issue INSERT on old review versus helper, both orderings, normal-role SQL and Application; source retraction/correction, evidence dispute and governance INSERT phantoms; observe blocking, complete old/new basis or full rollback/retry; concurrent identical requests; first SHARE timeout; mixed B04/Decision/Novelty deadlock normalization and fresh post-wait credentials. |
+| **New** `tests/integration/phase2/test_b05_review_races.py` | Review INSERT including zero issues and Issue INSERT on old review versus helper, both orderings, normal-role SQL and Application; source retraction/correction, evidence dispute and governance INSERT phantoms; observe blocking, complete old/new basis or full rollback/retry; concurrent identical requests; first SHARE timeout; mixed B04/Decision/Novelty deadlock normalization and fresh post-wait credentials. Exact-ID review read does not block a concurrent unrelated INSERT into a consulted table: separate connections and barriers hold the reader open after its first query; assert REPEATABLE READ/READ ONLY and absence of explicit table/advisory/row locks, require INSERT commit before releasing the reader, and verify the inserted row stays outside its snapshot while saved review/B04 hashes and closure verify. |
 
 Existing focused regressions: `tests/unit/phase2/test_pr2_15_decision.py`,
 `test_pr2_15_uow_errors.py`; under `tests/integration/phase2/`,
@@ -558,3 +574,28 @@ A read-only Python check resolved all 24 local Markdown links, matched all 12
 HTTP/CLI mapping pairs against the source dictionaries and verified all 41 lock
 tables against SQL CREATE TABLE/Alembic create_table declarations. It exited 0.
 The whole suite was not run; the loop's subsequent check supplies that evidence.
+
+### Director review 1 revision verification — 2026-10-15
+
+Only this proposal was revised; the status line is unchanged. Read contracts now
+use lock-free REPEATABLE READ, READ ONLY snapshots, consistent with revised B04,
+B01 and the PR2-18 fix. Planned architecture/race cases distinguish write-only
+SHARE coordination from reads and require a concurrent unrelated INSERT to commit
+while the reader remains open. These are planned tests, not implemented B05 passes.
+The earlier verification record above is retained as history.
+
+| Exact command | Observed result |
+| --- | --- |
+| `UV_CACHE_DIR=/private/tmp/researchbase-uv-cache uv run --offline ruff format --check .` | Exit 0; 536 files already formatted. |
+| `UV_CACHE_DIR=/private/tmp/researchbase-uv-cache uv run --offline ruff check .` | Exit 0; All checks passed. |
+| `UV_CACHE_DIR=/private/tmp/researchbase-uv-cache uv run --offline pyright` | Exit 0; 0 errors, 0 warnings, 0 informations. |
+| `UV_CACHE_DIR=/private/tmp/researchbase-uv-cache uv run --offline pytest tests/unit tests/architecture -o addopts='' -ra --tb=short > /private/tmp/b05-r1-unit-architecture.log 2>&1` | Exit 1; 2,156 collected, 2,139 passed, 5 failed, 12 errors, 5 warnings in 37.50s. |
+| `RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres UV_CACHE_DIR=/private/tmp/researchbase-uv-cache uv run --offline pytest tests/integration/phase2/test_pr2_14_internal_review.py tests/integration/phase2/test_pr2_14_conclusion_review.py tests/integration/phase2/test_pr2_15_coordination.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/integration/phase2/test_pr2_15_decision.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_18_concurrency.py tests/integration/phase2/test_pr2_18_replay.py -o addopts='' -ra --tb=short -x > /private/tmp/b05-r1-postgres.log 2>&1` | Exit 1; 110 collected, 1 setup error in 0.40s; other 109 did not execute. PostgreSQL connection denied: Operation not permitted. |
+| `git diff --check` | Exit 0; no diagnostics. |
+
+The unit/architecture failure causes match the earlier record: inherited
+`pyright-000.txt` blank line at EOF, four denied socket binds, and 12 PR2-19
+architecture fixtures requiring explicit `RB_TEST_ADMIN_URL`. No PostgreSQL PASS
+is claimed. A read-only Python check also confirmed the unchanged status line,
+24 resolving local links, snapshot-read protocol text and the planned nonblocking
+INSERT case. The whole test suite was not run; the loop's check supplies that evidence.
