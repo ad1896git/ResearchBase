@@ -70,9 +70,10 @@ def test_pure_domain_and_no_new_schema():
         for node in imports
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0049_b05_manuscript_review"]
+    assert scripts.get_heads() == ["0051_b06_revision_action"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0048_b04_manuscript_freeze"
+        scripts.get_revision("0049_b05_manuscript_review").down_revision
+        == "0048_b04_manuscript_freeze"
     )
     ddl = (ROOT / "migrations/versions/0049_b05_manuscript_review.py").read_text()
     assert "CREATE TABLE" not in ddl and "ALTER TABLE manuscript_versions" not in ddl

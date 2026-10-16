@@ -1,1 +1,0 @@
-[{"action":"Owning transport remediation requires separate authorization","finding":"No private-network destination denial before dispatch","location":"src/researchbase/adapters/literature_http.py::get_json","paperqa_index_deserialization":"BLOCKED: real adapter not selected","severity":"P1 MAJOR","status":"BLOCKED"}]

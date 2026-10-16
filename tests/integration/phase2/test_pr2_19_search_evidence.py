@@ -1,4 +1,4 @@
-"""G1 runnable search prefix; no invented search-to-source resolution bridge."""
+"""G1 retrieval boundary and persisted exact-resolution literature provenance."""
 
 import pytest
 from sqlalchemy import text
@@ -65,3 +65,104 @@ def test_persisted_search_result_is_not_verified_evidence(phase2_database_url):
         )
     finally:
         engine.dispose()
+
+
+# B01 uses its existing-command fixture; head upgrade is explicit in setup_m2.
+pytest_plugins = ("tests.integration.phase2.b01_support",)
+
+
+def test_persisted_resolution_exact_source_verified_evidence_conclusion_path(b01_env):
+    from dataclasses import replace
+    from datetime import UTC, datetime
+    from uuid import UUID, uuid4
+
+    from researchbase.application.literature_evidence import LiteratureEvidenceService
+    from researchbase.application.scientific_conclusion import (
+        LiteratureInputRequest,
+        ScientificConclusionService,
+    )
+    from researchbase.domain.source_version import FrozenSourceReference
+    from tests.integration.phase2.b01_support import create_version, record
+    from tests.integration.phase2.test_m3_evidence import TechnicalCredentials
+    from tests.integration.phase2.test_pr2_00_ownership import _add_owner
+    from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
+
+    e = b01_env
+    original = e["bundle"].literature_evidence
+    author = e["principal"]
+    reviewer_id = uuid4()
+    with e["engine"].begin() as conn:
+        _add_owner(
+            conn,
+            actor_id=reviewer_id,
+            project_id=e["project"],
+            now=datetime.now(UTC),
+            event_kind="ACTIVATED",
+            request_id=uuid4(),
+        )
+    reviewer = replace(
+        author,
+        actor_id=reviewer_id,
+        deployment_id="test-deployment",
+        subject_value=str(reviewer_id.int % 1_000_000),
+        credential_id=f"uid:{reviewer_id.int}",
+    )
+    credentials = TechnicalCredentials([author, reviewer])
+    literature = LiteratureEvidenceService(original._factory, credentials, original._store)
+    document = literature.import_document(
+        author,
+        e["project"],
+        b"A measured effect improved recall.",
+        "text/plain",
+        "Unrestricted test fixture",
+        uuid4(),
+    )
+    material = replace(
+        e["material"],
+        fulltext_artifact=FrozenSourceReference(
+            UUID(document["artifact_version_id"]), document["content_hash"]
+        ),
+    )
+    version = create_version(e["bundle"], author, e["project"], material)
+    resolution = record(e, source_version_id=version)
+    evidence = literature.create(author, e["project"], version, "improved recall", uuid4())
+    reviewed = literature.review(
+        reviewer,
+        e["project"],
+        UUID(evidence["id"]),
+        "VERIFIED",
+        "Independent exact retained passage inspection",
+        uuid4(),
+    )
+    assert reviewed["content_hash"] == evidence["content_hash"]
+    conclusion = ScientificConclusionService(original._factory, credentials, literature)
+    created = conclusion.create(
+        author,
+        e["project"],
+        "The bounded source reports improved recall.",
+        SCOPE,
+        "MODERATE",
+        "Fixture only",
+        (),
+        (LiteratureInputRequest(UUID(evidence["id"]), "SUPPORTS"),),
+        uuid4(),
+    )
+    conclusion.freeze(author, e["project"], created.conclusion_id, created.version_id, uuid4())
+    saved = conclusion.read(author, e["project"], created.conclusion_id, created.version_id)
+    assert saved.status == "FROZEN" and saved.content_hash and saved.support_set_hash
+    with e["engine"].connect() as conn:
+        bridge = conn.execute(
+            text("""SELECT r.id,r.content_hash,s.id,s.content_hash,v.id,v.content_hash,
+            e.id,e.content_hash,e.review_status FROM search_result_records r
+            JOIN search_result_resolutions s ON s.search_result_record_id=r.id
+            JOIN source_versions v ON v.id=s.source_version_id
+            JOIN literature_evidence e ON e.source_version_id=v.id
+            JOIN scientific_conclusion_literature_inputs i ON i.literature_evidence_id=e.id
+            WHERE s.id=:resolution AND i.conclusion_version_id=:conclusion"""),
+            {"resolution": resolution.id, "conclusion": created.version_id},
+        ).one()
+    assert bridge[0] == e["results"][0]
+    assert bridge[2] == resolution.id and bridge[3] == resolution.content_hash
+    assert bridge[4] == version == resolution.source_version_id
+    assert bridge[6] == UUID(evidence["id"]) and bridge[7] == evidence["content_hash"]
+    assert bridge[8] == "VERIFIED" and all(bridge[i] for i in (1, 3, 5, 7))

@@ -26,6 +26,7 @@ from researchbase.application.metadata_observation import MetadataObservationSer
 from researchbase.application.novelty import NoveltyService
 from researchbase.application.phase2_identity import Phase2IdentityService, VerifiedSubject
 from researchbase.application.provenance_queries import ProvenanceQueryService
+from researchbase.application.search_result_resolution import SearchResultResolutionService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
 from researchbase.application.source_merge_execution import SourceMergeExecutionService
@@ -41,7 +42,7 @@ from researchbase.persistence.database import create_database_engine, create_ses
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork, search_result_resolution_uow_factory
 
 
 class CliServices(Protocol):
@@ -78,6 +79,7 @@ class ServiceBundle:
     metadata_observations: MetadataObservationService | None = None
     literature_evidence: LiteratureEvidenceService | None = None
     novelty: NoveltyService | None = None
+    search_result_resolutions: SearchResultResolutionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -147,6 +149,9 @@ def build_services() -> ServiceBundle:
         LiteratureEvidenceService(uow_factory, credentials, store),
         NoveltyService(
             uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
+        SearchResultResolutionService(
+            search_result_resolution_uow_factory(settings.database_url), credentials, store
         ),
     )
 

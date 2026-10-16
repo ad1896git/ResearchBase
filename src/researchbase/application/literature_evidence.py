@@ -535,19 +535,36 @@ class LiteratureEvidenceService:
         )
 
     def _snapshot(self, uow, identity, project):
-        row = uow.literature_evidence.snapshot(identity, project)
-        if row is None:
-            _fail("literature support snapshot not found", ErrorCode.NOT_FOUND)
-        kind = next(key for key, column in TARGET_COLUMNS.items() if row[column] is not None)
-        target = self._target(uow, kind, row[TARGET_COLUMNS[kind]], project)
+        # Exact immutable predecessor material is verified iteratively; historical
+        # chains must not acquire an arbitrary Python recursion depth limit.
+        chain = []
+        seen = set()
+        current = identity
+        while current is not None:
+            if current in seen:
+                _fail("snapshot predecessor cycle", ErrorCode.PROVENANCE_CLOSURE_VIOLATION)
+            seen.add(current)
+            row = uow.literature_evidence.snapshot(current, project)
+            if row is None:
+                _fail("literature support snapshot not found", ErrorCode.NOT_FOUND)
+            kind = next(key for key, column in TARGET_COLUMNS.items() if row[column] is not None)
+            target = self._target(uow, kind, row[TARGET_COLUMNS[kind]], project)
+            chain.append((row, kind, target))
+            current = row["previous_snapshot_id"]
         previous = None
-        if row["previous_snapshot_id"]:
-            previous = self._snapshot(uow, row["previous_snapshot_id"], project)
-            if previous["snapshot_number"] + 1 != row["snapshot_number"] or previous[
-                "target"
-            ] != ref(kind, target):
+        for row, kind, target in reversed(chain):
+            if previous is not None and (
+                previous["snapshot_number"] + 1 != row["snapshot_number"]
+                or previous["target"] != ref(kind, target)
+            ):
                 _fail("snapshot predecessor mismatch", ErrorCode.PROVENANCE_CLOSURE_VIOLATION)
-        relations = uow.literature_evidence.relations(identity)
+            previous = self._snapshot_material(uow, row, kind, target, previous, project)
+        if previous is None:
+            _fail("literature support snapshot not found", ErrorCode.NOT_FOUND)
+        return previous
+
+    def _snapshot_material(self, uow, row, kind, target, previous, project):
+        relations = uow.literature_evidence.relations(row["id"])
         edges, valid = [], target["current_validity"] == "VALID"
         for relation in relations:
             evidence = self._read(uow, relation["literature_evidence_id"], project)

@@ -245,19 +245,18 @@ def test_same_uuid_and_nonforking_correction_concurrency(revision_env):
         assert conn.execute(text("SELECT count(*) FROM revision_actions")).scalar_one() == 2
 
 
-def test_observed_target_wait_rechecks_credentials(revision_env):
+def test_observed_inventory_wait_rechecks_credentials(revision_env):
     service, cmd, env, _, _ = revision_env
     base = env[-1]
     with ThreadPoolExecutor(max_workers=1) as pool:
         with base[8].begin() as holder:
             pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
             holder.execute(
-                text("SELECT id FROM scientific_conclusion_versions WHERE id=:id FOR UPDATE"),
-                {"id": env[3].version_id},
+                text("LOCK TABLE projects IN ROW EXCLUSIVE MODE"),
             )
             pending = pool.submit(service.record_revision_action, base[3], cmd)
-            witness = _wait_for_pg_blocker(base[8], pid, "transactionid")
-            assert "scientific_conclusion_versions" in witness["query"]
+            witness = _wait_for_pg_blocker(base[8], pid, "relation")
+            assert witness["query"].startswith("LOCK TABLE ")
             base[-1].enabled = False
         with pytest.raises(ResearchBaseError) as caught:
             pending.result(timeout=10)
@@ -385,15 +384,9 @@ def test_claim_change_exact_successor(revision_env, tmp_path):
     from threading import Event
 
     entered, release = Event(), Event()
-    holder_pid = []
 
-    def pause_old_target(conn, cursor, statement, parameters, context, many):
-        if (
-            "FROM claim_versions" in statement
-            and "FOR UPDATE" in statement
-            and parameters.get("id") == base[6]
-        ):
-            holder_pid.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
+    def pause_snapshot(conn, cursor, statement, parameters, context, many):
+        if statement.startswith("LOCK TABLE "):
             entered.set()
             assert release.wait(10)
 
@@ -404,21 +397,20 @@ def test_claim_change_exact_successor(revision_env, tmp_path):
                 {"id": base[6]},
             )
 
-    event.listen(base[8], "after_cursor_execute", pause_old_target)
+    event.listen(base[8], "after_cursor_execute", pause_snapshot)
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
             recording = pool.submit(service.record_revision_action, base[3], cmd)
             assert entered.wait(10)
             writer = pool.submit(invalid_writer)
-            witness = _wait_for_pg_blocker(base[8], holder_pid[0], "transactionid")
-            assert "UPDATE claim_versions" in witness["query"]
-            release.set()
-            result = recording.result(timeout=10)
+            # Frozen Claim material is excluded from B and remains SQL immutable.
             with pytest.raises(DBAPIError):
                 writer.result(timeout=10)
+            release.set()
+            result = recording.result(timeout=10)
     finally:
         release.set()
-        event.remove(base[8], "after_cursor_execute", pause_old_target)
+        event.remove(base[8], "after_cursor_execute", pause_snapshot)
     assert result.result_claim_version_id == frozen.id
     assert result.provenance[1].id == base[6]
     assert service.read_revision_action(base[3], base[5], result.id) == result
@@ -498,7 +490,7 @@ def test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog(phase2_d
         with engine.connect() as conn:
             assert _tables(conn) - tables == {"revision_actions"}
             assert _catalog(conn, tables) == catalog
-        assert ScriptDirectory.from_config(config).get_heads() == ["0049_b05_manuscript_review"]
+        assert ScriptDirectory.from_config(config).get_heads() == ["0051_b06_revision_action"]
         alembic_command.downgrade(config, "0043_pr2_04_schema_contract")
         with engine.connect() as conn:
             assert _tables(conn) == tables and _catalog(conn, tables) == catalog
@@ -944,7 +936,7 @@ def test_observed_correction_overlap_is_nonforking(revision_env):
                 ).scalar_one()
             loser = pool.submit(service.record_revision_action, base[3], second)
             witness = _wait_for_pg_blocker(base[8], pid, "transactionid")
-            assert "scientific_conclusion_versions" in witness["query"]
+            assert "revision_actions" in witness["query"]
             release.set()
             assert winner.result(timeout=10).id == first.id
             with pytest.raises(ResearchBaseError) as caught:
@@ -1054,17 +1046,22 @@ def test_request_wait_rechecks_scheduled_role_expiry(revision_env):
         assert caught.value.code == ErrorCode.FORBIDDEN
 
 
-def test_normal_sql_review_writer_waits_for_revision_without_lock_inversion(revision_env):
+@pytest.mark.parametrize("order", ["review_first", "action_first"])
+def test_normal_sql_review_writer_overlaps_revision_without_lock_inversion(revision_env, order):
     from threading import Event
 
     service, cmd, env, review, _ = revision_env
     base = env[-1]
     entered, release = Event(), Event()
+    target_held, release_writer = Event(), Event()
+    commits, writer_pids = [], []
+    new_review = uuid4()
 
     def pause(conn, cursor, statement, parameters, context, many):
         if statement.startswith("INSERT INTO revision_actions"):
             entered.set()
-            assert release.wait(10)
+            if order == "review_first":
+                assert release.wait(10)
 
     def insert_review():
         role = "task13_normal_" + uuid4().hex
@@ -1075,6 +1072,13 @@ def test_normal_sql_review_writer_waits_for_revision_without_lock_inversion(revi
                 text(f"GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA public TO {role}")
             )
             conn.execute(text(f"SET LOCAL ROLE {role}"))
+            writer_pids.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
+            conn.execute(
+                text("SELECT id FROM scientific_conclusion_versions WHERE id=:id FOR UPDATE"),
+                {"id": review.target_id},
+            )
+            target_held.set()
+            assert release_writer.wait(10)
             conn.execute(
                 text("""INSERT INTO internal_review_records
                 (id,project_id,claim_version_id,scientific_conclusion_version_id,target_content_hash,
@@ -1084,31 +1088,62 @@ def test_normal_sql_review_writer_waits_for_revision_without_lock_inversion(revi
                  reviewer_actor_id,review_type,recommendation,summary,clock_timestamp(),
                  content_hash,hash_scheme
                 FROM internal_review_records WHERE id=:review"""),
-                {"id": uuid4(), "review": review.id},
+                {"id": new_review, "review": review.id},
             )
             conn.execute(text("RESET ROLE"))
             conn.execute(text(f"DROP OWNED BY {role}"))
             conn.execute(text(f"DROP ROLE {role}"))
+        commits.append("review")
+
+    def record():
+        saved = service.record_revision_action(base[3], cmd)
+        commits.append("action")
+        return saved
+
+    def target_probe():
+        with base[8].begin() as conn:
+            conn.execute(
+                text("SELECT id FROM scientific_conclusion_versions WHERE id=:id FOR UPDATE"),
+                {"id": review.target_id},
+            )
 
     event.listen(base[8], "after_cursor_execute", pause)
     try:
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            action = pool.submit(service.record_revision_action, base[3], cmd)
-            assert entered.wait(10)
-            with base[8].connect() as conn:
-                pid = conn.execute(
-                    text("""SELECT pid FROM pg_stat_activity WHERE datname=current_database()
-                    AND query LIKE 'INSERT INTO revision_actions%%'
-                    AND state='idle in transaction'""")
-                ).scalar_one()
+        with ThreadPoolExecutor(max_workers=3) as pool:
             writer = pool.submit(insert_review)
-            witness = _wait_for_pg_blocker(base[8], pid, "transactionid")
-            assert "INSERT INTO internal_review_records" in witness["query"]
-            release.set()
+            assert target_held.wait(10)
+            probe = pool.submit(target_probe)
+            witness = _wait_for_pg_blocker(base[8], writer_pids[0], "transactionid")
+            assert "scientific_conclusion_versions" in witness["query"]
+            action = pool.submit(record)
+            assert entered.wait(10)
+            if order == "review_first":
+                release_writer.set()
+                writer.result(timeout=10)
+                assert not action.done() and commits == ["review"]
+                release.set()
+            else:
+                assert action.result(timeout=10).id == cmd.id
+                assert not writer.done() and commits == ["action"]
+                release_writer.set()
+                writer.result(timeout=10)
             assert action.result(timeout=10).id == cmd.id
-            writer.result(timeout=10)
+            probe.result(timeout=10)
+        assert commits == (
+            ["review", "action"] if order == "review_first" else ["action", "review"]
+        )
+        with base[8].connect() as conn:
+            assert (
+                conn.execute(
+                    text("SELECT count(*) FROM internal_review_records WHERE id=:id"),
+                    {"id": new_review},
+                ).scalar_one()
+                == 1
+            )
+        assert service.read_revision_action(base[3], base[5], cmd.id).id == cmd.id
     finally:
         release.set()
+        release_writer.set()
         event.remove(base[8], "after_cursor_execute", pause)
 
 
@@ -1204,15 +1239,15 @@ def test_foreign_predecessor_state_is_nondisclosing(revision_env, tmp_path):
     )
     service.record_revision_action(base[3], foreign)
 
-    def denied(predecessor):
+    def denied(predecessor, expected=ErrorCode.FORBIDDEN):
         with pytest.raises(ResearchBaseError) as caught:
             service.record_revision_action(
                 base[3], replace(cmd, supersedes_revision_action_id=predecessor)
             )
-        assert caught.value.code == ErrorCode.FORBIDDEN
+        assert caught.value.code == expected
         return caught.value.message
 
-    missing_message = denied(uuid4())
+    missing_message = denied(uuid4(), ErrorCode.NOT_FOUND)
     assert denied(foreign.id) == missing_message
     service.record_revision_action(
         base[3], replace(foreign, id=uuid4(), supersedes_revision_action_id=foreign.id)
@@ -1222,11 +1257,16 @@ def test_foreign_predecessor_state_is_nondisclosing(revision_env, tmp_path):
         assert uow.revision_action.predecessor(foreign.id, base[5]) is None
 
 
-def test_frozen_claim_writer_overlap_does_not_invert_snapshot(revision_env, tmp_path):
-    """A writer holding Claim parent can finish after recording releases its snapshot."""
+@pytest.mark.parametrize("order", ["writer_first", "action_first"])
+def test_frozen_claim_writer_overlap_does_not_invert_snapshot(revision_env, tmp_path, order):
+    """Actual claim freeze and admission have witnessed inventory waits in both orders."""
     from threading import Event
 
-    from researchbase.application.commands import ReviseClaimCommand
+    from researchbase.application.commands import (
+        FreezeClaimVersionCommand,
+        LinkEvidenceCommand,
+        ReviseClaimCommand,
+    )
     from researchbase.domain.claim import ClaimVersionId
     from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
     from researchbase.foundation.execution_context import ExecutionContext
@@ -1241,35 +1281,90 @@ def test_frozen_claim_writer_overlap_does_not_invert_snapshot(revision_env, tmp_
     old = app.get_claim_version(ClaimVersionId(base[6]))
     parent = app.get_claim(old.claim_id)
     context = ExecutionContext(actor_id=base[3].actor_id, request_id=uuid4(), client_type="test")
+    app.revise_claim(
+        ReviseClaimCommand(
+            parent.id, "TEST ONLY later claim", {}, None, parent.row_version, context
+        )
+    )
+    draft = app.get_current_claim_version(parent.id)
+    evidence = app.list_evidence_relations(old.id)[0]
+    app.link_evidence(
+        LinkEvidenceCommand(
+            parent.id,
+            draft.id,
+            evidence.measurement_id,
+            evidence.statistical_result_id,
+            "supports",
+            None,
+            draft.row_version,
+            context,
+        )
+    )
+    draft = app.get_current_claim_version(parent.id)
     entered, release = Event(), Event()
-    writer_pid = []
+    action_entered, action_release = Event(), Event()
+    writer_pid, action_pid, commits = [], [], []
 
     def hold_parent(conn, cursor, statement, parameters, context, many):
-        if statement.lstrip().upper().startswith("SELECT CLAIMS.") and "FOR UPDATE" in statement:
+        sql = statement.lstrip().upper()
+        parent_lock = sql.startswith("SELECT CLAIMS.") and "FOR UPDATE" in sql
+        parent_updated = sql.startswith("UPDATE CLAIMS SET")
+        if (order == "action_first" and parent_lock) or (
+            order == "writer_first" and parent_updated
+        ):
             writer_pid.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
             entered.set()
             assert release.wait(10)
+        if statement.startswith("INSERT INTO revision_actions"):
+            action_pid.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
+            action_entered.set()
+            if order == "action_first":
+                assert action_release.wait(10)
+
+    def freeze():
+        result = app.freeze_claim_version(
+            FreezeClaimVersionCommand(parent.id, draft.id, context, draft.row_version)
+        )
+        commits.append("writer")
+        return result
+
+    def record():
+        result = service.record_revision_action(base[3], cmd)
+        commits.append("action")
+        return result
 
     event.listen(base[8], "after_cursor_execute", hold_parent)
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
-            writer = pool.submit(
-                app.revise_claim,
-                ReviseClaimCommand(
-                    parent.id, "TEST ONLY later claim", {}, None, parent.row_version, context
-                ),
-            )
+            writer = pool.submit(freeze)
             assert entered.wait(10)
-            # Recording may read frozen Claim closure while that parent row is held.
-            saved = service.record_revision_action(base[3], cmd)
-            assert not writer.done()
-            release.set()
-            writer.result(timeout=10)
+            action = pool.submit(record)
+            if order == "writer_first":
+                witness = _wait_for_pg_blocker(base[8], writer_pid[0], "relation")
+                assert witness["query"].startswith("LOCK TABLE ")
+                assert not action.done()
+                release.set()
+                writer.result(timeout=10)
+            else:
+                assert action_entered.wait(10)
+                release.set()
+                witness = _wait_for_pg_blocker(base[8], action_pid[0], "relation")
+                assert witness["pid"] == writer_pid[0]
+                assert witness["query"].lstrip().upper().startswith("UPDATE CLAIMS SET")
+                assert not writer.done()
+                action_release.set()
+            saved = action.result(timeout=10)
+            assert writer.result(timeout=10).id == draft.id
             assert (
                 service.read_revision_action(base[3], base[5], saved.id).content_hash
                 == saved.content_hash
             )
+        assert commits == (
+            ["writer", "action"] if order == "writer_first" else ["action", "writer"]
+        )
+        assert app.get_claim_version(draft.id).status.value == "FROZEN"
     finally:
         release.set()
+        action_release.set()
         event.remove(base[8], "after_cursor_execute", hold_parent)
     assert writer_pid

@@ -1,6 +1,6 @@
 # B06 Completed RevisionAction, remaining result shapes — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-15 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -124,6 +124,15 @@ validate the correction's own closure, not a fictitious positive-support status.
 This is the explicit exception to the first-write VALID gate: a verified RETRACTED
 SourceVersion is admissible as correction history; readback still exposes its
 owner-derived current validity and does not label it usable evidence.
+
+For a Claim-target SOURCE_CHANGE, the relevance predicate is existential over
+exact immutable support snapshots bound to the reviewed ClaimVersion. Verify a
+matching snapshot and its complete typed closure. Do not invent a requirement
+that the snapshot predate or be pinned by the Review; no such temporal cutoff is
+part of this matrix. A concurrently appended snapshot may establish a new valid
+witness, but cannot invalidate an existing immutable witness. Unrelated sidecars
+are not action dependencies, and other Claim-target shapes do not enumerate them.
+The literal write inventory in §12.2 is unchanged.
 
 All unlisted result fields are null. Relevance proves a connection, not adequacy.
 Recording adds no IssueEvent, changes no OPEN Issue and creates no re-review,

@@ -1,7 +1,7 @@
 """PR2-15-only database error boundary; no scientific writes or credentials."""
 
 import traceback
-from typing import cast
+from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
@@ -69,3 +69,28 @@ def test_decision_boundary_does_not_swallow_unexpected_non_database_failure():
     uow.__exit__(type(failure), failure, None)
     session.rollback.assert_called_once()
     session.close.assert_called_once()
+
+
+@pytest.mark.parametrize("sqlstate", ["P17R1", "55P03", "57014"])
+def test_revision_unavailable_and_timeouts_are_sanitized(sqlstate):
+    from researchbase.persistence.uow import _decision_database_error
+
+    error = _decision_database_error(_error(sqlstate))
+    assert error.code == ErrorCode.INVALID_STATE_TRANSITION
+    assert "SYNTHETIC_SECRET" not in error.message
+
+
+def test_revision_predecessor_unique_race_normalizes_after_rollback():
+    from types import SimpleNamespace
+
+    failure = _error("23505")
+    cast(Any, failure.orig).diag = SimpleNamespace(constraint_name="uq_revision_action_predecessor")
+    session = Mock()
+    uow = SqlAlchemyUnitOfWork(lambda: cast(Session, session))
+    uow._session = cast(Session, session)
+    uow.enable_decision_error_normalization()
+    with pytest.raises(ResearchBaseError) as caught:
+        uow.__exit__(type(failure), failure, None)
+    session.rollback.assert_called_once()
+    assert caught.value.code == ErrorCode.INVALID_STATE_TRANSITION
+    assert "SYNTHETIC_SECRET" not in "".join(traceback.format_exception(caught.value))

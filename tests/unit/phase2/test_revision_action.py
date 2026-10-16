@@ -150,3 +150,174 @@ def test_stable_revision_error_http_cli_mappings(code, http, cli):
 
     assert _STATUS[code] == http
     assert CLI_EXIT_CODES[code] == cli
+
+
+@pytest.mark.parametrize(
+    "action",
+    ["NEW_EXPERIMENT", "ANALYSIS_CHANGE", "CLAIM_CHANGE", "CONCLUSION_CHANGE", "SOURCE_CHANGE"],
+)
+def test_finite_relevance_accepts_exact_edges_and_rejects_unrelated(action):
+    from dataclasses import replace
+
+    from researchbase.domain.revision_action import (
+        RevisionBasis,
+        RevisionResult,
+        VersionLineage,
+        validate_revision_relevance,
+    )
+
+    old = VersionLineage(UUID(int=1), UUID(int=2), 1)
+    new = VersionLineage(UUID(int=3), old.owner_id, 2)
+    measurement, run, source = UUID(int=4), UUID(int=5), UUID(int=6)
+    basis = RevisionBasis(
+        (old,),
+        measurements=frozenset({measurement}),
+        experiments=((run, old),),
+        sources=frozenset({source}),
+    )
+    result = RevisionResult(
+        new,
+        UUID(int=7),
+        UUID(int=8),
+        frozenset({measurement}),
+        (new,),
+        "CORRECTED",
+        frozenset({source}),
+    )
+    validate_revision_relevance(action, basis, result)
+    unrelated = replace(
+        result,
+        version=replace(new, owner_id=UUID(int=9)),
+        measurement_inputs=frozenset(),
+        claim_inputs=(),
+        source_ancestors=frozenset(),
+    )
+    with pytest.raises(ValueError):
+        validate_revision_relevance(action, basis, unrelated)
+
+
+def test_iterative_predecessor_verification_has_no_depth_cutoff_and_rejects_cycle():
+    from researchbase.domain.revision_action import revision_predecessor_chain
+
+    issue = UUID(int=1)
+    rows = {
+        UUID(int=i): {
+            "id": UUID(int=i),
+            "review_issue_id": issue,
+            "decision_record_id": None,
+            "supersedes_revision_action_id": UUID(int=i - 1) if i > 2 else None,
+        }
+        for i in range(2, 2002)
+    }
+    assert len(revision_predecessor_chain(rows[UUID(int=2001)], rows.get)) == 1999
+    rows[UUID(int=2)]["supersedes_revision_action_id"] = UUID(int=2001)
+    with pytest.raises(ValueError, match="cycle"):
+        revision_predecessor_chain(rows[UUID(int=2001)], rows.get)
+    rows[UUID(int=2)]["supersedes_revision_action_id"] = None
+    rows[UUID(int=3)]["review_issue_id"] = UUID(int=9999)
+    with pytest.raises(ValueError, match="same-basis"):
+        revision_predecessor_chain(rows[UUID(int=2001)], rows.get)
+
+
+def test_shared_snapshot_verifier_checks_history_beyond_recursion_limit(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from researchbase.application.literature_evidence import LiteratureEvidenceService
+
+    count = sys.getrecursionlimit() + 25
+    project, creator, reviewer = UUID(int=1), UUID(int=2), UUID(int=3)
+    target = {"id": UUID(int=4), "content_hash": "a" * 64, "current_validity": "VALID"}
+    target_ref = {"type": "ClaimVersion", "id": str(target["id"]), "content_hash": "a" * 64}
+    rows, evidence, relations = {}, {}, {}
+    previous = None
+    for number in range(1, count + 1):
+        identity, evidence_id = UUID(int=100 + number), UUID(int=10000 + number)
+        evidence[evidence_id] = {
+            "id": evidence_id,
+            "content_hash": "b" * 64,
+            "created_by": creator,
+            "review_status": "VERIFIED",
+            "review_events": [{"reviewed_by": reviewer}],
+            "source_validity": "STALE" if number == 1 else "VALID",
+        }
+        relation = {
+            "literature_evidence_id": evidence_id,
+            "relation_type": "SUPPORTS",
+            "ordinal": 0,
+            "qualification": None,
+        }
+        # Independent literal R2 dictionaries, not the implementation's material helpers.
+        support_hash = str(
+            sha256_canonical_json(
+                {
+                    "type": "LiteratureSupportSnapshotSupportSet",
+                    "material_version": 1,
+                    "literature_inputs": [
+                        {
+                            "literature_evidence": {
+                                "type": "LiteratureEvidence",
+                                "id": str(evidence_id),
+                                "content_hash": "b" * 64,
+                            },
+                            "relation_type": "SUPPORTS",
+                            "ordinal": 0,
+                            "qualification": None,
+                        }
+                    ],
+                }
+            )
+        )
+        expected_hash = str(
+            sha256_canonical_json(
+                {
+                    "type": "LiteratureSupportSnapshot",
+                    "material_version": 1,
+                    "project_id": str(project),
+                    "target": target_ref,
+                    "snapshot_number": number,
+                    "previous_snapshot": previous,
+                    "literature_support_set_hash": support_hash,
+                }
+            )
+        )
+        rows[identity] = {
+            "id": identity,
+            "project_id": project,
+            "claim_version_id": target["id"],
+            "experiment_spec_version_id": None,
+            "snapshot_number": number,
+            "previous_snapshot_id": UUID(int=99 + number) if number > 1 else None,
+            "literature_support_set_hash": support_hash,
+            "content_hash": expected_hash,
+            "created_by": creator,
+        }
+        relations[identity] = [relation]
+        previous = {
+            "type": "LiteratureSupportSnapshot",
+            "id": str(identity),
+            "content_hash": expected_hash,
+        }
+    repo = Mock()
+    repo.snapshot.side_effect = lambda identity, project: rows[identity]
+    repo.relations.side_effect = relations.__getitem__
+    uow = SimpleNamespace(literature_evidence=repo)
+    service = LiteratureEvidenceService(Mock(), Mock(), Mock())
+    monkeypatch.setattr(service, "_target", lambda *args: target)
+    monkeypatch.setattr(service, "_read", lambda uow, identity, project: evidence[identity])
+    head = UUID(int=100 + count)
+    saved = service._snapshot(uow, head, project)
+    assert saved["content_hash"] == expected_hash
+    assert saved["snapshot_number"] == count and saved["validity"] == "VALID"
+    assert {call.args[0] for call in repo.snapshot.call_args_list} == set(rows)
+    assert {call.args[0] for call in repo.relations.call_args_list} == set(rows)
+    evidence[UUID(int=10000 + count)]["review_status"] = "DISPUTED"
+    stale = service._snapshot(uow, head, project)
+    assert stale["content_hash"] == expected_hash and stale["validity"] == "STALE"
+    target["current_validity"] = "INVALID"
+    assert service._snapshot(uow, head, project)["validity"] == "INVALID"
+    rows[UUID(int=101)]["content_hash"] = "c" * 64
+    with pytest.raises(ResearchBaseError) as caught:
+        service._snapshot(uow, head, project)
+    assert caught.value.code == ErrorCode.PROVENANCE_CLOSURE_VIOLATION

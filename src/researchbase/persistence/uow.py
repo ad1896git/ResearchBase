@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from types import TracebackType
 
+from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -26,6 +27,7 @@ from researchbase.application.ports import (
     ProjectRepository,
     ResearchQuestionRepository,
     RunRepository,
+    SearchResultResolutionRepository,
     StatisticalResultRepository,
     WorkspaceRepository,
 )
@@ -76,6 +78,9 @@ from researchbase.persistence.repositories import (
 from researchbase.persistence.revision_action_repository import SqlAlchemyRevisionActionRepository
 from researchbase.persistence.scientific_conclusion_repository import (
     SqlAlchemyScientificConclusionRepository,
+)
+from researchbase.persistence.search_result_resolution_repository import (
+    SqlAlchemySearchResultResolutionRepository,
 )
 from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
@@ -238,6 +243,11 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     code = codes.get(state) if isinstance(state, str) else None
     if code is not None:
         return ResearchBaseError(code, "decision transaction rejected")
+    constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state == "23505" and constraint == "uq_revision_action_predecessor":
+        return ResearchBaseError(
+            ErrorCode.INVALID_STATE_TRANSITION, "predecessor already superseded"
+        )
     normalized = _normalize_database_error(exc)
     if normalized is not None:
         return normalized
@@ -314,6 +324,7 @@ def _manuscript_freeze_database_error(exc: DBAPIError) -> ResearchBaseError:
 class SqlAlchemyUnitOfWork:
     manuscript_freeze: SqlAlchemyManuscriptFreezeRepository
     authorship: AuthorshipRepository
+    search_result_resolutions: SearchResultResolutionRepository
     actors: ActorRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
@@ -358,6 +369,7 @@ class SqlAlchemyUnitOfWork:
         self._approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
+        self._b01_error_normalization = False
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
         self._internal_review_error_normalization = False
@@ -370,6 +382,7 @@ class SqlAlchemyUnitOfWork:
         self._approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
+        self._b01_error_normalization = False
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
         self._internal_review_error_normalization = False
@@ -393,6 +406,7 @@ class SqlAlchemyUnitOfWork:
         self.claims = SqlAlchemyClaimRepository(self._session)
         self.governance = SqlAlchemyGovernanceRepository(self._session)
         self.phase2_identity = SqlAlchemyPhase2IdentityRepository(self._session)
+        self.search_result_resolutions = SqlAlchemySearchResultResolutionRepository(self._session)
         self.metadata_observations = SqlAlchemyMetadataObservationRepository(self._session)
         self.source_identity = SqlAlchemySourceIdentityRepository(self._session)
         self.source_merge = SqlAlchemySourceMergeRepository(self._session)
@@ -417,6 +431,20 @@ class SqlAlchemyUnitOfWork:
     def enable_manuscript_freeze_error_normalization(self) -> None:
         self._decision_error_normalization = True
         self._manuscript_freeze_error_normalization = True
+
+    def begin_resolution(self, *, read_only: bool) -> None:
+        """Configure B01 before SQL; transaction options emit no preceding query."""
+        self._decision_error_normalization = True
+        self._b01_error_normalization = True
+        session = self._require_session()
+        session.autoflush = False
+        session.connection(
+            execution_options={
+                "isolation_level": "REPEATABLE READ" if read_only else "READ COMMITTED",
+                "postgresql_readonly": read_only,
+            }
+        )
+        self.enable_revision_action_snapshot_reads()
 
     def enable_novelty_error_normalization(self) -> None:
         self._decision_error_normalization = True
@@ -466,6 +494,18 @@ class SqlAlchemyUnitOfWork:
     def enable_serializable_retry_normalization(self) -> None:
         """Opt in to deadlock translation for Discussion/Conclusion retries only."""
         self._serializable_retry_normalization = True
+
+    def configure_revision_transaction(self, *, readonly: bool = False) -> None:
+        """Configure a fresh B06 connection before any transactional statement."""
+        from researchbase.persistence.database import configure_revision_connection
+
+        connection = self._require_session().connection(
+            execution_options={
+                "isolation_level": "REPEATABLE READ" if readonly else "READ COMMITTED",
+                "postgresql_readonly": readonly,
+            }
+        )
+        configure_revision_connection(connection)
 
     def enable_revision_action_snapshot_reads(self) -> None:
         """Read-only closure adapters after RevisionAction's protected table snapshot.
@@ -521,6 +561,32 @@ class SqlAlchemyUnitOfWork:
             raise RuntimeError("review transaction failed; recover by exact request ID") from None
         if self._manuscript_freeze_error_normalization:
             return _manuscript_freeze_database_error(exc)
+        if self._b01_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"40001", "40P01"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "resolution transaction conflict",
+                    {"retryable_b01": True},
+                )
+            if state == "23505":
+                if constraint == "search_result_resolutions_search_result_record_id_source_id_key":
+                    return ResearchBaseError(
+                        ErrorCode.DUPLICATE_CONTENT, "resolution tuple already exists"
+                    )
+                if constraint == "search_result_resolutions_pkey":
+                    return ResearchBaseError(
+                        ErrorCode.CONCURRENT_MODIFICATION,
+                        "resolution ID concurrently inserted",
+                        {"reread_b01": True},
+                    )
+            normalized = _normalize_database_error(exc)
+            if normalized is not None:
+                return normalized
+            raise RuntimeError(
+                "resolution transaction failed; recover by exact resolution ID"
+            ) from None
         if self._authorship_error_normalization:
             return _authorship_database_error(exc)
         if self._novelty_error_normalization:
@@ -668,3 +734,16 @@ class SqlAlchemyUnitOfWork:
         if self._session is None:
             raise RuntimeError("UnitOfWork must be entered before use")
         return self._session
+
+
+def search_result_resolution_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
+    """Startup options bound even B01's first statement, before SET LOCAL is legal."""
+    engine = create_engine(
+        url,
+        connect_args={
+            "options": "-c lock_timeout=10s -c statement_timeout=30s",
+            "connect_timeout": 10,
+        },
+    )
+    sessions = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    return lambda: SqlAlchemyUnitOfWork(sessions)

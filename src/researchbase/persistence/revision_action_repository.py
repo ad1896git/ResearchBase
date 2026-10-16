@@ -4,6 +4,8 @@ from sqlalchemy import text
 
 from researchbase.persistence.decision_repository import _SNAPSHOT_TABLES
 
+REVISION_SNAPSHOT_TABLES = tuple(table for table in _SNAPSHOT_TABLES if table != "claim_versions")
+
 
 class SqlAlchemyRevisionActionRepository:
     def __init__(self, session):
@@ -26,11 +28,7 @@ class SqlAlchemyRevisionActionRepository:
         # table-lock those rows: an INSERT/UPDATE takes ROW EXCLUSIVE before its
         # trigger waits for the old target, which would invert this protocol.
         self._session.execute(
-            text(
-                "LOCK TABLE "
-                + ",".join(table for table in _SNAPSHOT_TABLES if table != "claim_versions")
-                + " IN SHARE MODE"
-            )
+            text("LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE")
         )
 
     def authorize(self, principal, project):
@@ -143,4 +141,73 @@ class SqlAlchemyRevisionActionRepository:
                 + ")"
             ),
             row,
+        )
+
+    def force_constraints(self):
+        self._session.execute(text("SET CONSTRAINTS b06_revision_complete IMMEDIATE"))
+
+    def source_witnesses(self, claim_id, ancestors):
+        """Positive immutable witnesses, never a latest/open snapshot collection."""
+        if not ancestors:
+            return []
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT s.id AS snapshot_id,e.id AS evidence_id,e.source_version_id "
+                    "FROM literature_support_snapshots s JOIN literature_evidence_relations r "
+                    "ON r.literature_support_snapshot_id=s.id "
+                    "JOIN literature_evidence e ON e.id=r.literature_evidence_id "
+                    "WHERE s.claim_version_id=:claim AND e.source_version_id=ANY(:ancestors) "
+                    "ORDER BY s.snapshot_number,r.ordinal"
+                ),
+                {"claim": claim_id, "ancestors": list(ancestors)},
+            ).mappings()
+        ]
+
+    def snapshot_evidence(self, identity):
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT e.* FROM literature_evidence_relations r JOIN literature_evidence e "
+                    "ON e.id=r.literature_evidence_id WHERE r.literature_support_snapshot_id=:id "
+                    "ORDER BY r.ordinal"
+                ),
+                {"id": identity},
+            ).mappings()
+        ]
+
+    def run(self, identity, project):
+        return self._one(
+            "SELECT * FROM runs WHERE id=:id AND project_id=:project",
+            {"id": identity, "project": project},
+        )
+
+    def reference_exists(self, kind, identity):
+        tables = {
+            "ClaimVersion": "claim_versions",
+            "ScientificConclusionVersion": "scientific_conclusion_versions",
+            "ExperimentSpecVersion": "experiment_spec_versions",
+            "Run": "runs",
+            "StatisticalResult": "statistical_results",
+            "ReviewIssue": "review_issues",
+            "RevisionAction": "revision_actions",
+        }
+        return (
+            self._one("SELECT id FROM " + tables[kind] + " WHERE id=:id", {"id": identity})
+            is not None
+        )
+
+    def statistic(self, identity, project):
+        return self._one(
+            "SELECT * FROM statistical_results WHERE id=:id AND project_id=:project",
+            {"id": identity, "project": project},
+        )
+
+    def spec_version(self, identity, project):
+        return self._one(
+            "SELECT v.* FROM experiment_spec_versions v JOIN experiment_specs p "
+            "ON p.id=v.experiment_spec_id WHERE v.id=:id AND p.project_id=:project",
+            {"id": identity, "project": project},
         )

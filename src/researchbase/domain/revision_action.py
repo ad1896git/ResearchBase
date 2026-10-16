@@ -97,3 +97,95 @@ def revision_action_material(issue, decision, action_type, results, predecessor,
         "supersedes_revision_action": predecessor.material() if predecessor else None,
         "created_by": actor.material(),
     }
+
+
+@dataclass(frozen=True, slots=True)
+class VersionLineage:
+    id: UUID
+    owner_id: UUID
+    version_number: int
+
+
+@dataclass(frozen=True, slots=True)
+class RevisionBasis:
+    claims: tuple[VersionLineage, ...]
+    conclusion: VersionLineage | None = None
+    measurements: frozenset[UUID] = frozenset()
+    statistics: frozenset[UUID] = frozenset()
+    experiments: tuple[tuple[UUID, VersionLineage], ...] = ()
+    sources: frozenset[UUID] = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
+class RevisionResult:
+    version: VersionLineage | None = None
+    run_id: UUID | None = None
+    statistic_id: UUID | None = None
+    measurement_inputs: frozenset[UUID] = frozenset()
+    claim_inputs: tuple[VersionLineage, ...] = ()
+    source_kind: str | None = None
+    source_ancestors: frozenset[UUID] = frozenset()
+
+
+def validate_revision_relevance(action_type: str, basis: RevisionBasis, result: RevisionResult):
+    """Finite typed relevance only; callers separately verify every dependency."""
+    version = result.version
+
+    def later(old):
+        return (
+            version is not None
+            and version.owner_id == old.owner_id
+            and version.version_number > old.version_number
+        )
+
+    relevant = False
+    if action_type == "CLAIM_CHANGE":
+        relevant = any(later(old) for old in basis.claims)
+    elif action_type == "CONCLUSION_CHANGE":
+        if basis.conclusion is not None:
+            relevant = later(basis.conclusion)
+        else:
+            relevant = any(
+                new.owner_id == old.owner_id
+                and (new.id == old.id or new.version_number > old.version_number)
+                for old in basis.claims
+                for new in result.claim_inputs
+            )
+    elif action_type == "NEW_EXPERIMENT":
+        relevant = (
+            version is not None
+            and result.run_id not in {run for run, _ in basis.experiments}
+            and any(
+                version.owner_id == old.owner_id and version.version_number >= old.version_number
+                for _, old in basis.experiments
+            )
+        )
+    elif action_type == "ANALYSIS_CHANGE":
+        relevant = result.statistic_id not in basis.statistics and bool(
+            result.measurement_inputs & basis.measurements
+        )
+    elif action_type == "SOURCE_CHANGE":
+        relevant = result.source_kind in {"CORRECTED", "RETRACTED"} and bool(
+            result.source_ancestors & basis.sources
+        )
+    if not relevant:
+        raise ValueError("completed result is unrelated to the exact reviewed basis")
+
+
+def revision_predecessor_chain(row, lookup):
+    """Iterate immutable predecessors, rejecting cycles and changed exact basis."""
+    seen = {row["id"]}
+    identity = row["supersedes_revision_action_id"]
+    chain = []
+    while identity is not None:
+        if identity in seen:
+            raise ValueError("revision correction cycle")
+        seen.add(identity)
+        prior = lookup(identity)
+        if prior is None or any(
+            prior[key] != row[key] for key in ("review_issue_id", "decision_record_id")
+        ):
+            raise ValueError("same-project same-basis correction required")
+        chain.append(prior)
+        identity = prior["supersedes_revision_action_id"]
+    return tuple(chain)
