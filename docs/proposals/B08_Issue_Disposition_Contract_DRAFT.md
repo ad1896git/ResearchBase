@@ -72,6 +72,9 @@ Require an already committed completed action and already committed B07 exact
 re-review relation; this command creates neither action, Decision nor review.
 Require all applicable B06/B07 admission, hash and correspondence checks. B07
 approval and tested implementation are prerequisites, not inferred from its file.
+In particular, B07-AQ-01/02 (§11.4 of the B07 draft) remain unresolved: both new
+relations require explicit owner/ADR approval and registry/field-contract admission.
+The re-review relation and this draft's dependent FK are conditional on that outcome.
 Reuse ReviewIssue + ReviewIssueEvent, with additional concrete event basis fields;
 no new canonical entity, receipt table, JSON semantic core or infrastructure.
 
@@ -234,7 +237,7 @@ These decisions are proposed for owner approval; none authorizes implementation.
 | BLOCKING | Matching revision Decision mandatory; no release PROCEED or authority override of facts. |
 | Review quality | §3.2's ACCEPT/MINOR_REVISION and no selected-review OPEN MAJOR/BLOCKING Issues. |
 | History/correction | OPEN→terminal only; new concerns require new Issues through existing review creation, never reopen/delete. Event correction/adjudication is deferred. |
-| Persistence | Extend registered event pattern, concrete FKs and deferred projection consistency; no new table/hash/receipt. |
+| Persistence | Extend registered event pattern, concrete FKs and deferred projection consistency; no new B08 table/hash/receipt. B07 takes option (b) for both unregistered relations (§11.4); require owner/ADR admission before implementing the dependent `fk_b08_event_mapping`. If redesigned/rejected, revise both drafts before execution. |
 | Replay/read | Original actor plus current read entitlement; snapshot reads have no explicit exclusion locks. |
 | Adapters | Application contract only; API/CLI endpoints deferred, mappings pinned for compatibility. |
 
@@ -318,7 +321,12 @@ queries take `(principal: VerifiedPrincipal, project_id: UUID, id: UUID)` or
 
 ### 12.1 DDL sketch and guard inventory
 
-Sketch only. Check the actual Alembic head after B07; allocate one forward file
+Conditional sketch only. `revision_action_re_reviews` is an unapproved B07-AQ-02
+proposal, not an existing registered relation. Do not implement the dependent
+`fk_b08_event_mapping` until owner/ADR approval, registry/field-contract updates
+and verified B07 implementation; if it is rejected/redesigned, revise this sketch
+and mapping policies/tests first. Check the actual Alembic head after B07; allocate
+one forward file
 under `migrations/versions/`, never edit shipped 0040/0041/0042/0051. Preflight
 retained Issue/root-event consistency; refuse corrupt legacy rows. Inspect catalog
 names before replacing 0040's generated checks (`review_issues_status_check`,
@@ -344,6 +352,7 @@ ALTER TABLE review_issue_events
     REFERENCES internal_review_records(id) ON DELETE RESTRICT,
   ADD CONSTRAINT fk_b08_event_decision FOREIGN KEY (decision_id)
     REFERENCES decision_records(id) ON DELETE RESTRICT,
+  -- Conditional on B07-AQ-02 owner/ADR admission; not currently available.
   ADD CONSTRAINT fk_b08_event_mapping
     FOREIGN KEY (revision_action_id,re_review_record_id)
     REFERENCES revision_action_re_reviews(revision_action_id,internal_review_record_id)
@@ -463,7 +472,10 @@ is never substituted for the write capture protocol.
 
 ### 12.3 Ordered build steps and module paths
 
-1. Obtain approval/admission and B07 acceptance; inspect head; add one forward
+1. Obtain approval/admission and B07 acceptance, including explicit owner/ADR
+   resolution of B07-AQ-01/02 and registry/field-contract entries for the admitted
+   relations. Verify the accepted re-review relation matches this draft's FK;
+   otherwise revise both drafts before building. Inspect head; add one forward
    file under `migrations/versions/` with §12.1's exact types, names and guards.
 2. Extend `src/researchbase/domain/internal_review.py` with pure enums, rationale
    normalization and finite disposition predicates; preserve review_material.
@@ -498,8 +510,8 @@ pg_blocking_pids/pg_stat_activity are required for races, not sleep-only evidenc
 | --- | --- |
 | `tests/unit/phase2/test_b08_issue_disposition.py` | Every DTO field/extra rejection; strict UUID/enum, NFC/UTF-8/nonblank/16,000 boundaries; all transition/severity/role/action/Decision tuples; no caller authority; readback NULL root versus terminal shape. |
 | `tests/unit/phase2/test_pr2_15_uow_errors.py` (extend) | Every pinned mapping, named uniqueness reload/compare, sanitized timeout, only 40001/40P01 retry and exactly three attempts; unknown commit recovered with original UUID. |
-| `tests/architecture/test_b08_issue_disposition.py` | Application-only writes, no new entity/table/JSON core/hash/receipt/ExternalEffect; same Human/Agent boundary but HUMAN disposition policy; unchanged Phase 1/Review/Decision/action literal hash vectors; no explicit locks in every nested read helper. |
-| `tests/integration/phase2/test_b08_issue_disposition.py` | Claim/conclusion and all five changed shapes; opener REVIEWER and independent OWNER; changed blocking needs REQUIRE_CHANGE; dismissal all severities needs ACCEPT_NO_CHANGE+NO_CHANGE; exact linked review and favorable gate; wrong/foreign/unlinked/superseded/invalid result denies atomically; historical invalid old target dismissal never restores validity. |
+| `tests/architecture/test_b08_issue_disposition.py` | Owner/ADR and registry/field-contract admission gate for B07-AQ-01/02 and dependent mapping FK; Application-only writes, no new B08 entity/table/JSON core/hash/receipt/ExternalEffect; same Human/Agent boundary but HUMAN disposition policy; unchanged Phase 1/Review/Decision/action literal hash vectors; no explicit locks in every nested read helper. |
+| `tests/integration/phase2/test_b08_issue_disposition.py` | Claim/conclusion and all five changed shapes; opener REVIEWER and independent OWNER; changed blocking needs REQUIRE_CHANGE; dismissal all severities needs ACCEPT_NO_CHANGE+NO_CHANGE; exact explicitly attested linked review and favorable gate; same-target unlinked reviews and links belonging to another action with the same result deny; wrong/foreign/unlinked/superseded/invalid result denies atomically; historical invalid old target dismissal never restores validity. |
 | `tests/integration/phase2/test_b08_issue_history.py` | Original Issue fields/root event unchanged; exactly two events and correct projection; B07 indirect witnesses, new concerns remain OPEN; old review reads (including manuscript) work; independent authority and no Agent disposer; exact replay after writer-role loss/result invalidity/action supersession, read loss/different actor/changed payload denial; terminal new UUID denied; restart and lost acknowledgment. |
 | `tests/integration/phase2/test_b08_schema.py` | Catalog names/types/check NULL behavior/FK RESTRICT; clean install, populated B07 upgrade, OPEN-only downgrade, terminal downgrade refusal; late Issue INSERT versus review SHARE exclusion; normal-role SQL descriptor/status edits, fake/missing root, orphan event, wrong effective Issue/Decision/mapping, duplicate terminal, late basis and UPDATE/DELETE rejection; event-only path produces projection, missing half cannot commit; deferred rollback. |
 | `tests/integration/phase2/test_b08_concurrency.py` | First SQL SHARE(B), exact inventory/timeouts; different UUID same Issue and same UUID races; correction/disposition both orders, B07 map/action-lock inversion absent, selected-review Issue disposition both orders and sorted multi-Issue locks; review and late Issue INSERT phantoms blocked; role/credential/source/evidence/validity writers both orders; expiry across every wait; event/projection/constraint failure injection leaves zero partial writes. |
@@ -550,9 +562,15 @@ uses the existing immutable review path; it does not correct old event history.
 
 Overrides require corresponding policy/DTO/DDL/lock/test and architecture contract
 updates before execution authorization. This task neither requests nor assumes
-that approval and changes no other file.
+that approval; this documentation revision updates B07 and B08 together.
 
 ## 14. Documentation verification note
+
+Current joint B07/B08 revision evidence (2026-10-16), including exact commands and
+counts, is recorded in [B07 §14.2](B07_Revision_Decisions_Contract_DRAFT.md#142-director-review-revision-checks-2026-10-16).
+These checks do not admit either proposed relation.
+
+### 14.1 Original draft checks (2026-10-15; historical)
 
 Executed 2026-10-15 as documentation/current-baseline checks, not implemented B08
 behavior or dependency/Phase acceptance. Only this proposal was added. No branch,

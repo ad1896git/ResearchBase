@@ -11,7 +11,8 @@ resolves the Issue or makes a release decision. B06 (migration 0051) and the
 accepted minimal Decision command are prerequisites, not authority to build B07.
 
 Build only after owner approval, architecture admission of the two new relations
-in §12.1, and separate execution authorization:
+in §11.4 (owner/ADR approval and registry/field-contract updates), and separate
+execution authorization:
 
 1. Implement the finite policies and closed DTOs in §3 and §11.
 2. Add the forward migration, typed basis and immutable relation guards (§12.1).
@@ -92,9 +93,9 @@ Decision-only actions and combined Issue+Decision actions under §3.1. Every
 Decision-bearing action ultimately identifies one exact Issue through its Decision.
 Manuscript, Artifact/research-brief and arbitrary cross-domain review targets deny.
 
-Two proposed concrete association tables (§12.1) are needed because current typed
-Decision basis cannot name a ReviewIssue and current Review/RevisionAction has no
-re-review correspondence FK. Existing domain objects remain the owners. These are
+Option (b) is proposed for both association tables, subject to the unresolved
+Architecture Questions in §11.4. Current typed Decision basis cannot name a
+ReviewIssue and current Review/RevisionAction has no re-review correspondence FK. Existing domain objects remain the owners. These are
 new relations, not new top-level entities, snapshots, JSON references, receipt
 stores or a propagation engine. They require explicit architecture admission;
 A23's minimal-release-only no-new-field approval does not admit them by implication.
@@ -282,7 +283,8 @@ Later acceptance requires disposable PostgreSQL 18.x fresh/forward migration,
 normal-role constraints, exact snapshot/read/write witnesses and focused dependent
 regressions, with commands/counts/version recorded. No open P0/P1 finding, partial
 transaction or undocumented architecture deviation may be called accepted. This
-task writes only this file, creates no branch/commit/push and makes no gate claim.
+documentation revision changes only B07 and dependent B08, creates no
+branch/commit/push and makes no gate claim.
 
 ## 10. Glossary
 
@@ -314,7 +316,7 @@ implement, choose alternatives silently, or expand accepted Decision semantics.
 | Replacement | No second Decision for an Issue and no Decision supersession in this slice. B06 action correction is same stored basis, nonforking and append-only. Multiple action roots and re-reviews stay visible. |
 | NO_CHANGE | Only ACCEPT_NO_CHANGE, no result fields, rationale in Decision, effective Issue mandatory; no ADDRESSED/DISMISSED or validity override. |
 | Missing re-review | Explicit PENDING_RE_REVIEW; original OPEN/BLOCKING concern remains. Mapping is evidence of correspondence, never resolution. |
-| Schema | Add registered decision_basis_claims and two narrowly justified concrete relations, only after architecture admission. No generic target JSON, new canonical entity, hash or receipt. |
+| Schema | **Option (b) for both `decision_revision_concerns` and `revision_action_re_reviews`: retain as unapproved typed relation proposals; each requires owner/ADR approval before implementation (§11.4).** Activate already-registered `decision_basis_claims` separately; it is not a new schema proposal. No generic target JSON, new canonical entity, hash or receipt. |
 | Limits | One Issue and one target per Decision; one action/review pair per link; text at most 16,000 NFC Unicode characters. No caller basis array or batch API. Complete server-selected reviews/actions/links are not truncated or capped to obtain success. |
 | Compatibility | Preserve B06 relevance and hashes, release-only Decision/Approval rules and source retraction exception. Manuscript path remains denied. |
 
@@ -398,12 +400,75 @@ UUID)` for Decision and `(principal, project_id, review_issue_id: UUID)` for con
 Return actions ordered by `(created_at,id)` and links by review UUID; include all
 roots/successors. Readback contains no caller credentials, role assertions or ORM.
 
+### 11.4 Architecture Questions — unresolved; owner/ADR approval required
+
+Neither table below appears in Registry 03, field contract 13, corrections 12/17,
+or the inspected migrations. Concrete FKs and existing domain ownership do not
+by themselves admit new schema under AGENTS.md §§4/11. The following sketches
+are proposals for architecture review, **not approved migration instructions**.
+Each question requires an explicit owner decision recorded through ADR/architecture
+review and corresponding registry/field-contract updates before implementation.
+
+**B07-AQ-01 — exact Decision concern (`decision_revision_concerns`).**
+
+- **Question:** Admit a typed DecisionRecord → ReviewIssue relation to select the
+  one concern governed by a revision-purpose Decision?
+- **Why existing patterns are insufficient:** `decision_basis_reviews` identifies
+  the complete review basis, not one Issue. A review can have multiple Issues;
+  joining through `review_issues.review_record_id` selects all of them, including
+  later additions. `revision_actions` can already bind both Issue and Decision,
+  but only once a response is completed. It cannot identify a Decision's concern
+  before any action exists, or for the proposed Decision-only action path. Using
+  a completed action as that Decision's basis would reverse intent/completion
+  ordering and risk a provenance cycle. Question/rationale text is not a typed FK.
+- **Proposed typed relation:** `decision_revision_concerns(decision_id PK/FK,
+  review_issue_id FK UNIQUE)`, immutable, RESTRICT deletes, same project/exact old
+  target verified; inserted with and sealed to the Decision (§12.1).
+- **Alternatives:** Use only combined Issue+Decision `revision_actions`, defer
+  concern selection until completion, drop Decision-only actions and the
+  one-Decision-per-Issue guarantee; or narrow Decisions to whole-review concerns.
+  These reuse registered structures but change §3.1's proposed contract. A new
+  Issue FK on DecisionRecord would also require architecture approval. None is
+  silently substituted in this draft.
+- **Impact:** One relation plus completeness/immutability/uniqueness guards and
+  Issue-scope concurrency tests. Decision hashes remain unchanged and do not bind
+  the selected Issue (§5); owner approval must explicitly accept that limitation
+  or require a separately revised hash contract. No Issue lifecycle effect.
+
+**B07-AQ-02 — attributable re-review (`revision_action_re_reviews`).**
+
+- **Question:** Admit an immutable typed RevisionAction → InternalReviewRecord
+  relation recording the reviewer's explicit correspondence attestation?
+- **Why existing patterns are insufficient:** `revision_actions` binds old
+  Issue/Decision and exact result, while `internal_review_records` binds a reviewed
+  target. A join on matching result/target can find candidate reviews but cannot
+  establish that a reviewer addressed this particular action/concern, distinguish
+  multiple actions with the same result, or attest indirect Run/statistic/source
+  witnesses and NO_CHANGE. `decision_basis_reviews` is a decider's basis selection,
+  not this independent reviewer's action-specific attestation. `review_issues`
+  describes concerns; `review_issue_events` records status transitions, which B07
+  must not invent merely to store correspondence.
+- **Proposed typed relation:** `revision_action_re_reviews(revision_action_id FK,
+  internal_review_record_id FK, recorded_by FK, recorded_at)`, composite PK on
+  action/review, immutable, RESTRICT deletes and §3.2's exact-path guards (§12.1).
+- **Alternatives:** Expose target-matching reviews only as unverified candidates
+  and defer explicit mapping/B08 disposition; or admit a typed action FK on a
+  review, which would also require approval and restrict cardinality/late mapping.
+  Free text/JSON locators cannot replace the formal typed relation.
+- **Impact:** One relation, attribution/closure/immutability guards, replay and
+  action-supersession race tests. Existing hashes do not bind the association
+  (§5). B08's proposed `fk_b08_event_mapping` depends on admission and verified
+  implementation of this relation; B08 cannot assume it exists. If rejected or
+  redesigned, revise both drafts' DTO/DDL/build/test contracts before execution.
+
 ## 12. Implementation guide — after separate authorization
 
 ### 12.1 DDL sketch and guard inventory
 
-No DDL is executed by this task. Inspect the actual head before allocating the
-next forward file; current head is `0051_b06_revision_action`. Never edit 0042,
+Conditional sketch only: the two CREATE TABLE association blocks below are
+blocked on B07-AQ-01/02 (§11.4); they are not registered architecture. No DDL is
+executed by this task. Inspect the actual head before allocating the next forward
+file; current head is `0051_b06_revision_action`. Never edit 0042,
 0044 or 0051. All new FKs below are concrete and ON DELETE RESTRICT.
 
 Replace 0042's generated `decision_records_decision_type_check` and
@@ -427,6 +492,7 @@ CREATE TABLE decision_basis_claims (
 );
 CREATE INDEX ix_b07_claim_basis_target ON decision_basis_claims(claim_version_id);
 
+-- B07-AQ-01: UNAPPROVED; owner/ADR admission required before implementation.
 -- New association, not a Decision hash input or a new Issue lifecycle record.
 CREATE TABLE decision_revision_concerns (
   decision_id UUID CONSTRAINT pk_b07_decision_concern PRIMARY KEY
@@ -435,6 +501,7 @@ CREATE TABLE decision_revision_concerns (
   CONSTRAINT uq_b07_decision_concern UNIQUE (review_issue_id)
 );
 
+-- B07-AQ-02: UNAPPROVED; owner/ADR admission required before implementation.
 -- Result and old concern are derived through the immutable action, not copied.
 CREATE TABLE revision_action_re_reviews (
   revision_action_id UUID NOT NULL REFERENCES revision_actions(id) ON DELETE RESTRICT,
@@ -451,7 +518,7 @@ CREATE INDEX ix_b07_re_review_target ON revision_action_re_reviews(internal_revi
 The existing Decision VARCHAR(40)/VARCHAR(16) fit every proposed literal. Registered
 `decision_basis_claims` is activated here; the other two tables need architecture
 admission under §2. No new semantic JSON, generic reference columns, stored
-mapping status, content hash or request receipt is admitted.
+mapping status, content hash or request receipt is proposed.
 
 Required guard inventory (names pin future migration/tests):
 
@@ -558,8 +625,12 @@ within the snapshot. Do not promise observation of commits after that snapshot.
 
 ### 12.3 Ordered build steps and module paths
 
-1. Obtain owner/architecture approval of §11–§12, register the two relations and
-   purpose policy, inspect Alembic head and add one forward file in
+1. Resolve B07-AQ-01 and B07-AQ-02 through explicit owner/ADR approval; update
+   Registry 03 and field contract 13 (and governing corrections as required) for
+   each admitted relation and purpose policy. If either is rejected/redesigned,
+   revise this draft and dependent B08 before building. Only after admission and
+   a separate authorized execution pack, inspect Alembic head and add one forward
+   file in
    `migrations/versions/` implementing §12.1. No accepted migration edits.
 2. Extend `src/researchbase/domain/decision.py` and `domain/revision_action.py`
    with pure finite policy/typed correspondence validation. Preserve literal
@@ -595,9 +666,9 @@ All B07-specific files below are **new, planned**, not present implementation.
 | `tests/unit/phase2/test_b07_revision_decisions.py` | Closed fields, exact UUIDs, text boundaries/Unicode, finite purpose/value and action matrix; trusted actor; R2/R3 literal vectors independent of helpers; persisted basis order not hash authority. |
 | `tests/unit/phase2/test_b07_concern_carry_forward.py` | Effective-Issue agreement for three basis forms; all six action mapping predicates; exact Run/Spec, statistic and source witnesses; NULL NO_CHANGE validity; pending/linked and multiple-root/superseded read ordering. |
 | `tests/unit/phase2/test_pr2_15_uow_errors.py` (existing) | Named unique/FK/immutability errors, timeout fallback, 40001/40P01 three-attempt boundary, sanitized diagnostics and link collision reload. |
-| `tests/architecture/test_b07_revision_decisions.py` | Application boundary; concrete FK-only relations; no new top-level entity/JSON core/receipt/hash or IssueEvent/Approval/effect mutation; preserve Phase 1 and release hash contract. |
-| `tests/integration/phase2/test_b07_revision_decisions.py` | Both values, Claim/conclusion targets; complete favorable/adverse review snapshot; exact concern, missing/foreign/corrupt basis; owner/approver author conflicts; blocker reachable for revision choice but still blocks PROCEED; every Issue-only/Decision-only/combined action tuple; NO_CHANGE denies PROCEED/REQUIRE_CHANGE/Issue-only/results; no Issue status/event effects. |
-| `tests/integration/phase2/test_b07_concern_carry_forward.py` | Every §3.2 target/witness, unrelated same-project and equal-text IDs rejected, failed Run preserved, retracted-source mapping denied as positive support, HUMAN reviewer identity/independence, REJECT/UNCERTAIN/new Issues retained, no implicit correspondence by same target; composite replay after role loss/supersession, authorized missing read, no foreign disclosure. |
+| `tests/architecture/test_b07_revision_decisions.py` | Admission gate for B07-AQ-01/02: approved ADR and registry/field-contract entries required before either table or dependent B08 FK is implemented; Application boundary; concrete FK-only relations; no new top-level entity/JSON core/receipt/hash or IssueEvent/Approval/effect mutation; preserve Phase 1 and release hash contract. |
+| `tests/integration/phase2/test_b07_revision_decisions.py` | Both values, Claim/conclusion targets; multiple Issues in one basis review still select exactly one concern before any action exists; complete favorable/adverse review snapshot; exact concern, missing/foreign/corrupt basis; owner/approver author conflicts; blocker reachable for revision choice but still blocks PROCEED; every Issue-only/Decision-only/combined action tuple; NO_CHANGE denies PROCEED/REQUIRE_CHANGE/Issue-only/results; no Issue status/event effects. |
+| `tests/integration/phase2/test_b07_concern_carry_forward.py` | Every §3.2 target/witness, unrelated same-project and equal-text IDs rejected, failed Run preserved, retracted-source mapping denied as positive support, HUMAN reviewer identity/independence, REJECT/UNCERTAIN/new Issues retained, multiple actions sharing one result never inherit each other's links; target-matching candidates remain unlinked until reviewer attestation; no implicit correspondence by same target; composite replay after role loss/supersession, authorized missing read, no foreign disclosure. |
 | `tests/integration/phase2/test_b07_schema.py` | Fresh/0051 upgrade, retained hashes, refused downgrade with each new history kind; catalog constraint/trigger names, all parent/child deferred guards, normal-role SQL empty/extra/late basis, concern substitution, result/re-review mismatch, UPDATE/DELETE/append denial and exact FK RESTRICT. Approval cannot accept revision Decision. |
 | `tests/integration/phase2/test_b07_concurrency.py` | First transaction SQL is SHARE(B) for each write/replay and exact inventory; no hidden scientific row locks; pg_blocking_pids/pg_stat_activity/backend IDs prove both orders against role/source/evidence/validity owning writers and existing Decision/Review/novelty; scheduled expiry during first wait; competing UUID/same concern, same UUID/payload conflict, composite link race, link-versus-predecessor correction and no partial commit. |
 
@@ -635,7 +706,8 @@ Approval must accept or replace the pinned choices: one concern per revision
 Decision, REVISION_RESPONSE × two values, no replacement, complete exact-target
 review basis, no blocker gate on response choice, the §3.2 finite mapping matrix,
 and the §12.2 write-only table-first/read-only snapshot protocols. In particular,
-explicitly approve architecture admission of the two association relations and
+resolve B07-AQ-01/02 (§11.4) through owner/ADR approval before implementation,
+explicitly admitting each association relation and
 the stated absence of cryptographic binding of those relations in existing hashes.
 These are proposed narrow Entity+Relation patterns, not already-admitted schema.
 
@@ -645,6 +717,8 @@ contracts and governing registry before an implementation pack is authorized.
 Approval of this draft alone is not implementation authorization.
 
 ## 14. Documentation verification note
+
+### 14.1 Original draft checks (2026-10-15; historical)
 
 Executed 2026-10-15. These are documentation/current-baseline checks, not B07
 implementation or acceptance. Only this file was added. No branch, commit or push
@@ -701,3 +775,47 @@ cli.errors.CLI_EXIT_CODES, matched all 15 top-level sections to PR2-18, and chec
 the 26-table write inventory against B06 plus internal_review_records: all passed.
 The exact DRAFT status was checked. `git diff --check` passed. These static
 checks do not execute the proposed DDL, policies or transaction protocol.
+
+
+### 14.2 Director review revision checks (2026-10-16)
+
+Documentation only: changed this draft and dependent B08, choosing option (b)
+for both unregistered relations. No source, migration, governing architecture,
+branch, commit or push was changed/created. No whole-suite run was performed;
+the external loop owns that evidence. New B07/B08 tests remain planned only.
+
+Exact environment and commands run from the repository root:
+
+```bash
+export UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv
+export PYTHONPATH=src
+uv --cache-dir /tmp/b07-revision-uv-cache run --offline --no-sync ruff check .
+uv --cache-dir /tmp/b07-revision-uv-cache run --offline --no-sync ruff format --check .
+uv --cache-dir /tmp/b07-revision-uv-cache run --offline --no-sync pyright --pythonpath /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python
+uv --cache-dir /tmp/b07-revision-uv-cache run --offline --no-sync pytest -o addopts='' -ra tests/unit tests/architecture
+uv --cache-dir /tmp/b07-revision-uv-cache run --offline --no-sync pytest -o addopts='' -ra --maxfail=1 tests/integration/phase2/test_revision_action.py tests/integration/phase2/test_b06_revision_action.py tests/integration/phase2/test_b06_revision_concurrency.py tests/integration/phase2/test_pr2_15_decision.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/integration/phase2/test_pr2_15_coordination.py tests/integration/phase2/test_pr2_14_internal_review.py tests/integration/phase2/test_pr2_14_conclusion_review.py tests/integration/phase2/test_pr2_18_concurrency.py tests/integration/phase2/test_approval.py
+git diff --check
+```
+
+| Check | Observed result |
+| --- | --- |
+| Ruff check | All checks passed; exit 0. |
+| Ruff format | 570 files already formatted; exit 0. |
+| Pyright | 0 errors, 0 warnings, 0 informations; exit 0. Preamble notes absent checkout-local .venv; explicit shared interpreter used. |
+| Unit + architecture | 2,359 collected; 2,343 passed, 4 failed, 12 errors, 7 warnings, no skips; exit 1. |
+| Focused PostgreSQL suites | 260 collected; 1 setup error, 259 unexecuted after --maxfail=1; zero passed/failed test bodies or skips; exit 1. |
+| Whitespace | `git diff --check`: exit 0. |
+
+The four failures in `tests/unit/test_hg1_runner.py` are sandbox AF_UNIX bind
+`PermissionError: Operation not permitted`. All twelve setup errors in
+`tests/architecture/test_pr2_19_boundaries.py`, and the first PostgreSQL setup
+error, require an explicit `RB_TEST_ADMIN_URL` (or supported suite alias), unset
+in this environment. The PostgreSQL run failed before connecting; no PostgreSQL
+version, SQL/concurrency PASS or relation admission is claimed. Logs:
+`/tmp/b07-revision-unit-architecture.log`, `/tmp/b07-revision-postgres.log`.
+
+An inline `python3 -` documentation check also verified all relative Markdown
+link destinations (24 in B07, 21 in B08), balanced code fences, all five requested
+Architecture Question fields for each relation, option (b) in §11, and matching
+conditional DDL annotations in both drafts; exit 0. These are documentation
+checks, not execution of proposed policies or DDL.
