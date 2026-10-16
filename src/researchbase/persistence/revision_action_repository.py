@@ -4,7 +4,12 @@ from sqlalchemy import text
 
 from researchbase.persistence.decision_repository import _SNAPSHOT_TABLES
 
-REVISION_SNAPSHOT_TABLES = tuple(table for table in _SNAPSHOT_TABLES if table != "claim_versions")
+REVISION_SNAPSHOT_TABLES = tuple(
+    sorted(
+        {table for table in _SNAPSHOT_TABLES if table != "claim_versions"}
+        | {"internal_review_records"}
+    )
+)
 
 
 class SqlAlchemyRevisionActionRepository:
@@ -59,7 +64,8 @@ class SqlAlchemyRevisionActionRepository:
     def action(self, identity, project):
         return self._one(
             """SELECT a.* FROM revision_actions a
-            JOIN review_issues i ON i.id=a.review_issue_id
+            LEFT JOIN decision_revision_concerns dc ON dc.decision_id=a.decision_record_id
+            JOIN review_issues i ON i.id=coalesce(a.review_issue_id,dc.review_issue_id)
             JOIN internal_review_records r ON r.id=i.review_record_id
             WHERE a.id=:id AND r.project_id=:project""",
             {"id": identity, "project": project},
@@ -115,7 +121,8 @@ class SqlAlchemyRevisionActionRepository:
     def predecessor(self, identity, project):
         return self._one(
             """SELECT a.* FROM revision_actions a
-            JOIN review_issues i ON i.id=a.review_issue_id
+            LEFT JOIN decision_revision_concerns dc ON dc.decision_id=a.decision_record_id
+            JOIN review_issues i ON i.id=coalesce(a.review_issue_id,dc.review_issue_id)
             JOIN internal_review_records r ON r.id=i.review_record_id
             WHERE a.id=:id AND r.project_id=:project FOR UPDATE OF a""",
             {"id": identity, "project": project},
@@ -193,6 +200,8 @@ class SqlAlchemyRevisionActionRepository:
             "StatisticalResult": "statistical_results",
             "ReviewIssue": "review_issues",
             "RevisionAction": "revision_actions",
+            "DecisionRecord": "decision_records",
+            "InternalReviewRecord": "internal_review_records",
         }
         return (
             self._one("SELECT id FROM " + tables[kind] + " WHERE id=:id", {"id": identity})
@@ -211,3 +220,74 @@ class SqlAlchemyRevisionActionRepository:
             "ON p.id=v.experiment_spec_id WHERE v.id=:id AND p.project_id=:project",
             {"id": identity, "project": project},
         )
+
+    def lock_issue(self, identity):
+        self._session.execute(
+            text("SELECT id FROM review_issues WHERE id=:id FOR UPDATE"), {"id": identity}
+        )
+
+    def lock_action(self, identity):
+        self._session.execute(
+            text("SELECT id FROM revision_actions WHERE id=:id FOR UPDATE"), {"id": identity}
+        )
+
+    def lock_re_review(self, action, review):
+        self._session.execute(text("SET LOCAL lock_timeout = '10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout = '30s'"))
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"b07:re-review:{action}:{review}"},
+        )
+
+    def lock_reviews(self, identities):
+        self._session.execute(
+            text("SELECT id FROM internal_review_records WHERE id=ANY(:ids) ORDER BY id FOR SHARE"),
+            {"ids": list(identities)},
+        )
+
+    def link(self, action, review):
+        return self._one(
+            "SELECT * FROM revision_action_re_reviews "
+            "WHERE revision_action_id=:action AND internal_review_record_id=:review",
+            {"action": action, "review": review},
+        )
+
+    def links(self, action):
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT * FROM revision_action_re_reviews WHERE revision_action_id=:action "
+                    "ORDER BY internal_review_record_id"
+                ),
+                {"action": action},
+            ).mappings()
+        ]
+
+    def concern_actions(self, issue, project):
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT a.* FROM revision_actions a LEFT JOIN decision_revision_concerns dc "
+                    "ON dc.decision_id=a.decision_record_id JOIN review_issues i "
+                    "ON i.id=coalesce(a.review_issue_id,dc.review_issue_id) "
+                    "JOIN internal_review_records r ON r.id=i.review_record_id "
+                    "WHERE i.id=:issue AND r.project_id=:project ORDER BY a.created_at,a.id"
+                ),
+                {"issue": issue, "project": project},
+            ).mappings()
+        ]
+
+    def insert_link(self, row):
+        self._session.execute(
+            text(
+                "INSERT INTO revision_action_re_reviews "
+                "(revision_action_id,internal_review_record_id,recorded_by,recorded_at) "
+                "VALUES (:revision_action_id,:internal_review_record_id,:recorded_by,:recorded_at)"
+            ),
+            row,
+        )
+
+    def force_link_constraints(self):
+        self._session.execute(text("SET CONSTRAINTS b07_complete_re_review IMMEDIATE"))

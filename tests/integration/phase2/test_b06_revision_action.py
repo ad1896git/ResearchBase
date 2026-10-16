@@ -323,7 +323,11 @@ def test_unavailable_shapes_stay_closed(revision_env, shape):
     )
     with pytest.raises(ResearchBaseError) as caught:
         service.record_revision_action(base[3], request)
-    assert caught.value.code == ErrorCode.INVALID_STATE_TRANSITION
+    assert caught.value.code == (
+        ErrorCode.DECISION_BASIS_INVALID
+        if shape == "NO_CHANGE"
+        else ErrorCode.INVALID_STATE_TRANSITION
+    )
 
 
 @pytest.mark.parametrize("mutation", ["old_run", "wrong_spec", "unsealed", "nonterminal"])
@@ -709,6 +713,18 @@ def test_global_artifact_metric_inputs_keep_phase1_owner_semantics(revision_env)
     service.record_revision_action(base[3], analysis)
     _normal_sql_clone(base, analysis.id)
     assert service.read_revision_action(base[3], base[5], saved.id) == saved
+
+    with base[8].connect() as conn:
+        retained = conn.execute(
+            text("SELECT id,content_hash FROM revision_actions ORDER BY id")
+        ).all()
+    alembic_command.downgrade(_config(str(base[8].url)), "0051_b06_revision_action")
+    alembic_command.upgrade(_config(str(base[8].url)), "head")
+    with base[8].connect() as conn:
+        assert (
+            conn.execute(text("SELECT id,content_hash FROM revision_actions ORDER BY id")).all()
+            == retained
+        )
 
 
 @pytest.mark.parametrize("shape", ["SOURCE_CHANGE", "CLAIM_CHANGE"])

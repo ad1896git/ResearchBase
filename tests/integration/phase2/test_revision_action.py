@@ -490,7 +490,7 @@ def test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog(phase2_d
         with engine.connect() as conn:
             assert _tables(conn) - tables == {"revision_actions"}
             assert _catalog(conn, tables) == catalog
-        assert ScriptDirectory.from_config(config).get_heads() == ["0051_b06_revision_action"]
+        assert ScriptDirectory.from_config(config).get_heads() == ["0052_b07_revision_decisions"]
         alembic_command.downgrade(config, "0043_pr2_04_schema_contract")
         with engine.connect() as conn:
             assert _tables(conn) == tables and _catalog(conn, tables) == catalog
@@ -1077,6 +1077,8 @@ def test_normal_sql_review_writer_overlaps_revision_without_lock_inversion(revis
                 text("SELECT id FROM scientific_conclusion_versions WHERE id=:id FOR UPDATE"),
                 {"id": review.target_id},
             )
+            if order == "review_first":
+                conn.execute(text("LOCK TABLE internal_review_records IN ROW EXCLUSIVE MODE"))
             target_held.set()
             assert release_writer.wait(10)
             conn.execute(
@@ -1116,13 +1118,16 @@ def test_normal_sql_review_writer_overlaps_revision_without_lock_inversion(revis
             witness = _wait_for_pg_blocker(base[8], writer_pids[0], "transactionid")
             assert "scientific_conclusion_versions" in witness["query"]
             action = pool.submit(record)
-            assert entered.wait(10)
             if order == "review_first":
+                waiting = _wait_for_pg_blocker(base[8], writer_pids[0], "relation")
+                assert waiting["query"].startswith("LOCK TABLE ")
                 release_writer.set()
                 writer.result(timeout=10)
+                assert entered.wait(10)
                 assert not action.done() and commits == ["review"]
                 release.set()
             else:
+                assert entered.wait(10)
                 assert action.result(timeout=10).id == cmd.id
                 assert not writer.done() and commits == ["action"]
                 release_writer.set()

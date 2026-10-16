@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID
 
 from researchbase.domain.scientific_conclusion import _digest, _text, _uuid
@@ -83,3 +84,36 @@ def decision_content_material(
         "supersedes_decision_id": None,
         "basis_set_hash": _digest(basis_set_hash, "basis hash"),
     }
+
+
+RevisionChoice = Literal["REQUIRE_CHANGE", "ACCEPT_NO_CHANGE"]
+RevisionPurpose = Literal["REVISION_RESPONSE"]
+
+REVISION_CHOICES = frozenset({"REQUIRE_CHANGE", "ACCEPT_NO_CHANGE"})
+
+
+def revision_decision_text(value: str, name: str) -> str:
+    normalized = _text(value, name)
+    if len(normalized) > 16_000:
+        raise ValueError(f"{name} exceeds 16000 characters")
+    return normalized
+
+
+def validate_revision_choice(purpose: str, choice: str, action: str | None = None) -> None:
+    if purpose != "REVISION_RESPONSE" or choice not in REVISION_CHOICES:
+        raise ValueError("revision response Decision required")
+    if action is not None and (
+        (choice == "ACCEPT_NO_CHANGE" and action != "NO_CHANGE")
+        or (
+            choice == "REQUIRE_CHANGE"
+            and action
+            not in {
+                "NEW_EXPERIMENT",
+                "ANALYSIS_CHANGE",
+                "CLAIM_CHANGE",
+                "CONCLUSION_CHANGE",
+                "SOURCE_CHANGE",
+            }
+        )
+    ):
+        raise ValueError("Decision choice and completed action disagree")

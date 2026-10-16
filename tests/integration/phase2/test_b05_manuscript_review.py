@@ -230,7 +230,7 @@ def test_atomic_failure(b05_env, monkeypatch, failure):
             assert conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one() == 0
 
 
-def test_first_sql_is_share_and_reads_have_no_explicit_locks(b05_env):
+def test_insert_reservation_precedes_share_and_reads_have_no_explicit_locks(b05_env):
     env = b05_env
     seal(env)
     statements = []
@@ -241,7 +241,8 @@ def test_first_sql_is_share_and_reads_have_no_explicit_locks(b05_env):
     event.listen(env[5], "before_cursor_execute", capture)
     try:
         result = create(env)
-        assert statements[0].startswith("LOCK TABLE actor_subject_bindings,")
+        assert statements[0] == "LOCK TABLE internal_review_records IN ROW EXCLUSIVE MODE"
+        assert statements[1].startswith("LOCK TABLE actor_subject_bindings,")
         statements.clear()
         assert env[0].read(env[3], env[1].project_id, result.id) == result
         assert statements[0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"

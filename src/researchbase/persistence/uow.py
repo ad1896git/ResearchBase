@@ -244,6 +244,12 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     if code is not None:
         return ResearchBaseError(code, "decision transaction rejected")
     constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state == "23505" and constraint == "uq_b07_decision_concern":
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT, "concern decision already recorded"
+        )
+    if state == "23505" and constraint == "pk_b07_action_re_review":
+        return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reload concern correspondence")
     if state == "23505" and constraint == "uq_revision_action_predecessor":
         return ResearchBaseError(
             ErrorCode.INVALID_STATE_TRANSITION, "predecessor already superseded"

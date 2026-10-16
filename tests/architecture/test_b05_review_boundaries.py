@@ -70,7 +70,7 @@ def test_pure_domain_and_no_new_schema():
         for node in imports
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0051_b06_revision_action"]
+    assert scripts.get_heads() == ["0052_b07_revision_decisions"]
     assert (
         scripts.get_revision("0049_b05_manuscript_review").down_revision
         == "0048_b04_manuscript_freeze"

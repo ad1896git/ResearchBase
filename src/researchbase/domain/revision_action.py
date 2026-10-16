@@ -189,3 +189,49 @@ def revision_predecessor_chain(row, lookup):
         chain.append(prior)
         identity = prior["supersedes_revision_action_id"]
     return tuple(chain)
+
+
+def validate_concern_correspondence(
+    action, old: RevisionBasis, target: RevisionBasis, *, target_id: UUID, old_id: UUID
+):
+    """Exact finite witnesses; authorship, hashes and validity are separate checks."""
+    kind = action["action_type"]
+    if kind == "NO_CHANGE":
+        valid = target_id == old_id and (target.conclusion is None) == (old.conclusion is None)
+    elif kind == "CLAIM_CHANGE":
+        valid = target.conclusion is None and target_id == action["result_claim_version_id"]
+    elif kind == "CONCLUSION_CHANGE":
+        valid = (
+            target.conclusion is not None
+            and target_id == action["result_scientific_conclusion_version_id"]
+        )
+    else:
+        lineage = (
+            (
+                target.conclusion is not None
+                and old.conclusion is not None
+                and target.conclusion.owner_id == old.conclusion.owner_id
+                and target.conclusion.version_number >= old.conclusion.version_number
+            )
+            if old.conclusion is not None
+            else any(
+                n.owner_id == o.owner_id and n.version_number >= o.version_number
+                for o in old.claims
+                for n in target.claims
+            )
+        )
+        if kind == "NEW_EXPERIMENT":
+            witness = any(
+                run == action["result_run_id"]
+                and spec.id == action["result_experiment_spec_version_id"]
+                for run, spec in target.experiments
+            )
+        elif kind == "ANALYSIS_CHANGE":
+            witness = action["result_statistical_result_id"] in target.statistics
+        elif kind == "SOURCE_CHANGE":
+            witness = action["result_source_version_id"] in target.sources
+        else:
+            witness = False
+        valid = lineage and witness
+    if not valid:
+        raise ValueError("re-review does not bind the exact completed result and concern lineage")

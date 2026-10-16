@@ -50,6 +50,7 @@ INVENTORY = tuple(
             "experiment_specs",
             "experiment_spec_versions",
             "runs",
+            "internal_review_records",
         }
     )
 )

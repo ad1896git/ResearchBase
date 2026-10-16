@@ -127,6 +127,17 @@ class SqlAlchemyDecisionRepository:
             {"id": identity},
         )
 
+    def revision_basis(self, identity: UUID):
+        # B07-only query: the release reader also runs at the accepted 0042 checkpoint.
+        rows = self.basis(identity)
+        rows += self._many(
+            """SELECT 'ClaimVersion' AS type,b.claim_version_id AS id,v.content_hash,b.ordinal
+            FROM decision_basis_claims b JOIN claim_versions v ON v.id=b.claim_version_id
+            WHERE b.decision_id=:id""",
+            {"id": identity},
+        )
+        return sorted(rows, key=lambda row: row["ordinal"])
+
     def reviews(self, target: UUID, project: UUID):
         return self._many(
             """SELECT * FROM internal_review_records
@@ -175,7 +186,9 @@ class SqlAlchemyDecisionRepository:
             ).scalar_one()
         )
 
-    def material_authors(self, target: UUID, *, manuscript: bool = False) -> frozenset[UUID]:
+    def material_authors(
+        self, target: UUID, *, manuscript: bool = False, claim: bool = False, snapshot: bool = False
+    ) -> frozenset[UUID]:
         # Fixed typed dependency edges. No live/current substitution is used.
         edges = []
         parents = {
@@ -330,7 +343,15 @@ class SqlAlchemyDecisionRepository:
                     " UNION ALL SELECT 'manuscript_versions',manuscript_version_id,created_by "
                     f"FROM {table}"
                 )
-        seed = "manuscript_versions" if manuscript else "scientific_conclusion_versions"
+        seed = (
+            "manuscript_versions"
+            if manuscript
+            else "claim_versions"
+            if claim
+            else "literature_support_snapshots"
+            if snapshot
+            else "scientific_conclusion_versions"
+        )
         sql = (
             "WITH RECURSIVE edges AS ("
             + " UNION ALL ".join(edges)
@@ -366,3 +387,63 @@ class SqlAlchemyDecisionRepository:
 
     def insert_review_basis(self, row) -> None:
         self._insert("decision_basis_reviews", row)
+
+    def concern(self, decision):
+        return self._one(
+            "SELECT * FROM decision_revision_concerns WHERE decision_id=:id", {"id": decision}
+        )
+
+    def concern_decision(self, issue):
+        return self._one(
+            "SELECT decision_id FROM decision_revision_concerns WHERE review_issue_id=:id",
+            {"id": issue},
+        )
+
+    def revision_reviews(self, issue, project, *, lock=False):
+        column = (
+            "claim_version_id"
+            if issue["claim_version_id"] is not None
+            else "scientific_conclusion_version_id"
+        )
+        return self._many(
+            "SELECT * FROM internal_review_records WHERE "
+            + column
+            + "=:target AND project_id=:project ORDER BY id"
+            + (" FOR SHARE" if lock else ""),
+            {"target": issue[column], "project": project},
+        )
+
+    def insert_claim_basis(self, row):
+        self._session.execute(
+            text(
+                "INSERT INTO decision_basis_claims "
+                "(decision_id,claim_version_id,ordinal) "
+                "VALUES (:decision_id,:claim_version_id,:ordinal)"
+            ),
+            row,
+        )
+
+    def insert_concern(self, decision, issue):
+        self._session.execute(
+            text(
+                "INSERT INTO decision_revision_concerns "
+                "(decision_id,review_issue_id) VALUES (:decision,:issue)"
+            ),
+            {"decision": decision, "issue": issue},
+        )
+
+    def force_revision_constraints(self):
+        self._session.execute(
+            text(
+                "SET CONSTRAINTS pr215_complete_decision,b07_complete_decision,b07_complete_claim,"
+                "b07_complete_concern,pr215_complete_conclusion,pr215_complete_review IMMEDIATE"
+            )
+        )
+
+    def revision_creation_authorized(self, row):
+        return bool(
+            self._session.execute(
+                text("SELECT pr216_decision_authorized(d) FROM decision_records d WHERE id=:id"),
+                {"id": row["id"]},
+            ).scalar_one()
+        )

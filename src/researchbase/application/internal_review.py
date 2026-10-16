@@ -250,8 +250,12 @@ class InternalReviewService:
                     if attempt == 2 or not (exc.details or {}).get("retryable_b05"):
                         raise
             raise AssertionError("unreachable")
+        self._manuscripts._principal(principal)
         is_claim = target_kind == "CLAIM_VERSION"
         with self._factory() as uow:
+            uow.enable_internal_review_error_normalization()
+            uow.configure_revision_transaction()
+            uow.internal_review.prepare_insert()
             if is_claim:
                 at = self._auth._authorize(uow, principal, project, _REVIEWERS)
             elif not isinstance(principal, VerifiedPrincipal) or type(project) is not UUID:
@@ -531,7 +535,9 @@ class InternalReviewService:
         )
         with self._factory() as uow:
             uow.enable_internal_review_error_normalization()
+            uow.configure_revision_transaction()
             repo = uow.internal_review
+            repo.prepare_insert()
             repo.prepare_write()
             uow.enable_revision_action_snapshot_reads()
             repo.lock_request(identity)

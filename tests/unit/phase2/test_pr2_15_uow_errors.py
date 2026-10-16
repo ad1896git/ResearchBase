@@ -94,3 +94,28 @@ def test_revision_predecessor_unique_race_normalizes_after_rollback():
     session.rollback.assert_called_once()
     assert caught.value.code == ErrorCode.INVALID_STATE_TRANSITION
     assert "SYNTHETIC_SECRET" not in "".join(traceback.format_exception(caught.value))
+
+
+@pytest.mark.parametrize(
+    "constraint,expected",
+    [
+        ("uq_b07_decision_concern", ErrorCode.IDEMPOTENCY_CONFLICT),
+        ("pk_b07_action_re_review", ErrorCode.IDEMPOTENCY_CONFLICT),
+    ],
+)
+def test_b07_named_unique_errors_are_sanitized(constraint, expected):
+    from types import SimpleNamespace
+
+    from researchbase.persistence.uow import _decision_database_error
+
+    failure = _error("23505")
+    cast(Any, failure.orig).diag = SimpleNamespace(constraint_name=constraint)
+    error = _decision_database_error(failure)
+    assert error.code == expected
+    assert "SYNTHETIC_SECRET" not in error.message
+
+
+def test_b07_missing_concrete_foreign_key_uses_existing_mapping():
+    from researchbase.persistence.uow import _decision_database_error
+
+    assert _decision_database_error(_error("23503")).code == ErrorCode.REFERENTIAL_INTEGRITY_ERROR

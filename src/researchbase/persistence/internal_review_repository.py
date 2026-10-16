@@ -25,6 +25,12 @@ class SqlAlchemyInternalReviewRepository:
         self._session = session
         self._write_prepared = False
 
+    def prepare_insert(self) -> None:
+        # Reserve the INSERT table mode before target/authority row locks. B07's
+        # SHARE inventory must exclude us before either side can take FK locks.
+        # Review writers remain mutually compatible; no SHARE upgrade is needed.
+        self._session.execute(text("LOCK TABLE internal_review_records IN ROW EXCLUSIVE MODE"))
+
     def lock_request(self, identity: UUID) -> None:
         self._session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),

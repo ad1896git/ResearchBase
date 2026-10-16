@@ -1,6 +1,6 @@
 # B07 Revision-purpose Decisions and Concern Carry-forward — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-16 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -93,8 +93,8 @@ Decision-only actions and combined Issue+Decision actions under §3.1. Every
 Decision-bearing action ultimately identifies one exact Issue through its Decision.
 Manuscript, Artifact/research-brief and arbitrary cross-domain review targets deny.
 
-Option (b) is proposed for both association tables, subject to the unresolved
-Architecture Questions in §11.4. Current typed Decision basis cannot name a
+Option (b) is approved for both association tables by the owner on 2026-10-16,
+as recorded in ADR-0015 (§11.4). Current typed Decision basis cannot name a
 ReviewIssue and current Review/RevisionAction has no re-review correspondence FK. Existing domain objects remain the owners. These are
 new relations, not new top-level entities, snapshots, JSON references, receipt
 stores or a propagation engine. They require explicit architecture admission;
@@ -243,7 +243,9 @@ Explicit complete-set queries run after that wait. Table SHARE protects the
 mutable closure/authority inventory against ordinary ROW EXCLUSIVE writers.
 B includes internal_review_records to exclude review-insertion phantoms through
 commit. All writers, including normal-role SQL, take ROW EXCLUSIVE on review
-insertion and therefore participate without new writer hooks. Do not infer Issue membership from the review hash or scan a mutable
+insertion. Application Review writers now reserve that mode first, before row
+locks, under the review-remediation override below. Do not infer Issue membership
+from the review hash or scan a mutable
 “all concerns” set: select the one exact immutable Issue relation instead.
 
 Only deadlock/serialization failures retry, at most three fresh UoWs, repeating
@@ -316,7 +318,7 @@ implement, choose alternatives silently, or expand accepted Decision semantics.
 | Replacement | No second Decision for an Issue and no Decision supersession in this slice. B06 action correction is same stored basis, nonforking and append-only. Multiple action roots and re-reviews stay visible. |
 | NO_CHANGE | Only ACCEPT_NO_CHANGE, no result fields, rationale in Decision, effective Issue mandatory; no ADDRESSED/DISMISSED or validity override. |
 | Missing re-review | Explicit PENDING_RE_REVIEW; original OPEN/BLOCKING concern remains. Mapping is evidence of correspondence, never resolution. |
-| Schema | **Option (b) for both `decision_revision_concerns` and `revision_action_re_reviews`: retain as unapproved typed relation proposals; each requires owner/ADR approval before implementation (§11.4).** Activate already-registered `decision_basis_claims` separately; it is not a new schema proposal. No generic target JSON, new canonical entity, hash or receipt. |
+| Schema | **Option (b) for both `decision_revision_concerns` and `revision_action_re_reviews`: APPROVED by owner 2026-10-16 through ADR-0015 (§11.4).** Activate already-registered `decision_basis_claims` separately; it is not a new schema proposal. No generic target JSON, new canonical entity, hash or receipt. |
 | Limits | One Issue and one target per Decision; one action/review pair per link; text at most 16,000 NFC Unicode characters. No caller basis array or batch API. Complete server-selected reviews/actions/links are not truncated or capped to obtain success. |
 | Compatibility | Preserve B06 relevance and hashes, release-only Decision/Approval rules and source retraction exception. Manuscript path remains denied. |
 
@@ -400,7 +402,14 @@ UUID)` for Decision and `(principal, project_id, review_issue_id: UUID)` for con
 Return actions ordered by `(created_at,id)` and links by review UUID; include all
 roots/successors. Readback contains no caller credentials, role assertions or ORM.
 
-### 11.4 Architecture Questions — unresolved; owner/ADR approval required
+### 11.4 Architecture Questions — APPROVED by owner 2026-10-16
+
+Approval of B07-AQ-01 and B07-AQ-02, including their hash-binding limitation,
+is recorded in [ADR-0015](../architecture/adr/ADR-0015-b07-revision-decisions-concern-carry-forward.md).
+The owner's implementation instruction supplies separate execution authorization.
+The ADR supplies additive registry/field-contract entries in place of edits to
+frozen numbered documents, which the owner expressly forbids. Historical proposal
+wording below records the questions approved by that instruction.
 
 Neither table below appears in Registry 03, field contract 13, corrections 12/17,
 or the inspected migrations. Concrete FKs and existing domain ownership do not
@@ -492,7 +501,7 @@ CREATE TABLE decision_basis_claims (
 );
 CREATE INDEX ix_b07_claim_basis_target ON decision_basis_claims(claim_version_id);
 
--- B07-AQ-01: UNAPPROVED; owner/ADR admission required before implementation.
+-- B07-AQ-01: APPROVED by owner 2026-10-16; ADR-0015.
 -- New association, not a Decision hash input or a new Issue lifecycle record.
 CREATE TABLE decision_revision_concerns (
   decision_id UUID CONSTRAINT pk_b07_decision_concern PRIMARY KEY
@@ -501,7 +510,7 @@ CREATE TABLE decision_revision_concerns (
   CONSTRAINT uq_b07_decision_concern UNIQUE (review_issue_id)
 );
 
--- B07-AQ-02: UNAPPROVED; owner/ADR admission required before implementation.
+-- B07-AQ-02: APPROVED by owner 2026-10-16; ADR-0015.
 -- Result and old concern are derived through the immutable action, not copied.
 CREATE TABLE revision_action_re_reviews (
   revision_action_id UUID NOT NULL REFERENCES revision_actions(id) ON DELETE RESTRICT,
@@ -538,12 +547,15 @@ children and an extra late child both fail. Force the applicable named constrain
 IMMEDIATE before readback. SQL validates structural/hash/path invariants; trusted
 live credentials remain Application checks, not invented SQL authentication.
 
-Revision-Decision guards lock the exact immutable old Issue FOR UPDATE before
-scope checking; all new revision branches use that order. Relation guards lock
-the action FOR UPDATE before checking successor presence. Existing B06 corrections
-already lock their predecessor; the same action row serializes link-versus-
-supersession. SQL guards must also enforce these exclusions for normal-role direct
-SQL; FK/UNIQUE alone cannot check complete basis/relevance. No new durable lock row.
+The owner's review-remediation instruction supersedes the original differing row
+orders: every B07 writer/guard takes SHARE(B), reviews FOR SHARE in UUID order,
+then the exact Issue (FOR UPDATE for Decision selection, otherwise FOR SHARE),
+then the action/predecessor FOR UPDATE where applicable. Discover immutable IDs
+without locks first; reread mutable successor/concern presence after the relevant
+lock. The same action row serializes link-versus-supersession. SQL guards enforce
+this order for normal-role direct SQL too. Deferred re-review validation is
+nonlocking: BEFORE already holds admission locks and the protected inventory
+through commit. No new durable lock row is added. See ADR-0015's remediation note.
 
 Preflight all retained rows without rewriting them. Fresh DB and 0051→new-head
 upgrades must preserve accepted release/action hashes and history. Downgrade locks
@@ -583,9 +595,9 @@ command transaction. Then use the following exact sequences:
 
 | Command | Ordered transaction statements/steps |
 | --- | --- |
-| `record_revision_decision` | **1.** `LOCK TABLE <B> IN SHARE MODE` FIRST. **2.** Existing SET LOCAL bounds, then request advisory `pg_advisory_xact_lock(hashtextextended(:key,0))`, key `pr215:decision:<canonical id>`. **3.** Protected readers; read entitlement, saved UUID and original actor/material comparison. Saved replay verifies saved graph, then fresh read entitlement and returns. **4.** New request: current write entitlement; exact Issue `FOR UPDATE` (no scientific row lock); inspect existing concern scope after wait. **5.** Reviews `FOR SHARE` in UUID order, then nonlocking closure/complete-review selection and all checks. **6.** Fresh time/authority, insert parent/basis/concern; force deferred guards, verify readback, fresh authority, commit. |
+| `record_revision_decision` | **1.** `LOCK TABLE <B> IN SHARE MODE` FIRST. **2.** Existing SET LOCAL bounds, then request advisory `pg_advisory_xact_lock(hashtextextended(:key,0))`, key `pr215:decision:<canonical id>`. **3.** Protected readers; read entitlement, saved UUID and original actor/material comparison. Saved replay verifies saved graph, then fresh read entitlement and returns. **4.** New request: current write entitlement; discover immutable Issue/target IDs without locks; reviews `FOR SHARE` in UUID order, then exact Issue `FOR UPDATE` (no scientific row lock); inspect existing concern scope after wait. **5.** Nonlocking closure/complete-review selection and all checks. **6.** Fresh time/authority, insert parent/basis/concern; force deferred guards, verify readback, fresh authority, commit. |
 | `record_revision_action` including NO_CHANGE | **1.** First SHARE(B). **2.** SET LOCAL, request advisory `pr215:revision:<id>`. **3.** Read entitlement and saved replay checks first. **4.** New action: write entitlement, derive effective Issue from committed Decision if needed; exact old review `FOR SHARE`, then Issue `FOR SHARE`; predecessor `FOR UPDATE` if supplied, then reread successor. **5.** Nonlocking complete old/Decision/result/predecessor verification. **6.** Fresh authority, insert action, force guards, readback, fresh authority, commit. No target/result/parent row lock. |
-| `record_concern_re_review` | **1.** First SHARE(B). **2.** SET LOCAL; request advisory key `b07:re-review:<action UUID>:<review UUID>`. **3.** Read entitlement and existing composite replay check before write eligibility. **4.** New link: action `FOR UPDATE`; reread successor; collect old and new immutable review IDs, lock `FOR SHARE` in UUID order, then effective Issue `FOR SHARE`. **5.** Verify complete saved basis/result and §3.2 correspondence; no re-review creation call. **6.** Fresh authorizing time, insert relation, force guards, verify readback, fresh authority, commit. |
+| `record_concern_re_review` | **1.** First SHARE(B). **2.** SET LOCAL; request advisory key `b07:re-review:<action UUID>:<review UUID>`. **3.** Read entitlement and existing composite replay check before write eligibility. **4.** New link: collect immutable action/Issue/review IDs without locks; old and new reviews `FOR SHARE` in UUID order, then effective Issue `FOR SHARE`, then action `FOR UPDATE`; reread successor. **5.** Verify complete saved basis/result and §3.2 correspondence; no re-review creation call. **6.** Fresh authorizing time, insert relation, force guards, verify readback, fresh authority, commit. |
 
 All request keys are derived from canonical UUIDs; none is caller-defined policy.
 A saved replay does not take new-creation scope/action/predecessor locks. Direct
@@ -594,11 +606,17 @@ action destinations are outside B. Triggers take SHARE(B) before the listed row
 locks and use the same exclusions. Already-held request/Issue/action/review locks
 are reentrant; do not invert them by calling ordinary locking closure services.
 
-Compatibility reasoning: B06 and B07 hold B without scientific row locks, so they
-do not wait back on targets prelocked by Decision/Review/novelty. They write outside
-B. Review INSERTs wait on B; Issue rows are immutable and exact Issue identity
-is selected rather than enumerated. B07 does not take scientific row locks that
-could invert a waiting review writer. Revision Decision serializes on the old Issue, so it sees a competing revision
+Review-remediation override: each Application Review creation/replay reserves
+`LOCK TABLE internal_review_records IN ROW EXCLUSIVE MODE` FIRST, with the
+pre-BEGIN bounded READ COMMITTED profile, before its target/project/actor locks.
+This is an INSERT reservation, not SHARE(B): review writers must not upgrade a
+SHARE lock on their own destination. Normal-role SQL INSERT reserves that mode
+automatically. B07-first makes Review wait before acquiring FK-conflicting row
+locks; Review-first makes B07 wait at its initial inventory. Accepted target-first
+release/novelty writers keep their existing paths. B07 still writes outside B,
+but its implicit FK locks must be considered in compatibility tests. The original
+claim that no explicit scientific locks alone prevented inversion was disproved.
+Revision Decision serializes on the old Issue, so it sees a competing revision
 Decision's committed concern after waiting; the UNIQUE is the final race guard.
 Mapping and predecessor correction serialize on the exact action row. A correction
 that commits first denies a fresh mapping; a mapping committed first remains
@@ -819,3 +837,12 @@ link destinations (24 in B07, 21 in B08), balanced code fences, all five request
 Architecture Question fields for each relation, option (b) in §11, and matching
 conditional DDL annotations in both drafts; exit 0. These are documentation
 checks, not execution of proposed policies or DDL.
+
+
+### 14.3 First-slice implementation evidence (2026-10-16)
+
+The owner-authorized implementation, recorded substitutions, environment and exact
+focused verification commands/results are recorded in
+[B07 implementation evidence](../phase2/B07-implementation-evidence-2026-10-16.md).
+This is first-slice evidence only; it does not declare a Phase 2 gate or authorize
+any item excluded by §12.5.

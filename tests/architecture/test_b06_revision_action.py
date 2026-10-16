@@ -44,4 +44,4 @@ def test_b06_has_no_issue_disposition_or_extra_result_schema():
     assert {
         x.name for x in fields(RecordRevisionActionCommand) if x.name.startswith("result_")
     } == {key + "_id" for key in RESULT_KEYS}
-    assert "MANUSCRIPT_CHANGE" not in application and "NO_CHANGE" not in application
+    assert 'if row["action_type"] == "MANUSCRIPT_CHANGE"' in application

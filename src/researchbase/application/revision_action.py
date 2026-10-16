@@ -70,7 +70,8 @@ class RecordRevisionActionCommand:
 class RevisionActionReadback:
     id: UUID
     project_id: UUID
-    review_issue_id: UUID
+    review_issue_id: UUID | None
+    effective_review_issue_id: UUID
     decision_record_id: UUID | None
     action_type: str
     result_experiment_spec_version_id: UUID | None
@@ -87,7 +88,7 @@ class RevisionActionReadback:
     hash_scheme: str
     provenance: tuple[RevisionReference, ...]
     target_validity: str
-    result_validity: str
+    result_validity: str | None
     has_superseding_action: bool
 
 
@@ -124,19 +125,46 @@ class RevisionActionService:
 
     @staticmethod
     def _supported(row):
-        if (
-            row["decision_record_id"] is not None
-            or row["review_issue_id"] is None
-            or row["action_type"]
-            not in {
-                "NEW_EXPERIMENT",
-                "ANALYSIS_CHANGE",
-                "CLAIM_CHANGE",
-                "CONCLUSION_CHANGE",
-                "SOURCE_CHANGE",
-            }
-        ):
-            _fail(ErrorCode.INVALID_STATE_TRANSITION, "revision path awaits a separate contract")
+        if row["action_type"] == "MANUSCRIPT_CHANGE":
+            _fail(ErrorCode.INVALID_STATE_TRANSITION, "manuscript revision path deferred")
+        if row["review_issue_id"] is None and row["decision_record_id"] is None:
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "exact concern basis required")
+        if row["action_type"] == "NO_CHANGE" and row["decision_record_id"] is None:
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "NO_CHANGE requires explicit Decision")
+
+    def _effective_issue(self, uow, row, project, *, verify=True):
+        identity = row["review_issue_id"]
+        decision = None
+        if row["decision_record_id"] is not None:
+            saved = uow.decision.decision(row["decision_record_id"], project)
+            if saved is None:
+                if not verify:
+                    self._absent(uow, "DecisionRecord", row["decision_record_id"])
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved Decision basis invalid")
+            if saved["decision_type"] != "REVISION_RESPONSE":
+                _fail(ErrorCode.DECISION_BASIS_INVALID, "revision Decision required")
+            concern = uow.decision.concern(saved["id"])
+            if concern is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "Decision concern absent")
+            if identity is not None and identity != concern["review_issue_id"]:
+                _fail(ErrorCode.DECISION_BASIS_INVALID, "exact Decision concern required")
+            identity = concern["review_issue_id"]
+            if verify:
+                decision = self._policy._revision_readback(uow, saved)
+                from researchbase.domain.decision import validate_revision_choice
+
+                try:
+                    validate_revision_choice(
+                        decision.decision_type, decision.decision, row["action_type"]
+                    )
+                except ValueError:
+                    _fail(ErrorCode.DECISION_BASIS_INVALID, "Decision choice disagrees with action")
+        issue = uow.revision_action.issue(identity, project)
+        if issue is None:
+            if not verify:
+                self._absent(uow, "ReviewIssue", identity)
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved exact issue basis invalid")
+        return issue, decision
 
     @staticmethod
     def _absent(uow, kind, identity) -> NoReturn:
@@ -458,6 +486,8 @@ class RevisionActionService:
     def _result(self, uow, project, row, *, current=False):
         refs: list[RevisionReference | None] = [None] * 7
         action = row["action_type"]
+        if action == "NO_CHANGE":
+            return tuple(refs), RevisionResult(), None
         if action == "CLAIM_CHANGE":
             new, validity = self._claim(uow, row["result_claim_version_id"], project)
             result = RevisionResult(version=self._lineage(new, "claim_id"))
@@ -523,9 +553,7 @@ class RevisionActionService:
             != ACTION_SHAPES[row["action_type"]]
         ):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved revision shape invalid")
-        issue = uow.revision_action.issue(row["review_issue_id"], project)
-        if issue is None:
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved exact issue basis invalid")
+        issue, decision = self._effective_issue(uow, row, project)
         review = uow.internal_review.review(issue["review_record_id"], project)
         if review is None:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved review basis invalid")
@@ -543,10 +571,18 @@ class RevisionActionService:
             if row["action_type"] == "SOURCE_CHANGE"
             else None,
         )
-        validate_revision_relevance(row["action_type"], basis, result)
+        if row["action_type"] != "NO_CHANGE":
+            validate_revision_relevance(row["action_type"], basis, result)
+        decision_ref = (
+            RevisionReference("DecisionRecord", decision.id, decision.content_hash)
+            if decision
+            else None
+        )
         material = revision_action_material(
-            RevisionReference("ReviewIssue", issue["id"]),
-            None,
+            RevisionReference("ReviewIssue", row["review_issue_id"])
+            if row["review_issue_id"]
+            else None,
+            decision_ref,
             row["action_type"],
             refs,
             predecessor,
@@ -565,6 +601,7 @@ class RevisionActionService:
         provenance = (
             RevisionReference("InternalReviewRecord", review["id"], review["content_hash"]),
             RevisionReference(kind, old["id"], old["content_hash"]),
+            *((decision_ref,) if decision_ref else ()),
             *(ref for ref in refs if ref is not None),
             *((predecessor,) if predecessor else ()),
         )
@@ -583,6 +620,10 @@ class RevisionActionService:
         except (ValueError, TypeError, KeyError):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "revision dependency material invalid")
         except ResearchBaseError as error:
+            if "content_hash" in row and error.code is ErrorCode.DECISION_BASIS_INVALID:
+                _fail(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved revision Decision basis invalid"
+                )
             if error.code in {
                 ErrorCode.VALIDATION_ERROR,
                 ErrorCode.INVALID_SOURCE_VERSION_LINEAGE,
@@ -603,6 +644,7 @@ class RevisionActionService:
             },
             created_at=to_utc(row["created_at"]),
             project_id=project,
+            effective_review_issue_id=self._effective_issue(uow, row, project)[0]["id"],
             provenance=provenance,
             target_validity=old_validity,
             result_validity=validity,
@@ -654,9 +696,7 @@ class RevisionActionService:
                 if field.name != "project_id"
             }
             self._supported(row)
-            issue = repo.issue(command.review_issue_id, command.project_id)
-            if issue is None:
-                self._absent(uow, "ReviewIssue", command.review_issue_id)
+            issue, _ = self._effective_issue(uow, row, command.project_id, verify=False)
             repo.lock_basis(issue)
             if command.supersedes_revision_action_id is not None:
                 previous = repo.predecessor(
@@ -699,3 +739,296 @@ class RevisionActionService:
             result = self._readback(uow, row, project_id)
             self._authorize(uow, principal, project_id, _READERS)
             return result
+
+    def _correspondence(self, uow, row, action, project, *, current=False):
+        from researchbase.domain.revision_action import validate_concern_correspondence
+
+        checked = self._readback(uow, action, project)
+        issue, _ = self._effective_issue(uow, action, project)
+        review = uow.internal_review.review(row["internal_review_record_id"], project)
+        if (
+            review is None
+            or review["reviewer_actor_id"] != row["recorded_by"]
+            or review["created_at"] < action["created_at"]
+            or row["recorded_at"] < review["created_at"]
+            or review["hash_scheme"] != "sha256-cjson-v1"
+            or not uow.decision.review_creation_authorized(review)
+            or not uow.decision.review_creation_authorized(
+                {**review, "created_at": row["recorded_at"]}
+            )
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "re-review attribution invalid")
+        self._policy._reviews._verify(uow, review)
+        if (
+            review["claim_version_id"] is None
+            and review["scientific_conclusion_version_id"] is None
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "scientific re-review target required")
+        old, _, basis = self._basis(uow, issue, project)
+        source_ids = (
+            {action["result_source_version_id"]}
+            if action["action_type"] == "SOURCE_CHANGE"
+            else None
+        )
+        target, validity, new_basis = self._basis(uow, review, project, source_ancestors=source_ids)
+        try:
+            validate_concern_correspondence(
+                action, basis, new_basis, target_id=target["id"], old_id=old["id"]
+            )
+        except ValueError:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unrelated re-review target or witness")
+        authors = set(
+            uow.decision.material_authors(old["id"], claim=issue["claim_version_id"] is not None)
+        )
+        authors.update(
+            uow.decision.material_authors(
+                target["id"], claim=review["claim_version_id"] is not None
+            )
+        )
+        if action["action_type"] == "SOURCE_CHANGE" and review["claim_version_id"] is not None:
+            witness = None
+            historical_witness = None
+            independence_failed = False
+            for candidate in uow.revision_action.source_witnesses(target["id"], source_ids):
+                try:
+                    snapshot = self._literature._snapshot(uow, candidate["snapshot_id"], project)
+                    source_states = self._snapshot_sources(uow, candidate["snapshot_id"], project)
+                except ResearchBaseError:
+                    continue
+                witness_authors = uow.decision.material_authors(snapshot["id"], snapshot=True)
+                if row["recorded_by"] in witness_authors:
+                    independence_failed = True
+                    continue
+                witness_validity = self._merge(validity, snapshot["validity"], *source_states)
+                if witness_validity != "VALID":
+                    if historical_witness is None:
+                        historical_witness = (snapshot, witness_authors, witness_validity)
+                    continue
+                witness = snapshot
+                authors.update(witness_authors)
+                validity = witness_validity
+                break
+            if witness is None and not current and historical_witness is not None:
+                witness, witness_authors, validity = historical_witness
+                authors.update(witness_authors)
+            if witness is None:
+                _fail(
+                    ErrorCode.CONFLICT_OF_INTEREST
+                    if current and independence_failed
+                    else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "independent exact source support witness unavailable",
+                )
+        if action["action_type"] == "SOURCE_CHANGE" and issue["claim_version_id"] is not None:
+            ancestors = self._source(uow, action["result_source_version_id"], project)[1]
+            old_witness = None
+            for candidate in uow.revision_action.source_witnesses(old["id"], ancestors):
+                try:
+                    snapshot = self._literature._snapshot(uow, candidate["snapshot_id"], project)
+                    self._snapshot_sources(uow, candidate["snapshot_id"], project)
+                except ResearchBaseError:
+                    continue
+                witness_authors = uow.decision.material_authors(snapshot["id"], snapshot=True)
+                if row["recorded_by"] in witness_authors:
+                    continue
+                old_witness = snapshot
+                authors.update(witness_authors)
+                break
+            if old_witness is None:
+                _fail(
+                    ErrorCode.CONFLICT_OF_INTEREST
+                    if current
+                    else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "independent old source witness unavailable",
+                )
+        authors.add(action["created_by"])
+        if row["recorded_by"] in authors:
+            _fail(
+                ErrorCode.CONFLICT_OF_INTEREST
+                if current
+                else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "re-reviewer must be independent of material authors and action creator",
+            )
+        if current and validity != "VALID":
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current re-review target invalid")
+        return ConcernReReviewReadback(
+            action["id"],
+            review["id"],
+            issue["id"],
+            row["recorded_by"],
+            to_utc(row["recorded_at"]),
+            checked.content_hash,
+            review["content_hash"],
+            review["target_content_hash"],
+            review["claim_version_id"],
+            review["scientific_conclusion_version_id"],
+            validity,
+            checked.has_superseding_action,
+        )
+
+    def record_concern_re_review(self, principal, command):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(command) is not RecordConcernReReviewCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed correspondence command required")
+        for attempt in range(3):
+            try:
+                return self._record_correspondence_once(principal, command)
+            except ResearchBaseError as error:
+                if (
+                    error.code is ErrorCode.IDEMPOTENCY_CONFLICT
+                    and error.message == "reload concern correspondence"
+                ):
+                    return self._record_correspondence_once(principal, command)
+                if error.code is ErrorCode.CONCURRENT_MODIFICATION and attempt < 2:
+                    continue
+                raise ResearchBaseError(error.code, error.message) from None
+        raise AssertionError("unreachable correspondence retry")
+
+    def _record_correspondence_once(self, principal, command):
+        with self._factory() as uow:
+            uow.enable_decision_error_normalization()
+            uow.configure_revision_transaction()
+            repo = uow.revision_action
+            repo.lock_snapshot()
+            repo.lock_re_review(command.revision_action_id, command.internal_review_record_id)
+            uow.enable_revision_action_snapshot_reads()
+            self._authorize(uow, principal, command.project_id, _READERS)
+            action = repo.action(command.revision_action_id, command.project_id)
+            if action is None:
+                self._absent(uow, "RevisionAction", command.revision_action_id)
+            saved = repo.link(command.revision_action_id, command.internal_review_record_id)
+            if saved is not None:
+                if saved["recorded_by"] != principal.actor_id:
+                    _fail(ErrorCode.FORBIDDEN, "correspondence unavailable")
+                result = self._correspondence(uow, saved, action, command.project_id)
+                self._authorize(uow, principal, command.project_id, _READERS)
+                return result
+            roles = frozenset({"REVIEWER", "OWNER"})
+            self._authorize(uow, principal, command.project_id, roles)
+            issue, _ = self._effective_issue(uow, action, command.project_id, verify=False)
+            repo.lock_reviews({issue["review_record_id"], command.internal_review_record_id})
+            repo.lock_basis(issue)
+            repo.lock_action(action["id"])
+            if repo.has_successor(action["id"]):
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "action already superseded")
+            review = uow.internal_review.review(
+                command.internal_review_record_id, command.project_id
+            )
+            if review is None:
+                self._absent(uow, "InternalReviewRecord", command.internal_review_record_id)
+            if review["reviewer_actor_id"] != principal.actor_id:
+                _fail(
+                    ErrorCode.FORBIDDEN,
+                    "only the independent re-reviewer may attest correspondence",
+                )
+            at = self._authorize(uow, principal, command.project_id, roles)
+            row = dict(
+                revision_action_id=action["id"],
+                internal_review_record_id=review["id"],
+                recorded_by=principal.actor_id,
+                recorded_at=at,
+            )
+            self._correspondence(uow, row, action, command.project_id, current=True)
+            repo.insert_link(row)
+            repo.force_link_constraints()
+            result = self._correspondence(
+                uow, repo.link(action["id"], review["id"]), action, command.project_id
+            )
+            self._authorize(uow, principal, command.project_id, roles)
+            uow.commit()
+            return result
+
+    def get_concern_carry_forward(self, principal, project_id, review_issue_id):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(project_id) is not UUID or type(review_issue_id) is not UUID:
+            _fail(ErrorCode.VALIDATION_ERROR, "exact concern UUIDs required")
+        with self._factory() as uow:
+            uow.enable_decision_error_normalization()
+            uow.configure_revision_transaction(readonly=True)
+            uow.enable_revision_action_snapshot_reads()
+            self._authorize(uow, principal, project_id, _READERS)
+            repo = uow.revision_action
+            issue = repo.issue(review_issue_id, project_id)
+            if issue is None:
+                self._absent(uow, "ReviewIssue", review_issue_id)
+            review = uow.internal_review.review(issue["review_record_id"], project_id)
+            if review is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved review missing")
+            self._policy._reviews._verify(uow, review)
+            if review[
+                "hash_scheme"
+            ] != "sha256-cjson-v1" or not uow.decision.review_creation_authorized(review):
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "historical review authority invalid")
+            old, validity, _ = self._basis(uow, issue, project_id)
+            actions = []
+            for action in repo.concern_actions(review_issue_id, project_id):
+                links = tuple(
+                    self._correspondence(uow, link, action, project_id)
+                    for link in repo.links(action["id"])
+                )
+                actions.append(
+                    ConcernActionReadback(
+                        self._readback(uow, action, project_id),
+                        "RE_REVIEW_LINKED" if links else "PENDING_RE_REVIEW",
+                        links,
+                    )
+                )
+            result = ConcernCarryForwardReadback(
+                project_id,
+                issue["id"],
+                review["id"],
+                issue["claim_version_id"],
+                issue["scientific_conclusion_version_id"],
+                old["content_hash"],
+                validity,
+                tuple(actions),
+            )
+            self._authorize(uow, principal, project_id, _READERS)
+            return result
+
+
+@dataclass(frozen=True, slots=True)
+class RecordConcernReReviewCommand:
+    project_id: UUID
+    revision_action_id: UUID
+    internal_review_record_id: UUID
+
+    def __post_init__(self):
+        if any(type(getattr(self, f.name)) is not UUID for f in fields(self)):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact concern correspondence UUIDs required")
+
+
+@dataclass(frozen=True, slots=True)
+class ConcernReReviewReadback:
+    revision_action_id: UUID
+    internal_review_record_id: UUID
+    effective_review_issue_id: UUID
+    recorded_by: UUID
+    recorded_at: datetime
+    action_content_hash: str
+    review_content_hash: str
+    target_content_hash: str
+    claim_version_id: UUID | None
+    scientific_conclusion_version_id: UUID | None
+    target_validity: str
+    has_superseding_action: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ConcernActionReadback:
+    action: RevisionActionReadback
+    mapping_state: str
+    re_reviews: tuple[ConcernReReviewReadback, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ConcernCarryForwardReadback:
+    project_id: UUID
+    review_issue_id: UUID
+    original_review_id: UUID
+    claim_version_id: UUID | None
+    scientific_conclusion_version_id: UUID | None
+    target_content_hash: str
+    target_validity: str
+    actions: tuple[ConcernActionReadback, ...]
