@@ -1,6 +1,5 @@
 """B07 forward-only admission, normal-role guards and RESTRICT catalog."""
 
-from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
@@ -8,6 +7,7 @@ from alembic import command
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 
+from tests.integration.phase2.revision_support import normal_role
 from tests.integration.phase2.test_b07_revision_decisions import decision_command
 from tests.integration.phase2.test_pr2_15_decision_schema import _config, _tables
 from tests.integration.phase2.test_revision_action import (
@@ -21,23 +21,6 @@ pytestmark = pytest.mark.integration
 pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 _FIXTURES = (conclusion_env, decision_env, phase2_database_url, revision_env)
 TABLES = {"decision_basis_claims", "decision_revision_concerns", "revision_action_re_reviews"}
-
-
-@contextmanager
-def normal_role(engine):
-    role = "b07_normal_" + uuid4().hex
-    with engine.begin() as conn:
-        conn.execute(text(f"CREATE ROLE {role} NOLOGIN NOSUPERUSER"))
-        conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
-        conn.execute(
-            text(f"GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO {role}")
-        )
-        conn.execute(text(f"SET LOCAL ROLE {role}"))
-        yield conn
-        conn.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
-        conn.execute(text("RESET ROLE"))
-        conn.execute(text(f"DROP OWNED BY {role}"))
-        conn.execute(text(f"DROP ROLE {role}"))
 
 
 def test_empty_forward_upgrade_and_downgrade(phase2_database_url):

@@ -244,6 +244,8 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     if code is not None:
         return ResearchBaseError(code, "decision transaction rejected")
     constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state == "23505" and constraint in {"uq_b08_issue_terminal", "review_issue_events_pkey"}:
+        return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reload issue disposition")
     if state == "23505" and constraint == "uq_b07_decision_concern":
         return ResearchBaseError(
             ErrorCode.IDEMPOTENCY_CONFLICT, "concern decision already recorded"
@@ -259,6 +261,14 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
         return normalized
     # Unknown failures are not classified as safe to retry or as a successful commit.
     return ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION, "decision transaction failed")
+
+
+def _issue_disposition_database_error(exc: DBAPIError) -> ResearchBaseError:
+    """B08 alone opts in to its finite fresh-UoW retry protocol."""
+    error = _decision_database_error(exc)
+    if getattr(exc.orig, "sqlstate", None) in {"40001", "40P01"}:
+        return ResearchBaseError(error.code, error.message, {"retryable_b08": True})
+    return error
 
 
 def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
@@ -379,6 +389,7 @@ class SqlAlchemyUnitOfWork:
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
         self._internal_review_error_normalization = False
+        self._issue_disposition_error_normalization = False
         self._session: Session | None = None
 
         self._committed = False
@@ -392,6 +403,7 @@ class SqlAlchemyUnitOfWork:
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
         self._internal_review_error_normalization = False
+        self._issue_disposition_error_normalization = False
         self._session = self._session_factory()
         self._session.begin()
         self.actors = SqlAlchemyActorRepository(self._session)
@@ -542,7 +554,13 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = True
         self._internal_review_error_normalization = True
 
+    def enable_issue_disposition_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._issue_disposition_error_normalization = True
+
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if self._issue_disposition_error_normalization:
+            return _issue_disposition_database_error(exc)
         if self._internal_review_error_normalization:
             state = getattr(exc.orig, "sqlstate", None)
             codes = {

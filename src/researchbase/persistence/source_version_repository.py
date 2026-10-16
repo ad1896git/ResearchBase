@@ -14,6 +14,14 @@ class SqlAlchemySourceVersionRepository:
         self._session = session
         self._protected_reads = protected_reads
 
+    def prepare_write(self, *, freeze: bool = False) -> None:
+        # Reserve the final write modes in SHARE inventory order before any
+        # source/authority row lock; freeze writes both version and current pointer.
+        tables = "literature_sources,source_versions" if freeze else "source_versions"
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+        self._session.execute(text("LOCK TABLE " + tables + " IN ROW EXCLUSIVE MODE"))
+
     def lock_project(self, project_id: UUID) -> None:
         self._session.execute(text("SELECT rb_phase2_lock_project(:id)"), {"id": project_id})
         self._session.execute(

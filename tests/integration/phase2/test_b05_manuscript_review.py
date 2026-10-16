@@ -234,9 +234,19 @@ def test_insert_reservation_precedes_share_and_reads_have_no_explicit_locks(b05_
     env = b05_env
     seal(env)
     statements = []
+    read_settings = {}
+    reading = False
 
     def capture(conn, cursor, statement, parameters, context, executemany):
         statements.append(statement)
+        if reading and not read_settings:
+            read_settings["captured"] = True
+            read_settings["isolation"] = conn.execute(
+                text("SHOW transaction_isolation")
+            ).scalar_one()
+            read_settings["readonly"] = conn.execute(
+                text("SHOW transaction_read_only")
+            ).scalar_one()
 
     event.listen(env[5], "before_cursor_execute", capture)
     try:
@@ -244,8 +254,10 @@ def test_insert_reservation_precedes_share_and_reads_have_no_explicit_locks(b05_
         assert statements[0] == "LOCK TABLE internal_review_records IN ROW EXCLUSIVE MODE"
         assert statements[1].startswith("LOCK TABLE actor_subject_bindings,")
         statements.clear()
+        reading = True
         assert env[0].read(env[3], env[1].project_id, result.id) == result
-        assert statements[0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
+        assert read_settings["isolation"] == "repeatable read"
+        assert read_settings["readonly"] == "on"
         assert not any(
             any(
                 token in sql.upper()

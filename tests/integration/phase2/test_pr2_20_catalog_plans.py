@@ -32,13 +32,16 @@ def test_catalog_matches_accepted_review_constraints_and_indexes(decision_env):
         "review_issues_pkey",
         "review_issues_review_record_id_fkey",
         "review_issues_review_record_id_ordinal_key",
-        "review_issues_status_check",
+        "ck_b08_issue_status",
         "review_issues_severity_check",
         "review_issues_ordinal_check",
     }
     assert "RESTRICT" in constraints["review_issues_review_record_id_fkey"]
-    assert "OPEN" in constraints["review_issues_status_check"]
-    assert "RESOLVED" not in constraints["review_issues_status_check"]
+    assert all(
+        status in constraints["ck_b08_issue_status"]
+        for status in ("OPEN", "ADDRESSED", "DISMISSED")
+    )
+    assert "RESOLVED" not in constraints["ck_b08_issue_status"]
     with engine.connect() as conn:
         columns = dict(
             conn.execute(

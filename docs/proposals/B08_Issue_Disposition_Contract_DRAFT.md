@@ -1,6 +1,6 @@
 # B08 Issue Disposition and Re-review Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-16 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 

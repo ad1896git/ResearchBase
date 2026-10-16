@@ -175,6 +175,21 @@ class SqlAlchemyDecisionRepository:
         )
 
     def has_blockers(self, target: UUID, project: UUID) -> bool:
+        # Historical OPEN-only checkpoints predate B08. Validate terminal
+        # projections when present without requiring its SQL function at 0042.
+        terminal_ids = (
+            self._session.execute(
+                text("""SELECT i.id FROM review_issues i
+            JOIN internal_review_records r ON r.id=i.review_record_id
+            WHERE r.project_id=:project AND r.scientific_conclusion_version_id=:target
+              AND i.status<>'OPEN' ORDER BY i.id"""),
+                {"target": target, "project": project},
+            )
+            .scalars()
+            .all()
+        )
+        for identity in terminal_ids:
+            self._session.execute(text("SELECT b08_check_history(:id)"), {"id": identity})
         return bool(
             self._session.execute(
                 text("""SELECT EXISTS (

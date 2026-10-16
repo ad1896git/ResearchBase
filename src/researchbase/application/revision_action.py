@@ -740,7 +740,17 @@ class RevisionActionService:
             self._authorize(uow, principal, project_id, _READERS)
             return result
 
-    def _correspondence(self, uow, row, action, project, *, current=False):
+    def _correspondence(
+        self,
+        uow,
+        row,
+        action,
+        project,
+        *,
+        current=False,
+        independent_actor=None,
+        new_disposition=False,
+    ):
         from researchbase.domain.revision_action import validate_concern_correspondence
 
         checked = self._readback(uow, action, project)
@@ -796,7 +806,7 @@ class RevisionActionService:
                 except ResearchBaseError:
                     continue
                 witness_authors = uow.decision.material_authors(snapshot["id"], snapshot=True)
-                if row["recorded_by"] in witness_authors:
+                if row["recorded_by"] in witness_authors or independent_actor in witness_authors:
                     independence_failed = True
                     continue
                 witness_validity = self._merge(validity, snapshot["validity"], *source_states)
@@ -814,7 +824,7 @@ class RevisionActionService:
             if witness is None:
                 _fail(
                     ErrorCode.CONFLICT_OF_INTEREST
-                    if current and independence_failed
+                    if (current or new_disposition) and independence_failed
                     else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                     "independent exact source support witness unavailable",
                 )
@@ -828,7 +838,7 @@ class RevisionActionService:
                 except ResearchBaseError:
                     continue
                 witness_authors = uow.decision.material_authors(snapshot["id"], snapshot=True)
-                if row["recorded_by"] in witness_authors:
+                if row["recorded_by"] in witness_authors or independent_actor in witness_authors:
                     continue
                 old_witness = snapshot
                 authors.update(witness_authors)
@@ -836,15 +846,15 @@ class RevisionActionService:
             if old_witness is None:
                 _fail(
                     ErrorCode.CONFLICT_OF_INTEREST
-                    if current
+                    if current or new_disposition
                     else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                     "independent old source witness unavailable",
                 )
         authors.add(action["created_by"])
-        if row["recorded_by"] in authors:
+        if row["recorded_by"] in authors or independent_actor in authors:
             _fail(
                 ErrorCode.CONFLICT_OF_INTEREST
-                if current
+                if current or new_disposition
                 else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                 "re-reviewer must be independent of material authors and action creator",
             )

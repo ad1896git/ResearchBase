@@ -47,7 +47,7 @@ def test_inventory_and_first_sql():
 def test_read_prepares_before_dispatch_authority_no_locking_helpers():
     source = inspect.getsource(InternalReviewService.read)
     assert (
-        source.index("prepare_read()")
+        source.index("configure_revision_transaction(readonly=True)")
         < source.index("_authorize_snapshot")
         < source.index(".review(")
     )
@@ -70,7 +70,7 @@ def test_pure_domain_and_no_new_schema():
         for node in imports
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0052_b07_revision_decisions"]
+    assert scripts.get_heads() == ["0053_b08_issue_disposition"]
     assert (
         scripts.get_revision("0049_b05_manuscript_review").down_revision
         == "0048_b04_manuscript_freeze"

@@ -119,3 +119,98 @@ def test_b07_missing_concrete_foreign_key_uses_existing_mapping():
     from researchbase.persistence.uow import _decision_database_error
 
     assert _decision_database_error(_error("23503")).code == ErrorCode.REFERENTIAL_INTEGRITY_ERROR
+
+
+@pytest.mark.parametrize("constraint", ["uq_b08_issue_terminal", "review_issue_events_pkey"])
+def test_b08_unique_requires_rollback_reload_and_comparison(constraint):
+    from types import SimpleNamespace
+
+    from researchbase.persistence.uow import _decision_database_error
+
+    failure = _error("23505")
+    cast(Any, failure.orig).diag = SimpleNamespace(constraint_name=constraint)
+    result = _decision_database_error(failure)
+    assert result.code == ErrorCode.IDEMPOTENCY_CONFLICT
+    assert result.message == "reload issue disposition"
+    assert not (result.details or {}).get("retryable_b08")
+
+
+@pytest.mark.parametrize(
+    "state,retry",
+    [
+        ("40001", True),
+        ("40P01", True),
+        ("55P03", False),
+        ("57014", False),
+        ("23503", False),
+        ("XX000", False),
+    ],
+)
+def test_b08_only_serialization_and_deadlock_are_retryable(state, retry):
+    from researchbase.persistence.uow import _issue_disposition_database_error
+
+    result = _issue_disposition_database_error(_error(state))
+    assert bool((result.details or {}).get("retryable_b08")) == retry
+
+
+@pytest.mark.parametrize("retryable,expected_attempts", [(True, 3), (False, 1)])
+def test_b08_restarts_only_retryable_failures_exactly_three_total_attempts(
+    monkeypatch, retryable, expected_attempts
+):
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from researchbase.application.internal_review import (
+        InternalReviewService,
+        RecordIssueDispositionCommand,
+    )
+    from researchbase.domain.phase2_identity import VerifiedPrincipal
+
+    principal = VerifiedPrincipal(uuid4(), "test", "OS_UID", "1", "credential", datetime.now(UTC))
+    service = object.__new__(InternalReviewService)
+    attempts = []
+
+    def fail(*args, **kwargs):
+        attempts.append(1)
+        raise ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION, "sanitized", {"retryable_b08": retryable}
+        )
+
+    monkeypatch.setattr(service, "_record_disposition_once", fail)
+    cmd = RecordIssueDispositionCommand(
+        uuid4(), uuid4(), uuid4(), "ADDRESSED", uuid4(), uuid4(), "Attested"
+    )
+    with pytest.raises(ResearchBaseError) as caught:
+        service.record_issue_disposition(principal, cmd)
+    assert caught.value.code == ErrorCode.CONCURRENT_MODIFICATION
+    assert len(attempts) == expected_attempts
+
+
+@pytest.mark.parametrize("state", ["40001", "40P01"])
+def test_b08_retry_metadata_does_not_change_other_decision_boundaries(state):
+    from researchbase.persistence.uow import _decision_database_error
+
+    error = _decision_database_error(_error(state))
+    assert error.code == ErrorCode.CONCURRENT_MODIFICATION
+    assert error.details is None
+
+
+@pytest.mark.parametrize("boundary", ["commit", "execute"])
+def test_issue_disposition_retry_normalization_requires_explicit_uow_opt_in(boundary):
+    session = Mock()
+    uow = SqlAlchemyUnitOfWork(lambda: cast(Session, session))
+    uow._session = cast(Session, session)
+    uow.enable_issue_disposition_error_normalization()
+    failure = _error("40P01")
+    with pytest.raises(ResearchBaseError) as caught:
+        if boundary == "commit":
+            session.commit.side_effect = failure
+            try:
+                uow.commit()
+            except BaseException as exc:
+                uow.__exit__(type(exc), exc, exc.__traceback__)
+                raise
+        else:
+            uow.__exit__(type(failure), failure, failure.__traceback__)
+    assert caught.value.details == {"retryable_b08": True}
+    session.rollback.assert_called_once()

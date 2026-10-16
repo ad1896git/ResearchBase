@@ -28,6 +28,19 @@ class SqlAlchemyLiteratureEvidenceRepository:
         self._session = session
         self._protected_reads = protected_reads
 
+    def prepare_write(self, command):
+        # Reserve final INSERT modes before authority rows. SHARE-first governance
+        # writers may reference that same actor through concrete FKs.
+        tables = {
+            "IMPORT_DOCUMENT": "artifact_versions,artifacts",
+            "CREATE_EVIDENCE": "literature_evidence",
+            "REVIEW_EVIDENCE": "literature_evidence_review_events",
+        }.get(command)
+        if tables is not None:
+            self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+            self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+            self._session.execute(text("LOCK TABLE " + tables + " IN ROW EXCLUSIVE MODE"))
+
     def _one(self, sql, values):
         row = self._session.execute(text(sql), values).mappings().first()
         return dict(row) if row else None

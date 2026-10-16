@@ -53,7 +53,7 @@ def test_upgrade_actual_head_catalog_and_empty_downgrade(start, monkeypatch):
         with engine.connect() as conn:
             assert (
                 conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                == "0052_b07_revision_decisions"
+                == "0053_b08_issue_disposition"
             )
             triggers = conn.execute(
                 text(
@@ -194,7 +194,7 @@ def test_normal_role_history_immutable(b05_env, normal_sql_role, sql):
             conn.execute(text(f'SET LOCAL ROLE "{normal_sql_role}"'))
             conn.execute(text(sql), {"id": review.id})
     assert getattr(exc.value.orig, "sqlstate", None) == (
-        "P17D1" if "review_issue_events" in sql else "P17E1"
+        "P17D1" if "review_issue_events" in sql else "P17F1" if "review_issues" in sql else "P17E1"
     )
 
 
@@ -262,6 +262,10 @@ def test_legacy_target_has_no_b05_deferred_work_after_sql_role_revocation(b05_en
                 VALUES (:id,:review,'MINOR','OTHER','Legacy issue','OPEN',clock_timestamp(),0)"""),
                 {"id": uuid4(), "review": identity},
             )
+        if with_issue:
+            # B08 now checks all Issue roots, while this still proves no B05
+            # manuscript work survives after the temporary SQL role is dropped.
+            conn.execute(text("SET CONSTRAINTS b08_complete_issue,b08_complete_event IMMEDIATE"))
         conn.execute(text("RESET ROLE"))
         conn.execute(text(f"DROP OWNED BY {role}"))
         conn.execute(text(f"DROP ROLE {role}"))

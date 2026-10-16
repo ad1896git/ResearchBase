@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
-from typing import Any, NoReturn
+from dataclasses import asdict, dataclass, field, fields
+from datetime import datetime
+from types import UnionType
+from typing import Any, Literal, NoReturn, Union, get_args, get_origin, get_type_hints
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from researchbase.application.manuscript_freeze import ManuscriptFreezeService
@@ -23,7 +25,8 @@ from researchbase.domain.internal_review import (
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.foundation.hashing import sha256_canonical_json
+from researchbase.foundation.hashing import ContentHash, sha256_canonical_json
+from researchbase.foundation.time import to_utc
 
 _REVIEWERS = frozenset({"OWNER", "REVIEWER"})
 
@@ -68,6 +71,192 @@ class InternalReviewReadback:
     content_hash: str
     issues: tuple[ReviewIssueReadback, ...]
     target_kind: str
+
+
+Disposition = Literal["ADDRESSED", "DISMISSED"]
+IssueStatus = Literal["OPEN", "ADDRESSED", "DISMISSED"]
+Validity = Literal["VALID", "STALE", "INVALID"]
+
+
+def _validate_issue_dto(value) -> None:
+    """Readbacks are closed values, with strict types rather than coercion."""
+
+    def valid(item, annotation):
+        origin = get_origin(annotation)
+        if origin is Literal:
+            return type(item) is str and item in get_args(annotation)
+        if origin in (UnionType, Union):
+            return any(valid(item, arg) for arg in get_args(annotation))
+        if origin is tuple:
+            return type(item) is tuple and all(valid(x, get_args(annotation)[0]) for x in item)
+        if annotation is datetime:
+            return (
+                type(item) is datetime and item.tzinfo is not None and item.utcoffset() is not None
+            )
+        return type(item) is annotation
+
+    for name, annotation in get_type_hints(type(value)).items():
+        item = getattr(value, name)
+        if annotation is datetime and type(item) is datetime:
+            item = to_utc(item)
+            object.__setattr__(value, name, item)
+        if not valid(item, annotation):
+            raise ValueError("invalid Issue readback field: " + name)
+        if name.endswith("content_hash") and item is not None:
+            if type(item) is not str:
+                raise ValueError("invalid saved hash")
+            if ContentHash(item) != item:
+                raise ValueError("saved hash must be lowercase SHA-256")
+    for name in ("rationale", "description"):
+        item = getattr(value, name, None)
+        if item is not None and review_text(item, name) != item:
+            raise ValueError("saved Issue text must be NFC")
+
+
+@dataclass(frozen=True, slots=True)
+class RecordIssueDispositionCommand:
+    id: UUID
+    project_id: UUID
+    review_issue_id: UUID
+    disposition: Disposition
+    revision_action_id: UUID
+    re_review_record_id: UUID
+    rationale: str
+    decision_id: UUID | None = None
+
+    def __post_init__(self):
+        from researchbase.domain.internal_review import _DISPOSITIONS
+
+        if (
+            any(
+                type(getattr(self, key)) is not UUID
+                for key in (
+                    "id",
+                    "project_id",
+                    "review_issue_id",
+                    "revision_action_id",
+                    "re_review_record_id",
+                )
+            )
+            or (self.decision_id is not None and type(self.decision_id) is not UUID)
+            or type(self.disposition) is not str
+            or self.disposition not in _DISPOSITIONS
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact disposition UUIDs and enum required")
+        object.__setattr__(self, "rationale", _text(self.rationale, "disposition rationale"))
+
+
+@dataclass(frozen=True, slots=True)
+class IssueDispositionReadback:
+    id: UUID
+    project_id: UUID
+    review_issue_id: UUID
+    actor_id: UUID
+    revision_action_id: UUID
+    re_review_record_id: UUID
+    decision_id: UUID | None
+    prior_status: Literal["OPEN"]
+    new_status: Disposition
+    rationale: str
+    occurred_at: datetime
+    action_content_hash: str
+    re_review_content_hash: str
+    decision_content_hash: str | None
+    old_target_validity: Validity
+    re_review_target_validity: Validity
+    has_superseding_action: bool
+
+    def __post_init__(self):
+        _validate_issue_dto(self)
+        if self.new_status == "DISMISSED" and self.decision_id is None:
+            raise ValueError("dismissal Decision required")
+        if (self.decision_id is None) != (self.decision_content_hash is None):
+            raise ValueError("Decision/hash presence mismatch")
+
+
+@dataclass(frozen=True, slots=True)
+class IssueEventReadback:
+    id: UUID
+    review_issue_id: UUID
+    actor_id: UUID
+    prior_status: Literal["OPEN"] | None
+    new_status: IssueStatus
+    occurred_at: datetime
+    revision_action_id: UUID | None
+    re_review_record_id: UUID | None
+    decision_id: UUID | None
+    rationale: str | None
+
+    def __post_init__(self):
+        _validate_issue_dto(self)
+        if self.prior_status is None:
+            valid = self.new_status == "OPEN" and all(
+                getattr(self, key) is None
+                for key in ("revision_action_id", "re_review_record_id", "decision_id", "rationale")
+            )
+        else:
+            valid = (
+                self.prior_status == "OPEN"
+                and self.new_status in {"ADDRESSED", "DISMISSED"}
+                and type(self.revision_action_id) is UUID
+                and type(self.re_review_record_id) is UUID
+                and type(self.rationale) is str
+                and review_text(self.rationale, "saved rationale") == self.rationale
+                and (self.new_status != "DISMISSED" or type(self.decision_id) is UUID)
+            )
+        if not valid:
+            raise ValueError("invalid Issue event shape")
+
+
+@dataclass(frozen=True, slots=True)
+class IssueHistoryReadback:
+    project_id: UUID
+    review_issue_id: UUID
+    original_review_id: UUID
+    severity: Literal["INFO", "MINOR", "MAJOR", "BLOCKING"]
+    issue_type: Literal[
+        "UNSUPPORTED_CLAIM",
+        "CITATION",
+        "STATISTICAL",
+        "METHODOLOGICAL",
+        "REPRODUCIBILITY",
+        "OVERCLAIM",
+        "CONTRADICTION",
+        "NOVELTY",
+        "WRITING",
+        "OTHER",
+    ]
+    description: str
+    status: IssueStatus
+    created_at: datetime
+    claim_version_id: UUID | None
+    scientific_conclusion_version_id: UUID | None
+    manuscript_version_id: UUID | None
+    target_content_hash: str
+    target_validity: Validity
+    events: tuple[IssueEventReadback, ...]
+    disposition: IssueDispositionReadback | None
+
+    def __post_init__(self):
+        _validate_issue_dto(self)
+        if (
+            sum(
+                x is not None
+                for x in (
+                    self.claim_version_id,
+                    self.scientific_conclusion_version_id,
+                    self.manuscript_version_id,
+                )
+            )
+            != 1
+        ):
+            raise ValueError("exact concrete Issue target required")
+        if (
+            len(self.events) != (1 if self.status == "OPEN" else 2)
+            or self.events[0].new_status != "OPEN"
+            or (self.disposition is None) != (self.status == "OPEN")
+        ):
+            raise ValueError("complete root/terminal history required")
 
 
 class InternalReviewService:
@@ -385,7 +574,7 @@ class InternalReviewService:
             _fail(ErrorCode.VALIDATION_ERROR, "exact project UUID required")
         with self._factory() as uow:
             uow.enable_internal_review_error_normalization()
-            uow.internal_review.prepare_read()
+            uow.configure_revision_transaction(readonly=True)
             uow.enable_revision_action_snapshot_reads()
             self._authorize_snapshot(uow, principal, project)
             row = uow.internal_review.review(review_id, project)
@@ -498,32 +687,22 @@ class InternalReviewService:
 
     def _issues(self, uow: UnitOfWork, row: dict) -> list[dict]:
         issues = uow.internal_review.issues(row["id"])
-        if row.get("manuscript_version_id") is not None:
-            events = uow.internal_review.issue_events(row["id"])
-            by_issue = {}
-            for event in events:
-                by_issue.setdefault(event["issue_id"], []).append(event)
-            for ordinal, issue in enumerate(issues):
-                try:
-                    if (
-                        review_text(issue["description"], "saved issue") != issue["description"]
-                        or issue["severity"] not in _SEVERITIES
-                        or issue["issue_type"] not in _ISSUE_TYPES
-                    ):
-                        raise ValueError("invalid saved issue")
-                except (ValueError, TypeError, UnicodeError):
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved issue text")
-                history = by_issue.get(issue["id"], [])
+        events = uow.internal_review.issue_events(row["id"])
+        by_issue = {}
+        for event in events:
+            by_issue.setdefault(event["issue_id"], []).append(event)
+        for ordinal, issue in enumerate(issues):
+            try:
                 if (
-                    issue["ordinal"] != ordinal
-                    or issue["status"] != "OPEN"
-                    or len(history) != 1
-                    or history[0]["prior_status"] is not None
-                    or history[0]["new_status"] != "OPEN"
-                    or history[0]["actor_id"] != row["reviewer_actor_id"]
-                    or history[0]["occurred_at"] != issue["created_at"]
+                    review_text(issue["description"], "saved issue") != issue["description"]
+                    or issue["severity"] not in _SEVERITIES
+                    or issue["issue_type"] not in _ISSUE_TYPES
+                    or issue["ordinal"] != ordinal
                 ):
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid issue OPEN history")
+                    raise ValueError("invalid saved issue")
+                self._history_events(uow, row, issue, by_issue.get(issue["id"], []))
+            except (ValueError, TypeError, UnicodeError, KeyError):
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved issue history")
         return issues
 
     def _create_manuscript(
@@ -620,6 +799,375 @@ class InternalReviewService:
             result = self._view(created, self._issues(uow, created))
             self._authorize_snapshot(uow, principal, project)
             uow.commit()
+            return result
+
+    def _revision_service(self):
+        from researchbase.application.revision_action import RevisionActionService
+
+        return RevisionActionService(self._factory, self._credentials, self._literature)
+
+    def _disposition_authorize(
+        self, uow, principal, project, *, write=False, opener=None, dismiss=False
+    ):
+        from researchbase.application.decision import _READERS
+
+        rows = uow.internal_review.authority(principal, project)
+        at = uow.source_version.at()
+        try:
+            live = principal.verified_at <= at and self._credentials.is_valid(principal, at)
+        except Exception:
+            live = False
+        for row in rows if live else ():
+            if (
+                row["retired_at"] is None
+                and row["membership_status"] == "ACTIVE"
+                and row["binding_status"] == "ACTIVE"
+                and row["role"] in _READERS
+                and row["effective_from"] <= at
+                and (row["effective_until"] is None or at < row["effective_until"])
+                and row["bound_at"] <= at
+                and (row["revoked_at"] is None or at < row["revoked_at"])
+            ):
+                if not write:
+                    return at
+                if (
+                    row["actor_type"] == "HUMAN"
+                    and row["project_status"] == "ACTIVE"
+                    and (
+                        row["role"] == "OWNER"
+                        or (
+                            not dismiss
+                            and opener == principal.actor_id
+                            and row["role"] == "REVIEWER"
+                        )
+                    )
+                ):
+                    return at
+        _fail(ErrorCode.FORBIDDEN, "current disposition authority unavailable")
+
+    @staticmethod
+    def _disposition_input(principal, project, identity):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(project) is not UUID or type(identity) is not UUID:
+            _fail(ErrorCode.VALIDATION_ERROR, "exact project and Issue event UUID required")
+
+    def _history_events(self, uow, review, issue, events):
+        uow.internal_review.validate_issue_history(issue["id"])
+        roots = [e for e in events if e["prior_status"] is None]
+        terminal = [e for e in events if e["prior_status"] == "OPEN"]
+        if (
+            len(roots) != 1
+            or len(events) != 1 + len(terminal)
+            or len(terminal) > 1
+            or roots[0]["new_status"] != "OPEN"
+            or roots[0]["actor_id"] != review["reviewer_actor_id"]
+            or roots[0]["occurred_at"] != issue["created_at"]
+            or issue["status"] != (terminal[0]["new_status"] if terminal else "OPEN")
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "Issue projection/history mismatch")
+        ordered = roots + terminal
+        result = tuple(
+            IssueEventReadback(
+                **{
+                    f.name: event["issue_id" if f.name == "review_issue_id" else f.name]
+                    for f in fields(IssueEventReadback)
+                }
+            )
+            for event in ordered
+        )
+        if terminal:
+            self._disposition_readback(uow, review["project_id"], issue, terminal[0])
+        return result
+
+    def _disposition_readback(self, uow, project, issue, event, *, current=False):
+        from researchbase.domain.internal_review import disposition_policy
+
+        revisions = self._revision_service()
+        action = uow.revision_action.action(event["revision_action_id"], project)
+        link = uow.revision_action.link(event["revision_action_id"], event["re_review_record_id"])
+        review = uow.internal_review.review(event["re_review_record_id"], project)
+        if current and action is None:
+            revisions._absent(uow, "RevisionAction", event["revision_action_id"])
+        if current and review is None:
+            revisions._absent(uow, "InternalReviewRecord", event["re_review_record_id"])
+        if action is None or link is None or review is None:
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact saved disposition basis unavailable"
+            )
+        effective, decision = revisions._effective_issue(uow, action, project)
+        if effective["id"] != issue["id"]:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unrelated action concern")
+        if event["decision_id"] != action["decision_record_id"]:
+            _fail(
+                ErrorCode.DECISION_BASIS_INVALID
+                if current
+                else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "event must retain exact action Decision",
+            )
+        choice = decision.decision if decision else None
+        if not disposition_policy(
+            event["new_status"],
+            issue["severity"],
+            "OWNER",
+            opener=False,
+            action_type=action["action_type"],
+            decision=choice,
+        ):
+            _fail(
+                ErrorCode.DECISION_BASIS_INVALID
+                if current
+                else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "disposition requires matching changed/no-change Decision basis",
+            )
+        changed = event["new_status"] == "ADDRESSED"
+        checked = revisions._verify(uow, action, project, current=current and changed)
+        correspondence = revisions._correspondence(
+            uow,
+            link,
+            action,
+            project,
+            current=current and changed,
+            independent_actor=event["actor_id"],
+            new_disposition=current,
+        )
+        if review["id"] == issue["review_record_id"] or review["recommendation"] not in {
+            "ACCEPT",
+            "MINOR_REVISION",
+        }:
+            _fail(
+                ErrorCode.INVALID_STATE_TRANSITION
+                if current
+                else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "acceptable exact new re-review required",
+            )
+        if current and (
+            uow.revision_action.has_successor(action["id"])
+            or any(
+                i["status"] == "OPEN" and i["severity"] in {"MAJOR", "BLOCKING"}
+                for i in uow.internal_review.issues(review["id"])
+            )
+        ):
+            _fail(
+                ErrorCode.INVALID_STATE_TRANSITION,
+                "action superseded or re-review concern remains open",
+            )
+        if not current and (
+            event["occurred_at"]
+            < max(
+                issue["created_at"],
+                action["created_at"],
+                review["created_at"],
+                link["recorded_at"],
+                decision.decided_at if decision else issue["created_at"],
+            )
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid disposition time")
+        return IssueDispositionReadback(
+            event["id"],
+            project,
+            issue["id"],
+            event["actor_id"],
+            action["id"],
+            review["id"],
+            event["decision_id"],
+            "OPEN",
+            event["new_status"],
+            event["rationale"],
+            event["occurred_at"],
+            checked[0],
+            review["content_hash"],
+            decision.content_hash if decision else None,
+            checked[2],
+            correspondence.target_validity,
+            uow.revision_action.has_successor(action["id"]),
+        )
+
+    def record_issue_disposition(
+        self, principal: VerifiedPrincipal, command: RecordIssueDispositionCommand
+    ) -> IssueDispositionReadback:
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(command) is not RecordIssueDispositionCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed disposition command required")
+        for attempt in range(3):
+            try:
+                return self._record_disposition_once(principal, command)
+            except ResearchBaseError as error:
+                if error.message == "reload issue disposition":
+                    # The failed UoW has rolled back; compare saved history only.
+                    return self._record_disposition_once(principal, command, reload_only=True)
+                if (
+                    error.code == ErrorCode.CONCURRENT_MODIFICATION
+                    and (error.details or {}).get("retryable_b08")
+                    and attempt < 2
+                ):
+                    continue
+                raise ResearchBaseError(error.code, error.message) from None
+        raise AssertionError("unreachable disposition retry")
+
+    def _record_disposition_once(
+        self, principal, command, *, reload_only=False
+    ) -> IssueDispositionReadback:
+        with self._factory() as uow:
+            uow.enable_issue_disposition_error_normalization()
+            uow.configure_revision_transaction()
+            repo = uow.internal_review
+            repo.prepare_disposition(command.id)
+            uow.enable_revision_action_snapshot_reads()
+            project = command.project_id
+            self._disposition_authorize(uow, principal, project)
+            event = repo.disposition_event(command.id)
+            if event is not None:
+                if event["project_id"] != project or event["actor_id"] != principal.actor_id:
+                    _fail(ErrorCode.FORBIDDEN, "event unavailable")
+                expected = {
+                    **asdict(command),
+                    "new_status": command.disposition,
+                    "issue_id": command.review_issue_id,
+                }
+                if any(
+                    event[k] != expected[k]
+                    for k in (
+                        "issue_id",
+                        "new_status",
+                        "revision_action_id",
+                        "re_review_record_id",
+                        "decision_id",
+                        "rationale",
+                    )
+                ):
+                    _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "event UUID reused with changed material")
+                result = self._issue_history(uow, project, command.review_issue_id).disposition
+                if result is None:
+                    _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "event UUID identifies root")
+                self._disposition_authorize(uow, principal, project)
+                return result
+            issue = repo.issue(command.review_issue_id, project)
+            if issue is None:
+                self._issue_absent(uow, command.review_issue_id)
+            if reload_only:
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "Issue already disposed")
+            if (
+                issue["claim_version_id"] is None
+                and issue["scientific_conclusion_version_id"] is None
+            ):
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "target disposition deferred")
+            writer = dict(
+                write=True,
+                opener=issue["reviewer_actor_id"],
+                dismiss=command.disposition == "DISMISSED",
+            )
+            self._disposition_authorize(uow, principal, project, **writer)
+            repo.lock_disposition_issues(
+                issue["id"],
+                (issue["review_record_id"], command.re_review_record_id),
+                command.re_review_record_id,
+            )
+            issue = repo.issue(command.review_issue_id, project)
+            if issue is None:
+                self._issue_absent(uow, command.review_issue_id)
+            if issue["status"] != "OPEN":
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "Issue already disposed")
+            event = {
+                **asdict(command),
+                "issue_id": issue["id"],
+                "actor_id": principal.actor_id,
+                "new_status": command.disposition,
+                "occurred_at": uow.source_version.at(),
+            }
+            self._disposition_readback(uow, project, issue, event, current=True)
+            self._disposition_authorize(uow, principal, project, **writer)
+            repo.insert_disposition({**asdict(command), "actor_id": principal.actor_id})
+            repo.force_constraints()
+            result = self._issue_history(uow, project, issue["id"]).disposition
+            if result is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved disposition missing")
+            self._disposition_authorize(uow, principal, project, **writer)
+            uow.commit()
+            return result
+
+    @staticmethod
+    def _issue_absent(uow, identity) -> NoReturn:
+        if uow.revision_action.reference_exists("ReviewIssue", identity):
+            _fail(ErrorCode.FORBIDDEN, "Issue unavailable")
+        _fail(ErrorCode.NOT_FOUND, "Issue not found")
+
+    def _issue_history(self, uow, project, identity):
+        issue = uow.internal_review.issue(identity, project)
+        if issue is None:
+            self._issue_absent(uow, identity)
+        review = uow.internal_review.review(issue["review_record_id"], project)
+        self._verify(uow, review)
+        self._issues(uow, review)
+        events = [
+            e for e in uow.internal_review.issue_events(review["id"]) if e["issue_id"] == identity
+        ]
+        try:
+            history = self._history_events(uow, review, issue, events)
+        except (ValueError, KeyError, TypeError):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved Issue history")
+        terminal = next((e for e in events if e["prior_status"] == "OPEN"), None)
+        disposition = (
+            self._disposition_readback(uow, project, issue, terminal) if terminal else None
+        )
+        if issue["manuscript_version_id"] is not None:
+            target = self._manuscript_target(uow, project, issue["manuscript_version_id"])
+            parent = uow.publication.publication(target["publication_id"], project)
+            validity = self._manuscripts.verify_in_uow(
+                uow, project, parent, target
+            ).current_validity
+        else:
+            validity = self._revision_service()._basis(uow, issue, project)[1]
+        return IssueHistoryReadback(
+            project,
+            identity,
+            review["id"],
+            issue["severity"],
+            issue["issue_type"],
+            issue["description"],
+            issue["status"],
+            issue["created_at"],
+            issue["claim_version_id"],
+            issue["scientific_conclusion_version_id"],
+            issue["manuscript_version_id"],
+            issue["target_content_hash"],
+            validity,
+            history,
+            disposition,
+        )
+
+    def get_issue_history(
+        self, principal: VerifiedPrincipal, project_id: UUID, review_issue_id: UUID
+    ) -> IssueHistoryReadback:
+        self._disposition_input(principal, project_id, review_issue_id)
+        with self._factory() as uow:
+            uow.enable_decision_error_normalization()
+            uow.configure_revision_transaction(readonly=True)
+            uow.enable_revision_action_snapshot_reads()
+            self._disposition_authorize(uow, principal, project_id)
+            result = self._issue_history(uow, project_id, review_issue_id)
+            self._disposition_authorize(uow, principal, project_id)
+            return result
+
+    def get_issue_disposition(
+        self, principal: VerifiedPrincipal, project_id: UUID, id: UUID
+    ) -> IssueDispositionReadback:
+        self._disposition_input(principal, project_id, id)
+        with self._factory() as uow:
+            uow.enable_decision_error_normalization()
+            uow.configure_revision_transaction(readonly=True)
+            uow.enable_revision_action_snapshot_reads()
+            self._disposition_authorize(uow, principal, project_id)
+            event = uow.internal_review.disposition_event(id)
+            if event is not None and event["project_id"] != project_id:
+                _fail(ErrorCode.FORBIDDEN, "event unavailable")
+            if event is None or event["prior_status"] != "OPEN":
+                _fail(ErrorCode.NOT_FOUND, "disposition not found")
+            result = self._issue_history(uow, project_id, event["issue_id"]).disposition
+            if result is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved disposition missing")
+            self._disposition_authorize(uow, principal, project_id)
             return result
 
     def collect_manuscript_review_basis(

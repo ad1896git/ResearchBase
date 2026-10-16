@@ -68,3 +68,35 @@ def review_material(
         "recommendation": recommendation,
         "summary": _text(summary, "review summary"),
     }
+
+
+_DISPOSITIONS = frozenset({"ADDRESSED", "DISMISSED"})
+_CHANGED_ACTIONS = frozenset(
+    {"NEW_EXPERIMENT", "ANALYSIS_CHANGE", "CLAIM_CHANGE", "CONCLUSION_CHANGE", "SOURCE_CHANGE"}
+)
+
+
+def disposition_policy(
+    disposition: str,
+    severity: str,
+    role: str,
+    *,
+    opener: bool,
+    action_type: str,
+    decision: str | None,
+) -> bool:
+    """Finite authority/basis policy; scientific closure is checked separately."""
+    if (
+        type(disposition) is not str
+        or disposition not in _DISPOSITIONS
+        or type(severity) is not str
+        or severity not in _SEVERITIES
+    ):
+        return False
+    if disposition == "DISMISSED":
+        return role == "OWNER" and action_type == "NO_CHANGE" and decision == "ACCEPT_NO_CHANGE"
+    return (
+        (role == "OWNER" or (opener and role == "REVIEWER"))
+        and action_type in _CHANGED_ACTIONS
+        and (decision == "REQUIRE_CHANGE" or (decision is None and severity != "BLOCKING"))
+    )

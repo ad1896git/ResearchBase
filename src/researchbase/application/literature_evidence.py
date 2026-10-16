@@ -100,6 +100,7 @@ class LiteratureEvidenceService:
         def once():
             with self._factory() as uow:
                 uow.begin_serializable()
+                uow.literature_evidence.prepare_write(name)
                 at = self._authorize(uow, principal, project, roles or {"OWNER", "RESEARCHER"})
                 uow.source_version.lock_command(
                     principal.deployment_id, project, principal.actor_id, name, request

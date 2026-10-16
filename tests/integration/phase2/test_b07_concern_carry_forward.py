@@ -10,6 +10,7 @@ from researchbase.application.revision_action import (
     RecordRevisionActionCommand,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.integration.phase2.revision_support import _claim_with_result
 from tests.integration.phase2.test_b07_revision_decisions import decision_command
 from tests.integration.phase2.test_revision_action import (
     conclusion_env,
@@ -95,42 +96,6 @@ def test_wrong_target_and_wrong_writer_deny_without_partial_link(revision_env):
     assert caught.value.code == ErrorCode.PROVENANCE_CLOSURE_VIOLATION
     concern = service.get_concern_carry_forward(env[2], base[5], action.review_issue_id)
     assert concern.actions[0].re_reviews == ()
-
-
-def _claim_with_result(base, *, measurement=None, statistic=None):
-    from researchbase.application.commands import (
-        FreezeClaimVersionCommand,
-        LinkEvidenceCommand,
-        ReviseClaimCommand,
-    )
-    from researchbase.domain.claim import ClaimVersionId
-    from tests.integration.phase2.test_b06_revision_action import _app, _context
-
-    app = _app(base)
-    old = app.get_claim_version(ClaimVersionId(base[6]))
-    parent = app.get_claim(old.claim_id)
-    app.revise_claim(
-        ReviseClaimCommand(
-            parent.id, "Exact completed result", {}, None, parent.row_version, _context(base)
-        )
-    )
-    draft = app.get_current_claim_version(parent.id)
-    app.link_evidence(
-        LinkEvidenceCommand(
-            parent.id,
-            draft.id,
-            measurement,
-            statistic,
-            "supports",
-            None,
-            draft.row_version,
-            _context(base),
-        )
-    )
-    draft = app.get_current_claim_version(parent.id)
-    return app.freeze_claim_version(
-        FreezeClaimVersionCommand(parent.id, draft.id, _context(base), draft.row_version)
-    ).id
 
 
 @pytest.mark.parametrize(

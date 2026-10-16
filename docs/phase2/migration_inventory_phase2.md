@@ -59,3 +59,5 @@ Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e
 | 0049_b05_manuscript_review | 0048_b04_manuscript_freeze | 7af4310b3a39f2bd64556a51ebd9723c28d86f0a926e1a239fc0ecf03c93bee5 |
 | 0050_b01_resolution_admission | 0049_b05_manuscript_review | 101fc8c7a1408397234854c2f714e3da656c57c369f4bfa1b9d5e259a8614f69 |
 | 0051_b06_revision_action | 0050_b01_resolution_admission | 004a272db75d945c10e9e6e318c106f47b2cb37c1421ff75f99240312490ca46 |
+| 0052_b07_revision_decisions | 0051_b06_revision_action | 3b3e6048452ed702771278dd76a85f1a92e90245726198fc49678e4da9848c6c |
+| 0053_b08_issue_disposition | 0052_b07_revision_decisions | ac93a13b17aa6872230bbf831613c2775cf382e81ce1d64774106f8f628b2b63 |

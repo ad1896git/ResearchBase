@@ -214,3 +214,70 @@ class SqlAlchemyInternalReviewRepository:
                 },
             ).mappings()
         ]
+
+    def prepare_disposition(self, identity: UUID) -> None:
+        from researchbase.persistence.revision_action_repository import REVISION_SNAPSHOT_TABLES
+
+        self._session.execute(
+            text("LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE")
+        )
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"b08:disposition:{identity}"},
+        )
+
+    def issue(self, identity: UUID, project: UUID) -> dict | None:
+        row = (
+            self._session.execute(
+                text("""SELECT i.*,r.project_id,r.claim_version_id,
+            r.scientific_conclusion_version_id,r.manuscript_version_id,r.target_content_hash,
+            r.reviewer_actor_id FROM review_issues i JOIN internal_review_records r
+            ON r.id=i.review_record_id WHERE i.id=:id AND r.project_id=:project"""),
+                {"id": identity, "project": project},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return dict(row) if row else None
+
+    def disposition_event(self, identity: UUID) -> dict | None:
+        row = (
+            self._session.execute(
+                text("""SELECT e.*,r.project_id FROM review_issue_events e
+            JOIN review_issues i ON i.id=e.issue_id JOIN internal_review_records r
+            ON r.id=i.review_record_id WHERE e.id=:id"""),
+                {"id": identity},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return dict(row) if row else None
+
+    def lock_disposition_issues(
+        self, primary: UUID, reviews: tuple[UUID, ...], selected: UUID
+    ) -> None:
+        for identity in sorted(set(reviews), key=str):
+            self._session.execute(
+                text("SELECT id FROM internal_review_records WHERE id=:id FOR SHARE"),
+                {"id": identity},
+            )
+        identities = {primary, *(row["id"] for row in self.issues(selected))}
+        for identity in sorted(identities, key=str):
+            mode = "UPDATE" if identity == primary else "SHARE"
+            self._session.execute(
+                text("SELECT id FROM review_issues WHERE id=:id FOR " + mode), {"id": identity}
+            )
+
+    def insert_disposition(self, values: dict) -> None:
+        self._session.execute(
+            text("""INSERT INTO review_issue_events
+            (id,issue_id,actor_id,prior_status,new_status,revision_action_id,re_review_record_id,decision_id,rationale,occurred_at)
+            VALUES (:id,:review_issue_id,:actor_id,'OPEN',:disposition,:revision_action_id,:re_review_record_id,:decision_id,:rationale,clock_timestamp())"""),
+            values,
+        )
+
+    def validate_issue_history(self, identity: UUID) -> None:
+        # Historical SQL functions contain only snapshot reads, including nested closure checks.
+        self._session.execute(text("SELECT b08_check_history(:id)"), {"id": identity})

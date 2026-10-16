@@ -39,5 +39,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0052_b07_revision_decisions (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0053_b08_issue_disposition (head)"
       - run: uv run pytest

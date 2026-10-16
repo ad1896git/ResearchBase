@@ -165,7 +165,9 @@ def test_history_stays_immutable(coordination_env, table, operation):
         _normal(conn, role)
         sql = f"DELETE FROM {table}" if operation == "DELETE" else f"UPDATE {table} SET id=id"
         conn.execute(text(sql))
-    assert getattr(error.value.orig, "sqlstate", None) == "P17E1"
+    assert getattr(error.value.orig, "sqlstate", None) == (
+        "P17F1" if table == "review_issues" else "P17E1"
+    )
 
 
 def test_catalog_and_downgrade_refuses_to_remove_history_guarantees(coordination_env):

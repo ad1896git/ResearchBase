@@ -332,14 +332,13 @@ def test_owning_source_and_evidence_writers_have_observed_commit_orders(
                 if order == "action_first"
                 else pool.submit(service.record_revision_action, base[3], request)
             )
-            # Concrete result FKs hold PostgreSQL's implicit KEY SHARE. The
-            # source owner requests UPDATE on that row; no explicit B06 row lock.
-            lock_kind = (
-                "transactionid"
-                if writer_kind == "source" and order == "action_first"
-                else "relation"
-            )
-            witness = _wait_for_pg_blocker(base[8], holder_pid[0], lock_kind)
+            # Owning writers reserve final table modes before authority/FK row
+            # locks, so both orders now exclude on the table inventory first.
+            witness = _wait_for_pg_blocker(base[8], holder_pid[0], "relation")
+            if writer_kind == "source" and order == "action_first":
+                assert witness["query"] == (
+                    "LOCK TABLE literature_sources,source_versions IN ROW EXCLUSIVE MODE"
+                )
             assert witness["pid"] != holder_pid[0]
             release.set()
             first.result(timeout=10)
