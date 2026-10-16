@@ -154,8 +154,8 @@ Receipt command is TRANSITION_PUBLICATION_READY, result_publication_id is that
 Publication, other result FKs null. Event actor/time equals receipt actor/consumed_at
 and the consumed grant event actor/time. Preallocate IDs to resolve deferred FKs.
 
-All five changes (Publication, lifecycle event, receipt with checked reviews,
-grant status, grant event) commit in one UoW. Validate both directions, including
+All five changes (Publication, lifecycle event, receipt referencing the sealed
+request reviews, grant status, grant event) commit in one UoW. Validate both directions, including
 same-transaction creation; existing historical receipts cannot authorize a new
 transition. No failed gate leaves a partial event, receipt or terminal maintenance.
 Historical READY is retained if later facts become invalid; current diagnostics
@@ -266,7 +266,7 @@ The owner's loop owns the whole-suite run; this task must not run it.
 | Dependencies | Approved Batch C contracts; B13 READY binding jointly frozen. Missing entry contract/implementation blocks deployment and acceptance. |
 | Caller / approver | Live RESEARCHER/OWNER caller; independently issued HUMAN APPROVER permission under B09. |
 | Gate | B11 basis/reachability plus B09/B10 fence and B13 first-use checks, including later reviews. |
-| Persistence | Existing Publication/event/receipt chain; one transaction, concrete FKs, deferred completeness. |
+| Persistence | Existing Publication/event/receipt chain; one transaction, concrete FKs, deferred completeness. Adopt B13 §11.1 option (a): derive checked reviews through grant→approval decision→request→approval_request_reviews, cross-check decision_basis_reviews; no consumption-review table. |
 | Consent / packages | No readiness consent condition; package and consent bindings require another authorized slice. |
 | Transport | Application methods only; future adapter mappings pinned below, routes/CLI deferred. |
 
@@ -385,7 +385,7 @@ future READY→DRAFTING/re-entry needs a separately approved history amendment.
 | b14_complete_publication | AFTER INSERT OR UPDATE ON publications, DEFERRABLE INITIALLY DEFERRED: one initial event and accepted continuous entry history; READY iff one complete READY event/receipt graph. For the new READY update, require event/receipt/grant terminal event from this transaction. |
 | b14_complete_ready_event | AFTER INSERT ON publication_lifecycle_events, DEFERRABLE INITIALLY DEFERRED: reject orphan event even when no Publication UPDATE occurs; validate exact final state and complete graph. |
 | b14_complete_ready_consumption | AFTER INSERT ON approval_grant_consumptions, DEFERRABLE INITIALLY DEFERRED: dispatch TRANSITION_PUBLICATION_READY to same graph verifier; exactly one event and Publication effect, not just a matching result UUID. Other commands remain B13-owned. |
-| B13 complete grant/receipt/children/event triggers | CONSUMED iff complete unique receipt and terminal event; matching request review set, literal hash and saved result v1. B14 must be invoked from the READY dispatch, with no missing-effect fallback. |
+| B13 complete grant/receipt/event triggers | CONSUMED iff complete unique receipt and terminal event; sealed request-review/Decision-basis equality via B13 §11.1, literal hash and saved result v1. B14 must be invoked from the READY dispatch, with no missing-effect fallback. |
 
 The graph verifier requires consumption.result_publication_id=event.publication_id
 =request manuscript's parent, matching project/purpose/command/hash, event Decision
@@ -428,8 +428,8 @@ the preconfigured bounds because later SET LOCAL cannot bound them retroactively
 
 | Command/path | Exact sequence |
 | --- | --- |
-| transition_publication_ready, absent completed receipt | begin_serializable before SQL; N→W→A as above; local timeouts; advisory b13:consume:{command_key}; plain grant/request routing lookup; advisory pr216:scope:{project_id}:READY_FOR_SUBMISSION; exact manuscript FOR UPDATE; owning Publication FOR UPDATE; request FOR SHARE; grant FOR UPDATE; reread all protected state; authorize reader then RESEARCHER/OWNER and all first-use gates at fresh clock; preallocate consumption/event IDs; update Publication, insert lifecycle event, receipt/UUID-sorted checked reviews, validated grant terminal event and CONSUMED update; force deferred checks; final advancing-clock authorization; commit. |
-| get_publication_ready_transition / completed replay / B13 exact receipt audit read | One REPEATABLE READ, READ ONLY UoW; plain receipt/scope, UUID-sorted children and exact event/result reads; saved graph/hash checks; fresh entitlement/current diagnostics, final entitlement check. No LOCK TABLE, advisory lock, FOR UPDATE/FOR SHARE, status maintenance or locking helper, including authorization. |
+| transition_publication_ready, absent completed receipt | begin_serializable before SQL; N→W→A as above; local timeouts; advisory b13:consume:{command_key}; plain grant/request routing lookup; advisory pr216:scope:{project_id}:READY_FOR_SUBMISSION; exact manuscript FOR UPDATE; owning Publication FOR UPDATE; request FOR SHARE; grant FOR UPDATE; reread all protected state; authorize reader then RESEARCHER/OWNER and all first-use gates at fresh clock; preallocate consumption/event IDs; update Publication, insert lifecycle event, receipt after verifying UUID-sorted existing request reviews, validated grant terminal event and CONSUMED update; force deferred checks; final advancing-clock authorization; commit. |
+| get_publication_ready_transition / completed replay / B13 exact receipt audit read | One REPEATABLE READ, READ ONLY UoW; plain receipt/scope, UUID-sorted existing request-review joins through the immutable grant/decision/request chain and exact event/result reads; saved graph/hash checks; fresh entitlement/current diagnostics, final entitlement check. No LOCK TABLE, advisory lock, FOR UPDATE/FOR SHARE, status maintenance or locking helper, including authorization. |
 
 Advisories use parameter-bound pg_advisory_xact_lock(hashtextextended(:key,0))
 with canonical UUID text. Do not introduce a b14 scope namespace. No package or
@@ -453,7 +453,9 @@ Legacy target-first scientific writers can still deadlock; prove bounded whole-U
 ### 12.3 Ordered build steps and module paths
 
 1. Reconcile joint B13/B14 READY freeze, entry prerequisite and actual head.
-   Add one forward file under `migrations/versions/` for §12.1; preserve 0035,
+   Preserve B13 §11.1 existing review relations and sealing; add no
+   consumption-review table/index/trigger. Add one forward file under
+   `migrations/versions/` for §12.1; preserve 0035,
    0042/0045/0048 history and accepted entry semantics. No missing dependency stubs.
 2. Reuse `src/researchbase/domain/approval.py` and
    `src/researchbase/foundation/hashing.py` for B13's pure request normalization
@@ -483,8 +485,8 @@ exercise both commit orders, including zero-Issue review INSERT phantoms.
 | --- | --- |
 | tests/unit/phase2/test_b14_ready_contract.py | Closed/frozen DTOs, strict UUIDs, missing/extra fields, explicit null/hash-only constants, 1/100/101 reviews, duplicates/permutation; exact error pairs; B13 saved v1 unchanged and R3 READY vectors. |
 | tests/integration/phase2/test_b14_publication_ready.py | Real entry→B11 Decision→approval→READY path; same Publication/exact manuscript/hash/basis; all recommendations, later matching reviews and finite upstream blockers; B08 terminal history and manuscript OPEN blockers; B10 rejection fence; independence, Agent caller/HUMAN approver; wrong tuple/parent/state, bad bytes/closure, stale target; one row_version increment, event/receipt/grant/event atomicity; injection after each write, deferred check and final clock leaves zero partial effect. |
-| tests/integration/phase2/test_b14_ready_schema.py | Clean/populated forward upgrade, preserved creation/entry/pointer/hash history, exact named FK/index/CHECK/trigger catalog and downgrade refusal; normal-role SQL state-only, event-only, receipt-only, old receipt reuse, wrong actor/time/Decision/reviews/parent, late event append, second transition and event/receipt edit denied; deferred cycles succeed only with complete graph at SET CONSTRAINTS and commit. |
-| tests/integration/phase2/test_b14_ready_replay.py | Same key/material returns original result after grant/issuer authority/caller write-role expiry, blockers or validity loss with live current read entitlement; caller credential/read loss denies; other actor/project nondisclosure, changed grant/result/reviews conflicts, review permutation replay, different key consumed grant, uncertain commit/restart and corrupt/incomplete receipt fail closed; audit read distinct from replay. |
+| tests/integration/phase2/test_b14_ready_schema.py | Clean/populated forward upgrade, preserved creation/entry/pointer/hash history, exact named FK/index/CHECK/trigger catalog and downgrade refusal; normal-role SQL state-only, event-only, receipt-only, old receipt reuse, wrong actor/time/Decision/reviews/parent, late request-review INSERT, request-review UPDATE/DELETE or chain substitution, late event append, second transition and event/receipt edit denied; deferred cycles succeed only with complete graph at SET CONSTRAINTS and commit. |
+| tests/integration/phase2/test_b14_ready_replay.py | Same key/material returns original result after grant/issuer authority/caller write-role expiry, blockers or validity loss with live current read entitlement; caller credential/read loss denies; other actor/project nondisclosure, changed grant/result/reviews conflicts, review permutation replay, different key consumed grant, uncertain commit/restart and corrupt/incomplete receipt fail closed; audit read distinct from replay; checked reviews reconstruct from the sealed request relation, empty/mismatched basis or broken chain fails closed. |
 | tests/integration/phase2/test_b14_ready_concurrency.py | FIRST-SQL literal inventory/isolation and pre-snapshot exclusion; same key one result, changed key material conflict, two keys/one grant and competing grants one READY winner; REJECT/new-target, review/Issue INSERT, authority/validity and maintenance both orders; starts T−1, holds required table/scope/target/grant/deferred lock until T+1, final clock denies with no effect; retry crossing expiry, ≤3 SQLSTATE attempts, no timeout/business retry; pg_locks proves reads/replay have no explicit exclusion locks. |
 | tests/architecture/test_b14_ready_boundaries.py | Human/Agent same Application command, no ORM/domain leakage or nested transaction, concrete receipt/event chain, no semantic JSON owner/generic status endpoint, no read-side locks/writes, package/send/outbox scope absent. |
 
@@ -553,3 +555,14 @@ A local `python3` pathlib/regex/AST check resolved 29 relative links, matched al
 17 HTTP/CLI pairs against the source dictionaries, and verified the required
 status and 14 numbered sections. `git status --short` showed only this new file.
 No implementation or gate acceptance is claimed.
+
+
+Director review 1 consistency revision (2026-10-16): B14 adopts B13 §11.1 option
+(a), deriving checked reviews from the existing sealed ApprovalRequest relation.
+The exact static, unit/architecture and focused PostgreSQL commands/counts for
+this documentation revision are recorded in [B13's Director review 1 revision
+verification](B13_Grant_Consumption_Contract_DRAFT.md#director-review-1-revision-verification--2026-10-16).
+Static checks passed; unit/architecture returned 2,343 passed, 4 failed and
+12 errors; focused PostgreSQL stopped at 1 setup error. Sandbox socket/connection
+denials prevented those checks from passing. No implementation acceptance or
+whole-suite result is claimed.

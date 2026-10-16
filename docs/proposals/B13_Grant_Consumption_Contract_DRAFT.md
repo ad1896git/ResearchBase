@@ -175,7 +175,8 @@ lost current credential/read entitlement denies disclosure.
 ## 5. Schema and literal hash proposal — no migration
 
 Use registered `approval_grant_consumptions`, existing grants and events, exact
-result FKs and typed checked-review relations (§12.1). No persisted target copy,
+result FKs and the existing sealed `approval_request_reviews` relation (§12.1).
+No persisted target copy,
 new grant hash, generic locator, mutable reservation row or second command ledger.
 The only semantic JSON is R3's explicitly allowed versioned replay projection;
 concrete FKs and owning records remain authoritative.
@@ -276,6 +277,23 @@ observation clarification. Keep B09 rejection/reconsideration and all terminal
 history intact. B14 supplies concrete effect/DTO bindings. Transport exposure is
 deferred; mappings are fixed now. §12.2's coarse publication-table coordination is
 a proposed compatible use of existing locks, not a new persistence mechanism.
+
+**Decision (a): reuse registered relations; remove
+`approval_grant_consumption_reviews`.** R3 §5 requires `checked_review_ids` to
+equal the exact finite ApprovalRequest review set, so consumption adds no
+independent review membership fact. Each receipt resolves that set through
+`grant_id → approval_grants.approval_decision_id →
+approval_decisions.approval_request_id → approval_request_reviews.request_id`;
+its review FK resolves to `internal_review_records.id`. The request's
+`basis_decision_id → decision_basis_reviews.decision_id` supplies the independent
+basis equality check. These are the typed relations admitted by Addendum A18,
+Correction 12 and Governance R2 17 §1, and implemented in migration 0045.
+`revision_actions`, `review_issues` and their existing basis/event relations retain
+their disposition/blocker roles; no receipt-specific copies are needed. Later
+reviews remain live first-use gates, never additional members of this sealed set.
+No new relation table, FK, index or trigger for consumption-review children is
+proposed. This uses one canonical owner per membership fact under AGENTS.md §§4/11
+and Registry 03 §§8/12; no architecture schema admission is requested.
 
 ### 11.2 Pinned error mappings
 
@@ -379,24 +397,34 @@ CREATE TABLE approval_grant_consumptions (
   (command='FREEZE_PREPARED_SUBMISSION' AND result_prepared_submission_version_id IS NOT NULL
    AND result_scientific_conclusion_version_id IS NULL AND result_publication_id IS NULL))
 );
-CREATE TABLE approval_grant_consumption_reviews (
- consumption_id UUID NOT NULL CONSTRAINT fk_b13_checked_consumption
-   REFERENCES approval_grant_consumptions(id) ON DELETE RESTRICT,
- internal_review_record_id UUID NOT NULL CONSTRAINT fk_b13_checked_review
-   REFERENCES internal_review_records(id) ON DELETE RESTRICT,
- CONSTRAINT pk_b13_checked_reviews PRIMARY KEY(consumption_id,internal_review_record_id)
-);
 CREATE INDEX ix_b13_consumption_project ON approval_grant_consumptions(project_id,consumed_at,id);
 CREATE INDEX ix_b13_consumption_actor ON approval_grant_consumptions(actor_id);
-CREATE INDEX ix_b13_checked_review ON approval_grant_consumption_reviews(internal_review_record_id);
+-- No consumption-owned review relation. Existing read path (bind :consumption_id):
+-- SELECT rr.internal_review_record_id
+-- FROM approval_grant_consumptions c
+-- JOIN approval_grants g ON g.id=c.grant_id
+-- JOIN approval_decisions d ON d.id=g.approval_decision_id
+-- JOIN approval_requests r ON r.id=d.approval_request_id
+-- JOIN approval_request_reviews rr ON rr.request_id=r.id
+-- WHERE c.id=:consumption_id ORDER BY rr.internal_review_record_id::text;
 -- Add partial nonnull indexes ix_b13_result_publication / ix_b13_result_package /
 -- ix_b13_result_conclusion on their respective result FK columns.
 ```
 
-The checked-review relation is a concrete sealed relation to registered records,
-not a new canonical entity. Reconstruct normalized request through it and the
-immutable request scope; recompute hash on reads. Do not retain an opaque request
-JSON as a second owner. B14 adds concrete DEFERRABLE INITIALLY DEFERRED
+Reconstruct `checked_review_ids` by the existing typed FK path in §11.1,
+UUID-text sorted, and verify nonempty exact equality with `decision_basis_reviews`
+and the normalized command input before consumption. No consumption-review rows
+are inserted. The saved request material/hash and readback derive membership
+from the same sealed request relation, never from today's eligible review query
+or a JSON ID list. Migration 0045's `pr216_review_insert`/`pr216_relation_guard`
+permits relation INSERT only in the parent request's creation transaction while
+PENDING; `pr216_review_immutable` rejects UPDATE/DELETE and `pr216_complete_reviews`
+checks complete Decision basis equality. Preserve these guarantees in accepted
+B09 dependencies, plus immutable grant/decision/request linkage and RESTRICT FKs.
+First-use and readback must fail closed on a missing/empty/mismatched chain or
+request-hash mismatch. No opaque request JSON is a second owner.
+
+B14 adds concrete DEFERRABLE INITIALLY DEFERRED
 `fk_b14_ready_consumption` on publication_lifecycle_events.basis_grant_consumption_id
 and its corresponding package event FK; it must also replace 0035's DRAFTING-only
 checks and UNIQUE(publication_id) under its own lifecycle contract. Do not
@@ -405,9 +433,8 @@ silently broaden those restrictions in B13.
 | Named guard/constraint | Required behavior |
 | --- | --- |
 | b13_consumption_guard | SERIALIZABLE, preheld §12.2 locks, actor/project/tuple, exact immutable grant chain and result-parent dispatch; validate current first-use gates and literal request hash. Require grant was ACTIVE before the operation, one-use uniqueness and same-transaction effect. No standalone receipt without effect. |
-| b13_checked_reviews_guard | Child parent belongs to current transaction (0042 xmin pattern); exact request-bound review membership, duplicates denied; no late append. |
-| b13_consumption_immutable / b13_checked_reviews_immutable | Reject UPDATE/DELETE and late child INSERT; no pruning history. |
-| b13_complete_consumption / b13_complete_checked_reviews / b13_complete_grant | DEFERRABLE INITIALLY DEFERRED constraint triggers on receipt INSERT, child INSERT and grant INSERT/UPDATE; bidirectional CONSUMED iff one complete receipt, exact nonempty review set equality, correct result DTO and hash, exactly one matching terminal grant event; terminal nonconsumed grants have no consumption. Validate final graph, not intermediate inserts. |
+| b13_consumption_immutable | Reject receipt UPDATE/DELETE; preserve existing request-review sealing and immutable linkage guards; no pruning history. |
+| b13_complete_consumption / b13_complete_grant | DEFERRABLE INITIALLY DEFERRED constraint triggers on receipt INSERT and grant INSERT/UPDATE; bidirectional CONSUMED iff one complete receipt, exact nonempty request-review/Decision-basis equality via §11.1, correct result DTO and hash, exactly one matching terminal grant event; terminal nonconsumed grants have no consumption. Validate final graph, not intermediate inserts. |
 | b13_grant_transition_guard | Replace pr216_grant_guard update branch narrowly; only ACTIVE→terminal, scope immutable; CONSUMED requires same-transaction receipt/effect, EXPIRED fresh clock evidence, STALE concrete verified cause, REVOKED live OWNER and retained reason. Preserve creation and authority/new-target/rejection guards. Trigger depth/session flags alone never prove cause. |
 | ck_b13_grant_event_status / b13_grant_event_guard | Replace old ACTIVE/STALE event CHECK with five states; creation exactly NULL→ACTIVE and terminal events exactly ACTIVE→terminal. Retain automatic creation/authority-loss events; command transitions carry their actual caller/reason through the validated terminal-event protocol below. Deny forged event append/update/delete and duplicate terminal event. |
 | uq_b13_one_terminal_event | Partial UNIQUE(grant_id) on approval_grant_events WHERE prior_status='ACTIVE'; retain creation event and every accepted existing STALE event. |
@@ -465,12 +492,12 @@ pg_advisory_xact_lock/hashtextextended convention with canonical UUID text.
 
 | Command | Exact sequence after N → W → A and local timeouts |
 | --- | --- |
-| record_internal_scientific_release | SERIALIZABLE; advisory `b13:consume:{command_key}`; plain grant/request routing lookup; advisory `pr216:scope:{project_id}:{purpose}`; exact conclusion FOR UPDATE; owning scientific_conclusions FOR SHARE; request FOR SHARE; grant FOR UPDATE; reread; fresh reader then RESEARCHER/OWNER authorization; absence/key/scope and all first-use gates; final clock; insert consumption and UUID-sorted checked reviews, insert terminal event and update grant CONSUMED; deferred/final checks then commit. Receipt itself is effect. |
-| transition_publication_ready | SERIALIZABLE; same key advisory/routing/scope; exact manuscript FOR UPDATE; owning Publication FOR UPDATE; request FOR SHARE; grant FOR UPDATE; reread and all gates; final clock; preallocate consumption ID, perform B14 READY transition/event referencing it, insert receipt/checked reviews and update grant/event; deferred/final checks then commit. |
-| freeze_prepared_submission | SERIALIZABLE; same key advisory/routing/scope; exact manuscript FOR UPDATE; Publication FOR UPDATE; exact precreated package FOR UPDATE; any older packages affected by B14 supersession in UUID order; request FOR SHARE; grant FOR UPDATE; exact consent-chain heads in accepted B14 author/UUID order; reread every protected input and gate; final clock; B14 freeze/manifest hashes/events and any supersession, receipt/checked reviews, grant/event; deferred/final checks then commit. Missing consent lock binding blocks this branch. |
+| record_internal_scientific_release | SERIALIZABLE; advisory `b13:consume:{command_key}`; plain grant/request routing lookup; advisory `pr216:scope:{project_id}:{purpose}`; exact conclusion FOR UPDATE; owning scientific_conclusions FOR SHARE; request FOR SHARE; grant FOR UPDATE; reread; fresh reader then RESEARCHER/OWNER authorization; absence/key/scope and all first-use gates; final clock; verify UUID-sorted existing request reviews and insert consumption, insert terminal event and update grant CONSUMED; deferred/final checks then commit. Receipt itself is effect. |
+| transition_publication_ready | SERIALIZABLE; same key advisory/routing/scope; exact manuscript FOR UPDATE; owning Publication FOR UPDATE; request FOR SHARE; grant FOR UPDATE; reread and all gates; final clock; preallocate consumption ID, perform B14 READY transition/event referencing it, insert receipt after verifying existing request reviews and update grant/event; deferred/final checks then commit. |
+| freeze_prepared_submission | SERIALIZABLE; same key advisory/routing/scope; exact manuscript FOR UPDATE; Publication FOR UPDATE; exact precreated package FOR UPDATE; any older packages affected by B14 supersession in UUID order; request FOR SHARE; grant FOR UPDATE; exact consent-chain heads in accepted B14 author/UUID order; reread every protected input and gate; final clock; B14 freeze/manifest hashes/events and any supersession, receipt with verified existing request reviews, grant/event; deferred/final checks then commit. Missing consent lock binding blocks this branch. |
 | revoke_approval_grant | READ COMMITTED; advisory `b13:lifecycle:{grant_id}`; plain routing lookup; same pr216 scope; target FOR UPDATE; owning conclusion FOR SHARE or Publication FOR UPDATE; request FOR SHARE; grant FOR UPDATE; reread; authorize reader and OWNER at fresh clock; verify saved history, evaluate; terminal returns unchanged, otherwise persist §3.1 cause or REVOKED with reason and one validated terminal event; deferred/final checks then commit. No package/consent row locks; fixed consent N protection required if evaluating that branch. |
 | evaluate_approval_grant | READ COMMITTED; same lifecycle advisory/routing/scope/target/parent/request/grant order as revoke; fresh reader/OWNER authorization; verify and evaluate; ACTIVE→EXPIRED/STALE plus event or unchanged; deferred/final checks then commit. |
-| get_grant / get_grant_consumption / completed replay | One REPEATABLE READ, READ ONLY UoW; plain parent/UUID-sorted child/result/event reads and saved-hash verification; current entitlement/diagnostics at fresh clock; final read entitlement check. No explicit table, advisory or row locks, FOR SHARE/FOR UPDATE, writes or status maintenance, including inside helpers. |
+| get_grant / get_grant_consumption / completed replay | One REPEATABLE READ, READ ONLY UoW; plain parent/UUID-sorted existing request-review/result/event reads and saved-hash verification; current entitlement/diagnostics at fresh clock; final read entitlement check. No explicit table, advisory or row locks, FOR SHARE/FOR UPDATE, writes or status maintenance, including inside helpers. |
 
 Before any mutation, use fresh clock_timestamp() after all waits; verify actual
 caller/issuer credential, actor, binding, membership/role, grant expiry, exact
@@ -497,7 +524,8 @@ in both commit orders and no unbounded retry. No read lock is added to solve rac
 
 1. Reconcile accepted dependencies/head; add a forward revision under
    `migrations/versions/` for §12.1. Stage concrete result FKs with B14, refusing
-   missing owners. Preserve 0045 history and existing payloads.
+   missing owners. Preserve 0045 history, sealed request-review/basis relations and
+   existing payloads; add no consumption-review table/index/trigger.
 2. Extend `src/researchbase/domain/approval.py` with finite receipt-command mapping,
    literal R3 material builder, closed evaluation/result values and pure terminal
    precedence. Reuse `src/researchbase/foundation/hashing.py`; no ORM/transport imports.
@@ -506,8 +534,8 @@ in both commit orders and no unbounded retry. No read lock is added to solve rac
    `src/researchbase/application/ports.py`. Reuse B09's exact gate verification
    and B08/B11/B12 concern/basis rules; no nested service write transaction.
 4. Extend `src/researchbase/persistence/approval_repository.py` with explicit
-   prepare_write/prepare_read paths, literal inventories, receipt/child SQL and
-   lifecycle mutations. Extend `src/researchbase/persistence/uow.py` for named
+   prepare_write/prepare_read paths, literal inventories, receipt SQL, existing
+   request-review joins and lifecycle mutations. Extend `src/researchbase/persistence/uow.py` for named
    constraint normalization, plain read helpers and isolated retry classification.
 5. B14 binds its authorized owning commands in
    `src/researchbase/application/publication.py` and its SQL adapter
@@ -532,12 +560,12 @@ B14 branches need accepted Application fixture paths, not disabled guards.
 | --- | --- |
 | tests/unit/test_approval.py | Exact closed fields/UUID/bool/int, 100/101 review IDs, duplicates/missing array, Unicode/reason boundaries, all tuples and null/hash rules; evaluator precedence/equality at expiry, caller loss versus issuer loss, incomplete dependency; independent R3 request vectors, review permutation/key exclusion and changed scope/grant/result/hash. |
 | tests/unit/phase2/test_b13_grant_contract.py | Pure lifecycle/result union, frozen DTOs, no caller actor/time/status; version decoding and exact HTTP/CLI pairs; unchanged ApprovalDecision/Phase 1 vectors. |
-| tests/integration/phase2/test_b13_grant_consumption.py | Release receipt is result; B14 READY/package concrete postconditions when available; all tuple/result substitutions, full CAS/closure/basis/independence/blocker/consent gates; atomic receipt+children+effect+grant+events; injection after each write and deferred/final check leaves zero partial history. |
+| tests/integration/phase2/test_b13_grant_consumption.py | Release receipt is result; B14 READY/package concrete postconditions when available; all tuple/result substitutions, full CAS/closure/basis/independence/blocker/consent gates; atomic receipt+effect+grant+events with unchanged request-review rows; injection after each write and deferred/final check leaves zero partial history. |
 | tests/integration/phase2/test_b13_grant_lifecycle.py | ACTIVE to each terminal exactly once; repeat evaluation/revoke no extra event, no reactivation/terminal rewrite; observed versus scheduled time; expiry without evaluator denies; authority-loss event atomicity; new target/rejection/upstream invalidity/consent withdrawal; superseded navigation alone harmless; denial creates no maintenance event. |
-| tests/integration/phase2/test_b13_grant_replay.py | Same key/material saved result after expiry/write-role loss/new blockers/withdrawal; current credential/read loss and other actor/project nondisclosure; changed grant/command/result/reviews/hash conflicts; permutation replay; different key consumed-grant denial; restart/uncertain commit; incomplete receipt/corrupt DTO/hash fails closed; audit read distinct from original-actor replay. |
-| tests/integration/phase2/test_b13_grant_schema.py | Clean/populated upgrade, exact types/constraint names/FK XOR/indexes, preserved old events/hash, populated downgrade refusal; normal-role SQL missing effect/receipt/event, wrong parent/hash/reviews, forged events, late children and terminal edits denied; deferred final graph checked at commit and SET CONSTRAINTS. |
+| tests/integration/phase2/test_b13_grant_replay.py | Same key/material saved result after expiry/write-role loss/new blockers/withdrawal; current credential/read loss and other actor/project nondisclosure; changed grant/command/result/reviews/hash conflicts; permutation replay; different key consumed-grant denial; restart/uncertain commit; empty/mismatched request-review basis, broken grant/decision/request chain or corrupt DTO/hash fails closed; identical UUID-sorted review readback with no copied relation; audit read distinct from original-actor replay. |
+| tests/integration/phase2/test_b13_grant_schema.py | Clean/populated upgrade, exact types/constraint names/FK XOR/indexes, preserved old events/hash, populated downgrade refusal; normal-role SQL missing effect/receipt/event, wrong parent/hash/reviews, forged events, late request-review INSERT and request-review UPDATE/DELETE or linkage substitution denied, terminal edits denied; no consumption-review table/index/trigger; deferred final graph checked at commit and SET CONSTRAINTS. |
 | tests/integration/phase2/test_b13_grant_concurrency.py | FIRST-SQL inventory/isolation and pre-snapshot W/A protection; same key single result, different payload conflict, two keys/one grant one winner; revoke/evaluate/consume both orders; review/Issue INSERT, REJECT/new target, authority/credential/source/consent writers both orders; starts T−1, held N/scope/target/grant/consent/deferred lock until T+1, fresh clock denies with zero effect; retry crossing expiry; exact ≤3 SQLSTATE attempts and no timeout/business retry; lock inspection proves reads/replay take no explicit locks. |
-| tests/architecture/test_b13_grant_boundaries.py | Human/Agent same Application boundary, no ORM/domain leakage, literal R3 hash and concrete FKs; no standalone consume/status update route, read-side writes, semantic JSON owner, queue/external effect; missing B14 branch cannot report acceptance. |
+| tests/architecture/test_b13_grant_boundaries.py | Human/Agent same Application boundary, no ORM/domain leakage, literal R3 hash and concrete FKs; existing grant→decision→request→review FK path, no duplicate review-membership persistence; no standalone consume/status update route, read-side writes, semantic JSON owner, queue/external effect; missing B14 branch cannot report acceptance. |
 
 After implementation, run these files plus existing test_approval.py,
 test_pr2_15_decision.py/test_pr2_15_decision_schema.py, B04/B05 review/freeze and
@@ -600,3 +628,31 @@ also checks the actual new file. A local Python/AST check resolved all 31 relati
 links, matched all 17 HTTP/CLI pairs against the source maps and verified the
 required status and 14 numbered sections. Only this document is changed; no
 implementation, acceptance or Phase gate claim follows.
+
+
+### Director review 1 revision verification — 2026-10-16
+
+Documentation only: option (a) removes duplicate review membership persistence;
+B14 adopts the same existing-relation read/write/guard/test plan. No implementation,
+migration, dependency, branch or commit is created. Earlier evidence above belongs
+to the original draft; the exact commands and results for this revision follow.
+Commands ran from the repository root using its installed `.venv`, without sync.
+
+| Exact command | Observed result |
+| --- | --- |
+| `UV_CACHE_DIR=/tmp/researchbase-b13-review-uv-cache uv run --no-sync ruff check .` | PASS: All checks passed! |
+| `UV_CACHE_DIR=/tmp/researchbase-b13-review-uv-cache uv run --no-sync ruff format --check .` | PASS: 570 files already formatted. |
+| `UV_CACHE_DIR=/tmp/researchbase-b13-review-uv-cache uv run --no-sync pyright` | PASS: 0 errors, 0 warnings, 0 informations. |
+| `PYTHONPATH=src RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres UV_CACHE_DIR=/tmp/researchbase-b13-review-uv-cache uv run --no-sync pytest tests/unit tests/architecture --tb=short > /tmp/b13-review-unit-architecture.log 2>&1` | 2,343 passed, 4 failed, 12 errors, 7 warnings in 41.62s; exit 1, not PASS. |
+| `PYTHONPATH=src DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres UV_CACHE_DIR=/tmp/researchbase-b13-review-uv-cache uv run --no-sync pytest tests/integration/phase2/test_approval.py tests/integration/phase2/test_pr2_15_decision.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/integration/phase2/test_pr2_12_publication_draft.py tests/integration/phase2/test_pr2_12_migration.py tests/integration/phase2/test_b05_review_basis.py -x --tb=short > /tmp/b13-review-postgres.log 2>&1` | 1 setup error in 0.43s; exit 1, no database assertions completed; remaining cases not run. |
+| `git diff --check` | PASS: no whitespace errors. |
+
+The four failures are HG1 runner Unix socket tests denied by the sandbox
+(`Operation not permitted`). The twelve PR2-19 architecture setup errors and the
+focused PostgreSQL setup error are denied localhost PostgreSQL connections with
+the same error. PostgreSQL version and assertions could not be verified here;
+these are not passing database evidence. Warnings are the existing Alembic
+`path_separator` deprecation. The whole test suite was not run; the owner's loop
+owns that evidence. A local `python3` pathlib/regex check verified 60 relative
+links across both drafts, explicit option (a), and absence of the removed relation
+DDL, trigger and child-write instructions. Planned B13/B14 tests remain planned.
