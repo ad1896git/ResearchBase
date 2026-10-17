@@ -61,3 +61,4 @@ Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e
 | 0051_b06_revision_action | 0050_b01_resolution_admission | 004a272db75d945c10e9e6e318c106f47b2cb37c1421ff75f99240312490ca46 |
 | 0052_b07_revision_decisions | 0051_b06_revision_action | 3b3e6048452ed702771278dd76a85f1a92e90245726198fc49678e4da9848c6c |
 | 0053_b08_issue_disposition | 0052_b07_revision_decisions | ac93a13b17aa6872230bbf831613c2775cf382e81ce1d64774106f8f628b2b63 |
+| 0054_b11_ready_for_submission | 0053_b08_issue_disposition | b1ea6609e911b36f1d86adba9697b213ae8ebaa1ce7e70de8da80e7c2e2c6c75 |

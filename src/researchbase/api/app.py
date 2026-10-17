@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from researchbase import __version__
 from researchbase.application.commands import ApplicationService
+from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.literature_evidence import LiteratureEvidenceService
@@ -60,6 +61,7 @@ class ServiceBundle:
     literature_search_plans: LiteratureSearchPlanService | None = None
     literature_search_executions: LiteratureSearchExecutionService | None = None
     novelty: NoveltyService | None = None
+    decisions: DecisionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -88,6 +90,9 @@ def build_services() -> ServiceBundle:
             StaticSearchCapabilityRegistry(),
         ),
         NoveltyService(uow_factory, None, LiteratureEvidenceService(uow_factory, None, store)),
+        decisions=DecisionService(
+            uow_factory, None, LiteratureEvidenceService(uow_factory, None, store), store
+        ),
     )
 
 

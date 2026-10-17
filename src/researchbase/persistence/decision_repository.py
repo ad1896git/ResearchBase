@@ -58,6 +58,57 @@ _SNAPSHOT_TABLES = tuple(
 )
 
 
+B11_SNAPSHOT_TABLES = (
+    "actor_subject_bindings",
+    "actors",
+    "artifact_versions",
+    "artifacts",
+    "audit_findings",
+    "claim_versions",
+    "claims",
+    "correction_records",
+    "dataset_snapshots",
+    "datasets",
+    "evidence_relations",
+    "experiment_spec_versions",
+    "experiment_specs",
+    "impact_assessments",
+    "impact_targets",
+    "internal_review_records",
+    "literature_evidence",
+    "literature_evidence_relations",
+    "literature_evidence_review_events",
+    "literature_source_project_links",
+    "literature_sources",
+    "literature_support_snapshots",
+    "manuscript_artifact_placements",
+    "manuscript_citation_placements",
+    "manuscript_claim_placements",
+    "manuscript_versions",
+    "measurements",
+    "metric_definition_versions",
+    "metric_definitions",
+    "project_membership_events",
+    "project_memberships",
+    "project_role_assignments",
+    "projects",
+    "publications",
+    "review_issue_events",
+    "review_issues",
+    "run_artifact_inputs",
+    "run_dataset_inputs",
+    "runs",
+    "scientific_conclusion_claim_inputs",
+    "scientific_conclusion_literature_inputs",
+    "scientific_conclusion_versions",
+    "scientific_conclusions",
+    "source_versions",
+    "statistical_result_inputs",
+    "statistical_results",
+)
+B11_SHARE_SQL = "LOCK TABLE " + ",".join(B11_SNAPSHOT_TABLES) + " IN SHARE MODE"
+
+
 class SqlAlchemyDecisionRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -461,4 +512,83 @@ class SqlAlchemyDecisionRepository:
                 text("SELECT pr216_decision_authorized(d) FROM decision_records d WHERE id=:id"),
                 {"id": row["id"]},
             ).scalar_one()
+        )
+
+    def prepare_readiness_write(self):
+        self._session.execute(text(B11_SHARE_SQL))
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+
+    def prepare_readiness_read(self):
+        self._session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+
+    def lock_readiness_request(self, identity: UUID):
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"b11:decision:{identity}"},
+        )
+
+    def manuscript_basis(self, identity: UUID):
+        return self._many(
+            """SELECT 'ManuscriptVersion' AS type,
+            b.manuscript_version_id AS id,v.content_hash,b.ordinal
+            FROM decision_basis_manuscripts b
+            JOIN manuscript_versions v ON v.id=b.manuscript_version_id
+            WHERE b.decision_id=:id UNION ALL
+            SELECT 'InternalReviewRecord',b.internal_review_record_id,r.content_hash,b.ordinal
+            FROM decision_basis_reviews b
+            JOIN internal_review_records r ON r.id=b.internal_review_record_id
+            WHERE b.decision_id=:id ORDER BY ordinal""",
+            {"id": identity},
+        )
+
+    def readiness_scope(self, target: UUID, project: UUID):
+        return self._one(
+            """SELECT d.id FROM decision_records d
+            JOIN decision_basis_manuscripts b ON b.decision_id=d.id
+            WHERE b.manuscript_version_id=:target AND d.project_id=:project
+            AND d.decision_type='READY_FOR_SUBMISSION'""",
+            {"target": target, "project": project},
+        )
+
+    def readiness_other_basis(self, identity: UUID) -> bool:
+        return bool(
+            self._session.execute(
+                text("""SELECT
+            EXISTS(SELECT 1 FROM decision_basis_claims WHERE decision_id=:id) OR
+            EXISTS(SELECT 1 FROM decision_basis_conclusions WHERE decision_id=:id) OR
+            EXISTS(SELECT 1 FROM decision_revision_concerns WHERE decision_id=:id)"""),
+                {"id": identity},
+            ).scalar_one()
+        )
+
+    def applicable_manuscript_reviews(self, target: UUID, project: UUID):
+        return self._many(
+            "SELECT * FROM b11_applicable_reviews(:target,:project) ORDER BY id",
+            {"target": target, "project": project},
+        )
+
+    def insert_manuscript_basis(self, row):
+        self._insert("decision_basis_manuscripts", row)
+
+    def force_readiness_constraints(self):
+        self._session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    def require_readiness_snapshot(self):
+        self._session.execute(text("SELECT b11_require_snapshot()"))
+
+    def manuscript_exists(self, identity: UUID) -> bool:
+        return (
+            self._one("SELECT id FROM manuscript_versions WHERE id=:id", {"id": identity})
+            is not None
+        )
+
+    def lock_readiness_target(self, identity: UUID):
+        self._session.execute(
+            text("SELECT id FROM manuscript_versions WHERE id=:id FOR UPDATE"), {"id": identity}
+        )
+
+    def lock_readiness_project(self, identity: UUID):
+        self._session.execute(
+            text("SELECT id FROM projects WHERE id=:id FOR SHARE"), {"id": identity}
         )

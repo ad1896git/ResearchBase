@@ -1171,7 +1171,12 @@ class InternalReviewService:
             return result
 
     def collect_manuscript_review_basis(
-        self, uow: UnitOfWork, project_id: UUID, manuscript_version_id: UUID
+        self,
+        uow: UnitOfWork,
+        project_id: UUID,
+        manuscript_version_id: UUID,
+        *,
+        prepared: bool = False,
     ) -> ManuscriptReviewBasis:
         """Inside a SHARE-first write UoW after caller locks and authorization.
 
@@ -1180,13 +1185,16 @@ class InternalReviewService:
         """
         if type(project_id) is not UUID or type(manuscript_version_id) is not UUID:
             _fail(ErrorCode.VALIDATION_ERROR, "exact manuscript basis required")
-        uow.internal_review.require_write_prepared()
-        uow.internal_review.lock_manuscript(manuscript_version_id)
-        uow.literature_search_plan.lock_project(project_id)
-        uow.internal_review.lock_publication(manuscript_version_id, project_id)
+        if prepared:
+            uow.decision.require_readiness_snapshot()
+        else:
+            uow.internal_review.require_write_prepared()
+            uow.internal_review.lock_manuscript(manuscript_version_id)
+            uow.literature_search_plan.lock_project(project_id)
+            uow.internal_review.lock_publication(manuscript_version_id, project_id)
         uow.enable_revision_action_snapshot_reads()
         target = self._manuscript_target(uow, project_id, manuscript_version_id, current=True)
-        rows = uow.internal_review.manuscript_reviews(manuscript_version_id, project_id)
+        rows = uow.internal_review.manuscript_reviews_snapshot(manuscript_version_id, project_id)
         reviews = []
         blockers = []
         refs = [("ManuscriptVersion", manuscript_version_id, target["content_hash"])]

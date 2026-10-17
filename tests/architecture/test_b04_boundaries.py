@@ -40,7 +40,7 @@ def test_domain_and_application_do_not_import_persistence():
 
 def test_one_migration_and_no_new_schema_or_transport():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0053_b08_issue_disposition"]
+    assert scripts.get_heads() == ["0054_b11_ready_for_submission"]
     assert (
         scripts.get_revision("0048_b04_manuscript_freeze").down_revision
         == "0047_pr2_18_novelty_prior_art"

@@ -32,7 +32,7 @@ def test_empty_forward_upgrade_and_downgrade(phase2_database_url):
             before = _tables(conn)
         command.upgrade(config, "head")
         with engine.connect() as conn:
-            assert _tables(conn) - before == TABLES
+            assert _tables(conn) - before == TABLES | {"decision_basis_manuscripts"}
             fks = (
                 conn.execute(
                     text(

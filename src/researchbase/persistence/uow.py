@@ -244,6 +244,12 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     if code is not None:
         return ResearchBaseError(code, "decision transaction rejected")
     constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state == "23505" and constraint == "decision_records_pkey":
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT,
+            "reload exact Decision after rollback",
+            {"reload_decision": True},
+        )
     if state == "23505" and constraint in {"uq_b08_issue_terminal", "review_issue_events_pkey"}:
         return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reload issue disposition")
     if state == "23505" and constraint == "uq_b07_decision_concern":

@@ -117,3 +117,26 @@ def validate_revision_choice(purpose: str, choice: str, action: str | None = Non
         )
     ):
         raise ValueError("Decision choice and completed action disagree")
+
+
+ReadinessPurpose = Literal["READY_FOR_SUBMISSION"]
+ReadinessChoice = Literal["PROCEED"]
+
+
+def validate_readiness_choice(purpose: str, choice: str) -> None:
+    if (
+        type(purpose) is not str
+        or type(choice) is not str
+        or purpose != "READY_FOR_SUBMISSION"
+        or choice != "PROCEED"
+    ):
+        raise ValueError("READY_FOR_SUBMISSION/PROCEED required")
+
+
+def readiness_text(value: str, name: str) -> str:
+    return revision_decision_text(value, name)
+
+
+def validate_readiness_review_count(count: int) -> None:
+    if type(count) is not int or not 1 <= count <= 10_000:
+        raise ValueError("complete set of 1..10000 manuscript reviews required")

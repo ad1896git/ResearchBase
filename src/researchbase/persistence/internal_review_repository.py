@@ -159,6 +159,18 @@ class SqlAlchemyInternalReviewRepository:
             ).mappings()
         ]
 
+    def manuscript_reviews_snapshot(self, identity: UUID, project: UUID) -> list[dict]:
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT * FROM internal_review_records WHERE manuscript_version_id=:id "
+                    "AND project_id=:project ORDER BY id"
+                ),
+                {"id": identity, "project": project},
+            ).mappings()
+        ]
+
     def issue_events(self, identity: UUID) -> list[dict]:
         return [
             dict(row)

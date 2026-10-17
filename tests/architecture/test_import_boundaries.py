@@ -169,6 +169,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0051_b06_revision_action.py",
         "0052_b07_revision_decisions.py",
         "0053_b08_issue_disposition.py",
+        "0054_b11_ready_for_submission.py",
     ]
 
 

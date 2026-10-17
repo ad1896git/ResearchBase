@@ -15,6 +15,7 @@ from researchbase.adapters.crossref import CrossrefVerifier
 from researchbase.adapters.metadata_journal import MetadataDispatchJournal
 from researchbase.adapters.openalex import OpenAlexSearchCapability
 from researchbase.application.commands import ApplicationService
+from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.literature_evidence import LiteratureEvidenceService
@@ -80,6 +81,7 @@ class ServiceBundle:
     literature_evidence: LiteratureEvidenceService | None = None
     novelty: NoveltyService | None = None
     search_result_resolutions: SearchResultResolutionService | None = None
+    decisions: DecisionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -152,6 +154,12 @@ def build_services() -> ServiceBundle:
         ),
         SearchResultResolutionService(
             search_result_resolution_uow_factory(settings.database_url), credentials, store
+        ),
+        decisions=DecisionService(
+            uow_factory,
+            credentials,
+            LiteratureEvidenceService(uow_factory, credentials, store),
+            store,
         ),
     )
 
