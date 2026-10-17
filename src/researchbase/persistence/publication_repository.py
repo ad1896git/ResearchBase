@@ -275,7 +275,19 @@ class SqlAlchemyPublicationRepository:
             NULL::text AS support_hash,
             EXISTS (SELECT 1 FROM literature_source_project_links l
               WHERE l.literature_source_id=v.literature_source_id
-                AND l.project_id=:project) AS project_match
+                AND l.project_id=:project
+                AND EXISTS (SELECT 1 FROM literature_sources ls
+                  WHERE ls.id=v.literature_source_id)
+                AND (v.fulltext_artifact_version_id IS NULL OR EXISTS (
+                  SELECT 1 FROM artifact_versions av JOIN artifacts a ON a.id=av.artifact_id
+                  WHERE av.id=v.fulltext_artifact_version_id))
+                AND (v.correction_basis_artifact_version_id IS NULL OR EXISTS (
+                  SELECT 1 FROM artifact_versions av JOIN artifacts a ON a.id=av.artifact_id
+                  WHERE av.id=v.correction_basis_artifact_version_id))
+                AND (v.predecessor_source_version_id IS NULL OR EXISTS (
+                  SELECT 1 FROM source_versions predecessor
+                  WHERE predecessor.id=v.predecessor_source_version_id
+                    AND predecessor.literature_source_id=v.literature_source_id))) AS project_match
           FROM manuscript_citation_placements p
           LEFT JOIN source_versions v ON v.id=p.source_version_id
           WHERE p.manuscript_version_id=:manuscript
@@ -321,12 +333,16 @@ class SqlAlchemyPublicationRepository:
                 text("""
           SELECT p.scientific_conclusion_version_id AS conclusion_version_id,
             i.claim_version_id,i.literature_support_snapshot_id,
-            i.relation_type,i.ordinal,v.status AS claim_status,
+            i.relation_type,i.ordinal,
+            s.id AS resolved_snapshot_id,s.project_id AS snapshot_project_id,
+            s.claim_version_id AS snapshot_claim_id,s.content_hash AS snapshot_content_hash,
+            v.status AS claim_status,
             v.frozen_at AS claim_frozen_at,v.content_hash AS claim_content_hash,
             c.project_id AS claim_project_id
           FROM manuscript_claim_placements p
           JOIN scientific_conclusion_claim_inputs i
             ON i.conclusion_version_id=p.scientific_conclusion_version_id
+          LEFT JOIN literature_support_snapshots s ON s.id=i.literature_support_snapshot_id
           LEFT JOIN claim_versions v ON v.id=i.claim_version_id
           LEFT JOIN claims c ON c.id=v.claim_id
           WHERE p.manuscript_version_id=:manuscript
@@ -354,13 +370,18 @@ class SqlAlchemyPublicationRepository:
           )
           SELECT t.id AS claim_version_id,r.id AS evidence_relation_id,
             r.relation_type,r.measurement_id AS direct_measurement_id,
-            r.statistical_result_id,
+            r.statistical_result_id, result.id AS resolved_statistical_result_id,
+            result.project_id AS result_project_id,
+            dm.id AS resolved_direct_measurement_id,
+            si.measurement_id AS selected_input_measurement_id,
+            sm.id AS resolved_input_measurement_id,
             COALESCE(dm.id,sm.id) AS measurement_id,
             COALESCE(dm.run_id,sm.run_id) AS run_id,
             COALESCE(dr.project_id,sr.project_id) AS run_project_id,
             si.input_role,si.ordinal AS input_ordinal
           FROM trace_claims t JOIN evidence_relations r ON r.claim_version_id=t.id
           LEFT JOIN measurements dm ON dm.id=r.measurement_id
+          LEFT JOIN statistical_results result ON result.id=r.statistical_result_id
           LEFT JOIN statistical_result_inputs si
             ON si.statistical_result_id=r.statistical_result_id
           LEFT JOIN measurements sm ON sm.id=si.measurement_id
@@ -392,16 +413,17 @@ class SqlAlchemyPublicationRepository:
             WHERE p.manuscript_version_id=:manuscript
             UNION ALL
             SELECT 'CLAIM_SNAPSHOT',i.conclusion_version_id,
-              s.claim_version_id,s.id,r.id,s.project_id,
+              i.claim_version_id,i.literature_support_snapshot_id,r.id,s.project_id,
               r.literature_evidence_id,r.relation_type,r.ordinal
             FROM manuscript_claim_placements p
             JOIN scientific_conclusion_claim_inputs i
               ON i.conclusion_version_id=p.scientific_conclusion_version_id
-            JOIN literature_support_snapshots s
+            LEFT JOIN literature_support_snapshots s
               ON s.id=i.literature_support_snapshot_id
                 AND s.claim_version_id=i.claim_version_id
-            JOIN literature_evidence_relations r ON r.literature_support_snapshot_id=s.id
+            LEFT JOIN literature_evidence_relations r ON r.literature_support_snapshot_id=s.id
             WHERE p.manuscript_version_id=:manuscript
+              AND i.literature_support_snapshot_id IS NOT NULL
           )
           SELECT l.link_kind,l.conclusion_version_id,l.owner_version_id,
             l.snapshot_id,l.relation_id,
@@ -413,7 +435,20 @@ class SqlAlchemyPublicationRepository:
             v.content_hash AS source_content_hash,
             EXISTS (SELECT 1 FROM literature_source_project_links pl
               WHERE pl.literature_source_id=v.literature_source_id
-                AND pl.project_id=:project) AS source_project_match,
+                AND pl.project_id=:project
+                AND EXISTS (SELECT 1 FROM literature_sources ls
+                  WHERE ls.id=v.literature_source_id)
+                AND EXISTS (SELECT 1 FROM artifact_versions av
+                  JOIN artifacts a ON a.id=av.artifact_id
+                  WHERE av.id=v.fulltext_artifact_version_id AND a.project_id=:project)
+                AND (v.correction_basis_artifact_version_id IS NULL OR EXISTS (
+                  SELECT 1 FROM artifact_versions av JOIN artifacts a ON a.id=av.artifact_id
+                  WHERE av.id=v.correction_basis_artifact_version_id))
+                AND (v.predecessor_source_version_id IS NULL OR EXISTS (
+                  SELECT 1 FROM source_versions predecessor
+                  WHERE predecessor.id=v.predecessor_source_version_id
+                    AND predecessor.literature_source_id=v.literature_source_id))
+              ) AS source_project_match,
             rev.id AS review_event_id,rev.new_status AS review_event_status
           FROM links l
           LEFT JOIN literature_evidence e ON e.id=l.evidence_id
@@ -430,3 +465,69 @@ class SqlAlchemyPublicationRepository:
             .all()
         )
         return [dict(row) for row in rows]
+
+    def scientific_trace_snapshot_closure(self, manuscript: UUID):
+        """Retain selected exact snapshots, predecessor edges and empty memberships."""
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text("""
+          WITH RECURSIVE selected(id) AS (
+            SELECT i.literature_support_snapshot_id
+            FROM manuscript_claim_placements p
+            JOIN scientific_conclusion_claim_inputs i
+              ON i.conclusion_version_id=p.scientific_conclusion_version_id
+            WHERE p.manuscript_version_id=:manuscript
+              AND i.literature_support_snapshot_id IS NOT NULL
+            UNION
+            SELECT s.previous_snapshot_id FROM selected t
+            JOIN literature_support_snapshots s ON s.id=t.id
+            WHERE s.previous_snapshot_id IS NOT NULL
+          )
+          SELECT t.id AS selected_id,s.*,
+            cv.content_hash AS target_hash,cv.status AS target_status,
+            cv.frozen_at AS target_frozen_at,c.project_id AS target_project,
+            r.id AS relation_id,r.literature_evidence_id,r.relation_type,
+            r.ordinal,r.qualification,e.content_hash AS evidence_hash,
+            e.project_id AS evidence_project,v.id AS source_id,
+            ls.id AS source_owner_id,av.id AS source_artifact_id,
+            a.project_id AS source_artifact_project,
+            v.predecessor_source_version_id AS selected_predecessor_id,
+            predecessor.id AS resolved_predecessor_id,
+            v.correction_basis_artifact_version_id AS selected_correction_artifact_id,
+            correction.id AS resolved_correction_artifact_id,
+            correction_owner.id AS correction_artifact_owner_id
+          FROM selected t LEFT JOIN literature_support_snapshots s ON s.id=t.id
+          LEFT JOIN claim_versions cv ON cv.id=s.claim_version_id
+          LEFT JOIN claims c ON c.id=cv.claim_id
+          LEFT JOIN literature_evidence_relations r ON r.literature_support_snapshot_id=s.id
+          LEFT JOIN literature_evidence e ON e.id=r.literature_evidence_id
+          LEFT JOIN source_versions v ON v.id=e.source_version_id
+          LEFT JOIN source_versions predecessor
+            ON predecessor.id=v.predecessor_source_version_id
+              AND predecessor.literature_source_id=v.literature_source_id
+          LEFT JOIN artifact_versions correction
+            ON correction.id=v.correction_basis_artifact_version_id
+          LEFT JOIN artifacts correction_owner ON correction_owner.id=correction.artifact_id
+          LEFT JOIN literature_sources ls ON ls.id=v.literature_source_id
+          LEFT JOIN artifact_versions av ON av.id=v.fulltext_artifact_version_id
+          LEFT JOIN artifacts a ON a.id=av.artifact_id
+          ORDER BY t.id,r.ordinal,r.id
+        """),
+                {"manuscript": manuscript},
+            ).mappings()
+        ]
+
+    def scientific_trace_conclusions(self, manuscript: UUID):
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text("""
+            SELECT DISTINCT v.* FROM manuscript_claim_placements p
+            JOIN scientific_conclusion_versions v ON v.id=p.scientific_conclusion_version_id
+            WHERE p.manuscript_version_id=:manuscript
+            ORDER BY v.id
+        """),
+                {"manuscript": manuscript},
+            ).mappings()
+        ]

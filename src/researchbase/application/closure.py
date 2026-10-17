@@ -83,6 +83,10 @@ class ClosureEvaluationContext:
     )
     dataset_snapshots: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
     artifact_versions: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    spec_owners: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    dataset_owners: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    artifact_owners: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
+    metric_owners: BatchLookup[Any] = field(default_factory=lambda: BatchLookup[Any]())
     run_reports: dict[UUID, ClosureReport] = field(default_factory=dict)
 
 
@@ -106,10 +110,12 @@ class ProvenanceClosureValidator:
 
     def validate_run(self, run_id: UUID) -> ClosureReport:
         with self._uow_factory() as uow:
+            uow.begin_formal_read()
             return self.validate_run_in_uow(uow, RunId(run_id))
 
     def validate_claim_version(self, claim_version_id: UUID) -> ClosureReport:
         with self._uow_factory() as uow:
+            uow.begin_formal_read()
             return self.validate_claim_version_in_uow(uow, ClaimVersionId(claim_version_id))
 
     def validate_claim_version_in_uow(
@@ -347,6 +353,15 @@ class ProvenanceClosureValidator:
                     )
                 )
         else:
+            self._owner(
+                uow.metric_definitions,
+                context.metric_owners if context else None,
+                metric.metric_definition_id,
+                "MetricDefinition",
+                claim_project_id,
+                [*path, "measurement", "metric_definition_version", "owner"],
+                violations,
+            )
             metric_uuid = UUID(str(metric.id))
             visited.add(("MetricDefinitionVersion", metric_uuid))
             if metric.status not in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED}:
@@ -609,6 +624,15 @@ class ProvenanceClosureValidator:
                 )
         else:
             visited.add(("ExperimentSpecVersion", UUID(str(spec.id))))
+            self._owner(
+                uow.experiment_specs,
+                context.spec_owners if context else None,
+                spec.experiment_spec_id,
+                "ExperimentSpec",
+                run.project_id,
+                ["run", "experiment_spec_version", "owner"],
+                violations,
+            )
             if spec.status not in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED}:
                 violations.append(
                     ClosureViolation(
@@ -657,6 +681,15 @@ class ProvenanceClosureValidator:
                 )
             else:
                 visited.add(("DatasetSnapshot", UUID(str(snapshot.id))))
+                self._owner(
+                    uow.datasets,
+                    context.dataset_owners if context else None,
+                    snapshot.dataset_id,
+                    "Dataset",
+                    run.project_id,
+                    ["run", "dataset_inputs", item.role.value, "owner"],
+                    violations,
+                )
 
         if context is None:
             artifact_inputs = uow.runs.list_artifact_inputs(run.id)
@@ -695,6 +728,15 @@ class ProvenanceClosureValidator:
                 )
             else:
                 visited.add(("ArtifactVersion", UUID(str(version.id))))
+                self._owner(
+                    uow.artifacts,
+                    context.artifact_owners if context else None,
+                    version.artifact_id,
+                    "Artifact",
+                    run.project_id,
+                    ["run", "artifact_inputs", item.role.value, "owner"],
+                    violations,
+                )
                 if version.status not in {VersionStatus.FROZEN, VersionStatus.SUPERSEDED}:
                     violations.append(
                         ClosureViolation(
@@ -719,6 +761,50 @@ class ProvenanceClosureValidator:
             visited_count=len(visited),
             violations=violations,
         )
+
+    @staticmethod
+    def _owner(
+        repository: Any,
+        batch: BatchLookup[Any] | None,
+        identity: Any,
+        kind: str,
+        project: Any,
+        path: list[str],
+        violations: list[ClosureViolation],
+    ) -> None:
+        if batch is None:
+            owner = repository.get(identity)
+        else:
+            state, owner = batch.resolve(identity)
+            if state is BatchLookupState.NEVER_REQUESTED:
+                violations.append(_context_incomplete(kind, identity, path))
+                return
+        if owner is None:
+            violations.append(
+                ClosureViolation(
+                    ErrorCode.NOT_FOUND.value,
+                    kind,
+                    UUID(str(identity)),
+                    path,
+                    "required owning identity was not found",
+                )
+            )
+        elif (
+            project is not None
+            and owner.project_id != project
+            and not (
+                kind in {"Dataset", "Artifact", "MetricDefinition"} and owner.project_id is None
+            )
+        ):
+            violations.append(
+                ClosureViolation(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR.value,
+                    kind,
+                    UUID(str(identity)),
+                    path,
+                    "required owning identity belongs to a different project",
+                )
+            )
 
     @staticmethod
     def _check_run_state(run: Run, violations: list[ClosureViolation]) -> None:

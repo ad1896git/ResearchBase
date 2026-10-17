@@ -72,8 +72,8 @@ class SqlAlchemyNoveltyRepository:
         self._session.execute(text("LOCK TABLE " + ",".join(N) + " IN SHARE MODE"))
 
     def prepare(self, kind, identity, claim=None):
-        if kind == "coverage":
-            self.lock_snapshot()  # FIRST transaction statement, director decision 3.
+        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+        self.lock_snapshot()  # FIRST transaction statement for every scoped write.
         self._session.execute(text("SET LOCAL lock_timeout='10s'"))
         self._session.execute(text("SET LOCAL statement_timeout='30s'"))
         self._session.execute(
@@ -82,7 +82,6 @@ class SqlAlchemyNoveltyRepository:
         )
         if kind != "coverage":
             self.one("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE", {"id": claim})
-            self.lock_snapshot()
 
     def repeatable_read(self):
         self._session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
@@ -121,13 +120,14 @@ class SqlAlchemyNoveltyRepository:
         if kind == "coverage":
             return self.one(
                 f"""SELECT c.*,p.project_id FROM {table} c
-                JOIN literature_search_plan_versions v ON v.id=c.search_plan_version_id
-                JOIN literature_search_plans p ON p.id=v.plan_id WHERE c.id=:id""",
+                LEFT JOIN literature_search_plan_versions v ON v.id=c.search_plan_version_id
+                LEFT JOIN literature_search_plans p ON p.id=v.plan_id WHERE c.id=:id""",
                 {"id": identity},
             )
         return self.one(
             f"""SELECT c.*,p.project_id FROM {table} c
-            JOIN claim_versions v ON v.id=c.claim_version_id JOIN claims p ON p.id=v.claim_id
+            LEFT JOIN claim_versions v ON v.id=c.claim_version_id
+            LEFT JOIN claims p ON p.id=v.claim_id
             WHERE c.id=:id""",
             {"id": identity},
         )

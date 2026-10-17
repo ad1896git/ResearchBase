@@ -10,6 +10,7 @@ from uuid import UUID
 
 from researchbase.application.internal_review import InternalReviewService
 from researchbase.application.ports import UnitOfWork
+from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.scientific_conclusion import ScientificConclusionService
 from researchbase.domain.decision import (
     DecisionBasisReference,
@@ -141,6 +142,10 @@ class DecisionService:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved decision basis invalid")
 
     def _readback(self, uow, row):
+        with saved_dependency():
+            return self._readback_saved(uow, row)
+
+    def _readback_saved(self, uow, row):
         basis = self._basis(uow.decision.basis(row["id"]))
         conclusions = [ref for ref in basis if ref.type == "ScientificConclusionVersion"]
         reviews = [ref for ref in basis if ref.type == "InternalReviewRecord"]

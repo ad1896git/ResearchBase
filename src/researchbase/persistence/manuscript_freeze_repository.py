@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy import Select, event, text
+from sqlalchemy.orm import ORMExecuteState, Session
 
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
@@ -33,6 +34,26 @@ scientific_conclusions source_versions statistical_result_inputs statistical_res
 B04_SHARE_SQL = "LOCK TABLE " + ",".join(B04_SNAPSHOT_TABLES) + " IN SHARE MODE"
 
 
+def _bounded_audit_select(state: ORMExecuteState):
+    statement = state.statement
+    sql = str(statement).lstrip()
+    if sql.upper().startswith(("SELECT", "WITH")):
+        statement = (
+            text("SELECT * FROM (" + sql + ") AS b25_bounded_read LIMIT 10001")
+            if not state.is_select
+            else cast(Select[Any], statement).limit(10001)
+        )
+        result = state.invoke_statement(statement=statement)
+        frozen = result.freeze()
+        if len(frozen.data) > 10000:
+            raise ResearchBaseError(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "complete manuscript audit exceeds fixed row ceiling",
+            )
+        return frozen()
+    return state.invoke_statement()
+
+
 class SqlAlchemyManuscriptFreezeRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -43,8 +64,12 @@ class SqlAlchemyManuscriptFreezeRepository:
         self._session.execute(text("SET LOCAL lock_timeout='10s'"))
         self._session.execute(text("SET LOCAL statement_timeout='30s'"))
 
-    def prepare_read(self) -> None:
+    def prepare_read(self, *, bounded: bool = False) -> None:
         self._session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        if bounded:
+            # B25-only guard: bound every owner SELECT before DBAPI materialization.
+            # The listener lives on this fresh Session, never on the factory/engine.
+            event.listen(self._session, "do_orm_execute", _bounded_audit_select, retval=True)
 
     def authority(self, principal: VerifiedPrincipal, project: UUID) -> list[dict]:
         return [

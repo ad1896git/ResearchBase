@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, NoReturn, cast
@@ -134,15 +135,39 @@ class ManuscriptFreezeService:
             else "VALID"
         )
 
+    @contextmanager
+    def _path(self, kind: str, identity: UUID, *, historical: bool = False) -> Iterator[None]:
+        """Optional same-UoW traversal hook; ordinary B04 behavior is unchanged."""
+        yield
+
+    @contextmanager
+    def _placement_path(self, kind: str, identity: UUID) -> Iterator[None]:
+        yield
+
+    def _observe(self, kind: str, identity: UUID, state: str, **facts: Any) -> None:
+        """Called only after the owning verifier has checked retained material."""
+
     def _validity(self, uow: Any, project: UUID, kind: str, identity: UUID) -> str:
         view = self._governance.validity_projection_in_uow(uow, project, kind, identity)
-        if view.state.value == "invalid":
-            return "INVALID"
-        return (
-            "VALID"
+        state = (
+            "INVALID"
+            if view.state.value == "invalid"
+            else "VALID"
             if view.state.value in {"not_assessed", "unaffected"} and not view.correction_ids
             else "STALE"
         )
+        names = {
+            "artifact_version": "ArtifactVersion",
+            "claim_version": "ClaimVersion",
+            "statistical_result": "StatisticalResult",
+            "measurement": "Measurement",
+            "metric_definition_version": "MetricDefinitionVersion",
+            "run": "Run",
+            "experiment_spec_version": "ExperimentSpecVersion",
+            "dataset_snapshot": "DatasetSnapshot",
+        }
+        self._observe(names[kind], identity, state, governance=view)
+        return state
 
     def _artifact(
         self,
@@ -153,83 +178,101 @@ class ManuscriptFreezeService:
         document: bool = False,
         admission: bool = False,
     ) -> tuple[ManuscriptReference, str]:
-        row = uow.manuscript_freeze.artifact(identity, project)
-        if row is None:
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "same-project artifact unavailable")
-        if (
-            row["status"]
-            not in ({"FROZEN"} if document and admission else {"FROZEN", "SUPERSEDED"})
-            or row["frozen_at"] is None
-        ):
-            _fail(ErrorCode.FROZEN_REFERENCE_REQUIRED, "frozen artifact required")
-        if document and row["artifact_type"] != "manuscript":
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "manuscript document required")
-        try:
-            content = digest(row["content_hash"])
-            if self._store is None or not self._store.verify(content):
-                raise ValueError("CAS verification failed")
-            data = self._store.open(content)
-            if len(data) != row["byte_size"] or str(sha256_bytes(data)) != content:
-                raise ValueError("CAS size/hash mismatch")
-        except (OSError, ValueError, TypeError):
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "artifact bytes missing or altered")
-        return ManuscriptReference("ArtifactVersion", identity, content), self._validity(
-            uow, project, "artifact_version", identity
-        )
+        with self._path("ArtifactVersion", identity):
+            row = uow.manuscript_freeze.artifact(identity, project)
+            if row is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "same-project artifact unavailable")
+            if (
+                row["status"]
+                not in ({"FROZEN"} if document and admission else {"FROZEN", "SUPERSEDED"})
+                or row["frozen_at"] is None
+            ):
+                _fail(ErrorCode.FROZEN_REFERENCE_REQUIRED, "frozen artifact required")
+            if document and row["artifact_type"] != "manuscript":
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "manuscript document required")
+            try:
+                content = digest(row["content_hash"])
+                if self._store is None or not self._store.verify(content):
+                    raise ValueError("CAS verification failed")
+                data = self._store.open(content)
+                if len(data) != row["byte_size"] or str(sha256_bytes(data)) != content:
+                    raise ValueError("CAS size/hash mismatch")
+            except (OSError, ValueError, TypeError):
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "artifact bytes missing or altered")
+            return ManuscriptReference("ArtifactVersion", identity, content), self._validity(
+                uow, project, "artifact_version", identity
+            )
 
     def _claim(self, uow: Any, project: UUID, identity: UUID) -> tuple[ManuscriptReference, str]:
-        row = self._literature._target(uow, "ClaimVersion", identity, project)
-        if row["frozen_at"] is None:
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "claim seal incomplete")
-        states = [row["current_validity"], self._validity(uow, project, "claim_version", identity)]
-        # Owner hydration verifies the Phase 1 literal hashes; retain the exact graph.
-        measurements: set[UUID] = set()
-        runs: set[UUID] = set()
-        for relation in uow.claims.list_evidence(identity):
-            if relation.measurement_id is not None:
-                measurements.add(relation.measurement_id)
-            if relation.statistical_result_id is not None:
-                result = uow.statistical_results.get(relation.statistical_result_id)
-                if result is None or result.project_id != project:
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "statistical result ownership")
-                states.append(self._validity(uow, project, "statistical_result", result.id))
-                measurements.update(
-                    x.measurement_id for x in uow.statistical_results.list_inputs(result.id)
-                )
-        for identity_ in measurements:
-            measurement = uow.measurements.get(identity_)
+        with self._path("ClaimVersion", identity):
+            row = self._literature._target(uow, "ClaimVersion", identity, project)
+            if row["frozen_at"] is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "claim seal incomplete")
+            states = [
+                row["current_validity"],
+                self._validity(uow, project, "claim_version", identity),
+            ]
+            # Owner hydration verifies the Phase 1 literal hashes; retain the exact graph.
+            for relation in uow.claims.list_evidence(identity):
+                with self._path("EvidenceRelation", relation.id):
+                    if relation.measurement_id is not None:
+                        states.append(self._measurement(uow, project, relation.measurement_id))
+                    if relation.statistical_result_id is not None:
+                        with self._path("StatisticalResult", relation.statistical_result_id):
+                            result = uow.statistical_results.get(relation.statistical_result_id)
+                            if result is None or result.project_id != project:
+                                _fail(
+                                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                                    "statistical result ownership",
+                                )
+                            states.append(
+                                self._validity(uow, project, "statistical_result", result.id)
+                            )
+                            for edge in uow.statistical_results.list_inputs(result.id):
+                                states.append(self._measurement(uow, project, edge.measurement_id))
+            self._observe("ClaimVersion", identity, self._merge(*states))
+            return ManuscriptReference("ClaimVersion", identity, row["content_hash"]), self._merge(
+                *states
+            )
+
+    def _measurement(self, uow: Any, project: UUID, identity: UUID) -> str:
+        states = []
+        with self._path("Measurement", identity):
+            measurement = uow.measurements.get(identity)
             if measurement is None:
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "measurement missing")
-            runs.add(measurement.run_id)
-            states.append(self._validity(uow, project, "measurement", identity_))
-            states.append(
-                self._validity(
-                    uow,
-                    project,
-                    "metric_definition_version",
-                    measurement.metric_definition_version_id,
-                )
-            )
-        for run_id in runs:
-            run = uow.runs.get(run_id)
-            if run is None or run.project_id != project:
-                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "run ownership")
-            states.append(self._validity(uow, project, "run", run_id))
-            states.append(
-                self._validity(
-                    uow, project, "experiment_spec_version", run.experiment_spec_version_id
-                )
-            )
-            for edge in uow.runs.list_artifact_inputs(run_id):
-                _, state = self._artifact(uow, project, edge.artifact_version_id)
-                states.append(state)
-            for edge in uow.runs.list_dataset_inputs(run_id):
+            states.append(self._validity(uow, project, "measurement", identity))
+            with self._path("MetricDefinitionVersion", measurement.metric_definition_version_id):
                 states.append(
-                    self._validity(uow, project, "dataset_snapshot", edge.dataset_snapshot_id)
+                    self._validity(
+                        uow,
+                        project,
+                        "metric_definition_version",
+                        measurement.metric_definition_version_id,
+                    )
                 )
-        return ManuscriptReference("ClaimVersion", identity, row["content_hash"]), self._merge(
-            *states
-        )
+            with self._path("Run", measurement.run_id):
+                run = uow.runs.get(measurement.run_id)
+                if run is None or run.project_id != project:
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "run ownership")
+                states.append(self._validity(uow, project, "run", run.id))
+                with self._path("ExperimentSpecVersion", run.experiment_spec_version_id):
+                    states.append(
+                        self._validity(
+                            uow, project, "experiment_spec_version", run.experiment_spec_version_id
+                        )
+                    )
+                for edge in uow.runs.list_artifact_inputs(run.id):
+                    _, state = self._artifact(uow, project, edge.artifact_version_id)
+                    states.append(state)
+                for edge in uow.runs.list_dataset_inputs(run.id):
+                    with self._path("DatasetSnapshot", edge.dataset_snapshot_id):
+                        states.append(
+                            self._validity(
+                                uow, project, "dataset_snapshot", edge.dataset_snapshot_id
+                            )
+                        )
+        return self._merge(*states)
 
     @staticmethod
     def _phase2_unicode(value: Any) -> None:
@@ -251,47 +294,90 @@ class ManuscriptFreezeService:
     def _source_reference(
         self, uow: Any, project: UUID, identity: UUID, seen: frozenset[UUID] = frozenset()
     ) -> tuple[ManuscriptReference, str]:
-        if identity in seen:
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "cyclic source closure")
-        source, _, _, state = self._literature._source(uow, identity, project)
-        self._phase2_unicode(source)
-        if source["frozen_at"] is None:
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "source seal incomplete")
-        states = [state]
-        for field in ("fulltext_artifact_version_id", "correction_basis_artifact_version_id"):
-            if source[field] is not None:
-                _, artifact_state = self._artifact(uow, project, source[field])
-                states.append(artifact_state)
-        predecessor = source["predecessor_source_version_id"]
-        if predecessor is not None:
-            prior = uow.source_version.version(predecessor)
-            if prior is None or prior["literature_source_id"] != source["literature_source_id"]:
-                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "source predecessor ownership")
-            # A predecessor is retained lineage, not the current source's validity owner.
-            self._source_reference(uow, project, predecessor, seen | {identity})
-        return ManuscriptReference("SourceVersion", identity, source["content_hash"]), self._merge(
-            *states
-        )
+        with self._path("SourceVersion", identity):
+            if identity in seen:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "cyclic source closure")
+            source, _, _, state = self._literature._source(uow, identity, project)
+            self._phase2_unicode(source)
+            if source["frozen_at"] is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "source seal incomplete")
+            self._observe(
+                "SourceVersion", identity, self._merge(state), source_kind=source["version_kind"]
+            )
+            states = [state]
+            for field in ("fulltext_artifact_version_id", "correction_basis_artifact_version_id"):
+                if source[field] is not None:
+                    _, artifact_state = self._artifact(uow, project, source[field])
+                    states.append(artifact_state)
+            predecessor = source["predecessor_source_version_id"]
+            if predecessor is not None:
+                prior = uow.source_version.version(predecessor)
+                if prior is None or prior["literature_source_id"] != source["literature_source_id"]:
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "source predecessor ownership")
+                # A predecessor is retained lineage, not the current source's validity owner.
+                with self._path("SourceVersion", predecessor, historical=True):
+                    self._source_reference(uow, project, predecessor, seen | {identity})
+            return ManuscriptReference(
+                "SourceVersion", identity, source["content_hash"]
+            ), self._merge(*states)
 
-    def _evidence_source_validity(self, uow: Any, project: UUID, identity: UUID) -> str:
-        evidence = self._literature._read(uow, identity, project)
-        self._phase2_unicode(evidence)
-        _, state = self._source_reference(uow, project, evidence["source_version_id"])
-        return state
+    def _evidence_source_validity(
+        self, uow: Any, project: UUID, identity: UUID, *, positive: bool = False
+    ) -> str:
+        with self._path("LiteratureEvidence", identity):
+            evidence = self._literature._read(uow, identity, project)
+            self._phase2_unicode(evidence)
+            self._observe(
+                "LiteratureEvidence",
+                identity,
+                "STALE"
+                if evidence["review_status"] in {"DISPUTED", "REJECTED"}
+                or (positive and evidence["review_status"] == "UNREVIEWED")
+                else "VALID",
+                evidence_review_status=evidence["review_status"],
+            )
+            _, state = self._source_reference(uow, project, evidence["source_version_id"])
+            return state
 
     def _verify_snapshot_history(
         self, uow: Any, project: UUID, identity: UUID, seen: frozenset[UUID] = frozenset()
     ) -> None:
-        if identity in seen:
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "cyclic support history")
-        snapshot = self._literature._snapshot(uow, identity, project)
-        self._phase2_unicode(snapshot)
-        for relation in snapshot["relations"]:
-            self._evidence_source_validity(uow, project, relation["literature_evidence_id"])
-        if snapshot["previous_snapshot_id"] is not None:
-            self._verify_snapshot_history(
-                uow, project, snapshot["previous_snapshot_id"], seen | {identity}
-            )
+        with self._path("LiteratureSupportSnapshot", identity):
+            if identity in seen:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "cyclic support history")
+            snapshot = self._literature._snapshot(uow, identity, project)
+            self._phase2_unicode(snapshot)
+            self._observe("LiteratureSupportSnapshot", identity, snapshot["validity"])
+            for relation in snapshot["relations"]:
+                self._evidence_source_validity(
+                    uow,
+                    project,
+                    relation["literature_evidence_id"],
+                    positive=relation["relation_type"] == "SUPPORTS",
+                )
+            if snapshot["previous_snapshot_id"] is not None:
+                self._verify_snapshot_history(
+                    uow, project, snapshot["previous_snapshot_id"], seen | {identity}
+                )
+
+    def _bound_snapshot(self, uow: Any, project: UUID, identity: UUID) -> dict:
+        with self._path("LiteratureSupportSnapshot", identity):
+            snapshot = self._literature._snapshot(uow, identity, project)
+            self._phase2_unicode(snapshot)
+            self._observe("LiteratureSupportSnapshot", identity, snapshot["validity"])
+            if snapshot["previous_snapshot_id"] is not None:
+                with self._path(
+                    "LiteratureSupportSnapshot", snapshot["previous_snapshot_id"], historical=True
+                ):
+                    self._verify_snapshot_history(uow, project, snapshot["previous_snapshot_id"])
+            for relation in snapshot["relations"]:
+                self._evidence_source_validity(
+                    uow,
+                    project,
+                    relation["literature_evidence_id"],
+                    positive=relation["relation_type"] == "SUPPORTS",
+                )
+            return snapshot
 
     def _positive_support(self, uow: Any, project: UUID, evidence: UUID) -> None:
         checked = self._literature._read(uow, evidence, project)
@@ -318,75 +404,100 @@ class ManuscriptFreezeService:
         states.append(state)
         placements: list[ManuscriptPlacement] = []
         for item in repo.claim_placements(row["id"]):
-            claim, conclusion = item["claim_version_id"], item["scientific_conclusion_version_id"]
-            if (claim is None) == (conclusion is None):
-                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "placement target XOR required")
-            if claim is not None:
-                target, state = self._claim(uow, project, claim)
-            else:
-                owner = uow.manuscript_freeze.conclusion_parent(conclusion, project)
-                if owner is None:
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "conclusion ownership")
-                conclusion_row = uow.scientific_conclusion.version(conclusion, owner)
-                if (
-                    conclusion_row is None
-                    or conclusion_row["frozen_at"] is None
-                    or conclusion_row["hash_scheme"] != "sha256-cjson-v1"
-                ):
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "conclusion seal incomplete")
-                checked = self._conclusions._view(
-                    uow, project, owner, conclusion, require_current=admission
+            with self._placement_path(
+                ("CLAIM" if item["claim_version_id"] is not None else "CONCLUSION"), item["id"]
+            ):
+                claim, conclusion = (
+                    item["claim_version_id"],
+                    item["scientific_conclusion_version_id"],
                 )
-                if checked.status not in {"FROZEN", "SUPERSEDED"}:
-                    _fail(ErrorCode.FROZEN_REFERENCE_REQUIRED, "frozen conclusion required")
-                target = ManuscriptReference(
-                    "ScientificConclusionVersion", conclusion, str(checked.content_hash)
-                )
-                state = checked.validity
-                self._phase2_unicode((checked.statement, checked.scope, checked.limitation_summary))
-                for entry in checked.claim_inputs:
-                    _, claim_state = self._claim(uow, project, entry.claim_version_id)
-                    state = self._merge(state, claim_state)
-                    if entry.literature_support_snapshot_id is not None:
-                        snapshot = self._literature._snapshot(
-                            uow, entry.literature_support_snapshot_id, project
-                        )
-                        self._phase2_unicode(snapshot)
-                        if snapshot["previous_snapshot_id"] is not None:
-                            self._verify_snapshot_history(
-                                uow, project, snapshot["previous_snapshot_id"]
-                            )
-                        state = self._merge(state, snapshot["validity"])
-                        for relation in uow.literature_evidence.relations(
-                            entry.literature_support_snapshot_id
+                if (claim is None) == (conclusion is None):
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "placement target XOR required")
+                if claim is not None:
+                    target, state = self._claim(uow, project, claim)
+                else:
+                    with self._path("ScientificConclusionVersion", conclusion):
+                        owner = uow.manuscript_freeze.conclusion_parent(conclusion, project)
+                        if owner is None:
+                            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "conclusion ownership")
+                        conclusion_row = uow.scientific_conclusion.version(conclusion, owner)
+                        if (
+                            conclusion_row is None
+                            or conclusion_row["frozen_at"] is None
+                            or conclusion_row["hash_scheme"] != "sha256-cjson-v1"
                         ):
+                            _fail(
+                                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "conclusion seal incomplete"
+                            )
+                        checked = self._conclusions._view(
+                            uow, project, owner, conclusion, require_current=admission
+                        )
+                        if checked.status not in {"FROZEN", "SUPERSEDED"}:
+                            _fail(ErrorCode.FROZEN_REFERENCE_REQUIRED, "frozen conclusion required")
+                        target = ManuscriptReference(
+                            "ScientificConclusionVersion", conclusion, str(checked.content_hash)
+                        )
+                        state = checked.validity
+                        self._phase2_unicode(
+                            (checked.statement, checked.scope, checked.limitation_summary)
+                        )
+                        for entry in checked.claim_inputs:
+                            with self._path("ClaimVersion", entry.claim_version_id):
+                                _, claim_state = self._claim(uow, project, entry.claim_version_id)
+                                state = self._merge(state, claim_state)
+                                if entry.literature_support_snapshot_id is not None:
+                                    snapshot = self._bound_snapshot(
+                                        uow, project, entry.literature_support_snapshot_id
+                                    )
+                                    state = self._merge(state, snapshot["validity"])
+                                    with self._path(
+                                        "LiteratureSupportSnapshot",
+                                        entry.literature_support_snapshot_id,
+                                    ):
+                                        for relation in snapshot["relations"]:
+                                            state = self._merge(
+                                                state,
+                                                self._evidence_source_validity(
+                                                    uow,
+                                                    project,
+                                                    relation["literature_evidence_id"],
+                                                    positive=relation["relation_type"]
+                                                    == "SUPPORTS",
+                                                ),
+                                            )
+                                            if (
+                                                admission
+                                                and relation["relation_type"] == "SUPPORTS"
+                                            ):
+                                                self._positive_support(
+                                                    uow, project, relation["literature_evidence_id"]
+                                                )
+
+                        for entry in checked.literature_inputs:
                             state = self._merge(
                                 state,
                                 self._evidence_source_validity(
-                                    uow, project, relation["literature_evidence_id"]
+                                    uow,
+                                    project,
+                                    entry.literature_evidence_id,
+                                    positive=entry.relation_type == "SUPPORTS",
                                 ),
                             )
-                            if admission and relation["relation_type"] == "SUPPORTS":
-                                self._positive_support(
-                                    uow, project, relation["literature_evidence_id"]
-                                )
-                for entry in checked.literature_inputs:
-                    state = self._merge(
-                        state,
-                        self._evidence_source_validity(uow, project, entry.literature_evidence_id),
-                    )
-                    if admission and entry.relation_type == "SUPPORTS":
-                        self._positive_support(uow, project, entry.literature_evidence_id)
-            states.append(state)
-            placements.append(self._placement(item, target, "rhetorical_strength"))
+                            if admission and entry.relation_type == "SUPPORTS":
+                                self._positive_support(uow, project, entry.literature_evidence_id)
+                        self._observe("ScientificConclusionVersion", conclusion, state)
+                states.append(state)
+                placements.append(self._placement(item, target, "rhetorical_strength"))
         for item in repo.citations(row["id"]):
-            target, state = self._source_reference(uow, project, item["source_version_id"])
-            states.append(state)
-            placements.append(self._placement(item, target, "citation_purpose"))
+            with self._placement_path("CITATION", item["id"]):
+                target, state = self._source_reference(uow, project, item["source_version_id"])
+                states.append(state)
+                placements.append(self._placement(item, target, "citation_purpose"))
         for item in repo.artifact_placements(row["id"]):
-            target, state = self._artifact(uow, project, item["artifact_version_id"])
-            states.append(state)
-            placements.append(self._placement(item, target, "artifact_role"))
+            with self._placement_path("ARTIFACT", item["id"]):
+                target, state = self._artifact(uow, project, item["artifact_version_id"])
+                states.append(state)
+                placements.append(self._placement(item, target, "artifact_role"))
         try:
             placement_hash = str(
                 sha256_canonical_json(manuscript_placement_material(tuple(placements)))

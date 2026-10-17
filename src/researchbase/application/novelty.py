@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 from researchbase.application.literature_search_plan import _validate_question_row
 from researchbase.application.metadata_observation import _hash
+from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.source_version import _material_from_row
 from researchbase.domain.novelty import (
     HashRef,
@@ -427,6 +428,10 @@ class NoveltyService:
         return claim, _ref("SourceVersion", source), tuple(refs), valid and verified, verified
 
     def _view(self, uow, kind, row):
+        with saved_dependency(ownership=True):
+            return self._view_saved(uow, kind, row)
+
+    def _view_saved(self, uow, kind, row):
         project = row["project_id"]
         repo = uow.novelty
         if kind == "coverage":
@@ -727,12 +732,15 @@ class NoveltyService:
             fail(ErrorCode.VALIDATION_ERROR, "closed exact read required")
         with self._factory() as uow:
             uow.enable_novelty_error_normalization()
-            uow.novelty.repeatable_read()
-            uow.enable_revision_action_snapshot_reads()
+            uow.begin_formal_read()
             self._authorize(uow, principal, query.project_id, _READERS)
             row = uow.novelty.parent(kind, query.id)
             if row is None:
                 fail(ErrorCode.NOT_FOUND, "record not found")
+            if row["project_id"] is None:
+                fail(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved formal provenance is unresolved"
+                )
             if row["project_id"] != query.project_id:
                 fail(ErrorCode.FORBIDDEN, "current authenticated project authority unavailable")
             result = self._view(uow, kind, row)

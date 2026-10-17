@@ -504,6 +504,21 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = True
         self._manuscript_freeze_error_normalization = True
 
+    def begin_formal_read(self) -> None:
+        """One lock-free snapshot, including nested authorization and verification."""
+        session = self._require_session()
+        session.autoflush = False
+        session.connection(
+            execution_options={
+                "isolation_level": "REPEATABLE READ",
+                "postgresql_readonly": True,
+            }
+        )
+        self.enable_revision_action_snapshot_reads()
+        self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(
+            session, protected_reads=True
+        )
+
     def begin_resolution(self, *, read_only: bool) -> None:
         """Configure B01 before SQL; transaction options emit no preceding query."""
         self._decision_error_normalization = True

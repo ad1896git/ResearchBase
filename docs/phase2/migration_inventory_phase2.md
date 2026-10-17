@@ -2,7 +2,7 @@ Subject `1ae0036344c26057b1e70c7bbd3daf4e5d3b2d51`; dirty diff `f01f97fc03bf5cff
 
 Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e344b24661a6cfc466be11e02dee1f3725836d/subject.json). This is engineering evidence. Phase 2 exit is **BLOCKED**; owner acceptance is separate.
 
-[Complete revision/predecessor/script digests](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e344b24661a6cfc466be11e02dee1f3725836d/migration_scripts.json). No existing migration was edited; first-slice DDL and index proposals are empty. The historical inventory below originally ended at 0047; the integrated Batch C live head is `0056_b10_reconsideration`. Owning legacy predicates and populated downgrade refusals remain authoritative. Empty/no-op, reconnect, accepted populated checkpoints, rollback and historical-manifest tests are separate evidence; absent checkpoint acceptance remains BLOCKED.
+[Complete revision/predecessor/script digests](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e344b24661a6cfc466be11e02dee1f3725836d/migration_scripts.json). No existing migration was edited; first-slice DDL and index proposals are empty. The historical inventory below originally ended at 0047; the integrated Batch D live head is `0059_b13_grant_consumption`. Owning legacy predicates and populated downgrade refusals remain authoritative. Empty/no-op, reconnect, accepted populated checkpoints, rollback and historical-manifest tests are separate evidence; absent checkpoint acceptance remains BLOCKED.
 
 | Revision | Predecessor | SHA256 |
 | --- | --- | --- |
@@ -64,6 +64,9 @@ Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e
 | 0054_b11_ready_for_submission | 0053_b08_issue_disposition | b1ea6609e911b36f1d86adba9697b213ae8ebaa1ce7e70de8da80e7c2e2c6c75 |
 | 0055_b09_approval_tuples | 0054_b11_ready_for_submission | 449e624dc4d420bd5c625e065d6f60e9f24d132bcd25483bd5de774e46013057 |
 | 0056_b10_reconsideration | 0055_b09_approval_tuples | d17c42a19b99c575a767dd12159ec7eeeb651ede7577c98958e8ed90ec9f346f |
+| 0057_xid_wraparound_guards | 0056_b10_reconsideration | 0da197d0b8ca619925813d5b26cf43c4646eeb5bbe18b64a4f3b9bfaf3e34e3b |
+| 0058_b12_prepare_submission | 0057_xid_wraparound_guards | 0b3cbf0a62dd86253d6b4c313c2ca5f3ff68547013ddb1916f24317974aec043 |
+| 0059_b13_grant_consumption | 0058_b12_prepare_submission | f63eaf66f359761afd37a7299595cfa6de4972ca5cf53cd2bdc6c79b251d6350 |
 
 Owner remediation decision, 2026-10-17: apply the proposed B10 compatibility fix
 and remove the unrequested 0054a/0057 workaround migrations. The final chain is
@@ -73,3 +76,10 @@ constraint name on upgrade, and restores the B11 policy/dispatch on downgrade.
 No dummy CHECK constraints, new canonical schemas, or alternate history remain.
 Full-schema downgrade comparison and source-lane SQL diffs are recorded in
 [Batch C evidence](../verification/batch-c/integration-evidence.md).
+
+Batch D integration, 2026-10-17: B12/B13 retain their existing linear parents
+0057 → 0058 → 0059, with byte-identical migration files and DDL. B25 has no
+migration. The empty B27 revision was removed by owner instruction; defensive
+reads require no schema change. B14 remains deferred. No new PR2-20 evidence
+directory was generated. Focused verification is recorded in
+[Batch D integration evidence](../verification/batch-d/integration-evidence.md).

@@ -11,6 +11,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from researchbase.application.manuscript_freeze import ManuscriptFreezeService
 from researchbase.application.ports import UnitOfWork
+from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.scientific_conclusion import ScientificConclusionService
 from researchbase.domain.decision import DecisionBasisReference
 from researchbase.domain.internal_review import (
@@ -40,6 +41,37 @@ def _text(value: str, label: str) -> str:
         return review_text(value, label)
     except ValueError as exc:
         raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, str(exc)) from exc
+
+
+def verify_open_issue_history(row: dict, issues: list[dict], events: list[dict]) -> None:
+    """Verify the shipped initial OPEN structure without inferring issue disposition."""
+    by_issue = {}
+    for event in events:
+        by_issue.setdefault(event["issue_id"], []).append(event)
+    if set(by_issue) != {issue["id"] for issue in issues}:
+        _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "orphan issue event")
+    for ordinal, issue in enumerate(issues):
+        try:
+            if (
+                review_text(issue["description"], "saved issue") != issue["description"]
+                or issue["severity"] not in _SEVERITIES
+                or issue["issue_type"] not in _ISSUE_TYPES
+            ):
+                raise ValueError("invalid saved issue")
+        except (ValueError, TypeError, UnicodeError):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved issue text")
+        history = by_issue.get(issue["id"], [])
+        if (
+            type(issue["ordinal"]) is not int
+            or issue["ordinal"] != ordinal
+            or issue["status"] != "OPEN"
+            or len(history) != 1
+            or history[0]["prior_status"] is not None
+            or history[0]["new_status"] != "OPEN"
+            or history[0]["actor_id"] != row["reviewer_actor_id"]
+            or history[0]["occurred_at"] != issue["created_at"]
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid issue OPEN history")
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +330,10 @@ class InternalReviewService:
         )
 
     def _verify(self, uow: UnitOfWork, row: dict) -> None:
+        with saved_dependency():
+            return self._verify_saved(uow, row)
+
+    def _verify_saved(self, uow: UnitOfWork, row: dict) -> None:
         if row.get("manuscript_version_id") is not None:
             self._verify_manuscript_review(uow, row)
             return

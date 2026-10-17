@@ -8,6 +8,7 @@ from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
 from researchbase.application.ports import UnitOfWork
+from researchbase.application.saved_provenance import saved_dependency
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.scientific_conclusion import (
     ClaimConclusionInput,
@@ -561,6 +562,16 @@ class ScientificConclusionService:
         return self._retry(once)
 
     def _view(self, uow, project, conclusion_id, version_id, *, require_current=False):
+        parent = uow.scientific_conclusion.conclusion(conclusion_id, project)
+        version = uow.scientific_conclusion.version(version_id, conclusion_id) if parent else None
+        if version is None:
+            _fail(ErrorCode.NOT_FOUND, "scientific conclusion version not found")
+        with saved_dependency():
+            return self._saved_view(
+                uow, project, conclusion_id, version_id, require_current=require_current
+            )
+
+    def _saved_view(self, uow, project, conclusion_id, version_id, *, require_current=False):
         repo = uow.scientific_conclusion
         parent = repo.conclusion(conclusion_id, project)
         version = repo.version(version_id, conclusion_id) if parent else None
@@ -772,6 +783,15 @@ class ScientificConclusionService:
     def read(
         self, principal: VerifiedPrincipal, project: UUID, conclusion_id: UUID, version_id: UUID
     ) -> ConclusionReadback:
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if any(type(value) is not UUID for value in (project, conclusion_id, version_id)):
+            _fail(
+                ErrorCode.VALIDATION_ERROR, "exact project, conclusion and version UUIDs required"
+            )
         with self._factory() as uow:
+            uow.begin_formal_read()
             self._authorize(uow, principal, project, _READERS)
-            return self._view(uow, project, conclusion_id, version_id)
+            result = self._view(uow, project, conclusion_id, version_id)
+            self._authorize(uow, principal, project, _READERS)
+            return result

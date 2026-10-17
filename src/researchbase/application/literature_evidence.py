@@ -10,6 +10,7 @@ from researchbase.adapters.source_document import locate, paragraphs, relocate
 from researchbase.application.closure import ProvenanceClosureValidator
 from researchbase.application.governance_queries import GovernanceQueryService, ValidityState
 from researchbase.application.ports import UnitOfWork
+from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.source_version import SourceVersionService, _material_from_row
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
 from researchbase.domain.claim import ClaimVersionId
@@ -337,6 +338,11 @@ class LiteratureEvidenceService:
         row = uow.literature_evidence.evidence(identity, project)
         if row is None:
             _fail("evidence not found", ErrorCode.NOT_FOUND)
+        with saved_dependency():
+            return self._read_saved(uow, row, project)
+
+    def _read_saved(self, uow, row, project):
+        identity = row["id"]
         source, artifact, values, valid = self._source(uow, row["source_version_id"], project)
         if (
             digest(evidence_material(row, source)) != row["content_hash"]
@@ -536,6 +542,12 @@ class LiteratureEvidenceService:
         )
 
     def _snapshot(self, uow, identity, project):
+        if uow.literature_evidence.snapshot(identity, project) is None:
+            _fail("literature support snapshot not found", ErrorCode.NOT_FOUND)
+        with saved_dependency():
+            return self._snapshot_saved(uow, identity, project)
+
+    def _snapshot_saved(self, uow, identity, project):
         # Exact immutable predecessor material is verified iteratively; historical
         # chains must not acquire an arbitrary Python recursion depth limit.
         chain = []

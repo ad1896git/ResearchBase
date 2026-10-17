@@ -138,6 +138,7 @@ class SqlAlchemyDecisionRepository:
         return row
 
     def lock_snapshot(self) -> None:
+        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
         self._session.execute(text("LOCK TABLE " + ",".join(_SNAPSHOT_TABLES) + " IN SHARE MODE"))
 
     def decision(self, identity: UUID, project: UUID):
@@ -167,11 +168,11 @@ class SqlAlchemyDecisionRepository:
             """SELECT 'ScientificConclusionVersion' AS type,
             b.scientific_conclusion_version_id AS id,v.content_hash,b.ordinal
             FROM decision_basis_conclusions b
-            JOIN scientific_conclusion_versions v ON v.id=b.scientific_conclusion_version_id
+            LEFT JOIN scientific_conclusion_versions v ON v.id=b.scientific_conclusion_version_id
             WHERE b.decision_id=:id UNION ALL
             SELECT 'InternalReviewRecord',b.internal_review_record_id,r.content_hash,b.ordinal
             FROM decision_basis_reviews b
-            JOIN internal_review_records r ON r.id=b.internal_review_record_id
+            LEFT JOIN internal_review_records r ON r.id=b.internal_review_record_id
             WHERE b.decision_id=:id ORDER BY ordinal""",
             {"id": identity},
         )

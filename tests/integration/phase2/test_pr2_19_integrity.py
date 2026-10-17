@@ -123,3 +123,30 @@ def test_corrupt_committed_decision_hash_denies_fresh_exact_replay(pr219_decisio
         fresh.record_decision(actor, request)
     assert denied.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
     assert counts(base[8]) == before
+
+
+def test_f2b_unresolved_saved_review_denies_owning_replay(pr219_decision_env):
+    from researchbase.application.decision import DecisionService
+    from tests.integration.phase2.b27_fixtures import corrupt_edge
+
+    env = pr219_decision_env
+    base = env[-1]
+    decision_cases._review(env)
+    request = decision_cases._command(env)
+    saved = env[0].record_decision(env[2], request)
+    corrupt_edge(
+        base[8],
+        "decision_basis_reviews",
+        "internal_review_record_id",
+        saved.id,
+        uuid4(),
+        key="decision_id",
+    )
+    before = counts(base[8])
+    fresh = DecisionService(base[1], base[9], base[2])
+    with pytest.raises(ResearchBaseError) as denied:
+        fresh.record_decision(env[2], request)
+    assert denied.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    assert denied.value.message == "saved formal provenance is unresolved"
+    assert denied.value.details is None
+    assert counts(base[8]) == before

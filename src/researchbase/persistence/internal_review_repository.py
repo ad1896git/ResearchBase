@@ -186,6 +186,63 @@ class SqlAlchemyInternalReviewRepository:
             ).mappings()
         ]
 
+    def scoped_reviews(
+        self,
+        project: UUID,
+        manuscript: UUID,
+        claims: tuple[UUID, ...],
+        conclusions: tuple[UUID, ...],
+    ) -> list[dict]:
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text("""
+            SELECT r.* FROM internal_review_records r
+            LEFT JOIN manuscript_versions m ON m.id=r.manuscript_version_id
+            LEFT JOIN publications p ON p.id=m.publication_id
+            LEFT JOIN claim_versions cv ON cv.id=r.claim_version_id
+            LEFT JOIN claims c ON c.id=cv.claim_id
+            LEFT JOIN scientific_conclusion_versions sv ON sv.id=r.scientific_conclusion_version_id
+            LEFT JOIN scientific_conclusions sc ON sc.id=sv.scientific_conclusion_id
+            WHERE r.project_id=:project AND (
+                (r.manuscript_version_id=:manuscript AND p.project_id=:project) OR
+                (r.claim_version_id=ANY(CAST(:claims AS uuid[])) AND c.project_id=:project) OR
+                (r.scientific_conclusion_version_id=ANY(CAST(:conclusions AS uuid[])) AND sc.project_id=:project))
+            ORDER BY r.id LIMIT 10001
+        """),
+                {
+                    "project": project,
+                    "manuscript": manuscript,
+                    "claims": list(claims),
+                    "conclusions": list(conclusions),
+                },
+            ).mappings()
+        ]
+
+    def audit_issues(self, identity: UUID) -> list[dict]:
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text("""
+            SELECT * FROM review_issues WHERE review_record_id=:id
+            ORDER BY ordinal,id LIMIT 10001
+        """),
+                {"id": identity},
+            ).mappings()
+        ]
+
+    def audit_issue_events(self, identity: UUID) -> list[dict]:
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text("""
+            SELECT e.* FROM review_issue_events e JOIN review_issues i ON i.id=e.issue_id
+            WHERE i.review_record_id=:id ORDER BY i.ordinal,i.id,e.id LIMIT 10001
+        """),
+                {"id": identity},
+            ).mappings()
+        ]
+
     def material_authors(self, identity: UUID) -> frozenset[UUID]:
         return SqlAlchemyDecisionRepository(self._session).material_authors(
             identity, manuscript=True
