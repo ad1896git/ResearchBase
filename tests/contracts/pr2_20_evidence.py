@@ -19,6 +19,7 @@ Result = Literal["PASS", "FAIL", "BLOCKED", "NOT RUN", "DEFERRED"]
 Mode = Literal["ENABLED", "TEST_ONLY", "METHOD_REFERENCE", "DEFERRED"]
 MAX_BYTES = 1024 * 1024
 MAX_ARRAY = 10_000
+EVIDENCE_ROOT = Path(__file__).resolve().parents[2]
 SUBJECT_PREFIX = "pr_evidence/pr2-20/"
 _SECRET = re.compile(
     r"(?i)(?:bearer\s+\S+|(?<![a-z0-9_])(?:password|api[_-]?key|access[_-]?token|secret|query|q)"

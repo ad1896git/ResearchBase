@@ -52,5 +52,5 @@ def test_no_approval_effect_surface():
 
 def test_single_forward_revision():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0056_b10_reconsideration"]
-    assert scripts.get_revision(scripts.get_heads()[0]).down_revision == "0055_b09_approval_tuples"
+    assert scripts.get_heads() == ["0057_xid_wraparound_guards"]
+    assert scripts.get_revision(scripts.get_heads()[0]).down_revision == "0056_b10_reconsideration"

@@ -16,6 +16,7 @@ from alembic.config import Config
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 
+from tests.contracts import pr2_20_evidence as evidence
 from tests.contracts.pr2_20_evidence import canonical_bytes, digest_bytes
 from tests.disposable_postgres import disposable_database
 from tests.integration.phase2.test_pr2_01_source_identity import (
@@ -242,10 +243,10 @@ def sample[T](call: Callable[[], T], warmups: int, calls: int) -> tuple[list[flo
 def save_observation(case: str, data: dict[str, Any]) -> None:
     """Keep complete bounded machine evidence associated with the authored subject."""
     from tests.contracts.pr2_20_evidence import write_chunks
-    from tests.contracts.pr2_20_reports import ROOT, subject
+    from tests.contracts.pr2_20_reports import subject
 
     _, _, digest = subject()
-    directory = ROOT / "pr_evidence/pr2-20" / digest
+    directory = evidence.EVIDENCE_ROOT / "pr_evidence/pr2-20" / digest
     plans = data.pop("plans", [])
     if plans:
         write_chunks(directory, f"plans-{case}-0", plans)
@@ -254,14 +255,14 @@ def save_observation(case: str, data: dict[str, Any]) -> None:
 
 def save_query(case: str, engine: Engine, observed: Capture, method: str, repository: str) -> None:
     from tests.contracts.pr2_20_evidence import QueryPlanEvidence, write_chunks, write_record
-    from tests.contracts.pr2_20_reports import ROOT, context, subject
+    from tests.contracts.pr2_20_reports import context, subject
 
     ctx = context()
     prefix = "pr_evidence/pr2-20/" + subject()[2] + "/"
     plans = explain_reads(engine, observed)
-    paths = write_chunks(ROOT / prefix, f"plans-{case}-0", plans)
+    paths = write_chunks(evidence.EVIDENCE_ROOT / prefix, f"plans-{case}-0", plans)
     samples = write_chunks(
-        ROOT / prefix,
+        evidence.EVIDENCE_ROOT / prefix,
         f"samples-{case}-0",
         [
             {
@@ -272,7 +273,7 @@ def save_query(case: str, engine: Engine, observed: Capture, method: str, reposi
         ],
     )
     profile = write_chunks(
-        ROOT / prefix,
+        evidence.EVIDENCE_ROOT / prefix,
         f"profile-{case}",
         [
             {
@@ -289,7 +290,8 @@ def save_query(case: str, engine: Engine, observed: Capture, method: str, reposi
         status="PASS",
         reason=None,
         evidence_refs=tuple(
-            path.relative_to(ROOT).as_posix() for path in (*paths, *samples, *profile)
+            path.relative_to(evidence.EVIDENCE_ROOT).as_posix()
+            for path in (*paths, *samples, *profile)
         ),
     )
     item = QueryPlanEvidence(
@@ -299,9 +301,9 @@ def save_query(case: str, engine: Engine, observed: Capture, method: str, reposi
         repository_method=repository,
         parameter_class="Ephemeral bound values; report contains types and SQL digest only",
         sql_sha256=observed.sql_sha256,
-        profile_ref=profile[0].relative_to(ROOT).as_posix(),
-        sample_ref=samples[0].relative_to(ROOT).as_posix(),
-        plan_refs=tuple(path.relative_to(ROOT).as_posix() for path in paths),
+        profile_ref=profile[0].relative_to(evidence.EVIDENCE_ROOT).as_posix(),
+        sample_ref=samples[0].relative_to(evidence.EVIDENCE_ROOT).as_posix(),
+        plan_refs=tuple(path.relative_to(evidence.EVIDENCE_ROOT).as_posix() for path in paths),
         index_definitions=tuple(row[2] for row in catalog(engine)["indexes"]),
         calls=1,
         warmups=0,
@@ -315,7 +317,7 @@ def save_query(case: str, engine: Engine, observed: Capture, method: str, reposi
         query_count=observed.query_count,
         correctness_equal=True,
     )
-    write_record(ROOT, prefix + f"query-{case}.json", item)
+    write_record(evidence.EVIDENCE_ROOT, prefix + f"query-{case}.json", item)
 
 
 def save_migration(
@@ -330,7 +332,7 @@ def save_migration(
     empty_roundtrip: bool = False,
 ) -> None:
     from tests.contracts.pr2_20_evidence import MigrationEvidence, write_chunks, write_record
-    from tests.contracts.pr2_20_reports import ROOT, context, migration_inventory, subject
+    from tests.contracts.pr2_20_reports import context, migration_inventory, subject
 
     prefix = "pr_evidence/pr2-20/" + subject()[2] + "/"
     ctx = context()
@@ -342,8 +344,10 @@ def save_migration(
         ("scripts", migration_inventory()),
     ):
         files[name] = (
-            write_chunks(ROOT / prefix, f"{case}-{name}", [encode_catalog_text(data)])[0]
-            .relative_to(ROOT)
+            write_chunks(
+                evidence.EVIDENCE_ROOT / prefix, f"{case}-{name}", [encode_catalog_text(data)]
+            )[0]
+            .relative_to(evidence.EVIDENCE_ROOT)
             .as_posix()
         )
     with engine.connect() as conn:
@@ -373,7 +377,7 @@ def save_migration(
         downgrade_result="PASS" if empty_roundtrip else "NOT RUN",
         restored_read_result="PASS",
     )
-    write_record(ROOT, prefix + f"migration-{case}.json", item)
+    write_record(evidence.EVIDENCE_ROOT, prefix + f"migration-{case}.json", item)
 
 
 def column_inventory(engine: Engine, tables: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
@@ -410,14 +414,14 @@ def encode_catalog_text(value: Any) -> Any:
 def persist_manifest(case: str, data: dict[str, Any]) -> dict[str, Any]:
     """Split full ID/hash/edge inventories; never silently truncate a large table."""
     from tests.contracts.pr2_20_evidence import write_chunks
-    from tests.contracts.pr2_20_reports import ROOT, subject
+    from tests.contracts.pr2_20_reports import subject
 
-    directory = ROOT / "pr_evidence/pr2-20" / subject()[2]
+    directory = evidence.EVIDENCE_ROOT / "pr_evidence/pr2-20" / subject()[2]
     result = {}
     for table, entry in data.items():
         paths = write_chunks(directory, f"{case}-{table}", entry["ids_hashes_edges"])
         result[table] = {key: value for key, value in entry.items() if key != "ids_hashes_edges"}
         result[table]["ids_hashes_edges_refs"] = [
-            path.relative_to(ROOT).as_posix() for path in paths
+            path.relative_to(evidence.EVIDENCE_ROOT).as_posix() for path in paths
         ]
     return result

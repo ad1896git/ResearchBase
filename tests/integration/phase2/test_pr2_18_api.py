@@ -25,11 +25,12 @@ def test_novelty_endpoint_with_composed_services(
     )
     monkeypatch.setenv("ARTIFACT_STORE_ROOT", str(tmp_path / "api-artifacts"))
     app = create_app()
-    # Keep the production None wiring for the missing-verifier case. The other
-    # cases model a configured credential verifier at the same boundary.
-    if credential_state != "missing":
-        monkeypatch.setattr(app.state.services.novelty, "_credentials", e["credentials"])
-        e["credentials"].enabled = credential_state == "valid"
+    monkeypatch.setattr(
+        app.state.services.novelty,
+        "_credentials",
+        None if credential_state == "missing" else e["credentials"],
+    )
+    e["credentials"].enabled = credential_state == "valid"
 
     @app.middleware("http")
     async def inject_principal(request, call_next):

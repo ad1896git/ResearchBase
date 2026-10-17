@@ -16,7 +16,7 @@ def test_batch_c_empty_database_roundtrip(phase2_database_url):
         command.upgrade(config, "head")
         with engine.connect() as conn:
             assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-                "0056_b10_reconsideration"
+                "0057_xid_wraparound_guards"
             )
         command.downgrade(config, "base")
         with engine.connect() as conn:
@@ -65,7 +65,7 @@ def test_batch_c_downgrade_restores_exact_b11_schema(phase2_database_url, tmp_pa
 
     command.upgrade(config, "0054_b11_ready_for_submission")
     before = schema()
-    command.upgrade(config, "head")
+    command.upgrade(config, "0056_b10_reconsideration")
     command.downgrade(config, "0054_b11_ready_for_submission")
     after = schema()
     (tmp_path / "before.sql").write_text(before)
@@ -73,4 +73,4 @@ def test_batch_c_downgrade_restores_exact_b11_schema(phase2_database_url, tmp_pa
     print("Schema comparison artifacts:", tmp_path)
     assert after == before
     print("B11 schema before/after SHA256:", hashlib.sha256(before.encode()).hexdigest())
-    command.upgrade(config, "head")
+    command.upgrade(config, "0056_b10_reconsideration")

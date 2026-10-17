@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import pwd
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -26,6 +28,7 @@ from researchbase.application.source_version import SourceVersionService
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
+from researchbase.local_identity import LocalIdentityAdapter, process_uid
 from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.literature_search_execution_uow import (
@@ -75,23 +78,36 @@ def build_services() -> ServiceBundle:
 
     clock = SystemClock()
     store = ContentAddressedFilesystemArtifactStore(Path(settings.artifact_store_root))
+    root = Path(
+        os.environ.get(
+            "RESEARCHBASE_LOCAL_ROOT",
+            str(Path(pwd.getpwuid(process_uid()).pw_dir) / ".researchbase-local"),
+        )
+    )
+    credentials = LocalIdentityAdapter(root)
     return ServiceBundle(
         ApplicationService(uow_factory, clock, store),
         ProvenanceQueryService(uow_factory),
         GovernanceService(uow_factory, clock),
         GovernanceQueryService(uow_factory),
-        SourceIdentityService(uow_factory, None),
-        SourceMergeGovernanceService(uow_factory, None),
-        SourceVersionService(uow_factory, None),
-        SourceMergeExecutionService(uow_factory, None),
-        LiteratureSearchPlanService(uow_factory, None),
+        SourceIdentityService(uow_factory, credentials),
+        SourceMergeGovernanceService(uow_factory, credentials),
+        SourceVersionService(uow_factory, credentials),
+        SourceMergeExecutionService(uow_factory, credentials),
+        LiteratureSearchPlanService(uow_factory, credentials),
         LiteratureSearchExecutionService(
             literature_search_execution_uow_factory(session_factory),
             StaticSearchCapabilityRegistry(),
+            credential_verifier=credentials,
         ),
-        NoveltyService(uow_factory, None, LiteratureEvidenceService(uow_factory, None, store)),
+        NoveltyService(
+            uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
         decisions=DecisionService(
-            uow_factory, None, LiteratureEvidenceService(uow_factory, None, store), store
+            uow_factory,
+            credentials,
+            LiteratureEvidenceService(uow_factory, credentials, store),
+            store,
         ),
     )
 

@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import text
+from tests.contracts import pr2_20_evidence as evidence
 from tests.contracts.pr2_20_evidence import BenchmarkProfile, digest_bytes, to_bytes
 from tests.contracts.pr2_20_reports import ROOT, context, subject
 from tests.integration.phase2 import pr2_20_support as s
@@ -115,7 +116,7 @@ def profile(engine, large: bool) -> BenchmarkProfile:
 
 
 def save_profile(value: BenchmarkProfile):
-    directory = ROOT / "pr_evidence/pr2-20" / subject()[2]
+    directory = evidence.EVIDENCE_ROOT / "pr_evidence/pr2-20" / subject()[2]
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "benchmark_profile.json").write_bytes(to_bytes(value))
 

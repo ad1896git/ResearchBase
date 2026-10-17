@@ -161,3 +161,20 @@ def test_all_pinned_error_mappings_and_source_additions():
     assert "INTERNAL_ERROR" not in {code.value for code in ErrorCode}
     assert INTERNAL_ERROR_EXIT_CODE == 1
     assert '500, "INTERNAL_ERROR"' in Path("src/researchbase/api/errors.py").read_text()
+
+
+def test_runtime_observations_and_profiles_stay_under_pytest_tmp_path(tmp_path):
+    from tests.contracts import pr2_20_reports as reports
+    from tests.e2e.test_pr2_20_benchmark import save_profile
+    from tests.integration.phase2 import pr2_20_support as support
+
+    repository_subjects = set((reports.ROOT / "pr_evidence/pr2-20").iterdir())
+    assert e.EVIDENCE_ROOT == tmp_path
+    support.save_observation("temporary-regression", {"status": "TEST ONLY"})
+    support.persist_manifest(
+        "temporary-regression", {"actors": {"count": 1, "ids_hashes_edges": [{"id": "test"}]}}
+    )
+    save_profile(record(e.BenchmarkProfile))
+    directory = tmp_path / e.SUBJECT_PREFIX / reports.subject()[2]
+    assert len(list(directory.glob("*.json"))) == 3
+    assert set((reports.ROOT / "pr_evidence/pr2-20").iterdir()) == repository_subjects
