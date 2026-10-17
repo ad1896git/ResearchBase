@@ -24,8 +24,22 @@ TARGETS = {
 
 
 class SqlAlchemyLiteratureEvidenceRepository:
-    def __init__(self, session):
+    def __init__(self, session, *, protected_reads: bool = False):
         self._session = session
+        self._protected_reads = protected_reads
+
+    def prepare_write(self, command):
+        # Reserve final INSERT modes before authority rows. SHARE-first governance
+        # writers may reference that same actor through concrete FKs.
+        tables = {
+            "IMPORT_DOCUMENT": "artifact_versions,artifacts",
+            "CREATE_EVIDENCE": "literature_evidence",
+            "REVIEW_EVIDENCE": "literature_evidence_review_events",
+        }.get(command)
+        if tables is not None:
+            self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+            self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+            self._session.execute(text("LOCK TABLE " + tables + " IN ROW EXCLUSIVE MODE"))
 
     def _one(self, sql, values):
         row = self._session.execute(text(sql), values).mappings().first()
@@ -40,7 +54,8 @@ class SqlAlchemyLiteratureEvidenceRepository:
 
     def evidence(self, identity, project):
         return self._one(
-            "SELECT * FROM literature_evidence WHERE id=:id AND project_id=:project FOR UPDATE",
+            "SELECT * FROM literature_evidence WHERE id=:id AND project_id=:project"
+            + ("" if self._protected_reads else " FOR UPDATE"),
             {"id": identity, "project": project},
         )
 
@@ -63,7 +78,8 @@ class SqlAlchemyLiteratureEvidenceRepository:
         _, versions, parents, fk = TARGETS[kind]
         return self._one(
             f"""SELECT v.*,p.project_id FROM {versions} v JOIN {parents} p ON p.id=v.{fk}
-            WHERE v.id=:id AND p.project_id=:project FOR UPDATE OF p,v""",
+            WHERE v.id=:id AND p.project_id=:project"""
+            + ("" if self._protected_reads else " FOR UPDATE OF p,v"),
             {"id": identity, "project": project},
         )
 

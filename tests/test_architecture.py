@@ -35,24 +35,91 @@ def test_no_forbidden_runtime_dependencies_or_parallel_manifests() -> None:
 
 
 def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
-    migration_text = "\n".join(
-        path.read_text()
-        for path in _python_files(ROOT / "migrations")
-        if path.name
-        not in {
-            "0030_literature_evidence.py",
-            "0031_m3_snapshot_relation_cardinality.py",
-                "0032_pr2_10_discussion.py",
-                "0033_pr2_11_r2_scientific_conclusion.py",
-        }
-    )
-    forbidden_tables = (
+    # Exact accepted Phase 2 ownership/references; future migrations get no exemption.
+    authorized_tables = {
+        # PR2-05: owns LiteratureEvidence and its review/support relations.
+        "migrations/versions/0030_literature_evidence.py": {"literature_evidence"},
+        # PR2-05: M3 support-snapshot relation cardinality guard.
+        "migrations/versions/0031_m3_snapshot_relation_cardinality.py": {"literature_evidence"},
+        # PR2-10: exact LiteratureEvidence references in discussion turns.
+        "migrations/versions/0032_pr2_10_discussion.py": {"literature_evidence"},
+        # PR2-11: owns ScientificConclusion and exact LiteratureEvidence inputs.
+        "migrations/versions/0033_pr2_11_r2_scientific_conclusion.py": {
+            "literature_evidence",
+            "scientific_conclusions",
+        },
+        # PR2-13: exact ScientificConclusion placement targets.
+        "migrations/versions/0037_pr2_13_claim_placement.py": {"scientific_conclusions"},
+        # PR2-14: exact frozen ScientificConclusion review targets.
+        "migrations/versions/0040_pr2_14_initial_internal_review.py": {"scientific_conclusions"},
+        # PR2-15: coordination locks on exact ScientificConclusion review targets.
+        "migrations/versions/0041_pr2_15_review_coordination.py": {"scientific_conclusions"},
+        # PR2-15: exact ScientificConclusion targets for the minimal decision command.
+        "migrations/versions/0042_pr2_15_minimal_decision.py": {"scientific_conclusions"},
+        # Task 13: approved RevisionAction exact conclusion result and scope guards.
+        "migrations/versions/0044_pr2_15_revision_action.py": {"scientific_conclusions"},
+        "migrations/versions/0045_pr2_16_basic_approval.py": {
+            "scientific_conclusions",
+            "literature_evidence",
+        },
+    }
+    authorized_tables["migrations/versions/0047_pr2_18_novelty_prior_art.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+    }
+    authorized_tables["migrations/versions/0048_b04_manuscript_freeze.py"] = {
+        "scientific_conclusions"
+    }
+    authorized_tables["migrations/versions/0049_b05_manuscript_review.py"] = {
+        "scientific_conclusions"
+    }
+    authorized_tables["migrations/versions/0051_b06_revision_action.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+    }
+    authorized_tables["migrations/versions/0052_b07_revision_decisions.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+    }
+    authorized_tables["migrations/versions/0053_b08_issue_disposition.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+    }
+    authorized_tables["migrations/versions/0054_b11_ready_for_submission.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+        "manuscripts",  # registered decision_basis_manuscripts relation
+    }
+    authorized_tables["migrations/versions/0055_b09_approval_tuples.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+    }
+    authorized_tables["migrations/versions/0056_b10_reconsideration.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+        "manuscripts",  # retain B11 typed Decision dispatch
+    }
+    # Owner-approved representation fix reuses existing evidence guards only.
+    authorized_tables["migrations/versions/0057_xid_wraparound_guards.py"] = {
         "literature_evidence",
         "scientific_conclusions",
         "manuscripts",
-    )
-    assert not any(table in migration_text for table in forbidden_tables)
-    assert "run_versions" not in migration_text
+    }
+    authorized_tables["migrations/versions/0058_b12_prepare_submission.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+        "manuscripts",
+    }
+    authorized_tables["migrations/versions/0059_b13_grant_consumption.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+    }
+    for path in _python_files(ROOT / "migrations"):
+        contents = path.read_text()
+        permitted = authorized_tables.get(path.relative_to(ROOT).as_posix(), set())
+        for table in ("literature_evidence", "scientific_conclusions", "manuscripts"):
+            assert table in permitted or table not in contents, (path.name, table)
+        assert "run_versions" not in contents, path.name
 
 
 def test_pr12_adds_only_claim_evidence_schema_slice() -> None:

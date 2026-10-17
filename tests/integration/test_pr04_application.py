@@ -9,7 +9,6 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
-from tests.application_compat import LegacyApplicationService as ApplicationService
 
 import researchbase.application.commands as commands_module
 from researchbase.application.commands import (
@@ -43,6 +42,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyResearchQuestionRepository,
 )
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 pytestmark = pytest.mark.integration
 
@@ -259,6 +259,7 @@ def test_research_question_create_rolls_back_identity_and_version(
     flush_observed = False
 
     try:
+
         def fail_commit(uow: SqlAlchemyUnitOfWork) -> None:
             nonlocal flush_observed
             uow._require_session().flush()
@@ -362,6 +363,7 @@ def test_hypothesis_create_rolls_back_identity_and_version(
     flush_observed = False
 
     try:
+
         def fail_commit(uow: SqlAlchemyUnitOfWork) -> None:
             nonlocal flush_observed
             uow._require_session().flush()
@@ -579,13 +581,17 @@ def test_concurrent_research_question_revisions_serialize_safely(
     engine = create_database_engine()
     try:
         with engine.connect() as connection:
-            version_rows = connection.execute(
-                text(
-                    "SELECT version_number FROM research_question_versions "
-                    "WHERE research_question_id = :question_id ORDER BY version_number"
-                ),
-                {"question_id": created.id},
-            ).scalars().all()
+            version_rows = (
+                connection.execute(
+                    text(
+                        "SELECT version_number FROM research_question_versions "
+                        "WHERE research_question_id = :question_id ORDER BY version_number"
+                    ),
+                    {"question_id": created.id},
+                )
+                .scalars()
+                .all()
+            )
             pointer_parent = connection.execute(
                 text(
                     "SELECT v.research_question_id FROM research_questions q "
@@ -654,13 +660,17 @@ def test_concurrent_hypothesis_revisions_serialize_safely(
     engine = create_database_engine()
     try:
         with engine.connect() as connection:
-            version_rows = connection.execute(
-                text(
-                    "SELECT version_number FROM hypothesis_versions "
-                    "WHERE hypothesis_id = :hypothesis_id ORDER BY version_number"
-                ),
-                {"hypothesis_id": created.id},
-            ).scalars().all()
+            version_rows = (
+                connection.execute(
+                    text(
+                        "SELECT version_number FROM hypothesis_versions "
+                        "WHERE hypothesis_id = :hypothesis_id ORDER BY version_number"
+                    ),
+                    {"hypothesis_id": created.id},
+                )
+                .scalars()
+                .all()
+            )
             pointer_parent = connection.execute(
                 text(
                     "SELECT v.hypothesis_id FROM hypotheses h "

@@ -3082,7 +3082,7 @@ def _captured_query_plans(
 def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]:
     """Capture EXPLAIN plans for real Phase 1 provenance/governance query services."""
 
-    from tests.contracts.pr18_manifest import FROZEN_QUERY_EXPECTATIONS
+    from tests.contracts.b27_query_contract import B27_QUERY_EXPECTATIONS
 
     from researchbase.application.governance_queries import GovernanceQueryService
     from researchbase.application.provenance_queries import ProvenanceQueryService
@@ -3103,14 +3103,14 @@ def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]
             engine,
             "ProvenanceQueryService.get_run_provenance",
             lambda: provenance.get_run_provenance(ids["run"]),
-            expectation=FROZEN_QUERY_EXPECTATIONS["run_provenance"],
+            expectation=B27_QUERY_EXPECTATIONS["run_provenance"],
             representative_rows=representative_rows,
         ),
         "claim_trace": _captured_query_plans(
             engine,
             "ProvenanceQueryService.trace_claim_to_runs",
             lambda: provenance.trace_claim_to_runs(ids["claim_version"]),
-            expectation=FROZEN_QUERY_EXPECTATIONS["claim_trace"],
+            expectation=B27_QUERY_EXPECTATIONS["claim_trace"],
             representative_rows=representative_rows,
         ),
         "downstream_impact": _captured_query_plans(
@@ -3119,7 +3119,7 @@ def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]
             lambda: governance.downstream_impact(
                 ids["project"], GovernanceTargetType.ARTIFACT_VERSION, ids["artifact_version"]
             ),
-            expectation=FROZEN_QUERY_EXPECTATIONS["downstream_impact"],
+            expectation=B27_QUERY_EXPECTATIONS["downstream_impact"],
             representative_rows=representative_rows,
         ),
         "audit_findings": _captured_query_plans(
@@ -3128,7 +3128,7 @@ def collect_query_explain_baselines(engine: Engine) -> dict[str, dict[str, Any]]
             lambda: governance.list_audit_findings(
                 ids["project"], GovernanceTargetType.ARTIFACT_VERSION, ids["artifact_version"]
             ),
-            expectation=FROZEN_QUERY_EXPECTATIONS["audit_findings"],
+            expectation=B27_QUERY_EXPECTATIONS["audit_findings"],
             representative_rows=representative_rows,
         ),
     }

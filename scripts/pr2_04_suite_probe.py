@@ -15,7 +15,9 @@ class SuiteProbe:
     def __init__(self, config: pytest.Config, output: Path):
         self.config, self.output = config, output
         self.root = Path(config.rootpath).resolve()
-        self.head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.root, text=True).strip()
+        self.head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, text=True
+        ).strip()
         if self.head != os.environ["RB_EXECUTION_HEAD"] or output.exists():
             raise pytest.UsageError("suite probe requires exact candidate and a fresh output path")
         self.started = datetime.now(UTC).isoformat()
@@ -58,7 +60,9 @@ class SuiteProbe:
             "phases": self.phases,
             "warning_categories": self.warning_categories,
             "collection_errors": self.collection_errors,
-            "deselected": len(self.config.pluginmanager.get_plugin("terminalreporter").stats.get("deselected", [])),
+            "deselected": len(
+                self.config.pluginmanager.get_plugin("terminalreporter").stats.get("deselected", [])
+            ),
         }
         self.output.parent.mkdir(parents=True, exist_ok=True)
         self.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")

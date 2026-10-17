@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,7 +12,7 @@ from alembic.script import ScriptDirectory
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+
 from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 from tests.integration.phase2.test_pr2_04_execution_migration import (
     PARENT,
@@ -22,12 +21,12 @@ from tests.integration.phase2.test_pr2_04_execution_migration import (
     _upgrade,
 )
 from tests.integration.phase2.test_pr2_04_schema_coverage import (
+    TABLES,
     A,
     C,
     E,
     Q,
     R,
-    TABLES,
     V,
     _material,
     _rows,
@@ -47,7 +46,7 @@ def _catalog(engine) -> dict:
             "revision": connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one(),
-            "tables": inspector.get_table_names(),
+            "tables": sorted(inspector.get_table_names()),
             "constraints": [
                 list(row)
                 for row in connection.execute(
@@ -93,14 +92,12 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
     engine = create_engine(phase2_database_url)
     try:
         if origin == PARENT:
-            # Route only fixture migration selection to the accepted parent. All
-            # identity, question, review and freeze behavior remains actual code/PG.
-            with patch(
-                "tests.integration.phase2.test_pr2_03_review_guards._authorized_service",
-                side_effect=lambda url: _authorized_service(url, migration_revision=PARENT),
-            ):
-                setup_engine, plans, principal, project, plan, version = _setup(phase2_database_url)
-                _freeze(setup_engine, plans, principal, project, plan, version)
+            # Select the accepted parent through the fixture's explicit revision
+            # parameter; identity, question and freeze behavior stays actual code/PG.
+            setup_engine, plans, principal, project, plan, version = _setup(
+                phase2_database_url, migration_revision=PARENT
+            )
+            _freeze(setup_engine, plans, principal, project, plan, version)
             setup_engine.dispose()
         elif origin != "base":
             _upgrade(phase2_database_url, origin)
@@ -144,7 +141,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
         )
         assert before == after
         assert revisions == [REVISION]
-        assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
+        assert scripts.get_heads() == ["0059_b13_grant_consumption"]
         assert revision.down_revision == PARENT
         if origin == PARENT:
             assert after_tables - before_tables == set(TABLES)
@@ -192,8 +189,10 @@ def test_each_populated_table_independently_refuses_downgrade_before_any_ddl(
 ) -> None:
     stage = "planned" if sentinel == E else "reserved" if sentinel == A else "terminal"
     # Historical0024 preflight fixture remains distinct from current0025 graph.
-    with patch("tests.integration.phase2.test_pr2_04_schema_coverage._setup",
-               side_effect=lambda url: _setup(url, migration_revision=REVISION)):
+    with patch(
+        "tests.integration.phase2.test_pr2_04_schema_coverage._setup",
+        side_effect=lambda url: _setup(url, migration_revision=REVISION),
+    ):
         material = _material(phase2_database_url, stage, hits=0 if sentinel == Q else 1)
     engine = material["engine"]
     try:
@@ -243,8 +242,10 @@ def test_each_populated_table_independently_refuses_downgrade_before_any_ddl(
             revision=catalog_after["revision"],
             actual_downgrade_sql=statements,
         )
-        assert not any(sql.lstrip().upper().startswith(("DROP ", "ALTER ", "TRUNCATE ", "DELETE "))
-                       for sql in statements)
+        assert not any(
+            sql.lstrip().upper().startswith(("DROP ", "ALTER ", "TRUNCATE ", "DELETE "))
+            for sql in statements
+        )
         assert rows_before == rows_after
         assert catalog_before == catalog_after
         assert catalog_after["revision"] == REVISION
@@ -256,6 +257,7 @@ def test_each_populated_table_independently_refuses_downgrade_before_any_ddl(
 def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: FactRecorder) -> None:
     # A02: FROZEN_PR204 remains provenance; no original ancestry claim.
     from scripts.pr2_04_recovery_bindings import baseline, validate_migration_prefix
+
     binding = baseline()
     checks = validate_migration_prefix(source_ref="86658eb83bb0552da36510368d70fe5c049ec086")
     hashes = {}
@@ -268,7 +270,11 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
     scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
     child = scripts.get_revision("0025_pr2_04_reservation_guards")
     assert child is not None and child.down_revision == REVISION
-    assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
-    pr204_trace.record(historical_reference=FROZEN_PR204,
-        historical_ancestry_recovered=False, recovery_baseline=binding["migration_base"],
-        recovery_migration_hashes=hashes, topology=checks)
+    assert scripts.get_heads() == ["0059_b13_grant_consumption"]
+    pr204_trace.record(
+        historical_reference=FROZEN_PR204,
+        historical_ancestry_recovered=False,
+        recovery_baseline=binding["migration_base"],
+        recovery_migration_hashes=hashes,
+        topology=checks,
+    )

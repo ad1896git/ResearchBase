@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-REPO="/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-p1-remediation"
-EXPECTED_BRANCH="recovery/f2-p1-remediation"
+readonly REVIEW_TMP_ROOT="${RB_REVIEW_TMP_ROOT:-/private/tmp}"
+
+REPO="${RB_REVIEW_REPO:-/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-p1-remediation}"
+EXPECTED_BRANCH="${RB_REVIEW_BRANCH:-recovery/f2-p1-remediation}"
 EXPECTED_HEAD=""
 readonly RECOVERY_COMPARISON_BASE="14143dc09983ce1765b3b39fda536691193fd868"
 readonly FROZEN_CONTRACT="ea216c9babea322808b3885f563d276b571575ab"
@@ -18,7 +20,7 @@ for arg in "$@"; do
 done
 
 # Candidate selection is exclusively a dry-run input. Live host verification
-# retains its fixed checkout/branch and all original evidence/runtime gates.
+# uses the configured checkout/branch and all original evidence/runtime gates.
 if [ "${PR204_DRY_RUN_REPO+x}${PR204_DRY_RUN_EXPECTED_BRANCH+x}${PR204_DRY_RUN_EXPECTED_HEAD+x}" != "" ]; then
   if [ "$DRY_RUN" -ne 1 ]; then
     printf 'ERROR: candidate overrides require --dry-run\n' >&2; exit 2
@@ -172,7 +174,7 @@ if [ "$TRACKED_STATE" = DIRTY ] || [ -z "$PG_BIN" ] || [ ! -x "$PG_BIN/initdb" ]
 fi
 
 export PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
-RUN_TMP="$(mktemp -d /private/tmp/researchbase-pr2-04-host.XXXXXX)" || exit 2
+RUN_TMP="$(mktemp -d "$REVIEW_TMP_ROOT/researchbase-pr2-04-host.XXXXXX")" || exit 2
 PGDATA="$RUN_TMP/data"
 PGLOG="$RUN_TMP/postgres.log"
 PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"

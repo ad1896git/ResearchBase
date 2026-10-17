@@ -102,13 +102,9 @@ def create(
     provider_version: str = typer.Option(..., "--provider-version"),
     queries_json: str = typer.Option(..., "--queries-json"),
     max_results: int = typer.Option(20, "--max-results", min=1, max=100),
-    max_provider_attempts: int = typer.Option(
-        3, "--max-provider-attempts", min=1, max=3
-    ),
+    max_provider_attempts: int = typer.Option(3, "--max-provider-attempts", min=1, max=3),
     timeout_seconds: int = typer.Option(30, "--timeout-seconds", min=1, max=30),
-    execution_budget_seconds: int = typer.Option(
-        300, "--execution-budget-seconds", min=1, max=600
-    ),
+    execution_budget_seconds: int = typer.Option(300, "--execution-budget-seconds", min=1, max=600),
     json_mode: bool = typer.Option(False, "--json"),
 ) -> None:
     runtime = _runtime(ctx)

@@ -49,10 +49,19 @@ def _invoke(fake: ErrorApplication, *args: str):
 
 def test_all_stable_error_codes_have_cli_exit_mapping() -> None:
     expected = {
+        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 4,
+        ErrorCode.APPROVAL_GATE_FAILED: 4,
+        ErrorCode.DECISION_BASIS_INVALID: 4,
+        ErrorCode.APPROVAL_TARGET_STALE: 4,
+        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 4,
+        ErrorCode.GRANT_INVALID: 4,
+        ErrorCode.GRANT_STALE: 4,
         ErrorCode.VALIDATION_ERROR: 2,
         ErrorCode.NOT_FOUND: 3,
         ErrorCode.AUTHENTICATION_REQUIRED: 3,
         ErrorCode.FORBIDDEN: 3,
+        ErrorCode.REVIEW_TARGET_NOT_FROZEN: 4,
+        ErrorCode.CONFLICT_OF_INTEREST: 3,
         ErrorCode.SUBJECT_BINDING_UNPROVEN: 3,
         ErrorCode.INVALID_STATE_TRANSITION: 4,
         ErrorCode.VERSION_NOT_FROZEN: 4,

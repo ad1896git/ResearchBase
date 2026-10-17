@@ -1,0 +1,7 @@
+{
+  "server_version": "PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin27.0.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+  "DATABASE_URL": "postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_task14_full_2ebd03b2ab3b47b2b8936c796f26adad",
+  "RB_TEST_ADMIN_URL": "postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres",
+  "HG1_RUN_LOCAL": "1",
+  "HG1_RUN_LIVE": null
+}

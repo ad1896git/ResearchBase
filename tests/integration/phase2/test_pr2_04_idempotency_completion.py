@@ -157,7 +157,11 @@ def test_pg_reachable_saved_command_replay_preserves_all_facts_and_rechecks_enti
         service.cancel(command)
     else:
         provider.script.append(_script_step("UNKNOWN"))
-        provider.observer = lambda request: service.cancel(command)
+
+        def cancel_during_call(request):
+            service.cancel(command)
+
+        provider.observer = cancel_during_call
         service.execute(_command("execute", principal, project, execution_id))
         provider.observer = None
 
@@ -201,9 +205,11 @@ def test_pg_running_recovery_receipt_replays_before_and_after_separate_finalizat
     interrupted = _service(engine, provider, StopAfterOutcome)
     execution_id = UUID(interrupted.create(create)["execution_id"])
     if terminal == "CANCELLED":
-        provider.observer = lambda request: _service(engine, provider).cancel(
-            _command("cancel", principal, project, execution_id)
-        )
+
+        def cancel_during_call(request):
+            _service(engine, provider).cancel(_command("cancel", principal, project, execution_id))
+
+        provider.observer = cancel_during_call
     with pytest.raises(InterruptedAfterCommit):
         interrupted.execute(_command("execute", principal, project, execution_id))
     provider.observer = None
@@ -271,7 +277,7 @@ def test_pg_new_execute_key_cannot_bypass_committed_stop_or_exhaustion(
     provider = ScriptedProvider(script, "provider-a")
     stopped = _service(engine, provider, StopAfterOutcome)
     stopped.stop_query_index = int(prior_hits)
-    options = {"queries": prefix + (target,) + suffix}
+    options: dict[str, tuple[str, ...] | int] = {"queries": prefix + (target,) + suffix}
     if stop == "attempt_exhausted":
         options["max_provider_attempts"] = 1
     if stop == "time_budget":

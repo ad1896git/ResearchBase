@@ -9,12 +9,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-    _material,
-)
 
 from researchbase.application.literature_search_plan import (
     CreateLiteratureSearchPlan,
@@ -31,6 +25,12 @@ from researchbase.application.phase2_identity import (
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+    _material,
+)
 
 
 def _provision(identity, owner):
@@ -273,6 +273,8 @@ def test_authority_loss_during_observed_project_lock_wait(
     original_attempt = service._create_once
     original_authorize = service._authorize
     attempts = []
+    # Retain transaction objects so Python cannot recycle their ids between retries.
+    session_transactions = []
     pids = Queue()
 
     def observed_attempt(command):
@@ -315,8 +317,15 @@ def test_authority_loss_during_observed_project_lock_wait(
 
     def observed(repo, project_id):
         trace = attempts[-1]
-        trace["backend_pid"] = repo._session.execute(text("SELECT pg_backend_pid()")).scalar_one()
-        trace["session_transaction_identity"] = id(repo._session.get_transaction())
+        pid, transaction_id = repo._session.execute(
+            text("SELECT pg_backend_pid(), pg_current_xact_id()::text")
+        ).one()
+        trace["backend_pid"] = pid
+        trace["database_transaction_id"] = transaction_id
+        transaction = repo._session.get_transaction()
+        assert transaction is not None
+        session_transactions.append(transaction)
+        trace["session_transaction_identity"] = id(transaction)
         trace["project_lock_entered"] = True
         pids.put(trace)
         original(repo, project_id)
@@ -476,8 +485,10 @@ def test_authority_loss_during_observed_project_lock_wait(
             assert retryable_attempt["retryable_error"] == "CONCURRENT_MODIFICATION"
             assert retryable_attempt["terminal_result"] == "CONCURRENT_MODIFICATION"
             assert "40001" in retryable_attempt["sqlstates"]
-        assert len({trace["backend_pid"] for trace in attempts}) == len(attempts)
+        # A pooled backend may be reused, but each retry must use a fresh DB transaction.
+        assert len({trace["database_transaction_id"] for trace in attempts}) == len(attempts)
         assert len({trace["session_transaction_identity"] for trace in attempts}) == len(attempts)
+        assert all(not transaction.is_active for transaction in session_transactions)
         assert terminal_attempt["started_at_monotonic"] > waiting_attempt["exited_at_monotonic"]
     assert terminal_attempt["authorization_entered_at_monotonic"] >= commit_completed_at
     assert terminal_attempt["authorization_result"] == "FORBIDDEN"
@@ -493,14 +504,18 @@ def test_authority_loss_during_observed_project_lock_wait(
         <= waiting_attempt["project_lock_resumed_at_monotonic"]
         <= waiting_attempt["exited_at_monotonic"]
     )
-    # Retain the complete trace in JUnit even when a production retry is detected.
-    assert len(attempts) == 1, "AUTHORITY_RACE_RETRY_MASKING_CONFIRMED"
-    assert waiting_attempt is attempts[-1]
+    # The role update invalidates the waiting SERIALIZABLE snapshot. Require
+    # its explicit 40001 rollback, then fresh authorization in exactly one new
+    # transaction; the trace must never present that retry as the waited attempt.
+    assert len(attempts) == 2
+    assert waiting_attempt is attempts[0]
+    assert terminal_attempt is attempts[1]
+    assert waiting_attempt is not terminal_attempt
     assert waiting_attempt["attempt"] == 1
-    assert waiting_attempt["retryable_error"] is None
-    assert waiting_attempt["sqlstates"] == []
-    assert waiting_attempt["authorization_result"] == "FORBIDDEN"
-    assert waiting_attempt["terminal_result"] == "FORBIDDEN"
+    assert waiting_attempt["retryable_error"] == "CONCURRENT_MODIFICATION"
+    assert "40001" in waiting_attempt["sqlstates"]
+    assert waiting_attempt["terminal_result"] == "CONCURRENT_MODIFICATION"
+    assert terminal_attempt["attempt"] == 2
     assert (
         controller_locked_at
         <= waiting_attempt["started_at_monotonic"]

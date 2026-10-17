@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -10,11 +8,6 @@ from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_03_effective_authority import _lose_owner_authority
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-)
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
@@ -33,6 +26,12 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from tests.integration.phase2.test_pr2_03_effective_authority import _lose_owner_authority
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+)
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 def _execution_service(engine, provider: FakeSearchCapability) -> LiteratureSearchExecutionService:
@@ -108,8 +107,9 @@ def test_pr2_04_execution_persists_reconstructable_plan_attempt_query_result_cha
                 "A bounded snippet",
                 0.75,
             ),
-        ), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+        ),
+        retrieved_at=PROVIDER_RETRIEVED_AT,
+    )
     provider = FakeSearchCapability(capability_id="provider-a", version="1", responses=[response])
     service = _execution_service(engine, provider)
     created = service.create(
@@ -236,8 +236,9 @@ def test_pr2_04_provider_retry_persists_distinct_attempt_and_query_observations(
                 provider_version="1",
                 normalized_query="normalization evidence",
                 provider_request_id="provider-request-2",
-                hits=(SearchHit("result-1", "A result", None, None, None),), retrieved_at=PROVIDER_RETRIEVED_AT,
-),
+                hits=(SearchHit("result-1", "A result", None, None, None),),
+                retrieved_at=PROVIDER_RETRIEVED_AT,
+            ),
         ],
     )
     service = _execution_service(engine, provider)
@@ -453,8 +454,9 @@ def test_pr2_04_authority_loss_during_provider_call_denies_tx_b(
                 provider_version="1",
                 normalized_query="normalization evidence",
                 provider_request_id="provider-request-1",
-                hits=(SearchHit("result-1", "A result", None, None, None),), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+                hits=(SearchHit("result-1", "A result", None, None, None),),
+                retrieved_at=PROVIDER_RETRIEVED_AT,
+            )
         ],
     )
     service = _execution_service(engine, provider)
@@ -749,8 +751,9 @@ def test_pr2_04_known_provider_failure_is_terminal_without_retry_or_partial_resu
             provider_version="1",
             normalized_query="normalization evidence",
             provider_request_id="provider-request-1",
-            hits=(SearchHit("must-not-survive", "Malformed echo", None, None, None),), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+            hits=(SearchHit("must-not-survive", "Malformed echo", None, None, None),),
+            retrieved_at=PROVIDER_RETRIEVED_AT,
+        )
         expected_attempt = "PERMANENT_FAILURE"
         expected_failure = "PROVIDER_MALFORMED"
     provider = FakeSearchCapability(capability_id="provider-a", version="1", responses=[response])

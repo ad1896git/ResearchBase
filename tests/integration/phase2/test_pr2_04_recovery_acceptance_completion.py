@@ -8,6 +8,12 @@ from uuid import UUID, uuid4
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
+
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.literature_search_provider import ProviderError, ProviderFailureKind
+from researchbase.application.phase2_identity import AssignProjectRole
+from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from tests.integration.phase2.test_pr2_03_effective_authority import _provision
 from tests.integration.phase2.test_pr2_04_execution_recovery import ReservedBeforeInvocation
@@ -18,12 +24,6 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
     _snapshot,
 )
 from tests.unit.phase2.test_pr2_04_provider_coverage import ScriptedProvider, success
-
-from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.literature_search_provider import ProviderError, ProviderFailureKind
-from researchbase.application.phase2_identity import AssignProjectRole
-from researchbase.domain.literature_search_execution import DeliveryCertainty
-from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 
 class TestOwnedInterruption(RuntimeError):
@@ -154,7 +154,7 @@ def test_pg_recovery_stops_known_incomplete_work_and_preserves_prior_hits(
     completion_case, boundary, pr204_trace: FactRecorder
 ):
     engine, _, _, principal, project, create = completion_case
-    script = [success("first query", "provider-a", 2)]
+    script: list[SearchResponse | ProviderError] = [success("first query", "provider-a", 2)]
     if boundary == "retry_backoff":
         script.append(
             ProviderError(
@@ -180,7 +180,11 @@ def test_pg_recovery_stops_known_incomplete_work_and_preserves_prior_hits(
         assert engine.pool.checkedout() == 0
         raise TestOwnedInterruption("after sealed retryable outcome before backoff")
 
-    cls = StopBeforeNextReservation if boundary == "between_queries" else LiteratureSearchExecutionService
+    cls = (
+        StopBeforeNextReservation
+        if boundary == "between_queries"
+        else LiteratureSearchExecutionService
+    )
     driver = _service(engine, provider, cls, sleep=interrupted_backoff)
     execution_id = UUID(
         driver.create(replace(create, queries=("first query", "second query")))["execution_id"]
@@ -189,7 +193,9 @@ def test_pg_recovery_stops_known_incomplete_work_and_preserves_prior_hits(
         driver.execute(_command("execute", principal, project, execution_id))
     before = _snapshot(engine, project)
     expected_calls = 1 if boundary == "between_queries" else 2
-    assert len(provider.calls) == len(before["attempts"]) == len(before["queries"]) == expected_calls
+    assert (
+        len(provider.calls) == len(before["attempts"]) == len(before["queries"]) == expected_calls
+    )
     assert len(before["results"]) == 2
     assert before["executions"][0]["status"] == "RUNNING"
     assert not any(a["status"] == "RESERVED" for a in before["attempts"])

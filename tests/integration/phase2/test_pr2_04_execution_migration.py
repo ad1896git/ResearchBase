@@ -1,24 +1,17 @@
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 import json
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
-from scripts.pr2_04_pytest_evidence import FactRecorder
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-)
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
@@ -33,6 +26,12 @@ from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+)
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 REVISION = "0024_literature_search_execution"
 PARENT = "0023a_search_plan_review_guards"
@@ -71,7 +70,7 @@ def test_pr2_04_upgrade_adds_exact_tables_and_unique_head(
         )
         assert set(inspect(connection).get_table_names()) >= TABLES
         assert ScriptDirectory.from_config(_alembic(phase2_database_url)).get_heads() == [
-            "0026_pr2_04_p1_contract_guards"
+            "0059_b13_grant_consumption"
         ]
         pr204_trace.record(
             current_revision=connection.execute(
@@ -171,8 +170,9 @@ def test_pr2_04_populated_downgrade_refuses_without_dropping_data(
                     provider_version="1",
                     normalized_query="normalization evidence",
                     provider_request_id="provider-request-1",
-                    hits=(SearchHit("result-1", "A result", None, None, None),), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+                    hits=(SearchHit("result-1", "A result", None, None, None),),
+                    retrieved_at=PROVIDER_RETRIEVED_AT,
+                )
             ],
         ),
         credential_verifier=_AlwaysValidCredential(),

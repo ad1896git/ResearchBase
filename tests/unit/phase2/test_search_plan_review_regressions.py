@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from typing import Never
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -12,8 +11,21 @@ from researchbase.application.literature_search_plan import LiteratureSearchPlan
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 
+def _unexpected_uow():
+    raise AssertionError("this focused helper test must not open a transaction")
+
+
+class _ValidCredential:
+    def is_valid(self, principal, at) -> bool:
+        return True
+
+
 class Services:
     calls = 0
+    application: object = None
+    provenance: object = None
+    governance: object = None
+    governance_queries: object = None
 
     @property
     def literature_search_plans(self):
@@ -65,7 +77,7 @@ def test_effective_role_controls_authorization(current, allowed):
     historical = {**common, "role": "OWNER", "effective_until": at - timedelta(days=1)}
     active = {**common, "role": current, "effective_until": None}
     repo = SimpleNamespace(authorize=lambda *_: [historical, active], at=lambda: at)
-    service = LiteratureSearchPlanService(lambda: None, SimpleNamespace(is_valid=lambda *_: True))
+    service = LiteratureSearchPlanService(_unexpected_uow, _ValidCredential())
     principal = SimpleNamespace(verified_at=at - timedelta(seconds=1))
     if allowed:
         assert service._authorize(repo, principal, uuid4())[0] == active
@@ -93,7 +105,7 @@ def test_replacement_uses_contract_15_reference_order():
         for r in refs
     }
     repo = SimpleNamespace(question=lambda version, **_: rows[version])
-    service = LiteratureSearchPlanService(lambda: None, None)
+    service = LiteratureSearchPlanService(_unexpected_uow, None)
     with patch("researchbase.application.literature_search_plan._validate_question_row"):
         result = service._resolve_refs(repo, uuid4(), refs)
     assert [r["version_id"] for r in result] == [UUID(int=3), UUID(int=9)]
@@ -106,9 +118,8 @@ def test_literal_contract_15_golden_vectors():
     import json
     from pathlib import Path
 
-    from tests.unit.phase2.test_literature_search_plan import material
-
     from researchbase.foundation.canonical_json import canonical_json_bytes
+    from tests.unit.phase2.test_literature_search_plan import material
 
     vectors = json.loads(Path(__file__).with_name("search_plan_golden_vectors.json").read_text())
     for vector in vectors:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import pwd
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -10,11 +12,14 @@ from fastapi import FastAPI
 
 from researchbase import __version__
 from researchbase.application.commands import ApplicationService
+from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
+from researchbase.application.literature_evidence import LiteratureEvidenceService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
+from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
+from researchbase.application.novelty import NoveltyService
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
@@ -23,12 +28,13 @@ from researchbase.application.source_version import SourceVersionService
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
+from researchbase.local_identity import LocalIdentityAdapter, process_uid
 from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 
 class HttpServices(Protocol):
@@ -57,6 +63,8 @@ class ServiceBundle:
     source_merge_execution: SourceMergeExecutionService | None = None
     literature_search_plans: LiteratureSearchPlanService | None = None
     literature_search_executions: LiteratureSearchExecutionService | None = None
+    novelty: NoveltyService | None = None
+    decisions: DecisionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -70,19 +78,36 @@ def build_services() -> ServiceBundle:
 
     clock = SystemClock()
     store = ContentAddressedFilesystemArtifactStore(Path(settings.artifact_store_root))
+    root = Path(
+        os.environ.get(
+            "RESEARCHBASE_LOCAL_ROOT",
+            str(Path(pwd.getpwuid(process_uid()).pw_dir) / ".researchbase-local"),
+        )
+    )
+    credentials = LocalIdentityAdapter(root)
     return ServiceBundle(
         ApplicationService(uow_factory, clock, store),
         ProvenanceQueryService(uow_factory),
         GovernanceService(uow_factory, clock),
         GovernanceQueryService(uow_factory),
-        SourceIdentityService(uow_factory, None),
-        SourceMergeGovernanceService(uow_factory, None),
-        SourceVersionService(uow_factory, None),
-        SourceMergeExecutionService(uow_factory, None),
-        LiteratureSearchPlanService(uow_factory, None),
+        SourceIdentityService(uow_factory, credentials),
+        SourceMergeGovernanceService(uow_factory, credentials),
+        SourceVersionService(uow_factory, credentials),
+        SourceMergeExecutionService(uow_factory, credentials),
+        LiteratureSearchPlanService(uow_factory, credentials),
         LiteratureSearchExecutionService(
             literature_search_execution_uow_factory(session_factory),
             StaticSearchCapabilityRegistry(),
+            credential_verifier=credentials,
+        ),
+        NoveltyService(
+            uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
+        decisions=DecisionService(
+            uow_factory,
+            credentials,
+            LiteratureEvidenceService(uow_factory, credentials, store),
+            store,
         ),
     )
 

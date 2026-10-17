@@ -1,0 +1,18 @@
+{
+  "collected": 5169,
+  "unique_results": 5169,
+  "totals": {
+    "passed": 5169,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "exits": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "coverage": "Every collected test has exactly one JUnit result"
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from types import TracebackType
 
+from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -12,6 +13,7 @@ from researchbase.application.ports import (
     ActorRepository,
     ArtifactRepository,
     ArtifactVersionRepository,
+    AuthorshipRepository,
     ClaimRepository,
     DatasetRepository,
     DatasetSnapshotRepository,
@@ -25,11 +27,14 @@ from researchbase.application.ports import (
     ProjectRepository,
     ResearchQuestionRepository,
     RunRepository,
+    SearchResultResolutionRepository,
     StatisticalResultRepository,
     WorkspaceRepository,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
+from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
+from researchbase.persistence.authorship_repository import SqlAlchemyAuthorshipRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 from researchbase.persistence.discussion_repository import SqlAlchemyDiscussionRepository
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
@@ -43,9 +48,13 @@ from researchbase.persistence.literature_search_execution_repository import (
 from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
+from researchbase.persistence.manuscript_freeze_repository import (
+    SqlAlchemyManuscriptFreezeRepository,
+)
 from researchbase.persistence.metadata_observation_repository import (
     SqlAlchemyMetadataObservationRepository,
 )
+from researchbase.persistence.novelty_repository import SqlAlchemyNoveltyRepository
 from researchbase.persistence.phase2_identity_repository import SqlAlchemyPhase2IdentityRepository
 from researchbase.persistence.publication_repository import SqlAlchemyPublicationRepository
 from researchbase.persistence.repositories import (
@@ -66,15 +75,21 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
     SqlAlchemyWorkspaceRepository,
 )
+from researchbase.persistence.revision_action_repository import SqlAlchemyRevisionActionRepository
 from researchbase.persistence.scientific_conclusion_repository import (
     SqlAlchemyScientificConclusionRepository,
+)
+from researchbase.persistence.search_result_resolution_repository import (
+    SqlAlchemySearchResultResolutionRepository,
 )
 from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
 from researchbase.persistence.source_version_repository import SqlAlchemySourceVersionRepository
 
 
-def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
+def _normalize_database_error(
+    exc: BaseException, *, retry_deadlocks: bool = False
+) -> ResearchBaseError | None:
     """Classify expected PostgreSQL failures from stable driver metadata."""
     if not isinstance(exc, DBAPIError):
         return None
@@ -82,6 +97,11 @@ def _normalize_database_error(exc: BaseException) -> ResearchBaseError | None:
     sqlstate = getattr(original, "sqlstate", None)
     diagnostic = getattr(original, "diag", None)
     constraint = getattr(diagnostic, "constraint_name", None)
+    if sqlstate == "40P01" and retry_deadlocks:
+        return ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION,
+            "deadlocked serializable transaction must be retried",
+        )
     if sqlstate == "40001":
         return ResearchBaseError(
             ErrorCode.CONCURRENT_MODIFICATION,
@@ -213,6 +233,7 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     """PR2-15 opt-in classification from driver codes, never raw diagnostics."""
     state = getattr(exc.orig, "sqlstate", None)
     codes = {
+        "P17R1": ErrorCode.INVALID_STATE_TRANSITION,
         "P17F1": ErrorCode.IMMUTABLE_RECORD,
         "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
         "P17F3": ErrorCode.IDEMPOTENCY_CONFLICT,
@@ -222,6 +243,25 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     code = codes.get(state) if isinstance(state, str) else None
     if code is not None:
         return ResearchBaseError(code, "decision transaction rejected")
+    constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state == "23505" and constraint == "decision_records_pkey":
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT,
+            "reload exact Decision after rollback",
+            {"reload_decision": True},
+        )
+    if state == "23505" and constraint in {"uq_b08_issue_terminal", "review_issue_events_pkey"}:
+        return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reload issue disposition")
+    if state == "23505" and constraint == "uq_b07_decision_concern":
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT, "concern decision already recorded"
+        )
+    if state == "23505" and constraint == "pk_b07_action_re_review":
+        return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reload concern correspondence")
+    if state == "23505" and constraint == "uq_revision_action_predecessor":
+        return ResearchBaseError(
+            ErrorCode.INVALID_STATE_TRANSITION, "predecessor already superseded"
+        )
     normalized = _normalize_database_error(exc)
     if normalized is not None:
         return normalized
@@ -229,7 +269,130 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     return ResearchBaseError(ErrorCode.INVALID_STATE_TRANSITION, "decision transaction failed")
 
 
+def _issue_disposition_database_error(exc: DBAPIError) -> ResearchBaseError:
+    """B08 alone opts in to its finite fresh-UoW retry protocol."""
+    error = _decision_database_error(exc)
+    if getattr(exc.orig, "sqlstate", None) in {"40001", "40P01"}:
+        return ResearchBaseError(error.code, error.message, {"retryable_b08": True})
+    return error
+
+
+def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
+    state = getattr(exc.orig, "sqlstate", None)
+    codes = {
+        "P10B1": ErrorCode.DECISION_BASIS_INVALID,
+        "P16P1": ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
+        "P16T1": ErrorCode.APPROVAL_TARGET_STALE,
+        "P16R1": ErrorCode.REJECTION_RECONSIDERATION_REQUIRED,
+        "P16B1": ErrorCode.DECISION_BASIS_INVALID,
+        "P16G1": ErrorCode.APPROVAL_GATE_FAILED,
+        "P16C1": ErrorCode.CONFLICT_OF_INTEREST,
+        "P16A1": ErrorCode.FORBIDDEN,
+    }
+    constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state in {"40001", "40P01"}:
+        return ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION,
+            "decision transaction rejected",
+            {"retryable_b13": True},
+        )
+    if state == "P13S1":
+        return ResearchBaseError(ErrorCode.GRANT_STALE, "issuing authority lost")
+    if state == "P13G1":
+        return ResearchBaseError(ErrorCode.GRANT_INVALID, "grant unavailable")
+    if state == "23505" and constraint == "uq_b13_command_key":
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT, "command key already committed", {"b13_key_race": True}
+        )
+    if state == "23505" and constraint == "uq_b13_consumption_grant":
+        return ResearchBaseError(ErrorCode.GRANT_INVALID, "grant already consumed")
+    if state == "23514" and constraint == "ck_b13_result_tuple":
+        return ResearchBaseError(
+            ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, "result binding unavailable"
+        )
+    if state == "23505" and constraint == "uq_b10_successor_reconsideration":
+        return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reconsideration already used")
+    if state == "23514" and constraint in {"ck_b10_request_links"}:
+        return ResearchBaseError(
+            ErrorCode.REJECTION_RECONSIDERATION_REQUIRED, "successor links required"
+        )
+    if state == "23514" and constraint in {
+        "ck_b10_text_bounds",
+        "ck_b10_finite_time",
+        "ck_b10_decision_pair",
+    }:
+        return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid reconsideration material")
+    if state == "23514" and constraint in {"ck_b09_request_tuple", "ck_b09_grant_tuple"}:
+        return ResearchBaseError(
+            ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, "unlisted approval tuple"
+        )
+    if state == "23505" and constraint in {
+        "uq_b09_pending_conclusion",
+        "uq_b09_pending_manuscript",
+    }:
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT, "pending exact approval already exists"
+        )
+    if state in {"55P03", "57014"}:
+        return ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "database wait timed out")
+    if state in codes:
+        return ResearchBaseError(codes[state], "approval transaction rejected")
+    return _decision_database_error(exc)
+
+
+def _authorship_database_error(exc: DBAPIError) -> ResearchBaseError:
+    state = getattr(exc.orig, "sqlstate", None)
+    codes = {
+        "P17A1": ErrorCode.IMMUTABLE_RECORD,
+        "P17A2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+        "P17A3": ErrorCode.VALIDATION_ERROR,
+        "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+        "23514": ErrorCode.VALIDATION_ERROR,
+        "23502": ErrorCode.VALIDATION_ERROR,
+        "23505": ErrorCode.CONCURRENT_MODIFICATION,
+        "40001": ErrorCode.CONCURRENT_MODIFICATION,
+        "40P01": ErrorCode.CONCURRENT_MODIFICATION,
+        "55P03": ErrorCode.CONCURRENT_MODIFICATION,
+        "57014": ErrorCode.CONCURRENT_MODIFICATION,
+    }
+    error = ResearchBaseError(
+        codes.get(state, ErrorCode.INVALID_STATE_TRANSITION)
+        if isinstance(state, str)
+        else ErrorCode.INVALID_STATE_TRANSITION,
+        "authorship transaction rejected",
+    )
+    error._authorship_retryable = state in {"40001", "40P01"}  # type: ignore[attr-defined]
+    return error
+
+
+def _manuscript_freeze_database_error(exc: DBAPIError) -> ResearchBaseError:
+    state = getattr(exc.orig, "sqlstate", None)
+    codes = {
+        "P04M1": ErrorCode.IMMUTABLE_RECORD,
+        "P04M2": ErrorCode.INVALID_STATE_TRANSITION,
+        "P04M3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+        "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+        "23514": ErrorCode.VALIDATION_ERROR,
+        "23502": ErrorCode.VALIDATION_ERROR,
+        "23505": ErrorCode.CONCURRENT_MODIFICATION,
+        "40001": ErrorCode.CONCURRENT_MODIFICATION,
+        "40P01": ErrorCode.CONCURRENT_MODIFICATION,
+        "55P03": ErrorCode.CONCURRENT_MODIFICATION,
+        "57014": ErrorCode.CONCURRENT_MODIFICATION,
+    }
+    if state in codes:
+        return ResearchBaseError(
+            codes[state],
+            "manuscript transaction rejected",
+            {"retryable_b04": state in {"40001", "40P01"}},
+        )
+    return _decision_database_error(exc)
+
+
 class SqlAlchemyUnitOfWork:
+    manuscript_freeze: SqlAlchemyManuscriptFreezeRepository
+    authorship: AuthorshipRepository
+    search_result_resolutions: SearchResultResolutionRepository
     actors: ActorRepository
     projects: ProjectRepository
     workspaces: WorkspaceRepository
@@ -258,6 +421,8 @@ class SqlAlchemyUnitOfWork:
     discussion: SqlAlchemyDiscussionRepository
     scientific_conclusion: SqlAlchemyScientificConclusionRepository
     publication: SqlAlchemyPublicationRepository
+    revision_action: SqlAlchemyRevisionActionRepository
+    approval: SqlAlchemyApprovalRepository
     decision: SqlAlchemyDecisionRepository
 
     def __init__(
@@ -269,11 +434,30 @@ class SqlAlchemyUnitOfWork:
         self._session_factory = session_factory
         self._pr204_error_normalization = pr204_error_normalization
         self._decision_error_normalization = False
+        self._prepare_submission_error_normalization = False
+        self._approval_error_normalization = False
+        self._authorship_error_normalization = False
+        self._serializable_retry_normalization = False
+        self._b01_error_normalization = False
+        self._novelty_error_normalization = False
+        self._manuscript_freeze_error_normalization = False
+        self._internal_review_error_normalization = False
+        self._issue_disposition_error_normalization = False
         self._session: Session | None = None
 
         self._committed = False
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
+        self._decision_error_normalization = False
+        self._prepare_submission_error_normalization = False
+        self._approval_error_normalization = False
+        self._authorship_error_normalization = False
+        self._serializable_retry_normalization = False
+        self._b01_error_normalization = False
+        self._novelty_error_normalization = False
+        self._manuscript_freeze_error_normalization = False
+        self._internal_review_error_normalization = False
+        self._issue_disposition_error_normalization = False
         self._session = self._session_factory()
         self._session.begin()
         self.actors = SqlAlchemyActorRepository(self._session)
@@ -294,6 +478,7 @@ class SqlAlchemyUnitOfWork:
         self.claims = SqlAlchemyClaimRepository(self._session)
         self.governance = SqlAlchemyGovernanceRepository(self._session)
         self.phase2_identity = SqlAlchemyPhase2IdentityRepository(self._session)
+        self.search_result_resolutions = SqlAlchemySearchResultResolutionRepository(self._session)
         self.metadata_observations = SqlAlchemyMetadataObservationRepository(self._session)
         self.source_identity = SqlAlchemySourceIdentityRepository(self._session)
         self.source_merge = SqlAlchemySourceMergeRepository(self._session)
@@ -306,9 +491,51 @@ class SqlAlchemyUnitOfWork:
         self.discussion = SqlAlchemyDiscussionRepository(self._session)
         self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(self._session)
         self.publication = SqlAlchemyPublicationRepository(self._session)
+        self.manuscript_freeze = SqlAlchemyManuscriptFreezeRepository(self._session)
         self.internal_review = SqlAlchemyInternalReviewRepository(self._session)
+        self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
+        self.approval = SqlAlchemyApprovalRepository(self._session)
+        self.authorship = SqlAlchemyAuthorshipRepository(self._session)
+        self.novelty = SqlAlchemyNoveltyRepository(self._session)
         return self
+
+    def enable_manuscript_freeze_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._manuscript_freeze_error_normalization = True
+
+    def begin_formal_read(self) -> None:
+        """One lock-free snapshot, including nested authorization and verification."""
+        session = self._require_session()
+        session.autoflush = False
+        session.connection(
+            execution_options={
+                "isolation_level": "REPEATABLE READ",
+                "postgresql_readonly": True,
+            }
+        )
+        self.enable_revision_action_snapshot_reads()
+        self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(
+            session, protected_reads=True
+        )
+
+    def begin_resolution(self, *, read_only: bool) -> None:
+        """Configure B01 before SQL; transaction options emit no preceding query."""
+        self._decision_error_normalization = True
+        self._b01_error_normalization = True
+        session = self._require_session()
+        session.autoflush = False
+        session.connection(
+            execution_options={
+                "isolation_level": "REPEATABLE READ" if read_only else "READ COMMITTED",
+                "postgresql_readonly": read_only,
+            }
+        )
+        self.enable_revision_action_snapshot_reads()
+
+    def enable_novelty_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._novelty_error_normalization = True
 
     def begin_serializable(self) -> None:
         """Set SERIALIZABLE before the first SQL statement in this UoW."""
@@ -320,8 +547,10 @@ class SqlAlchemyUnitOfWork:
             self._require_session().commit()
         except DBAPIError as exc:
             if self._decision_error_normalization:
-                raise _decision_database_error(exc) from None
-            normalized = _normalize_database_error(exc)
+                raise self._command_database_error(exc) from None
+            normalized = _normalize_database_error(
+                exc, retry_deadlocks=self._serializable_retry_normalization
+            )
             if (
                 normalized is None
                 and self._pr204_error_normalization
@@ -349,6 +578,181 @@ class SqlAlchemyUnitOfWork:
         self._require_session().rollback()
         self._committed = False
 
+    def enable_serializable_retry_normalization(self) -> None:
+        """Opt in to deadlock translation for Discussion/Conclusion retries only."""
+        self._serializable_retry_normalization = True
+
+    def configure_revision_transaction(self, *, readonly: bool = False) -> None:
+        """Configure a fresh B06 connection before any transactional statement."""
+        from researchbase.persistence.database import configure_revision_connection
+
+        self._require_session().autoflush = False
+        connection = self._require_session().connection(
+            execution_options={
+                "isolation_level": "REPEATABLE READ" if readonly else "READ COMMITTED",
+                "postgresql_readonly": readonly,
+            }
+        )
+        configure_revision_connection(connection)
+
+    def configure_grant_transaction(self, *, consuming: bool = False) -> None:
+        from researchbase.persistence.database import configure_revision_connection
+
+        session = self._require_session()
+        session.autoflush = False
+        connection = session.connection(
+            execution_options={
+                "isolation_level": "SERIALIZABLE" if consuming else "READ COMMITTED",
+                "postgresql_readonly": False,
+            }
+        )
+        configure_revision_connection(connection)
+        self.enable_revision_action_snapshot_reads()
+
+    def configure_approval_transaction(self, *, readonly: bool = False) -> None:
+        """B09 uses the existing pre-BEGIN connection timeout configuration."""
+        session = self._require_session()
+        session.autoflush = False
+        if readonly:
+            session.connection(
+                execution_options={
+                    "isolation_level": "REPEATABLE READ",
+                    "postgresql_readonly": True,
+                }
+            )
+        else:
+            self.configure_revision_transaction()
+        self.enable_revision_action_snapshot_reads()
+
+    def enable_revision_action_snapshot_reads(self) -> None:
+        """Read-only closure adapters after RevisionAction's protected table snapshot.
+
+        Ordinary commands keep their locking adapters. Frozen Claim material is
+        immutable; mutable source/evidence and ownership facts are SHARE-protected
+        for this UoW, avoiding late row-lock inversions with owning writers.
+        """
+        session = self._require_session()
+        self.publication = SqlAlchemyPublicationRepository(session, protected_reads=True)
+        self.literature_evidence = SqlAlchemyLiteratureEvidenceRepository(
+            session, protected_reads=True
+        )
+        self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(
+            session, protected_reads=True
+        )
+        self.source_version = SqlAlchemySourceVersionRepository(session, protected_reads=True)
+
+    def enable_approval_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._approval_error_normalization = True
+
+    def enable_authorship_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._authorship_error_normalization = True
+
+    def enable_internal_review_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._internal_review_error_normalization = True
+
+    def enable_issue_disposition_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._issue_disposition_error_normalization = True
+
+    def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if self._prepare_submission_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"55P03", "57014"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION, "database wait timed out"
+                )
+            if state == "23514" and constraint in {"ck_b12_decision_policy", "ck_b12_text_bounds"}:
+                return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid preparation material")
+
+        if self._issue_disposition_error_normalization:
+            return _issue_disposition_database_error(exc)
+        if self._internal_review_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            codes = {
+                "P05R1": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "P17D1": ErrorCode.IMMUTABLE_RECORD,
+                "P17E1": ErrorCode.IMMUTABLE_RECORD,
+                "P17E2": ErrorCode.REVIEW_TARGET_NOT_FROZEN,
+                "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "23514": ErrorCode.VALIDATION_ERROR,
+                "23502": ErrorCode.VALIDATION_ERROR,
+                **{
+                    key: ErrorCode.CONCURRENT_MODIFICATION
+                    for key in ("23505", "40001", "40P01", "55P03", "57014")
+                },
+            }
+            if state in codes:
+                return ResearchBaseError(
+                    codes[state],
+                    "review transaction rejected",
+                    {"retryable_b05": state in {"40001", "40P01"}},
+                )
+            raise RuntimeError("review transaction failed; recover by exact request ID") from None
+        if self._manuscript_freeze_error_normalization:
+            return _manuscript_freeze_database_error(exc)
+        if self._b01_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"40001", "40P01"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "resolution transaction conflict",
+                    {"retryable_b01": True},
+                )
+            if state == "23505":
+                if constraint == "search_result_resolutions_search_result_record_id_source_id_key":
+                    return ResearchBaseError(
+                        ErrorCode.DUPLICATE_CONTENT, "resolution tuple already exists"
+                    )
+                if constraint == "search_result_resolutions_pkey":
+                    return ResearchBaseError(
+                        ErrorCode.CONCURRENT_MODIFICATION,
+                        "resolution ID concurrently inserted",
+                        {"reread_b01": True},
+                    )
+            normalized = _normalize_database_error(exc)
+            if normalized is not None:
+                return normalized
+            raise RuntimeError(
+                "resolution transaction failed; recover by exact resolution ID"
+            ) from None
+        if self._authorship_error_normalization:
+            return _authorship_database_error(exc)
+        if self._novelty_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"40001", "40P01"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "novelty transaction conflict",
+                    {"retryable_novelty": True},
+                )
+            if constraint == "uq_pr218_novelty_predecessor":
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION, "predecessor concurrently superseded"
+                )
+            if constraint == "ck_pr218_novelty_initial_slice":
+                return ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION, "only INCONCLUSIVE is available"
+                )
+            normalized = _normalize_database_error(exc)
+            if normalized is not None:
+                return normalized
+            raise RuntimeError("novelty transaction failed; recover by exact request ID") from None
+        return (
+            _approval_database_error(exc)
+            if self._approval_error_normalization
+            else _decision_database_error(exc)
+        )
+
+    def enable_prepare_submission_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._prepare_submission_error_normalization = True
+
     def enable_decision_error_normalization(self) -> None:
         """Apply the command's nondisclosing boundary without changing older commands."""
         self._decision_error_normalization = True
@@ -371,10 +775,10 @@ class SqlAlchemyUnitOfWork:
             finally:
                 self._session = None
         if isinstance(exc_value, DBAPIError):
-            raise _decision_database_error(exc_value) from None
+            raise self._command_database_error(exc_value) from None
         if exc_value is None and cleanup_error is not None:
             if isinstance(cleanup_error, DBAPIError):
-                raise _decision_database_error(cleanup_error) from None
+                raise self._command_database_error(cleanup_error) from None
             raise cleanup_error
 
     def __exit__(
@@ -437,7 +841,9 @@ class SqlAlchemyUnitOfWork:
             self._session.close()
             self._session = None
         if exc_value is not None:
-            normalized = _normalize_database_error(exc_value)
+            normalized = _normalize_database_error(
+                exc_value, retry_deadlocks=self._serializable_retry_normalization
+            )
             if (
                 normalized is None
                 and self._pr204_error_normalization
@@ -465,3 +871,16 @@ class SqlAlchemyUnitOfWork:
         if self._session is None:
             raise RuntimeError("UnitOfWork must be entered before use")
         return self._session
+
+
+def search_result_resolution_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
+    """Startup options bound even B01's first statement, before SET LOCAL is legal."""
+    engine = create_engine(
+        url,
+        connect_args={
+            "options": "-c lock_timeout=10s -c statement_timeout=30s",
+            "connect_timeout": 10,
+        },
+    )
+    sessions = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+    return lambda: SqlAlchemyUnitOfWork(sessions)

@@ -1,0 +1,1431 @@
+{
+  "version": "PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin27.0.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+  "revision": "0042_pr2_15_minimal_decision",
+  "tables": {
+    "literature_search_executions": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "project_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "search_plan_version_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "strategy_id",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "strategy_version",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(16)",
+          "nullable": false,
+          "default": "'PLANNED'::character varying",
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "requested_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "executed_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "started_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "finished_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "execution_context",
+          "type": "JSONB",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "idempotency_key",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "failure_code",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "row_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        }
+      ],
+      "unique_constraints": [
+        {
+          "column_names": [
+            "project_id",
+            "id"
+          ],
+          "name": "uq_lse_project_id",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        },
+        {
+          "column_names": [
+            "project_id",
+            "idempotency_key"
+          ],
+          "name": "uq_lse_project_idempotency",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "literature_search_executions_created_by_fkey",
+          "constrained_columns": [
+            "created_by"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_executions_executed_by_fkey",
+          "constrained_columns": [
+            "executed_by"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_executions_project_id_fkey",
+          "constrained_columns": [
+            "project_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "projects",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_executions_requested_by_fkey",
+          "constrained_columns": [
+            "requested_by"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_executions_search_plan_version_id_fkey",
+          "constrained_columns": [
+            "search_plan_version_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_plan_versions",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_lse_created_by",
+          "unique": false,
+          "column_names": [
+            "created_by"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_lse_plan_version",
+          "unique": false,
+          "column_names": [
+            "search_plan_version_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_lse_project",
+          "unique": false,
+          "column_names": [
+            "project_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_lse_project_created",
+          "unique": false,
+          "column_names": [
+            "project_id",
+            "created_at",
+            "id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lse_project_id",
+          "unique": true,
+          "column_names": [
+            "project_id",
+            "id"
+          ],
+          "duplicates_constraint": "uq_lse_project_id",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lse_project_idempotency",
+          "unique": true,
+          "column_names": [
+            "project_id",
+            "idempotency_key"
+          ],
+          "duplicates_constraint": "uq_lse_project_idempotency",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        }
+      ]
+    },
+    "literature_search_provider_attempts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "execution_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "query_index",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "attempt_number",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "provider_request_key",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "reserved_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "deadline_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "recovery_after",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(24)",
+          "nullable": false,
+          "default": "'RESERVED'::character varying",
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "query_record_id",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "invoked_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "returned_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "retrieved_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "completed_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "delivery_certainty",
+          "type": "VARCHAR(24)",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "provider_request_id",
+          "type": "VARCHAR(256)",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "failure_code",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "retry_after_seconds",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "warning_codes",
+          "type": "JSONB",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "result_count",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "row_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        }
+      ],
+      "unique_constraints": [
+        {
+          "column_names": [
+            "execution_id",
+            "query_index",
+            "attempt_number"
+          ],
+          "name": "uq_lspa_attempt_number",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        },
+        {
+          "column_names": [
+            "execution_id",
+            "id"
+          ],
+          "name": "uq_lspa_execution_id",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        },
+        {
+          "column_names": [
+            "execution_id",
+            "provider_request_key"
+          ],
+          "name": "uq_lspa_provider_request_key",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_lspa_query_record",
+          "constrained_columns": [
+            "query_record_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "search_query_records",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT",
+            "initially": "DEFERRED",
+            "deferrable": true
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_provider_attempts_created_by_fkey",
+          "constrained_columns": [
+            "created_by"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_provider_attempts_execution_id_fkey",
+          "constrained_columns": [
+            "execution_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_executions",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_lspa_created_by",
+          "unique": false,
+          "column_names": [
+            "created_by"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_lspa_execution",
+          "unique": false,
+          "column_names": [
+            "execution_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lspa_attempt_number",
+          "unique": true,
+          "column_names": [
+            "execution_id",
+            "query_index",
+            "attempt_number"
+          ],
+          "duplicates_constraint": "uq_lspa_attempt_number",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lspa_execution_id",
+          "unique": true,
+          "column_names": [
+            "execution_id",
+            "id"
+          ],
+          "duplicates_constraint": "uq_lspa_execution_id",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lspa_one_reserved_per_execution",
+          "unique": true,
+          "column_names": [
+            "execution_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_where": "((status)::text = 'RESERVED'::text)",
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lspa_provider_request_key",
+          "unique": true,
+          "column_names": [
+            "execution_id",
+            "provider_request_key"
+          ],
+          "duplicates_constraint": "uq_lspa_provider_request_key",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        }
+      ]
+    },
+    "search_query_records": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "literature_search_execution_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "provider_attempt_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "query_text",
+          "type": "TEXT",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "perspective",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "provider_id",
+          "type": "VARCHAR(128)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "provider_version",
+          "type": "VARCHAR(128)",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "ordinal",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "executed_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "query_hash",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "hash_scheme",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "default": "'sha256-cjson-v1'::character varying",
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        }
+      ],
+      "unique_constraints": [
+        {
+          "column_names": [
+            "literature_search_execution_id",
+            "query_hash"
+          ],
+          "name": "uq_sqr_execution_hash",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        },
+        {
+          "column_names": [
+            "literature_search_execution_id",
+            "ordinal"
+          ],
+          "name": "uq_sqr_execution_ordinal",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        },
+        {
+          "column_names": [
+            "provider_attempt_id"
+          ],
+          "name": "uq_sqrec_provider_attempt",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_sqr_attempt_same_execution",
+          "constrained_columns": [
+            "literature_search_execution_id",
+            "provider_attempt_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_provider_attempts",
+          "referred_columns": [
+            "execution_id",
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "search_query_records_created_by_fkey",
+          "constrained_columns": [
+            "created_by"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "search_query_records_literature_search_execution_id_fkey",
+          "constrained_columns": [
+            "literature_search_execution_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_executions",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_sqr_attempt",
+          "unique": false,
+          "column_names": [
+            "provider_attempt_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_sqr_created_by",
+          "unique": false,
+          "column_names": [
+            "created_by"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_sqr_execution",
+          "unique": false,
+          "column_names": [
+            "literature_search_execution_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_sqr_execution_hash",
+          "unique": true,
+          "column_names": [
+            "literature_search_execution_id",
+            "query_hash"
+          ],
+          "duplicates_constraint": "uq_sqr_execution_hash",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_sqr_execution_ordinal",
+          "unique": true,
+          "column_names": [
+            "literature_search_execution_id",
+            "ordinal"
+          ],
+          "duplicates_constraint": "uq_sqr_execution_ordinal",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_sqrec_provider_attempt",
+          "unique": true,
+          "column_names": [
+            "provider_attempt_id"
+          ],
+          "duplicates_constraint": "uq_sqrec_provider_attempt",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        }
+      ]
+    },
+    "literature_search_execution_events": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "execution_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "sequence",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "kind",
+          "type": "VARCHAR(24)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "attempt_id",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "prior_status",
+          "type": "VARCHAR(16)",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "new_status",
+          "type": "VARCHAR(16)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "prior_row_version",
+          "type": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "new_row_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "occurred_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        }
+      ],
+      "unique_constraints": [
+        {
+          "column_names": [
+            "execution_id",
+            "sequence"
+          ],
+          "name": "uq_lsee_execution_sequence",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        },
+        {
+          "column_names": [
+            "execution_id",
+            "new_row_version"
+          ],
+          "name": "uq_lsee_mutation_coordinate",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_lsee_attempt_same_execution",
+          "constrained_columns": [
+            "execution_id",
+            "attempt_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_provider_attempts",
+          "referred_columns": [
+            "execution_id",
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_execution_events_attempt_id_fkey",
+          "constrained_columns": [
+            "attempt_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_provider_attempts",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_execution_events_created_by_fkey",
+          "constrained_columns": [
+            "created_by"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_execution_events_execution_id_fkey",
+          "constrained_columns": [
+            "execution_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_executions",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_lsee_attempt",
+          "unique": false,
+          "column_names": [
+            "attempt_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_lsee_execution",
+          "unique": false,
+          "column_names": [
+            "execution_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lsee_cancel_requested",
+          "unique": true,
+          "column_names": [
+            "execution_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_where": "((kind)::text = 'CANCEL_REQUESTED'::text)",
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lsee_execution_sequence",
+          "unique": true,
+          "column_names": [
+            "execution_id",
+            "sequence"
+          ],
+          "duplicates_constraint": "uq_lsee_execution_sequence",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lsee_finished",
+          "unique": true,
+          "column_names": [
+            "execution_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_where": "((kind)::text = 'FINISHED'::text)",
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lsee_mutation_coordinate",
+          "unique": true,
+          "column_names": [
+            "execution_id",
+            "new_row_version"
+          ],
+          "duplicates_constraint": "uq_lsee_mutation_coordinate",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        }
+      ]
+    },
+    "literature_search_execution_command_receipts": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "deployment_id",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "actor_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "project_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "command_name",
+          "type": "VARCHAR(48)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "request_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "request_hash",
+          "type": "CHAR(64)",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "hash_scheme",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "default": "'sha256-cjson-v1'::character varying",
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "result_execution_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "result_dto_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "result_dto",
+          "type": "JSONB",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "completed_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "autoincrement": false,
+          "comment": null
+        }
+      ],
+      "unique_constraints": [
+        {
+          "column_names": [
+            "deployment_id",
+            "actor_id",
+            "project_id",
+            "command_name",
+            "request_id"
+          ],
+          "name": "uq_lse_receipt_scope",
+          "comment": null,
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          }
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "fk_lse_receipt_execution_same_project",
+          "constrained_columns": [
+            "project_id",
+            "result_execution_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "literature_search_executions",
+          "referred_columns": [
+            "project_id",
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_execution_command_receipts_actor_id_fkey",
+          "constrained_columns": [
+            "actor_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        },
+        {
+          "name": "literature_search_execution_command_receipts_created_by_fkey",
+          "constrained_columns": [
+            "created_by"
+          ],
+          "referred_schema": null,
+          "referred_table": "actors",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          },
+          "comment": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_lse_receipt_actor",
+          "unique": false,
+          "column_names": [
+            "actor_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_lse_receipt_execution",
+          "unique": false,
+          "column_names": [
+            "result_execution_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "ix_lse_receipt_project",
+          "unique": false,
+          "column_names": [
+            "project_id"
+          ],
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        },
+        {
+          "name": "uq_lse_receipt_scope",
+          "unique": true,
+          "column_names": [
+            "deployment_id",
+            "actor_id",
+            "project_id",
+            "command_name",
+            "request_id"
+          ],
+          "duplicates_constraint": "uq_lse_receipt_scope",
+          "include_columns": [],
+          "dialect_options": {
+            "postgresql_include": []
+          }
+        }
+      ]
+    }
+  }
+}

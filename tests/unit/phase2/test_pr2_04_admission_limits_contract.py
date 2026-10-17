@@ -156,39 +156,3 @@ def test_invalid_integer_types_reject_before_opening_any_uow(
     )
     assert caught.value.code is ErrorCode.VALIDATION_ERROR
     assert opened == [] and provider.calls == []
-
-
-@pytest.mark.parametrize("field", [field for field, _, _ in LIMITS])
-@pytest.mark.parametrize("value", [True, 1.5, "2"], ids=["boolean", "fractional", "text"])
-@pytest.mark.pr204_requirements("PR204-DOM-03", "PR204-PROV-02")
-def test_invalid_integer_types_reject_before_opening_any_uow(
-    field: str, value: object, pr204_trace: FactRecorder
-) -> None:
-    opened = []
-
-    def forbidden_factory():
-        opened.append("UOW_OPENED")
-        raise AssertionError("invalid admission input opened a transaction")
-
-    provider = FakeSearchCapability()
-    service = LiteratureSearchExecutionService(
-        forbidden_factory, provider, allow_unverified_principal=True
-    )
-    command = replace(
-        CreateLiteratureSearchExecution(
-            uuid4(), uuid4(), uuid4(), "test", uuid4(), "fake", "1", ("query",)
-        ),
-        **{field: value},
-    )
-    with pytest.raises(ResearchBaseError) as caught:
-        service.create(command)
-    pr204_trace.record(
-        storage_kind="no_uow_opened",
-        field=field,
-        supplied_type=type(value).__name__,
-        error_code=caught.value.code.value,
-        uow_open_attempts=len(opened),
-        provider_calls=len(provider.calls),
-    )
-    assert caught.value.code is ErrorCode.VALIDATION_ERROR
-    assert opened == [] and provider.calls == []

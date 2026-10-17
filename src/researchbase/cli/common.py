@@ -286,6 +286,8 @@ def invoke(
     runtime: CliRuntime,
     json_mode: bool,
     operation: Callable[[], object],
+    *,
+    internal_error_exit_code: int = 70,
 ) -> None:
     started = monotonic()
     command = getattr(operation, "__qualname__", "command")
@@ -317,4 +319,4 @@ def invoke(
         raise typer.Exit(code=cli_exit_code(exc)) from None
     except Exception:
         emit_error(RuntimeError("unexpected internal error"), runtime.request_id, json_mode)
-        raise typer.Exit(code=70) from None
+        raise typer.Exit(code=internal_error_exit_code) from None

@@ -11,8 +11,9 @@ from researchbase.foundation.canonical_json import canonical_json_text
 
 
 class SqlAlchemyScientificConclusionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, protected_reads: bool = False) -> None:
         self._session = session
+        self._protected_reads = protected_reads
 
     def lock_command(
         self, deployment: str, project: UUID, actor: UUID, command: str, request: UUID
@@ -27,8 +28,13 @@ class SqlAlchemyScientificConclusionRepository:
             """SELECT * FROM scientific_conclusion_command_receipts
                WHERE deployment_id=:deployment AND project_id=:project AND actor_id=:actor
                  AND command_name=:command AND request_id=:request""",
-            {"deployment": principal.deployment_id, "project": project,
-             "actor": principal.actor_id, "command": command, "request": request},
+            {
+                "deployment": principal.deployment_id,
+                "project": project,
+                "actor": principal.actor_id,
+                "command": command,
+                "request": request,
+            },
         )
 
     def save_receipt(self, row: dict[str, object]) -> None:
@@ -45,7 +51,8 @@ class SqlAlchemyScientificConclusionRepository:
         suffix = " FOR UPDATE" if lock else ""
         return self._one(
             """SELECT * FROM scientific_conclusion_versions
-               WHERE id=:id AND scientific_conclusion_id=:conclusion""" + suffix,
+               WHERE id=:id AND scientific_conclusion_id=:conclusion"""
+            + suffix,
             {"id": identity, "conclusion": conclusion},
         )
 
@@ -57,15 +64,20 @@ class SqlAlchemyScientificConclusionRepository:
         )
 
     def next_version_number(self, conclusion: UUID) -> int:
-        return int(self._session.execute(text("""SELECT COALESCE(max(version_number),0)+1
+        return int(
+            self._session.execute(
+                text("""SELECT COALESCE(max(version_number),0)+1
            FROM scientific_conclusion_versions WHERE scientific_conclusion_id=:conclusion"""),
-           {"conclusion": conclusion}).scalar_one())
+                {"conclusion": conclusion},
+            ).scalar_one()
+        )
 
     def claim_reference(self, identity: UUID, project: UUID):
         return self._one(
             """SELECT v.id,v.content_hash,v.status,c.project_id FROM claim_versions v
                JOIN claims c ON c.id=v.claim_id
-               WHERE v.id=:id AND c.project_id=:project FOR UPDATE OF v,c""",
+               WHERE v.id=:id AND c.project_id=:project"""
+            + ("" if self._protected_reads else " FOR UPDATE OF v,c"),
             {"id": identity, "project": project},
         )
 
@@ -85,9 +97,13 @@ class SqlAlchemyScientificConclusionRepository:
         )
 
     def human_actor(self, identity: UUID) -> bool:
-        return bool(self._session.execute(text("""SELECT EXISTS(
+        return bool(
+            self._session.execute(
+                text("""SELECT EXISTS(
            SELECT 1 FROM actors WHERE id=:id AND actor_type='HUMAN')"""),
-           {"id": identity}).scalar_one())
+                {"id": identity},
+            ).scalar_one()
+        )
 
     def claim_inputs(self, version: UUID):
         return self._many(
@@ -116,30 +132,53 @@ class SqlAlchemyScientificConclusionRepository:
         self._insert("scientific_conclusion_literature_inputs", row)
 
     def clear_draft_inputs(self, version: UUID) -> None:
-        self._session.execute(text("""DELETE FROM scientific_conclusion_claim_inputs
-           WHERE conclusion_version_id=:version"""), {"version": version})
-        self._session.execute(text("""DELETE FROM scientific_conclusion_literature_inputs
-           WHERE conclusion_version_id=:version"""), {"version": version})
+        self._session.execute(
+            text("""DELETE FROM scientific_conclusion_claim_inputs
+           WHERE conclusion_version_id=:version"""),
+            {"version": version},
+        )
+        self._session.execute(
+            text("""DELETE FROM scientific_conclusion_literature_inputs
+           WHERE conclusion_version_id=:version"""),
+            {"version": version},
+        )
 
     def freeze(
-        self, conclusion: UUID, version: UUID, actor: UUID, at,
-        support_hash: str, content_hash: str, previous: UUID | None,
+        self,
+        conclusion: UUID,
+        version: UUID,
+        actor: UUID,
+        at,
+        support_hash: str,
+        content_hash: str,
+        previous: UUID | None,
     ) -> None:
-        self._session.execute(text("""UPDATE scientific_conclusion_versions
+        self._session.execute(
+            text("""UPDATE scientific_conclusion_versions
            SET status='FROZEN',support_set_hash=:support,content_hash=:content,
                frozen_at=:at,row_version=row_version+1
            WHERE id=:version AND scientific_conclusion_id=:conclusion AND status='DRAFT'"""),
-            {"support": support_hash, "content": content_hash, "at": at,
-             "version": version, "conclusion": conclusion})
+            {
+                "support": support_hash,
+                "content": content_hash,
+                "at": at,
+                "version": version,
+                "conclusion": conclusion,
+            },
+        )
         if previous is not None:
-            self._session.execute(text("""UPDATE scientific_conclusion_versions
+            self._session.execute(
+                text("""UPDATE scientific_conclusion_versions
                SET status='SUPERSEDED',row_version=row_version+1
                WHERE id=:previous AND scientific_conclusion_id=:conclusion AND status='FROZEN'"""),
-               {"previous": previous, "conclusion": conclusion})
-        self._session.execute(text("""UPDATE scientific_conclusions
+                {"previous": previous, "conclusion": conclusion},
+            )
+        self._session.execute(
+            text("""UPDATE scientific_conclusions
            SET current_version_id=:version,row_version=row_version+1
            WHERE id=:conclusion AND current_version_id IS NOT DISTINCT FROM :previous"""),
-            {"version": version, "conclusion": conclusion, "previous": previous})
+            {"version": version, "conclusion": conclusion, "previous": previous},
+        )
 
     def _one(self, sql: str, params: dict[str, object]):
         row = self._session.execute(text(sql), params).mappings().first()
@@ -149,15 +188,20 @@ class SqlAlchemyScientificConclusionRepository:
         return [dict(row) for row in self._session.execute(text(sql), params).mappings()]
 
     def _insert(
-        self, table: str, row: dict[str, object],
+        self,
+        table: str,
+        row: dict[str, object],
         json_fields: frozenset[str] | set[str] = frozenset(),
     ) -> None:
         # Every table and column originates from fixed internal call sites.
         names = tuple(row)
-        values = {key: canonical_json_text(value) if key in json_fields else value
-                  for key, value in row.items()}
-        placeholders = [f"CAST(:{name} AS jsonb)" if name in json_fields else f":{name}"
-                        for name in names]
+        values = {
+            key: canonical_json_text(value) if key in json_fields else value
+            for key, value in row.items()
+        }
+        placeholders = [
+            f"CAST(:{name} AS jsonb)" if name in json_fields else f":{name}" for name in names
+        ]
         self._session.execute(
             text(f"INSERT INTO {table} ({','.join(names)}) VALUES ({','.join(placeholders)})"),
             values,

@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 
@@ -460,14 +461,14 @@ def test_populated_migration_preserves_history_and_checks_basis(setup_m2):
 def test_empty_m2_migration_roundtrip(phase2_database_url):
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", phase2_database_url)
+    repository_head = ScriptDirectory.from_config(cfg).get_current_head()
+    assert repository_head is not None
     command.upgrade(cfg, "head")
     command.downgrade(cfg, "0028_provider_cancellation")
     command.upgrade(cfg, "head")
     engine = create_engine(phase2_database_url)
     with engine.connect() as conn:
-        assert conn.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0031_m3_snapshot_relation_cardinality"
-        )
+        assert conn.scalar(text("SELECT version_num FROM alembic_version")) == repository_head
     engine.dispose()
 
 

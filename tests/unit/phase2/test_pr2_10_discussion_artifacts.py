@@ -21,17 +21,39 @@ def _snapshot():
     created = datetime(2026, 1, 1, tzinfo=UTC)
     turns = (
         DiscussionTurnSnapshot(
-            uuid4(), session_id, 1, uuid4(), "moderator", "What does the source show?",
-            (source_id,), (), created,
+            uuid4(),
+            session_id,
+            1,
+            uuid4(),
+            "moderator",
+            "What does the source show?",
+            (source_id,),
+            (),
+            created,
         ),
         DiscussionTurnSnapshot(
-            uuid4(), session_id, 2, uuid4(), "domain_critic", "Claim needs checking.",
-            (), (claim_id,), created + timedelta(minutes=1),
+            uuid4(),
+            session_id,
+            2,
+            uuid4(),
+            "domain_critic",
+            "Claim needs checking.",
+            (),
+            (claim_id,),
+            created + timedelta(minutes=1),
         ),
     )
     return ClosedDiscussionSnapshot(
-        session_id, project_id, "Test-only topic", "CLOSED", uuid4(), created,
-        created + timedelta(minutes=2), (source_id,), (claim_id,), turns,
+        session_id,
+        project_id,
+        "Test-only topic",
+        "CLOSED",
+        uuid4(),
+        created,
+        created + timedelta(minutes=2),
+        (source_id,),
+        (claim_id,),
+        turns,
     )
 
 
@@ -39,9 +61,7 @@ def test_exact_deterministic_transcript_and_mechanical_concept_map():
     snapshot = replace(_snapshot(), research_question_version_ids=(uuid4(),))
     first = build_discussion_artifact_candidates(snapshot)
     assert first == build_discussion_artifact_candidates(snapshot)
-    assert [item.artifact_type for item in first] == [
-        "discussion_transcript", "concept_map"
-    ]
+    assert [item.artifact_type for item in first] == ["discussion_transcript", "concept_map"]
     for item in first:
         assert item.media_type == "application/json"
         assert item.content_hash == sha256(item.content).hexdigest()
@@ -60,10 +80,16 @@ def test_exact_deterministic_transcript_and_mechanical_concept_map():
     ]
     assert graph["derived_only"] is True
     assert graph["edges"] == [
-        {"turn_id": str(snapshot.turns[0].id), "kind": "cites_source_version",
-         "version_id": str(snapshot.source_version_ids[0])},
-        {"turn_id": str(snapshot.turns[1].id), "kind": "cites_claim_version",
-         "version_id": str(snapshot.claim_version_ids[0])},
+        {
+            "turn_id": str(snapshot.turns[0].id),
+            "kind": "cites_source_version",
+            "version_id": str(snapshot.source_version_ids[0]),
+        },
+        {
+            "turn_id": str(snapshot.turns[1].id),
+            "kind": "cites_claim_version",
+            "version_id": str(snapshot.claim_version_ids[0]),
+        },
     ]
     assert "decision" not in graph
     assert "promoted" not in graph

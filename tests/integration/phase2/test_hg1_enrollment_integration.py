@@ -223,7 +223,7 @@ def test_admin_policy_composes_live_runner_services_on_disposable_db(
             )
         ],
     }
-    monkeypatch.setattr(hg1_runtime, "DURABLE_ROOT", durable)
+    monkeypatch.setenv("RB_HOST_DURABLE_ROOT", str(durable))
     monkeypatch.setattr(hg1_runtime, "read_trusted_config", lambda _path: policy)
     services = SimpleNamespace(
         local_identity=SimpleNamespace(authenticate=lambda: host_owner),

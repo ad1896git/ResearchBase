@@ -6,6 +6,10 @@ from uuid import UUID, uuid4
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
+
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.phase2_identity import AssignProjectRole, CloseProjectRole
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from tests.integration.phase2.test_pr2_03_effective_authority import (
     _lose_owner_authority,
@@ -17,12 +21,7 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
     _execution_setup,
     _service,
     _snapshot,
-    execution_case,
 )
-
-from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.phase2_identity import AssignProjectRole, CloseProjectRole
-from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 
 @pytest.fixture
@@ -294,8 +293,10 @@ def test_pg_project_scoped_pagination_is_stable_and_returns_public_projections(
     engine, service, provider, principal, project, create = execution_case
     ids = [service.create(replace(create, request_id=uuid4()))["execution_id"] for _ in range(5)]
     baseline = _snapshot(engine, project)
-    expected = [str(row["id"]) for row in sorted(baseline["executions"],
-                                                key=lambda row: (row["created_at"], row["id"]))]
+    expected = [
+        str(row["id"])
+        for row in sorted(baseline["executions"], key=lambda row: (row["created_at"], row["id"]))
+    ]
     assert set(expected) == set(ids)
     page1 = service.list(principal, project, limit=2)
     page2 = service.list(principal, project, limit=2, after=UUID(page1[-1]["execution_id"]))
@@ -305,9 +306,18 @@ def test_pg_project_scoped_pagination_is_stable_and_returns_public_projections(
     assert service.list(principal, project, limit=2) == page1
     assert service.list(principal, project, limit=100, after=UUID(expected[-1])) == []
     assert [row["execution_id"] for row in service.list(principal, project)] == expected
-    projection_keys = {"execution_id", "project_id", "search_plan_version_id", "status",
-                       "requested_by", "executed_by", "started_at", "finished_at",
-                       "row_version", "failure_code"}
+    projection_keys = {
+        "execution_id",
+        "project_id",
+        "search_plan_version_id",
+        "status",
+        "requested_by",
+        "executed_by",
+        "started_at",
+        "finished_at",
+        "row_version",
+        "failure_code",
+    }
     assert all(type(row) is dict and set(row) == projection_keys for row in page1 + page2 + page3)
     for limit in (0, 101):
         with pytest.raises(ResearchBaseError) as caught:
@@ -317,40 +327,61 @@ def test_pg_project_scoped_pagination_is_stable_and_returns_public_projections(
         service.list(principal, project, after=uuid4())
     assert unknown.value.code is ErrorCode.NOT_FOUND
     assert baseline == _snapshot(engine, project) and provider.calls == []
-    pr204_trace.record(expected_order=expected, pages=[page1, page2, page3],
-                       before=baseline, after=_snapshot(engine, project), provider_calls=len(provider.calls))
+    pr204_trace.record(
+        expected_order=expected,
+        pages=[page1, page2, page3],
+        before=baseline,
+        after=_snapshot(engine, project),
+        provider_calls=len(provider.calls),
+    )
 
 
-@pytest.mark.parametrize("operation", ["get", "list", "provenance", "create", "execute", "cancel", "recover", "replay"])
+@pytest.mark.parametrize(
+    "operation", ["get", "list", "provenance", "create", "execute", "cancel", "recover", "replay"]
+)
 @pytest.mark.pr204_requirements("PR204-API-02", "PR204-AUTH-01", "PR204-IDEM-01")
 def test_pg_current_credential_expiry_denies_reads_writes_and_receipt_replay(
     execution_case, operation, pr204_trace: FactRecorder
 ):
-    engine, healthy, provider, principal, project, create=execution_case
-    execution_id=UUID(healthy.create(create)["execution_id"])
-    observations=[]
+    engine, healthy, provider, principal, project, create = execution_case
+    execution_id = UUID(healthy.create(create)["execution_id"])
+    observations = []
 
     class Expired:
-        def is_valid(self, supplied, at):
-            observations.append({"principal":supplied.actor_id,"authorization_time":at,"decision":False})
+        def is_valid(self, principal, at):
+            observations.append(
+                {"principal": principal.actor_id, "authorization_time": at, "decision": False}
+            )
             return False
 
-    service=LiteratureSearchExecutionService(healthy._uow_factory,provider,credential_verifier=Expired())
-    before=_snapshot(engine,project)
-    operations={"get":lambda:service.get(principal,project,execution_id),
-                "list":lambda:service.list(principal,project),
-                "provenance":lambda:service.get_provenance(principal,project,execution_id),
-                "create":lambda:service.create(replace(create,request_id=uuid4())),
-                "replay":lambda:service.create(create)}
-    for name in ("execute","cancel","recover"):
-        operations[name]=lambda name=name:getattr(service,name)(_command(name,principal,project,execution_id))
+    service = LiteratureSearchExecutionService(
+        healthy._uow_factory, provider, credential_verifier=Expired()
+    )
+    before = _snapshot(engine, project)
+    operations = {
+        "get": lambda: service.get(principal, project, execution_id),
+        "list": lambda: service.list(principal, project),
+        "provenance": lambda: service.get_provenance(principal, project, execution_id),
+        "create": lambda: service.create(replace(create, request_id=uuid4())),
+        "replay": lambda: service.create(create),
+    }
+    for name in ("execute", "cancel", "recover"):
+        operations[name] = lambda name=name: getattr(service, name)(
+            _command(name, principal, project, execution_id)
+        )
     with pytest.raises(ResearchBaseError) as caught:
         operations[operation]()
-    after=_snapshot(engine,project)
-    pr204_trace.record(operation=operation,credential_checks=observations,error_code=caught.value.code.value,
-                       before=before,after=after,provider_calls=len(provider.calls))
+    after = _snapshot(engine, project)
+    pr204_trace.record(
+        operation=operation,
+        credential_checks=observations,
+        error_code=caught.value.code.value,
+        before=before,
+        after=after,
+        provider_calls=len(provider.calls),
+    )
     assert caught.value.code is ErrorCode.FORBIDDEN
-    assert observations and before==after and provider.calls==[]
+    assert observations and before == after and provider.calls == []
 
 
 @pytest.mark.pr204_requirements("PR204-API-02")
@@ -359,34 +390,45 @@ def test_pg_equal_created_at_cursor_uses_uuid_tiebreak_without_duplicates_or_omi
 ):
     from unittest.mock import patch
 
-    from sqlalchemy import text
-
     from researchbase.persistence.literature_search_execution_repository import (
         SqlAlchemyLiteratureSearchExecutionRepository,
     )
 
-    engine,service,provider,principal,project,create=execution_case
+    engine, service, provider, principal, project, create = execution_case
     with engine.connect() as connection:
-        timestamp=connection.execute(text("SELECT clock_timestamp()")).scalar_one()
-    # Only execution provenance timestamps are held equal; trusted authority keeps the actual DB clock.
-    with patch.object(SqlAlchemyLiteratureSearchExecutionRepository,"_database_now",return_value=timestamp):
-        identities=[UUID(service.create(replace(create,request_id=uuid4()))["execution_id"]) for _ in range(5)]
-    expected=[str(i) for i in sorted(identities)]
-    rows=[]
-    cursor=None
-    pages=[]
+        timestamp = connection.execute(text("SELECT clock_timestamp()")).scalar_one()
+    # Only execution provenance timestamps are held equal; trusted authority keeps the actual DB clock.  # noqa: E501
+    with patch.object(
+        SqlAlchemyLiteratureSearchExecutionRepository, "_database_now", return_value=timestamp
+    ):
+        identities = [
+            UUID(service.create(replace(create, request_id=uuid4()))["execution_id"])
+            for _ in range(5)
+        ]
+    expected = [str(i) for i in sorted(identities)]
+    rows = []
+    cursor = None
+    pages = []
     while True:
-        page=service.list(principal,project,limit=2,after=cursor)
+        page = service.list(principal, project, limit=2, after=cursor)
         pages.append(page)
         if not page:
             break
         rows.extend(row["execution_id"] for row in page)
-        cursor=UUID(page[-1]["execution_id"])
-        assert len(pages)<=4
+        cursor = UUID(page[-1]["execution_id"])
+        assert len(pages) <= 4
     with engine.connect() as connection:
-        stored=list(connection.execute(text(
-            "SELECT id,created_at FROM literature_search_executions WHERE project_id=:id ORDER BY created_at,id"
-        ),{"id":project}).mappings())
-    pr204_trace.record(equal_timestamp=timestamp,stored_rows=stored,pages=pages,expected_ids=expected)
-    assert all(row["created_at"]==timestamp for row in stored)
-    assert rows==expected and len(set(rows))==5 and provider.calls==[]
+        stored = [
+            dict(row)
+            for row in connection.execute(
+                text(
+                    "SELECT id,created_at FROM literature_search_executions WHERE project_id=:id ORDER BY created_at,id"  # noqa: E501
+                ),
+                {"id": project},
+            ).mappings()
+        ]
+    pr204_trace.record(
+        equal_timestamp=timestamp, stored_rows=stored, pages=pages, expected_ids=expected
+    )
+    assert all(row["created_at"] == timestamp for row in stored)
+    assert rows == expected and len(set(rows)) == 5 and provider.calls == []

@@ -11,10 +11,6 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-)
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
@@ -29,6 +25,10 @@ from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+)
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
 
 
 def _sqlstates(error):
@@ -248,37 +248,65 @@ def test_pg_interrupted_cancel_recovery_contenders_finalize_once(
 
         service = LiteratureSearchExecutionService(
             lambda: SqlAlchemyUnitOfWork(sessionmaker(bind=engine), pr204_error_normalization=True),
-            provider, credential_verifier=_AlwaysValidCredential(), after_cancel_admission=crash_after_c1,
+            provider,
+            credential_verifier=_AlwaysValidCredential(),
+            after_cancel_admission=crash_after_c1,
         )
-        admission = service.create(CreateLiteratureSearchExecution(
-            project, version, principal.actor_id, principal.deployment_id, uuid4(), "provider-a", "1",
-            ("normalization evidence",), principal=principal,
-        ))
+        admission = service.create(
+            CreateLiteratureSearchExecution(
+                project,
+                version,
+                principal.actor_id,
+                principal.deployment_id,
+                uuid4(),
+                "provider-a",
+                "1",
+                ("normalization evidence",),
+                principal=principal,
+            )
+        )
         execution_id = UUID(admission["execution_id"])
         cancel = CancelLiteratureSearchExecution(
-            execution_id, principal.actor_id, principal.deployment_id, uuid4(), project_id=project,
+            execution_id,
+            principal.actor_id,
+            principal.deployment_id,
+            uuid4(),
+            project_id=project,
             principal=principal,
         )
         with pytest.raises(RuntimeError, match="crash after committed C1"):
             service.cancel(cancel)
         before = service.get_provenance(principal, project, execution_id)
-        assert before["execution"]["status"] == "PLANNED" and before["execution"]["row_version"] == 2
+        assert (
+            before["execution"]["status"] == "PLANNED" and before["execution"]["row_version"] == 2
+        )
         assert [e["kind"] for e in before["events"]] == ["CREATED", "CANCEL_REQUESTED"]
         assert before["attempts"] == [] and before["queries"] == [] and before["results"] == []
         assert len(before["receipts"]) == 2
         # Exact C1 replay is read-only and does not run the crash hook or C2.
         assert service.cancel(cancel)["accepted_row_version"] == 2
         assert service.get_provenance(principal, project, execution_id) == before
-        commands = {label: RecoverLiteratureSearchExecution(
-            execution_id, principal.actor_id, principal.deployment_id, uuid4(), project_id=project,
-            principal=principal,
-        ) for label in ("A", "B")}
+        commands = {
+            label: RecoverLiteratureSearchExecution(
+                execution_id,
+                principal.actor_id,
+                principal.deployment_id,
+                uuid4(),
+                project_id=project,
+                principal=principal,
+            )
+            for label in ("A", "B")
+        }
         pr204_trace.record(run=run, ordering=winner, after_c1=before)
         results = _race(engine, provider, winner, commands, "recover", pr204_trace)
-        assert all(isinstance(dto, dict) and dto["accepted_row_version"] == 3 for dto in results.values())
+        assert all(
+            isinstance(dto, dict) and dto["accepted_row_version"] == 3 for dto in results.values()
+        )
         after = service.get_provenance(principal, project, execution_id)
         pr204_trace.record(after_recovery=after, provider_calls=len(provider.calls))
-        assert after["execution"]["status"] == "CANCELLED" and after["execution"]["row_version"] == 3
+        assert (
+            after["execution"]["status"] == "CANCELLED" and after["execution"]["row_version"] == 3
+        )
         assert after["execution"]["started_at"] is None
         assert [e["kind"] for e in after["events"]] == ["CREATED", "CANCEL_REQUESTED", "FINISHED"]
         assert after["attempts"] == [] and after["queries"] == [] and after["results"] == []
@@ -360,24 +388,37 @@ def test_pg_cancellation_versus_first_reservation_has_one_terminal_event(
         provider = FakeSearchCapability(capability_id="provider-a")
         service = LiteratureSearchExecutionService(
             lambda: SqlAlchemyUnitOfWork(sessionmaker(bind=engine), pr204_error_normalization=True),
-            provider, credential_verifier=_AlwaysValidCredential(),
+            provider,
+            credential_verifier=_AlwaysValidCredential(),
         )
-        admission = service.create(CreateLiteratureSearchExecution(
-            project, version, principal.actor_id, principal.deployment_id, uuid4(), "provider-a", "1",
-            ("normalization evidence",), principal=principal,
-        ))
+        admission = service.create(
+            CreateLiteratureSearchExecution(
+                project,
+                version,
+                principal.actor_id,
+                principal.deployment_id,
+                uuid4(),
+                "provider-a",
+                "1",
+                ("normalization evidence",),
+                principal=principal,
+            )
+        )
         execution_id = UUID(admission["execution_id"])
 
         def wait_for_durable_intent(request):
             # For reservation-first, allow C1 to commit before returning a known
             # provider response. This is a provider barrier, never a held DB UoW.
-            deadline = monotonic()+10
+            deadline = monotonic() + 10
             while monotonic() < deadline:
                 with engine.connect() as c:
-                    intent = c.execute(text(
-                        "SELECT count(*) FROM literature_search_execution_events "
-                        "WHERE execution_id=:id AND kind='CANCEL_REQUESTED'"
-                    ), {"id": execution_id}).scalar_one()
+                    intent = c.execute(
+                        text(
+                            "SELECT count(*) FROM literature_search_execution_events "
+                            "WHERE execution_id=:id AND kind='CANCEL_REQUESTED'"
+                        ),
+                        {"id": execution_id},
+                    ).scalar_one()
                 if intent == 1:
                     return
                 Event().wait(0.01)
@@ -385,13 +426,27 @@ def test_pg_cancellation_versus_first_reservation_has_one_terminal_event(
 
         provider.observer = wait_for_durable_intent
         commands = {
-            "A": CancelLiteratureSearchExecution(execution_id, principal.actor_id, principal.deployment_id,
-                uuid4(), project_id=project, principal=principal),
-            "B": ExecuteLiteratureSearchExecution(execution_id, principal.actor_id, principal.deployment_id,
-                uuid4(), project_id=project, principal=principal),
+            "A": CancelLiteratureSearchExecution(
+                execution_id,
+                principal.actor_id,
+                principal.deployment_id,
+                uuid4(),
+                project_id=project,
+                principal=principal,
+            ),
+            "B": ExecuteLiteratureSearchExecution(
+                execution_id,
+                principal.actor_id,
+                principal.deployment_id,
+                uuid4(),
+                project_id=project,
+                principal=principal,
+            ),
         }
         pr204_trace.record(run=run, first_admission=winner)
-        results = _race(engine, provider, winner, commands, {"A":"cancel", "B":"execute"}, pr204_trace)
+        results = _race(
+            engine, provider, winner, commands, {"A": "cancel", "B": "execute"}, pr204_trace
+        )
         assert isinstance(results["A"], dict)
         if winner == "A":
             assert results["B"] is ErrorCode.INVALID_STATE_TRANSITION

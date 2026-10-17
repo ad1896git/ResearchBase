@@ -9,6 +9,14 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 
 
+def _formatter(calls):
+    def format_files(files: list[str]) -> int:
+        calls.append(files)
+        return 0
+
+    return format_files
+
+
 def _gates():
     from scripts import pr2_04_recovery_static_gates
 
@@ -19,7 +27,7 @@ def test_missing_baseline_prevents_formatter_invocation():
     gates = _gates()
     calls = []
     with pytest.raises(subprocess.CalledProcessError):
-        gates.format_changed(ROOT, base="0" * 40, formatter=lambda files: calls.append(files))
+        gates.format_changed(ROOT, base="0" * 40, formatter=_formatter(calls))
     assert calls == []
 
 
@@ -27,7 +35,7 @@ def test_missing_candidate_prevents_formatter_invocation():
     gates = _gates()
     calls = []
     with pytest.raises(subprocess.CalledProcessError):
-        gates.format_changed(ROOT, head="0" * 40, formatter=lambda files: calls.append(files))
+        gates.format_changed(ROOT, head="0" * 40, formatter=_formatter(calls))
     assert calls == []
 
 
@@ -39,7 +47,7 @@ def test_nonancestor_baseline_prevents_formatter_invocation():
             ROOT,
             base="HEAD",
             head=gates.TRUSTED_BASE,
-            formatter=lambda files: calls.append(files),
+            formatter=_formatter(calls),
         )
     assert calls == []
 
@@ -56,14 +64,14 @@ def test_failed_file_selection_cannot_be_empty_success(monkeypatch):
 
     monkeypatch.setattr(gates, "git", fail_selection)
     with pytest.raises(subprocess.CalledProcessError):
-        gates.format_changed(ROOT, formatter=lambda files: calls.append(files))
+        gates.format_changed(ROOT, formatter=_formatter(calls))
     assert calls == []
 
 
 def test_verified_empty_diff_needs_no_formatter():
     gates = _gates()
     calls = []
-    result = gates.format_changed(ROOT, base="HEAD", formatter=lambda files: calls.append(files))
+    result = gates.format_changed(ROOT, base="HEAD", formatter=_formatter(calls))
     assert result["files"] == [] and result["formatter_exit_code"] == 0
     assert calls == []
 

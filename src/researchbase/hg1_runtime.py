@@ -16,11 +16,10 @@ from researchbase.foundation.artifact_store import ContentAddressedFilesystemArt
 from researchbase.hg1_ceremony import HG1Coordinator
 from researchbase.hg1_identity import PeerCredential, TrustedPeerIdentity
 from researchbase.hg1_review_ops import HG1ReviewOperations
+from researchbase.host_config import load_host_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
-TRUST_ROOT = Path("/Library/Application Support/ResearchBase")
-DURABLE_ROOT = Path("/Users/onephone/ResearchBaseData")
 REQUIRED_M3_HBA = (
     ("local", "all", "onephone", None, None, "peer", None),
     ("local", "all", "all", None, None, "reject", None),
@@ -44,6 +43,7 @@ def verify_m3_server(settings: Any) -> None:
     """Fail closed if the retained M3 target or effective authentication drifts."""
     from sqlalchemy import text
 
+    host = load_host_settings()
     engine = create_database_engine(settings.database_url)
     try:
         with engine.connect() as connection:
@@ -58,15 +58,15 @@ def verify_m3_server(settings: Any) -> None:
             """)
             ).one()
             expected = (
-                "researchbase_m3_retained_20261011",
-                "onephone",
-                str(DURABLE_ROOT / "rb-m2-pg"),
-                "55440",
-                "/private/tmp",
-                str(DURABLE_ROOT / "rb-m2-pg" / "pg_hba.conf"),
+                host.m3_database,
+                host.database_user,
+                str(host.pgdata),
+                host.database_port,
+                host.socket_dir,
+                str(host.hba_file),
                 facts[6],
-                "7695048034454027996",
-                "0031_m3_snapshot_relation_cardinality",
+                host.system_identifier,
+                host.m3_revision,
             )
             listeners = {item.strip() for item in facts[6].split(",")}
             if tuple(facts) != expected or not listeners <= {"localhost", "127.0.0.1", "::1"}:
@@ -78,7 +78,11 @@ def verify_m3_server(settings: Any) -> None:
                   FROM pg_hba_file_rules ORDER BY rule_number
             """)
             ).all()
-            if tuple(tuple(rule) for rule in rules) != REQUIRED_M3_HBA:
+            expected_hba = tuple(
+                (rule[0], rule[1], host.database_user, *rule[3:]) if index == 0 else rule
+                for index, rule in enumerate(REQUIRED_M3_HBA)
+            )
+            if tuple(tuple(rule) for rule in rules) != expected_hba:
                 raise ValueError("retained M3 PostgreSQL HBA changed")
     finally:
         engine.dispose()
@@ -128,7 +132,8 @@ def build_hg1_coordinator(tag: str, services: Any, settings: Any) -> HG1Coordina
     """Keep HG1-01 A-only behavior until host-admin policy is installed."""
     if tag not in {"final", "live", "live2", "live3", "m3-retained"}:
         raise ValueError("unsupported retained deployment")
-    config_path = TRUST_ROOT / f"hg1-02-{tag}.json"
+    host = load_host_settings()
+    config_path = host.trust_root / f"hg1-02-{tag}.json"
     config = read_trusted_config(config_path)
     if config is None:
         return None
@@ -170,13 +175,13 @@ def build_hg1_coordinator(tag: str, services: Any, settings: Any) -> HG1Coordina
             )
         )
     owner_uid = os.geteuid()
-    if owner_uid != 502 or owner_uid == config["operator_uid"]:
+    if owner_uid != host.owner_uid or owner_uid == config["operator_uid"]:
         raise ValueError("HG1 trusted owner/operator boundary changed")
     audit = Path(config["audit_root"])
     if (
         not audit.is_absolute()
         or audit.resolve() != audit
-        or audit.parent != DURABLE_ROOT / "migration-evidence"
+        or audit.parent != host.durable_root / "migration-evidence"
         or not audit.is_dir()
     ):
         raise ValueError("HG1 audit root is not approved durable storage")

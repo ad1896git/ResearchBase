@@ -17,6 +17,8 @@ def test_normative_error_codes_are_stable() -> None:
     assert [code.value for code in ErrorCode][10:] == [
         "AUTHENTICATION_REQUIRED",
         "FORBIDDEN",
+        "REVIEW_TARGET_NOT_FROZEN",
+        "CONFLICT_OF_INTEREST",
         "SUBJECT_BINDING_UNPROVEN",
         "SUBJECT_ALREADY_BOUND",
         "OWNER_COVERAGE_GAP",
@@ -53,6 +55,13 @@ def test_normative_error_codes_are_stable() -> None:
         "SEARCH_PLAN_NOT_FROZEN",
         "ADAPTER_UNAVAILABLE",
         "ADAPTER_VERSION_MISMATCH",
+        "APPROVAL_PURPOSE_TARGET_COMMAND_INVALID",
+        "APPROVAL_GATE_FAILED",
+        "DECISION_BASIS_INVALID",
+        "APPROVAL_TARGET_STALE",
+        "REJECTION_RECONSIDERATION_REQUIRED",
+        "GRANT_INVALID",
+        "GRANT_STALE",
     ]
 
 

@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
 import hashlib
 import json
 import subprocess
 import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +39,9 @@ def _requirements(source: Path) -> list[dict[str, str]]:
 
 
 def _load_results(
-    path: Path, root: Path, head: str,
+    path: Path,
+    root: Path,
+    head: str,
     validated_rows: dict[str, dict[str, Any]] | None = None,
     run_id: str | None = None,
 ) -> dict[str, dict[str, Any]]:
@@ -48,9 +50,13 @@ def _load_results(
         raise ValueError("evidence index is not bound to the current candidate HEAD")
     if run_id is not None and payload.get("run_id") != run_id:
         raise ValueError("compatibility index run binding mismatch")
-    known_ids = {row["requirement"] for row in _requirements(
-        Path(__file__).resolve().parents[1]
-        / "execution/phase2/PR2-04_Acceptance_Matrix_v1.0.md")}
+    known_ids = {
+        row["requirement"]
+        for row in _requirements(
+            Path(__file__).resolve().parents[1]
+            / "execution/phase2/PR2-04_Acceptance_Matrix_v1.0.md"
+        )
+    }
     result: dict[str, dict[str, Any]] = {}
     for row in payload.get("rows", []):
         requirement = row.get("requirement")
@@ -138,8 +144,13 @@ def main() -> int:
 
             if not args.run_id:
                 raise ValueError("automated evidence requires the current host run ID")
-            indexed = validate_run(args.run_manifest, root, head, args.run_id,
-                                   {row["requirement"] for row in requirements})
+            indexed = validate_run(
+                args.run_manifest,
+                root,
+                head,
+                args.run_id,
+                {row["requirement"] for row in requirements},
+            )
         if args.results:
             indexed.update(_load_results(args.results, root, head, indexed, args.run_id))
     except (ValueError, json.JSONDecodeError) as exc:

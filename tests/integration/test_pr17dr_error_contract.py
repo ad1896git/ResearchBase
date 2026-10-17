@@ -6,12 +6,12 @@ from collections.abc import Iterator
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from tests.integration.test_pr17dr_adversarial import _seed_research_question_version
 
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.models import ResearchQuestionVersionModel
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.test_pr17dr_adversarial import _seed_research_question_version
 
 pytestmark = pytest.mark.integration
 

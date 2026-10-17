@@ -14,14 +14,17 @@ from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ResearchBaseError
 from researchbase.hg1_identity import PeerCredential, TrustedPeerIdentity
 
-NOW = datetime.now(UTC)
+
+@pytest.fixture
+def now() -> datetime:
+    return datetime.now(UTC)
 
 
 def _canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
 
 
-def _fixture(tmp_path: Path):
+def _fixture(tmp_path: Path, now: datetime):
     key = tmp_path / "c-key.pem"
     pub = tmp_path / "c-pub.pem"
     subprocess.run(["openssl", "genpkey", "-algorithm", "ED25519", "-out", str(key)], check=True)
@@ -31,10 +34,10 @@ def _fixture(tmp_path: Path):
     audit.mkdir(mode=0o700)
     actor_a, actor_b, actor_c = uuid4(), uuid4(), uuid4()
     records = (
-        PeerCredential(501, actor_a, "a-credential", NOW - timedelta(days=1), None),
-        PeerCredential(502, actor_b, "b-credential", NOW - timedelta(days=1), None),
+        PeerCredential(501, actor_a, "a-credential", now - timedelta(days=1), None),
+        PeerCredential(502, actor_b, "b-credential", now - timedelta(days=1), None),
         PeerCredential(
-            503, actor_c, "c-credential", NOW - timedelta(days=1), NOW + timedelta(days=1)
+            503, actor_c, "c-credential", now - timedelta(days=1), now + timedelta(days=1)
         ),
     )
 
@@ -42,14 +45,14 @@ def _fixture(tmp_path: Path):
         facts = (
             {
                 "actor_id": actor_b,
-                "bound_at": NOW - timedelta(hours=1),
+                "bound_at": now - timedelta(hours=1),
                 "revoked_at": None,
                 "retired_at": None,
             }
             if subject.subject_value == "502"
             else None
         )
-        return facts, NOW
+        return facts, now
 
     policy = TrustedPeerIdentity(
         "deployment-1",
@@ -60,11 +63,11 @@ def _fixture(tmp_path: Path):
         audit_root=audit,
         binding_lookup=lookup,
     )
-    operator = VerifiedPrincipal(actor_c, "deployment-1", "OS_UID", "503", "c-credential", NOW)
+    operator = VerifiedPrincipal(actor_c, "deployment-1", "OS_UID", "503", "c-credential", now)
     return policy, key, audit, operator, actor_a, actor_b, actor_c
 
 
-def _attestation(policy, key, audit, operator, actor_b, *, change=None):
+def _attestation(policy, key, audit, operator, actor_b, now: datetime, *, change=None):
     material = {
         "version": 1,
         "ceremony": "PROVISION_ACTOR",
@@ -79,7 +82,7 @@ def _attestation(policy, key, audit, operator, actor_b, *, change=None):
         "operator_credential_id": "c-credential",
         "reason": "independent verification",
         "evidence_source": "host identity document inspected by C",
-        "signed_at": NOW.isoformat(),
+        "signed_at": now.isoformat(),
         "subject_live_proof_sha256": "a" * 64,
     }
     if change:
@@ -123,28 +126,28 @@ def _attestation(policy, key, audit, operator, actor_b, *, change=None):
     return attestation, path
 
 
-def test_bound_peer_authenticates_and_rechecks(tmp_path):
-    policy, *_ = _fixture(tmp_path)
+def test_bound_peer_authenticates_and_rechecks(tmp_path, now: datetime):
+    policy, *_ = _fixture(tmp_path, now)
     principal = policy.authenticate_subject(502)
     assert principal.subject_value == "502"
-    assert policy.is_valid(principal, NOW)
+    assert policy.is_valid(principal, now)
     assert not policy.is_allowlisted(principal)
     with pytest.raises(ResearchBaseError):
         policy.authenticate_subject(999)
 
 
-def test_independent_c_signed_proof(tmp_path):
-    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path)
-    attestation, path = _attestation(policy, key, audit, operator, b)
+def test_independent_c_signed_proof(tmp_path, now: datetime):
+    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path, now)
+    attestation, path = _attestation(policy, key, audit, operator, b, now)
     assert policy.verify(attestation)
     assert policy.is_allowlisted(operator)
     path.write_bytes(path.read_bytes().replace(b"independent verification", b"forged verification"))
     assert not policy.verify(attestation)
 
 
-def test_cross_identity_and_path_substitution_rejected(tmp_path):
-    policy, key, audit, operator, a, b, _c = _fixture(tmp_path)
-    attestation, path = _attestation(policy, key, audit, operator, b)
+def test_cross_identity_and_path_substitution_rejected(tmp_path, now: datetime):
+    policy, key, audit, operator, a, b, _c = _fixture(tmp_path, now)
+    attestation, path = _attestation(policy, key, audit, operator, b, now)
     wrong = ProvisioningAttestation(
         a,
         attestation.deployment_id,
@@ -173,21 +176,27 @@ def test_cross_identity_and_path_substitution_rejected(tmp_path):
     assert not policy.verify(wrong_path)
 
 
-def test_expiry_and_operator_separation(tmp_path):
-    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path)
+def test_expiry_and_operator_separation(tmp_path, now: datetime):
+    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path, now)
     attestation, _ = _attestation(
-        policy, key, audit, operator, b, change={"signed_at": (NOW - timedelta(days=2)).isoformat()}
+        policy,
+        key,
+        audit,
+        operator,
+        b,
+        now,
+        change={"signed_at": (now - timedelta(days=2)).isoformat()},
     )
     assert not policy.verify(attestation)
     assert not policy.is_valid(
-        VerifiedSubject("deployment-2", "OS_UID", "502", "b-credential"), NOW
+        VerifiedSubject("deployment-2", "OS_UID", "502", "b-credential"), now
     )
-    assert not policy.is_valid(operator, NOW + timedelta(days=3650))
+    assert not policy.is_valid(operator, now + timedelta(days=3650))
 
 
-def test_forged_signature_and_missing_proof_rejected(tmp_path):
-    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path)
-    attestation, path = _attestation(policy, key, audit, operator, b)
+def test_forged_signature_and_missing_proof_rejected(tmp_path, now: datetime):
+    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path, now)
+    attestation, path = _attestation(policy, key, audit, operator, b, now)
     record = json.loads(path.read_bytes())
     record["signature_hex"] = "00" * 64
     forged = _canonical(record)
@@ -211,27 +220,27 @@ def test_forged_signature_and_missing_proof_rejected(tmp_path):
     assert not policy.verify(attestation)
 
 
-def test_revoked_binding_and_credential_fail_closed(tmp_path):
-    policy, _key, _audit, _operator, _a, b, _c = _fixture(tmp_path)
+def test_revoked_binding_and_credential_fail_closed(tmp_path, now: datetime):
+    policy, _key, _audit, _operator, _a, b, _c = _fixture(tmp_path, now)
     policy._binding_lookup = lambda _subject: (
         {
             "actor_id": b,
-            "bound_at": NOW - timedelta(hours=1),
-            "revoked_at": NOW,
+            "bound_at": now - timedelta(hours=1),
+            "revoked_at": now,
             "retired_at": None,
         },
-        NOW,
+        now,
     )
     with pytest.raises(ResearchBaseError):
         policy.authenticate_subject(502)
-    assert not policy.is_valid(VerifiedSubject("deployment-1", "OS_UID", "502", "wrong"), NOW)
+    assert not policy.is_valid(VerifiedSubject("deployment-1", "OS_UID", "502", "wrong"), now)
 
 
-def test_host_policy_change_revokes_live_peer_authority(tmp_path):
-    policy, *_ = _fixture(tmp_path)
+def test_host_policy_change_revokes_live_peer_authority(tmp_path, now: datetime):
+    policy, *_ = _fixture(tmp_path, now)
     policy._config_guard = lambda: False
     assert not policy.is_valid(
-        VerifiedSubject("deployment-1", "OS_UID", "502", "b-credential"), NOW
+        VerifiedSubject("deployment-1", "OS_UID", "502", "b-credential"), now
     )
     with pytest.raises(ResearchBaseError):
         policy.authenticate_subject(502)

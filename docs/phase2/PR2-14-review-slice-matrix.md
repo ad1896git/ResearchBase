@@ -26,3 +26,19 @@ No frozen contract authorizes using a DRAFT manuscript as a review target.
 ReviewIssue resolution is excluded because dismissal of a blocking issue
 requires PR2-15 DecisionRecord and RevisionAction. No retained database write,
 live provider contact, formal M3/PR2-14 admission or root policy operation.
+
+## B05 manuscript extension — 2026-10-15
+
+B05 adds the separately authorized manuscript branch to the historical narrower
+slice described above. Exact manuscript review uses the B04 same-UoW seal/CAS/
+closure verifier and transitive material-author traversal. Reads use one lock-free
+REPEATABLE READ, READ ONLY transaction. Creates take the fixed SHARE inventory
+first, then request/manuscript/project/Publication coordination. Review/Issue SQL
+INSERTs serialize on the exact manuscript; deferred guards enforce complete OPEN
+history. Complete basis includes every exact-target review and every blocker.
+
+Actual focused PostgreSQL results: B05 **73 passed, 1 explicitly deferred skip**;
+B04 **79 passed**; existing review/Decision/governance **81 passed**. Migration
+head/inventory/boundaries **37 passed** and new B05 unit/hash/boundary checks
+**81 passed**. See [exact commands and evidence](B05-verification.md).
+No complete G6/F5 or readiness acceptance is claimed.

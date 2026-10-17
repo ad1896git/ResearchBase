@@ -578,6 +578,17 @@ def test_attempt_outcome_seals_once_and_internal_reapplication_is_exact(
             service.cancel(CancelLiteratureSearchExecution(execution_id, actor, "test", uuid4()))
 
         provider.observer = cancel_at_entry
+
+        def confirmed_response(request):
+            return replace(
+                response,
+                execution_id=request.execution_id,
+                attempt_id=request.attempt_id,
+                provider_request_key=request.provider_request_key,
+            )
+
+        provider.script.clear()
+        provider.script.append(confirmed_response)
     service.execute(ExecuteLiteratureSearchExecution(execution_id, actor, "test", uuid4()))
     before = service.get_provenance(None, project, execution_id)
     attempt = repo.attempts(execution_id)[0]
@@ -602,7 +613,16 @@ def test_attempt_outcome_seals_once_and_internal_reapplication_is_exact(
     assert isinstance(invoked_at, datetime) and isinstance(returned_at, datetime)
     context = repo.executions[execution_id].execution_context
     arguments = (execution_id, UUID(str(attempt["id"])), actor, 0, 1, context)
-    service._persist_outcome(*arguments, response, invoked_at=invoked_at, returned_at=returned_at)
+    confirmation = provider.calls[0] if kind == "cancelled" else None
+    if kind == "cancelled":
+        response = confirmed_response(confirmation)
+    service._persist_outcome(
+        *arguments,
+        response,
+        invoked_at=invoked_at,
+        returned_at=returned_at,
+        provider_confirmation=confirmation,
+    )
     assert service.get_provenance(None, project, execution_id) == before
     with pytest.raises(ResearchBaseError) as caught:
         service._persist_outcome(

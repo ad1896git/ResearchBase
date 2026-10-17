@@ -9,17 +9,24 @@ depends_on = None
 
 
 def _guard_sql(*, reject_reparent: bool) -> str:
-    reparent_guard = """
+    reparent_guard = (
+        """
       IF TG_OP='UPDATE' AND OLD.manuscript_version_id IS DISTINCT FROM
           NEW.manuscript_version_id THEN
         RAISE EXCEPTION 'citation placement manuscript is immutable' USING ERRCODE='P17D3';
       END IF;
-    """ if reject_reparent else ""
-    return """
+    """
+        if reject_reparent
+        else ""
+    )
+    return (
+        """
     CREATE OR REPLACE FUNCTION pr213_citation_guard() RETURNS trigger LANGUAGE plpgsql AS $$
     DECLARE manuscript_project UUID;
     BEGIN
-    """ + reparent_guard + """
+    """
+        + reparent_guard
+        + """
       SELECT p.project_id INTO manuscript_project
         FROM manuscript_versions m JOIN publications p ON p.id=m.publication_id
         WHERE m.id=CASE WHEN TG_OP='DELETE' THEN OLD.manuscript_version_id
@@ -42,6 +49,7 @@ def _guard_sql(*, reject_reparent: bool) -> str:
       RETURN NEW;
     END $$;
     """
+    )
 
 
 def upgrade() -> None:

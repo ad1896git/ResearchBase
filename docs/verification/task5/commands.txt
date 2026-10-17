@@ -1,0 +1,33 @@
+export UV_CACHE_DIR="$PWD/.uv-cache"
+export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
+export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+uv run pytest -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/full-resumed.log 2>&1
+uv run pytest -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/full-after.log 2>&1
+uv run pytest tests/integration/phase2/test_m0_provider_cancellation.py tests/integration/phase2/test_m2_metadata.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_00_concurrency.py tests/integration/phase2/test_pr2_03_effective_authority.py tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py tests/integration/phase2/test_pr2_03_review_guards.py tests/integration/phase2/test_pr2_04_authority_coverage.py tests/integration/phase2/test_pr2_04_execution_migration.py tests/integration/phase2/test_pr2_04_migration_coverage.py tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py tests/integration/phase2/test_pr2_04_plan_binding_coverage.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/changed-phase2-resumed.log 2>&1
+uv run pytest tests/unit tests/architecture -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/unit-architecture-final.log 2>&1
+uv run pytest tests/integration/phase2/test_pr2_00_challenges.py tests/integration/phase2/test_pr2_00_concurrency.py tests/integration/phase2/test_pr2_00_identity.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/challenge-timezone-green.log 2>&1
+uv run pytest tests/integration/phase2/test_pr2_00_bootstrap.py tests/integration/phase2/test_pr2_00_temporal_auth.py tests/integration/phase2/test_pr2_00_ownership.py tests/integration/phase2/test_pr2_00_identity_guards.py tests/integration/phase2/test_pr2_00_transaction_isolation.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/identity-clock-regression.log 2>&1
+uv run pytest tests/integration/test_pr18_hardening.py tests/e2e/test_phase1_failure_recovery.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/catalog-errors-resumed.log 2>&1
+uv run pytest tests/integration/phase2/test_pr2_03_effective_authority.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/authority-investigation.log 2>&1
+uv run pytest --collect-only -o addopts='' -q -p no:cacheprovider > docs/verification/task5/nodes-after.txt
+uv run ruff check . > docs/verification/task5/ruff-check-final.log
+uv run ruff format --check . > docs/verification/task5/ruff-format-final.log
+uv run pyright > docs/verification/task5/pyright-final.log
+git diff --check
+uv run pytest -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/full-final.log 2>&1
+uv run pytest tests/integration/phase2/test_pr2_04_provider_budget_completion.py tests/integration/phase2/test_pr2_04_provider_coverage.py tests/integration/phase2/test_pr2_04_provider_pg_coverage.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/provider-budget-green.log 2>&1
+uv run pytest tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/reservation-retrieval-green.log 2>&1
+uv run pytest tests/integration/phase2/test_pr2_04_schema_coverage.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/schema-fixtures-after.log 2>&1
+uv run pytest tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/success-coordinates-green-corrected.log 2>&1
+uv run pytest tests/unit tests/architecture -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/unit-architecture-final2.log 2>&1
+uv run ruff check . > docs/verification/task5/ruff-check-final2.log
+uv run ruff format --check . > docs/verification/task5/ruff-format-final2.log
+uv run pyright > docs/verification/task5/pyright-final2.log
+uv run pytest tests/test_architecture.py tests/unit/test_hg1_identity.py tests/integration/test_pr11r2_migration.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/late-portability-final.log 2>&1
+uv run pytest -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/full-verified.log 2>&1
+uv run pytest tests/unit tests/architecture tests/test_architecture.py -o addopts='' -q -rfE -p no:cacheprovider > docs/verification/task5/unit-architecture-completed-fixes.log 2>&1
+
+uv run ruff check . > docs/verification/task5/ruff-check-completed-fixes.log
+uv run ruff format --check . > docs/verification/task5/ruff-format-completed-fixes.log
+uv run pyright > docs/verification/task5/pyright-completed-fixes.log
+git diff --check

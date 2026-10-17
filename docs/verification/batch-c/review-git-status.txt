@@ -1,0 +1,76 @@
+DA .github/workflows/ci.yml
+AM docs/phase2/B10-first-slice-evidence-2026-10-16.md
+DA docs/phase2/migration_inventory_phase2.md
+M  docs/proposals/B09_Approval_Tuples_Contract_DRAFT.md
+M  docs/proposals/B10_Rejection_Reconsideration_Contract_DRAFT.md
+A  docs/verification/b09/concurrency.txt
+A  docs/verification/b09/focused-postgresql.txt
+A  docs/verification/b09/head-regressions.txt
+AM docs/verification/b09/implementation-evidence.md
+A  docs/verification/b09/schema.txt
+A  docs/verification/b09/unit-architecture.txt
+ A docs/verification/batch-c/integration-evidence.md
+ A docs/verification/batch-c/proposed-b10-compatibility.diff
+ D migrations/versions/0054a_batch_c_compatibility.py
+ A migrations/versions/0055_b09_approval_tuples.py
+ A migrations/versions/0056_b10_reconsideration.py
+ D migrations/versions/0057_batch_c_dispatch.py
+M  src/researchbase/application/approval.py
+DA src/researchbase/application/decision.py
+DA src/researchbase/application/ports.py
+M  src/researchbase/domain/approval.py
+DA src/researchbase/domain/decision.py
+M  src/researchbase/persistence/approval_repository.py
+DA src/researchbase/persistence/decision_repository.py
+MM src/researchbase/persistence/internal_review_repository.py
+M  src/researchbase/persistence/uow.py
+DA tests/architecture/test_b04_boundaries.py
+DA tests/architecture/test_b05_review_boundaries.py
+AM tests/architecture/test_b10_reconsideration.py
+DA tests/architecture/test_basic_approval.py
+DA tests/architecture/test_import_boundaries.py
+DA tests/fixtures/phase2_static_baseline.json
+M  tests/integration/phase2/test_approval.py
+DA tests/integration/phase2/test_b04_manuscript_migration.py
+DA tests/integration/phase2/test_b05_review_migration.py
+M  tests/integration/phase2/test_b06_revision_action.py
+ M tests/integration/phase2/test_b07_revision_decisions.py
+ M tests/integration/phase2/test_b07_schema.py
+ M tests/integration/phase2/test_b08_concurrency.py
+ M tests/integration/phase2/test_b08_schema.py
+A  tests/integration/phase2/test_b09_approval_concurrency.py
+A  tests/integration/phase2/test_b09_approval_schema.py
+A  tests/integration/phase2/test_b10_reconsideration.py
+A  tests/integration/phase2/test_b10_reconsideration_concurrency.py
+AM tests/integration/phase2/test_b10_reconsideration_schema.py
+ M tests/integration/phase2/test_b11_readiness_schema.py
+ A tests/integration/phase2/test_batch_c_migration.py
+DA tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
+DA tests/integration/phase2/test_pr2_03_review_guards.py
+DA tests/integration/phase2/test_pr2_04_execution_migration.py
+DA tests/integration/phase2/test_pr2_04_migration_coverage.py
+M  tests/integration/phase2/test_pr2_15_decision.py
+DA tests/integration/phase2/test_pr2_15_decision_schema.py
+DA tests/integration/phase2/test_pr2_17_authorship_schema.py
+M  tests/integration/phase2/test_pr2_19_replay.py
+DA tests/integration/phase2/test_revision_action.py
+DA tests/test_architecture.py
+A  tests/unit/phase2/test_b10_reconsideration.py
+DA tests/unit/phase2/test_pr2_04_r8a_host_topology.py
+M  tests/unit/phase2/test_pr2_15_decision.py
+DA tests/unit/phase2/test_pr2_20_inventory.py
+M  tests/unit/test_approval.py
+ A tests/unit/test_batch_c_migration_history.py
+DA tests/unit/test_task12_migration_history.py
+?? docs/verification/batch-c/b09-source-lane-sql.diff
+?? docs/verification/batch-c/b10-source-lane-sql.diff
+?? docs/verification/batch-c/b11-schema-presentation.diff
+?? docs/verification/batch-c/previous-attempt-evidence.md
+?? docs/verification/batch-c/review-focused-postgresql.txt
+?? docs/verification/batch-c/review-full-check.txt
+?? docs/verification/batch-c/review-git-add.txt
+?? docs/verification/batch-c/review-git-status.txt
+?? docs/verification/batch-c/review-heads.txt
+?? docs/verification/batch-c/review-history-checks.txt
+?? docs/verification/batch-c/review-unit-architecture.txt
+?? docs/verification/batch-c/review-unmerged-paths.txt

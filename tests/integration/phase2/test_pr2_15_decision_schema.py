@@ -58,7 +58,7 @@ def _catalog(conn, names):
 
 def test_0042_exact_minimal_schema_fks_indexes_and_no_extra_tables(phase2_database_url):
     config = _config(phase2_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == [REVISION]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0059_b13_grant_consumption"]
     command.upgrade(config, PREVIOUS)
     engine = create_engine(phase2_database_url)
     try:
@@ -206,6 +206,10 @@ def test_0042_downgrade_refuses_committed_history_without_loss(decision_env, pha
                 for table in sorted(TABLES)
             )
 
+    with engine.connect() as conn:
+        installed_revision = conn.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one()
     before = history()
     with pytest.raises(DBAPIError):
         command.downgrade(_config(phase2_database_url), PREVIOUS)
@@ -213,6 +217,7 @@ def test_0042_downgrade_refuses_committed_history_without_loss(decision_env, pha
     with engine.connect() as conn:
         assert TABLES <= _tables(conn)
         assert (
-            conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == REVISION
+            conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+            == installed_revision
         )
     assert service.record_decision(actor, request) == saved

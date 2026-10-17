@@ -1,0 +1,26 @@
+{
+  "before": {
+    "passed": 4911,
+    "failed": 33,
+    "errors": 0,
+    "skipped": 3,
+    "seconds": 4705.04,
+    "exit_code": 1,
+    "note": "Resumed baseline includes inherited partial changes"
+  },
+  "after": {
+    "passed": 4938,
+    "failed": 9,
+    "errors": 0,
+    "skipped": 1,
+    "seconds": 4770.74,
+    "warnings": 2541,
+    "exit_code": 1
+  },
+  "unit_architecture": {
+    "passed": 1821,
+    "failed": 0,
+    "errors": 0
+  },
+  "remaining_test_databases": 0
+}

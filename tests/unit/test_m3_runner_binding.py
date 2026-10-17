@@ -98,7 +98,7 @@ def test_root_policy_tag_is_a_single_explicit_m3_name(monkeypatch):
     seen = []
     monkeypatch.setattr(runtime, "read_trusted_config", lambda path: seen.append(path) or None)
     assert runtime.build_hg1_coordinator("m3-retained", object(), object()) is None
-    assert seen == [runtime.TRUST_ROOT / "hg1-02-m3-retained.json"]
+    assert seen == [runtime.load_host_settings().trust_root / "hg1-02-m3-retained.json"]
     with pytest.raises(ValueError):
         runtime.build_hg1_coordinator("m3-other", object(), object())
 
@@ -121,14 +121,18 @@ def test_client_identity_claims_still_fail_exact_v2_protocol():
         _validate({"v": 2, "op": "evidence.review", "project_id": "x", "actor_id": "owner"})
 
 
-def test_m3_storage_rejects_symlinked_cas(tmp_path: Path):
+def test_m3_storage_rejects_symlinked_cas(tmp_path: Path, monkeypatch):
     from researchbase.runner import RunnerProfile, verify_m3_storage
 
-    installation = tmp_path / "installation"
-    actual_cas = tmp_path / "actual-cas"
+    tmp_path.chmod(0o700)
+    monkeypatch.setenv("RB_HOST_DURABLE_ROOT", str(tmp_path.resolve()))
+    installation = tmp_path.resolve() / "installation"
+    actual_cas = tmp_path.resolve() / "actual-cas"
     installation.mkdir(mode=0o700)
     actual_cas.mkdir(mode=0o700)
-    cas_link = tmp_path / "cas"
+    # First prove the private directories pass, so the rejection is the symlink.
+    verify_m3_storage(RunnerProfile("m3-retained", installation, actual_cas, True))
+    cas_link = tmp_path.resolve() / "cas"
     cas_link.symlink_to(actual_cas, target_is_directory=True)
     profile = RunnerProfile("m3-retained", installation, cas_link, True)
     with pytest.raises(ValueError):
@@ -181,7 +185,7 @@ def test_m3_server_identity_and_hba_are_checked_before_socket(monkeypatch):
 
     monkeypatch.setattr(runtime, "create_database_engine", lambda _url: Engine(expected))
     runtime.verify_m3_server(SimpleNamespace(database_url=url(M3)))
-    bad = list(expected)
+    bad: list[str] = list(expected)
     bad[7] = "wrong-system-id"
     monkeypatch.setattr(runtime, "create_database_engine", lambda _url: Engine(tuple(bad)))
     with pytest.raises(ValueError):

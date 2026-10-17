@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from scripts.pr2_04_verification_matrix import _load_results, _requirements
 
 ROOT = Path(__file__).parents[3]
@@ -22,8 +21,7 @@ def test_matrix_parser_preserves_all_65_contract_rows() -> None:
     assert rows[0]["requirement"] == "PR204-DOM-01"
     assert rows[-1]["requirement"] == "PR204-EVID-02"
     assert all(
-        row["invariant"] and row["evidence_type"] and row["expected_category"]
-        for row in rows
+        row["invariant"] and row["evidence_type"] and row["expected_category"] for row in rows
     )
     bindings = json.loads((ROOT / "scripts/pr2_04_requirement_bindings.json").read_text())
     assert set(bindings["requirements"]) == {row["requirement"] for row in rows}
@@ -121,10 +119,12 @@ def test_host_review_dry_run_binds_frozen_contract_and_required_gates() -> None:
 
 
 @pytest.mark.parametrize(
-    "invalid", ["wrong_head", "wrong_branch", "partial", "live", "empty_repo", "relative_repo", "short_head"]
+    "invalid",
+    ["wrong_head", "wrong_branch", "partial", "live", "empty_repo", "relative_repo", "short_head"],
 )
 def test_host_review_candidate_override_rejects_invalid_inputs_before_database(
-    invalid: str, tmp_path: Path,
+    invalid: str,
+    tmp_path: Path,
 ) -> None:
     environment, head = _dry_run_candidate_env()
     if invalid == "wrong_head":
@@ -144,10 +144,16 @@ def test_host_review_candidate_override_rejects_invalid_inputs_before_database(
         probe = tmp_path / executable
         probe.write_text('#!/bin/sh\n: > "$PR204_DB_SENTINEL"\nexit 99\n')
         probe.chmod(0o700)
-    environment.update(PG_BIN=str(tmp_path), POSTGRES_VERSION="18.0", PR204_DB_SENTINEL=str(sentinel))
+    environment.update(
+        PG_BIN=str(tmp_path), POSTGRES_VERSION="18.0", PR204_DB_SENTINEL=str(sentinel)
+    )
     completed = subprocess.run(
         ["bash", str(HOST_REVIEW), *([] if invalid == "live" else ["--dry-run"])],
-        cwd=ROOT, env=environment, check=False, capture_output=True, text=True,
+        cwd=ROOT,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     assert completed.returncode == 2
     assert "REQUIRED_GATES=" not in completed.stdout

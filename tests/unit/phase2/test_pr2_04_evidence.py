@@ -11,7 +11,6 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-
 from scripts.pr2_04_evidence import finalize_run, validate_run
 from scripts.pr2_04_pytest_evidence import FactRecorder
 
@@ -79,12 +78,24 @@ def test_partial_requirement_without_complete_expected_node_binding_is_not_run(
 def test_fully_bound_requirement_cannot_pass_before_its_pg_node_executes(tmp_path: Path) -> None:
     manifest = _run(tmp_path)
     bindings = tmp_path / "bindings.json"
-    bindings.write_text(json.dumps({
-        "requirements": {REQ: [NODE, NODE + "_postgresql"]},
-        "coverage_gaps": {REQ: []},
-    }))
-    finalize_run(tmp_path / "ledger.json", tmp_path / "tests.xml", manifest,
-                 tmp_path, HEAD, RUN, {REQ}, bindings)
+    bindings.write_text(
+        json.dumps(
+            {
+                "requirements": {REQ: [NODE, NODE + "_postgresql"]},
+                "coverage_gaps": {REQ: []},
+            }
+        )
+    )
+    finalize_run(
+        tmp_path / "ledger.json",
+        tmp_path / "tests.xml",
+        manifest,
+        tmp_path,
+        HEAD,
+        RUN,
+        {REQ},
+        bindings,
+    )
     row = validate_run(manifest, tmp_path, HEAD, RUN, {REQ})[REQ]
     assert row["result"] == "NOT_RUN"
     assert row["node_ids"] == [NODE]
@@ -94,12 +105,24 @@ def test_fully_bound_requirement_cannot_pass_before_its_pg_node_executes(tmp_pat
 def test_matching_partial_node_set_with_open_contract_gaps_cannot_pass(tmp_path: Path) -> None:
     manifest = _run(tmp_path)
     bindings = tmp_path / "bindings.json"
-    bindings.write_text(json.dumps({
-        "requirements": {REQ: [NODE]},
-        "coverage_gaps": {REQ: ["PostgreSQL transition guards not yet exercised"]},
-    }))
-    finalize_run(tmp_path / "ledger.json", tmp_path / "tests.xml", manifest,
-                 tmp_path, HEAD, RUN, {REQ}, bindings)
+    bindings.write_text(
+        json.dumps(
+            {
+                "requirements": {REQ: [NODE]},
+                "coverage_gaps": {REQ: ["PostgreSQL transition guards not yet exercised"]},
+            }
+        )
+    )
+    finalize_run(
+        tmp_path / "ledger.json",
+        tmp_path / "tests.xml",
+        manifest,
+        tmp_path,
+        HEAD,
+        RUN,
+        {REQ},
+        bindings,
+    )
     row = validate_run(manifest, tmp_path, HEAD, RUN, {REQ})[REQ]
     assert row["result"] == "NOT_RUN"
     assert row["coverage_gaps"] == ["PostgreSQL transition guards not yet exercised"]
@@ -108,13 +131,25 @@ def test_matching_partial_node_set_with_open_contract_gaps_cannot_pass(tmp_path:
 def test_unknown_requirement_in_coverage_gap_register_is_rejected(tmp_path: Path) -> None:
     manifest = _run(tmp_path)
     bindings = tmp_path / "bindings.json"
-    bindings.write_text(json.dumps({
-        "requirements": {REQ: [NODE]},
-        "coverage_gaps": {"PR204-UNKNOWN-ID": ["uncovered"]},
-    }))
+    bindings.write_text(
+        json.dumps(
+            {
+                "requirements": {REQ: [NODE]},
+                "coverage_gaps": {"PR204-UNKNOWN-ID": ["uncovered"]},
+            }
+        )
+    )
     with pytest.raises(ValueError, match="unknown requirement"):
-        finalize_run(tmp_path / "ledger.json", tmp_path / "tests.xml", manifest,
-                     tmp_path, HEAD, RUN, {REQ}, bindings)
+        finalize_run(
+            tmp_path / "ledger.json",
+            tmp_path / "tests.xml",
+            manifest,
+            tmp_path,
+            HEAD,
+            RUN,
+            {REQ},
+            bindings,
+        )
 
 
 @pytest.mark.parametrize(
@@ -136,10 +171,19 @@ def test_nonpassing_or_untraced_test_never_passes(
 def test_failed_partial_coverage_is_fail_not_pass_or_hidden_not_run(tmp_path: Path) -> None:
     manifest = _run(tmp_path, phase="failed")
     bindings = tmp_path / "bindings.json"
-    bindings.write_text(json.dumps({"requirements": {REQ: [NODE]},
-                                    "coverage_gaps": {REQ: ["PG cases missing"]}}))
-    finalize_run(tmp_path / "ledger.json", tmp_path / "tests.xml", manifest,
-                 tmp_path, HEAD, RUN, {REQ}, bindings)
+    bindings.write_text(
+        json.dumps({"requirements": {REQ: [NODE]}, "coverage_gaps": {REQ: ["PG cases missing"]}})
+    )
+    finalize_run(
+        tmp_path / "ledger.json",
+        tmp_path / "tests.xml",
+        manifest,
+        tmp_path,
+        HEAD,
+        RUN,
+        {REQ},
+        bindings,
+    )
     assert validate_run(manifest, tmp_path, HEAD, RUN, {REQ})[REQ]["result"] == "FAIL"
 
 
@@ -147,12 +191,24 @@ def test_unmarked_requirement_retains_gap_and_not_run_without_trace(tmp_path: Pa
     manifest = _run(tmp_path)
     other = "PR204-DOM-02"
     bindings = tmp_path / "bindings.json"
-    bindings.write_text(json.dumps({
-        "requirements": {REQ: [NODE], other: []},
-        "coverage_gaps": {other: ["Complete seals not exercised"]},
-    }))
-    finalize_run(tmp_path / "ledger.json", tmp_path / "tests.xml", manifest,
-                 tmp_path, HEAD, RUN, {REQ, other}, bindings)
+    bindings.write_text(
+        json.dumps(
+            {
+                "requirements": {REQ: [NODE], other: []},
+                "coverage_gaps": {other: ["Complete seals not exercised"]},
+            }
+        )
+    )
+    finalize_run(
+        tmp_path / "ledger.json",
+        tmp_path / "tests.xml",
+        manifest,
+        tmp_path,
+        HEAD,
+        RUN,
+        {REQ, other},
+        bindings,
+    )
     row = validate_run(manifest, tmp_path, HEAD, RUN, {REQ, other})[other]
     assert row["result"] == "NOT_RUN"
     assert row["node_ids"] == [] and row["evidence"] == []
@@ -352,8 +408,9 @@ def test_compatibility_pass_requires_identical_validated_producer_rows(tmp_path:
     manifest = _run(tmp_path)
     rows = validate_run(manifest, tmp_path, HEAD, RUN, {REQ})
     compatibility = tmp_path / "acceptance_results.json"
-    compatibility.write_text(json.dumps({"execution_head": HEAD, "run_id": RUN,
-                                        "rows": list(rows.values())}))
+    compatibility.write_text(
+        json.dumps({"execution_head": HEAD, "run_id": RUN, "rows": list(rows.values())})
+    )
     assert _load_results(compatibility, tmp_path, HEAD, rows, RUN)[REQ]["result"] == "PASS"
     with pytest.raises(ValueError, match="run binding"):
         _load_results(compatibility, tmp_path, HEAD, rows, "other-run")

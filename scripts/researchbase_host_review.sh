@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-readonly EXPECTED_REPO="/private/tmp/ResearchBase-phase2-recovered"
-readonly EXPECTED_BRANCH="phase2/entry-gate"
+readonly REVIEW_TMP_ROOT="${RB_REVIEW_TMP_ROOT:-/private/tmp}"
+
+readonly EXPECTED_REPO="${RB_REVIEW_REPO:-/private/tmp/ResearchBase-phase2-recovered}"
+readonly EXPECTED_BRANCH="${RB_REVIEW_BRANCH:-phase2/entry-gate}"
 readonly DESIGN_SUBJECT="8c4355b7b8f25450a97436c1989e254c023ad34e"
 readonly IMPLEMENTATION_SHA="3de5e897cc72de3e4c4f7b86d83ed8ae2b13fc93"
 readonly EVIDENCE_SHA="a8fd1fef2475b12c50e6f18a4aaa6d9b0e663d02"
 readonly PHASE1_BASELINE="d2400fbeca835c89bd802a4e9d647bda01cfd115"
-PG_BIN=""
+PG_BIN="${PG_BIN:-}"
 POSTGRES_VERSION_TEXT=""
 POSTGRES_VERSION=""
-readonly PYTHON_ENV_ROOT="/Users/onephone/Documents/Codex/ResearchBase"
-readonly PYTHON_BIN="/Users/onephone/Documents/Codex/ResearchBase/.venv/bin/python"
-readonly PYTHON_SCRIPTS="$PYTHON_ENV_ROOT/.venv/bin"
+readonly PYTHON_ENV_ROOT="${RB_REVIEW_PYTHON_ENV_ROOT:-/Users/onephone/Documents/Codex/ResearchBase}"
+readonly PYTHON_BIN="${RB_REVIEW_PYTHON:-$PYTHON_ENV_ROOT/.venv/bin/python}"
+readonly PYTHON_SCRIPTS="${RB_REVIEW_TOOLS:-$PYTHON_ENV_ROOT/.venv/bin}"
 readonly EXPECTED_HEAD_REVISION="0022_source_version_and_merge_lineage"
 readonly BASELINE_REVISION="0018_current_pointer_same_parent_integrity"
 
@@ -52,7 +54,9 @@ fail() {
 
 discover_postgres18() {
   local candidate version_text version_number binary
-  if [ -x "/opt/homebrew/opt/postgresql@18/bin/postgres" ]; then
+  if [ -n "$PG_BIN" ]; then
+    candidate="$PG_BIN"
+  elif [ -x "/opt/homebrew/opt/postgresql@18/bin/postgres" ]; then
     candidate="/opt/homebrew/opt/postgresql@18/bin"
   elif command -v brew >/dev/null 2>&1; then
     local prefix
@@ -476,7 +480,7 @@ cleanup_and_report() {
   trap - EXIT INT TERM
   if [ -n "$RUN_TMP" ] && [ -d "$RUN_TMP" ]; then
     case "$RUN_TMP" in
-      /private/tmp/researchbase-host-review.*)
+      "$REVIEW_TMP_ROOT"/researchbase-host-review.*)
         if [ -n "$PGDATA" ] && [ -d "$PGDATA" ] && [ -x "$PG_BIN/pg_ctl" ]; then
           if "$PG_BIN/pg_ctl" -D "$PGDATA" status >/dev/null 2>&1; then
             if "$PG_BIN/pg_ctl" -D "$PGDATA" stop -m fast -w > "$RUN_OUTPUT_DIR/logs/postgres_stop.log" 2>&1; then
@@ -538,7 +542,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   printf 'DRY_RUN=YES\n'
   printf 'MODE=%s\n' "$MODE"
   printf 'POSTGRESQL_LIFECYCLE=planned-only\n'
-  printf 'PLANNED_PGDATA=/private/tmp/researchbase-host-review-<unique>/data\n'
+  printf 'PLANNED_PGDATA=%s/researchbase-host-review-<unique>/data\n' "$REVIEW_TMP_ROOT"
   printf 'PHASE1_DATABASE=researchbase_phase1_review (migration 0018)\n'
   printf 'PHASE2_DATABASE=researchbase_review (migration 0022)\n'
   printf 'PLANNED_DATABASE_URL=postgresql+psycopg://researchbase@127.0.0.1:<temporary-port>/researchbase_review\n'
@@ -565,9 +569,9 @@ PREFLIGHT_LOG="$RUN_OUTPUT_DIR/logs/preflight.log"
 printf 'mode=%s\npreflight=%s\nrepo=%s\n' "$MODE" "$PREFLIGHT_STATUS" "$REPO_ROOT" > "$PREFLIGHT_LOG"
 record_check "preflight" 0 "repository subjects, PG18 binaries and Python dependency checks" "$PREFLIGHT_LOG"
 
-RUN_TMP="$(mktemp -d /private/tmp/researchbase-host-review.XXXXXX 2> "$RUN_OUTPUT_DIR/logs/mktemp.log")"
+RUN_TMP="$(mktemp -d "$REVIEW_TMP_ROOT/researchbase-host-review.XXXXXX" 2> "$RUN_OUTPUT_DIR/logs/mktemp.log")"
 if [ -z "$RUN_TMP" ] || [ ! -d "$RUN_TMP" ]; then
-  record_check "create_temp_cluster_dir" 1 "mktemp -d /private/tmp/researchbase-host-review.XXXXXX" "$RUN_OUTPUT_DIR/logs/mktemp.log"
+  record_check "create_temp_cluster_dir" 1 "mktemp -d $REVIEW_TMP_ROOT/researchbase-host-review.XXXXXX" "$RUN_OUTPUT_DIR/logs/mktemp.log"
   exit 1
 fi
 PGDATA="$RUN_TMP/data"
@@ -580,7 +584,7 @@ fi
 DATABASE_URL="postgresql+psycopg://researchbase@127.0.0.1:${PORT}/researchbase_review"
 PHASE1_DATABASE_URL="postgresql+psycopg://researchbase@127.0.0.1:${PORT}/researchbase_phase1_review"
 export DATABASE_URL
-record_check "create_temp_cluster_dir" 0 "mktemp -d /private/tmp/researchbase-host-review.XXXXXX" "$RUN_OUTPUT_DIR/logs/mktemp.log"
+record_check "create_temp_cluster_dir" 0 "mktemp -d $REVIEW_TMP_ROOT/researchbase-host-review.XXXXXX" "$RUN_OUTPUT_DIR/logs/mktemp.log"
 printf 'PGDATA=%s\nPGLOG=%s\nPORT=%s\nPHASE1_DATABASE=researchbase_phase1_review\nPHASE1_MIGRATION=0018_current_pointer_same_parent_integrity\nPHASE2_DATABASE=researchbase_review\nPHASE2_MIGRATION=0022_source_version_and_merge_lineage\n' "$PGDATA" "$PGLOG" "$PORT" > "$RUN_OUTPUT_DIR/environment.txt"
 
 run_step "initdb" "$PG_BIN/initdb -D <run-temp>/data --username=researchbase --auth=trust" \

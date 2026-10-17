@@ -1,25 +1,18 @@
-"""Typed Decision persistence and protected READ COMMITTED snapshot protocol.
+"""Typed Decision persistence; callers establish the literal first-SHARE protocol.
 
-Order: request advisory -> exact version UPDATE -> sorted table SHARE -> parent,
-authority and closure rows -> reviews ordered by UUID -> Issue/basis statements.
-SHARE conflicts with the ROW EXCLUSIVE PostgreSQL automatically takes for every
-INSERT/UPDATE/DELETE, including normal-role SQL. It protects insertion phantoms
-in governance validity joins as well as mutable source/review/authority facts.
-The coarse locks are confined to this bounded command. A deadlock/serialization
-failure aborts the entire UoW; the caller retries a fresh transaction.
-The command's first repository operation installs transaction-local operational
-limits: 10 seconds per lock wait, 30 seconds per statement. These do not change
-scientific policy and cannot leak to the next transaction using this connection.
-Lock/query timeouts abort the attempt through the UoW's sanitized failure path;
-only deadlock/serialization failures qualify for the existing bounded retry.
+Write-only target/advisory helpers are separate from plain historical basis reads.
+The legacy snapshot constant remains frozen because B06 imports that inventory.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from researchbase.foundation.time import to_utc
 
 # Fixed inventory of mutable facts consulted by existing closure/identity readers.
 # Frozen Phase1 record/input material has accepted immutable SQL guards; its
@@ -58,21 +51,77 @@ _SNAPSHOT_TABLES = tuple(
 )
 
 
+B11_SNAPSHOT_TABLES = (
+    "actor_subject_bindings",
+    "actors",
+    "artifact_versions",
+    "artifacts",
+    "audit_findings",
+    "claim_versions",
+    "claims",
+    "correction_records",
+    "dataset_snapshots",
+    "datasets",
+    "evidence_relations",
+    "experiment_spec_versions",
+    "experiment_specs",
+    "impact_assessments",
+    "impact_targets",
+    "internal_review_records",
+    "literature_evidence",
+    "literature_evidence_relations",
+    "literature_evidence_review_events",
+    "literature_source_project_links",
+    "literature_sources",
+    "literature_support_snapshots",
+    "manuscript_artifact_placements",
+    "manuscript_citation_placements",
+    "manuscript_claim_placements",
+    "manuscript_versions",
+    "measurements",
+    "metric_definition_versions",
+    "metric_definitions",
+    "project_membership_events",
+    "project_memberships",
+    "project_role_assignments",
+    "projects",
+    "publications",
+    "review_issue_events",
+    "review_issues",
+    "run_artifact_inputs",
+    "run_dataset_inputs",
+    "runs",
+    "scientific_conclusion_claim_inputs",
+    "scientific_conclusion_literature_inputs",
+    "scientific_conclusion_versions",
+    "scientific_conclusions",
+    "source_versions",
+    "statistical_result_inputs",
+    "statistical_results",
+)
+B11_SHARE_SQL = "LOCK TABLE " + ",".join(B11_SNAPSHOT_TABLES) + " IN SHARE MODE"
+
+
 class SqlAlchemyDecisionRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
     def _one(self, sql, params):
         row = self._session.execute(text(sql), params).mappings().first()
-        return dict(row) if row else None
+        return (
+            {
+                key: to_utc(value) if isinstance(value, datetime) else value
+                for key, value in row.items()
+            }
+            if row
+            else None
+        )
 
     def _many(self, sql, params):
         return [dict(row) for row in self._session.execute(text(sql), params).mappings()]
 
     def lock_request(self, identity: UUID) -> None:
-        # Install bounds before even the first request advisory lock can wait.
-        self._session.execute(text("SET LOCAL lock_timeout = '10s'"))
-        self._session.execute(text("SET LOCAL statement_timeout = '30s'"))
+        # N SHARE and operational limits are already held by the writer UoW.
         self._session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": f"pr215:decision:{identity}"},
@@ -89,6 +138,7 @@ class SqlAlchemyDecisionRepository:
         return row
 
     def lock_snapshot(self) -> None:
+        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
         self._session.execute(text("LOCK TABLE " + ",".join(_SNAPSHOT_TABLES) + " IN SHARE MODE"))
 
     def decision(self, identity: UUID, project: UUID):
@@ -118,14 +168,25 @@ class SqlAlchemyDecisionRepository:
             """SELECT 'ScientificConclusionVersion' AS type,
             b.scientific_conclusion_version_id AS id,v.content_hash,b.ordinal
             FROM decision_basis_conclusions b
-            JOIN scientific_conclusion_versions v ON v.id=b.scientific_conclusion_version_id
+            LEFT JOIN scientific_conclusion_versions v ON v.id=b.scientific_conclusion_version_id
             WHERE b.decision_id=:id UNION ALL
             SELECT 'InternalReviewRecord',b.internal_review_record_id,r.content_hash,b.ordinal
             FROM decision_basis_reviews b
-            JOIN internal_review_records r ON r.id=b.internal_review_record_id
+            LEFT JOIN internal_review_records r ON r.id=b.internal_review_record_id
             WHERE b.decision_id=:id ORDER BY ordinal""",
             {"id": identity},
         )
+
+    def revision_basis(self, identity: UUID):
+        # B07-only query: the release reader also runs at the accepted 0042 checkpoint.
+        rows = self.basis(identity)
+        rows += self._many(
+            """SELECT 'ClaimVersion' AS type,b.claim_version_id AS id,v.content_hash,b.ordinal
+            FROM decision_basis_claims b JOIN claim_versions v ON v.id=b.claim_version_id
+            WHERE b.decision_id=:id""",
+            {"id": identity},
+        )
+        return sorted(rows, key=lambda row: row["ordinal"])
 
     def reviews(self, target: UUID, project: UUID):
         return self._many(
@@ -164,6 +225,21 @@ class SqlAlchemyDecisionRepository:
         )
 
     def has_blockers(self, target: UUID, project: UUID) -> bool:
+        # Historical OPEN-only checkpoints predate B08. Validate terminal
+        # projections when present without requiring its SQL function at 0042.
+        terminal_ids = (
+            self._session.execute(
+                text("""SELECT i.id FROM review_issues i
+            JOIN internal_review_records r ON r.id=i.review_record_id
+            WHERE r.project_id=:project AND r.scientific_conclusion_version_id=:target
+              AND i.status<>'OPEN' ORDER BY i.id"""),
+                {"target": target, "project": project},
+            )
+            .scalars()
+            .all()
+        )
+        for identity in terminal_ids:
+            self._session.execute(text("SELECT b08_check_history(:id)"), {"id": identity})
         return bool(
             self._session.execute(
                 text("""SELECT EXISTS (
@@ -175,7 +251,9 @@ class SqlAlchemyDecisionRepository:
             ).scalar_one()
         )
 
-    def material_authors(self, target: UUID) -> frozenset[UUID]:
+    def material_authors(
+        self, target: UUID, *, manuscript: bool = False, claim: bool = False, snapshot: bool = False
+    ) -> frozenset[UUID]:
         # Fixed typed dependency edges. No live/current substitution is used.
         edges = []
         parents = {
@@ -190,6 +268,8 @@ class SqlAlchemyDecisionRepository:
             "metric_definition_versions": ("metric_definitions", "metric_definition_id"),
             "experiment_spec_versions": ("experiment_specs", "experiment_spec_id"),
         }
+        if manuscript:
+            parents["manuscript_versions"] = ("publications", "publication_id")
         for child, (parent, fk) in parents.items():
             edges.append(
                 f"SELECT '{child}'::text AS kind,id,'{parent}'::text AS child_kind,"
@@ -303,11 +383,45 @@ class SqlAlchemyDecisionRepository:
             " UNION ALL SELECT 'literature_support_snapshots',"
             "literature_support_snapshot_id,created_by FROM literature_evidence_relations"
         )
+        if manuscript:
+            edges.append(
+                "SELECT 'manuscript_versions',id,'artifact_versions',document_artifact_version_id "
+                "FROM manuscript_versions"
+            )
+            for table, refs in (
+                (
+                    "manuscript_claim_placements",
+                    (
+                        ("claim_versions", "claim_version_id"),
+                        ("scientific_conclusion_versions", "scientific_conclusion_version_id"),
+                    ),
+                ),
+                ("manuscript_citation_placements", (("source_versions", "source_version_id"),)),
+                ("manuscript_artifact_placements", (("artifact_versions", "artifact_version_id"),)),
+            ):
+                for child, fk in refs:
+                    edges.append(
+                        f"SELECT 'manuscript_versions',manuscript_version_id,'{child}',{fk} "
+                        f"FROM {table} WHERE {fk} IS NOT NULL"
+                    )
+                authors += (
+                    " UNION ALL SELECT 'manuscript_versions',manuscript_version_id,created_by "
+                    f"FROM {table}"
+                )
+        seed = (
+            "manuscript_versions"
+            if manuscript
+            else "claim_versions"
+            if claim
+            else "literature_support_snapshots"
+            if snapshot
+            else "scientific_conclusion_versions"
+        )
         sql = (
             "WITH RECURSIVE edges AS ("
             + " UNION ALL ".join(edges)
             + """),
-          closure(kind,id) AS (SELECT 'scientific_conclusion_versions'::text,CAST(:target AS uuid)
+          closure(kind,id) AS (SELECT CAST(:seed AS text),CAST(:target AS uuid)
             UNION SELECT e.child_kind,e.child_id FROM closure c JOIN edges e
               ON e.kind=c.kind AND e.id=c.id), authors AS ("""
             + authors
@@ -315,7 +429,9 @@ class SqlAlchemyDecisionRepository:
           SELECT DISTINCT a.created_by FROM authors a JOIN closure c
             ON c.kind=a.kind AND c.id=a.id"""
         )
-        return frozenset(self._session.execute(text(sql), {"target": target}).scalars())
+        return frozenset(
+            self._session.execute(text(sql), {"target": target, "seed": seed}).scalars()
+        )
 
     def _insert(self, table, row) -> None:
         keys = tuple(row)
@@ -336,3 +452,207 @@ class SqlAlchemyDecisionRepository:
 
     def insert_review_basis(self, row) -> None:
         self._insert("decision_basis_reviews", row)
+
+    def concern(self, decision):
+        return self._one(
+            "SELECT * FROM decision_revision_concerns WHERE decision_id=:id", {"id": decision}
+        )
+
+    def concern_decision(self, issue):
+        return self._one(
+            "SELECT decision_id FROM decision_revision_concerns WHERE review_issue_id=:id",
+            {"id": issue},
+        )
+
+    def revision_reviews(self, issue, project, *, lock=False):
+        column = (
+            "claim_version_id"
+            if issue["claim_version_id"] is not None
+            else "scientific_conclusion_version_id"
+        )
+        return self._many(
+            "SELECT * FROM internal_review_records WHERE "
+            + column
+            + "=:target AND project_id=:project ORDER BY id"
+            + (" FOR SHARE" if lock else ""),
+            {"target": issue[column], "project": project},
+        )
+
+    def insert_claim_basis(self, row):
+        self._session.execute(
+            text(
+                "INSERT INTO decision_basis_claims "
+                "(decision_id,claim_version_id,ordinal) "
+                "VALUES (:decision_id,:claim_version_id,:ordinal)"
+            ),
+            row,
+        )
+
+    def insert_concern(self, decision, issue):
+        self._session.execute(
+            text(
+                "INSERT INTO decision_revision_concerns "
+                "(decision_id,review_issue_id) VALUES (:decision,:issue)"
+            ),
+            {"decision": decision, "issue": issue},
+        )
+
+    def force_revision_constraints(self):
+        self._session.execute(
+            text(
+                "SET CONSTRAINTS pr215_complete_decision,b07_complete_decision,b07_complete_claim,"
+                "b07_complete_concern,pr215_complete_conclusion,pr215_complete_review IMMEDIATE"
+            )
+        )
+
+    def revision_creation_authorized(self, row):
+        return bool(
+            self._session.execute(
+                text("SELECT pr216_decision_authorized(d) FROM decision_records d WHERE id=:id"),
+                {"id": row["id"]},
+            ).scalar_one()
+        )
+
+    def prepare_readiness_write(self):
+        self._session.execute(text(B11_SHARE_SQL))
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+
+    def prepare_readiness_read(self):
+        self._session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+
+    def lock_readiness_request(self, identity: UUID):
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"b11:decision:{identity}"},
+        )
+
+    def lock_prepare_submission_request(self, identity: UUID):
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"b12:decision:{identity}"},
+        )
+
+    def prepare_submission_other_basis(self, identity: UUID) -> bool:
+        return self.readiness_other_basis(identity) or bool(
+            self._session.execute(
+                text("""SELECT EXISTS(SELECT 1 FROM decision_basis_approval_decisions
+                WHERE decision_id=:id)
+                OR EXISTS(SELECT 1 FROM decision_basis_revision_actions WHERE decision_id=:id)"""),
+                {"id": identity},
+            ).scalar_one()
+        )
+
+    def prepare_submission_scope(self, target: UUID, project: UUID):
+        return self._one(
+            """SELECT d.id FROM decision_records d
+            JOIN decision_basis_manuscripts b ON b.decision_id=d.id
+            WHERE b.manuscript_version_id=:target AND d.project_id=:project
+            AND d.decision_type='PREPARE_SUBMISSION'""",
+            {"target": target, "project": project},
+        )
+
+    def manuscript_basis(self, identity: UUID):
+        return self._many(
+            """SELECT 'ManuscriptVersion' AS type,
+            b.manuscript_version_id AS id,v.content_hash,b.ordinal
+            FROM decision_basis_manuscripts b
+            JOIN manuscript_versions v ON v.id=b.manuscript_version_id
+            WHERE b.decision_id=:id UNION ALL
+            SELECT 'InternalReviewRecord',b.internal_review_record_id,r.content_hash,b.ordinal
+            FROM decision_basis_reviews b
+            JOIN internal_review_records r ON r.id=b.internal_review_record_id
+            WHERE b.decision_id=:id ORDER BY ordinal""",
+            {"id": identity},
+        )
+
+    def readiness_scope(self, target: UUID, project: UUID):
+        return self._one(
+            """SELECT d.id FROM decision_records d
+            JOIN decision_basis_manuscripts b ON b.decision_id=d.id
+            WHERE b.manuscript_version_id=:target AND d.project_id=:project
+            AND d.decision_type='READY_FOR_SUBMISSION'""",
+            {"target": target, "project": project},
+        )
+
+    def readiness_other_basis(self, identity: UUID) -> bool:
+        return bool(
+            self._session.execute(
+                text("""SELECT
+            EXISTS(SELECT 1 FROM decision_basis_claims WHERE decision_id=:id) OR
+            EXISTS(SELECT 1 FROM decision_basis_conclusions WHERE decision_id=:id) OR
+            EXISTS(SELECT 1 FROM decision_revision_concerns WHERE decision_id=:id)"""),
+                {"id": identity},
+            ).scalar_one()
+        )
+
+    def applicable_manuscript_reviews(self, target: UUID, project: UUID):
+        return self._many(
+            "SELECT * FROM b11_applicable_reviews(:target,:project) ORDER BY id",
+            {"target": target, "project": project},
+        )
+
+    def insert_manuscript_basis(self, row):
+        self._insert("decision_basis_manuscripts", row)
+
+    def force_readiness_constraints(self):
+        self._session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    def require_readiness_snapshot(self):
+        self._session.execute(text("SELECT b11_require_snapshot()"))
+
+    def manuscript_exists(self, identity: UUID) -> bool:
+        return (
+            self._one("SELECT id FROM manuscript_versions WHERE id=:id", {"id": identity})
+            is not None
+        )
+
+    def lock_readiness_target(self, identity: UUID):
+        self._session.execute(
+            text("SELECT id FROM manuscript_versions WHERE id=:id FOR UPDATE"), {"id": identity}
+        )
+
+    def lock_readiness_project(self, identity: UUID):
+        self._session.execute(
+            text("SELECT id FROM projects WHERE id=:id FOR SHARE"), {"id": identity}
+        )
+
+    def reconsideration_basis(self, identity: UUID):
+        return self._many(
+            """SELECT 'ScientificConclusionVersion' AS type,
+            b.scientific_conclusion_version_id AS id,v.content_hash,b.ordinal
+            FROM decision_basis_conclusions b
+            JOIN scientific_conclusion_versions v ON v.id=b.scientific_conclusion_version_id
+            WHERE b.decision_id=:id UNION ALL
+            SELECT 'InternalReviewRecord',b.internal_review_record_id,r.content_hash,b.ordinal
+            FROM decision_basis_reviews b
+            JOIN internal_review_records r ON r.id=b.internal_review_record_id
+            WHERE b.decision_id=:id UNION ALL
+            SELECT 'ApprovalDecision',b.approval_decision_id,r.content_hash,b.ordinal
+            FROM decision_basis_approval_decisions b JOIN approval_decisions r
+              ON r.id=b.approval_decision_id WHERE b.decision_id=:id UNION ALL
+            SELECT 'RevisionAction',b.revision_action_id,r.content_hash,b.ordinal
+            FROM decision_basis_revision_actions b JOIN revision_actions r
+              ON r.id=b.revision_action_id WHERE b.decision_id=:id ORDER BY ordinal""",
+            {"id": identity},
+        )
+
+    def lock_reconsideration(self, identity):
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"pr215:decision:{identity}"},
+        )
+
+    def insert_rejection_basis(self, row):
+        self._insert("decision_basis_approval_decisions", row)
+
+    def insert_revision_basis(self, row):
+        self._insert("decision_basis_revision_actions", row)
+
+    def lock_conclusion_parent(self, identity):
+        self._session.execute(
+            text("""SELECT c.id FROM scientific_conclusions c
+          JOIN scientific_conclusion_versions v ON v.scientific_conclusion_id=c.id
+          WHERE v.id=:id FOR SHARE OF c"""),
+            {"id": identity},
+        )

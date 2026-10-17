@@ -1,0 +1,1 @@
+[{"external_latency_ms":null,"p50_ms":2.339417,"p95_ms":2.544542,"profile":"small informational","query_counts":[11,11],"samples_ms":[2.339417,2.300416,2.544542],"status":"PASS"}]

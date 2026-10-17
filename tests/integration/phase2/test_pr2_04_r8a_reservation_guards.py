@@ -13,22 +13,24 @@ import pytest
 from alembic import command
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
+
+from researchbase.application.literature_search_execution import CreateLiteratureSearchExecution
+from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 from tests.integration.phase2.test_pr2_04_cas_completion import _event
 from tests.integration.phase2.test_pr2_04_execution_migration import _alembic
 from tests.integration.phase2.test_pr2_04_outcome_reapplication_acceptance import OutcomeOnly
 from tests.integration.phase2.test_pr2_04_pg_retrieval_observation_repair import material
 from tests.integration.phase2.test_pr2_04_schema_coverage import A, E, V, _insert, _reject, _rows
 
-from researchbase.application.literature_search_execution import CreateLiteratureSearchExecution
-from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
-
 HEAD = "0025_pr2_04_reservation_guards"
 PARENT = "0024_literature_search_execution"
 pytestmark = pytest.mark.pr204_requirements("PR204-DB-01", "PR204-DB-05")
 
 
-def _case(url, timeout=30, budget=300, outcome=None):
-    engine, principal, project, provider, service, original = material(url, 0, OutcomeOnly)
+def _case(url, timeout=30, budget=300, outcome=None, *, migration_revision="head"):
+    engine, principal, project, provider, service, original = material(
+        url, 0, OutcomeOnly, migration_revision=migration_revision
+    )
     plan = next(r for r in _rows(engine)[E] if r["id"] == original.execution_id)[
         "search_plan_version_id"
     ]
@@ -158,7 +160,7 @@ def _cancel(conn, state, actor):
 def test_r8a_valid_reservations_keep_exact_deadline(phase2_database_url, kind, pr204_trace):
     engine, actor, provider, state = _case(
         phase2_database_url,
-        budget=2 if kind == "budget" else 300,
+        budget=1 if kind == "one_second" else 2 if kind == "budget" else 300,
         outcome="retry" if kind == "retry" else "success" if kind == "next_query" else None,
     )
     try:
@@ -169,14 +171,14 @@ def test_r8a_valid_reservations_keep_exact_deadline(phase2_database_url, kind, p
                 state,
                 actor,
                 retry=kind == "retry",
-                remaining=1 if kind == "one_second" else None,
             )
         after = _rows(engine)
         a = next(r for r in after[A] if r["id"] == aid)
         e = next(r for r in after[E] if r["id"] == state["id"])
         assert a["deadline_at"] == min(
-            a["reserved_at"] + timedelta(seconds=30),
-            e["started_at"] + timedelta(seconds=2 if kind == "budget" else 300),
+            a["reserved_at"] + timedelta(seconds=state["execution_context"]["timeout_seconds"]),
+            e["started_at"]
+            + timedelta(seconds=state["execution_context"]["execution_budget_seconds"]),
         )
         if kind == "one_second":
             assert a["deadline_at"] - a["reserved_at"] == timedelta(seconds=1)
@@ -320,7 +322,7 @@ def test_r8a_cancellation_reservation_ordering(
 
 @pytest.mark.pr204_requirements("PR204-MIG-01", "PR204-MIG-02")
 def test_r8a_populated_upgrade_downgrade_preserves_rows(phase2_database_url, pr204_trace):
-    engine, _, _, _ = _case(phase2_database_url, outcome="success")
+    engine, _, _, _ = _case(phase2_database_url, outcome="success", migration_revision=HEAD)
     config = _alembic(phase2_database_url)
     try:
         before = _rows(engine)

@@ -1,0 +1,10 @@
+...................................                                      [100%]
+=============================== warnings summary ===============================
+tests/unit/test_batch_c_migration_history.py::test_batch_c_linear_history_and_frozen_lane_sql
+tests/unit/test_task12_migration_history.py::test_task12_preserves_every_historical_migration_byte_and_exact_child
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py::test_r8a_actual_migration_graph_and_frozen_bytes
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+35 passed, 3 warnings in 1.15s

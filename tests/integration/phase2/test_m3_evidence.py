@@ -558,28 +558,29 @@ def test_pg_m3_migration_from_phase1_and_empty_roundtrip(phase2_database_url):
     engine.dispose()
 
 
-def test_pg_m3_alembic_env_preserves_percent_escaped_socket_url(
-    phase2_database_url, monkeypatch
-):
-    from urllib.parse import quote
-
+def test_pg_m3_alembic_env_preserves_percent_escaped_url(phase2_database_url, monkeypatch):
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
     from sqlalchemy.engine import make_url
 
-    socket_host = make_url(phase2_database_url).query.get("host")
-    assert isinstance(socket_host, str) and socket_host.startswith("/")
-    encoded_url = phase2_database_url.replace(
-        f"host={socket_host}", f"host={quote(socket_host, safe='')}"
+    # Exercise ConfigParser's literal-percent boundary on both TCP and Unix
+    # socket connections, and verify the decoded value at the actual server.
+    application_name = "researchbase/m3-percent-regression"
+    encoded_url = (
+        make_url(phase2_database_url)
+        .update_query_dict({"application_name": application_name})
+        .render_as_string(hide_password=False)
     )
     assert encoded_url != phase2_database_url
+    assert "%2F" in encoded_url
     monkeypatch.setenv("DATABASE_URL", encoded_url)
     config = Config("alembic.ini")
     command.upgrade(config, "0031_m3_snapshot_relation_cardinality")
     assert config.get_main_option("sqlalchemy.url") == encoded_url
     engine = create_engine(encoded_url)
     with engine.connect() as connection:
+        assert connection.execute(text("SHOW application_name")).scalar_one() == application_name
         assert connection.execute(text("SELECT current_database()")).scalar_one() == (
             engine.url.database
         )

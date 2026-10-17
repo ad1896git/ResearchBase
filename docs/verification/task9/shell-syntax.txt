@@ -1,0 +1,7 @@
+Command: for script in scripts/*.sh; do bash -n "$script" || exit; done
+Exit: 0
+Scripts checked: 4
+scripts/pr2_02_review_postgres.sh
+scripts/researchbase_host_pr2_03_verification.sh
+scripts/researchbase_host_pr2_04_verification.sh
+scripts/researchbase_host_review.sh

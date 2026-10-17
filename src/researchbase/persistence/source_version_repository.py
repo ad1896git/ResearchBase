@@ -10,8 +10,17 @@ from sqlalchemy.orm import Session
 
 
 class SqlAlchemySourceVersionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, protected_reads: bool = False) -> None:
         self._session = session
+        self._protected_reads = protected_reads
+
+    def prepare_write(self, *, freeze: bool = False) -> None:
+        # Reserve the final write modes in SHARE inventory order before any
+        # source/authority row lock; freeze writes both version and current pointer.
+        tables = "literature_sources,source_versions" if freeze else "source_versions"
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+        self._session.execute(text("LOCK TABLE " + tables + " IN ROW EXCLUSIVE MODE"))
 
     def lock_project(self, project_id: UUID) -> None:
         self._session.execute(text("SELECT rb_phase2_lock_project(:id)"), {"id": project_id})
@@ -40,7 +49,7 @@ class SqlAlchemySourceVersionRepository:
     def source(
         self, source_id: UUID, project_id: UUID, *, lock: bool = False
     ) -> dict[str, Any] | None:
-        suffix = " FOR UPDATE OF s" if lock else ""
+        suffix = " FOR UPDATE OF s" if lock and not self._protected_reads else ""
         row = (
             self._session.execute(
                 text(
@@ -132,7 +141,7 @@ class SqlAlchemySourceVersionRepository:
         )
 
     def version(self, version_id: UUID, *, lock: bool = False) -> dict[str, Any] | None:
-        suffix = " FOR UPDATE" if lock else ""
+        suffix = " FOR UPDATE" if lock and not self._protected_reads else ""
         row = (
             self._session.execute(
                 text("SELECT * FROM source_versions WHERE id=:id" + suffix), {"id": version_id}

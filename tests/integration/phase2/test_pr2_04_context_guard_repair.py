@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy.exc import DBAPIError
+
 from tests.integration.phase2.test_pr2_04_schema_coverage import (
     E,
     V,
@@ -37,7 +38,7 @@ def _observe_context(phase2_database_url, pr204_trace, changes, accepted):
         except DBAPIError as error:
             caught = error
         after = _rows(engine)
-        sqlstate = caught.orig.sqlstate if caught is not None else None
+        sqlstate = getattr(caught.orig, "sqlstate", None) if caught is not None else None
         pr204_trace.record(
             supplied_context_changes=changes,
             expected_acceptance=accepted,
@@ -95,7 +96,11 @@ def test_context_optional_perspective_null_is_preserved(phase2_database_url, pr2
     _observe_context(
         phase2_database_url,
         pr204_trace,
-        {"queries": [{"query_type": "TEXT", "query_text": "normalization evidence", "perspective": None}]},
+        {
+            "queries": [
+                {"query_type": "TEXT", "query_text": "normalization evidence", "perspective": None}
+            ]
+        },
         True,
     )
 
@@ -113,7 +118,16 @@ def test_context_optional_perspective_null_is_preserved(phase2_database_url, pr2
         ("\u00a0\u2003", False),
         ("\u001c", False),
     ],
-    ids=["nfc", "max_length", "non_whitespace_format", "untrimmed", "empty", "too_long", "unicode_blank", "python_separator_blank"],
+    ids=[
+        "nfc",
+        "max_length",
+        "non_whitespace_format",
+        "untrimmed",
+        "empty",
+        "too_long",
+        "unicode_blank",
+        "python_separator_blank",
+    ],
 )
 @pytest.mark.pr204_requirements("PR204-DB-01")
 def test_context_provider_identifier_frozen_text(

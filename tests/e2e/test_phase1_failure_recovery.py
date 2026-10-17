@@ -226,10 +226,19 @@ def test_cli_recovery_sequence_has_no_stale_request_id_or_context(tmp_path: Path
 
 def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> None:
     expected_http = {
+        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 409,
+        ErrorCode.APPROVAL_GATE_FAILED: 409,
+        ErrorCode.DECISION_BASIS_INVALID: 409,
+        ErrorCode.APPROVAL_TARGET_STALE: 409,
+        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 409,
+        ErrorCode.GRANT_INVALID: 409,
+        ErrorCode.GRANT_STALE: 409,
         ErrorCode.VALIDATION_ERROR: 422,
         ErrorCode.NOT_FOUND: 404,
         ErrorCode.AUTHENTICATION_REQUIRED: 401,
         ErrorCode.FORBIDDEN: 403,
+        ErrorCode.REVIEW_TARGET_NOT_FROZEN: 409,
+        ErrorCode.CONFLICT_OF_INTEREST: 403,
         ErrorCode.SUBJECT_BINDING_UNPROVEN: 403,
         ErrorCode.INVALID_STATE_TRANSITION: 409,
         ErrorCode.VERSION_NOT_FROZEN: 409,
@@ -271,12 +280,24 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 422,
         ErrorCode.SEARCH_PLAN_QUESTION_SCOPE_MISMATCH: 403,
         ErrorCode.SEARCH_PLAN_VERSION_IMMUTABLE: 409,
+        ErrorCode.SEARCH_PLAN_NOT_FROZEN: 409,
+        ErrorCode.ADAPTER_UNAVAILABLE: 503,
+        ErrorCode.ADAPTER_VERSION_MISMATCH: 409,
     }
     expected_cli = {
+        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 4,
+        ErrorCode.APPROVAL_GATE_FAILED: 4,
+        ErrorCode.DECISION_BASIS_INVALID: 4,
+        ErrorCode.APPROVAL_TARGET_STALE: 4,
+        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 4,
+        ErrorCode.GRANT_INVALID: 4,
+        ErrorCode.GRANT_STALE: 4,
         ErrorCode.VALIDATION_ERROR: 2,
         ErrorCode.NOT_FOUND: 3,
         ErrorCode.AUTHENTICATION_REQUIRED: 3,
         ErrorCode.FORBIDDEN: 3,
+        ErrorCode.REVIEW_TARGET_NOT_FROZEN: 4,
+        ErrorCode.CONFLICT_OF_INTEREST: 3,
         ErrorCode.SUBJECT_BINDING_UNPROVEN: 3,
         ErrorCode.INVALID_STATE_TRANSITION: 4,
         ErrorCode.VERSION_NOT_FROZEN: 4,
@@ -318,6 +339,9 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> 
         ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 2,
         ErrorCode.SEARCH_PLAN_QUESTION_SCOPE_MISMATCH: 3,
         ErrorCode.SEARCH_PLAN_VERSION_IMMUTABLE: 4,
+        ErrorCode.SEARCH_PLAN_NOT_FROZEN: 4,
+        ErrorCode.ADAPTER_UNAVAILABLE: 5,
+        ErrorCode.ADAPTER_VERSION_MISMATCH: 4,
     }
     assert set(expected_http) == set(ErrorCode)
     assert _STATUS == expected_http

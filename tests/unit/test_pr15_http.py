@@ -244,6 +244,16 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
     }
     first = create_app(Services(FakeApplication())).openapi()
     second = create_app(Services(FakeApplication())).openapi()
+    expected.update(
+        {
+            ("post", "/v1/projects/{project_id}/search-coverage"),
+            ("get", "/v1/projects/{project_id}/search-coverage/{id}"),
+            ("post", "/v1/projects/{project_id}/prior-art-relations"),
+            ("get", "/v1/projects/{project_id}/prior-art-relations/{id}"),
+            ("post", "/v1/projects/{project_id}/novelty-assessments"),
+            ("get", "/v1/projects/{project_id}/novelty-assessments/{id}"),
+        }
+    )
     actual = {
         (method, path)
         for path, methods in first["paths"].items()
@@ -265,10 +275,19 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
 
 def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
     expected = {
+        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 409,
+        ErrorCode.APPROVAL_GATE_FAILED: 409,
+        ErrorCode.DECISION_BASIS_INVALID: 409,
+        ErrorCode.APPROVAL_TARGET_STALE: 409,
+        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 409,
+        ErrorCode.GRANT_INVALID: 409,
+        ErrorCode.GRANT_STALE: 409,
         ErrorCode.VALIDATION_ERROR: 422,
         ErrorCode.NOT_FOUND: 404,
         ErrorCode.AUTHENTICATION_REQUIRED: 401,
         ErrorCode.FORBIDDEN: 403,
+        ErrorCode.REVIEW_TARGET_NOT_FROZEN: 409,
+        ErrorCode.CONFLICT_OF_INTEREST: 403,
         ErrorCode.SUBJECT_BINDING_UNPROVEN: 403,
         ErrorCode.INVALID_STATE_TRANSITION: 409,
         ErrorCode.VERSION_NOT_FROZEN: 409,

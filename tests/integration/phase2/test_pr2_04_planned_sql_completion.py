@@ -6,6 +6,7 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
+
 from tests.integration.phase2.test_pr2_04_cas_completion import _event, _intent
 from tests.integration.phase2.test_pr2_04_idempotency_coverage import _execution_setup, _snapshot
 

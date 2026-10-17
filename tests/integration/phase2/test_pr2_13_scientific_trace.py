@@ -38,43 +38,91 @@ phase2_database_url = _phase2_database_url
 
 def _counts(engine):
     with engine.connect() as conn:
-        return tuple(conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
-                     for table in (
-                         "manuscript_claim_placements", "manuscript_citation_placements",
-                         "manuscript_artifact_placements", "evidence_relations",
-                         "literature_evidence_review_events", "scientific_conclusion_versions",
-                     ))
+        return tuple(
+            conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one()
+            for table in (
+                "manuscript_claim_placements",
+                "manuscript_citation_placements",
+                "manuscript_artifact_placements",
+                "evidence_relations",
+                "literature_evidence_review_events",
+                "scientific_conclusion_versions",
+            )
+        )
 
 
 def test_unified_trace_exact_placements_and_experiment_path(
-    conclusion_env, phase2_database_url, tmp_path,
+    conclusion_env,
+    phase2_database_url,
+    tmp_path,
 ):
-    (scientific, factory, engine, credentials, principal, project, claim_id,
-     publication, draft) = _draft(conclusion_env, phase2_database_url, tmp_path)
+    (scientific, factory, engine, credentials, principal, project, claim_id, publication, draft) = (
+        _draft(conclusion_env, phase2_database_url, tmp_path)
+    )
     source = conclusion_env[7]
     store = ContentAddressedFilesystemArtifactStore(tmp_path / "cas")
     artifact = _artifact(factory, store, principal, project, b"Test-only figure", "figure")
     conclusion = scientific.create(
-        principal, project, "Test-only synthesis", SCOPE, "MODERATE", None,
-        (ClaimInputRequest(claim_id, "SUPPORTS"),), (), uuid4(),
+        principal,
+        project,
+        "Test-only synthesis",
+        SCOPE,
+        "MODERATE",
+        None,
+        (ClaimInputRequest(claim_id, "SUPPORTS"),),
+        (),
+        uuid4(),
     )
-    scientific.freeze(principal, project, conclusion.conclusion_id,
-                      conclusion.version_id, uuid4())
+    scientific.freeze(principal, project, conclusion.conclusion_id, conclusion.version_id, uuid4())
     ClaimPlacementService(factory, credentials).add(
-        principal, project, publication.id, draft.id, claim_id, None,
-        "RESULTS", {"kind": "PARAGRAPH", "value": "p1"}, "DESCRIPTIVE", 0, uuid4(),
+        principal,
+        project,
+        publication.id,
+        draft.id,
+        claim_id,
+        None,
+        "RESULTS",
+        {"kind": "PARAGRAPH", "value": "p1"},
+        "DESCRIPTIVE",
+        0,
+        uuid4(),
     )
     ClaimPlacementService(factory, credentials).add(
-        principal, project, publication.id, draft.id, None, conclusion.version_id,
-        "DISCUSSION", {"kind": "PARAGRAPH", "value": "p2"}, "SUGGESTIVE", 0, uuid4(),
+        principal,
+        project,
+        publication.id,
+        draft.id,
+        None,
+        conclusion.version_id,
+        "DISCUSSION",
+        {"kind": "PARAGRAPH", "value": "p2"},
+        "SUGGESTIVE",
+        0,
+        uuid4(),
     )
     CitationPlacementService(factory, credentials).add(
-        principal, project, publication.id, draft.id, source,
-        "INTRO", {"kind": "PARAGRAPH", "value": "p3"}, "BACKGROUND", 0, uuid4(),
+        principal,
+        project,
+        publication.id,
+        draft.id,
+        source,
+        "INTRO",
+        {"kind": "PARAGRAPH", "value": "p3"},
+        "BACKGROUND",
+        0,
+        uuid4(),
     )
     ArtifactPlacementService(factory, credentials).add(
-        principal, project, publication.id, draft.id, artifact,
-        "RESULTS", {"kind": "CAPTION", "value": "figure 1"}, "FIGURE", 0, uuid4(),
+        principal,
+        project,
+        publication.id,
+        draft.id,
+        artifact,
+        "RESULTS",
+        {"kind": "CAPTION", "value": "figure 1"},
+        "FIGURE",
+        0,
+        uuid4(),
     )
     before = _counts(engine)
     trace = ManuscriptScientificTraceService(factory, credentials).trace(
@@ -83,10 +131,16 @@ def test_unified_trace_exact_placements_and_experiment_path(
     assert trace.manuscript_status == "DRAFT"
     assert trace.manuscript_content_hash is None
     assert [p.placement_kind for p in trace.placements] == [
-        "ARTIFACT", "CITATION", "CLAIM", "CONCLUSION",
+        "ARTIFACT",
+        "CITATION",
+        "CLAIM",
+        "CONCLUSION",
     ]
     assert {p.target_id for p in trace.placements} == {
-        source, claim_id, conclusion.version_id, artifact,
+        source,
+        claim_id,
+        conclusion.version_id,
+        artifact,
     }
     citation = next(p for p in trace.placements if p.placement_kind == "CITATION")
     assert citation.semantic == "CITATION_ONLY"
@@ -101,36 +155,62 @@ def test_unified_trace_exact_placements_and_experiment_path(
     assert trace.literature_evidence == ()
     assert _counts(engine) == before
     engine.dispose()
-    assert ManuscriptScientificTraceService(factory, credentials).trace(
-        principal, project, publication.id, draft.id
-    ) == trace
+    assert (
+        ManuscriptScientificTraceService(factory, credentials).trace(
+            principal, project, publication.id, draft.id
+        )
+        == trace
+    )
 
 
 def test_unreviewed_contradiction_is_not_promoted_or_inferred_from_citation(
-    conclusion_env, phase2_database_url, tmp_path,
+    conclusion_env,
+    phase2_database_url,
+    tmp_path,
 ):
-    (scientific, factory, engine, credentials, principal, project, claim_id,
-     publication, draft) = _draft(conclusion_env, phase2_database_url, tmp_path)
+    (scientific, factory, engine, credentials, principal, project, claim_id, publication, draft) = (
+        _draft(conclusion_env, phase2_database_url, tmp_path)
+    )
     evidence_service = conclusion_env[2]
     source = conclusion_env[7]
-    evidence = evidence_service.create(
-        principal, project, source, "improved recall", uuid4()
-    )
+    evidence = evidence_service.create(principal, project, source, "improved recall", uuid4())
     evidence_id = UUID(evidence["id"])
     conclusion = scientific.create(
-        principal, project, "Test-only contradiction", SCOPE, "MIXED", None,
+        principal,
+        project,
+        "Test-only contradiction",
+        SCOPE,
+        "MIXED",
+        None,
         (ClaimInputRequest(claim_id, "SUPPORTS"),),
-        (LiteratureInputRequest(evidence_id, "CONTRADICTS"),), uuid4(),
+        (LiteratureInputRequest(evidence_id, "CONTRADICTS"),),
+        uuid4(),
     )
-    scientific.freeze(principal, project, conclusion.conclusion_id,
-                      conclusion.version_id, uuid4())
+    scientific.freeze(principal, project, conclusion.conclusion_id, conclusion.version_id, uuid4())
     ClaimPlacementService(factory, credentials).add(
-        principal, project, publication.id, draft.id, None, conclusion.version_id,
-        "DISCUSSION", {"kind": "SPAN", "value": "s1"}, "SUGGESTIVE", 0, uuid4(),
+        principal,
+        project,
+        publication.id,
+        draft.id,
+        None,
+        conclusion.version_id,
+        "DISCUSSION",
+        {"kind": "SPAN", "value": "s1"},
+        "SUGGESTIVE",
+        0,
+        uuid4(),
     )
     CitationPlacementService(factory, credentials).add(
-        principal, project, publication.id, draft.id, source,
-        "INTRO", {"kind": "PARAGRAPH", "value": "p1"}, "BACKGROUND", 0, uuid4(),
+        principal,
+        project,
+        publication.id,
+        draft.id,
+        source,
+        "INTRO",
+        {"kind": "PARAGRAPH", "value": "p1"},
+        "BACKGROUND",
+        0,
+        uuid4(),
     )
     trace = ManuscriptScientificTraceService(factory, credentials).trace(
         principal, project, publication.id, draft.id
@@ -146,31 +226,48 @@ def test_unreviewed_contradiction_is_not_promoted_or_inferred_from_citation(
     assert len(trace.claim_experiment_evidence) == 1
     assert trace.conclusion_claim_inputs[0].relation_type == "SUPPORTS"
     with engine.connect() as conn:
-        assert conn.execute(text("""SELECT count(*) FROM literature_evidence_review_events
-          WHERE literature_evidence_id=:id"""), {"id": evidence_id}).scalar_one() == 0
+        assert (
+            conn.execute(
+                text("""SELECT count(*) FROM literature_evidence_review_events
+          WHERE literature_evidence_id=:id"""),
+                {"id": evidence_id},
+            ).scalar_one()
+            == 0
+        )
 
 
 def test_empty_duplicate_and_unauthorized_trace(
-    conclusion_env, phase2_database_url, tmp_path,
+    conclusion_env,
+    phase2_database_url,
+    tmp_path,
 ):
-    _, factory, engine, credentials, principal, project, claim_id, publication, draft = (
-        _draft(conclusion_env, phase2_database_url, tmp_path)
+    _, factory, engine, credentials, principal, project, claim_id, publication, draft = _draft(
+        conclusion_env, phase2_database_url, tmp_path
     )
     service = ManuscriptScientificTraceService(factory, credentials)
     empty = service.trace(principal, project, publication.id, draft.id)
     assert empty.placements == empty.claim_experiment_evidence == ()
     with pytest.raises(ResearchBaseError):
-        service.trace(replace(principal, actor_id=uuid4()), project,
-                      publication.id, draft.id)
+        service.trace(replace(principal, actor_id=uuid4()), project, publication.id, draft.id)
     with pytest.raises(ResearchBaseError):
         service.trace(principal, uuid4(), publication.id, draft.id)
     with pytest.raises(ResearchBaseError):
         service.trace(principal, project, publication.id, uuid4())
     place = ClaimPlacementService(factory, credentials)
     for section in ("DISCUSSION", "RESULTS"):
-        place.add(principal, project, publication.id, draft.id, claim_id, None,
-                  section, {"kind": "ANCHOR", "value": section},
-                  "DESCRIPTIVE", 0, uuid4())
+        place.add(
+            principal,
+            project,
+            publication.id,
+            draft.id,
+            claim_id,
+            None,
+            section,
+            {"kind": "ANCHOR", "value": section},
+            "DESCRIPTIVE",
+            0,
+            uuid4(),
+        )
     trace = service.trace(principal, project, publication.id, draft.id)
     assert len(trace.placements) == 2
     assert len(trace.claim_experiment_evidence) == 1
@@ -179,33 +276,62 @@ def test_empty_duplicate_and_unauthorized_trace(
 
 
 def test_conclusion_trace_uses_only_its_pinned_claim_snapshot(
-    conclusion_env, phase2_database_url, tmp_path,
+    conclusion_env,
+    phase2_database_url,
+    tmp_path,
 ):
-    (scientific, factory, _engine, credentials, principal, project, claim_id,
-     publication, draft) = _draft(conclusion_env, phase2_database_url, tmp_path)
+    (
+        scientific,
+        factory,
+        _engine,
+        credentials,
+        principal,
+        project,
+        claim_id,
+        publication,
+        draft,
+    ) = _draft(conclusion_env, phase2_database_url, tmp_path)
     evidence_service = conclusion_env[2]
     source = conclusion_env[7]
-    evidence = evidence_service.create(
-        principal, project, source, "improved recall", uuid4()
-    )
-    edge = {"evidence_id": evidence["id"], "relation_type": "CONTRADICTS",
-            "qualification": "test-only contradictory observation"}
-    old = evidence_service.snapshot(
-        principal, project, "ClaimVersion", claim_id, [edge], uuid4()
-    )
+    evidence = evidence_service.create(principal, project, source, "improved recall", uuid4())
+    edge = {
+        "evidence_id": evidence["id"],
+        "relation_type": "CONTRADICTS",
+        "qualification": "test-only contradictory observation",
+    }
+    old = evidence_service.snapshot(principal, project, "ClaimVersion", claim_id, [edge], uuid4())
     newer = evidence_service.snapshot(
-        principal, project, "ClaimVersion", claim_id,
-        [{**edge, "qualification": "test-only later interpretation"}], uuid4(),
+        principal,
+        project,
+        "ClaimVersion",
+        claim_id,
+        [{**edge, "qualification": "test-only later interpretation"}],
+        uuid4(),
     )
     conclusion = scientific.create(
-        principal, project, "Test-only pinned snapshot", SCOPE, "MIXED", None,
-        (ClaimInputRequest(claim_id, "SUPPORTS", UUID(old["id"])),), (), uuid4(),
+        principal,
+        project,
+        "Test-only pinned snapshot",
+        SCOPE,
+        "MIXED",
+        None,
+        (ClaimInputRequest(claim_id, "SUPPORTS", UUID(old["id"])),),
+        (),
+        uuid4(),
     )
-    scientific.freeze(principal, project, conclusion.conclusion_id,
-                      conclusion.version_id, uuid4())
+    scientific.freeze(principal, project, conclusion.conclusion_id, conclusion.version_id, uuid4())
     ClaimPlacementService(factory, credentials).add(
-        principal, project, publication.id, draft.id, None, conclusion.version_id,
-        "DISCUSSION", {"kind": "SPAN", "value": "s2"}, "SUGGESTIVE", 0, uuid4(),
+        principal,
+        project,
+        publication.id,
+        draft.id,
+        None,
+        conclusion.version_id,
+        "DISCUSSION",
+        {"kind": "SPAN", "value": "s2"},
+        "SUGGESTIVE",
+        0,
+        uuid4(),
     )
     trace = ManuscriptScientificTraceService(factory, credentials).trace(
         principal, project, publication.id, draft.id

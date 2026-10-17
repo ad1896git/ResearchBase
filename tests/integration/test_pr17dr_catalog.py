@@ -6,9 +6,9 @@ from collections.abc import Iterator
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from tests.contracts.pr17dr_manifest import PR17D_FUNCTIONS, PR17D_TRIGGERS
 
 from researchbase.persistence.database import create_database_engine
+from tests.contracts.pr17dr_manifest import PR17D_FUNCTIONS, PR17D_TRIGGERS
 
 pytestmark = pytest.mark.integration
 

@@ -88,10 +88,7 @@ def test_pr05_schema_columns_constraints_and_restrict_foreign_keys(engine: Engin
             )
         ).all()
         assert all(row.delete_rule == "RESTRICT" for row in foreign_keys)
-        assert {
-            (row.table_name, row.column_name)
-            for row in foreign_keys
-        } >= {
+        assert {(row.table_name, row.column_name) for row in foreign_keys} >= {
             ("experiment_specs", "project_id"),
             ("experiment_specs", "hypothesis_id"),
             ("experiment_specs", "current_version_id"),

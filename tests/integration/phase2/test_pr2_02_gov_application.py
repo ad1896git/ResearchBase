@@ -10,10 +10,6 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_01_source_identity import (
-    _authorized_service,
-    _frozen_basis,
-)
 
 from researchbase.application.source_identity import AddSourceIdentifier, RegisterLiteratureSource
 from researchbase.application.source_merge import (
@@ -26,6 +22,10 @@ from researchbase.domain.source_identity import IdentifierType, SourceKind
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.integration.phase2.test_pr2_01_source_identity import (
+    _authorized_service,
+    _frozen_basis,
+)
 
 # PostgreSQL statement strings mirror the migration's accepted table/column names.
 # ruff: noqa: E501

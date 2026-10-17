@@ -15,7 +15,6 @@ from researchbase.domain.literature_search_plan import (
     canonical_language_identifier,
 )
 
-
 PLAN_ID = UUID("00000000-0000-0000-0000-000000000001")
 RQ_ID = UUID("00000000-0000-0000-0000-000000000002")
 RQ_VERSION_ID = UUID("00000000-0000-0000-0000-000000000003")
@@ -181,4 +180,6 @@ def test_normalized_duplicate_language_identifiers_are_rejected() -> None:
 
 
 def test_material_changes_change_digest() -> None:
-    assert material(()).digest() != replace(material(()), objective="A different objective").digest()
+    assert (
+        material(()).digest() != replace(material(()), objective="A different objective").digest()
+    )

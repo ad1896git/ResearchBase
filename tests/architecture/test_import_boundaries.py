@@ -110,6 +110,8 @@ def test_production_does_not_import_shared_test_contracts() -> None:
 
 
 def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration() -> None:
+    # Exact allowlist through owner-approved Task 12 schema repair. Phase 1 and
+    # earlier Phase 2 entries remain mandatory; unapproved additions still fail.
     migrations = Path(__file__).parents[2] / "migrations" / "versions"
     assert sorted(path.name for path in migrations.glob("*.py")) == [
         "0001_empty_bootstrap.py",
@@ -140,6 +142,39 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0024_literature_search_execution.py",
         "0025_pr2_04_reservation_guards.py",
         "0026_pr2_04_p1_contract_guards.py",
+        "0027_pr2_04_hash_scheme_guards.py",
+        "0028_provider_cancellation.py",
+        "0029_metadata_observations.py",
+        "0030_literature_evidence.py",
+        "0031_m3_snapshot_relation_cardinality.py",
+        "0032_pr2_10_discussion.py",
+        "0033_pr2_11_r2_scientific_conclusion.py",
+        "0034_pr2_10_exact_transcript_binding.py",
+        "0035_pr2_12_publication_draft.py",
+        "0036_pr2_13_citation_placement.py",
+        "0037_pr2_13_claim_placement.py",
+        "0038_pr2_13_artifact_placement.py",
+        "0039_pr2_13_citation_rebinding_guard.py",
+        "0040_pr2_14_initial_internal_review.py",
+        "0041_pr2_15_review_coordination.py",
+        "0042_pr2_15_minimal_decision.py",
+        "0043_pr2_04_schema_contract.py",
+        "0044_pr2_15_revision_action.py",
+        "0045_pr2_16_basic_approval.py",
+        "0046_pr2_17_authorship_preparation.py",
+        "0047_pr2_18_novelty_prior_art.py",
+        "0048_b04_manuscript_freeze.py",
+        "0049_b05_manuscript_review.py",
+        "0050_b01_resolution_admission.py",
+        "0051_b06_revision_action.py",
+        "0052_b07_revision_decisions.py",
+        "0053_b08_issue_disposition.py",
+        "0054_b11_ready_for_submission.py",
+        "0055_b09_approval_tuples.py",
+        "0056_b10_reconsideration.py",
+        "0057_xid_wraparound_guards.py",
+        "0058_b12_prepare_submission.py",
+        "0059_b13_grant_consumption.py",
     ]
 
 

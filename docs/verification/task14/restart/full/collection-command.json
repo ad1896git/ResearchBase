@@ -1,0 +1,11 @@
+[
+  "/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python",
+  "-m",
+  "pytest",
+  "-o",
+  "addopts=",
+  "-q",
+  "--collect-only",
+  "-p",
+  "no:cacheprovider"
+]

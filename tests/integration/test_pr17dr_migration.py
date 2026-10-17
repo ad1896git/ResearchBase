@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
+
 from tests.contracts.pr17dr_manifest import PR17D_FUNCTIONS, PR17D_TRIGGERS
 
 pytestmark = pytest.mark.integration

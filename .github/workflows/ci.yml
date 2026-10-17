@@ -23,8 +23,11 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
+      RB_TEST_ADMIN_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -36,5 +39,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0028_provider_cancellation (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0059_b13_grant_consumption (head)"
       - run: uv run pytest

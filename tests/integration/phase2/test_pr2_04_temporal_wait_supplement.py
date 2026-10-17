@@ -20,6 +20,14 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
+
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.phase2_identity import AssignProjectRole
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.literature_search_plan_repository import (
+    SqlAlchemyLiteratureSearchPlanRepository,
+)
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from tests.integration.phase2.test_pr2_03_effective_authority import _authority_rows, _provision
 from tests.integration.phase2.test_pr2_04_execution_recovery import OutcomeBeforeFinalization
@@ -31,30 +39,39 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
 )
 from tests.unit.phase2.test_pr2_04_provider_coverage import ScriptedProvider, success
 
-from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.phase2_identity import AssignProjectRole
-from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.literature_search_plan_repository import (
-    SqlAlchemyLiteratureSearchPlanRepository,
-)
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
-
 # Each pair names a required lock the real phase actually acquires. No read is
 # claimed to acquire an execution lock when its implementation does not do so.
 ALL_PHASES = (
-    "create_admission", "execute_admission", "cancel_admission", "recover_admission",
-    "first_prepare", "outcome", "finalization", "cancel_finalization",
-    "recovery_finalization", "next_reservation", "disclosure", "get", "list", "get_provenance",
+    "create_admission",
+    "execute_admission",
+    "cancel_admission",
+    "recover_admission",
+    "first_prepare",
+    "outcome",
+    "finalization",
+    "cancel_finalization",
+    "recovery_finalization",
+    "next_reservation",
+    "disclosure",
+    "get",
+    "list",
+    "get_provenance",
 )
 # Additive only: original240 remain in their original module unchanged.
 PHASE_LOCKS = (
     [(phase, "project") for phase in ALL_PHASES if phase != "create_admission"]
     + [("create_admission", lock) for lock in ("receipt", "authority")]
     + [("first_prepare", lock) for lock in ("execution", "authority")]
-    + [(phase, lock) for phase in ("create_admission", "execute_admission")
-       for lock in ("plan_identity", "plan_version")]
-    + [(phase, lock) for phase in ALL_PHASES for lock in
-       ("authority_actor", "authority_membership", "authority_binding")]
+    + [
+        (phase, lock)
+        for phase in ("create_admission", "execute_admission")
+        for lock in ("plan_identity", "plan_version")
+    ]
+    + [
+        (phase, lock)
+        for phase in ALL_PHASES
+        for lock in ("authority_actor", "authority_membership", "authority_binding")
+    ]
 )
 READS = {"get", "list", "get_provenance"}
 
@@ -115,7 +132,9 @@ class PhaseExpiry:
         self.credential_samples.append(
             {
                 "attempt": self.current["attempt"] if self.current else None,
-                "at": at, "valid": valid, "thread_id": get_ident(),
+                "at": at,
+                "valid": valid,
+                "thread_id": get_ident(),
                 "source": "application_phase" if self.current else "coordinator_positive_control",
             }
         )
@@ -127,8 +146,9 @@ class PhaseExpiry:
         class ObservedUow(SqlAlchemyUnitOfWork):
             def __enter__(self):
                 super().__enter__()
-                self.observation = control.current
-                if self.observation is None:
+                observation = control.current
+                self.observation = observation
+                if observation is None:
                     return self
                 plan = self.literature_search_plan
                 execution = self.literature_search_execution
@@ -140,42 +160,42 @@ class PhaseExpiry:
                 validate_plan = execution.validate_plan_version
 
                 def plan_validation(*args, **kwargs):
-                    self.observation["order"].append("plan_lock_enter")
+                    observation["order"].append("plan_lock_enter")
                     result = validate_plan(*args, **kwargs)
-                    self.observation["order"].append("plan_lock_return")
+                    observation["order"].append("plan_lock_return")
                     return result
 
                 execution.validate_plan_version = plan_validation
 
                 def project(*args, **kwargs):
-                    self.observation["order"].append("project_lock_enter")
+                    observation["order"].append("project_lock_enter")
                     result = lock_project(*args, **kwargs)
-                    self.observation["order"].append("project_lock_return")
+                    observation["order"].append("project_lock_return")
                     return result
 
                 def receipt(*args, **kwargs):
-                    self.observation["order"].append("receipt_lock_enter")
+                    observation["order"].append("receipt_lock_enter")
                     result = lock_receipt(*args, **kwargs)
-                    self.observation["order"].append("receipt_lock_return")
+                    observation["order"].append("receipt_lock_return")
                     return result
 
                 def execution_row(*args, **kwargs):
-                    self.observation["order"].append("execution_lock_enter")
+                    observation["order"].append("execution_lock_enter")
                     result = lock_execution(*args, **kwargs)
-                    self.observation["order"].append("execution_lock_return")
+                    observation["order"].append("execution_lock_return")
                     return result
 
                 def authority(*args, **kwargs):
-                    self.observation["order"].append("authority_lock_enter")
+                    observation["order"].append("authority_lock_enter")
                     result = authorize(*args, **kwargs)
-                    self.observation["authority_facts"] = result
-                    self.observation["order"].append("authority_lock_return")
+                    observation["authority_facts"] = result
+                    observation["order"].append("authority_lock_return")
                     return result
 
                 def at():
                     value = database_time()
-                    self.observation["order"].append("fresh_database_time")
-                    self.observation.setdefault("authorization_times", []).append(value)
+                    observation["order"].append("fresh_database_time")
+                    observation.setdefault("authorization_times", []).append(value)
                     return value
 
                 plan.lock_project = project
@@ -188,9 +208,11 @@ class PhaseExpiry:
             def begin_serializable(self):
                 super().begin_serializable()
                 if self.observation is not None:
-                    pid, xid, at = self._require_session().execute(
-                        text("SELECT pg_backend_pid(),txid_current(),clock_timestamp()")
-                    ).one()
+                    pid, xid, at = (
+                        self._require_session()
+                        .execute(text("SELECT pg_backend_pid(),txid_current(),clock_timestamp()"))
+                        .one()
+                    )
                     self.observation.update(backend_pid=pid, transaction_id=xid, entered_at=at)
                     control.transactions.put(self.observation)
 
@@ -305,22 +327,49 @@ def _finite_researcher_interval(engine, role_id, actor_id):
 
 def _hold_required_lock(connection, lock, principal, project, execution_id, command, role_id):
     if lock == "project":
-        connection.execute(text("SELECT id FROM projects WHERE id=:id FOR UPDATE"), {"id": project}).one()
+        connection.execute(
+            text("SELECT id FROM projects WHERE id=:id FOR UPDATE"), {"id": project}
+        ).one()
     elif lock in {"plan_identity", "plan_version"}:
-        version_id = command.plan_version_id if hasattr(command, "plan_version_id") else connection.execute(
-            text("SELECT search_plan_version_id FROM literature_search_executions WHERE id=:id"), {"id": execution_id}
-        ).scalar_one()
+        version_id = (
+            command.plan_version_id
+            if hasattr(command, "plan_version_id")
+            else connection.execute(
+                text(
+                    "SELECT search_plan_version_id FROM literature_search_executions WHERE id=:id"
+                ),
+                {"id": execution_id},
+            ).scalar_one()
+        )
         if lock == "plan_version":
-            connection.execute(text("SELECT id FROM literature_search_plan_versions WHERE id=:id FOR UPDATE"), {"id": version_id}).one()
+            connection.execute(
+                text("SELECT id FROM literature_search_plan_versions WHERE id=:id FOR UPDATE"),
+                {"id": version_id},
+            ).one()
         else:
-            connection.execute(text("SELECT p.id FROM literature_search_plans p JOIN literature_search_plan_versions v ON v.plan_id=p.id WHERE v.id=:id FOR UPDATE OF p"), {"id": version_id}).one()
+            connection.execute(
+                text(
+                    "SELECT p.id FROM literature_search_plans p JOIN literature_search_plan_versions v ON v.plan_id=p.id WHERE v.id=:id FOR UPDATE OF p"  # noqa: E501
+                ),
+                {"id": version_id},
+            ).one()
     elif lock.startswith("authority_"):
         statements = {
             "authority_actor": "SELECT id FROM actors WHERE id=:actor FOR UPDATE",
-            "authority_membership": "SELECT m.id FROM project_memberships m JOIN project_role_assignments r ON r.membership_id=m.id WHERE r.id=:role FOR UPDATE OF m",
-            "authority_binding": "SELECT id FROM actor_subject_bindings WHERE actor_id=:actor AND deployment_id=:deployment AND subject_kind=:kind AND subject_value=:subject AND subject_credential_id=:credential AND status='ACTIVE' FOR UPDATE",
+            "authority_membership": "SELECT m.id FROM project_memberships m JOIN project_role_assignments r ON r.membership_id=m.id WHERE r.id=:role FOR UPDATE OF m",  # noqa: E501
+            "authority_binding": "SELECT id FROM actor_subject_bindings WHERE actor_id=:actor AND deployment_id=:deployment AND subject_kind=:kind AND subject_value=:subject AND subject_credential_id=:credential AND status='ACTIVE' FOR UPDATE",  # noqa: E501
         }
-        connection.execute(text(statements[lock]), {"actor": principal.actor_id, "role": role_id, "deployment": principal.deployment_id, "kind": principal.subject_kind, "subject": principal.subject_value, "credential": principal.credential_id}).one()
+        connection.execute(
+            text(statements[lock]),
+            {
+                "actor": principal.actor_id,
+                "role": role_id,
+                "deployment": principal.deployment_id,
+                "kind": principal.subject_kind,
+                "subject": principal.subject_value,
+                "credential": principal.credential_id,
+            },
+        ).one()
     elif lock == "receipt":
         name = {
             "CreateLiteratureSearchExecution": "CREATE_LITERATURE_SEARCH_EXECUTION",
@@ -328,7 +377,9 @@ def _hold_required_lock(connection, lock, principal, project, execution_id, comm
             "CancelLiteratureSearchExecution": "CANCEL_LITERATURE_SEARCH_EXECUTION",
             "RecoverLiteratureSearchExecution": "RECOVER_LITERATURE_SEARCH_EXECUTION",
         }[type(command).__name__]
-        SqlAlchemyLiteratureSearchPlanRepository(connection).lock_literature_search_execution_command(
+        SqlAlchemyLiteratureSearchPlanRepository(
+            connection
+        ).lock_literature_search_execution_command(
             principal.deployment_id, principal.actor_id, project, name, command.request_id
         )
     elif lock == "execution":
@@ -357,8 +408,14 @@ def test_pg_remaining_required_lock_sites_reauthorize_after_expiry(
     role_id = identity.assign_project_role(
         AssignProjectRole(owner, project, target.actor_id, "RESEARCHER", "temporal phases", uuid4())
     )
-    queries = ("first query", "second query") if phase == "next_reservation" else ("normalization evidence",)
-    provider = ScriptedProvider([success(query, "provider-a", 2) for query in queries], "provider-a")
+    queries = (
+        ("first query", "second query")
+        if phase == "next_reservation"
+        else ("normalization evidence",)
+    )
+    provider = ScriptedProvider(
+        [success(query, "provider-a", 2) for query in queries], "provider-a"
+    )
     ordinary = _service(engine, provider)
     execution_id = UUID(ordinary.create(replace(create, queries=queries))["execution_id"])
     if phase == "recovery_finalization":
@@ -368,14 +425,25 @@ def test_pg_remaining_required_lock_sites_reauthorize_after_expiry(
     control = PhaseExpiry(phase, pr204_trace)
     service = control.service(engine, provider)
     name = (
-        "create" if phase == "create_admission" else
-        "cancel" if phase in {"cancel_admission", "cancel_finalization"}
-        else "recover" if phase in {"recover_admission", "recovery_finalization"}
+        "create"
+        if phase == "create_admission"
+        else "cancel"
+        if phase in {"cancel_admission", "cancel_finalization"}
+        else "recover"
+        if phase in {"recover_admission", "recovery_finalization"}
         else "execute"
     )
-    command = (replace(create, actor_id=target.actor_id, deployment_id=target.deployment_id,
-                       principal=target, request_id=uuid4())
-               if name == "create" else _command(name, target, project, execution_id))
+    command = (
+        replace(
+            create,
+            actor_id=target.actor_id,
+            deployment_id=target.deployment_id,
+            principal=target,
+            request_id=uuid4(),
+        )
+        if name == "create"
+        else _command(name, target, project, execution_id)
+    )
 
     def worker():
         try:
@@ -399,7 +467,9 @@ def test_pg_remaining_required_lock_sites_reauthorize_after_expiry(
                 deadline = _finite_researcher_interval(engine, role_id, target.actor_id)
             else:
                 with engine.connect() as connection:
-                    deadline = connection.execute(text("SELECT clock_timestamp()")).scalar_one() + timedelta(seconds=2)
+                    deadline = connection.execute(
+                        text("SELECT clock_timestamp()")
+                    ).scalar_one() + timedelta(seconds=2)
                 control.credential_expires_at = deadline
             positive_at, _, effective_before = _authority_rows(engine, target.actor_id, project)
             assert "RESEARCHER" in effective_before and positive_at < deadline
@@ -411,7 +481,9 @@ def test_pg_remaining_required_lock_sites_reauthorize_after_expiry(
             with engine.connect() as controller:
                 tx = controller.begin()
                 blocker_pid = controller.execute(text("SELECT pg_backend_pid()")).scalar_one()
-                _hold_required_lock(controller, lock, target, project, execution_id, command, role_id)
+                _hold_required_lock(
+                    controller, lock, target, project, execution_id, command, role_id
+                )
                 control.release.set()
                 deadline_wait = monotonic() + 10
                 blocked = None
@@ -426,19 +498,35 @@ def test_pg_remaining_required_lock_sites_reauthorize_after_expiry(
                     with engine.connect() as observer:
                         observed_wait = dict(
                             observer.execute(
-                                text("SELECT wait_event_type,wait_event,pg_blocking_pids(pid) AS blockers "
-                                     "FROM pg_stat_activity WHERE pid=:pid"),
+                                text(
+                                    "SELECT wait_event_type,wait_event,pg_blocking_pids(pid) AS blockers "  # noqa: E501
+                                    "FROM pg_stat_activity WHERE pid=:pid"
+                                ),
                                 {"pid": blocked["backend_pid"]},
-                            ).mappings().one()
+                            )
+                            .mappings()
+                            .one()
                         )
-                    if observed_wait["wait_event_type"] == "Lock" and blocker_pid in observed_wait["blockers"]:
+                    if (
+                        observed_wait["wait_event_type"] == "Lock"
+                        and blocker_pid in observed_wait["blockers"]
+                    ):
                         break
                     Event().wait(0.01)
+                assert observed_wait is not None
                 assert observed_wait["wait_event_type"] == "Lock"
                 assert blocker_pid in observed_wait["blockers"] and not future.done()
                 order = blocked["order"]
-                lock_point = "authority" if lock.startswith("authority_") else "plan" if lock.startswith("plan_") else lock
-                assert f"{lock_point}_lock_enter" in order and f"{lock_point}_lock_return" not in order
+                lock_point = (
+                    "authority"
+                    if lock.startswith("authority_")
+                    else "plan"
+                    if lock.startswith("plan_")
+                    else lock
+                )
+                assert (
+                    f"{lock_point}_lock_enter" in order and f"{lock_point}_lock_return" not in order
+                )
                 if lock != "project":
                     assert "project_lock_return" in order
                 while True:
@@ -465,14 +553,18 @@ def test_pg_remaining_required_lock_sites_reauthorize_after_expiry(
     assert final["authorization_decision"] == final["error_code"] == "FORBIDDEN"
     assert final["authorization_times"][-1] >= deadline
     assert all(a["closed"] for a in control.attempts) and engine.pool.checkedout() == 0
-    assert final["order"].index(f"{lock_point}_lock_return") < final["order"].index("fresh_database_time")
+    assert final["order"].index(f"{lock_point}_lock_return") < final["order"].index(
+        "fresh_database_time"
+    )
     at, roles, effective_after = _authority_rows(engine, target.actor_id, project)
     assert at >= deadline
     if loss == "role_expiry":
         assert effective_after == []
     else:
         assert "RESEARCHER" in effective_after
-        assert not [s for s in control.credential_samples if s["attempt"] == expected_attempt and s["valid"]]
+        assert not [
+            s for s in control.credential_samples if s["attempt"] == expected_attempt and s["valid"]
+        ]
     pr204_trace.record(
         phase=phase,
         lock=lock,

@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
     CreateActorCommand,
@@ -22,6 +21,7 @@ from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 pytestmark = pytest.mark.integration
 

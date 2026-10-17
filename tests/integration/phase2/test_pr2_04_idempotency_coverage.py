@@ -7,14 +7,6 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
-    _AlwaysValidCredential,
-)
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
-from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
-from tests.integration.phase2.test_pr2_03_effective_authority import _provision
-from tests.integration.phase2.test_pr2_03_literature_search_plan_application import _material
-from tests.integration.phase2.test_pr2_04_execution_recovery import ReservedBeforeInvocation
 
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
@@ -23,14 +15,22 @@ from researchbase.application.literature_search_execution import (
     LiteratureSearchExecutionService,
     RecoverLiteratureSearchExecution,
 )
-from researchbase.application.literature_search_provider import FakeSearchCapability
 from researchbase.application.literature_search_plan import CreateLiteratureSearchPlan
+from researchbase.application.literature_search_provider import FakeSearchCapability
 from researchbase.application.phase2_identity import AssignProjectRole
 from researchbase.domain.literature_search_execution import DeliveryCertainty, SearchResponse
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
+from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
+from tests.integration.phase2.test_pr2_03_effective_authority import _provision
+from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+    _AlwaysValidCredential,
+    _material,
+)
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+from tests.integration.phase2.test_pr2_04_execution_recovery import ReservedBeforeInvocation
 
 COMMANDS = {
     "execute": ExecuteLiteratureSearchExecution,
@@ -39,7 +39,9 @@ COMMANDS = {
 }
 
 
-def _service(engine, provider, cls=LiteratureSearchExecutionService, **kwargs):
+def _service[S: LiteratureSearchExecutionService](
+    engine, provider, cls: type[S] = LiteratureSearchExecutionService, **kwargs
+) -> S:
     return cls(
         literature_search_execution_uow_factory(
             sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
@@ -355,12 +357,17 @@ def test_pg_pre_admission_failure_rolls_back_all_current_phase_rows(
 ):
     engine, service, provider, principal, project, create = execution_case
     execution_id = UUID(service.create(create)["execution_id"])
-    command = (replace(create, request_id=uuid4()) if name == "create"
-               else _command(name, principal, project, execution_id))
+    command = (
+        replace(create, request_id=uuid4())
+        if name == "create"
+        else _command(name, principal, project, execution_id)
+    )
+
     class InterruptBeforeReceipt(LiteratureSearchExecutionService):
         @staticmethod
         def _dto(*args, **kwargs):
             raise RuntimeError("test interruption before admission receipt")
+
     interrupted = _service(engine, provider, InterruptBeforeReceipt)
     before = _snapshot(engine, project)
     with pytest.raises(RuntimeError, match="before admission receipt"):
@@ -370,8 +377,13 @@ def test_pg_pre_admission_failure_rolls_back_all_current_phase_rows(
     # Rollback does not consume the complete key; the original request can admit normally.
     admitted = getattr(service, name)(command)
     assert admitted["command_name"] == f"{name.upper()}_LITERATURE_SEARCH_EXECUTION"
-    pr204_trace.record(command=name, before=before, after_interruption=after,
-                       subsequent_admission=admitted, provider_calls=len(provider.calls))
+    pr204_trace.record(
+        command=name,
+        before=before,
+        after_interruption=after,
+        subsequent_admission=admitted,
+        provider_calls=len(provider.calls),
+    )
 
 
 @pytest.mark.pr204_requirements("PR204-IDEM-03")
@@ -382,10 +394,19 @@ def test_pg_distinct_authorized_actor_scope_still_obeys_project_execution_unique
     first = service.create(create)
     identity, _, _ = _identity_service(phase2_database_url)
     target, _ = _provision(identity, principal)
-    identity.assign_project_role(AssignProjectRole(principal, project, target.actor_id,
-        "RESEARCHER", "independent receipt actor scope", uuid4()))
-    alternate = replace(create, actor_id=target.actor_id, deployment_id=target.deployment_id,
-                        principal=target)
+    identity.assign_project_role(
+        AssignProjectRole(
+            principal,
+            project,
+            target.actor_id,
+            "RESEARCHER",
+            "independent receipt actor scope",
+            uuid4(),
+        )
+    )
+    alternate = replace(
+        create, actor_id=target.actor_id, deployment_id=target.deployment_id, principal=target
+    )
     before = _snapshot(engine, project)
     with pytest.raises(ResearchBaseError) as caught:
         service.create(alternate)
@@ -393,13 +414,22 @@ def test_pg_distinct_authorized_actor_scope_still_obeys_project_execution_unique
     assert first["execution_id"] not in caught.value.message
     assert _snapshot(engine, project) == before
     # The same request UUID may instead admit a different command under the target's valid scope.
-    recovery = service.recover(_command("recover", target, project, UUID(first["execution_id"]), create.request_id))
+    recovery = service.recover(
+        _command("recover", target, project, UUID(first["execution_id"]), create.request_id)
+    )
     rows = _snapshot(engine, project)
     assert len(rows["executions"]) == 1 and len(rows["receipts"]) == 2
     assert {r["actor_id"] for r in rows["receipts"]} == {principal.actor_id, target.actor_id}
     assert provider.calls == []
-    pr204_trace.record(first=first, actor_scope=target.actor_id, error_code=caught.value.code.value,
-                       before=before, after=rows, recovery=recovery, provider_calls=len(provider.calls))
+    pr204_trace.record(
+        first=first,
+        actor_scope=target.actor_id,
+        error_code=caught.value.code.value,
+        before=before,
+        after=rows,
+        recovery=recovery,
+        provider_calls=len(provider.calls),
+    )
 
 
 @pytest.mark.pr204_requirements("PR204-IDEM-03")
@@ -409,14 +439,24 @@ def test_pg_same_create_uuid_in_different_authorized_projects_is_independent(
     engine, service, provider, principal, project, create = execution_case
     first = service.create(create)
     identity, _, _ = _identity_service(phase2_database_url)
-    other_project = identity.create_project_with_owner(principal, name="independent execution key", request_id=uuid4())
+    other_project = identity.create_project_with_owner(
+        principal, name="independent execution key", request_id=uuid4()
+    )
     # Build and freeze legitimate historical plan material in the other project.
     from researchbase.application.literature_search_plan import LiteratureSearchPlanService
     from researchbase.persistence.uow import SqlAlchemyUnitOfWork
-    plans = LiteratureSearchPlanService(lambda: SqlAlchemyUnitOfWork(
-        sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)), _AlwaysValidCredential())
-    plan = plans.create(CreateLiteratureSearchPlan(principal, other_project,
-        _material(UUID(int=0), language_scope=()), uuid4()))
+
+    plans = LiteratureSearchPlanService(
+        lambda: SqlAlchemyUnitOfWork(
+            sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+        ),
+        _AlwaysValidCredential(),
+    )
+    plan = plans.create(
+        CreateLiteratureSearchPlan(
+            principal, other_project, _material(UUID(int=0), language_scope=()), uuid4()
+        )
+    )
     plan_id, version_id = UUID(str(plan["plan_id"])), UUID(str(plan["version_id"]))
     _freeze(engine, plans, principal, other_project, plan_id, version_id)
     second = service.create(replace(create, project_id=other_project, plan_version_id=version_id))
@@ -425,7 +465,9 @@ def test_pg_same_create_uuid_in_different_authorized_projects_is_independent(
     assert all(len(r["executions"]) == len(r["receipts"]) == 1 for r in rows)
     assert all(r["receipts"][0]["request_id"] == create.request_id for r in rows)
     assert provider.calls == []
-    pr204_trace.record(first=first, second=second, project_rows=rows, provider_calls=len(provider.calls))
+    pr204_trace.record(
+        first=first, second=second, project_rows=rows, provider_calls=len(provider.calls)
+    )
 
 
 @pytest.mark.pr204_requirements("PR204-IDEM-05", "PR204-IDEM-06")
@@ -434,10 +476,20 @@ def test_pg_new_execute_resumes_only_known_safe_work_after_committed_retry_outco
 ):
     engine, service, provider, principal, project, create = execution_case
     execution_id = UUID(service.create(create)["execution_id"])
-    provider.responses.append(SearchResponse("provider-a", "1", "normalization evidence",
-        "known-not-sent", DeliveryCertainty.NOT_SENT, failure_code="PROVIDER_TRANSIENT"))
+    provider.responses.append(
+        SearchResponse(
+            "provider-a",
+            "1",
+            "normalization evidence",
+            "known-not-sent",
+            DeliveryCertainty.NOT_SENT,
+            failure_code="PROVIDER_TRANSIENT",
+        )
+    )
+
     def interrupt_backoff(delay):
         raise RuntimeError("test process loss during provider backoff")
+
     interrupted = _service(engine, provider, sleep=interrupt_backoff)
     command = _command("execute", principal, project, execution_id)
     with pytest.raises(RuntimeError, match="provider backoff"):
@@ -452,12 +504,19 @@ def test_pg_new_execute_resumes_only_known_safe_work_after_committed_retry_outco
     after = _snapshot(engine, project)
     assert after["executions"][0]["status"] == "SUCCEEDED"
     assert after["executions"][0]["started_at"] == before["executions"][0]["started_at"]
-    assert after["executions"][0]["execution_context"] == before["executions"][0]["execution_context"]
+    assert (
+        after["executions"][0]["execution_context"] == before["executions"][0]["execution_context"]
+    )
     assert sorted(a["attempt_number"] for a in after["attempts"]) == [1, 2]
     assert len(after["queries"]) == 2 and len(provider.calls) == 2
     assert len(after["receipts"]) == len(before["receipts"]) + 1
-    pr204_trace.record(before=before, replay=replay, continued=continued, after=after,
-                       provider_calls=len(provider.calls))
+    pr204_trace.record(
+        before=before,
+        replay=replay,
+        continued=continued,
+        after=after,
+        provider_calls=len(provider.calls),
+    )
 
 
 @pytest.mark.pr204_requirements("PR204-CANCEL-04")
@@ -472,10 +531,16 @@ def test_pg_cooperative_token_does_not_forge_cancel_intent_and_terminal_cancel_d
     before = _snapshot(engine, project)
     assert before["executions"][0]["status"] == "SUCCEEDED"
     assert all(e["kind"] != "CANCEL_REQUESTED" for e in before["events"])
-    assert all(r["command_name"] != "CANCEL_LITERATURE_SEARCH_EXECUTION" for r in before["receipts"])
+    assert all(
+        r["command_name"] != "CANCEL_LITERATURE_SEARCH_EXECUTION" for r in before["receipts"]
+    )
     with pytest.raises(ResearchBaseError) as caught:
         service.cancel(_command("cancel", principal, project, execution_id))
     assert caught.value.code is ErrorCode.INVALID_STATE_TRANSITION
     assert _snapshot(engine, project) == before and len(provider.calls) == 1
-    pr204_trace.record(before=before, after=_snapshot(engine, project),
-                       terminal_cancel_error=caught.value.code.value, provider_calls=len(provider.calls))
+    pr204_trace.record(
+        before=before,
+        after=_snapshot(engine, project),
+        terminal_cancel_error=caught.value.code.value,
+        provider_calls=len(provider.calls),
+    )

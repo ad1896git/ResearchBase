@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 import json
 from collections.abc import Sequence
 from datetime import datetime
@@ -12,14 +10,6 @@ from uuid import UUID, uuid4
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
-from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
-from tests.integration.phase2.test_pr2_04_execution_provenance import _execution_service
-from tests.unit.phase2.test_pr2_04_provider_coverage import (
-    CANARY,
-    RETRY_CASES,
-    ScriptedProvider,
-    success,
-)
 
 from researchbase.application.literature_search_execution import (
     CreateLiteratureSearchExecution,
@@ -32,6 +22,15 @@ from researchbase.domain.literature_search_execution import (
     SearchResponse,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+from tests.integration.phase2.test_pr2_04_execution_provenance import _execution_service
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
+from tests.unit.phase2.test_pr2_04_provider_coverage import (
+    CANARY,
+    RETRY_CASES,
+    ScriptedProvider,
+    success,
+)
 
 QUERY = "normalization evidence"
 
@@ -187,10 +186,7 @@ def test_pg_success_partial_results_and_duplicate_order(
             connection.execute(text("SELECT count(*) FROM evidence_relations")).scalar_one()
             == before
         )
-        assert (
-            connection.execute(text("SELECT count(*) FROM claims")).scalar_one()
-            == claims_before
-        )
+        assert connection.execute(text("SELECT count(*) FROM claims")).scalar_one() == claims_before
         assert (
             connection.execute(
                 text(
@@ -370,8 +366,9 @@ def test_pg_malformed_provider_batch_is_atomic(
         hits=tuple(
             SearchHit("duplicate", "Paper", None, None, None)
             for _ in range(21 if kind == "oversized" else 2)
-        ), retrieved_at=PROVIDER_RETRIEVED_AT,
-)
+        ),
+        retrieved_at=PROVIDER_RETRIEVED_AT,
+    )
     engine, provider, service, principal, project, command, _ = setup_case(
         phase2_database_url, [{} if kind == "untyped" else response]
     )

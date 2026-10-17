@@ -13,10 +13,13 @@ from sqlalchemy.orm import Session
 
 
 class SqlAlchemyLiteratureSearchPlanRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, protected_reads: bool = False) -> None:
         self._session = session
+        self._protected_reads = protected_reads
 
     def lock_project(self, project_id: UUID) -> None:
+        if self._protected_reads:
+            return
         self._session.execute(text("SELECT rb_phase2_lock_project(:id)"), {"id": project_id})
         self._session.execute(
             text("SELECT id FROM projects WHERE id=:id FOR UPDATE"), {"id": project_id}
@@ -50,14 +53,17 @@ class SqlAlchemyLiteratureSearchPlanRepository:
     def authorize(self, principal, project_id: UUID):
         rows = (
             self._session.execute(
-                text("""SELECT a.actor_type, a.retired_at, m.status AS membership_status,
+                text(
+                    """SELECT a.actor_type, a.retired_at, m.status AS membership_status,
           r.role, r.effective_from, r.effective_until, b.status AS binding_status, b.bound_at, b.revoked_at
           FROM actors a JOIN project_memberships m ON m.actor_id=a.id
           JOIN project_role_assignments r ON r.membership_id=m.id AND r.project_id=m.project_id
             AND r.actor_id=m.actor_id JOIN actor_subject_bindings b ON b.actor_id=a.id
           WHERE a.id=:actor AND m.project_id=:project AND b.deployment_id=:deployment
             AND b.subject_kind=:kind AND b.subject_value=:value AND b.subject_credential_id=:credential
-          ORDER BY a.id,m.id,r.id,b.id FOR UPDATE OF a,m,r,b"""),
+          ORDER BY a.id,m.id,r.id,b.id"""
+                    + ("" if self._protected_reads else " FOR UPDATE OF a,m,r,b")
+                ),
                 {
                     "actor": principal.actor_id,
                     "project": project_id,

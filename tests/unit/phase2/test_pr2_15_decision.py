@@ -167,9 +167,13 @@ def test_decider_authority_does_not_invent_human_only_policy(actor_type):
     assert service._authorize(uow, principal, UUID(int=5), frozenset({"OWNER", "APPROVER"})) == at
 
 
-def test_decision_bounds_database_waits_before_request_coordination():
+def test_decision_bounds_database_waits_after_first_inventory_before_coordination():
     from sqlalchemy.orm import Session
 
+    from researchbase.persistence.approval_repository import (
+        B09_SHARE_SQL,
+        SqlAlchemyApprovalRepository,
+    )
     from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 
     class RecordingSession:
@@ -181,9 +185,11 @@ def test_decision_bounds_database_waits_before_request_coordination():
 
     session = RecordingSession()
     repository = SqlAlchemyDecisionRepository(cast(Session, session))
+    SqlAlchemyApprovalRepository(cast(Session, session)).lock_snapshot()
     repository.lock_request(UUID(int=7))
-    assert session.statements[:2] == [
-        "SET LOCAL lock_timeout = '10s'",
-        "SET LOCAL statement_timeout = '30s'",
+    assert session.statements[:3] == [
+        B09_SHARE_SQL,
+        "SET LOCAL lock_timeout='10s'",
+        "SET LOCAL statement_timeout='30s'",
     ]
-    assert "pg_advisory_xact_lock" in session.statements[2]
+    assert "pg_advisory_xact_lock" in session.statements[3]

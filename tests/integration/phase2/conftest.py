@@ -8,6 +8,9 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
+# Expose the shared fixture throughout Phase 2 regardless of module/plugin collection order.
+from tests.integration.phase2.test_m3_evidence import m3 as m3
+
 
 @pytest.fixture
 def phase2_database_url(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:

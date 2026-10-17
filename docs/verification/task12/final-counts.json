@@ -1,0 +1,43 @@
+{
+  "full_suite": {
+    "tests": 4974,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4974
+  },
+  "focused": {
+    "lifecycle": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "migration-regression": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "known-nine": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "static-fix": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "full_suite_groups": {
+    "tests.integration.phase2": 2195,
+    "tests.integration": 3111,
+    "tests.e2e": 20,
+    "tests.unit": 1769,
+    "tests.architecture": 57
+  },
+  "historical_migrations_unchanged": 44
+}

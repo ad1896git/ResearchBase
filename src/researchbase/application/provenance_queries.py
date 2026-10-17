@@ -110,6 +110,7 @@ class ProvenanceQueryService:
 
     def get_run_provenance(self, run_id: UUID) -> RunProvenanceDTO:
         with self._uow_factory() as uow:
+            uow.begin_formal_read()
             run = self._require_run(uow, run_id)
             return self._run_provenance(uow, run, self._load_run_context(uow, {run.id}))
 
@@ -127,6 +128,7 @@ class ProvenanceQueryService:
 
     def get_claim_closure_report(self, claim_version_id: UUID) -> ClosureReportDTO:
         with self._uow_factory() as uow:
+            uow.begin_formal_read()
             version = self._require_claim_version(uow, claim_version_id)
             relations = uow.claims.list_evidence(version.id)
             context = self._load_claim_context(uow, relations)
@@ -136,6 +138,7 @@ class ProvenanceQueryService:
 
     def trace_claim_to_runs(self, claim_version_id: UUID) -> ClaimToRunsTraceDTO:
         with self._uow_factory() as uow:
+            uow.begin_formal_read()
             version = self._require_claim_version(uow, claim_version_id)
             claim = uow.claims.get(version.claim_id)
             if claim is None:
@@ -335,7 +338,27 @@ class ProvenanceQueryService:
             dataset_inputs_by_run[UUID(str(item.run_id))].append(item)
         for item in artifact_inputs:
             artifact_inputs_by_run[UUID(str(item.run_id))].append(item)
+        spec_ids = {x.experiment_spec_id for x in specs}
+        dataset_ids = {x.dataset_id for x in snapshots}
+        artifact_ids = {x.artifact_id for x in artifacts}
+        metric_ids = {x.metric_definition_id for x in metrics}
         context = ClosureEvaluationContext(
+            spec_owners=BatchLookup(
+                {UUID(str(x.id)): x for x in uow.experiment_specs.get_many(spec_ids)},
+                frozenset(UUID(str(x)) for x in spec_ids),
+            ),
+            dataset_owners=BatchLookup(
+                {UUID(str(x.id)): x for x in uow.datasets.get_many(dataset_ids)},
+                frozenset(UUID(str(x)) for x in dataset_ids),
+            ),
+            artifact_owners=BatchLookup(
+                {UUID(str(x.id)): x for x in uow.artifacts.get_many(artifact_ids)},
+                frozenset(UUID(str(x)) for x in artifact_ids),
+            ),
+            metric_owners=BatchLookup(
+                {UUID(str(x.id)): x for x in uow.metric_definitions.get_many(metric_ids)},
+                frozenset(UUID(str(x)) for x in metric_ids),
+            ),
             runs=BatchLookup(
                 {UUID(str(x.id)): x for x in runs},
                 frozenset(UUID(str(x)) for x in run_ids),

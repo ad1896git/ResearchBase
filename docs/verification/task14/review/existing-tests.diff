@@ -1,0 +1,271 @@
+diff --git a/tests/architecture/test_import_boundaries.py b/tests/architecture/test_import_boundaries.py
+index efcdd08..c819565 100644
+--- a/tests/architecture/test_import_boundaries.py
++++ b/tests/architecture/test_import_boundaries.py
+@@ -160,6 +160,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
+         "0042_pr2_15_minimal_decision.py",
+         "0043_pr2_04_schema_contract.py",
+         "0044_pr2_15_revision_action.py",
++        "0045_pr2_16_basic_approval.py",
+     ]
+
+
+diff --git a/tests/e2e/test_phase1_failure_recovery.py b/tests/e2e/test_phase1_failure_recovery.py
+index 9bc1eb7..525b963 100644
+--- a/tests/e2e/test_phase1_failure_recovery.py
++++ b/tests/e2e/test_phase1_failure_recovery.py
+@@ -226,6 +226,13 @@ def test_cli_recovery_sequence_has_no_stale_request_id_or_context(tmp_path: Path
+
+ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() -> None:
+     expected_http = {
++        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 409,
++        ErrorCode.APPROVAL_GATE_FAILED: 409,
++        ErrorCode.DECISION_BASIS_INVALID: 409,
++        ErrorCode.APPROVAL_TARGET_STALE: 409,
++        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 409,
++        ErrorCode.GRANT_INVALID: 409,
++        ErrorCode.GRANT_STALE: 409,
+         ErrorCode.VALIDATION_ERROR: 422,
+         ErrorCode.NOT_FOUND: 404,
+         ErrorCode.AUTHENTICATION_REQUIRED: 401,
+@@ -278,6 +285,13 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() ->
+         ErrorCode.ADAPTER_VERSION_MISMATCH: 409,
+     }
+     expected_cli = {
++        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 4,
++        ErrorCode.APPROVAL_GATE_FAILED: 4,
++        ErrorCode.DECISION_BASIS_INVALID: 4,
++        ErrorCode.APPROVAL_TARGET_STALE: 4,
++        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 4,
++        ErrorCode.GRANT_INVALID: 4,
++        ErrorCode.GRANT_STALE: 4,
+         ErrorCode.VALIDATION_ERROR: 2,
+         ErrorCode.NOT_FOUND: 3,
+         ErrorCode.AUTHENTICATION_REQUIRED: 3,
+diff --git a/tests/fixtures/phase2_static_baseline.json b/tests/fixtures/phase2_static_baseline.json
+index aff0b17..19916fc 100644
+--- a/tests/fixtures/phase2_static_baseline.json
++++ b/tests/fixtures/phase2_static_baseline.json
+@@ -1,5 +1,5 @@
+ {
+   "baseline_commit": "b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff",
+   "pyright": [],
+-  "migration_head": "0044_pr2_15_revision_action"
++  "migration_head": "0045_pr2_16_basic_approval"
+ }
+diff --git a/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py b/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
+index e295127..9ce075e 100644
+--- a/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
++++ b/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
+@@ -41,7 +41,7 @@ def test_pr2_03_fresh_install_adds_exact_four_tables_and_unique_head(
+         )
+         assert tables == TABLES
+         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+-            "0044_pr2_15_revision_action"
++            "0045_pr2_16_basic_approval"
+         )
+         assert (
+             connection.execute(
+@@ -104,6 +104,6 @@ def test_pr2_03_populated_downgrade_refuses_before_dropping_tables(
+             == 1
+         )
+         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+-            "0044_pr2_15_revision_action"
++            "0045_pr2_16_basic_approval"
+         )
+     engine.dispose()
+diff --git a/tests/integration/phase2/test_pr2_03_review_guards.py b/tests/integration/phase2/test_pr2_03_review_guards.py
+index 3525cd4..5b03ec8 100644
+--- a/tests/integration/phase2/test_pr2_03_review_guards.py
++++ b/tests/integration/phase2/test_pr2_03_review_guards.py
+@@ -569,7 +569,7 @@ def test_remediation_child_upgrade_empty_downgrade_and_unique_head(phase2_databa
+     config.set_main_option("sqlalchemy.url", phase2_database_url)
+     command.upgrade(config, "0023_literature_search_plan")
+     command.upgrade(config, "0023a_search_plan_review_guards")
+-    assert ScriptDirectory.from_config(config).get_heads() == ["0044_pr2_15_revision_action"]
++    assert ScriptDirectory.from_config(config).get_heads() == ["0045_pr2_16_basic_approval"]
+     engine = create_engine(phase2_database_url)
+     with engine.connect() as c:
+         assert (
+diff --git a/tests/integration/phase2/test_pr2_04_execution_migration.py b/tests/integration/phase2/test_pr2_04_execution_migration.py
+index c0ed68e..81c8f15 100644
+--- a/tests/integration/phase2/test_pr2_04_execution_migration.py
++++ b/tests/integration/phase2/test_pr2_04_execution_migration.py
+@@ -70,7 +70,7 @@ def test_pr2_04_upgrade_adds_exact_tables_and_unique_head(
+         )
+         assert set(inspect(connection).get_table_names()) >= TABLES
+         assert ScriptDirectory.from_config(_alembic(phase2_database_url)).get_heads() == [
+-            "0044_pr2_15_revision_action"
++            "0045_pr2_16_basic_approval"
+         ]
+         pr204_trace.record(
+             current_revision=connection.execute(
+diff --git a/tests/integration/phase2/test_pr2_04_migration_coverage.py b/tests/integration/phase2/test_pr2_04_migration_coverage.py
+index 8c879a4..bc204cc 100644
+--- a/tests/integration/phase2/test_pr2_04_migration_coverage.py
++++ b/tests/integration/phase2/test_pr2_04_migration_coverage.py
+@@ -46,7 +46,7 @@ def _catalog(engine) -> dict:
+             "revision": connection.execute(
+                 text("SELECT version_num FROM alembic_version")
+             ).scalar_one(),
+-            "tables": inspector.get_table_names(),
++            "tables": sorted(inspector.get_table_names()),
+             "constraints": [
+                 list(row)
+                 for row in connection.execute(
+@@ -141,7 +141,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
+         )
+         assert before == after
+         assert revisions == [REVISION]
+-        assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
++        assert scripts.get_heads() == ["0045_pr2_16_basic_approval"]
+         assert revision.down_revision == PARENT
+         if origin == PARENT:
+             assert after_tables - before_tables == set(TABLES)
+@@ -270,7 +270,7 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
+     scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
+     child = scripts.get_revision("0025_pr2_04_reservation_guards")
+     assert child is not None and child.down_revision == REVISION
+-    assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
++    assert scripts.get_heads() == ["0045_pr2_16_basic_approval"]
+     pr204_trace.record(
+         historical_reference=FROZEN_PR204,
+         historical_ancestry_recovered=False,
+diff --git a/tests/integration/phase2/test_pr2_15_decision_schema.py b/tests/integration/phase2/test_pr2_15_decision_schema.py
+index 7b202f9..5a5c616 100644
+--- a/tests/integration/phase2/test_pr2_15_decision_schema.py
++++ b/tests/integration/phase2/test_pr2_15_decision_schema.py
+@@ -58,7 +58,7 @@ def _catalog(conn, names):
+
+ def test_0042_exact_minimal_schema_fks_indexes_and_no_extra_tables(phase2_database_url):
+     config = _config(phase2_database_url)
+-    assert ScriptDirectory.from_config(config).get_heads() == ["0044_pr2_15_revision_action"]
++    assert ScriptDirectory.from_config(config).get_heads() == ["0045_pr2_16_basic_approval"]
+     command.upgrade(config, PREVIOUS)
+     engine = create_engine(phase2_database_url)
+     try:
+diff --git a/tests/integration/phase2/test_revision_action.py b/tests/integration/phase2/test_revision_action.py
+index 687a719..8f98282 100644
+--- a/tests/integration/phase2/test_revision_action.py
++++ b/tests/integration/phase2/test_revision_action.py
+@@ -494,15 +494,15 @@ def test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog(phase2_d
+         with engine.connect() as conn:
+             tables = _tables(conn)
+             catalog = _catalog(conn, tables)
+-        alembic_command.upgrade(config, "head")
++        alembic_command.upgrade(config, "0044_pr2_15_revision_action")
+         with engine.connect() as conn:
+             assert _tables(conn) - tables == {"revision_actions"}
+             assert _catalog(conn, tables) == catalog
+-        assert ScriptDirectory.from_config(config).get_heads() == ["0044_pr2_15_revision_action"]
++        assert ScriptDirectory.from_config(config).get_heads() == ["0045_pr2_16_basic_approval"]
+         alembic_command.downgrade(config, "0043_pr2_04_schema_contract")
+         with engine.connect() as conn:
+             assert _tables(conn) == tables and _catalog(conn, tables) == catalog
+-        alembic_command.upgrade(config, "head")
++        alembic_command.upgrade(config, "0044_pr2_15_revision_action")
+     finally:
+         engine.dispose()
+
+diff --git a/tests/test_architecture.py b/tests/test_architecture.py
+index 708cbb2..39b3069 100644
+--- a/tests/test_architecture.py
++++ b/tests/test_architecture.py
+@@ -58,6 +58,10 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
+         "migrations/versions/0042_pr2_15_minimal_decision.py": {"scientific_conclusions"},
+         # Task 13: approved RevisionAction exact conclusion result and scope guards.
+         "migrations/versions/0044_pr2_15_revision_action.py": {"scientific_conclusions"},
++        "migrations/versions/0045_pr2_16_basic_approval.py": {
++            "scientific_conclusions",
++            "literature_evidence",
++        },
+     }
+     for path in _python_files(ROOT / "migrations"):
+         contents = path.read_text()
+diff --git a/tests/unit/foundation/test_errors.py b/tests/unit/foundation/test_errors.py
+index 76c6320..0f63d4e 100644
+--- a/tests/unit/foundation/test_errors.py
++++ b/tests/unit/foundation/test_errors.py
+@@ -55,6 +55,13 @@ def test_normative_error_codes_are_stable() -> None:
+         "SEARCH_PLAN_NOT_FROZEN",
+         "ADAPTER_UNAVAILABLE",
+         "ADAPTER_VERSION_MISMATCH",
++        "APPROVAL_PURPOSE_TARGET_COMMAND_INVALID",
++        "APPROVAL_GATE_FAILED",
++        "DECISION_BASIS_INVALID",
++        "APPROVAL_TARGET_STALE",
++        "REJECTION_RECONSIDERATION_REQUIRED",
++        "GRANT_INVALID",
++        "GRANT_STALE",
+     ]
+
+
+diff --git a/tests/unit/phase2/test_pr2_04_r8a_host_topology.py b/tests/unit/phase2/test_pr2_04_r8a_host_topology.py
+index cf178d5..ea0e81a 100644
+--- a/tests/unit/phase2/test_pr2_04_r8a_host_topology.py
++++ b/tests/unit/phase2/test_pr2_04_r8a_host_topology.py
+@@ -35,9 +35,9 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
+             hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
+         )
+     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
+-    assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
++    assert scripts.get_heads() == ["0045_pr2_16_basic_approval"]
+     assert (
+-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0043_pr2_04_schema_contract"
++        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0044_pr2_15_revision_action"
+     )
+
+
+diff --git a/tests/unit/test_pr15_http.py b/tests/unit/test_pr15_http.py
+index 554328e..c98226d 100644
+--- a/tests/unit/test_pr15_http.py
++++ b/tests/unit/test_pr15_http.py
+@@ -265,6 +265,13 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
+
+ def test_all_researchbase_error_codes_have_frozen_status_mapping() -> None:
+     expected = {
++        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 409,
++        ErrorCode.APPROVAL_GATE_FAILED: 409,
++        ErrorCode.DECISION_BASIS_INVALID: 409,
++        ErrorCode.APPROVAL_TARGET_STALE: 409,
++        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 409,
++        ErrorCode.GRANT_INVALID: 409,
++        ErrorCode.GRANT_STALE: 409,
+         ErrorCode.VALIDATION_ERROR: 422,
+         ErrorCode.NOT_FOUND: 404,
+         ErrorCode.AUTHENTICATION_REQUIRED: 401,
+diff --git a/tests/unit/test_pr16_cli_errors.py b/tests/unit/test_pr16_cli_errors.py
+index d1a9dbb..1c55558 100644
+--- a/tests/unit/test_pr16_cli_errors.py
++++ b/tests/unit/test_pr16_cli_errors.py
+@@ -49,6 +49,13 @@ def _invoke(fake: ErrorApplication, *args: str):
+
+ def test_all_stable_error_codes_have_cli_exit_mapping() -> None:
+     expected = {
++        ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID: 4,
++        ErrorCode.APPROVAL_GATE_FAILED: 4,
++        ErrorCode.DECISION_BASIS_INVALID: 4,
++        ErrorCode.APPROVAL_TARGET_STALE: 4,
++        ErrorCode.REJECTION_RECONSIDERATION_REQUIRED: 4,
++        ErrorCode.GRANT_INVALID: 4,
++        ErrorCode.GRANT_STALE: 4,
+         ErrorCode.VALIDATION_ERROR: 2,
+         ErrorCode.NOT_FOUND: 3,
+         ErrorCode.AUTHENTICATION_REQUIRED: 3,
+diff --git a/tests/unit/test_task12_migration_history.py b/tests/unit/test_task12_migration_history.py
+index 9e2c65c..8d8b16e 100644
+--- a/tests/unit/test_task12_migration_history.py
++++ b/tests/unit/test_task12_migration_history.py
+@@ -23,10 +23,11 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
+         | {
+             "migrations/versions/0043_pr2_04_schema_contract.py",
+             "migrations/versions/0044_pr2_15_revision_action.py",
++            "migrations/versions/0045_pr2_16_basic_approval.py",
+         }
+     )
+     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
+-    assert scripts.get_heads() == ["0044_pr2_15_revision_action"]
++    assert scripts.get_heads() == ["0045_pr2_16_basic_approval"]
+     assert (
+         scripts.get_revision("0043_pr2_04_schema_contract").down_revision
+         == "0042_pr2_15_minimal_decision"

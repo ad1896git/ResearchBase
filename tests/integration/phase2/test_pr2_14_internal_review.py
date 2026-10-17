@@ -47,28 +47,48 @@ def _wait_for_pg_blocker(engine, holder_pid: int, expected_lock: str) -> dict:
     deadline = monotonic() + 10
     while monotonic() < deadline:
         with engine.connect() as observer:
-            row = observer.execute(text("""SELECT a.pid,a.state,a.wait_event_type,
+            row = (
+                observer.execute(
+                    text("""SELECT a.pid,a.state,a.wait_event_type,
               a.wait_event,a.query,pg_blocking_pids(a.pid) AS blocking_pids,
               l.locktype,l.mode,l.relation::regclass::text AS relation,
               l.transactionid,l.classid,l.objid,l.objsubid,
               clock_timestamp() AS observed_at
               FROM pg_stat_activity a JOIN pg_locks l ON l.pid=a.pid AND NOT l.granted
               WHERE a.pid<>:holder AND :holder=ANY(pg_blocking_pids(a.pid))
-                AND a.wait_event_type='Lock' AND l.locktype=:kind
+                AND a.state='active' AND a.wait_event_type='Lock' AND l.locktype=:kind
               ORDER BY a.pid LIMIT 1"""),
-              {"holder": holder_pid, "kind": expected_lock}).mappings().first()
+                    {"holder": holder_pid, "kind": expected_lock},
+                )
+                .mappings()
+                .first()
+            )
         if row is not None:
             witness = dict(row)
             assert witness["state"] == "active"
             assert witness["wait_event_type"] == "Lock"
             assert holder_pid in witness["blocking_pids"]
             assert witness["pid"] != holder_pid
-            print("PR214_LOCK_WAIT_WITNESS", {
-                key: str(witness[key]) for key in (
-                    "pid", "wait_event", "locktype", "mode", "relation",
-                    "transactionid", "classid", "objid", "objsubid", "observed_at"
-                )
-            }, "blocking_pid", holder_pid)
+            print(
+                "PR214_LOCK_WAIT_WITNESS",
+                {
+                    key: str(witness[key])
+                    for key in (
+                        "pid",
+                        "wait_event",
+                        "locktype",
+                        "mode",
+                        "relation",
+                        "transactionid",
+                        "classid",
+                        "objid",
+                        "objsubid",
+                        "observed_at",
+                    )
+                },
+                "blocking_pid",
+                holder_pid,
+            )
             return witness
         sleep(0.02)
     pytest.fail(f"no PostgreSQL {expected_lock} lock wait blocked by PID {holder_pid}")
@@ -319,17 +339,22 @@ def test_missing_claim_and_denied_review_leave_no_partial_history(
     for principal, target in ((reviewer, uuid4()), (author, claim_id)):
         with pytest.raises(ResearchBaseError):
             service.create(
-                principal, project, "CLAIM_VERSION", target, "SCIENTIFIC",
-                "MAJOR_REVISION", "Denied exact review", (issue,), uuid4(),
+                principal,
+                project,
+                "CLAIM_VERSION",
+                target,
+                "SCIENTIFIC",
+                "MAJOR_REVISION",
+                "Denied exact review",
+                (issue,),
+                uuid4(),
             )
     with engine.connect() as conn:
         for table in ("internal_review_records", "review_issues", "review_issue_events"):
             assert conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one() == 0
 
 
-def test_reviewer_role_expiry_and_revocation_deny_review(
-    conclusion_env, phase2_database_url
-):
+def test_reviewer_role_expiry_and_revocation_deny_review(conclusion_env, phase2_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     command.upgrade(config, "head")
@@ -338,25 +363,45 @@ def test_reviewer_role_expiry_and_revocation_deny_review(
     )
     service = InternalReviewService(factory, credentials, evidence_service)
     with engine.connect() as conn:
-        role = conn.execute(text("""SELECT id FROM project_role_assignments
+        role = conn.execute(
+            text("""SELECT id FROM project_role_assignments
           WHERE actor_id=:actor AND project_id=:project AND effective_until IS NULL"""),
-          {"actor": reviewer.actor_id, "project": project}).scalar_one()
+            {"actor": reviewer.actor_id, "project": project},
+        ).scalar_one()
     from researchbase.application.phase2_identity import CloseProjectRole
     from tests.integration.phase2.test_pr2_00_challenges import _service
 
     identity, _, _ = _service(str(engine.url))
-    identity.close_project_role(CloseProjectRole(
-        author, project, role, "Test-only role revocation", uuid4()))
+    identity.close_project_role(
+        CloseProjectRole(author, project, role, "Test-only role revocation", uuid4())
+    )
     with engine.connect() as conn:
-        ended = conn.execute(text("""SELECT effective_until FROM project_role_assignments
-          WHERE id=:id"""), {"id": role}).scalar_one()
+        ended = conn.execute(
+            text("""SELECT effective_until FROM project_role_assignments
+          WHERE id=:id"""),
+            {"id": role},
+        ).scalar_one()
         assert ended is not None
-        assert conn.execute(text("""SELECT count(*) FROM project_role_events
+        assert (
+            conn.execute(
+                text("""SELECT count(*) FROM project_role_events
           WHERE role_assignment_id=:id AND event_kind='CLOSED'"""),
-          {"id": role}).scalar_one() == 1
+                {"id": role},
+            ).scalar_one()
+            == 1
+        )
     with pytest.raises(ResearchBaseError):
-        service.create(reviewer, project, "CLAIM_VERSION", claim_id, "SCIENTIFIC",
-                       "ACCEPT", "Role closed", (), uuid4())
+        service.create(
+            reviewer,
+            project,
+            "CLAIM_VERSION",
+            claim_id,
+            "SCIENTIFIC",
+            "ACCEPT",
+            "Role closed",
+            (),
+            uuid4(),
+        )
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 0
 
@@ -378,29 +423,60 @@ def test_currently_stale_claim_and_cross_project_issue_reference_fail_closed(
     other = app.create_project(CreateProjectCommand("Other test project", None, context))
     _, other_draft = seed_claim(app, ProjectId(other.id), context, "Other project claim")
     created = service.create(
-        reviewer, project, "CLAIM_VERSION", claim_id, "SCIENTIFIC", "MAJOR_REVISION",
-        "Independent test review", (ReviewIssueRequest("MAJOR", "CITATION", "Check source"),),
+        reviewer,
+        project,
+        "CLAIM_VERSION",
+        claim_id,
+        "SCIENTIFIC",
+        "MAJOR_REVISION",
+        "Independent test review",
+        (ReviewIssueRequest("MAJOR", "CITATION", "Check source"),),
         uuid4(),
     )
     with pytest.raises(DBAPIError), engine.begin() as conn:
-        conn.execute(text("""INSERT INTO review_issues
+        conn.execute(
+            text("""INSERT INTO review_issues
           (id,review_record_id,severity,issue_type,description,related_claim_version_id,
            status,created_at,ordinal)
           VALUES (:id,:review,'MAJOR','CITATION','Cross-project test reference',
                   :claim,'OPEN',clock_timestamp(),1)"""),
-          {"id": uuid4(), "review": created.id, "claim": UUID(str(other_draft.id))})
+            {"id": uuid4(), "review": created.id, "claim": UUID(str(other_draft.id))},
+        )
     governance = GovernanceService(factory, SystemClock())
-    finding = governance.create_audit_finding(CreateAuditFindingCommand(
-        project, "code_bug", "major", "Test-only finding", "Claim needs recheck",
-        "claim_version", claim_id, context,
-    ))
-    governance.create_impact_assessment(CreateImpactAssessmentCommand(
-        project, finding.id, {"basis": "test-only"}, "stale",
-        (ProposedImpactTarget("claim_version", claim_id, "stale"),), context,
-    ))
+    finding = governance.create_audit_finding(
+        CreateAuditFindingCommand(
+            project,
+            "code_bug",
+            "major",
+            "Test-only finding",
+            "Claim needs recheck",
+            "claim_version",
+            claim_id,
+            context,
+        )
+    )
+    governance.create_impact_assessment(
+        CreateImpactAssessmentCommand(
+            project,
+            finding.id,
+            {"basis": "test-only"},
+            "stale",
+            (ProposedImpactTarget("claim_version", claim_id, "stale"),),
+            context,
+        )
+    )
     with pytest.raises(ResearchBaseError):
-        service.create(reviewer, project, "CLAIM_VERSION", claim_id, "SCIENTIFIC",
-                       "ACCEPT", "Stale target", (), uuid4())
+        service.create(
+            reviewer,
+            project,
+            "CLAIM_VERSION",
+            claim_id,
+            "SCIENTIFIC",
+            "ACCEPT",
+            "Stale target",
+            (),
+            uuid4(),
+        )
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM internal_review_records")).scalar_one() == 1
         assert conn.execute(text("SELECT count(*) FROM review_issues")).scalar_one() == 1
@@ -424,11 +500,21 @@ def test_credential_revocation_while_request_lock_waits_is_rechecked(
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as holder:
             holder_pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
-            holder.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
-                           {"key": f"pr214:review:{identity}"})
+            holder.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+                {"key": f"pr214:review:{identity}"},
+            )
             pending = pool.submit(
-                service.create, reviewer, project, "CLAIM_VERSION", claim_id,
-                "SCIENTIFIC", "ACCEPT", "Must recheck after lock wait", (), request,
+                service.create,
+                reviewer,
+                project,
+                "CLAIM_VERSION",
+                claim_id,
+                "SCIENTIFIC",
+                "ACCEPT",
+                "Must recheck after lock wait",
+                (),
+                request,
             )
             witness = _wait_for_pg_blocker(engine, holder_pid, "advisory")
             assert "pg_advisory_xact_lock" in witness["query"]
@@ -437,9 +523,7 @@ def test_credential_revocation_while_request_lock_waits_is_rechecked(
             credentials.enabled = False
             assert not credentials.is_valid(reviewer, witness["observed_at"])
             print("PR214_AUTHORIZATION_INVALID", witness["pid"], "credential_revoked")
-            assert _same_waiting_lock(
-                witness, _wait_for_pg_blocker(engine, holder_pid, "advisory")
-            )
+            assert _same_waiting_lock(witness, _wait_for_pg_blocker(engine, holder_pid, "advisory"))
         print("PR214_LOCK_RELEASED", holder_pid)
         with pytest.raises(ResearchBaseError) as denied:
             pending.result(timeout=10)
@@ -461,11 +545,20 @@ def test_credential_revocation_while_target_row_lock_waits_is_rechecked(
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as holder:
             holder_pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
-            holder.execute(text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"),
-                           {"id": claim_id}).scalar_one()
+            holder.execute(
+                text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"), {"id": claim_id}
+            ).scalar_one()
             pending = pool.submit(
-                service.create, reviewer, project, "CLAIM_VERSION", claim_id,
-                "SCIENTIFIC", "ACCEPT", "Must recheck after target wait", (), uuid4(),
+                service.create,
+                reviewer,
+                project,
+                "CLAIM_VERSION",
+                claim_id,
+                "SCIENTIFIC",
+                "ACCEPT",
+                "Must recheck after target wait",
+                (),
+                uuid4(),
             )
             witness = _wait_for_pg_blocker(engine, holder_pid, "transactionid")
             assert "claim_versions" in witness["query"]
@@ -496,21 +589,33 @@ def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
     )
     service = InternalReviewService(factory, credentials, evidence_service)
     with engine.begin() as conn:
-        role = conn.execute(text("""SELECT id FROM project_role_assignments
+        role = conn.execute(
+            text("""SELECT id FROM project_role_assignments
           WHERE actor_id=:actor AND project_id=:project AND effective_until IS NULL"""),
-          {"actor": reviewer.actor_id, "project": project}).scalar_one()
-        until = conn.execute(text("""UPDATE project_role_assignments
+            {"actor": reviewer.actor_id, "project": project},
+        ).scalar_one()
+        until = conn.execute(
+            text("""UPDATE project_role_assignments
           SET effective_until=clock_timestamp() + interval '8 seconds',
               row_version=row_version+1 WHERE id=:id RETURNING effective_until"""),
-          {"id": role}).scalar_one()
-        conn.execute(text("""INSERT INTO project_role_events
+            {"id": role},
+        ).scalar_one()
+        conn.execute(
+            text("""INSERT INTO project_role_events
           (id,role_assignment_id,actor_id,event_kind,occurred_at,reason,request_id)
           VALUES (:id,:role,:actor,'CLOSED',:until,
                   'Test-only scheduled upper bound',:request)"""),
-          {"id": uuid4(), "role": role, "actor": reviewer.actor_id,
-           "until": until, "request": uuid4()})
-        assert conn.execute(text("SELECT clock_timestamp() < :until"),
-                            {"until": until}).scalar_one()
+            {
+                "id": uuid4(),
+                "role": role,
+                "actor": reviewer.actor_id,
+                "until": until,
+                "request": uuid4(),
+            },
+        )
+        assert conn.execute(
+            text("SELECT clock_timestamp() < :until"), {"until": until}
+        ).scalar_one()
     request = uuid4()
     identity = uuid5(
         NAMESPACE_URL,
@@ -519,28 +624,52 @@ def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
     with ThreadPoolExecutor(max_workers=1) as pool:
         with engine.begin() as holder:
             holder_pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
-            holder.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
-                           {"key": f"pr214:review:{identity}"})
+            holder.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+                {"key": f"pr214:review:{identity}"},
+            )
             pending = pool.submit(
-                service.create, reviewer, project, "CLAIM_VERSION", claim_id,
-                "SCIENTIFIC", "ACCEPT", "Expired during required lock wait", (), request,
+                service.create,
+                reviewer,
+                project,
+                "CLAIM_VERSION",
+                claim_id,
+                "SCIENTIFIC",
+                "ACCEPT",
+                "Expired during required lock wait",
+                (),
+                request,
             )
             before = _wait_for_pg_blocker(engine, holder_pid, "advisory")
             assert before["observed_at"] < until
             assert "pg_advisory_xact_lock" in before["query"]
             assert not pending.done()
-            print("PR214_VALID_AUTHORIZATION_THEN_WAIT", before["pid"], holder_pid,
-                  "role_until", until.isoformat())
-            holder.execute(text("SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM "
-                                "(:until-clock_timestamp()))+0.1))"),
-                           {"until": until})
-            assert holder.execute(text("SELECT clock_timestamp() >= :until"),
-                                  {"until": until}).scalar_one()
+            print(
+                "PR214_VALID_AUTHORIZATION_THEN_WAIT",
+                before["pid"],
+                holder_pid,
+                "role_until",
+                until.isoformat(),
+            )
+            holder.execute(
+                text(
+                    "SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM "
+                    "(:until-clock_timestamp()))+0.1))"
+                ),
+                {"until": until},
+            )
+            assert holder.execute(
+                text("SELECT clock_timestamp() >= :until"), {"until": until}
+            ).scalar_one()
             after = _wait_for_pg_blocker(engine, holder_pid, "advisory")
             assert _same_waiting_lock(before, after) and after["observed_at"] >= until
             assert not pending.done()
-            print("PR214_AUTHORIZATION_INVALID", after["pid"], "role_expired",
-                  after["observed_at"].isoformat())
+            print(
+                "PR214_AUTHORIZATION_INVALID",
+                after["pid"],
+                "role_expired",
+                after["observed_at"].isoformat(),
+            )
         print("PR214_LOCK_RELEASED", holder_pid)
         with pytest.raises(ResearchBaseError) as denied:
             pending.result(timeout=10)

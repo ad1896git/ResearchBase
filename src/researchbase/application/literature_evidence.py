@@ -10,6 +10,7 @@ from researchbase.adapters.source_document import locate, paragraphs, relocate
 from researchbase.application.closure import ProvenanceClosureValidator
 from researchbase.application.governance_queries import GovernanceQueryService, ValidityState
 from researchbase.application.ports import UnitOfWork
+from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.source_version import SourceVersionService, _material_from_row
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
 from researchbase.domain.claim import ClaimVersionId
@@ -100,6 +101,7 @@ class LiteratureEvidenceService:
         def once():
             with self._factory() as uow:
                 uow.begin_serializable()
+                uow.literature_evidence.prepare_write(name)
                 at = self._authorize(uow, principal, project, roles or {"OWNER", "RESEARCHER"})
                 uow.source_version.lock_command(
                     principal.deployment_id, project, principal.actor_id, name, request
@@ -336,6 +338,11 @@ class LiteratureEvidenceService:
         row = uow.literature_evidence.evidence(identity, project)
         if row is None:
             _fail("evidence not found", ErrorCode.NOT_FOUND)
+        with saved_dependency():
+            return self._read_saved(uow, row, project)
+
+    def _read_saved(self, uow, row, project):
+        identity = row["id"]
         source, artifact, values, valid = self._source(uow, row["source_version_id"], project)
         if (
             digest(evidence_material(row, source)) != row["content_hash"]
@@ -535,19 +542,42 @@ class LiteratureEvidenceService:
         )
 
     def _snapshot(self, uow, identity, project):
-        row = uow.literature_evidence.snapshot(identity, project)
-        if row is None:
+        if uow.literature_evidence.snapshot(identity, project) is None:
             _fail("literature support snapshot not found", ErrorCode.NOT_FOUND)
-        kind = next(key for key, column in TARGET_COLUMNS.items() if row[column] is not None)
-        target = self._target(uow, kind, row[TARGET_COLUMNS[kind]], project)
+        with saved_dependency():
+            return self._snapshot_saved(uow, identity, project)
+
+    def _snapshot_saved(self, uow, identity, project):
+        # Exact immutable predecessor material is verified iteratively; historical
+        # chains must not acquire an arbitrary Python recursion depth limit.
+        chain = []
+        seen = set()
+        current = identity
+        while current is not None:
+            if current in seen:
+                _fail("snapshot predecessor cycle", ErrorCode.PROVENANCE_CLOSURE_VIOLATION)
+            seen.add(current)
+            row = uow.literature_evidence.snapshot(current, project)
+            if row is None:
+                _fail("literature support snapshot not found", ErrorCode.NOT_FOUND)
+            kind = next(key for key, column in TARGET_COLUMNS.items() if row[column] is not None)
+            target = self._target(uow, kind, row[TARGET_COLUMNS[kind]], project)
+            chain.append((row, kind, target))
+            current = row["previous_snapshot_id"]
         previous = None
-        if row["previous_snapshot_id"]:
-            previous = self._snapshot(uow, row["previous_snapshot_id"], project)
-            if previous["snapshot_number"] + 1 != row["snapshot_number"] or previous[
-                "target"
-            ] != ref(kind, target):
+        for row, kind, target in reversed(chain):
+            if previous is not None and (
+                previous["snapshot_number"] + 1 != row["snapshot_number"]
+                or previous["target"] != ref(kind, target)
+            ):
                 _fail("snapshot predecessor mismatch", ErrorCode.PROVENANCE_CLOSURE_VIOLATION)
-        relations = uow.literature_evidence.relations(identity)
+            previous = self._snapshot_material(uow, row, kind, target, previous, project)
+        if previous is None:
+            _fail("literature support snapshot not found", ErrorCode.NOT_FOUND)
+        return previous
+
+    def _snapshot_material(self, uow, row, kind, target, previous, project):
+        relations = uow.literature_evidence.relations(row["id"])
         edges, valid = [], target["current_validity"] == "VALID"
         for relation in relations:
             evidence = self._read(uow, relation["literature_evidence_id"], project)

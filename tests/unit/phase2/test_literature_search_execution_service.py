@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -38,6 +36,7 @@ from researchbase.persistence.in_memory_literature_search_execution import (
     InMemoryLiteratureSearchExecutionRepository,
     _InMemoryProjectLockRepository,
 )
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 def _service(
@@ -1225,10 +1224,16 @@ def test_confirmed_provider_cancellation_seals_cancelled_attempt() -> None:
             assert self.cancel_service is not None
             assert self.command is not None
             self.cancel_service.cancel(self.command)
-            raise ProviderError(
-                ProviderFailureKind.CANCELLED,
+            return SearchResponse(
+                request.provider_id,
+                request.provider_version,
+                request.query_text,
                 "provider-confirmed-cancel",
-                delivery_certainty=DeliveryCertainty.NOT_SENT,
+                DeliveryCertainty.RESPONSE_RECEIVED,
+                failure_code="PROVIDER_CANCELLED",
+                execution_id=request.execution_id,
+                attempt_id=request.attempt_id,
+                provider_request_key=request.provider_request_key,
             )
 
     provider = CancellingProvider()
@@ -1256,7 +1261,7 @@ def test_confirmed_provider_cancellation_seals_cancelled_attempt() -> None:
     assert repository.results == []
 
 
-def test_provider_cancellation_without_durable_cancel_intent_fails_closed() -> None:
+def test_provider_cancellation_exception_without_confirmation_fails_closed() -> None:
     class UnrequestedCancellationProvider(FakeSearchCapability):
         def search(self, request, context=None):
             self.calls.append(request)
@@ -1283,10 +1288,10 @@ def test_provider_cancellation_without_durable_cancel_intent_fails_closed() -> N
 
     attempt = repository.attempts(execution_id)[0]
     execution = repository.executions[execution_id]
-    assert attempt["status"] == "PERMANENT_FAILURE"
-    assert attempt["failure_code"] == "PROVIDER_MALFORMED"
-    assert execution.status.value == "FAILED"
-    assert execution.failure_code == "PROVIDER_MALFORMED"
+    assert attempt["status"] == "UNKNOWN"
+    assert attempt["failure_code"] == "PROVIDER_OUTCOME_UNKNOWN"
+    assert execution.status.value == "UNKNOWN"
+    assert execution.failure_code == "PROVIDER_OUTCOME_UNKNOWN"
     assert not execution.cancellation_requested
 
 

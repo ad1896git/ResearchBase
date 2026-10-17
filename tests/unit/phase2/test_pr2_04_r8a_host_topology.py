@@ -1,4 +1,8 @@
-"""Host topology rejects any extension beyond the authorized R8A child."""
+"""Current authorized head and frozen PR2-04 prefix; historical R8A rejection cases."""
+
+import hashlib
+import subprocess
+from pathlib import Path
 
 import pytest
 from scripts.pr2_04_host_acceptance_tests import (
@@ -16,11 +20,24 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
+    # Later authorized children do not invalidate the frozen PR2-04 migration prefix.
+    root = Path(__file__).resolve().parents[3]
+    frozen = "eac3153cd3ba96797d63593827ec58fc8d3fc1a6"
+    paths = subprocess.check_output(
+        ["git", "ls-tree", "-r", "--name-only", frozen, "--", "migrations/versions"],
+        cwd=root,
+        text=True,
+    ).splitlines()
+    assert "migrations/versions/0028_provider_cancellation.py" in paths
+    for name in paths:
+        original = subprocess.check_output(["git", "show", f"{frozen}:{name}"], cwd=root)
+        assert (
+            hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
+        )
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0028_provider_cancellation"]
+    assert scripts.get_heads() == ["0059_b13_grant_consumption"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision
-        == "0027_pr2_04_hash_scheme_guards"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0058_b12_prepare_submission"
     )
 
 

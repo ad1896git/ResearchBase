@@ -9,12 +9,12 @@ import pytest
 from researchbase.foundation.errors import ResearchBaseError
 from researchbase.hg1_review_ops import HG1ReviewOperations
 from tests.integration.phase2.test_m3_evidence import create
-from tests.integration.phase2.test_m3_evidence import m3 as existing_m3
+from tests.integration.phase2.test_m3_evidence import m3 as m3
 
 
 @pytest.fixture
-def hg1_m3(phase2_database_url, tmp_path):
-    yield from existing_m3.__wrapped__(phase2_database_url, tmp_path)
+def hg1_m3(request: pytest.FixtureRequest):
+    return request.getfixturevalue("m3")
 
 
 def test_authenticated_b_review_and_a_support_use_existing_application(hg1_m3):

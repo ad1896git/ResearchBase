@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
+
 from tests.unit.phase2.test_pr2_04_transport_coverage import _body, _cli, _transport
 
 
@@ -22,9 +23,16 @@ def test_cli_write_validation_uses_canonical_json_and_exit_without_effects(
         body["project_id"] = "invalid-uuid"
     result = _cli(cli, services.verified_principal, request_id, action, body, execution_id)
     pr204_trace.record(
-        action=action, invalid=invalid, exit_code=result.exit_code, output=result.output,
-        executions=len(repo.executions), receipts=len(repo.receipts), events=len(repo.events),
-        attempts=len(repo.attempt_rows), queries=len(repo.queries), results=len(repo.results),
+        action=action,
+        invalid=invalid,
+        exit_code=result.exit_code,
+        output=result.output,
+        executions=len(repo.executions),
+        receipts=len(repo.receipts),
+        events=len(repo.events),
+        attempts=len(repo.attempt_rows),
+        queries=len(repo.queries),
+        results=len(repo.results),
         provider_calls=len(provider.calls),
     )
     assert result.exit_code == 2

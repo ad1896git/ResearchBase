@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
-
 from uuid import uuid4
 
 from researchbase.application.literature_search_provider import (
@@ -11,6 +9,7 @@ from researchbase.application.literature_search_provider import (
     response_is_success,
 )
 from researchbase.domain.literature_search_execution import SearchHit, SearchResponse
+from tests.pr2_04_provider_observations import PROVIDER_RETRIEVED_AT
 
 
 def test_fake_provider_records_attempt_and_returns_typed_hits() -> None:

@@ -124,7 +124,9 @@ def test_scoped_uow_closes_session_when_rollback_fails_after_connection_loss() -
             return None
 
         def rollback(self):
-            raise DBAPIError("rollback", {}, OSError("connection lost"), connection_invalidated=True)
+            raise DBAPIError(
+                "rollback", {}, OSError("connection lost"), connection_invalidated=True
+            )
 
         def close(self):
             state["closed"] = True

@@ -1,0 +1,576 @@
+"""Deterministic engineering inventories and conservative six-report renderer."""
+
+from __future__ import annotations
+
+import ast
+import json
+import subprocess
+from pathlib import Path
+from typing import Any, cast
+
+from tests.contracts.pr2_20_evidence import (
+    SUBJECT_PREFIX,
+    AdapterInventoryEntry,
+    ExitCriterionEvidence,
+    Mode,
+    canonical_bytes,
+    digest_bytes,
+    subject_digest,
+    to_bytes,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
+REPORT_NAMES = (
+    "reference_system_inventory.md",
+    "adapter_compatibility_report.md",
+    "migration_inventory_phase2.md",
+    "literature_trace_demo.md",
+    "publication_trace_demo.md",
+    "phase2_exit_report.md",
+)
+# Generated outputs are excluded to avoid a self-referential digest. All authored
+# code/tests/docs (including this implementation) are included, tracked or untracked.
+GENERATED = tuple("docs/phase2/" + name for name in (*REPORT_NAMES, "pr2_20_verification.md"))
+
+
+def generated(path: str) -> bool:
+    return path.startswith("pr_evidence/pr2-20/") or path in GENERATED
+
+
+def subject(root: Path = ROOT) -> tuple[str, str, str]:
+    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root).decode().strip()
+    tracked = subprocess.check_output(
+        [
+            "git",
+            "diff",
+            "HEAD",
+            "--binary",
+            "--",
+            ".",
+            ":!pr_evidence/pr2-20",
+            *(":!" + path for path in GENERATED),
+        ],
+        cwd=root,
+    )
+    paths = subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=root
+    )
+    untracked = []
+    for raw in sorted(part for part in paths.split(b"\0") if part):
+        path = raw.decode()
+        if not generated(path):
+            untracked.append([path, digest_bytes((root / path).read_bytes())])
+    dirty = digest_bytes(tracked + b"\0" + canonical_bytes(untracked))
+    return revision, dirty, subject_digest(revision, dirty)
+
+
+def context(root: Path = ROOT) -> dict[str, Any]:
+    revision, dirty, _ = subject(root)
+    return dict(
+        schema_version=1,
+        subject_revision=revision,
+        dirty_diff_sha256=dirty,
+        status="BLOCKED",
+        reason="Owning acceptance and owner dispositions not attached",
+        evidence_refs=(),
+    )
+
+
+def migration_inventory(root: Path = ROOT) -> list[dict[str, Any]]:
+    result = []
+    for path in sorted((root / "migrations/versions").glob("*.py")):
+        tree = ast.parse(path.read_bytes())
+        values = {}
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id in {"revision", "down_revision"}:
+                        values[target.id] = (
+                            ast.literal_eval(node.value) if node.value is not None else None
+                        )
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                if node.target.id in {"revision", "down_revision"}:
+                    values[node.target.id] = (
+                        ast.literal_eval(node.value) if node.value is not None else None
+                    )
+        if "revision" in values:
+            result.append(
+                dict(
+                    path=path.relative_to(root).as_posix(),
+                    sha256=digest_bytes(path.read_bytes()),
+                    **values,
+                )
+            )
+    return result
+
+
+def adapter_inventory(root: Path = ROOT) -> tuple[AdapterInventoryEntry, ...]:
+    entries = (
+        (
+            "literature-search",
+            "openalex",
+            "works-v1",
+            "src/researchbase/adapters/openalex.py",
+            "https://docs.openalex.org/",
+            "REST-unversioned",
+            "TEST_ONLY",
+        ),
+        (
+            "identifier-verification",
+            "crossref",
+            "doi-v1",
+            "src/researchbase/adapters/crossref.py",
+            "https://www.crossref.org/documentation/retrieve-metadata/rest-api/",
+            "REST-unversioned",
+            "TEST_ONLY",
+        ),
+        (
+            "research-strategy",
+            "native-storm-like",
+            "candidate-v1",
+            "src/researchbase/application/native_research_strategy.py",
+            "local-source",
+            None,
+            "TEST_ONLY",
+        ),
+        (
+            "scientific-rag",
+            "fake-scientific-rag",
+            "1",
+            "src/researchbase/application/scientific_rag_provider.py",
+            "offline-fake",
+            "test-only",
+            "TEST_ONLY",
+        ),
+        (
+            "scientific-rag",
+            "paperqa2",
+            "unselected",
+            "src/researchbase/application/scientific_rag_provider.py",
+            "https://github.com/Future-House/paper-qa",
+            None,
+            "DEFERRED",
+        ),
+        (
+            "research-strategy",
+            "official-storm",
+            "unselected",
+            "src/researchbase/application/native_research_strategy.py",
+            "https://github.com/stanford-oval/storm",
+            None,
+            "METHOD_REFERENCE",
+        ),
+    )
+    lock = digest_bytes((root / "uv.lock").read_bytes())
+    return tuple(
+        AdapterInventoryEntry(
+            **context(root),
+            capability_id=capability,
+            adapter_id=adapter,
+            mapping_version=mapping,
+            upstream_source=upstream,
+            owner="Repository owner",
+            local_source_sha256=digest_bytes((root / path).read_bytes()),
+            upstream_revision=None,
+            package_version=None,
+            api_profile=api,
+            model_id=None,
+            corpus_format=None,
+            index_format=None,
+            material_provenance_path=path,
+            reviewer=None,
+            lock_sha256=lock,
+            license_sha256=None,
+            mode=cast(Mode, mode),
+            reviewed_at=None,
+            compatibility_nodes=(),
+            unresolved_items=(
+                "Authoritative resolved-revision license and dated advisory review unavailable",
+                "Offline/source inventory is not live provider or PaperQA2 acceptance",
+            ),
+        )
+        for capability, adapter, mapping, path, upstream, api, mode in entries
+    )
+
+
+def exit_rows(root: Path = ROOT) -> tuple[ExitCriterionEvidence, ...]:
+    return tuple(
+        ExitCriterionEvidence(
+            **context(root),
+            criterion=criterion,
+            corrected_term={
+                "LiteratureSearchPlan/Run provenance": "LiteratureSearchExecution",
+                "SubmissionVersion package freeze": "PreparedSubmissionVersion",
+            }.get(criterion),
+            acceptance_revision=None,
+            owning_prs=EXIT_OWNERS[criterion],
+            contract_refs=("docs/proposals/PR2-20_Hardening_Plan_DRAFT.md",),
+            test_nodes=EXIT_NODES.get(criterion, ()),
+            commands=(),
+            exit_codes=(),
+            passed=0,
+            failed=0,
+            errors=0,
+            skipped=0,
+            finding_refs=(),
+            disposition_refs=(),
+        )
+        for criterion in EXIT_CRITERIA
+    )
+
+
+def validate_exit(
+    rows: tuple[ExitCriterionEvidence, ...], findings: tuple[str, ...], root: Path = ROOT
+) -> str:
+    if tuple(row.criterion for row in rows) != EXIT_CRITERIA:
+        raise ValueError("all 19 literal exit rows required in order")
+    identities = {(row.subject_revision, row.dirty_diff_sha256) for row in rows}
+    if len(identities) != 1:
+        raise ValueError("mixed evidence subjects")
+    if any(item.startswith(("P0", "P1")) for item in findings):
+        return "BLOCKED"
+    for row in rows:
+        if row.status != "PASS":
+            return "BLOCKED"
+        if not verified_acceptance(row, root):
+            return "BLOCKED"
+    return "PASS"
+
+
+def verified_acceptance(row: ExitCriterionEvidence, root: Path) -> bool:
+    """Focused, fake, deferred, skipped or missing evidence cannot close a gate."""
+    import re
+
+    if (
+        not row.acceptance_revision
+        or not re.fullmatch("[0-9a-f]{40}", row.acceptance_revision)
+        or not row.owning_prs
+        or not row.contract_refs
+        or not row.evidence_refs
+        or not row.commands
+        or any(row.exit_codes)
+    ):
+        return False
+    for ref in (*row.contract_refs, *row.disposition_refs):
+        path = (root / ref).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            return False
+    if not row.disposition_refs:
+        return False
+    for node in row.test_nodes:
+        path, separator, method = node.partition("::")
+        target = (root / path).resolve()
+        if not separator or not target.is_relative_to(root.resolve()) or not target.is_file():
+            return False
+        if not any(
+            isinstance(item, ast.FunctionDef) and item.name == method.split("[")[0]
+            for item in ast.walk(ast.parse(target.read_bytes()))
+        ):
+            return False
+    for ref in row.evidence_refs:
+        path = (root / ref).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            return False
+    for ref in row.evidence_refs:
+        path = root / ref
+        if path.suffix != ".json":
+            continue
+        try:
+            evidence = json.loads(path.read_bytes())
+        except (ValueError, UnicodeError):
+            continue
+        if not isinstance(evidence, dict):
+            continue
+        if (
+            evidence.get("scope") != "OWNING_ACCEPTANCE"
+            or evidence.get("subject_revision") != row.subject_revision
+            or evidence.get("dirty_diff_sha256") != row.dirty_diff_sha256
+            or evidence.get("acceptance_revision") != row.acceptance_revision
+            or evidence.get("mode") != "ENABLED"
+            or evidence.get("optional") is not False
+        ):
+            continue
+        if evidence.get("commands") != list(row.commands) or evidence.get("exit_codes") != list(
+            row.exit_codes
+        ):
+            continue
+        nodes = evidence.get("nodes", {})
+        if not isinstance(nodes, dict) or not all(
+            nodes.get(node) == "PASS" for node in row.test_nodes
+        ):
+            continue
+        if evidence.get("counts") != dict(
+            passed=row.passed, failed=row.failed, errors=row.errors, skipped=row.skipped
+        ):
+            continue
+        logs = evidence.get("logs", [])
+        if not logs or not set(logs) <= set(row.evidence_refs):
+            continue
+        return True
+    return False
+
+
+def write_reports(root: Path = ROOT) -> Path:
+    ctx = context(root)
+    sha = subject_digest(ctx["subject_revision"], ctx["dirty_diff_sha256"])
+    directory = root / SUBJECT_PREFIX / sha
+    directory.mkdir(parents=True, exist_ok=True)
+    inventory, migrations, rows = (
+        adapter_inventory(root),
+        migration_inventory(root),
+        exit_rows(root),
+    )
+    for number, item in enumerate(inventory):
+        (directory / f"adapter-{number}.json").write_bytes(to_bytes(item))
+    for number, item in enumerate(rows):
+        (directory / f"exit-{number:02d}.json").write_bytes(to_bytes(item))
+    (directory / "migration_scripts.json").write_bytes(canonical_bytes(migrations))
+    (directory / "subject.json").write_bytes(
+        canonical_bytes(
+            {
+                "subject_revision": ctx["subject_revision"],
+                "dirty_diff_sha256": ctx["dirty_diff_sha256"],
+                "subject_sha256": sha,
+                "digest_definition": "SHA256(git diff HEAD --binary excluding generated"
+                " reports/evidence + NUL + canonical untracked pat"
+                "h/digest inventory)",
+                "excluded_generated_paths": GENERATED,
+            }
+        )
+    )
+    ref = f"../../{SUBJECT_PREFIX}{sha}/"
+    intro = (
+        f"Subject `{ctx['subject_revision']}`; dirty diff `{ctx['dirty_diff_sha256']}`.\n\n"
+        f"Machine evidence: [subject]({ref}subject.json). This is engineering evidence. "
+        "Phase 2 exit is **BLOCKED**; owner acceptance is separate.\n\n"
+    )
+    texts = {}
+    texts[REPORT_NAMES[0]] = (
+        intro
+        + "| Adapter | Mapping | Mode | API | License/advisory |\n| --- | --- | --- | --- | --- |\n"
+        + "".join(
+            f"| {item.adapter_id} | {item.mapping_version} | {item.mode} | "
+            f"{item.api_profile} | BLOCKED: unresolved |\n"
+            for item in inventory
+        )
+        + "\nExecution pins are distinct from reference-only harness.lock.yaml entries. "
+        "No providers were enabled. The fake is not PaperQA2 acceptance. Local source"
+        " and uv.lock SHA256 values are in the typed adapter records. Repository lice"
+        "nse selection, upstream revision/license texts, notices, provider terms, cop"
+        "yright/cache redistribution and dated advisory scan remain unresolved. No li"
+        "cense permission or security clearance is inferred.\n"
+    )
+    texts[REPORT_NAMES[1]] = intro + (
+        "Offline compatibility uses typed candidate contracts and disposable canonical-"
+        "state manifests. "
+        "Live provider and real PaperQA2 compatibility/security remain BLOCKED. "
+        "No STORM/PaperQA schema or executable pin is inferred from a reference.\n\n"
+        "P1 MAJOR: `src/researchbase/adapters/literature_http.py::get_json` has redirect, byte, "
+        "time and JSON bounds but no private-network/DNS destination denial. "
+        "Impact: transport destination protection is unproven. Action: separately autho"
+        "rize owning transport remediation/intake. "
+        "No arbitrary endpoint or provider was enabled by this slice. Unsafe PaperQA in"
+        "dex deserialization and corpus isolation remain BLOCKED pending the real adapt"
+        "er.\n"
+    )
+    texts[REPORT_NAMES[2]] = (
+        intro
+        + (
+            f"[Complete revision/predecessor/script digests]({ref}migration_scripts.json). "
+            "No existing migration was edited; first-slice DDL and index proposals are empty. "
+            "The live head is 0047, superseding the plan observation of 0042. "
+            "Owning legacy predicates and populated downgrade refusals remain authoritative. "
+            "Empty/no-op, reconnect, accepted populated checkpoints, rollback and histo"
+            "rical-manifest tests "
+            "are separate evidence; absent checkpoint acceptance remains BLOCKED.\n\n"
+            "| Revision | Predecessor | SHA256 |\n| --- | --- | --- |\n"
+        )
+        + "".join(
+            f"| {item['revision']} | {item['down_revision']} | {item['sha256']} |\n"
+            for item in migrations
+        )
+    )
+    texts[REPORT_NAMES[3]] = intro + (
+        "Source identity and search hits supply no Claim support. Exact froze"
+        "n SourceVersion "
+        "+ document artifact hash + typed locator are validated through LiteratureEvidenceService; "
+        "review events and sealed support snapshots retain owning hashes and ordinals. "
+        "A citation-only placement supplies no support. Retraction/impact denial and fa"
+        "bricated-source "
+        "rejection require their owning end-to-end evidence; no full Phase 2 claim foll"
+        "ows from a lookup test.\n\n"
+        "Demo nodes: `tests/integration/phase2/test_pr2_13_scientific_trace.py`, "
+        "`tests/integration/phase2/test_pr2_19_citation_trace.py`. See verification rec"
+        "ord for actual execution.\n"
+    )
+    texts[REPORT_NAMES[4]] = intro + (
+        "Exact manuscript placements retain Claim/conclusion IDs and hashes; trace trav"
+        "erses the saved "
+        "experimental/literature paths without treating wording as facts. The 25/250-pl"
+        "acement case "
+        "compares DTOs and query counts with read instrumentation. Review/Issue and min"
+        "imal PROCEED "
+        "Decision retain full blockers and saved basis. Replay uses current read author"
+        "ity and does not "
+        "rewrite history. Completed revision, disposition/re-review, manuscript freeze/"
+        "READY, Approval "
+        "grant consumption and prepared-package freeze are outside this benchmark admission. "
+        "No external send or Phase 3 operation is performed.\n"
+    )
+    texts[REPORT_NAMES[5]] = (
+        intro
+        + (
+            "**Exit BLOCKED.** First slice authorization: owner user instruction, 2026-"
+            "10-14 approval. "
+            "Inherited PR2-15/16 exact approval subjects/dispositions have not been attached. "
+            "Code presence of later prerequisites is inventoried, not their admission t"
+            "o this slice.\n\n"
+            "| Literal exit criterion | Status | Reason |\n| --- | --- | --- |\n"
+        )
+        + "".join(f"| {row.criterion} | {row.status} | {row.reason} |\n" for row in rows)
+    )
+    texts[REPORT_NAMES[5]] += (
+        "\n| Architecture requirement | Concrete node | Disposition |\n| --- | --- | --- |\n"
+        + "".join(
+            f"| {name} | `{node}` | "
+            + (
+                "BLOCKED: runtime Approval admission absent"
+                if "approval_does" in name
+                else "See exact run evidence; mapping is not acceptance"
+            )
+            + " |\n"
+            for name, node in ARCHITECTURE_NODES.items()
+        )
+    )
+    texts[REPORT_NAMES[5]] += (
+        "\nFocused command/count evidence is in [verification](pr2_20_verification.md). "
+        "Unrun, skipped, failed and blocked results remain distinct. "
+        "No full suite was run by the implementation agent; loop evidence must be attac"
+        "hed separately. "
+        "Benchmark on the specified dedicated Linux host remains BLOCKED if unavailable"
+        "; local small timing is informational. "
+        "Open P1 transport finding, missing real PaperQA2, missing acceptance subjects "
+        "and owner dispositions prevent gate success. "
+        "Independent review is recorded in the verification document.\n\n"
+        "Substitution: the existing disposable PR212 database prefix is reused by the P"
+        "R220 helper. "
+        "All named fixtures resolve as written. Approval inventory uses the existing `t"
+        "est_approval.py` name. "
+        "The 50 pinned error rows are retained; seven existing Approval mappings are ap"
+        "pended in source-inventory tests.\n\n"
+        "**STOP; wait for explicit Phase 3 GO.**\n"
+    )
+    output = root / "docs/phase2"
+    output.mkdir(parents=True, exist_ok=True)
+    for name, body in texts.items():
+        (output / name).write_text(body)
+    return directory
+
+
+EXIT_CRITERIA = (
+    "LiteratureSource identity resolution",
+    "SourceVersion lineage/freeze",
+    "LiteratureSearchPlan/Run provenance",
+    "LiteratureEvidence source+locator trace",
+    "STORM-like Native ResearchStrategy",
+    "PaperQA2 Adapter",
+    "Academic Discussion explicit promotion",
+    "ScientificConclusion support-set freeze",
+    "ScientificConclusion Frozen Provenance Closure",
+    "ManuscriptVersion scientific placement",
+    "Citation ≠ ClaimSupport",
+    "Internal Review → Issue → Decision → Revision",
+    "Basic Approval frozen target / blocking gate",
+    "SubmissionVersion package freeze",
+    "Retracted-source impact propagation",
+    "Hallucinated citation rejection",
+    "PostgreSQL migrations/integration",
+    "No STORM/PaperQA vendor-specific Core schema",
+    "Phase 1 Exit tests continue",
+)
+
+ARCHITECTURE_NODES = {
+    "test_literature_source_not_evidence": "tests/architecture/test_pr2_19_boundaries.p"
+    "y::test_literature_source_not_evidence",
+    "test_search_result_not_evidence": "tests/architecture/test_pr2_19_boundaries.py::t"
+    "est_search_result_not_evidence",
+    "test_citation_not_claim_support": "tests/architecture/test_pr2_19_boundaries.py::t"
+    "est_citation_not_claim_support",
+    "test_strategy_does_not_import_persistence": "tests/architecture/test_pr2_19_bounda"
+    "ries.py::test_strategy_does_not_impor"
+    "t_persistence",
+    "test_adapter_does_not_write_db": "tests/architecture/test_pr2_19_boundaries.py::te"
+    "st_adapter_does_not_write_db",
+    "test_no_storm_specific_core_schema": "tests/architecture/test_pr2_19_boundaries.py"
+    "::test_no_storm_specific_core_schema",
+    "test_no_paperqa_specific_core_schema": "tests/architecture/test_pr2_19_boundaries."
+    "py::test_no_paperqa_specific_core_schema",
+    "test_discussion_not_canonical_science": "tests/architecture/test_pr2_19_boundaries"
+    ".py::test_discussion_not_canonical_scienc"
+    "e",
+    "test_manuscript_not_scientific_source_of_truth": "tests/architecture/test_pr2_19_b"
+    "oundaries.py::test_manuscript_no"
+    "t_scientific_source_of_truth",
+    "test_review_does_not_mutate_target": "tests/architecture/test_pr2_19_boundaries.py"
+    "::test_review_does_not_mutate_target",
+    "test_decision_does_not_mutate_history": "tests/architecture/test_pr2_19_boundaries"
+    ".py::test_decision_does_not_mutate_histor"
+    "y",
+    "test_approval_does_not_override_invalid_fact": "tests/architecture/test_pr2_19_bou"
+    "ndaries.py::test_approval_does_not"
+    "_override_invalid_fact",
+    "test_external_call_not_inside_long_db_transaction": "tests/architecture/test_pr2_1"
+    "9_boundaries.py::test_externa"
+    "l_call_not_inside_long_db_tra"
+    "nsaction",
+}
+
+
+EXIT_OWNERS = dict(
+    zip(
+        EXIT_CRITERIA,
+        (
+            ("PR2-01",),
+            ("PR2-02",),
+            ("PR2-03", "PR2-04"),
+            ("PR2-05",),
+            ("PR2-08",),
+            ("PR2-07",),
+            ("PR2-10",),
+            ("PR2-11",),
+            ("PR2-11",),
+            ("PR2-12", "PR2-13"),
+            ("PR2-13", "PR2-19"),
+            ("PR2-14", "PR2-15"),
+            ("PR2-16",),
+            ("PR2-17",),
+            ("PR2-19",),
+            ("PR2-19",),
+            ("PR2-20",),
+            ("PR2-20",),
+            ("Phase 1 frozen baseline",),
+        ),
+        strict=True,
+    )
+)
+EXIT_NODES = {
+    "LiteratureSource identity resolution": (
+        "tests/integration/phase2/test_pr2_20_catalog_plans.py::test_source_lookup_hit_miss_denied_instrumentation_parity",
+    ),
+    "ManuscriptVersion scientific placement": (
+        "tests/integration/phase2/test_pr2_20_catalog_plans.py::test_trace_25_250_count_scaling_exact_parity_and_denials",
+    ),
+    "Citation ≠ ClaimSupport": (
+        "tests/integration/phase2/test_pr2_13_scientific_trace.py::test_unified_trace_exact_placements_and_experiment_path",
+    ),
+    "PostgreSQL migrations/integration": (
+        "tests/integration/phase2/test_pr2_20_migrations.py::test_populated_conclusion_placement_review_and_0042_checkpoints",
+    ),
+    "Phase 1 Exit tests continue": (
+        "tests/e2e/test_phase1_golden_scientific_workflow.py::test_gsas_01_direct_application_is_complete_and_non_trivial",
+    ),
+}
+
+
+if __name__ == "__main__":
+    print(write_reports().relative_to(ROOT))

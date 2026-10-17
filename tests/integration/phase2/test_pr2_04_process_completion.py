@@ -16,6 +16,12 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
+
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.literature_search_provider import FakeSearchCapability
+from researchbase.application.phase2_identity import AssignProjectRole
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from tests.integration.phase2.test_pr2_03_effective_authority import _provision
 from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
@@ -25,12 +31,6 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
 )
 from tests.integration.phase2.test_pr2_04_ownership_races import _sqlstates
 from tests.unit.phase2.test_pr2_04_provider_coverage import success
-
-from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.literature_search_provider import FakeSearchCapability
-from researchbase.application.phase2_identity import AssignProjectRole
-from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture

@@ -20,6 +20,14 @@ import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
+
+from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
+from researchbase.application.phase2_identity import AssignProjectRole
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.literature_search_plan_repository import (
+    SqlAlchemyLiteratureSearchPlanRepository,
+)
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
 from tests.integration.phase2.test_pr2_03_effective_authority import _authority_rows, _provision
 from tests.integration.phase2.test_pr2_04_execution_recovery import OutcomeBeforeFinalization
@@ -31,32 +39,28 @@ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
 )
 from tests.unit.phase2.test_pr2_04_provider_coverage import ScriptedProvider, success
 
-from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
-from researchbase.application.phase2_identity import AssignProjectRole
-from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.literature_search_plan_repository import (
-    SqlAlchemyLiteratureSearchPlanRepository,
-)
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
-
 # Each pair names a required lock the real phase actually acquires. No read is
 # claimed to acquire an execution lock when its implementation does not do so.
-PHASE_LOCKS = [
-    (phase, lock)
-    for phase in ("execute_admission", "cancel_admission", "recover_admission")
-    for lock in ("receipt", "execution", "authority")
-] + [
-    (phase, lock)
-    for phase in (
-        "outcome",
-        "finalization",
-        "cancel_finalization",
-        "recovery_finalization",
-        "next_reservation",
-        "disclosure",
-    )
-    for lock in ("execution", "authority")
-] + [(phase, "authority") for phase in ("get", "list", "get_provenance")]
+PHASE_LOCKS = (
+    [
+        (phase, lock)
+        for phase in ("execute_admission", "cancel_admission", "recover_admission")
+        for lock in ("receipt", "execution", "authority")
+    ]
+    + [
+        (phase, lock)
+        for phase in (
+            "outcome",
+            "finalization",
+            "cancel_finalization",
+            "recovery_finalization",
+            "next_reservation",
+            "disclosure",
+        )
+        for lock in ("execution", "authority")
+    ]
+    + [(phase, "authority") for phase in ("get", "list", "get_provenance")]
+)
 READS = {"get", "list", "get_provenance"}
 
 
@@ -116,7 +120,9 @@ class PhaseExpiry:
         self.credential_samples.append(
             {
                 "attempt": self.current["attempt"] if self.current else None,
-                "at": at, "valid": valid, "thread_id": get_ident(),
+                "at": at,
+                "valid": valid,
+                "thread_id": get_ident(),
                 "source": "application_phase" if self.current else "coordinator_positive_control",
             }
         )
@@ -128,8 +134,9 @@ class PhaseExpiry:
         class ObservedUow(SqlAlchemyUnitOfWork):
             def __enter__(self):
                 super().__enter__()
-                self.observation = control.current
-                if self.observation is None:
+                observation = control.current
+                self.observation = observation
+                if observation is None:
                     return self
                 plan = self.literature_search_plan
                 execution = self.literature_search_execution
@@ -140,34 +147,34 @@ class PhaseExpiry:
                 database_time = plan.at
 
                 def project(*args, **kwargs):
-                    self.observation["order"].append("project_lock_enter")
+                    observation["order"].append("project_lock_enter")
                     result = lock_project(*args, **kwargs)
-                    self.observation["order"].append("project_lock_return")
+                    observation["order"].append("project_lock_return")
                     return result
 
                 def receipt(*args, **kwargs):
-                    self.observation["order"].append("receipt_lock_enter")
+                    observation["order"].append("receipt_lock_enter")
                     result = lock_receipt(*args, **kwargs)
-                    self.observation["order"].append("receipt_lock_return")
+                    observation["order"].append("receipt_lock_return")
                     return result
 
                 def execution_row(*args, **kwargs):
-                    self.observation["order"].append("execution_lock_enter")
+                    observation["order"].append("execution_lock_enter")
                     result = lock_execution(*args, **kwargs)
-                    self.observation["order"].append("execution_lock_return")
+                    observation["order"].append("execution_lock_return")
                     return result
 
                 def authority(*args, **kwargs):
-                    self.observation["order"].append("authority_lock_enter")
+                    observation["order"].append("authority_lock_enter")
                     result = authorize(*args, **kwargs)
-                    self.observation["authority_facts"] = result
-                    self.observation["order"].append("authority_lock_return")
+                    observation["authority_facts"] = result
+                    observation["order"].append("authority_lock_return")
                     return result
 
                 def at():
                     value = database_time()
-                    self.observation["order"].append("fresh_database_time")
-                    self.observation.setdefault("authorization_times", []).append(value)
+                    observation["order"].append("fresh_database_time")
+                    observation.setdefault("authorization_times", []).append(value)
                     return value
 
                 plan.lock_project = project
@@ -180,9 +187,11 @@ class PhaseExpiry:
             def begin_serializable(self):
                 super().begin_serializable()
                 if self.observation is not None:
-                    pid, xid, at = self._require_session().execute(
-                        text("SELECT pg_backend_pid(),txid_current(),clock_timestamp()")
-                    ).one()
+                    pid, xid, at = (
+                        self._require_session()
+                        .execute(text("SELECT pg_backend_pid(),txid_current(),clock_timestamp()"))
+                        .one()
+                    )
                     self.observation.update(backend_pid=pid, transaction_id=xid, entered_at=at)
                     control.transactions.put(self.observation)
 
@@ -297,7 +306,9 @@ def _hold_required_lock(connection, lock, principal, project, execution_id, comm
             "CancelLiteratureSearchExecution": "CANCEL_LITERATURE_SEARCH_EXECUTION",
             "RecoverLiteratureSearchExecution": "RECOVER_LITERATURE_SEARCH_EXECUTION",
         }[type(command).__name__]
-        SqlAlchemyLiteratureSearchPlanRepository(connection).lock_literature_search_execution_command(
+        SqlAlchemyLiteratureSearchPlanRepository(
+            connection
+        ).lock_literature_search_execution_command(
             principal.deployment_id, principal.actor_id, project, name, command.request_id
         )
     elif lock == "execution":
@@ -326,8 +337,14 @@ def test_pg_each_required_phase_reauthorizes_after_specific_lock_expiry(
     role_id = identity.assign_project_role(
         AssignProjectRole(owner, project, target.actor_id, "RESEARCHER", "temporal phases", uuid4())
     )
-    queries = ("first query", "second query") if phase == "next_reservation" else ("normalization evidence",)
-    provider = ScriptedProvider([success(query, "provider-a", 2) for query in queries], "provider-a")
+    queries = (
+        ("first query", "second query")
+        if phase == "next_reservation"
+        else ("normalization evidence",)
+    )
+    provider = ScriptedProvider(
+        [success(query, "provider-a", 2) for query in queries], "provider-a"
+    )
     ordinary = _service(engine, provider)
     execution_id = UUID(ordinary.create(replace(create, queries=queries))["execution_id"])
     if phase == "recovery_finalization":
@@ -337,8 +354,10 @@ def test_pg_each_required_phase_reauthorizes_after_specific_lock_expiry(
     control = PhaseExpiry(phase, pr204_trace)
     service = control.service(engine, provider)
     name = (
-        "cancel" if phase in {"cancel_admission", "cancel_finalization"}
-        else "recover" if phase in {"recover_admission", "recovery_finalization"}
+        "cancel"
+        if phase in {"cancel_admission", "cancel_finalization"}
+        else "recover"
+        if phase in {"recover_admission", "recovery_finalization"}
         else "execute"
     )
     command = _command(name, target, project, execution_id)
@@ -365,7 +384,9 @@ def test_pg_each_required_phase_reauthorizes_after_specific_lock_expiry(
                 deadline = _finite_researcher_interval(engine, role_id, target.actor_id)
             else:
                 with engine.connect() as connection:
-                    deadline = connection.execute(text("SELECT clock_timestamp()")).scalar_one() + timedelta(seconds=2)
+                    deadline = connection.execute(
+                        text("SELECT clock_timestamp()")
+                    ).scalar_one() + timedelta(seconds=2)
                 control.credential_expires_at = deadline
             positive_at, _, effective_before = _authority_rows(engine, target.actor_id, project)
             assert "RESEARCHER" in effective_before and positive_at < deadline
@@ -377,7 +398,9 @@ def test_pg_each_required_phase_reauthorizes_after_specific_lock_expiry(
             with engine.connect() as controller:
                 tx = controller.begin()
                 blocker_pid = controller.execute(text("SELECT pg_backend_pid()")).scalar_one()
-                _hold_required_lock(controller, lock, target, project, execution_id, command, role_id)
+                _hold_required_lock(
+                    controller, lock, target, project, execution_id, command, role_id
+                )
                 control.release.set()
                 deadline_wait = monotonic() + 10
                 blocked = None
@@ -392,14 +415,22 @@ def test_pg_each_required_phase_reauthorizes_after_specific_lock_expiry(
                     with engine.connect() as observer:
                         observed_wait = dict(
                             observer.execute(
-                                text("SELECT wait_event_type,wait_event,pg_blocking_pids(pid) AS blockers "
-                                     "FROM pg_stat_activity WHERE pid=:pid"),
+                                text(
+                                    "SELECT wait_event_type,wait_event,pg_blocking_pids(pid) AS blockers "  # noqa: E501
+                                    "FROM pg_stat_activity WHERE pid=:pid"
+                                ),
                                 {"pid": blocked["backend_pid"]},
-                            ).mappings().one()
+                            )
+                            .mappings()
+                            .one()
                         )
-                    if observed_wait["wait_event_type"] == "Lock" and blocker_pid in observed_wait["blockers"]:
+                    if (
+                        observed_wait["wait_event_type"] == "Lock"
+                        and blocker_pid in observed_wait["blockers"]
+                    ):
                         break
                     Event().wait(0.01)
+                assert observed_wait is not None
                 assert observed_wait["wait_event_type"] == "Lock"
                 assert blocker_pid in observed_wait["blockers"] and not future.done()
                 order = blocked["order"]
@@ -436,7 +467,9 @@ def test_pg_each_required_phase_reauthorizes_after_specific_lock_expiry(
         assert effective_after == []
     else:
         assert "RESEARCHER" in effective_after
-        assert not [s for s in control.credential_samples if s["attempt"] == expected_attempt and s["valid"]]
+        assert not [
+            s for s in control.credential_samples if s["attempt"] == expected_attempt and s["valid"]
+        ]
     pr204_trace.record(
         phase=phase,
         lock=lock,

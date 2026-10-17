@@ -6,14 +6,14 @@ from uuid import uuid4
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
+
+from researchbase.application.phase2_identity import BootstrapAuthority
+from researchbase.domain.phase2_identity import VerifiedPrincipal, effective_owner
 from tests.integration.phase2.test_pr2_00_bootstrap import _BootstrapProofVerifier
 from tests.integration.phase2.test_pr2_00_challenges import (
     _ExpiringCredentialVerifier,
     _service,
 )
-
-from researchbase.application.phase2_identity import BootstrapAuthority
-from researchbase.domain.phase2_identity import VerifiedPrincipal, effective_owner
 
 
 def test_owner_credential_expiry_changes_effective_authority_without_database_mutation(

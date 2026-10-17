@@ -72,6 +72,7 @@ class SourceVersionService:
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.source_version
+            repo.prepare_write()
             repo.lock_project(command.project_id)
             repo.lock_command(
                 principal.deployment_id,
@@ -133,6 +134,7 @@ class SourceVersionService:
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.source_version
+            repo.prepare_write()
             preliminary = repo.version(command.source_version_id)
             if preliminary is None:
                 raise _error(ErrorCode.SOURCE_VERSION_NOT_FOUND, "source version not found")
@@ -235,6 +237,7 @@ class SourceVersionService:
         with self._uow_factory() as uow:
             uow.begin_serializable()
             repo = uow.source_version
+            repo.prepare_write(freeze=name == "FREEZE_SOURCE_VERSION")
             preliminary = repo.version(command.source_version_id)
             if preliminary is None:
                 raise _error(ErrorCode.SOURCE_VERSION_NOT_FOUND, "source version not found")

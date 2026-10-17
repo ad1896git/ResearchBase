@@ -117,10 +117,7 @@ def test_pr04_tables_columns_and_constraints_exist(engine: Engine) -> None:
             )
         ).all()
         assert all(row.delete_rule == "RESTRICT" for row in foreign_keys)
-        assert {
-            (row.table_name, row.column_name)
-            for row in foreign_keys
-        } >= {
+        assert {(row.table_name, row.column_name) for row in foreign_keys} >= {
             ("research_questions", "project_id"),
             ("research_questions", "created_by"),
             ("research_questions", "current_version_id"),

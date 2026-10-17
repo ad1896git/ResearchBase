@@ -1,0 +1,172 @@
+{
+  "cross_expiry_proofs_utc": [
+    {
+      "node_id": "tests/integration/phase2/test_pr2_19_races.py::test_cross_expiry_five_database_timestamps",
+      "proof": {
+        "authorization_checked_at": "2026-10-15T04:56:07.353034+00:00",
+        "expiry_at": "2026-10-15T04:56:07.235953+00:00",
+        "lock_acquired_at": "2026-10-15T04:56:07.344568+00:00",
+        "lock_wait_started_at": "2026-10-15T04:56:02.272826+00:00",
+        "protected_counts": [
+          0,
+          0,
+          0
+        ],
+        "tx_started_at": "2026-10-15T04:56:02.240856+00:00"
+      }
+    },
+    {
+      "node_id": "tests/integration/phase2/test_pr2_19_races.py::test_discussion_second_wait_rechecks_expiry",
+      "proof": {
+        "append_receipts": 0,
+        "authorization_checked_at": "2026-10-15T04:56:12.897338+00:00",
+        "expiry_at": "2026-10-15T04:56:12.785644+00:00",
+        "initial_authorization_checked_at": "2026-10-15T04:56:07.791894+00:00",
+        "lock_acquired_at": "2026-10-15T04:56:12.890081+00:00",
+        "lock_wait_started_at": "2026-10-15T04:56:07.811071+00:00",
+        "turns": 0,
+        "tx_started_at": "2026-10-15T04:56:07.789636+00:00"
+      }
+    }
+  ],
+  "scenario_observations": [
+    {
+      "node_id": "tests/integration/phase2/test_pr2_19_rag_evidence.py::test_retrieval_then_owning_admission_independent_human_review_restart",
+      "observation": {
+        "backend_pids": [],
+        "command_identity": "LiteratureEvidenceService.snapshot",
+        "error_code": null,
+        "evidence_paths": [
+          "/Users/fengwang/Documents/ResearchBaseProject/artifacts/pr_evidence/PR2-19/focused.xml"
+        ],
+        "lock_events": [],
+        "result_ids": [
+          "08576026-a36d-4934-931c-74ef0c8e7c64",
+          "a1c2c51d-98d3-4562-8863-572f391cd414"
+        ],
+        "scenario_id": "G3",
+        "state_deltas": [
+          {
+            "after_count": 2,
+            "before_count": 2,
+            "table_name": "literature_sources"
+          },
+          {
+            "after_count": 2,
+            "before_count": 2,
+            "table_name": "source_versions"
+          },
+          {
+            "after_count": 1,
+            "before_count": 0,
+            "table_name": "literature_evidence"
+          },
+          {
+            "after_count": 1,
+            "before_count": 0,
+            "table_name": "literature_evidence_review_events"
+          },
+          {
+            "after_count": 1,
+            "before_count": 0,
+            "table_name": "literature_support_snapshots"
+          },
+          {
+            "after_count": 1,
+            "before_count": 0,
+            "table_name": "literature_evidence_relations"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "claims"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "claim_versions"
+          },
+          {
+            "after_count": 1,
+            "before_count": 1,
+            "table_name": "hypotheses"
+          },
+          {
+            "after_count": 1,
+            "before_count": 1,
+            "table_name": "hypothesis_versions"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "scientific_conclusions"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "scientific_conclusion_versions"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "internal_review_records"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "review_issues"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "decision_records"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "decision_basis_conclusions"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "decision_basis_reviews"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "approval_requests"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "approval_decisions"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "approval_grants"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "discussion_sessions"
+          },
+          {
+            "after_count": 0,
+            "before_count": 0,
+            "table_name": "discussion_turns"
+          }
+        ],
+        "step_index": 0,
+        "verified_hashes": [
+          {
+            "actual": "c556bcacddc673bc26eab7ff4c4310d9034253124dfe5d1ee89751dc3a9d08ac",
+            "expected": "c556bcacddc673bc26eab7ff4c4310d9034253124dfe5d1ee89751dc3a9d08ac",
+            "hash_field": "content_hash",
+            "record_id": "b5af3e43-3a74-42f3-97e5-f612c3d286bd"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -120,6 +121,29 @@ class EvidencePlugin:
             if report.when in phases:
                 raise pytest.UsageError("PR2-04 evidence prohibits hidden test reruns")
             phases[report.when] = "skipped" if hasattr(report, "wasxfail") else report.outcome
+            if report.failed:
+                item = self.items[report.nodeid]
+                observations = item.stash.setdefault(OBSERVATIONS, [])
+                source = ast.parse(Path(item.path).read_text())
+                definition_line = next(
+                    (
+                        node.lineno
+                        for node in ast.walk(source)
+                        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+                        and node.name == getattr(item, "originalname", item.name)
+                        and node.lineno >= item.location[1] + 1
+                    ),
+                    item.location[1] + 1,
+                )
+                # Record only a bounded source location, never exception text or locals.
+                FactRecorder(observations).record(
+                    observed_failed_phase=report.when,
+                    failure_location={
+                        "path": item.location[0],
+                        "line": definition_line,
+                        "test": item.location[2],
+                    },
+                )
 
     def pytest_sessionfinish(self) -> None:
         if self.output is None:

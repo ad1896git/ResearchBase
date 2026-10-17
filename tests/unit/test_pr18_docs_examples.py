@@ -54,9 +54,17 @@ def test_phase1_examples_use_only_registered_routes_and_commands() -> None:
     assert "orchestrate" not in document.lower()
 
 
+class AnyServices:
+    application = object()
+    provenance = object()
+    governance = object()
+    governance_queries = object()
+
+
 def test_phase1_cli_examples_are_registered() -> None:
     runner = CliRunner()
-    app = create_app()
+    # Inject services to inspect the legacy command tree without deployment authentication.
+    app = create_app(AnyServices())
     for command in (
         ["project", "create", "--help"],
         ["run", "provenance", "--help"],

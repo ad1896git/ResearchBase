@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError, IntegrityError
-from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
     CreateActorCommand,
@@ -45,6 +44,7 @@ from researchbase.foundation.ids import ActorId
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 pytestmark = pytest.mark.integration
 

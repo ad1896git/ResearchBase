@@ -1,0 +1,2 @@
+fatal: Unable to create '/Users/fengwang/Documents/ResearchBaseProject/.git/index.lock': Operation not permitted
+GIT_ADD_EXIT_CODE=128
