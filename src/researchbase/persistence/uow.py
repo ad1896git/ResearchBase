@@ -414,6 +414,7 @@ class SqlAlchemyUnitOfWork:
         self._session_factory = session_factory
         self._pr204_error_normalization = pr204_error_normalization
         self._decision_error_normalization = False
+        self._prepare_submission_error_normalization = False
         self._approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
@@ -428,6 +429,7 @@ class SqlAlchemyUnitOfWork:
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
         self._decision_error_normalization = False
+        self._prepare_submission_error_normalization = False
         self._approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
@@ -549,6 +551,7 @@ class SqlAlchemyUnitOfWork:
         """Configure a fresh B06 connection before any transactional statement."""
         from researchbase.persistence.database import configure_revision_connection
 
+        self._require_session().autoflush = False
         connection = self._require_session().connection(
             execution_options={
                 "isolation_level": "REPEATABLE READ" if readonly else "READ COMMITTED",
@@ -606,6 +609,16 @@ class SqlAlchemyUnitOfWork:
         self._issue_disposition_error_normalization = True
 
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if self._prepare_submission_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"55P03", "57014"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION, "database wait timed out"
+                )
+            if state == "23514" and constraint in {"ck_b12_decision_policy", "ck_b12_text_bounds"}:
+                return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid preparation material")
+
         if self._issue_disposition_error_normalization:
             return _issue_disposition_database_error(exc)
         if self._internal_review_error_normalization:
@@ -686,6 +699,10 @@ class SqlAlchemyUnitOfWork:
             if self._approval_error_normalization
             else _decision_database_error(exc)
         )
+
+    def enable_prepare_submission_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._prepare_submission_error_normalization = True
 
     def enable_decision_error_normalization(self) -> None:
         """Apply the command's nondisclosing boundary without changing older commands."""

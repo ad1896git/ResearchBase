@@ -57,7 +57,7 @@ def _tables(conn):
 @pytest.mark.parametrize("start", ["base", "0018_current_pointer_same_parent_integrity", PREVIOUS])
 def test_install_upgrade_exact_catalog_and_one_head(authorship_url, start):
     config = _config(authorship_url)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0057_xid_wraparound_guards"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0058_b12_prepare_submission"]
     command.upgrade(config, start)
     command.upgrade(config, PREVIOUS)
     engine = create_engine(authorship_url)
@@ -187,7 +187,7 @@ def test_nonempty_downgrade_refuses(authorship_env, authorship_url):
     with env[2].connect() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0057_xid_wraparound_guards"
+            == "0058_b12_prepare_submission"
         )
 
 

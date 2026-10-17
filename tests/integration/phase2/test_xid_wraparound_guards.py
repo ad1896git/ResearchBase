@@ -72,20 +72,20 @@ def test_forward_migration_replaces_all_epoch_unsafe_functions_and_nothing_else(
             before = definitions(engine)
             affected = {name for name, sql in before.items() if "xmin::text::bigint" in sql}
             assert affected == set(FUNCTIONS)
-            support.upgrade(url)
+            support.upgrade(url, "0057_xid_wraparound_guards")
             after = definitions(engine)
             assert set(before) == set(after)
             assert {name for name in before if before[name] != after[name]} == affected
             for name in before:
                 assert after[name] == corrected(before[name]), name
-            support.upgrade(url)
+            support.upgrade(url, "0057_xid_wraparound_guards")
             assert definitions(engine) == after
 
             config = Config("alembic.ini")
             config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
             command.downgrade(config, "0056_b10_reconsideration")
             assert definitions(engine) == after
-            support.upgrade(url)
+            support.upgrade(url, "0057_xid_wraparound_guards")
             assert definitions(engine) == after
             engine.dispose()
             assert definitions(engine) == after

@@ -219,32 +219,85 @@ class ApprovalService:
         uow.configure_approval_transaction(readonly=True)
         self._authorize(uow, principal, project, _READERS)
 
-    def _manuscript_gate(self, uow, project, identity, purpose, basis_id) -> NoReturn:
-        basis = uow.decision.decision(basis_id, project)
-        if basis is None or basis["decision_type"] != purpose:
-            _fail(ErrorCode.DECISION_BASIS_INVALID, "matching manuscript Decision unavailable")
-        # Reuse B04's full seal/CAS/transitive verifier and B05's exact target path
-        # in this UoW. Current Minimal Decision cannot reach this dependency branch.
-        try:
-            target = self._decisions._reviews._manuscript_target(
-                uow, project, identity, current=True
+    def _manuscript_gate(self, uow, project, identity, purpose, basis_id):
+        if purpose != "PREPARE_SUBMISSION":
+            _fail(
+                ErrorCode.DECISION_BASIS_INVALID, "manuscript Decision basis extension unavailable"
             )
-        except ResearchBaseError as exc:
-            if exc.code == ErrorCode.REVIEW_TARGET_NOT_FROZEN:
-                _fail(ErrorCode.APPROVAL_TARGET_STALE, "sealed manuscript required")
+        row = uow.decision.decision(basis_id, project)
+        if row is None or row["decision_type"] != purpose or row["decision"] != "PROCEED":
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "matching PREPARE Decision required")
+        return self._decisions._prepare_submission_readback(uow, row)
+
+    def _prepare_basis(self, uow, request):
+        result = self._manuscript_gate(
+            uow,
+            request["project_id"],
+            request["manuscript_version_id"],
+            request["approval_purpose"],
+            request["basis_decision_id"],
+        )
+        at = uow.source_version.at()
+        if (
+            result.manuscript_version_id != request["manuscript_version_id"]
+            or result.target_content_hash != request["target_content_hash"]
+            or result.decided_at > min(request.get("requested_at", at), at)
+        ):
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "exact prior preparation Decision required")
+        return result, tuple(r for r in result.basis if r.type == "InternalReviewRecord")
+
+    def _prepare_gate(self, uow, request, approver):
+        project, identity = request["project_id"], request["manuscript_version_id"]
+        decision, required = self._prepare_basis(uow, request)
+        target, parent, checked = self._decisions._prepare_submission_target(uow, project, identity)
+        if checked.current_validity != "VALID":
+            _fail(ErrorCode.APPROVAL_TARGET_STALE, "current manuscript closure invalid")
+        if parent["lifecycle_status"] != "READY":
+            _fail(ErrorCode.APPROVAL_GATE_FAILED, "Publication READY required")
+        if parent["current_manuscript_version_id"] != identity:
+            _fail(ErrorCode.APPROVAL_TARGET_STALE, "selected manuscript replaced")
+        try:
+            self._decisions._manuscripts.verify_in_uow(uow, project, parent, target, admission=True)
+        except ResearchBaseError as error:
+            if error.code in {
+                ErrorCode.FROZEN_REFERENCE_REQUIRED,
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+            }:
+                _fail(ErrorCode.APPROVAL_TARGET_STALE, "current manuscript closure unavailable")
             raise
-        parent = uow.publication.publication(target["publication_id"], project)
-        required = "INTERNAL_REVIEW" if purpose == "READY_FOR_SUBMISSION" else "READY"
-        if parent is None or parent["lifecycle_status"] != required:
-            _fail(ErrorCode.APPROVAL_GATE_FAILED, "Publication lifecycle prerequisite unavailable")
+        if target["hash_scheme"] != request["target_hash_scheme"]:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "target scheme corrupt")
+        authors = uow.decision.material_authors(identity, manuscript=True)
+        reviewers = set()
+        required_ids = {r.id for r in required}
+        at = uow.source_version.at()
         for review in uow.approval.manuscript_reviews(identity, project):
             self._decisions._reviews._verify_manuscript_review(uow, review)
-        _fail(ErrorCode.DECISION_BASIS_INVALID, "manuscript Decision basis extension unavailable")
+            self._decisions._reviews._issues(uow, review)
+            if review["created_at"] > at:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "future review invalid")
+            if review["id"] in required_ids:
+                reviewers.add(review["reviewer_actor_id"])
+        if request["requested_by"] in reviewers:
+            _fail(ErrorCode.CONFLICT_OF_INTEREST, "requester must differ from required reviewers")
+        if approver is not None and approver in (
+            authors | reviewers | {request["requested_by"], decision.decided_by}
+        ):
+            _fail(ErrorCode.CONFLICT_OF_INTEREST, "independent HUMAN approver required")
+        if self._decisions._readiness_blockers(uow, project, identity):
+            _fail(ErrorCode.APPROVAL_GATE_FAILED, "applicable OPEN blocker remains")
+        if uow.approval.rejected(project, request["approval_purpose"]):
+            _fail(ErrorCode.REJECTION_RECONSIDERATION_REQUIRED, "preparation rejection fence")
+        if request.get("reconsideration_decision_id") is not None:
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "preparation reconsideration unavailable")
+        if approver is not None and uow.approval.newer_target_selected(request):
+            _fail(ErrorCode.APPROVAL_TARGET_STALE, "newer preparation target selected")
+        return decision, required
 
     def _basis(self, uow, request):
         # Manuscript Decision commands/basis are a separately authorized dependency.
         if request.get("manuscript_version_id") is not None:
-            _fail(ErrorCode.DECISION_BASIS_INVALID, "manuscript Decision basis unavailable")
+            return self._prepare_basis(uow, request)
         row = uow.decision.decision(request["basis_decision_id"], request["project_id"])
         if (
             row is None
@@ -272,7 +325,7 @@ class ApprovalService:
         if not uow.literature_search_plan.project_active(project):
             _fail(ErrorCode.APPROVAL_GATE_FAILED, "active project required")
         if request.get("manuscript_version_id") is not None:
-            self._basis(uow, request)
+            return self._prepare_gate(uow, request, approver)
         target = repo.target(request["scientific_conclusion_version_id"], project)
         allowed_states = {"FROZEN", "SUPERSEDED"} if allow_superseded else {"FROZEN"}
         if target is None or target["status"] not in allowed_states or target["frozen_at"] is None:
@@ -593,8 +646,11 @@ class ApprovalService:
                         command.approval_purpose,
                         command.basis_decision_id,
                     )
-                assert target is not None
-                row = repo.target(target, command.project_id)
+                row = (
+                    uow.internal_review.manuscript_target(manuscript, command.project_id)
+                    if manuscript is not None
+                    else repo.target(cast(UUID, target), command.project_id)
+                )
                 if row is None:
                     _fail(ErrorCode.NOT_FOUND, "authorized exact target absent")
                 request = {
@@ -614,7 +670,9 @@ class ApprovalService:
                 _, refs = self._gate(uow, request)
                 if tuple(sorted((r.id for r in refs), key=str)) != command.review_ids:
                     _fail(ErrorCode.DECISION_BASIS_INVALID, "complete saved review set required")
-                if repo.pending(command.project_id, target, command.approval_purpose):
+                if repo.pending(
+                    command.project_id, cast(UUID, target or manuscript), command.approval_purpose
+                ):
                     _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "pending exact approval already exists")
                 if not repo.committed("decision_records", command.basis_decision_id) or any(
                     not repo.committed("internal_review_records", ref.id) for ref in refs

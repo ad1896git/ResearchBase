@@ -15,6 +15,7 @@ from researchbase.domain.decision import (
     DecisionBasisReference,
     RevisionChoice,
     RevisionPurpose,
+    canonical_manuscript_basis,
     decision_basis_material,
     decision_content_material,
 )
@@ -965,6 +966,320 @@ class DecisionService:
             self._readiness_authorize(uow, principal, query.project_id, _READERS)
             return result
 
+    def _prepare_submission_target(self, uow, project, identity, *, admission=False):
+        target, parent, checked = self._readiness_target(uow, project, identity)
+        if admission:
+            if parent["lifecycle_status"] != "READY":
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "Publication READY required")
+            checked = self._manuscripts.verify_in_uow(uow, project, parent, target, admission=True)
+        return target, parent, checked
+
+    def _prepare_submission_replay(self, principal, command):
+        with self._factory() as uow:
+            uow.enable_prepare_submission_error_normalization()
+            uow.configure_revision_transaction(readonly=True)
+            uow.decision.prepare_readiness_read()
+            uow.enable_revision_action_snapshot_reads()
+            self._readiness_authorize(uow, principal, command.project_id, _READERS)
+            row = uow.decision.decision(command.id, command.project_id)
+            if row is None:
+                if uow.decision.decision_exists(command.id):
+                    _fail(ErrorCode.FORBIDDEN, "Decision unavailable")
+                return None
+            if row["decided_by"] != principal.actor_id:
+                _fail(ErrorCode.FORBIDDEN, "Decision unavailable")
+            if row["decision_type"] != command.decision_type:
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "Decision purpose conflicts")
+            result = self._prepare_submission_readback(uow, row)
+            if any(
+                getattr(result, k) != getattr(command, k)
+                for k in (
+                    "manuscript_version_id",
+                    "question",
+                    "rationale",
+                    "decision_type",
+                    "decision",
+                )
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "Decision request material conflicts")
+            self._readiness_authorize(uow, principal, command.project_id, _READERS)
+            return result
+
+    def _prepare_submission_readback(self, uow, row):
+        from researchbase.domain.decision import (
+            prepare_submission_text,
+            validate_prepare_submission_choice,
+        )
+
+        try:
+            validate_prepare_submission_choice(row["decision_type"], row["decision"])
+            if (
+                row["supersedes_decision_id"] is not None
+                or row["hash_scheme"] != "sha256-cjson-v1"
+                or uow.decision.prepare_submission_other_basis(row["id"])
+            ):
+                raise ValueError("unexpected saved prepare_submission material")
+            if any(prepare_submission_text(row[k], k) != row[k] for k in ("question", "rationale")):
+                raise ValueError("saved prepare_submission text must be NFC")
+            basis = canonical_manuscript_basis(
+                self._basis(uow.decision.manuscript_basis(row["id"]))
+            )
+            targets = [r for r in basis if r.type == "ManuscriptVersion"]
+            reviews = [r for r in basis if r.type == "InternalReviewRecord"]
+            if len(targets) != 1 or not reviews or len(basis) != len(reviews) + 1:
+                raise ValueError("exact saved prepare_submission basis required")
+            target, parent, checked = self._prepare_submission_target(
+                uow, row["project_id"], targets[0].id
+            )
+            if target["content_hash"] != targets[0].content_hash:
+                raise ValueError("saved target hash invalid")
+            authors = uow.decision.material_authors(target["id"], manuscript=True)
+            if row["decided_by"] in authors or not uow.decision.revision_creation_authorized(row):
+                raise ValueError("historical independent decider required")
+            for ref in reviews:
+                review = uow.internal_review.review(ref.id, row["project_id"])
+                if (
+                    review is None
+                    or review["manuscript_version_id"] != target["id"]
+                    or review["target_content_hash"] != target["content_hash"]
+                    or review["content_hash"] != ref.content_hash
+                    or review["created_at"] > row["decided_at"]
+                ):
+                    raise ValueError("saved review binding invalid")
+                self._reviews._verify_manuscript_review(uow, review)
+                self._reviews._issues(uow, review)
+            bh = str(sha256_canonical_json(decision_basis_material(basis)))
+            digest = str(
+                sha256_canonical_json(
+                    decision_content_material(
+                        row["project_id"],
+                        row["decision_type"],
+                        row["question"],
+                        row["decision"],
+                        row["rationale"],
+                        row["decided_by"],
+                        bh,
+                    )
+                )
+            )
+            if bh != row["basis_set_hash"] or digest != row["content_hash"]:
+                raise ValueError("saved Decision hashes invalid")
+            blockers = self._readiness_blockers(uow, row["project_id"], target["id"])
+            return PrepareSubmissionDecisionReadback(
+                row["id"],
+                row["project_id"],
+                parent["id"],
+                target["id"],
+                row["decided_by"],
+                row["decision_type"],
+                row["decision"],
+                row["question"],
+                row["rationale"],
+                row["decided_at"].astimezone(UTC),
+                target["content_hash"],
+                bh,
+                digest,
+                row["hash_scheme"],
+                basis,
+                checked.current_validity,
+                blockers,
+                uow.manuscript_freeze.at(),
+            )
+        except (ValueError, TypeError, KeyError):
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved prepare_submission Decision invalid"
+            )
+        except ResearchBaseError as error:
+            if error.code in {
+                ErrorCode.FROZEN_REFERENCE_REQUIRED,
+                ErrorCode.NOT_FOUND,
+                ErrorCode.FORBIDDEN,
+            }:
+                _fail(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "saved prepare_submission provenance invalid",
+                )
+            raise
+
+    def record_prepare_submission_decision(self, principal, command):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(command) is not RecordPrepareSubmissionDecisionCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed prepare_submission command required")
+        for attempt in range(3):
+            try:
+                replay = self._prepare_submission_replay(principal, command)
+                if replay is not None:
+                    return replay
+                result = self._record_prepare_submission_once(principal, command)
+                return (
+                    result
+                    if result is not None
+                    else self._recover_prepare_submission_collision(principal, command)
+                )
+            except ResearchBaseError as error:
+                if (
+                    error.code is ErrorCode.IDEMPOTENCY_CONFLICT
+                    and error.details
+                    and error.details.get("reload_decision") is True
+                ):
+                    return self._recover_prepare_submission_collision(principal, command)
+                if (
+                    error.code is ErrorCode.CONCURRENT_MODIFICATION
+                    and error.message == "decision transaction rejected"
+                    and attempt < 2
+                ):
+                    continue
+                raise ResearchBaseError(error.code, error.message) from None
+        raise AssertionError("unreachable prepare_submission retry")
+
+    def _recover_prepare_submission_collision(self, principal, command):
+        # A named PK collision is never a successful replay by itself. The failed
+        # UoW has exited/rolled back before this exact protected history comparison.
+        with self._factory() as uow:
+            uow.enable_prepare_submission_error_normalization()
+            uow.configure_revision_transaction(readonly=True)
+            uow.decision.prepare_readiness_read()
+            uow.enable_revision_action_snapshot_reads()
+            self._readiness_authorize(uow, principal, command.project_id, _READERS)
+            row = uow.decision.decision(command.id, command.project_id)
+            if row is None or row["decided_by"] != principal.actor_id:
+                _fail(ErrorCode.FORBIDDEN, "Decision unavailable")
+            if row["decision_type"] != "PREPARE_SUBMISSION":
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "Decision purpose conflicts")
+            result = self._prepare_submission_readback(uow, row)
+            if any(
+                getattr(result, k) != getattr(command, k)
+                for k in (
+                    "manuscript_version_id",
+                    "question",
+                    "rationale",
+                    "decision_type",
+                    "decision",
+                )
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "Decision request material conflicts")
+            self._readiness_authorize(uow, principal, command.project_id, _READERS)
+            return result
+
+    def _record_prepare_submission_once(self, principal, command):
+        from researchbase.domain.decision import validate_readiness_review_count
+
+        with self._factory() as uow:
+            uow.enable_prepare_submission_error_normalization()
+            uow.configure_revision_transaction()
+            repo = uow.decision
+            repo.prepare_readiness_write()
+            repo.lock_prepare_submission_request(command.id)
+            repo.lock_readiness_target(command.manuscript_version_id)
+            repo.lock_readiness_project(command.project_id)
+            uow.internal_review.lock_publication(command.manuscript_version_id, command.project_id)
+            uow.enable_revision_action_snapshot_reads()
+            self._readiness_authorize(uow, principal, command.project_id, _READERS)
+            saved = repo.decision(command.id, command.project_id)
+            if saved is not None:
+                return None  # Exit writer before reopening lock-free history.
+            if repo.decision_exists(command.id):
+                _fail(ErrorCode.FORBIDDEN, "Decision unavailable")
+            self._readiness_authorize(uow, principal, command.project_id, _WRITERS)
+            target, _, _ = self._prepare_submission_target(
+                uow, command.project_id, command.manuscript_version_id, admission=True
+            )
+            if principal.actor_id in repo.material_authors(target["id"], manuscript=True):
+                _fail(
+                    ErrorCode.CONFLICT_OF_INTEREST,
+                    "decider must be independent of material authors",
+                )
+            rows = uow.internal_review.manuscript_reviews_snapshot(target["id"], command.project_id)
+            try:
+                validate_readiness_review_count(len(rows))
+            except ValueError:
+                _fail(ErrorCode.DECISION_BASIS_INVALID, "complete eligible review set required")
+            observation = self._reviews.collect_manuscript_review_basis(
+                uow, command.project_id, target["id"], prepared=True
+            )
+            if self._readiness_blockers(uow, command.project_id, target["id"]):
+                _fail(ErrorCode.DECISION_BASIS_INVALID, "applicable OPEN blocker remains")
+            if repo.prepare_submission_scope(target["id"], command.project_id) is not None:
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "prepare_submission scope already recorded")
+            basis = observation.basis
+            bh = str(sha256_canonical_json(decision_basis_material(basis)))
+            digest = str(
+                sha256_canonical_json(
+                    decision_content_material(
+                        command.project_id,
+                        command.decision_type,
+                        command.question,
+                        command.decision,
+                        command.rationale,
+                        principal.actor_id,
+                        bh,
+                    )
+                )
+            )
+            at = self._readiness_authorize(uow, principal, command.project_id, _WRITERS)
+            repo.insert_decision(
+                dict(
+                    id=command.id,
+                    project_id=command.project_id,
+                    decision_type=command.decision_type,
+                    decision=command.decision,
+                    question=command.question,
+                    rationale=command.rationale,
+                    decided_by=principal.actor_id,
+                    decided_at=at,
+                    supersedes_decision_id=None,
+                    basis_set_hash=bh,
+                    content_hash=digest,
+                    hash_scheme="sha256-cjson-v1",
+                )
+            )
+            manuscript_ref = next(r for r in basis if r.type == "ManuscriptVersion")
+            repo.insert_manuscript_basis(
+                dict(
+                    decision_id=command.id,
+                    manuscript_version_id=target["id"],
+                    ordinal=manuscript_ref.ordinal,
+                )
+            )
+            for ref in basis:
+                if ref.type == "InternalReviewRecord":
+                    repo.insert_review_basis(
+                        dict(
+                            decision_id=command.id,
+                            internal_review_record_id=ref.id,
+                            ordinal=ref.ordinal,
+                        )
+                    )
+            repo.force_readiness_constraints()
+            result = self._prepare_submission_readback(
+                uow, repo.decision(command.id, command.project_id)
+            )
+            self._prepare_submission_target(uow, command.project_id, target["id"], admission=True)
+            self._readiness_authorize(uow, principal, command.project_id, _WRITERS)
+            uow.commit()
+            return result
+
+    def get_prepare_submission_decision(self, principal, query):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(query) is not GetPrepareSubmissionDecisionQuery:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed prepare_submission query required")
+        with self._factory() as uow:
+            uow.enable_prepare_submission_error_normalization()
+            uow.configure_revision_transaction(readonly=True)
+            uow.decision.prepare_readiness_read()
+            uow.enable_revision_action_snapshot_reads()
+            self._readiness_authorize(uow, principal, query.project_id, _READERS)
+            row = uow.decision.decision(query.id, query.project_id)
+            if row is None:
+                self._revision_policy()._absent(uow, "DecisionRecord", query.id)
+            if row["decision_type"] != "PREPARE_SUBMISSION":
+                _fail(ErrorCode.NOT_FOUND, "exact preparation Decision absent")
+            result = self._prepare_submission_readback(uow, row)
+            self._readiness_authorize(uow, principal, query.project_id, _READERS)
+            return result
+
     def _reconsideration_view(self, uow, row):
         from researchbase.domain.approval import approval_decision_material
         from researchbase.domain.decision import reconsideration_question, reconsideration_text
@@ -1585,6 +1900,110 @@ class ReadyForSubmissionDecisionReadback:
         for name in ("question", "rationale"):
             value = getattr(self, name)
             if _text(value, name) != value or len(value) > 16_000:
+                raise ValueError("saved readiness text must be bounded NFC")
+        if (
+            type(self.current_blocking_issue_ids) is not tuple
+            or any(type(i) is not UUID for i in self.current_blocking_issue_ids)
+            or self.current_blocking_issue_ids
+            != tuple(sorted(set(self.current_blocking_issue_ids), key=str))
+        ):
+            raise ValueError("canonical distinct Issue IDs required")
+
+
+@dataclass(frozen=True, slots=True)
+class RecordPrepareSubmissionDecisionCommand:
+    id: UUID
+    project_id: UUID
+    manuscript_version_id: UUID
+    question: str
+    rationale: str
+    decision_type: Literal["PREPARE_SUBMISSION"] = "PREPARE_SUBMISSION"
+    decision: Literal["PROCEED"] = "PROCEED"
+
+    def __post_init__(self):
+        from researchbase.domain.decision import (
+            prepare_submission_text,
+            validate_prepare_submission_choice,
+        )
+
+        try:
+            if any(
+                type(x) is not UUID for x in (self.id, self.project_id, self.manuscript_version_id)
+            ):
+                raise ValueError("exact UUIDs required")
+            validate_prepare_submission_choice(self.decision_type, self.decision)
+            for name in ("question", "rationale"):
+                object.__setattr__(self, name, prepare_submission_text(getattr(self, name), name))
+        except (ValueError, TypeError):
+            _fail(ErrorCode.VALIDATION_ERROR, "closed readiness material required")
+
+
+@dataclass(frozen=True, slots=True)
+class GetPrepareSubmissionDecisionQuery:
+    project_id: UUID
+    id: UUID
+
+    def __post_init__(self):
+        if type(self.project_id) is not UUID or type(self.id) is not UUID:
+            _fail(ErrorCode.VALIDATION_ERROR, "exact UUIDs required")
+
+
+@dataclass(frozen=True, slots=True)
+class PrepareSubmissionDecisionReadback:
+    id: UUID
+    project_id: UUID
+    publication_id: UUID
+    manuscript_version_id: UUID
+    decided_by: UUID
+    decision_type: Literal["PREPARE_SUBMISSION"]
+    decision: Literal["PROCEED"]
+    question: str
+    rationale: str
+    decided_at: datetime
+    target_content_hash: str
+    basis_set_hash: str
+    content_hash: str
+    hash_scheme: Literal["sha256-cjson-v1"]
+    basis: tuple[DecisionBasisReference, ...]
+    current_validity: Literal["VALID", "STALE", "INVALID"]
+    current_blocking_issue_ids: tuple[UUID, ...]
+    evaluated_at: datetime
+
+    def __post_init__(self):
+        from researchbase.domain.decision import (
+            prepare_submission_text,
+            validate_prepare_submission_choice,
+        )
+        from researchbase.domain.scientific_conclusion import _digest, _uuid
+
+        validate_prepare_submission_choice(self.decision_type, self.decision)
+        for name in ("id", "project_id", "publication_id", "manuscript_version_id", "decided_by"):
+            _uuid(getattr(self, name), name)
+        for name in ("target_content_hash", "basis_set_hash", "content_hash"):
+            _digest(getattr(self, name), name)
+        for value in (self.decided_at, self.evaluated_at):
+            if type(value) is not datetime or value.utcoffset() != timedelta(0):
+                raise ValueError("aware UTC timestamp required")
+        if self.hash_scheme != "sha256-cjson-v1" or self.current_validity not in {
+            "VALID",
+            "STALE",
+            "INVALID",
+        }:
+            raise ValueError("closed readiness diagnostics required")
+        decision_basis_material(self.basis)
+        targets = [r for r in self.basis if r.type == "ManuscriptVersion"]
+        reviews = [r for r in self.basis if r.type == "InternalReviewRecord"]
+        if (
+            len(targets) != 1
+            or not reviews
+            or len(self.basis) != len(reviews) + 1
+            or targets[0].id != self.manuscript_version_id
+            or targets[0].content_hash != self.target_content_hash
+        ):
+            raise ValueError("closed manuscript readiness basis required")
+        for name in ("question", "rationale"):
+            value = getattr(self, name)
+            if prepare_submission_text(value, name) != value:
                 raise ValueError("saved readiness text must be bounded NFC")
         if (
             type(self.current_blocking_issue_ids) is not tuple

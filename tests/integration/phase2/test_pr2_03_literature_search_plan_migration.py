@@ -41,7 +41,7 @@ def test_pr2_03_fresh_install_adds_exact_four_tables_and_unique_head(
         )
         assert tables == TABLES
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0057_xid_wraparound_guards"
+            "0058_b12_prepare_submission"
         )
         assert (
             connection.execute(
@@ -104,6 +104,6 @@ def test_pr2_03_populated_downgrade_refuses_before_dropping_tables(
             == 1
         )
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0057_xid_wraparound_guards"
+            "0058_b12_prepare_submission"
         )
     engine.dispose()

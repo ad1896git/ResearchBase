@@ -1,6 +1,6 @@
 # B12 PREPARE_SUBMISSION Decision and Approval Tuple Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-17 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -283,7 +283,7 @@ PR2-17 full acceptance, G6, Phase 2 exit or external submission acceptance.
 | Applicable blocker | B11's OPEN BLOCKING concern on exact manuscript/reachable review targets. |
 | READY | Publication lifecycle state; neither a Decision value nor a grant. |
 | Prepared / sent | Local prepared package provenance / deferred external submission history. |
-| B / N | Fixed SHARE-protected write inputs for Decision / Approval respectively (§12.2). |
+| B | Fixed full SHARE-protected write inputs for both Decision and Approval (§12.2; director ruling 2026-10-17). |
 | Historical replay | Original actor's matching saved command under current read entitlement. |
 
 ## 11. Decisions taken in this draft
@@ -430,7 +430,7 @@ unrelated checks. Existing nonblank/hash/scheme/FK checks remain in force.
 | B09 `pr216_request_guard`, `pr216_decision_guard`, `pr216_grant_guard`, `pr216_relation_guard` | Explicit PREPARE manuscript dispatch to matching affirmative prior Decision and saved reviews, all independent gates, finite scope/conditions and same-project/purpose fence. No readiness-purpose substitution or naked consent assertion. |
 | B09 `pr216_complete_request/reviews/decision/grant` and event/authority-loss guards | Preserve deferred request-review completeness, one immutable decision/optional grant and atomic request/grant events/staleness; no effect or consent write. |
 
-Normal-role SQL must prehold the same B/N inventory and target/scope coordination;
+Normal-role SQL must prehold the same B inventory and target/scope coordination;
 SQL structural guards cannot replace Application bytes/hash/credential verification.
 Functions use `search_path=pg_catalog,public,pg_temp`. Do not rerun historical
 complete-set equality whenever a later review is inserted. Downgrade acquires
@@ -444,27 +444,29 @@ backfill or scientific CASCADE.
 Freeze the literal B04_SNAPSHOT_TABLES inventory from
 `src/researchbase/persistence/manuscript_freeze_repository.py` into migration and
 adapter tests, not runtime catalog discovery or silent inheritance. Define the
-following sorted, deduplicated fixed inventories, matching B11/B09 respectively:
+following sorted, deduplicated fixed inventory, shared by B11/B09:
 
 ```python
 B = tuple(sorted(set(B04_SNAPSHOT_TABLES) | {
     'internal_review_records', 'manuscript_versions', 'publications',
     'review_issue_events', 'review_issues',
 }))
-N = tuple(sorted(set(B04_SNAPSHOT_TABLES) | {
-    'manuscript_versions', 'publications',
-}))
 ```
 
+**Director ruling, 2026-10-17 (§12.2):** PREPARE_SUBMISSION Approval
+writers use full inventory B, identical to B09 approval writers, including
+`internal_review_records`, `review_issues` and `review_issue_events`. The former
+narrow inventory N is withdrawn. Wider SHARE locking is the established
+conservative pattern and excludes upstream Issue insertion during the gate.
+
 B04 covers authority, mutable validity and concrete scientific/input/placement
-relations. Decision writes none of B; Approval writes none of N. Decision/basis
-and approval/event tables are excluded from their write input inventory. N protects
-review insertion predicates via B09's exact target coordination, not table locks
-on review/Issue tables. Approved extensions must explicitly reconcile new mutable
-read dependencies; never silently claim an old inventory protects a new table.
+relations. Decision and Approval write none of B. Decision/basis and approval/event
+tables are excluded from their write input inventory. Approved extensions must
+explicitly reconcile new mutable read dependencies; never silently claim an old
+inventory protects a new table.
 
 Configure READ COMMITTED and disable autoflush without SQL. FIRST transactional
-SQL on each writer is one `LOCK TABLE <B or N in lexical order> IN SHARE MODE`.
+SQL on each writer is one `LOCK TABLE <B in lexical order> IN SHARE MODE`.
 No SELECT, SET LOCAL, advisory, row lock or navigation precedes it. Then install
 `SET LOCAL lock_timeout='10s'`, `SET LOCAL statement_timeout='30s'`. A connection/
 server setting made before BEGIN bounds the initial SHARE wait; later SET LOCAL
@@ -475,20 +477,20 @@ All advisory keys below are parameter-bound canonical UUID text via
 | Command | Exact operations after first SHARE and timeouts |
 | --- | --- |
 | `record_prepare_submission_decision` | B; advisory `b12:decision:<command.id>`; exact manuscript FOR UPDATE; Project FOR SHARE; owning Publication FOR SHARE; fresh reader authorization and UUID lookup. If new: fresh OWNER/APPROVER authorization, target/stage/full closure/material-author check; plain SELECT all manuscript reviews UUID-sorted, their Issues/events and exact upstream blockers in deterministic UUID order; verify histories/hashes and complete set, absence of blockers and same-purpose scope; derive material; fresh writer check; insert Decision, manuscript basis then UUID-sorted review basis; force deferred/final checks below. Racing existing record exits to lock-free replay (§7). |
-| B09 `request_approval`, PREPARE | N; advisory `pr216:uuid:<command.id>`; advisory `pr216:scope:<project_id>:PREPARE_SUBMISSION`; exact manuscript FOR UPDATE; Publication FOR SHARE; fresh reader then writer authorization; replay/fence/pending/target checks; verify committed PREPARE Decision and its UUID-sorted saved review basis, later reviews/all applicable Issues, full closure/stage/independence; prelock older ACTIVE same-scope other-target grants FOR UPDATE in UUID order; fresh writer check; insert request and UUID-sorted review relations, automatic events/staleness; deferred/final checks. |
-| B09 `decide_approval`, PREPARE | N; advisory `pr216:uuid:<command.id>`; plain request routing lookup now; advisory verified request project/purpose scope; exact manuscript FOR UPDATE; Publication FOR SHARE; request FOR UPDATE and reread; fresh reader then HUMAN APPROVER checks; reread decision/fence/current gates/condition expiry; REJECT prelocks all affected ACTIVE same-scope grants UUID-sorted; fresh writer check; insert immutable decision and derived grant iff approving, automatic request/grant events and rejection staleness; deferred/final checks. |
+| B09 `request_approval`, PREPARE | B; advisory `pr216:uuid:<command.id>`; advisory `pr216:scope:<project_id>:PREPARE_SUBMISSION`; exact manuscript FOR UPDATE; Publication FOR SHARE; fresh reader then writer authorization; replay/fence/pending/target checks; verify committed PREPARE Decision and its UUID-sorted saved review basis, later reviews/all applicable Issues, full closure/stage/independence; prelock older ACTIVE same-scope other-target grants FOR UPDATE in UUID order; fresh writer check; insert request and UUID-sorted review relations, automatic events/staleness; deferred/final checks. |
+| B09 `decide_approval`, PREPARE | B; advisory `pr216:uuid:<command.id>`; plain request routing lookup now; advisory verified request project/purpose scope; exact manuscript FOR UPDATE; Publication FOR SHARE; request FOR UPDATE and reread; fresh reader then HUMAN APPROVER checks; reread decision/fence/current gates/condition expiry; REJECT prelocks all affected ACTIVE same-scope grants UUID-sorted; fresh writer check; insert immutable decision and derived grant iff approving, automatic request/grant events and rejection staleness; deferred/final checks. |
 | `get_prepare_submission_decision`, B09 `get_request/get_decision/get_grant`, completed replay | One REPEATABLE READ, READ ONLY UoW, set before first data query; plain authorization/parent/basis/target/review/history SELECTs and saved integrity verification; current diagnostics plus final fresh-clock read entitlement. No explicit table, advisory or row locks, FOR SHARE/UPDATE, writes, maintenance or locking nested helper. |
 
 Keep B09's shared `pr216` namespace for all purposes/normal-role SQL; no new
 preparation approval namespace. B12 target exclusion coordinates with B11 and
 B05 even though request UUID namespaces differ. Decision cannot hold any B table
-write lock; B09 obtains N before grant locks to avoid an authority-writer cycle.
+write lock; B09 obtains B before grant locks to avoid an authority-writer cycle.
 
 Review INSERT (including zero Issues) and every applicable Issue/disposition
 writer must retain accepted exact-target FOR UPDATE coordination before predicate
 changes. B05 manuscript review/disposition contracts retain SHARE-first order;
 upstream table ROW EXCLUSIVE writes conflict with B. Source dispute, impact,
-correction, placement, parent state and authority writers conflict with B/N through
+correction, placement, parent state and authority writers conflict with B through
 ordinary table writes. Immutable saved Decision membership needs no read lock.
 Old target-first writers may deadlock with SHARE-first paths; do not claim this
 protocol removes every deadlock. Retry the whole transaction under §7.
@@ -553,9 +555,9 @@ PIDs, barriers and observed pg_blocking_pids/pg_locks, not sleep-only evidence.
 | `tests/integration/phase2/test_b12_prepare_decision.py` | Exact frozen VALID manuscript in READY succeeds; DRAFTING/INTERNAL_REVIEW and unfrozen/wrong version/project/hash/seal/CAS corruption fail atomically; complete adverse/zero-Issue reviews, nonindependent HUMAN history and transitive contributor denial; decider-reviewer overlap allowed; direct/upstream blocker scope and verified B08 history only, no manuscript disposition assumption; coexistence with B11 READY Decision, same-purpose nonreplacement. No approval/lifecycle/Issue/consent/package writes. |
 | `tests/integration/phase2/test_b12_prepare_approval.py` | Real B09 request→approve/conditional/reject with exact PREPARE basis and full saved review set; READY/release/reconsideration Decision or grant substitution fails, wrong manuscript/hash/project fails; every pairwise approver exclusion, Agent/OWNER-only denial; later zero-Issue/adverse/blocking review rechecks, >100 review basis cannot authorize; grant iff approving, exact command/expiry/max_uses and atomic events. Scope rejection includes older PENDING and another Publication; other purpose/project unaffected; B12 Decision does not bypass fence or add reconsideration. No consumption/receipt/package effect. |
 | `tests/integration/phase2/test_b12_prepare_replay.py` | Same UUID/restart/uncertain-commit recovery; changed payload/different actor/project deny, new UUID same scope conflicts; current invalidity/new review/blocker/stage/write-role loss permit entitled history only; lost read entitlement denies; all exact reads/completed replay observed lock-free RR including nested helpers and current grant diagnostics. |
-| `tests/integration/phase2/test_b12_prepare_schema.py` | Real catalog types/names/CHECKs/FKs/indexes, no new tables/columns; clean install/populated Batch C upgrade preserves history/hashes, populated PREPARE downgrade refuses; normal-role SQL wrong/missing/mixed/extra/omitted basis and forged scope/attribution deny; no late append/update/delete, parent-only/deferred force failure, preheld B/N/isolation enforcement, both purposes coexist but same-purpose target exclusion; rollback at each Decision/approval/child/event stage. |
-| `tests/integration/phase2/test_b12_prepare_races.py` | Both commit orders of same/different UUID scope writes, zero-Issue review INSERT, direct/upstream BLOCKING Issue and authorized disposition, validity/READY-state/authority changes and rejection vs request/decision; normal SQL parity and lock observations; credential/role scheduled expiry after B/N/advisory/target/grant/deferred waits; three fresh attempts only for 40001/40P01, no retry of timeout/business conflict/unknown commit; all staged failures atomic. |
-| `tests/architecture/test_b12_prepare_boundaries.py` | Shared Application boundary, pure Domain/closed DTOs/concrete FKs, no JSON semantic core or second owner; SHARE FIRST SQL, no write to B/N; lock-free one-snapshot reads/replay; no READY/consent/package/receipt/ExternalEffect side effects, inherited release/Batch C boundaries unchanged. |
+| `tests/integration/phase2/test_b12_prepare_schema.py` | Real catalog types/names/CHECKs/FKs/indexes, no new tables/columns; clean install/populated Batch C upgrade preserves history/hashes, populated PREPARE downgrade refuses; normal-role SQL wrong/missing/mixed/extra/omitted basis and forged scope/attribution deny; no late append/update/delete, parent-only/deferred force failure, preheld B/isolation enforcement, both purposes coexist but same-purpose target exclusion; rollback at each Decision/approval/child/event stage. |
+| `tests/integration/phase2/test_b12_prepare_races.py` | Both commit orders of same/different UUID scope writes, zero-Issue review INSERT, direct/upstream BLOCKING Issue and authorized disposition, validity/READY-state/authority changes and rejection vs request/decision; normal SQL parity and lock observations; credential/role scheduled expiry after B/advisory/target/grant/deferred waits; three fresh attempts only for 40001/40P01, no retry of timeout/business conflict/unknown commit; all staged failures atomic. |
+| `tests/architecture/test_b12_prepare_boundaries.py` | Shared Application boundary, pure Domain/closed DTOs/concrete FKs, no JSON semantic core or second owner; SHARE FIRST SQL, no write to B; lock-free one-snapshot reads/replay; no READY/consent/package/receipt/ExternalEffect side effects, inherited release/Batch C boundaries unchanged. |
 
 After implementation run these files, B09/B11 tests, applicable accepted B07/B08/
 B10 regressions, existing `tests/unit/test_approval.py`,

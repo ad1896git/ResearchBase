@@ -208,3 +208,32 @@ def correction_explanation(value: str) -> bool:
         "recommend approve",
         "recommend reject",
     }
+
+
+def validate_prepare_submission_choice(purpose: str, decision: str) -> None:
+    if (
+        type(purpose) is not str
+        or type(decision) is not str
+        or (purpose != "PREPARE_SUBMISSION" or decision != "PROCEED")
+    ):
+        raise ValueError("PREPARE_SUBMISSION/PROCEED required")
+
+
+def canonical_manuscript_basis(basis: tuple[DecisionBasisReference, ...]):
+    """Derive hash positions; persisted ordinals are only storage coordinates."""
+    if not basis or any(r.type not in {"ManuscriptVersion", "InternalReviewRecord"} for r in basis):
+        raise ValueError("concrete manuscript/review basis required")
+    if len({(r.type, r.id) for r in basis}) != len(basis):
+        raise ValueError("duplicate basis member")
+    return tuple(
+        DecisionBasisReference(r.type, r.id, r.content_hash, ordinal)
+        for ordinal, r in enumerate(
+            sorted(basis, key=lambda r: (r.type, str(r.id), r.content_hash))
+        )
+    )
+
+
+def prepare_submission_text(value: str, name: str) -> str:
+    if type(value) is not str or "\x00" in value:
+        raise ValueError("exact text without NUL required")
+    return readiness_text(value, name)

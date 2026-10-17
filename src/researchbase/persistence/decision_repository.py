@@ -526,6 +526,31 @@ class SqlAlchemyDecisionRepository:
             {"key": f"b11:decision:{identity}"},
         )
 
+    def lock_prepare_submission_request(self, identity: UUID):
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"b12:decision:{identity}"},
+        )
+
+    def prepare_submission_other_basis(self, identity: UUID) -> bool:
+        return self.readiness_other_basis(identity) or bool(
+            self._session.execute(
+                text("""SELECT EXISTS(SELECT 1 FROM decision_basis_approval_decisions
+                WHERE decision_id=:id)
+                OR EXISTS(SELECT 1 FROM decision_basis_revision_actions WHERE decision_id=:id)"""),
+                {"id": identity},
+            ).scalar_one()
+        )
+
+    def prepare_submission_scope(self, target: UUID, project: UUID):
+        return self._one(
+            """SELECT d.id FROM decision_records d
+            JOIN decision_basis_manuscripts b ON b.decision_id=d.id
+            WHERE b.manuscript_version_id=:target AND d.project_id=:project
+            AND d.decision_type='PREPARE_SUBMISSION'""",
+            {"target": target, "project": project},
+        )
+
     def manuscript_basis(self, identity: UUID):
         return self._many(
             """SELECT 'ManuscriptVersion' AS type,
