@@ -569,7 +569,7 @@ def test_remediation_child_upgrade_empty_downgrade_and_unique_head(phase2_databa
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     command.upgrade(config, "0023_literature_search_plan")
     command.upgrade(config, "0023a_search_plan_review_guards")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0054_b11_ready_for_submission"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0056_b10_reconsideration"]
     engine = create_engine(phase2_database_url)
     with engine.connect() as c:
         assert (

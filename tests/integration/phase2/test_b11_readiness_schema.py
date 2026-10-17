@@ -279,7 +279,20 @@ def test_downgrade_restores_live_0053_function_definitions(phase2_database_url):
         assert all(row.proconfig == ["search_path=pg_catalog, public, pg_temp"] for row in upgraded)
         alembic.downgrade(c, "0053_b08_issue_disposition")
         assert definitions() == before
-        alembic.upgrade(c, "head")
+        alembic.upgrade(c, "0054_b11_ready_for_submission")
         assert definitions() == upgraded
+        alembic.upgrade(c, "head")
+        integrated = definitions()
+        assert all(
+            row.proconfig == ["search_path=pg_catalog, public, pg_temp"] for row in integrated
+        )
+        for row in integrated:
+            assert "READY_FOR_SUBMISSION" in row[1]
+            assert "REVISION_RESPONSE" in row[1]
+            assert "RECONSIDER_REJECTION" in row[1]
+        alembic.downgrade(c, "0053_b08_issue_disposition")
+        assert definitions() == before
+        alembic.upgrade(c, "head")
+        assert definitions() == integrated
     finally:
         engine.dispose()

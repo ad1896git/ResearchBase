@@ -28,6 +28,7 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.hashing import sha256_canonical_json
 from researchbase.foundation.time import SystemClock
+from researchbase.persistence.approval_repository import B09_SHARE_SQL
 from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
 from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
 from tests.integration.phase2.test_pr2_11_r2_persistence import conclusion_env as _conclusion_env
@@ -451,7 +452,7 @@ def test_issue_first_observed_wait_refreshes_blockers(decision_env):
             pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
             _issue(writer, review.id)
             pending = pool.submit(service.record_decision, actor, _command(decision_env))
-            _wait_for_pg_blocker(base[8], pid, "transactionid")
+            _wait_for_pg_blocker(base[8], pid, "relation")
             assert not pending.done()
         with pytest.raises(ResearchBaseError):
             pending.result(timeout=10)
@@ -511,7 +512,7 @@ def test_zero_issue_review_first_observed_wait_includes_committed_review(
             pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
             _copy_review(writer, review.id, added)
             pending = pool.submit(service.record_decision, actor, _command(decision_env))
-            _wait_for_pg_blocker(base[8], pid, "transactionid")
+            _wait_for_pg_blocker(base[8], pid, "relation")
             assert not pending.done()
         result = pending.result(timeout=10)
     assert {ref.id for ref in result.basis if ref.type == "InternalReviewRecord"} == {
@@ -555,7 +556,7 @@ def test_decision_first_real_writer_wait_preserves_original_basis(
             try:
                 assert held.wait(10), "Decision did not reach INSERT"
                 pending = pool.submit(writer)
-                witness = _wait_for_pg_blocker(base[8], holder_pid[0], "transactionid")
+                witness = _wait_for_pg_blocker(base[8], holder_pid[0], "relation")
                 assert (
                     "review_issues" in witness["query"]
                     or "internal_review_records" in witness["query"]
@@ -582,7 +583,7 @@ def test_normal_role_issue_first_wait_refreshes_blockers(decision_env, normal_sq
             pid = writer.execute(text("SELECT pg_backend_pid()")).scalar_one()
             _issue(writer, review.id)
             pending = pool.submit(service.record_decision, actor, _command(decision_env))
-            _wait_for_pg_blocker(base[8], pid, "transactionid")
+            _wait_for_pg_blocker(base[8], pid, "relation")
             assert not pending.done()
         with pytest.raises(ResearchBaseError):
             pending.result(timeout=10)
@@ -717,6 +718,7 @@ def test_normal_role_new_uuid_direct_sql_scope_substitution_denied(decision_env,
     original = service.record_decision(actor, _command(decision_env))
     replacement = uuid4()
     with pytest.raises(DBAPIError), base[8].begin() as conn:
+        conn.execute(text(B09_SHARE_SQL))
         _normal(conn, normal_sql_role)
         conn.execute(
             text("""INSERT INTO decision_records

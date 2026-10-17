@@ -16,6 +16,7 @@ from researchbase.application.approval import (
 from researchbase.application.phase2_identity import AssignProjectRole
 from researchbase.foundation.canonical_json import canonical_json_text
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.persistence.approval_repository import B09_SHARE_SQL
 from tests.integration.phase2.test_pr2_00_challenges import _service as identity_service
 from tests.integration.phase2.test_pr2_00_ownership import _add_owner
 from tests.integration.phase2.test_pr2_15_decision import (
@@ -280,6 +281,7 @@ def test_normal_role_history_guards(approval_env, table, operation):
     role = "test_approval_" + uuid4().hex
     with engine.connect() as conn:
         tx = conn.begin()
+        conn.execute(text(B09_SHARE_SQL))
         conn.execute(text(f"CREATE ROLE {role} NOSUPERUSER"))
         conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
         conn.execute(
@@ -464,7 +466,7 @@ def test_review_insert_commit_orders_are_observed(approval_env, approval_first):
                 },
             )
             future = pool.submit(service.decide_approval, approver, _decide(command))
-            witness = _wait_for_pg_blocker(engine, holder_pid, "transactionid")
+            witness = _wait_for_pg_blocker(engine, holder_pid, "relation")
             assert witness["pid"] != holder_pid
             tx.commit()
             result = future.result(timeout=10)
@@ -608,6 +610,7 @@ def test_normal_sql_cannot_bypass_approval_gate(approval_env, invalid):
     role = "test_approval_" + uuid4().hex
     with engine.connect() as conn:
         tx = conn.begin()
+        conn.execute(text(B09_SHARE_SQL))
         conn.execute(text(f"CREATE ROLE {role} NOSUPERUSER"))
         conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
         conn.execute(
@@ -698,6 +701,7 @@ def test_normal_sql_rejects_forged_frozen_leaf_hashes(approval_env, invalid):
     role = "test_approval_" + uuid4().hex
     with engine.connect() as conn:
         tx = conn.begin()
+        conn.execute(text(B09_SHARE_SQL))
         conn.execute(text(f"CREATE ROLE {role} NOSUPERUSER"))
         conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
         conn.execute(
@@ -834,6 +838,7 @@ def test_normal_sql_cannot_shadow_authority_or_invoke_uncontracted_lifecycle(app
     role = "test_approval_" + uuid4().hex
     with env[-1][8].connect() as conn:
         tx = conn.begin()
+        conn.execute(text(B09_SHARE_SQL))
         conn.execute(text(f"CREATE ROLE {role} NOSUPERUSER"))
         conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
         conn.execute(
@@ -902,10 +907,16 @@ def test_grant_utc_thirty_days_is_independent_of_session_dst(approval_env):
     service, requester, approver, command, env = approval_env
     engine = env[-1][8]
 
-    def timezone(conn):
-        conn.exec_driver_sql("SET LOCAL TIME ZONE 'America/New_York'")
+    def timezone(raw, record, proxy):
+        before = raw.autocommit
+        raw.autocommit = True
+        try:
+            with raw.cursor() as cursor:
+                cursor.execute("SET TIME ZONE 'America/New_York'")
+        finally:
+            raw.autocommit = before
 
-    event.listen(engine, "begin", timezone)
+    event.listen(engine, "checkout", timezone)
     try:
         service.request_approval(requester, command)
         result = service.decide_approval(approver, _decide(command))
@@ -915,7 +926,7 @@ def test_grant_utc_thirty_days_is_independent_of_session_dst(approval_env):
         assert result.grant.valid_until.utcoffset() == timedelta(0)
         assert service.get_grant(requester, command.project_id, result.grant.id) == result.grant
     finally:
-        event.remove(engine, "begin", timezone)
+        event.remove(engine, "checkout", timezone)
 
 
 def _normal_sql_decision(conn, command, actor, rationale, digest):
@@ -936,6 +947,7 @@ def _normal_sql_decision(conn, command, actor, rationale, digest):
 
 
 def _normal_sql_role(conn):
+    conn.execute(text(B09_SHARE_SQL))
     role = "test_approval_" + uuid4().hex
     conn.execute(text(f"CREATE ROLE {role} NOSUPERUSER"))
     conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
@@ -1057,3 +1069,40 @@ def test_new_target_selection_denies_late_approval_of_old_pending_request(approv
     assert _counts(approval_env) == (2, 2, 2, 0, 0, 0)
     current = service.decide_approval(approver, _decide(other))
     assert current.grant and current.grant.usable
+
+
+def test_b09_rejection_fences_other_target_older_pending_request(approval_env):
+    from researchbase.application.scientific_conclusion import ClaimInputRequest
+    from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
+
+    service, requester, approver, command, env = approval_env
+    service.request_approval(requester, command)
+    scientific, _, _, author, _, project, claim, _, _, _ = env[-1]
+    target = scientific.create(
+        author,
+        project,
+        "TEST ONLY rejection fence target",
+        SCOPE,
+        "MODERATE",
+        None,
+        (ClaimInputRequest(claim, "SUPPORTS"),),
+        (),
+        uuid4(),
+    )
+    scientific.freeze(author, project, target.conclusion_id, target.version_id, uuid4())
+    updated = (env[0], env[1], env[2], target, env[-1])
+    review = _review(updated)
+    basis = env[0].record_decision(env[2], _command(updated))
+    other = RequestApprovalCommand(uuid4(), project, target.version_id, basis.id, (review.id,))
+    service.request_approval(requester, other)
+    service.decide_approval(approver, _decide(other, "REJECT"))
+    with pytest.raises(ResearchBaseError) as denied:
+        service.decide_approval(approver, _decide(command))
+    assert denied.value.code is ErrorCode.REJECTION_RECONSIDERATION_REQUIRED
+    assert service.get_request(requester, project, command.id).status == "PENDING"
+    with env[-1][1]() as uow:
+        uow.configure_approval_transaction(readonly=True)
+        assert uow.approval.rejected(project, "INTERNAL_SCIENTIFIC_RELEASE")
+        assert not uow.approval.rejected(project, "READY_FOR_SUBMISSION")
+        assert not uow.approval.rejected(project, "PREPARE_SUBMISSION")
+        assert not uow.approval.rejected(uuid4(), "INTERNAL_SCIENTIFIC_RELEASE")

@@ -801,7 +801,7 @@ def test_release_and_disposition_keep_independent_blocker_gate_both_orders(revis
             first = pool.submit(run_first)
             assert entered.wait(10)
             second = pool.submit(release_decision if order == "disposition_first" else dispose)
-            _wait_for_pg_blocker(base[8], holder["pid"], "transactionid")
+            _wait_for_pg_blocker(base[8], holder["pid"], "relation")
             release.set()
             if order == "release_first":
                 with pytest.raises(ResearchBaseError) as caught:
@@ -919,18 +919,22 @@ def test_approval_and_disposition_both_orders_preserve_grant_gate(approval_env, 
             first = pool.submit(run_first)
             assert entered.wait(10)
             second = pool.submit(approve if order == "disposition_first" else dispose)
+            # B09's input SHARE locks serialize the approval gate with the
+            # disposition writer. Witness that wait before releasing the holder.
+            _wait_for_pg_blocker(base[8], holder["pid"], "relation")
+            release.set()
             if order == "disposition_first":
-                with pytest.raises(ResearchBaseError) as caught:
-                    second.result(timeout=15)
-                assert caught.value.code == ErrorCode.APPROVAL_GATE_FAILED
+                assert first.result(timeout=15)
+                assert second.result(timeout=15).grant is not None
             else:
+                with pytest.raises(ResearchBaseError) as caught:
+                    first.result(timeout=15)
+                assert caught.value.code == ErrorCode.APPROVAL_GATE_FAILED
                 assert second.result(timeout=15)
                 with base[8].connect() as conn:
                     assert (
                         conn.execute(text("SELECT count(*) FROM approval_grants")).scalar_one() == 0
                     )
-            release.set()
-            assert first.result(timeout=15)
         assert approve().grant is not None
     finally:
         release.set()

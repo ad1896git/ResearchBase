@@ -140,3 +140,71 @@ def readiness_text(value: str, name: str) -> str:
 def validate_readiness_review_count(count: int) -> None:
     if type(count) is not int or not 1 <= count <= 10_000:
         raise ValueError("complete set of 1..10000 manuscript reviews required")
+
+
+# B10 admission policy; these limits never truncate saved historical readback.
+RECONSIDERATION_OUTCOMES = frozenset({"REVISED_TARGET", "CORRECTED_REVIEW"})
+MAX_RECONSIDERATION_REFS = 401
+MAX_RECONSIDERATION_NODES = 10_000
+
+
+def reconsideration_text(value: str) -> str:
+    import unicodedata
+
+    if type(value) is not str:
+        raise ValueError("strict rationale text required")
+    value = unicodedata.normalize("NFC", value)
+    if not value.strip() or "\x00" in value or len(value) > 16_384:
+        raise ValueError("nonblank bounded rationale required")
+    try:
+        value.encode("utf-8", "strict")
+    except UnicodeError:
+        raise ValueError("invalid Unicode rationale") from None
+    return value
+
+
+def reconsideration_question(purpose: str) -> str:
+    if purpose != "INTERNAL_SCIENTIFIC_RELEASE":
+        raise ValueError("conclusion release purpose required")
+    return f"Reconsider rejection for {purpose}"
+
+
+def conclusion_material_changed(old: dict, new: dict) -> bool:
+    """Ignore IDs/support/ordinals and normalize text leaves for admission only."""
+    import unicodedata
+
+    def normalized(value):
+        if isinstance(value, str):
+            return " ".join(unicodedata.normalize("NFC", value).split())
+        if isinstance(value, dict):
+            return {key: normalized(item) for key, item in value.items()}
+        return value
+
+    return any(
+        normalized(old[key]) != normalized(new[key])
+        for key in ("statement", "scope", "confidence", "limitation_summary")
+    )
+
+
+def correction_explanation(value: str) -> bool:
+    """Require narrative beyond UUID citations or a bare recommendation.
+
+    The correction remains an attributable HUMAN assessment; this structural
+    check does not decide whether that assessment is scientifically true.
+    """
+    import re
+
+    text = reconsideration_text(value)
+    text = re.sub(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", "", text.casefold())
+    words = " ".join(re.findall(r"[^\W\d_]+", text.casefold()))
+    return bool(words) and words not in {
+        "accept",
+        "approve",
+        "reject",
+        "uncertain",
+        "minor revision",
+        "major revision",
+        "recommend accept",
+        "recommend approve",
+        "recommend reject",
+    }

@@ -1,0 +1,14 @@
+--- B11-before.sql
++++ B11-after-downgrade.sql
+@@ -4990,5 +4990,6 @@
+-    BEGIN
+-      IF pg_trigger_depth()<2 THEN
+-        RAISE EXCEPTION 'events belong to atomic lifecycle change' USING ERRCODE='P17F1';
+-      END IF; RETURN NEW;
+-    END $$;
++BEGIN
++ IF pg_trigger_depth()<2 THEN
++  RAISE EXCEPTION 'events belong to atomic lifecycle change' USING ERRCODE='P17F1';
++ END IF;
++ RETURN NEW;
++END $$;

@@ -280,6 +280,8 @@ def _issue_disposition_database_error(exc: DBAPIError) -> ResearchBaseError:
 def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
     state = getattr(exc.orig, "sqlstate", None)
     codes = {
+        "P10B1": ErrorCode.DECISION_BASIS_INVALID,
+        "P16P1": ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
         "P16T1": ErrorCode.APPROVAL_TARGET_STALE,
         "P16R1": ErrorCode.REJECTION_RECONSIDERATION_REQUIRED,
         "P16B1": ErrorCode.DECISION_BASIS_INVALID,
@@ -287,6 +289,30 @@ def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
         "P16C1": ErrorCode.CONFLICT_OF_INTEREST,
         "P16A1": ErrorCode.FORBIDDEN,
     }
+    constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state == "23505" and constraint == "uq_b10_successor_reconsideration":
+        return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reconsideration already used")
+    if state == "23514" and constraint in {"ck_b10_request_links"}:
+        return ResearchBaseError(
+            ErrorCode.REJECTION_RECONSIDERATION_REQUIRED, "successor links required"
+        )
+    if state == "23514" and constraint in {
+        "ck_b10_text_bounds",
+        "ck_b10_finite_time",
+        "ck_b10_decision_pair",
+    }:
+        return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid reconsideration material")
+    if state == "23514" and constraint in {"ck_b09_request_tuple", "ck_b09_grant_tuple"}:
+        return ResearchBaseError(
+            ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, "unlisted approval tuple"
+        )
+    if state == "23505" and constraint in {
+        "uq_b09_pending_conclusion",
+        "uq_b09_pending_manuscript",
+    }:
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT, "pending exact approval already exists"
+        )
     if state in {"55P03", "57014"}:
         return ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "database wait timed out")
     if state in codes:
@@ -530,6 +556,21 @@ class SqlAlchemyUnitOfWork:
             }
         )
         configure_revision_connection(connection)
+
+    def configure_approval_transaction(self, *, readonly: bool = False) -> None:
+        """B09 uses the existing pre-BEGIN connection timeout configuration."""
+        session = self._require_session()
+        session.autoflush = False
+        if readonly:
+            session.connection(
+                execution_options={
+                    "isolation_level": "REPEATABLE READ",
+                    "postgresql_readonly": True,
+                }
+            )
+        else:
+            self.configure_revision_transaction()
+        self.enable_revision_action_snapshot_reads()
 
     def enable_revision_action_snapshot_reads(self) -> None:
         """Read-only closure adapters after RevisionAction's protected table snapshot.

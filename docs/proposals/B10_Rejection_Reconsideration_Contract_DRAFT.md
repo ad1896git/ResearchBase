@@ -1,6 +1,11 @@
 # B10 Rejection Reconsideration Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-16 — first slice authorized for implementation**
+
+Execution note (2026-10-16): the owner's task authorizes the first conclusion slice
+and §12.2's READ COMMITTED protocol. Historical documentation-only/open-approval
+wording below is superseded for that slice. Implementation substitutions and
+executed results are recorded in [the first-slice evidence](../phase2/B10-first-slice-evidence-2026-10-16.md).
 
 ## Start here (for the implementer)
 

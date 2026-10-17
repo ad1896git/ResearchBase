@@ -219,7 +219,7 @@ def test_revision_response_is_never_approval_basis(decision_env):
             requester,
             RequestApprovalCommand(uuid4(), base[5], env[3].version_id, decision.id, (review.id,)),
         )
-    assert caught.value.code == ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    assert caught.value.code == ErrorCode.DECISION_BASIS_INVALID
 
 
 @pytest.mark.parametrize("foreign", [False, True])

@@ -50,9 +50,9 @@ def test_three_whole_attempts_then_exact_recovery(pr219_decision_env, sqlstate, 
     request = cases._command(env)
     identities = []
     fresh_reads = []
-    from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
+    from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
 
-    original_reviews = SqlAlchemyDecisionRepository.reviews
+    original_reviews = SqlAlchemyApprovalRepository.target_reviews
 
     def reviews(self, *args):
         result = original_reviews(self, *args)
@@ -64,7 +64,7 @@ def test_three_whole_attempts_then_exact_recovery(pr219_decision_env, sqlstate, 
         )
         return result
 
-    monkeypatch.setattr(SqlAlchemyDecisionRepository, "reviews", reviews)
+    monkeypatch.setattr(SqlAlchemyApprovalRepository, "target_reviews", reviews)
 
     def inject(conn, cursor, statement, parameters, context, executemany):
         if statement.lstrip().upper().startswith("INSERT INTO DECISION_BASIS_REVIEWS"):
@@ -102,11 +102,25 @@ def test_permanent_denial_is_not_retried(pr219_decision_env):
         attempts.append(True)
         return base[1]()
 
+    from researchbase.persistence.approval_repository import B09_SHARE_SQL
+
+    write_attempts = []
+
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        if statement == B09_SHARE_SQL:
+            write_attempts.append(True)
+
     before = counts(base[8])
-    with pytest.raises(ResearchBaseError) as denied:
-        DecisionService(factory, base[9], base[2]).record_decision(actor, cases._command(env))
+    event.listen(base[8], "before_cursor_execute", capture)
+    try:
+        with pytest.raises(ResearchBaseError) as denied:
+            DecisionService(factory, base[9], base[2]).record_decision(actor, cases._command(env))
+    finally:
+        event.remove(base[8], "before_cursor_execute", capture)
     assert denied.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
-    assert len(attempts) == 1
+    # One lock-free historical replay preflight and one write, with no retry.
+    assert len(attempts) == 2
+    assert len(write_attempts) == 1
     assert counts(base[8]) == before
 
 

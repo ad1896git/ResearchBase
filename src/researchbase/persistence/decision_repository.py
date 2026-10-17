@@ -1,25 +1,18 @@
-"""Typed Decision persistence and protected READ COMMITTED snapshot protocol.
+"""Typed Decision persistence; callers establish the literal first-SHARE protocol.
 
-Order: request advisory -> exact version UPDATE -> sorted table SHARE -> parent,
-authority and closure rows -> reviews ordered by UUID -> Issue/basis statements.
-SHARE conflicts with the ROW EXCLUSIVE PostgreSQL automatically takes for every
-INSERT/UPDATE/DELETE, including normal-role SQL. It protects insertion phantoms
-in governance validity joins as well as mutable source/review/authority facts.
-The coarse locks are confined to this bounded command. A deadlock/serialization
-failure aborts the entire UoW; the caller retries a fresh transaction.
-The command's first repository operation installs transaction-local operational
-limits: 10 seconds per lock wait, 30 seconds per statement. These do not change
-scientific policy and cannot leak to the next transaction using this connection.
-Lock/query timeouts abort the attempt through the UoW's sanitized failure path;
-only deadlock/serialization failures qualify for the existing bounded retry.
+Write-only target/advisory helpers are separate from plain historical basis reads.
+The legacy snapshot constant remains frozen because B06 imports that inventory.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from researchbase.foundation.time import to_utc
 
 # Fixed inventory of mutable facts consulted by existing closure/identity readers.
 # Frozen Phase1 record/input material has accepted immutable SQL guards; its
@@ -115,15 +108,20 @@ class SqlAlchemyDecisionRepository:
 
     def _one(self, sql, params):
         row = self._session.execute(text(sql), params).mappings().first()
-        return dict(row) if row else None
+        return (
+            {
+                key: to_utc(value) if isinstance(value, datetime) else value
+                for key, value in row.items()
+            }
+            if row
+            else None
+        )
 
     def _many(self, sql, params):
         return [dict(row) for row in self._session.execute(text(sql), params).mappings()]
 
     def lock_request(self, identity: UUID) -> None:
-        # Install bounds before even the first request advisory lock can wait.
-        self._session.execute(text("SET LOCAL lock_timeout = '10s'"))
-        self._session.execute(text("SET LOCAL statement_timeout = '30s'"))
+        # N SHARE and operational limits are already held by the writer UoW.
         self._session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": f"pr215:decision:{identity}"},
@@ -591,4 +589,44 @@ class SqlAlchemyDecisionRepository:
     def lock_readiness_project(self, identity: UUID):
         self._session.execute(
             text("SELECT id FROM projects WHERE id=:id FOR SHARE"), {"id": identity}
+        )
+
+    def reconsideration_basis(self, identity: UUID):
+        return self._many(
+            """SELECT 'ScientificConclusionVersion' AS type,
+            b.scientific_conclusion_version_id AS id,v.content_hash,b.ordinal
+            FROM decision_basis_conclusions b
+            JOIN scientific_conclusion_versions v ON v.id=b.scientific_conclusion_version_id
+            WHERE b.decision_id=:id UNION ALL
+            SELECT 'InternalReviewRecord',b.internal_review_record_id,r.content_hash,b.ordinal
+            FROM decision_basis_reviews b
+            JOIN internal_review_records r ON r.id=b.internal_review_record_id
+            WHERE b.decision_id=:id UNION ALL
+            SELECT 'ApprovalDecision',b.approval_decision_id,r.content_hash,b.ordinal
+            FROM decision_basis_approval_decisions b JOIN approval_decisions r
+              ON r.id=b.approval_decision_id WHERE b.decision_id=:id UNION ALL
+            SELECT 'RevisionAction',b.revision_action_id,r.content_hash,b.ordinal
+            FROM decision_basis_revision_actions b JOIN revision_actions r
+              ON r.id=b.revision_action_id WHERE b.decision_id=:id ORDER BY ordinal""",
+            {"id": identity},
+        )
+
+    def lock_reconsideration(self, identity):
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"pr215:decision:{identity}"},
+        )
+
+    def insert_rejection_basis(self, row):
+        self._insert("decision_basis_approval_decisions", row)
+
+    def insert_revision_basis(self, row):
+        self._insert("decision_basis_revision_actions", row)
+
+    def lock_conclusion_parent(self, identity):
+        self._session.execute(
+            text("""SELECT c.id FROM scientific_conclusions c
+          JOIN scientific_conclusion_versions v ON v.scientific_conclusion_id=c.id
+          WHERE v.id=:id FOR SHARE OF c"""),
+            {"id": identity},
         )

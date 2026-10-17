@@ -32,6 +32,10 @@ class SqlAlchemyInternalReviewRepository:
         self._session.execute(text("LOCK TABLE internal_review_records IN ROW EXCLUSIVE MODE"))
 
     def lock_request(self, identity: UUID) -> None:
+        # B10's N inventory includes this owning table. Reserve our ordinary
+        # write lock before taking a target row, so an N-first writer cannot hold
+        # SHARE while waiting for a target held by a not-yet-inserted review.
+        self._session.execute(text("LOCK TABLE internal_review_records IN ROW EXCLUSIVE MODE"))
         self._session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": f"pr214:review:{identity}"},
@@ -111,7 +115,8 @@ class SqlAlchemyInternalReviewRepository:
            related_claim_version_id,related_source_version_id,related_run_id,
            status,created_at,ordinal)
           VALUES (:id,:review_record_id,:severity,:issue_type,NULL,:description,
-            NULL,NULL,NULL,'OPEN',:created_at,:ordinal)"""),
+            NULL,NULL,NULL,'OPEN',GREATEST(:created_at,
+              (SELECT created_at FROM internal_review_records WHERE id=:review_record_id)),:ordinal)"""),
             values,
         )
 

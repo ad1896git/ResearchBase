@@ -33,10 +33,12 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
             "migrations/versions/0052_b07_revision_decisions.py",
             "migrations/versions/0053_b08_issue_disposition.py",
             "migrations/versions/0054_b11_ready_for_submission.py",
+            "migrations/versions/0055_b09_approval_tuples.py",
+            "migrations/versions/0056_b10_reconsideration.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0054_b11_ready_for_submission"]
+    assert scripts.get_heads() == ["0056_b10_reconsideration"]
     assert (
         scripts.get_revision("0047_pr2_18_novelty_prior_art").down_revision
         == "0046_pr2_17_authorship"

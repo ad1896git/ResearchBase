@@ -408,7 +408,7 @@ def _normal_sql_clone(base, identity, changes=None):
             ),
             row,
         )
-        conn.execute(text("SET CONSTRAINTS b06_revision_complete IMMEDIATE"))
+        conn.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
         conn.execute(text("RESET ROLE"))
         conn.execute(text(f"DROP OWNED BY {role}"))
         conn.execute(text(f"DROP ROLE {role}"))

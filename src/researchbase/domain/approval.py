@@ -8,6 +8,26 @@ from researchbase.foundation.time import to_utc
 
 PURPOSE = "INTERNAL_SCIENTIFIC_RELEASE"
 ALLOWED_COMMAND = "record_internal_scientific_release"
+TUPLES = {
+    PURPOSE: ("ScientificConclusionVersion", ALLOWED_COMMAND),
+    "READY_FOR_SUBMISSION": ("ManuscriptVersion", "transition_publication_ready"),
+    "PREPARE_SUBMISSION": ("ManuscriptVersion", "freeze_prepared_submission"),
+}
+
+
+def approval_tuple(purpose: str, conclusion: UUID | None, manuscript: UUID | None):
+    if (
+        type(purpose) is not str
+        or (conclusion is None) == (manuscript is None)
+        or any(x is not None and type(x) is not UUID for x in (conclusion, manuscript))
+    ):
+        raise ValueError("exact typed target XOR required")
+    target_type = "ScientificConclusionVersion" if conclusion is not None else "ManuscriptVersion"
+    if purpose not in TUPLES or TUPLES[purpose][0] != target_type:
+        raise ValueError("unlisted approval tuple")
+    return TUPLES[purpose]
+
+
 OUTCOMES = frozenset({"APPROVE", "APPROVE_WITH_CONDITIONS", "REJECT"})
 
 
