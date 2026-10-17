@@ -17,8 +17,13 @@ from researchbase.domain.approval import (
     OUTCOMES,
     PURPOSE,
     TUPLES,
+    GrantEvaluation,
+    ScientificReleaseResult,
     approval_decision_material,
     approval_tuple,
+    consumption_request_material,
+    decode_consumption_result,
+    evaluate_grant,
 )
 from researchbase.domain.decision import DecisionBasisReference
 from researchbase.domain.phase2_identity import VerifiedPrincipal
@@ -183,6 +188,88 @@ class ApprovalDecisionReadback:
     decided_at: datetime
     content_hash: str
     grant: ApprovalGrantReadback | None
+
+
+@dataclass(frozen=True, slots=True)
+class RecordInternalScientificReleaseCommand:
+    command_key: UUID
+    project_id: UUID
+    grant_id: UUID
+    result_id: UUID
+    checked_review_ids: tuple[UUID, ...]
+    expected_package_manifest_hash: None = None
+
+    def __post_init__(self):
+        if any(
+            type(x) is not UUID
+            for x in (self.command_key, self.project_id, self.grant_id, self.result_id)
+        ) or (
+            type(self.checked_review_ids) is not tuple
+            or not 1 <= len(self.checked_review_ids) <= 100
+            or any(type(x) is not UUID for x in self.checked_review_ids)
+            or len(set(self.checked_review_ids)) != len(self.checked_review_ids)
+            or self.expected_package_manifest_hash is not None
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "closed release input required")
+        object.__setattr__(
+            self, "checked_review_ids", tuple(sorted(self.checked_review_ids, key=str))
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluateApprovalGrantCommand:
+    project_id: UUID
+    grant_id: UUID
+
+    def __post_init__(self):
+        if any(type(x) is not UUID for x in (self.project_id, self.grant_id)):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact grant required")
+
+
+@dataclass(frozen=True, slots=True)
+class RevokeApprovalGrantCommand:
+    project_id: UUID
+    grant_id: UUID
+    reason: str
+
+    def __post_init__(self):
+        if any(type(x) is not UUID for x in (self.project_id, self.grant_id)):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact grant required")
+        try:
+            if type(self.reason) is not str:
+                raise ValueError("strict reason text required")
+            reason = _text(self.reason, "reason")
+            if len(reason) > 16384 or "\x00" in reason:
+                raise ValueError("reason bounds")
+            object.__setattr__(self, "reason", reason)
+        except (ValueError, TypeError, UnicodeError):
+            _fail(ErrorCode.VALIDATION_ERROR, "bounded NFC reason required")
+
+
+@dataclass(frozen=True, slots=True)
+class GrantLifecycleReadback:
+    grant: ApprovalGrantReadback
+    evaluation: GrantEvaluation
+    event_ids: tuple[UUID, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ConsumptionReadback:
+    id: UUID
+    project_id: UUID
+    grant_id: UUID
+    command_key: UUID
+    actor_id: UUID
+    consumed_at: datetime
+    command: str
+    request_hash: str
+    hash_scheme: str
+    checked_review_ids: tuple[UUID, ...]
+    result_publication_id: UUID | None
+    result_prepared_submission_version_id: UUID | None
+    result_scientific_conclusion_version_id: UUID | None
+    result_dto_version: int
+    result: ScientificReleaseResult
 
 
 class ApprovalService:
@@ -468,38 +555,15 @@ class ApprovalService:
                     )
 
     def _grant_view(self, uow, row, decision, request):
-        if (
-            row["project_id"] != request["project_id"]
-            or row["purpose"] != request["approval_purpose"]
-            or row["allowed_command"] != TUPLES[request["approval_purpose"]][1]
-            or row["approval_decision_id"] != decision["id"]
-            or row["valid_until"]
-            != (decision["valid_until"] or decision["decided_at"] + timedelta(days=30))
-            or not uow.approval.events("grant", row["id"])
-        ):
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved grant scope corrupt")
-        reason = None
-        if row["status"] != "ACTIVE":
-            reason = ErrorCode.GRANT_STALE.value
-        elif uow.source_version.at() >= row["valid_until"]:
-            reason = ErrorCode.GRANT_INVALID.value
-        elif not uow.approval.approver_active(decision["decided_by"], row["project_id"]):
-            reason = ErrorCode.GRANT_STALE.value
-        else:
-            try:
-                self._gate(uow, request, decision["decided_by"], allow_superseded=True)
-            except ResearchBaseError as exc:
-                reason = exc.code.value
+        evaluation = self._evaluate_in_uow(uow, row, decision, request)
+        reason = evaluation.unusable_code
+        # Keep existing specific first-use diagnostics while sharing one evaluator.
+        if row["status"] == "ACTIVE" and evaluation.proposed_terminal_status == "STALE":
+            specific = tuple(code for code in evaluation.reason_codes if code != "GRANT_STALE")
+            if specific:
+                reason = specific[0]
         events = uow.approval.events("grant", row["id"])
-        evaluated_at = to_utc(uow.source_version.at())
-        active = uow.approval.approver_active(
-            decision["decided_by"], row["project_id"], at=evaluated_at
-        )
-        if row["status"] == "ACTIVE":
-            if evaluated_at >= row["valid_until"]:
-                reason = ErrorCode.GRANT_INVALID.value
-            elif not active:
-                reason = ErrorCode.GRANT_STALE.value
+        evaluated_at = evaluation.evaluated_at
         return ApprovalGrantReadback(
             row["id"],
             row["approval_decision_id"],
@@ -874,3 +938,414 @@ class ApprovalService:
 
     def get_grant(self, principal, project_id, grant_id) -> ApprovalGrantReadback:
         return cast(ApprovalGrantReadback, self._read(principal, project_id, grant_id, "grant"))
+
+    def _grant_chain(self, uow, project, identity):
+        repo = uow.approval
+        grant = repo.grant(identity, project)
+        if grant is None:
+            if repo.exists("approval_grants", identity):
+                _fail(ErrorCode.FORBIDDEN, "saved project differs")
+            _fail(ErrorCode.NOT_FOUND, "authorized exact grant absent")
+        decision = repo.decision(grant["approval_decision_id"], project)
+        request = (
+            None if decision is None else repo.request(decision["approval_request_id"], project)
+        )
+        if decision is None or request is None:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "broken grant chain")
+        return grant, decision, request
+
+    def _evaluate_in_uow(self, uow, grant, decision, request):
+        try:
+            self._request_view(uow, request)
+        except ResearchBaseError as error:
+            if error.code in {ErrorCode.DECISION_BASIS_INVALID, ErrorCode.CONFLICT_OF_INTEREST}:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved approval basis corrupt")
+            raise
+        # Verify the immutable approval digest without current admission.
+        digest = str(
+            sha256_canonical_json(
+                approval_decision_material(
+                    request["id"],
+                    request["scientific_conclusion_version_id"]
+                    or request.get("manuscript_version_id"),
+                    request["target_content_hash"],
+                    decision["decision"],
+                    decision["valid_until"],
+                    decision["requires_current_author_consent"],
+                    decision["rationale"],
+                    decision["decided_by"],
+                    target_type=TUPLES[request["approval_purpose"]][0],
+                )
+            )
+        )
+        if (
+            digest != decision["content_hash"]
+            or decision["hash_scheme"] != "sha256-cjson-v1"
+            or (
+                grant["approval_decision_id"] != decision["id"]
+                or grant["project_id"] != request["project_id"]
+                or grant["purpose"] != request["approval_purpose"]
+                or grant["allowed_command"] != TUPLES[request["approval_purpose"]][1]
+                or grant["valid_until"]
+                != (decision["valid_until"] or decision["decided_at"] + timedelta(days=30))
+                or decision["decision"] not in {"APPROVE", "APPROVE_WITH_CONDITIONS"}
+            )
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "grant history corrupt")
+        events = uow.approval.grant_events(grant["id"])
+        creation = [e for e in events if e["prior_status"] is None]
+        if (
+            len(creation) != 1
+            or creation[0]["new_status"] != "ACTIVE"
+            or (
+                creation[0]["actor_id"] != decision["decided_by"]
+                or creation[0]["reason"] != "grant created"
+                or creation[0]["occurred_at"] < decision["decided_at"]
+            )
+            or len(events) != (1 if grant["status"] == "ACTIVE" else 2)
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "grant creation/event history corrupt")
+        terminal = uow.approval.verify_terminal(grant["id"])
+        if (grant["status"] != "ACTIVE") != (terminal is not None) or (
+            terminal is not None and terminal["new_status"] != grant["status"]
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "terminal history incomplete")
+        receipt = uow.approval.consumption_for_grant(grant["id"])
+        if (grant["status"] == "CONSUMED") != (receipt is not None):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "grant/receipt history incomplete")
+        if receipt is not None:
+            uow.approval.verify_receipt(receipt["id"])
+        reasons = set()
+        dependency = request.get("manuscript_version_id") is None
+        at = to_utc(uow.source_version.at())
+        if grant["status"] == "ACTIVE" and at < grant["valid_until"] and dependency:
+            try:
+                self._gate(uow, request, decision["decided_by"], allow_superseded=True)
+            except ResearchBaseError as error:
+                if error.code not in {
+                    ErrorCode.APPROVAL_TARGET_STALE,
+                    ErrorCode.APPROVAL_GATE_FAILED,
+                    ErrorCode.REJECTION_RECONSIDERATION_REQUIRED,
+                    ErrorCode.CONFLICT_OF_INTEREST,
+                }:
+                    raise
+                reasons.add(error.code.value)
+            # Independent causes are complete even when an earlier gate denied.
+            if uow.approval.newer_target_selected(request):
+                reasons.add(ErrorCode.APPROVAL_TARGET_STALE.value)
+            if uow.decision.has_blockers(
+                request["scientific_conclusion_version_id"], request["project_id"]
+            ):
+                reasons.add(ErrorCode.APPROVAL_GATE_FAILED.value)
+            try:
+                self._successor_gate(uow, request, decision["decided_by"])
+            except ResearchBaseError as error:
+                if error.code != ErrorCode.REJECTION_RECONSIDERATION_REQUIRED:
+                    raise
+                reasons.add(error.code.value)
+        at = to_utc(uow.source_version.at())
+        return evaluate_grant(
+            grant["id"],
+            grant["status"],
+            grant["valid_until"],
+            at,
+            issuer_active=uow.approval.approver_active(
+                decision["decided_by"], grant["project_id"], at=at
+            ),
+            reason_codes=tuple(sorted(reasons)),
+            dependency_available=dependency,
+        )
+
+    def _lifecycle(self, principal, command, *, revoke):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(command) is not (
+            RevokeApprovalGrantCommand if revoke else EvaluateApprovalGrantCommand
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "closed lifecycle command required")
+        for attempt in range(3):
+            try:
+                with self._factory() as uow:
+                    uow.enable_approval_error_normalization()
+                    uow.configure_grant_transaction()
+                    repo = uow.approval
+                    repo.prepare_write()
+                    repo.lock_lifecycle(command.grant_id)
+                    # Protected routing is private until fresh read entitlement is established.
+                    self._authorize(uow, principal, command.project_id, _READERS)
+                    grant, decision, request = self._grant_chain(
+                        uow, command.project_id, command.grant_id
+                    )
+                    repo.lock_grant_chain(grant, request)
+                    grant, decision, request = self._grant_chain(
+                        uow, command.project_id, command.grant_id
+                    )
+                    self._authorize(uow, principal, command.project_id, _READERS)
+                    self._authorize(uow, principal, command.project_id, frozenset({"OWNER"}))
+                    evaluation = self._evaluate_in_uow(uow, grant, decision, request)
+                    status = evaluation.proposed_terminal_status
+                    if grant["status"] == "ACTIVE" and not evaluation.usable and status is None:
+                        _fail(
+                            ErrorCode.APPROVAL_GATE_FAILED, "effect/consent dependency unavailable"
+                        )
+                    if revoke and evaluation.usable:
+                        status = "REVOKED"
+                    if status is not None:
+                        at = self._authorize(
+                            uow, principal, command.project_id, frozenset({"OWNER"})
+                        )
+                        evaluation = self._evaluate_in_uow(uow, grant, decision, request)
+                        status = evaluation.proposed_terminal_status or (
+                            "REVOKED" if revoke and evaluation.usable else None
+                        )
+                        if status:
+                            repo.terminalize(
+                                grant["id"],
+                                principal.actor_id,
+                                status,
+                                at,
+                                cast(RevokeApprovalGrantCommand, command).reason
+                                if revoke
+                                else ",".join(evaluation.reason_codes),
+                            )
+                    repo.force_constraints()
+                    self._authorize(uow, principal, command.project_id, frozenset({"OWNER"}))
+                    grant = repo.grant(command.grant_id, command.project_id)
+                    assert grant is not None
+                    evaluation = self._evaluate_in_uow(uow, grant, decision, request)
+                    view = self._grant_view(uow, grant, decision, request)
+                    result = GrantLifecycleReadback(view, evaluation, view.event_ids)
+                    final_at = self._authorize(
+                        uow, principal, command.project_id, frozenset({"OWNER"})
+                    )
+                    if (
+                        grant["status"] == "ACTIVE"
+                        and evaluation.proposed_terminal_status is not None
+                    ) or (status in {"REVOKED", "STALE"} and final_at >= grant["valid_until"]):
+                        _fail(
+                            ErrorCode.GRANT_INVALID, "lifecycle cause changed during final checks"
+                        )
+                    uow.commit()
+                    return result
+            except ResearchBaseError as error:
+                if (error.details or {}).get("retryable_b13") and attempt < 2:
+                    continue
+                raise
+        raise AssertionError("unreachable")
+
+    def evaluate_approval_grant(
+        self, principal, command: EvaluateApprovalGrantCommand
+    ) -> GrantLifecycleReadback:
+        return self._lifecycle(principal, command, revoke=False)
+
+    def revoke_approval_grant(
+        self, principal, command: RevokeApprovalGrantCommand
+    ) -> GrantLifecycleReadback:
+        return self._lifecycle(principal, command, revoke=True)
+
+    def _receipt_view(self, uow, row):
+        grant, decision, request = self._grant_chain(uow, row["project_id"], row["grant_id"])
+        self._evaluate_in_uow(
+            uow, grant, decision, request
+        )  # terminal: historical verification only
+        if grant["status"] != "CONSUMED":
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "receipt grant is not consumed")
+        uow.approval.verify_receipt(row["id"])
+        reviews = tuple(r["id"] for r in uow.approval.reviews(request["id"]))
+        material = consumption_request_material(
+            row["project_id"],
+            row["actor_id"],
+            row["grant_id"],
+            row["command"],
+            "ScientificConclusionVersion",
+            request["scientific_conclusion_version_id"],
+            request["target_content_hash"],
+            row["result_scientific_conclusion_version_id"],
+            None,
+            reviews,
+        )
+        try:
+            result = decode_consumption_result(row["result_dto_version"], row["result_dto"])
+        except (ValueError, TypeError, KeyError, AttributeError):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved result corrupt")
+        if (
+            row["request_hash"] != str(sha256_canonical_json(material))
+            or row["hash_scheme"] != "sha256-cjson-v1"
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved request digest corrupt")
+        return ConsumptionReadback(
+            id=row["id"],
+            project_id=row["project_id"],
+            grant_id=row["grant_id"],
+            command_key=row["command_key"],
+            actor_id=row["actor_id"],
+            consumed_at=row["consumed_at"],
+            command=row["command"],
+            request_hash=row["request_hash"],
+            hash_scheme=row["hash_scheme"],
+            checked_review_ids=reviews,
+            result_publication_id=row["result_publication_id"],
+            result_prepared_submission_version_id=row["result_prepared_submission_version_id"],
+            result_scientific_conclusion_version_id=row["result_scientific_conclusion_version_id"],
+            result_dto_version=row["result_dto_version"],
+            result=result,
+        )
+
+    def _consumption_read(self, principal, project, key, command=None):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if any(type(x) is not UUID for x in (project, key)):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact receipt read required")
+        with self._factory() as uow:
+            self._prepare_read(uow, principal, project)
+            row = uow.approval.consumption(key)
+            if row is None:
+                if command is not None:
+                    return None
+                _fail(ErrorCode.NOT_FOUND, "authorized exact receipt absent")
+            if row["project_id"] != project or (
+                command is not None and row["actor_id"] != principal.actor_id
+            ):
+                _fail(ErrorCode.FORBIDDEN, "saved scope differs")
+            result = self._receipt_view(uow, row)
+            if command is not None and (
+                result.grant_id != command.grant_id
+                or result.result_scientific_conclusion_version_id != command.result_id
+                or result.checked_review_ids != command.checked_review_ids
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "saved command material differs")
+            self._authorize(uow, principal, project, _READERS)
+            return result
+
+    def get_grant_consumption(
+        self, principal, project_id: UUID, command_key: UUID
+    ) -> ConsumptionReadback:
+        return cast(ConsumptionReadback, self._consumption_read(principal, project_id, command_key))
+
+    def _release(
+        self, principal, command: RecordInternalScientificReleaseCommand
+    ) -> ConsumptionReadback:
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(command) is not RecordInternalScientificReleaseCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed release command required")
+        for attempt in range(3):
+            try:
+                replay = self._consumption_read(
+                    principal, command.project_id, command.command_key, command
+                )
+                if replay is not None:
+                    return replay
+                result = self._release_once(principal, command)
+                if result is not None:
+                    return result
+                return cast(
+                    ConsumptionReadback,
+                    self._consumption_read(
+                        principal, command.project_id, command.command_key, command
+                    ),
+                )
+            except ResearchBaseError as error:
+                if (error.details or {}).get("b13_key_race"):
+                    return cast(
+                        ConsumptionReadback,
+                        self._consumption_read(
+                            principal, command.project_id, command.command_key, command
+                        ),
+                    )
+                if (error.details or {}).get("retryable_b13") and attempt < 2:
+                    continue
+                raise
+        raise AssertionError("unreachable")
+
+    def _release_once(self, principal, command):
+        with self._factory() as uow:
+            uow.enable_approval_error_normalization()
+            uow.configure_grant_transaction(consuming=True)
+            repo = uow.approval
+            repo.prepare_write()
+            repo.lock_lifecycle(command.command_key, consuming=True)
+            self._authorize(uow, principal, command.project_id, _READERS)
+            if repo.consumption(command.command_key) is not None:
+                return None
+            grant, decision, request = self._grant_chain(uow, command.project_id, command.grant_id)
+            repo.lock_grant_chain(grant, request)
+            grant, decision, request = self._grant_chain(uow, command.project_id, command.grant_id)
+            result = self._consume_in_uow(uow, principal, command, grant, decision, request)
+            uow.commit()
+            return result
+
+    def _consume_in_uow(self, uow, principal, command, grant, decision, request):
+        """Private first-slice binding; the owning command commits before exposing it."""
+        repo = uow.approval
+        self._authorize(uow, principal, command.project_id, _READERS)
+        self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
+        if grant["purpose"] != PURPOSE:
+            _fail(
+                ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
+                "exact release grant required",
+            )
+        evaluation = self._evaluate_in_uow(uow, grant, decision, request)
+        if not evaluation.usable:
+            _fail(ErrorCode(evaluation.unusable_code), "grant unavailable")
+        reviews = tuple(r["id"] for r in repo.reviews(request["id"]))
+        if reviews != command.checked_review_ids:
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "complete sealed review set required")
+        try:
+            material = consumption_request_material(
+                command.project_id,
+                principal.actor_id,
+                grant["id"],
+                "RECORD_INTERNAL_SCIENTIFIC_RELEASE",
+                "ScientificConclusionVersion",
+                request["scientific_conclusion_version_id"],
+                request["target_content_hash"],
+                command.result_id,
+                None,
+                reviews,
+            )
+        except ValueError:
+            _fail(
+                ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
+                "exact release result required",
+            )
+        at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
+        identity = new_uuid7()
+        at = repo.insert_consumption(
+            {
+                "id": identity,
+                "grant_id": grant["id"],
+                "command_key": command.command_key,
+                "project_id": command.project_id,
+                "actor_id": principal.actor_id,
+                "consumed_at": at,
+                "command": "RECORD_INTERNAL_SCIENTIFIC_RELEASE",
+                "request_hash": str(sha256_canonical_json(material)),
+                "hash_scheme": "sha256-cjson-v1",
+                "result_dto_version": 1,
+                "result_dto": {
+                    "command": "RECORD_INTERNAL_SCIENTIFIC_RELEASE",
+                    "scientific_conclusion_version_id": str(command.result_id),
+                    "consumption_id": str(identity),
+                },
+                "result_scientific_conclusion_version_id": command.result_id,
+            }
+        )
+        repo.terminalize(grant["id"], principal.actor_id, "CONSUMED", at, "grant consumed")
+        repo.force_constraints()
+        final_at = self._authorize(
+            uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"})
+        )
+        if final_at >= grant["valid_until"]:
+            _fail(ErrorCode.GRANT_INVALID, "final grant expiry reached")
+        if not repo.approver_active(decision["decided_by"], command.project_id, at=final_at):
+            _fail(ErrorCode.GRANT_STALE, "final issuing authority expired")
+        result = self._receipt_view(uow, repo.consumption(command.command_key))
+        final_at = self._authorize(
+            uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"})
+        )
+        if final_at >= grant["valid_until"]:
+            _fail(ErrorCode.GRANT_INVALID, "grant expired during final readback")
+        if not repo.approver_active(decision["decided_by"], command.project_id, at=final_at):
+            _fail(ErrorCode.GRANT_STALE, "issuing authority expired during final readback")
+        return result

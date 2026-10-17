@@ -2,7 +2,8 @@
 
 from datetime import datetime
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
+from sqlalchemy.dialects.postgresql import JSONB
 
 from researchbase.foundation.time import to_utc
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
@@ -57,6 +58,58 @@ B09_SNAPSHOT_TABLES = (
     "statistical_results",
 )
 B09_SHARE_SQL = "LOCK TABLE " + ",".join(B09_SNAPSHOT_TABLES) + " IN SHARE MODE"
+
+
+B13_SNAPSHOT_TABLES = (
+    "actor_subject_bindings",
+    "actors",
+    "artifact_versions",
+    "artifacts",
+    "audit_findings",
+    "claim_versions",
+    "claims",
+    "correction_records",
+    "dataset_snapshots",
+    "datasets",
+    "evidence_relations",
+    "experiment_spec_versions",
+    "experiment_specs",
+    "impact_assessments",
+    "impact_targets",
+    "internal_review_records",
+    "literature_evidence",
+    "literature_evidence_relations",
+    "literature_evidence_review_events",
+    "literature_source_project_links",
+    "literature_sources",
+    "literature_support_snapshots",
+    "manuscript_artifact_placements",
+    "manuscript_citation_placements",
+    "manuscript_claim_placements",
+    "manuscript_versions",
+    "measurements",
+    "metric_definition_versions",
+    "metric_definitions",
+    "project_membership_events",
+    "project_memberships",
+    "project_role_assignments",
+    "projects",
+    "review_issue_events",
+    "review_issues",
+    "run_artifact_inputs",
+    "run_dataset_inputs",
+    "runs",
+    "scientific_conclusion_claim_inputs",
+    "scientific_conclusion_literature_inputs",
+    "scientific_conclusion_versions",
+    "scientific_conclusions",
+    "source_versions",
+    "statistical_result_inputs",
+    "statistical_results",
+)
+B13_APPROVAL_TABLES = ("approval_decisions", "approval_request_reviews", "approval_requests")
+B13_SHARE_SQL = "LOCK TABLE " + ",".join(B13_SNAPSHOT_TABLES) + " IN SHARE MODE"
+B13_APPROVAL_SQL = "LOCK TABLE " + ",".join(B13_APPROVAL_TABLES) + " IN SHARE MODE"
 
 
 class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
@@ -346,4 +399,130 @@ class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
         return self._one(
             "SELECT * FROM approval_requests WHERE reconsideration_decision_id=:id",
             {"id": decision},
+        )
+
+    def prepare_write(self):
+        self._session.execute(text(B13_SHARE_SQL))
+        self._session.execute(text("LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"))
+        self._session.execute(text(B13_APPROVAL_SQL))
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+
+    def lock_lifecycle(self, identity, *, consuming=False):
+        prefix = "consume" if consuming else "lifecycle"
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": f"b13:{prefix}:{identity}"},
+        )
+
+    def lock_grant_chain(self, grant, request):
+        self.lock_scope(grant["project_id"], grant["purpose"])
+        table = (
+            "scientific_conclusion_versions"
+            if request["scientific_conclusion_version_id"]
+            else "manuscript_versions"
+        )
+        self._session.execute(
+            text(f"SELECT id FROM {table} WHERE id=:id FOR UPDATE"),
+            {
+                "id": request["scientific_conclusion_version_id"]
+                or request.get("manuscript_version_id")
+            },
+        )
+        if request["scientific_conclusion_version_id"] is not None:
+            self._session.execute(
+                text(
+                    "SELECT c.id FROM scientific_conclusions c "
+                    "JOIN scientific_conclusion_versions v "
+                    "ON v.scientific_conclusion_id=c.id WHERE v.id=:id FOR SHARE OF c"
+                ),
+                {"id": request["scientific_conclusion_version_id"]},
+            )
+        else:
+            self._session.execute(
+                text(
+                    "SELECT p.id FROM publications p JOIN manuscript_versions v "
+                    "ON v.publication_id=p.id "
+                    "WHERE v.id=:id FOR UPDATE OF p"
+                ),
+                {"id": request["manuscript_version_id"]},
+            )
+        self._session.execute(
+            text("SELECT id FROM approval_requests WHERE id=:id FOR SHARE"), {"id": request["id"]}
+        )
+        self._session.execute(
+            text("SELECT id FROM approval_grants WHERE id=:id FOR UPDATE"), {"id": grant["id"]}
+        )
+
+    def consumption(self, key):
+        return self._one(
+            "SELECT * FROM approval_grant_consumptions WHERE command_key=:key", {"key": key}
+        )
+
+    def verify_receipt(self, identity):
+        self._session.execute(
+            text(
+                "SELECT b13_verify_receipt(c,true) FROM approval_grant_consumptions c WHERE id=:id"
+            ),
+            {"id": identity},
+        )
+
+    def verify_terminal(self, identity):
+        return self._one(
+            "SELECT * FROM approval_grant_events WHERE grant_id=:id AND prior_status='ACTIVE'",
+            {"id": identity},
+        )
+
+    def insert_consumption(self, row):
+        keys = tuple(row)
+        statement = text(
+            "INSERT INTO approval_grant_consumptions ("
+            + ",".join(keys)
+            + ") VALUES ("
+            + ",".join(":" + k for k in keys)
+            + ")"
+        )
+        return self._session.execute(
+            text(str(statement) + " RETURNING consumed_at").bindparams(
+                bindparam("result_dto", type_=JSONB)
+            ),
+            row,
+        ).scalar_one()
+
+    def terminalize(self, grant, actor, status, at, reason):
+        self._session.execute(
+            text("""INSERT INTO approval_grant_events
+          (grant_id,prior_status,new_status,actor_id,occurred_at,reason)
+          VALUES(:grant,'ACTIVE',:status,:actor,:at,:reason)"""),
+            {"grant": grant, "status": status, "actor": actor, "at": at, "reason": reason},
+        )
+        self._session.execute(
+            text("UPDATE approval_grants SET status=:status WHERE id=:id"),
+            {"status": status, "id": grant},
+        )
+
+    def grant_events(self, identity):
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT * FROM approval_grant_events WHERE grant_id=:id ORDER BY occurred_at,id"
+                ),
+                {"id": identity},
+            ).mappings()
+        ]
+
+    def consumption_for_grant(self, identity):
+        # Populated forward-migration tests create legacy grants at their owning
+        # revision first. This checks optional receipt availability, never discovers
+        # or changes the fixed writer lock inventories.
+        if (
+            self._session.execute(
+                text("SELECT to_regclass('public.approval_grant_consumptions')")
+            ).scalar_one()
+            is None
+        ):
+            return None
+        return self._one(
+            "SELECT * FROM approval_grant_consumptions WHERE grant_id=:id", {"id": identity}
         )

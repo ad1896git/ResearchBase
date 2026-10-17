@@ -290,6 +290,26 @@ def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
         "P16A1": ErrorCode.FORBIDDEN,
     }
     constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+    if state in {"40001", "40P01"}:
+        return ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION,
+            "decision transaction rejected",
+            {"retryable_b13": True},
+        )
+    if state == "P13S1":
+        return ResearchBaseError(ErrorCode.GRANT_STALE, "issuing authority lost")
+    if state == "P13G1":
+        return ResearchBaseError(ErrorCode.GRANT_INVALID, "grant unavailable")
+    if state == "23505" and constraint == "uq_b13_command_key":
+        return ResearchBaseError(
+            ErrorCode.IDEMPOTENCY_CONFLICT, "command key already committed", {"b13_key_race": True}
+        )
+    if state == "23505" and constraint == "uq_b13_consumption_grant":
+        return ResearchBaseError(ErrorCode.GRANT_INVALID, "grant already consumed")
+    if state == "23514" and constraint == "ck_b13_result_tuple":
+        return ResearchBaseError(
+            ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, "result binding unavailable"
+        )
     if state == "23505" and constraint == "uq_b10_successor_reconsideration":
         return ResearchBaseError(ErrorCode.IDEMPOTENCY_CONFLICT, "reconsideration already used")
     if state == "23514" and constraint in {"ck_b10_request_links"}:
@@ -559,6 +579,20 @@ class SqlAlchemyUnitOfWork:
             }
         )
         configure_revision_connection(connection)
+
+    def configure_grant_transaction(self, *, consuming: bool = False) -> None:
+        from researchbase.persistence.database import configure_revision_connection
+
+        session = self._require_session()
+        session.autoflush = False
+        connection = session.connection(
+            execution_options={
+                "isolation_level": "SERIALIZABLE" if consuming else "READ COMMITTED",
+                "postgresql_readonly": False,
+            }
+        )
+        configure_revision_connection(connection)
+        self.enable_revision_action_snapshot_reads()
 
     def configure_approval_transaction(self, *, readonly: bool = False) -> None:
         """B09 uses the existing pre-BEGIN connection timeout configuration."""

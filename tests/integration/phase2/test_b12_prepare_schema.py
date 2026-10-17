@@ -43,6 +43,8 @@ def test_catalog_no_new_schema_and_empty_roundtrip(b05_env):
                 )
             ).all()
 
+    # This roundtrip verifies B12 itself, independently of later additive heads.
+    alembic.downgrade(config(env), "0058_b12_prepare_submission")
     before = catalog()
     with env[5].connect() as conn:
         names = set(
@@ -55,7 +57,7 @@ def test_catalog_no_new_schema_and_empty_roundtrip(b05_env):
     assert {"ck_b12_decision_policy", "ck_b12_text_bounds"} <= names
     alembic.downgrade(config(env), "0057_xid_wraparound_guards")
     assert catalog() == before
-    alembic.upgrade(config(env), "head")
+    alembic.upgrade(config(env), "0058_b12_prepare_submission")
     assert catalog() == before
 
 

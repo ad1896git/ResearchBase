@@ -76,6 +76,14 @@ class ScientificConclusionService:
         # against the same UoW. It cannot be replaced by caller-provided proof material.
         self._literature = literature_evidence
 
+    def record_internal_scientific_release(self, principal, command):
+        """The immutable receipt is the local release fact; no scientific material changes."""
+        from researchbase.application.approval import ApprovalService
+
+        return ApprovalService(self._factory, self._credentials, self._literature)._release(
+            principal, command
+        )
+
     def _authorize(
         self,
         uow: UnitOfWork,

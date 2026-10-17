@@ -56,7 +56,7 @@ def _wait_for_pg_blocker(engine, holder_pid: int, expected_lock: str) -> dict:
               clock_timestamp() AS observed_at
               FROM pg_stat_activity a JOIN pg_locks l ON l.pid=a.pid AND NOT l.granted
               WHERE a.pid<>:holder AND :holder=ANY(pg_blocking_pids(a.pid))
-                AND a.wait_event_type='Lock' AND l.locktype=:kind
+                AND a.state='active' AND a.wait_event_type='Lock' AND l.locktype=:kind
               ORDER BY a.pid LIMIT 1"""),
                     {"holder": holder_pid, "kind": expected_lock},
                 )

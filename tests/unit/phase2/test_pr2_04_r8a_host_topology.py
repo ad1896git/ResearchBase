@@ -35,9 +35,9 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
             hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
         )
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0058_b12_prepare_submission"]
+    assert scripts.get_heads() == ["0059_b13_grant_consumption"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0057_xid_wraparound_guards"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0058_b12_prepare_submission"
     )
 
 

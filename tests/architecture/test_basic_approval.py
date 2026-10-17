@@ -52,7 +52,7 @@ def test_no_approval_effect_surface():
 
 def test_single_forward_revision():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0058_b12_prepare_submission"]
+    assert scripts.get_heads() == ["0059_b13_grant_consumption"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0057_xid_wraparound_guards"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0058_b12_prepare_submission"
     )

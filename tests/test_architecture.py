@@ -110,6 +110,10 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
         "scientific_conclusions",
         "manuscripts",
     }
+    authorized_tables["migrations/versions/0059_b13_grant_consumption.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+    }
     for path in _python_files(ROOT / "migrations"):
         contents = path.read_text()
         permitted = authorized_tables.get(path.relative_to(ROOT).as_posix(), set())

@@ -1,6 +1,6 @@
 # B13 Approval Grant Consumption and Lifecycle Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-17 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -656,3 +656,32 @@ these are not passing database evidence. Warnings are the existing Alembic
 owns that evidence. A local `python3` pathlib/regex check verified 60 relative
 links across both drafts, explicit option (a), and absence of the removed relation
 DDL, trigger and child-write instructions. Planned B13/B14 tests remain planned.
+
+
+## Implementation substitutions — owner-authorized first slice, 2026-10-17
+
+- Follow the guide's isolation split: SERIALIZABLE for consumption; READ COMMITTED
+  for maintenance; lock-free REPEATABLE READ, READ ONLY for reads/replay. The task
+  summary's READ COMMITTED wording applies to maintenance, not consumption.
+- The reconciled predecessor is `0058_b12_prepare_submission`; B13 adds only
+  `0059_b13_grant_consumption`. Existing migrations remain byte-for-byte unchanged.
+- Scientific release belongs to the existing `ScientificConclusionService` in
+  `application/scientific_conclusion.py`; its command delegates to private shared
+  approval orchestration. ApprovalService exposes no generic consume command.
+- No accepted package table or B14 lifecycle binding exists. The receipt schema
+  therefore admits only the concrete scientific conclusion result. Publication
+  references are typed RESTRICT FKs but disabled by the result CHECK; the reserved
+  package field is constrained NULL and cannot store a soft reference. Its FK,
+  index, READY/package result tuples and result guards await B14. No package,
+  consent, publication lifecycle or transport implementation is added here.
+- Current-head expectations/inventories advance to 0059. B12's schema roundtrip is
+  pinned to its own 0058 revision before its catalog snapshot so a later additive
+  table does not alter the meaning of the historical B12 test.
+
+- Existing SQL trigger bindings are retained for their obvious named equivalents:
+  the guide's `b13_grant_transition_guard` is the forward replacement of
+  `pr216_grant_guard`; its event guard uses the existing `pr216_event_insert`
+  entrypoint, dispatching grant events to `b13_validate_event` while preserving
+  request-event validation. Receipt/completeness/immutable triggers and the new
+  CHECK/UNIQUE/FK/index names use the guide's B13 names. These substitutions retain
+  existing authority and approval writers without duplicating lifecycle guards.
