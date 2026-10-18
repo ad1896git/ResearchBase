@@ -52,7 +52,6 @@ def test_reason_normalizes_and_preserves_whitespace():
     [
         ("consent_state", "WITHDRAWN"),
         ("consent_scope", "OTHER"),
-        ("prior_consent_id", uuid4()),
         ("consent_state", None),
     ],
 )
@@ -62,7 +61,9 @@ def test_only_direct_root_granted(field, value):
     )
     with pytest.raises(ResearchBaseError) as exc:
         replace(cmd, **{field: value})
-    assert exc.value.code == ErrorCode.INVALID_STATE_TRANSITION
+    assert exc.value.code == (
+        ErrorCode.INVALID_STATE_TRANSITION if value == "WITHDRAWN" else ErrorCode.VALIDATION_ERROR
+    )
 
 
 @pytest.mark.parametrize("ordinal", [True, -1, 10000, "1", None])

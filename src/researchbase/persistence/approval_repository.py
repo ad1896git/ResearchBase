@@ -58,6 +58,11 @@ B09_SNAPSHOT_TABLES = (
     "statistical_results",
 )
 B09_SHARE_SQL = "LOCK TABLE " + ",".join(B09_SNAPSHOT_TABLES) + " IN SHARE MODE"
+B09_DECIDE_SHARE_SQL = (
+    "LOCK TABLE "
+    + ",".join(t for t in B09_SNAPSHOT_TABLES if t != "publications")
+    + " IN SHARE MODE"
+)
 
 
 B13_SNAPSHOT_TABLES = (
@@ -128,8 +133,12 @@ class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
             {"key": f"pr216:uuid:{identity}"},
         )
 
-    def lock_snapshot(self):
-        self._session.execute(text(B09_SHARE_SQL))
+    def lock_snapshot(self, *, deciding=False):
+        if deciding:
+            self._session.execute(text(B09_DECIDE_SHARE_SQL))
+            self._session.execute(text("LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"))
+        else:
+            self._session.execute(text(B09_SHARE_SQL))
         self._session.execute(text("SET LOCAL lock_timeout='10s'"))
         self._session.execute(text("SET LOCAL statement_timeout='30s'"))
 
@@ -489,6 +498,11 @@ class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
             row,
         ).scalar_one()
 
+    def lock_grant(self, identity):
+        self._session.execute(
+            text("SELECT id FROM approval_grants WHERE id=:id FOR UPDATE"), {"id": identity}
+        )
+
     def terminalize(self, grant, actor, status, at, reason):
         self._session.execute(
             text("""INSERT INTO approval_grant_events
@@ -500,6 +514,18 @@ class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
             text("UPDATE approval_grants SET status=:status WHERE id=:id"),
             {"status": status, "id": grant},
         )
+
+    def request_events(self, identity):
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT * FROM approval_request_events WHERE request_id=:id "
+                    "ORDER BY occurred_at,id"
+                ),
+                {"id": identity},
+            ).mappings()
+        ]
 
     def grant_events(self, identity):
         return [

@@ -92,5 +92,7 @@ def test_approval_purposes_share_one_writer_inventory_without_routing_uow():
     execute = inspect.getsource(ApprovalService._execute)
     assert "self._factory" not in execute
     write = inspect.getsource(ApprovalService._once)
-    assert write.index("repo.lock_snapshot()") < write.index("repo.lock_request(command.id)")
+    assert write.index('repo.lock_snapshot(deciding=kind == "decision")') < write.index(
+        "repo.lock_request(command.id)"
+    )
     assert "lock_prepare_snapshot" not in write and "purpose_hint" not in write

@@ -673,6 +673,10 @@ class SqlAlchemyUnitOfWork:
         if self._package_preparation_error_normalization:
             state = getattr(exc.orig, "sqlstate", None)
             codes = {
+                "P17F1": ErrorCode.IMMUTABLE_RECORD,
+                "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "P16A1": ErrorCode.FORBIDDEN,
+                "P16G1": ErrorCode.APPROVAL_GATE_FAILED,
                 "P15S1": ErrorCode.IMMUTABLE_RECORD,
                 "P15S2": ErrorCode.INVALID_STATE_TRANSITION,
                 "P15S3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
@@ -688,7 +692,16 @@ class SqlAlchemyUnitOfWork:
                 return ResearchBaseError(
                     codes[state],
                     "package transaction rejected",
-                    {"retryable_b15": state in {"40001", "40P01"}},
+                    {
+                        "retryable_b15": state in {"40001", "40P01"},
+                        "consent_unique_b16": state == "23505"
+                        and getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+                        in {
+                            "uq_author_consents_root",
+                            "uq_author_consents_successor",
+                            "pk_author_consents",
+                        },
+                    },
                 )
             raise RuntimeError(
                 "package transaction failed; recover by entitled exact read"

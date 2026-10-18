@@ -8,7 +8,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import DBAPIError
 
-from researchbase.persistence.prepared_submission_repository import B15_SHARE_SQL
+from researchbase.persistence.prepared_submission_repository import B15_SHARE_SQL, B16_SHARE_SQL
 from tests.disposable_postgres import disposable_database
 from tests.integration.phase2.b15_support import (  # noqa: F401
     b04_env as _b04_env,
@@ -286,7 +286,7 @@ def test_observation_cannot_be_rewritten_and_immediate_constraints_work(
 
 
 @pytest.mark.parametrize(
-    "change,expected", [("duplicate", "23505"), ("successor", "P15S2"), ("nonauthor", "P15S3")]
+    "change,expected", [("duplicate", "23505"), ("successor", "P15S2"), ("nonauthor", "P17F2")]
 )
 def test_normal_sql_cannot_forge_root_shape(b15_env, normal_sql_role, change, expected):
     from tests.integration.phase2.b15_support import consent_command
@@ -309,7 +309,14 @@ def test_normal_sql_cannot_forge_root_shape(b15_env, normal_sql_role, change, ex
     if change == "nonauthor":
         raw.update(actor_id=other, created_by=other)
     with pytest.raises(DBAPIError) as exc, engine.begin() as conn:
-        conn.execute(text(B15_SHARE_SQL))
+        conn.execute(text(B16_SHARE_SQL))
+        conn.execute(text("LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"))
+        conn.execute(
+            text(
+                "LOCK TABLE approval_decisions,approval_request_reviews,"
+                "approval_requests IN SHARE MODE"
+            )
+        )
         conn.execute(text(f'SET LOCAL ROLE "{normal_sql_role}"'))
         _insert(conn, "author_consents", raw)
         conn.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))

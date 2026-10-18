@@ -133,7 +133,9 @@ def test_final_authorization_failure_rolls_back_effects(b15_env, monkeypatch, op
             service.withdraw_prepared_submission(
                 actor, WithdrawPreparedSubmissionCommand(command.project_id, package.id, "withdraw")
             )
-    assert exc.value.code == ErrorCode.AUTHENTICATION_REQUIRED
+    assert exc.value.code == (
+        ErrorCode.FORBIDDEN if operation == "consent" else ErrorCode.AUTHENTICATION_REQUIRED
+    )
     credentials.enabled = True
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM author_consents")).scalar_one() == 0

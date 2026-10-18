@@ -24,6 +24,7 @@ from researchbase.domain.prepared_submission import (
     PackageStatus,
     Validity,
     ValidityReason,
+    consent_chain,
     consent_material,
     manifest_material,
     project_occurrences,
@@ -84,7 +85,7 @@ class RecordAuthorConsentCommand:
     consent_state: ConsentState
     consent_scope: ConsentScope
     evidence_artifact_version_id: UUID
-    prior_consent_id: None
+    prior_consent_id: UUID | None
 
     def __post_init__(self):
         _validate_ids(
@@ -95,12 +96,15 @@ class RecordAuthorConsentCommand:
         )
         if (
             type(self.consent_state) is not str
-            or self.consent_state != "GRANTED"
+            or self.consent_state not in {"GRANTED", "WITHDRAWN"}
             or type(self.consent_scope) is not str
             or self.consent_scope != "PREPARED_PACKAGE"
-            or self.prior_consent_id is not None
         ):
-            _fail(ErrorCode.INVALID_STATE_TRANSITION, "only direct GRANTED roots enabled")
+            _fail(ErrorCode.VALIDATION_ERROR, "closed consent state and scope required")
+        if self.consent_state == "WITHDRAWN" and self.prior_consent_id is None:
+            _fail(ErrorCode.INVALID_STATE_TRANSITION, "withdrawal requires prior GRANTED head")
+        if self.prior_consent_id is not None:
+            _validate_ids(self.prior_consent_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +140,16 @@ class GetAuthorConsentQuery:
 
 
 @dataclass(frozen=True, slots=True)
+class GetOwnAuthorConsentQuery:
+    project_id: UUID
+    prepared_submission_version_id: UUID
+    id: UUID
+
+    def __post_init__(self):
+        _validate_ids(self.project_id, self.prepared_submission_version_id, self.id)
+
+
+@dataclass(frozen=True, slots=True)
 class AuthorConsentReadback:
     id: UUID
     project_id: UUID
@@ -144,10 +158,16 @@ class AuthorConsentReadback:
     consent_state: ConsentState
     consent_scope: ConsentScope
     evidence_artifact: ExactReference
-    prior_consent: None
+    prior_consent: ExactReference | None
     captured_at: datetime
     content_hash: str
     hash_scheme: Literal["sha256-cjson-v1"]
+
+
+@dataclass(frozen=True, slots=True)
+class OwnAuthorConsentReadback:
+    consent: AuthorConsentReadback
+    current_head: AuthorConsentReadback
 
 
 @dataclass(frozen=True, slots=True)
@@ -512,53 +532,156 @@ class PreparedSubmissionService:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "evidence bytes/hash contradiction")
         return ref, False
 
-    def _consent(self, uow, row, project, *, allow_missing=False):
-        package, _ = self._package(uow, row["prepared_submission_version_id"], project)
+    def _chain(self, uow, package, actor, project):
         snapshot = self._snapshot(uow, package, project)
-        evidence, unavailable = self._evidence(
-            uow, row["evidence_artifact_version_id"], project, allow_missing=allow_missing
-        )
-        digest = str(
-            sha256_canonical_json(consent_material(package["id"], row["actor_id"], evidence))
-        )
+        if actor not in {a.actor_id for a in snapshot.authors}:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "consent author outside snapshot")
+        try:
+            rows = consent_chain(
+                [
+                    r
+                    for r in uow.prepared_submission.consents(package["id"])
+                    if r["actor_id"] == actor
+                ]
+            )
+            heads = uow.prepared_submission.heads(package["id"], actor)
+            if tuple(h["id"] for h in heads) != ((rows[-1]["id"],) if rows else ()):
+                raise ValueError("unique anti-successor head required")
+            result = []
+            for row in rows:
+                evidence = uow.manuscript_freeze.artifact(
+                    row["evidence_artifact_version_id"], project
+                )
+                if (
+                    evidence is None
+                    or evidence["status"] not in {"FROZEN", "SUPERSEDED"}
+                    or evidence["frozen_at"] is None
+                ):
+                    raise ValueError("retained frozen evidence required")
+                ref = ExactReference("ArtifactVersion", evidence["id"], evidence["content_hash"])
+                prior = (
+                    ExactReference("AuthorConsent", result[-1].id, result[-1].content_hash)
+                    if result
+                    else None
+                )
+                expected = str(
+                    sha256_canonical_json(
+                        consent_material(package["id"], actor, ref, row["consent_state"], prior)
+                    )
+                )
+                if (
+                    row["actor_id"] != row["created_by"]
+                    or row["consent_scope"] != "PREPARED_PACKAGE"
+                    or row["captured_at"] != row["created_at"]
+                    or row["content_hash"] != expected
+                    or row["hash_scheme"] != "sha256-cjson-v1"
+                ):
+                    raise ValueError("consent hash or metadata mismatch")
+                result.append(
+                    AuthorConsentReadback(
+                        row["id"],
+                        project,
+                        package["id"],
+                        actor,
+                        row["consent_state"],
+                        "PREPARED_PACKAGE",
+                        ref,
+                        prior,
+                        row["captured_at"].astimezone(UTC),
+                        expected,
+                        "sha256-cjson-v1",
+                    )
+                )
+            return tuple(result)
+        except (ValueError, TypeError, KeyError):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid consent chain")
+
+    def _consent(self, uow, row, project, *, allow_missing=False, metadata_only=False):
+        package, _ = self._package(uow, row["prepared_submission_version_id"], project)
+        chain = self._chain(uow, package, row["actor_id"], project)
+        for consent in chain:
+            if consent.id == row["id"]:
+                if metadata_only:
+                    return consent, False
+                _, unavailable = self._evidence(
+                    uow, consent.evidence_artifact.id, project, allow_missing=allow_missing
+                )
+                return consent, unavailable
+        _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "disconnected consent")
+
+    def _self_authorize(self, uow, principal):
+        at = uow.authorship.at()
+        if type(principal) is not VerifiedPrincipal:
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        binding = uow.phase2_identity.resolve_bound_subject(principal)
+        try:
+            live = principal.verified_at <= at and self._credentials.is_valid(principal, at)
+        except Exception:
+            live = False
         if (
-            row["actor_id"] not in {a.actor_id for a in snapshot.authors}
-            or row["actor_id"] != row["created_by"]
-            or row["consent_state"] != "GRANTED"
-            or row["consent_scope"] != "PREPARED_PACKAGE"
-            or row["prior_consent_id"] is not None
-            or row["captured_at"] != row["created_at"]
-            or row["content_hash"] != digest
-            or row["hash_scheme"] != "sha256-cjson-v1"
+            not live
+            or binding is None
+            or binding["actor_id"] != principal.actor_id
+            or binding["retired_at"] is not None
+            or binding["bound_at"] > at
+            or (binding["revoked_at"] is not None and at >= binding["revoked_at"])
+            or getattr(principal, "acting_on_behalf_of", None) is not None
         ):
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid root consent")
-        return AuthorConsentReadback(
-            row["id"],
-            project,
-            package["id"],
-            row["actor_id"],
-            "GRANTED",
-            "PREPARED_PACKAGE",
-            evidence,
-            None,
-            row["captured_at"].astimezone(UTC),
-            digest,
-            "sha256-cjson-v1",
-        ), unavailable
+            _fail(ErrorCode.FORBIDDEN, "own consent unavailable")
+        return at.astimezone(UTC)
+
+    def _own_route(self, uow, principal, project, package_id, consent_id):
+        self._self_authorize(uow, principal)
+        consent = uow.prepared_submission.consent(consent_id)
+        package = uow.prepared_submission.package(package_id)
+        parent = uow.prepared_submission.parent(package["publication_id"]) if package else None
+        if (
+            consent is None
+            or package is None
+            or parent is None
+            or parent["project_id"] != project
+            or consent["actor_id"] != principal.actor_id
+            or consent["prepared_submission_version_id"] != package_id
+        ):
+            _fail(ErrorCode.FORBIDDEN, "own consent unavailable")
+        return package, parent
+
+    def get_own_author_consent(
+        self, principal, query: GetOwnAuthorConsentQuery
+    ) -> OwnAuthorConsentReadback:
+        if type(principal) is not VerifiedPrincipal:
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(query) is not GetOwnAuthorConsentQuery:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed query required")
+        with self._factory() as uow:
+            uow.enable_package_preparation_error_normalization()
+            uow.begin_formal_read()
+            package, _ = self._own_route(
+                uow, principal, query.project_id, query.prepared_submission_version_id, query.id
+            )
+            chain = self._chain(uow, package, principal.actor_id, query.project_id)
+            saved = next(c for c in chain if c.id == query.id)
+            self._self_authorize(uow, principal)
+            return OwnAuthorConsentReadback(saved, chain[-1])
 
     def _readback(self, uow, row, parent, project):
         snapshot, items, events = self._structure(uow, row, project)
         verified, unavailable = self._context(uow, row, parent, project)
         roots = []
-        for consent in uow.prepared_submission.consents(row["id"]):
-            result, missing = self._consent(uow, consent, project, allow_missing=True)
-            roots.append(result)
-            if missing:
-                unavailable.add(result.evidence_artifact.id)
+        heads = []
+        for author in snapshot.authors:
+            chain = self._chain(uow, row, author.actor_id, project)
+            roots.extend(chain)
+            for consent in chain[-1:]:
+                _, absent = self._evidence(
+                    uow, consent.evidence_artifact.id, project, allow_missing=True
+                )
+                if absent:
+                    unavailable.add(consent.evidence_artifact.id)
+            if chain and chain[-1].consent_state == "GRANTED":
+                heads.append(chain[-1])
         authors = tuple(a.actor_id for a in snapshot.authors)
-        if len({c.actor_id for c in roots}) != len(roots):
-            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "duplicate author roots")
-        missing = tuple(a for a in authors if a not in {c.actor_id for c in roots})
+        missing = tuple(a for a in authors if a not in {c.actor_id for c in heads})
         reasons = {"NOT_FROZEN"}
         if missing:
             reasons.add("CONSENT_MISSING")
@@ -633,6 +756,10 @@ class PreparedSubmissionService:
                         for index, author in enumerate(snapshot.authors)
                         for c in result.consents
                         if c.actor_id == author.actor_id
+                        and c.consent_state == "GRANTED"
+                        and not any(
+                            x.prior_consent and x.prior_consent.id == c.id for x in result.consents
+                        )
                     )
                     # Missing authors retain their reserved authored ordinal.
                     candidate = None
@@ -709,28 +836,6 @@ class PreparedSubmissionService:
             ):
                 _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "package UUID material differs")
             return self._readback(uow, row, parent, project)[0]
-        if mode == "consent":
-            row = repo.consent(command.id)
-            if row is None:
-                return None
-            self._package(uow, row["prepared_submission_version_id"], project)
-            if (
-                row["actor_id"],
-                row["prepared_submission_version_id"],
-                row["evidence_artifact_version_id"],
-                row["consent_state"],
-                row["consent_scope"],
-                row["prior_consent_id"],
-            ) != (
-                principal.actor_id,
-                command.prepared_submission_version_id,
-                command.evidence_artifact_version_id,
-                command.consent_state,
-                command.consent_scope,
-                command.prior_consent_id,
-            ):
-                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "consent UUID material differs")
-            return self._consent(uow, row, project, allow_missing=True)[0]
         row, _ = self._package(uow, command.prepared_submission_version_id, project)
         events = self._events(uow, row)
         if row["status"] == "PREPARED":
@@ -767,14 +872,207 @@ class PreparedSubmissionService:
     def record_author_consent(
         self, principal: VerifiedPrincipal, command: RecordAuthorConsentCommand
     ) -> AuthorConsentReadback:
-        self._boundary(principal, command, RecordAuthorConsentCommand)
-        return self._execute(principal, command, "consent")
+        if type(principal) is not VerifiedPrincipal:
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(command) is not RecordAuthorConsentCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed consent command required")
+        for attempt in range(3):
+            try:
+                replay = self._consent_replay(principal, command)
+                if replay is not None:
+                    return replay
+                result = self._write_consent(principal, command)
+                if result is not None:
+                    return result
+                replay = self._consent_replay(principal, command)
+                if replay is None:
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "committed replay unavailable")
+                return replay
+            except ResearchBaseError as error:
+                if (error.details or {}).get("consent_unique_b16"):
+                    replay = self._consent_replay(principal, command)
+                    if replay is not None:
+                        return replay
+                if (error.details or {}).get("retryable_b15") and attempt < 2:
+                    continue
+                raise ResearchBaseError(error.code, error.message) from None
+        raise AssertionError("unreachable")
 
     def withdraw_prepared_submission(
         self, principal: VerifiedPrincipal, command: WithdrawPreparedSubmissionCommand
     ) -> PreparedSubmissionEventReadback:
         self._boundary(principal, command, WithdrawPreparedSubmissionCommand)
         return self._execute(principal, command, "withdraw")
+
+    def _consent_permission(self, uow, principal, command):
+        if command.consent_state == "WITHDRAWN":
+            return self._own_route(
+                uow,
+                principal,
+                command.project_id,
+                command.prepared_submission_version_id,
+                command.prior_consent_id,
+            )
+        self._authorize(uow, principal, command.project_id)
+        return self._package(uow, command.prepared_submission_version_id, command.project_id)
+
+    def _consent_replay(self, principal, command):
+        with self._factory() as uow:
+            uow.enable_package_preparation_error_normalization()
+            uow.begin_formal_read()
+            package, _ = self._consent_permission(uow, principal, command)
+            row = uow.prepared_submission.consent(command.id)
+            if row is None:
+                return None
+            if (
+                row["actor_id"],
+                row["prepared_submission_version_id"],
+                row["consent_state"],
+                row["consent_scope"],
+                row["evidence_artifact_version_id"],
+                row["prior_consent_id"],
+            ) != (
+                principal.actor_id,
+                package["id"],
+                command.consent_state,
+                command.consent_scope,
+                command.evidence_artifact_version_id,
+                command.prior_consent_id,
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "consent UUID material differs")
+            result = self._consent(uow, row, command.project_id, metadata_only=True)[0]
+            self._consent_permission(uow, principal, command)
+            return result
+
+    def _write_consent(self, principal, command):
+        with self._factory() as uow:
+            uow.enable_package_preparation_error_normalization()
+            repo = uow.prepared_submission
+            repo.prepare_consent_write()
+            uow.enable_revision_action_snapshot_reads()
+            repo.coordinate(f"b15:consent:{command.id}")
+            package, parent = self._consent_permission(uow, principal, command)
+            uow.approval.lock_scope(command.project_id, "PREPARE_SUBMISSION")
+            repo.manuscript(package["manuscript_version_id"], lock=True)
+            repo.parent(parent["id"], lock=True)
+            package = repo.package(package["id"], lock=True)
+            if package is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "protected package unavailable")
+            repo.lock_chain(package["id"], principal.actor_id)
+            self._consent_permission(uow, principal, command)
+            if repo.consent(command.id) is not None:
+                return None
+            self._self_authorize(uow, principal)
+            snapshot = self._snapshot(uow, package, command.project_id)
+            if principal.actor_id not in {a.actor_id for a in snapshot.authors}:
+                _fail(ErrorCode.FORBIDDEN, "direct HUMAN snapshot author required")
+            chain = self._chain(uow, package, principal.actor_id, command.project_id)
+            head = chain[-1] if chain else None
+            if (head.id if head else None) != command.prior_consent_id:
+                _fail(ErrorCode.CONCURRENT_MODIFICATION, "current consent head required")
+            if head and head.consent_state == command.consent_state:
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "alternating consent required")
+            withdrawing = command.consent_state == "WITHDRAWN"
+            retained = next(
+                (
+                    c.evidence_artifact
+                    for c in chain
+                    if c.evidence_artifact.id == command.evidence_artifact_version_id
+                ),
+                None,
+            )
+            if withdrawing and retained is not None:
+                evidence = retained
+            else:
+                if withdrawing:
+                    self._authorize(uow, principal, command.project_id)
+                else:
+                    self._stage(uow, principal, command.project_id, parent["id"], _READERS)
+                evidence, _ = self._evidence(
+                    uow, command.evidence_artifact_version_id, command.project_id
+                )
+            if not withdrawing:
+                if package["status"] != "PREPARED":
+                    _fail(ErrorCode.INVALID_STATE_TRANSITION, "package withdrawn")
+                self._structure(uow, package, command.project_id)
+                self._context(uow, package, parent, command.project_id, admission=True)
+            grants = ()
+            if withdrawing:
+                if repo.related_grants(package["id"], command.project_id, contradiction=True):
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "ACTIVE grant has receipt")
+                grants = repo.related_grants(package["id"], command.project_id)
+                from researchbase.application.approval import ApprovalService
+
+                verifier = ApprovalService(
+                    self._factory,
+                    self._credentials,
+                    LiteratureEvidenceService(self._factory, self._credentials, self._store),
+                )
+                for grant_id in grants:
+                    uow.approval.lock_grant(grant_id)
+                    grant, decision, request = verifier._grant_chain(
+                        uow, command.project_id, grant_id
+                    )
+                    verifier._evaluate_in_uow(uow, grant, decision, request, withdrawal=True)
+                if repo.related_grants(
+                    package["id"], command.project_id
+                ) != grants or repo.related_grants(
+                    package["id"], command.project_id, contradiction=True
+                ):
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "grant scope changed")
+            at = self._self_authorize(uow, principal)
+            if not withdrawing:
+                at = self._stage(uow, principal, command.project_id, parent["id"], _READERS)
+            elif retained is None:
+                at = self._authorize(uow, principal, command.project_id)
+            prior = ExactReference("AuthorConsent", head.id, head.content_hash) if head else None
+            repo.insert_consent(
+                {
+                    "id": command.id,
+                    "prepared_submission_version_id": package["id"],
+                    "actor_id": principal.actor_id,
+                    "consent_state": command.consent_state,
+                    "consent_scope": command.consent_scope,
+                    "prior_consent_id": command.prior_consent_id,
+                    "evidence_artifact_version_id": evidence.id,
+                    "captured_at": at,
+                    "content_hash": str(
+                        sha256_canonical_json(
+                            consent_material(
+                                package["id"],
+                                principal.actor_id,
+                                evidence,
+                                command.consent_state,
+                                prior,
+                            )
+                        )
+                    ),
+                    "hash_scheme": "sha256-cjson-v1",
+                    "created_at": at,
+                    "created_by": principal.actor_id,
+                }
+            )
+            for grant_id in grants:
+                uow.approval.terminalize(
+                    grant_id,
+                    principal.actor_id,
+                    "STALE",
+                    at,
+                    f"author consent withdrawn:{command.id}",
+                )
+            result = self._consent(
+                uow, repo.consent(command.id), command.project_id, metadata_only=True
+            )[0]
+            repo.force_constraints()
+            self._self_authorize(uow, principal)
+            if not withdrawing:
+                self._context(uow, package, parent, command.project_id, admission=True)
+                self._self_authorize(uow, principal)
+                self._stage(uow, principal, command.project_id, parent["id"], _READERS)
+            elif retained is None:
+                self._authorize(uow, principal, command.project_id)
+            uow.commit()
+            return result
 
     def _write(self, principal, command, mode) -> Any:
         with self._factory() as uow:
@@ -846,49 +1144,6 @@ class PreparedSubmissionService:
                         }
                     )
                 self._insert_event(repo, row["id"], principal.actor_id, at, None, "PREPARED", None)
-            elif replay is None and mode == "consent":
-                # CAS/closure inspection may outlive entitlement: resample time
-                # before insertion, then check again after deferred constraints.
-                self._stage(uow, principal, command.project_id, parent["id"], _READERS)
-                snapshot, _, _ = self._structure(uow, row, command.project_id)
-                actor = uow.authorship.actor(principal.actor_id)
-                if (
-                    actor is None
-                    or actor["actor_type"] != "HUMAN"
-                    or actor["retired_at"] is not None
-                    or principal.actor_id not in {a.actor_id for a in snapshot.authors}
-                    or getattr(principal, "acting_on_behalf_of", None) is not None
-                ):
-                    _fail(ErrorCode.FORBIDDEN, "direct HUMAN snapshot author required")
-                if row["status"] != "PREPARED":
-                    _fail(ErrorCode.INVALID_STATE_TRANSITION, "package withdrawn")
-                if any(c["actor_id"] == principal.actor_id for c in repo.consents(row["id"])):
-                    _fail(ErrorCode.CONCURRENT_MODIFICATION, "author root already exists")
-                self._context(uow, row, parent, command.project_id, admission=True)
-                evidence, _ = self._evidence(
-                    uow, command.evidence_artifact_version_id, command.project_id
-                )
-                at = self._stage(uow, principal, command.project_id, parent["id"], _READERS)
-                repo.insert_consent(
-                    {
-                        "id": command.id,
-                        "prepared_submission_version_id": row["id"],
-                        "actor_id": principal.actor_id,
-                        "consent_state": "GRANTED",
-                        "consent_scope": "PREPARED_PACKAGE",
-                        "prior_consent_id": None,
-                        "evidence_artifact_version_id": evidence.id,
-                        "captured_at": at,
-                        "content_hash": str(
-                            sha256_canonical_json(
-                                consent_material(row["id"], principal.actor_id, evidence)
-                            )
-                        ),
-                        "hash_scheme": "sha256-cjson-v1",
-                        "created_at": at,
-                        "created_by": principal.actor_id,
-                    }
-                )
             elif replay is None:
                 self._structure(uow, row, command.project_id)
                 at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER"}))
@@ -899,10 +1154,6 @@ class PreparedSubmissionService:
             if replay is None:
                 if mode == "prepare":
                     saved_result = self._readback(uow, row, parent, command.project_id)[0]
-                elif mode == "consent":
-                    saved_result = self._consent(uow, repo.consent(command.id), command.project_id)[
-                        0
-                    ]
                 else:
                     saved_result = self._events(uow, repo.package(row["id"]))[-1]
                 repo.force_constraints()

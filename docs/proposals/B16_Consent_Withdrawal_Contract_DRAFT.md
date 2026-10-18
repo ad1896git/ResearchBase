@@ -1,6 +1,6 @@
 # Consent Withdrawal, Grant Resolution and Offboarding (B16) Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-18 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -597,3 +597,177 @@ links with 0 missing targets; a `PYTHONPATH=src uv run --no-sync python` check
 reported no whitespace errors (exit 1 denotes the added-file difference).
 Only this requested document is added; no implementation, test, migration,
 dependency, governing file, branch, commit or push was changed or created.
+
+## 15. First-slice implementation evidence — 2026-10-18
+
+This section records the authorized implementation. Section 14 retains the earlier
+pre-approval drafting evidence and is not an implementation result.
+
+Reconciliation and substitutions:
+
+- Accepted B15 is present at `0060_b15_package_preparation`, after the inspected
+  draft baseline `0059`. B16 adds exactly one forward revision,
+  `0061_b16_consent_withdrawal`; existing migrations remain unchanged.
+- The proposed domain/Application/repository paths match the accepted B15 files.
+  The accepted Application fixture helper is `tests/integration/phase2/b15_support.py`;
+  the new `b16_fixtures.py` imports those builders. No semantic substitution was needed.
+- The accepted §13 override changes every B09 decision to the inventory without
+  publications, then direct Publication SHARE ROW EXCLUSIVE before request lookup.
+  Forward replacement of `b09_preheld` accepts Publication SHARE or SRE. Because
+  B09 decisions now hold SRE, `b13_complete` also preserves its automatic staling
+  path using exact current-transaction rejection/target-change proof. Ordinary
+  OWNER/expiry/receipt checks remain in their existing branches.
+
+Implemented alternating immutable consent/hash verification, metadata-only own
+read and retained-own-evidence withdrawal, PREPARED regrant, current-head preview,
+exact uncapped manuscript/project grant resolution and contradiction detection,
+atomic consent-cause events/staling, named error normalization and entitled replay
+comparison for named consent uniqueness failures. No table, persisted head,
+transport, READY transition, package freeze, consumption branch or external effect
+was added. Preparation and OWNER package withdrawal retain their B15 protocol.
+
+Writes use the literal B16 FIRST-statement SHARE inventory and Publication SRE;
+reads/replays use one REPEATABLE READ READ ONLY snapshot with plain nested reads.
+These reads do not exclude a binding/role revocation committed after the snapshot
+begins. Fresh credential and applicable entitlement checks run before effects and
+following deferred checks; regrant repeats them after final context verification.
+Read-only reviewers' two temporal authorization findings were corrected and covered
+by rollback tests; their follow-up confirmed both findings resolved.
+
+All verification commands below used the prefix:
+
+```sh
+UV_CACHE_DIR=/tmp/researchbase-b16-uv-cache
+```
+
+The existing `DATABASE_URL` and `RB_TEST_ADMIN_URL` environment variables pointed
+to local PostgreSQL. A direct `SELECT version()` returned **PostgreSQL 18.6
+(Homebrew), aarch64-apple-darwin27.0.0, 64-bit**.
+`uv run --no-sync alembic heads` returned only
+`0061_b16_consent_withdrawal (head)`.
+
+| Exact command after the prefix | Final observed result |
+| --- | --- |
+| `uv run --no-sync ruff check .` | Exit 0: All checks passed. |
+| `uv run --no-sync ruff format --check .` | Exit 0: 664 files already formatted. |
+| `uv run --no-sync pyright` | Exit 0: 0 errors, 0 warnings, 0 informations. |
+| `uv run --no-sync pytest tests/unit tests/architecture --tb=short` | Exit 1: **5,169 passed, 1 failed, 43 warnings in 88.33s**. Not PASS; inherited failure detailed below. |
+| `uv run --no-sync pytest tests/integration/phase2/test_b16_*.py --tb=short` | Exit 0: **43 passed, 15 skipped, 89 warnings in 75.30s**. |
+| `git diff --check` | Exit 0. |
+
+Exact focused PostgreSQL regression command after the same prefix:
+
+```sh
+uv run --no-sync pytest tests/integration/phase2/test_b09_approval_schema.py tests/integration/phase2/test_b09_approval_concurrency.py tests/integration/phase2/test_b12_prepare_approval.py tests/integration/phase2/test_b13_grant_lifecycle.py tests/integration/phase2/test_b13_grant_schema.py tests/integration/phase2/test_b13_grant_concurrency.py tests/integration/phase2/test_b15_package_*.py tests/integration/phase2/test_b16_*.py --tb=short
+```
+
+Observed result: exit 0, **206 passed, 15 skipped, 516 warnings in 371.31s**.
+The final B16-only run above additionally includes the subsequently added
+same-manuscript package independence and three live-identity cases, and verifies
+the final named-uniqueness replay handling. The two run counts overlap and are not
+additive. Warnings were Alembic's existing path_separator deprecation and two
+B12 connection execution-options warnings in the broader run.
+
+The remaining unit/architecture failure is
+`test_candidate_static_gates_and_inherited_formatter_delta`: its baseline-relative
+`git diff --check b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff` detects trailing
+whitespace in committed `docs/phase2/B15_S2_review_verification.txt:28`.
+The independent command
+`git diff --check b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff HEAD -- docs/phase2/B15_S2_review_verification.txt`
+also returned exit 2 for that exact line, proving it predates these changes.
+That historical B15 evidence file remains unchanged; the current working diff's
+whitespace check passes. No unit/architecture PASS is claimed.
+
+All 15 skips explicitly identify the missing READY lifecycle needed for accepted
+B12 PREPARE_SUBMISSION grant issuance. They cover real-grant resolver exclusions,
+expired-ACTIVE staling/receipt contradictions, grant graph adversarial SQL and grant
+insertion/maintenance races. No READY state or preparation grant was forged to
+bypass this dependency. Those cases remain blocked, not verified PASS. Empty-scope
+resolution, chain/hash/schema guards, populated-root upgrade and retained-successor
+downgrade refusal, offboarding, inactive Project withdrawal, revoked/retired identity,
+lock-free reads/replay, observed PostgreSQL waits, OWNER/author races, exact retry
+budgets and temporal/atomic rollback checks were exercised.
+
+No whole-suite run, commit, push or branch creation occurred. These focused results
+do not establish the deferred full PR2-17/Human Gate or Phase 2 completion.
+
+
+## 16. Review corrections and replacement evidence — 2026-10-18
+
+This section supersedes §15's unresolved failure and skipped-grant evidence.
+The B09 inventory regression was introduced by B16: its forward guard now retains
+all three review tables from the actual 0056 definition. Its downgrade restores
+that definition verbatim, including function configuration. A fresh database
+upgraded directly to 0060 supplies the independent reference for an exact public
+function catalog comparison across upgrade/downgrade/upgrade. New `b16_preheld`
+uses `CREATE FUNCTION`.
+
+The inherited B15 evidence whitespace is corrected. The retry-budget integration
+test exercises SQLSTATE 40001 and 40P01 with exactly three attempts, other mapped
+conflicts with one attempt, and no persisted successor after rollback.
+
+The owner's review explicitly authorized a disposable READY prerequisite fixture.
+`b16_fixtures.ready_prerequisite` temporarily permits only the selected frozen
+Publication's lifecycle update, restores its exact original trigger function, and
+restores its CHECK as NOT VALID. Every trigger remains enabled. Real independent
+review, B12 decision, B09 request/decision and grant issuance follow through the
+Application services. Production READY behavior remains unchanged. All fifteen
+formerly skipped cases now execute, including atomic staling, deferred graph
+rejections, issuance/withdrawal waits and maintenance ordering.
+
+Evidence limits: the terminal exclusion case covers EXPIRED grants within the
+same manuscript, and the contradiction case injects a repository result to verify
+Application rejection/rollback. Those cases do not establish stored ACTIVE/receipt
+corruption or a full cross-project/manuscript/purpose/consumed exclusion matrix.
+
+A normal `git worktree add` was denied access to `.git/worktrees`. Instead, a
+stash-free clean HEAD export was created with `git archive HEAD`, plus an isolated
+index populated using `git read-tree HEAD`. Its `git status --short` was empty;
+HEAD was `fea8e7d`. The base used the same environment with its own source directory.
+The exact four test selectors were:
+
+```sh
+'tests/integration/phase2/test_b12_prepare_schema.py::test_approval_sql_guard_requires_full_b_inventory[internal_review_records]'
+'tests/integration/phase2/test_b12_prepare_schema.py::test_approval_sql_guard_requires_full_b_inventory[review_issues]'
+'tests/integration/phase2/test_b12_prepare_schema.py::test_approval_sql_guard_requires_full_b_inventory[review_issue_events]'
+tests/unit/phase2/test_pr2_04_static_acceptance.py::test_candidate_static_gates_and_inherited_formatter_delta
+```
+
+Run with `uv run pytest -o addopts='' -q --tb=short` and those selectors:
+
+```text
+Clean HEAD: 1 failed, 3 passed, 10 warnings in 12.43s
+Candidate:  4 passed, 10 warnings in 18.03s
+```
+
+The HEAD failure was exactly the B15 trailing-whitespace assertion; its three B12
+cases passed. A candidate run additionally including the independent catalog
+roundtrip returned `5 passed, 14 warnings in 21.68s`.
+
+Commands used `UV_CACHE_DIR="$PWD/.uv-cache"` (the default cache is outside the
+sandbox). `uv run pytest tests/unit tests/architecture -o addopts='' -q --tb=short`
+returned **5,170 passed, 43 warnings in 117.58s**.
+
+The requested chained command's static checks succeeded (Pyright zero errors,
+Ruff formatting 664 files, Ruff lint all checks passed), but its exact external
+six-shard runner could not acquire/manage
+`/Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock`:
+its removal attempts returned `Operation not permitted`. The invocation was
+interrupted. A repository-local copy, changing only output/lock/duration paths,
+was also interrupted after PostgreSQL shared-lock exhaustion during overlapping
+verification. It produced no completed shard exit statuses and is not PASS
+evidence. No shared PostgreSQL configuration or external runner was modified.
+The requested full-suite gate remains unverified in this sandbox.
+
+Final counted grant/consent verification:
+
+```sh
+UV_CACHE_DIR="$PWD/.uv-cache" uv run pytest tests/integration/phase2/test_b16_*.py -q -rs -o addopts=''
+```
+
+Observed: **60 passed, 141 warnings in 126.57s; zero skipped**. The `addopts`
+override removes the repository's extra quiet flag so pytest prints the exact
+count. The earlier literal `uv run pytest tests/integration/phase2/test_b16_*.py
+-q -rs` also exited zero with all sixty cases executed and no skips. The separate
+six grant serialization/rollback cases returned `6 passed, 18 warnings in 17.80s`.
+These runs overlap and their counts must not be added together.

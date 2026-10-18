@@ -8,7 +8,7 @@ from researchbase.domain.authorship import ExactReference, contribution_text
 from researchbase.domain.scientific_conclusion import _uuid
 
 PackageStatus = Literal["PREPARED", "WITHDRAWN"]
-ConsentState = Literal["GRANTED"]
+ConsentState = Literal["GRANTED", "WITHDRAWN"]
 ConsentScope = Literal["PREPARED_PACKAGE"]
 Category = Literal["FIGURE", "TABLE", "CITATION", "CLAIM", "CONCLUSION", "AUTHOR_CONSENT"]
 Validity = Literal["NOT_FROZEN", "STALE", "INVALID"]
@@ -83,20 +83,30 @@ def reference_material(ref: ExactReference):
     return {"type": ref.type, "id": str(ref.id), "content_hash": ref.content_hash}
 
 
-def consent_material(package_id: UUID, actor_id: UUID, evidence: ExactReference):
+def consent_material(
+    package_id: UUID,
+    actor_id: UUID,
+    evidence: ExactReference,
+    state: ConsentState = "GRANTED",
+    prior: ExactReference | None = None,
+):
     _uuid(package_id, "package")
     _uuid(actor_id, "author")
     if type(evidence) is not ExactReference or evidence.type != "ArtifactVersion":
         raise ValueError("exact evidence required")
+    if state not in {"GRANTED", "WITHDRAWN"} or (state == "WITHDRAWN" and prior is None):
+        raise ValueError("alternating consent state required")
+    if prior is not None and (type(prior) is not ExactReference or prior.type != "AuthorConsent"):
+        raise ValueError("exact prior consent required")
     return {
         "type": "AuthorConsent",
         "material_version": 1,
         "prepared_submission": {"type": "PreparedSubmissionVersion", "id": str(package_id)},
         "actor": {"type": "ActorIdentity", "id": str(actor_id)},
-        "consent_state": "GRANTED",
+        "consent_state": state,
         "consent_scope": "PREPARED_PACKAGE",
         "evidence_artifact": reference_material(evidence),
-        "prior_consent": None,
+        "prior_consent": reference_material(prior) if prior else None,
     }
 
 
@@ -121,3 +131,42 @@ def manifest_material(manuscript: ExactReference, snapshot: ExactReference, item
             for i in sorted(items, key=lambda i: (i.category, i.ordinal))
         ],
     }
+
+
+def consent_chain(rows):
+    """Return the entire root-to-head chain iteratively; reject disconnected graphs."""
+    if not rows:
+        return ()
+    indexed = {r["id"]: r for r in rows}
+    if len(indexed) != len(rows):
+        raise ValueError("duplicate consent identity")
+    roots = [r for r in rows if r["prior_consent_id"] is None]
+    if len(roots) != 1 or roots[0]["consent_state"] != "GRANTED":
+        raise ValueError("one GRANTED root required")
+    key = tuple(
+        roots[0][f] for f in ("prepared_submission_version_id", "actor_id", "consent_scope")
+    )
+    successors = {}
+    for row in rows:
+        if (
+            tuple(row[f] for f in ("prepared_submission_version_id", "actor_id", "consent_scope"))
+            != key
+        ):
+            raise ValueError("same chain required")
+        prior = row["prior_consent_id"]
+        if prior is not None:
+            if prior == row["id"] or prior not in indexed or prior in successors:
+                raise ValueError("fork, self or absent prior")
+            successors[prior] = row
+    result, visited, row = [], set(), roots[0]
+    while row is not None:
+        if row["id"] in visited or row["consent_state"] not in {"GRANTED", "WITHDRAWN"}:
+            raise ValueError("cycle or invalid state")
+        if result and result[-1]["consent_state"] == row["consent_state"]:
+            raise ValueError("alternating state required")
+        visited.add(row["id"])
+        result.append(row)
+        row = successors.get(row["id"])
+    if len(visited) != len(rows):
+        raise ValueError("disconnected chain")
+    return tuple(result)

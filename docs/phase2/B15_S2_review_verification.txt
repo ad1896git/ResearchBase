@@ -25,7 +25,7 @@ phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:
                     "approval_grant_consumptions",
                 }
 E               AssertionError: assert {'approval_gr...actions', ...} == {'approval_gr...oncerns', ...}
-E                 
+E
 E                 Extra items in the left set:
 E                 'prepared_submission_versions'
 E                 'prepared_submission_events'

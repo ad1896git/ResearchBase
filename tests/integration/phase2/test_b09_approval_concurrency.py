@@ -9,7 +9,11 @@ import pytest
 from sqlalchemy import event, text
 
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.approval_repository import B09_SHARE_SQL, B09_SNAPSHOT_TABLES
+from researchbase.persistence.approval_repository import (
+    B09_DECIDE_SHARE_SQL,
+    B09_SHARE_SQL,
+    B09_SNAPSHOT_TABLES,
+)
 from researchbase.persistence.manuscript_freeze_repository import B04_SNAPSHOT_TABLES
 from tests.integration.phase2 import test_approval as fixtures
 from tests.integration.phase2.test_approval import (
@@ -57,7 +61,13 @@ def test_first_writer_statement_and_lock_free_reads_replay(approval_env):
         saved = service.request_approval(requester, command)
         writer = next(sql for _, sql in transactions if B09_SHARE_SQL in sql)
         assert writer[0] == B09_SHARE_SQL
+        transactions.clear()
         result = service.decide_approval(approver, _decide(command))
+        writer = next(sql for _, sql in transactions if B09_DECIDE_SHARE_SQL in sql)
+        assert writer[:2] == [
+            B09_DECIDE_SHARE_SQL,
+            "LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE",
+        ]
         assert result.grant
         transactions.clear()
         service.get_request(requester, command.project_id, saved.id)
@@ -221,7 +231,7 @@ def test_cross_target_rejection_request_both_commit_orders(approval_env, first):
                 assert inserted.wait(10)
                 waiter = pool.submit(service.decide_approval, approver, reject)
             try:
-                witness = _wait_for_pg_blocker(engine, holder_pid[0], "advisory")
+                witness = _wait_for_pg_blocker(engine, holder_pid[0], "relation")
                 assert witness["pid"] != holder_pid[0]
             finally:
                 release.set()
@@ -276,7 +286,7 @@ def test_cross_target_rejection_fences_waiting_older_pending_decision(approval_e
         )
         future = pool.submit(service.decide_approval, approver, _decide(command))
         try:
-            assert _wait_for_pg_blocker(engine, pid, "advisory")["pid"] != pid
+            assert _wait_for_pg_blocker(engine, pid, "relation")["pid"] != pid
             tx.commit()
             with pytest.raises(ResearchBaseError) as denied:
                 future.result(timeout=10)

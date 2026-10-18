@@ -31,12 +31,71 @@ source_versions statistical_result_inputs statistical_results
 B15_SHARE_SQL = "LOCK TABLE " + ",".join(B15_SNAPSHOT_TABLES) + " IN SHARE MODE"
 
 
+B16_SNAPSHOT_TABLES = tuple(
+    sorted(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings
+authorship_snapshot_authors authorship_snapshot_contributions
+authorship_snapshot_corresponding_authors authorship_snapshot_equal_groups
+authorship_snapshots claim_versions claims contribution_records correction_records
+dataset_snapshots datasets evidence_relations experiment_spec_versions experiment_specs
+impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events literature_source_project_links
+literature_sources literature_support_snapshots manuscript_artifact_placements
+manuscript_citation_placements manuscript_claim_placements manuscript_versions
+measurements metric_definition_versions metric_definitions project_membership_events
+project_memberships project_role_assignments projects review_issue_events
+review_issues run_artifact_inputs run_dataset_inputs runs scientific_conclusion_claim_inputs
+scientific_conclusion_literature_inputs scientific_conclusion_versions scientific_conclusions
+source_versions statistical_result_inputs statistical_results
+""".split()
+    )
+)
+B16_SHARE_SQL = "LOCK TABLE " + ",".join(B16_SNAPSHOT_TABLES) + " IN SHARE MODE"
+
+
 class SqlAlchemyPreparedSubmissionRepository(SqlAlchemyAuthorshipRepository):
     def prepare_write(self) -> None:
         self._session.autoflush = False
         self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
         self._session.execute(text(B15_SHARE_SQL))
         self._timeouts()
+
+    def prepare_consent_write(self) -> None:
+        self._session.autoflush = False
+        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+        self._session.execute(text(B16_SHARE_SQL))
+        self._session.execute(text("LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"))
+        self._session.execute(
+            text(
+                "LOCK TABLE approval_decisions,approval_request_reviews,"
+                "approval_requests IN SHARE MODE"
+            )
+        )
+        self._timeouts()
+
+    def lock_chain(self, package, actor):
+        return self._many(
+            "SELECT * FROM author_consents WHERE prepared_submission_version_id=:package "
+            "AND actor_id=:actor ORDER BY id FOR UPDATE",
+            {"package": package, "actor": actor},
+        )
+
+    def related_grants(self, package, project, *, contradiction=False):
+        rows = self._many(
+            """SELECT g.id FROM prepared_submission_versions p
+            JOIN publications pub ON pub.id=p.publication_id
+            JOIN approval_requests r ON r.manuscript_version_id=p.manuscript_version_id
+              AND r.project_id=pub.project_id AND r.approval_purpose='PREPARE_SUBMISSION'
+            JOIN approval_decisions d ON d.approval_request_id=r.id
+            JOIN approval_grants g ON g.approval_decision_id=d.id
+            WHERE p.id=:package AND pub.project_id=:project AND g.project_id=pub.project_id
+              AND g.purpose='PREPARE_SUBMISSION' AND g.status='ACTIVE' AND """
+            + ("EXISTS" if contradiction else "NOT EXISTS")
+            + " (SELECT 1 FROM approval_grant_consumptions c WHERE c.grant_id=g.id) ORDER BY g.id",
+            {"package": package, "project": project},
+        )
+        return tuple(r["id"] for r in rows)
 
     def prepare_read(self) -> None:
         self._session.autoflush = False
@@ -77,6 +136,15 @@ class SqlAlchemyPreparedSubmissionRepository(SqlAlchemyAuthorshipRepository):
             "ON a.authorship_snapshot_id=p.authorship_snapshot_id AND a.actor_id=c.actor_id "
             "WHERE p.id=:id ORDER BY a.ordinal",
             {"id": identity},
+        )
+
+    def heads(self, package: UUID, actor: UUID):
+        return self._many(
+            "SELECT c.* FROM author_consents c "
+            "WHERE c.prepared_submission_version_id=:package AND c.actor_id=:actor "
+            "AND c.consent_scope='PREPARED_PACKAGE' AND NOT EXISTS "
+            "(SELECT 1 FROM author_consents successor WHERE successor.prior_consent_id=c.id)",
+            {"package": package, "actor": actor},
         )
 
     def events(self, identity: UUID):

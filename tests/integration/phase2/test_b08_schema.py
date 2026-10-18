@@ -92,7 +92,7 @@ def test_populated_b07_upgrade_open_downgrade_and_terminal_refusal(revision_env)
     with base[8].connect() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0060_b15_package_preparation"
+            == "0061_b16_consent_withdrawal"
         )
 
 

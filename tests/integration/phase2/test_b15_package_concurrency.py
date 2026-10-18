@@ -19,6 +19,7 @@ from researchbase.application.prepared_submission import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.prepared_submission_repository import (
     B15_SHARE_SQL,
+    B16_SHARE_SQL,
     SqlAlchemyPreparedSubmissionRepository,
 )
 from tests.integration.phase2.b15_support import (  # noqa: F401
@@ -138,8 +139,9 @@ def test_write_first_sql_inventory_and_read_committed(b15_env, monkeypatch, oper
     finally:
         event.remove(engine, "begin", begin)
         event.remove(engine, "before_cursor_execute", capture)
-    writes = [tx for tx in transactions if B15_SHARE_SQL in tx]
-    assert len(writes) == 1 and writes[0][0] == B15_SHARE_SQL
+    expected = B16_SHARE_SQL if operation == "consent" else B15_SHARE_SQL
+    writes = [tx for tx in transactions if expected in tx]
+    assert len(writes) == 1 and writes[0][0] == expected
 
 
 @pytest.mark.parametrize("same_uuid", [True, False])
@@ -201,7 +203,7 @@ def test_consent_withdrawal_both_orders(b15_env, first, monkeypatch):
         assert entered.wait(10)
         b = pool.submit(run, "withdraw" if first == "consent" else "consent")
         try:
-            _wait_for_pg_blocker(engine, first_pid[0], "transactionid")
+            _wait_for_pg_blocker(engine, first_pid[0], "relation")
         finally:
             release.set()
         a.result(15)

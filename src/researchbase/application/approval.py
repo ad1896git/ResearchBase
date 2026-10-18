@@ -656,7 +656,7 @@ class ApprovalService:
             uow.enable_approval_error_normalization()
             repo = uow.approval
             uow.configure_approval_transaction()
-            repo.lock_snapshot()
+            repo.lock_snapshot(deciding=kind == "decision")
             repo.lock_request(command.id)
             request = (
                 None
@@ -954,9 +954,135 @@ class ApprovalService:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "broken grant chain")
         return grant, decision, request
 
-    def _evaluate_in_uow(self, uow, grant, decision, request):
+    def _withdrawal_request(self, uow, request):
+        """Verify immutable local approval history without scientific admission or bytes."""
+        from researchbase.domain.decision import decision_basis_material, decision_content_material
+        from researchbase.domain.internal_review import review_material
+
         try:
-            self._request_view(uow, request)
+            project = request["project_id"]
+            target = uow.prepared_submission.manuscript(request["manuscript_version_id"])
+            parent = uow.prepared_submission.parent(target["publication_id"]) if target else None
+            basis = uow.decision.decision(request["basis_decision_id"], project)
+            if (
+                target is None
+                or parent is None
+                or parent["project_id"] != project
+                or target["status"] not in {"FROZEN", "SUPERSEDED"}
+                or target["content_hash"] != request["target_content_hash"]
+                or request["scientific_conclusion_version_id"] is not None
+                or request["approval_purpose"] != "PREPARE_SUBMISSION"
+                or request["status"] != "DECIDED"
+                or basis is None
+                or basis["decision_type"] != "PREPARE_SUBMISSION"
+                or basis["decision"] != "PROCEED"
+                or basis["decided_at"] > request["requested_at"]
+                or basis["supersedes_decision_id"] is not None
+                or uow.decision.prepare_submission_other_basis(basis["id"])
+            ):
+                raise ValueError("exact immutable request closure required")
+            refs = self._decisions._basis(uow.decision.manuscript_basis(basis["id"]))
+            targets = [r for r in refs if r.type == "ManuscriptVersion"]
+            reviews = [r for r in refs if r.type == "InternalReviewRecord"]
+            saved = uow.approval.reviews(request["id"])
+            if (
+                len(targets) != 1
+                or targets[0].id != target["id"]
+                or targets[0].content_hash != target["content_hash"]
+                or not reviews
+                or len(refs) != len(reviews) + 1
+                or {r["id"] for r in saved} != {r.id for r in reviews}
+            ):
+                raise ValueError("exact sealed request reviews required")
+            bh = str(sha256_canonical_json(decision_basis_material(refs)))
+            dh = str(
+                sha256_canonical_json(
+                    decision_content_material(
+                        project,
+                        basis["decision_type"],
+                        basis["question"],
+                        basis["decision"],
+                        basis["rationale"],
+                        basis["decided_by"],
+                        bh,
+                    )
+                )
+            )
+            if (
+                basis["basis_set_hash"] != bh
+                or basis["content_hash"] != dh
+                or basis["hash_scheme"] != "sha256-cjson-v1"
+            ):
+                raise ValueError("immutable decision hash mismatch")
+            for ref in reviews:
+                row = uow.internal_review.review(ref.id, project)
+                if (
+                    row is None
+                    or row["manuscript_version_id"] != target["id"]
+                    or row["target_content_hash"] != target["content_hash"]
+                    or row["created_at"] > basis["decided_at"]
+                    or any(
+                        row.get(k) is not None
+                        for k in (
+                            "claim_version_id",
+                            "scientific_conclusion_version_id",
+                            "artifact_version_id",
+                        )
+                    )
+                ):
+                    raise ValueError("exact immutable review required")
+                rh = str(
+                    sha256_canonical_json(
+                        review_material(
+                            project,
+                            "ManuscriptVersion",
+                            target["id"],
+                            target["content_hash"],
+                            row["reviewer_actor_id"],
+                            row["review_type"],
+                            row["recommendation"],
+                            row["summary"],
+                        )
+                    )
+                )
+                if (
+                    rh != row["content_hash"]
+                    or rh != ref.content_hash
+                    or row["hash_scheme"] != "sha256-cjson-v1"
+                ):
+                    raise ValueError("review hash mismatch")
+            events = uow.approval.request_events(request["id"])
+            decision = uow.approval.decision_for_request(request["id"])
+            if (
+                len(events) != 2
+                or decision is None
+                or not any(
+                    e["prior_status"] is None
+                    and e["new_status"] == "PENDING"
+                    and e["actor_id"] == request["requested_by"]
+                    and e["occurred_at"] == request["requested_at"]
+                    for e in events
+                )
+                or not any(
+                    e["prior_status"] == "PENDING"
+                    and e["new_status"] == "DECIDED"
+                    and e["actor_id"] == decision["decided_by"]
+                    and e["occurred_at"] == decision["decided_at"]
+                    for e in events
+                )
+            ):
+                raise ValueError("request event closure mismatch")
+        except (TypeError, ValueError, KeyError):
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "immutable withdrawal grant history corrupt"
+            )
+
+    def _evaluate_in_uow(self, uow, grant, decision, request, *, withdrawal=False):
+        try:
+            if withdrawal:
+                self._withdrawal_request(uow, request)
+            else:
+                self._request_view(uow, request)
         except ResearchBaseError as error:
             if error.code in {ErrorCode.DECISION_BASIS_INVALID, ErrorCode.CONFLICT_OF_INTEREST}:
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved approval basis corrupt")
