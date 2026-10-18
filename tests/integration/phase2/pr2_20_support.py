@@ -14,7 +14,7 @@ from typing import Any
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import event, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from tests.contracts import pr2_20_evidence as evidence
 from tests.contracts.pr2_20_evidence import canonical_bytes, digest_bytes
@@ -46,14 +46,22 @@ def upgrade(url: str, revision: str = "head") -> None:
         command.upgrade(config, revision)
 
 
+@contextmanager
+def read_snapshot(engine: Engine) -> Iterator[Connection]:
+    """Configure the observer before its first statement; acquire no explicit locks."""
+    with engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn:
+        conn.execute(text("SET TRANSACTION READ ONLY"))
+        yield conn
+
+
 def require_pg18(engine: Engine) -> str:
-    with engine.connect() as conn:
+    with read_snapshot(engine) as conn:
         assert int(conn.execute(text("SHOW server_version_num")).scalar_one()) // 10000 == 18
         return conn.execute(text("SHOW server_version")).scalar_one()
 
 
 def catalog(engine: Engine) -> dict[str, Any]:
-    with engine.connect() as conn:
+    with read_snapshot(engine) as conn:
         return {
             "indexes": [
                 list(row)
@@ -82,7 +90,7 @@ def manifest(
     engine: Engine, tables: tuple[str, ...], columns: dict[str, tuple[str, ...]] | None = None
 ) -> dict[str, Any]:
     """Hash complete rows/IDs/edges; expose no row text or credential material."""
-    with engine.connect() as conn:
+    with read_snapshot(engine) as conn:
         allowed = set(
             conn.execute(
                 text("SELECT tablename FROM pg_tables WHERE schemaname='public'")
@@ -125,6 +133,7 @@ def manifest(
 class Capture:
     statements: list[tuple[str, Any]] = field(default_factory=list, repr=False)
     elapsed_ms: float = 0
+    transaction_first_statements: list[str] = field(default_factory=list)
 
     @property
     def query_count(self) -> int:
@@ -138,11 +147,19 @@ class Capture:
 @contextmanager
 def capture(engine: Engine) -> Iterator[Capture]:
     observed = Capture()
+    pending = set()
+
+    def begin(conn):
+        pending.add(conn)
 
     def before(conn, cursor, statement, parameters, context, executemany):
         # Parameter values remain ephemeral; only types/digests leave this process.
         observed.statements.append((statement, parameters))
+        if conn in pending:
+            pending.remove(conn)
+            observed.transaction_first_statements.append(statement)
 
+    event.listen(engine, "begin", begin)
     event.listen(engine, "before_cursor_execute", before)
     started = time.monotonic_ns()
     try:
@@ -150,13 +167,13 @@ def capture(engine: Engine) -> Iterator[Capture]:
     finally:
         observed.elapsed_ms = (time.monotonic_ns() - started) / 1_000_000
         event.remove(engine, "before_cursor_execute", before)
+        event.remove(engine, "begin", begin)
 
 
 def explain_reads(engine: Engine, observed: Capture) -> list[dict[str, Any]]:
     """Actual captured SELECTs, separate read-only observer, no lock/volatile SQL."""
     plans = []
-    with engine.connect() as conn:
-        conn.execute(text("SET TRANSACTION READ ONLY"))
+    with read_snapshot(engine) as conn:
         conn.execute(text("SET LOCAL statement_timeout='10s'"))
         for sql, parameters in observed.statements:
             lower = sql.lower().strip()
@@ -350,7 +367,7 @@ def save_migration(
             .relative_to(evidence.EVIDENCE_ROOT)
             .as_posix()
         )
-    with engine.connect() as conn:
+    with read_snapshot(engine) as conn:
         revision = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
         server = conn.execute(
             text("SELECT system_identifier::text FROM pg_control_system()")
@@ -381,7 +398,7 @@ def save_migration(
 
 
 def column_inventory(engine: Engine, tables: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
-    with engine.connect() as conn:
+    with read_snapshot(engine) as conn:
         return {
             table: tuple(
                 conn.execute(

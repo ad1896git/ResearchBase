@@ -1,4 +1,4 @@
-"""Only the existing minimal Decision command; no approval activation."""
+"""F5/F5b deterministic approval gates preserve committed predecessor facts."""
 
 from dataclasses import replace
 
@@ -14,6 +14,7 @@ from tests.integration.phase2.pr2_19_support import decision_env as _decision_en
 from tests.integration.phase2.pr2_19_support import m3 as _m3
 from tests.integration.phase2.pr2_19_support import phase2_database_url as _phase2_database_url
 from tests.integration.phase2.pr2_19_support import pr219_decision_env as _pr219_decision_env
+from tests.integration.phase2.test_approval import approval_env as _approval_env
 
 pytestmark = pytest.mark.integration
 
@@ -94,3 +95,228 @@ decision_env = _decision_env
 m3 = _m3
 phase2_database_url = _phase2_database_url
 pr219_decision_env = _pr219_decision_env
+
+
+@pytest.mark.parametrize("stage", ["request", "decision"])
+@pytest.mark.parametrize("fact", ["blocking", "stale"])
+def test_approval_current_fact_denial_retains_committed_request(approval_env, stage, fact):
+    from researchbase.application.approval import ApprovalService
+    from researchbase.application.internal_review import ReviewIssueRequest
+    from researchbase.persistence.approval_repository import B09_DECIDE_SHARE_SQL, B09_SHARE_SQL
+    from tests.integration.phase2.b30_observations import (
+        assert_first_share,
+        assert_snapshot_read,
+        sql_protocol,
+    )
+    from tests.integration.phase2.test_approval import _decide
+
+    service, requester, approver, command, env = approval_env
+    base = env[-1]
+    prior = service.request_approval(requester, command) if stage == "decision" else None
+    if fact == "blocking":
+        cases._review(
+            env, "REJECT", (ReviewIssueRequest("BLOCKING", "OVERCLAIM", "B30 current concern"),)
+        )
+    else:
+        cases._stale(env)
+    before = counts(base[8])
+    with sql_protocol(base[8]) as statements:
+        with pytest.raises(ResearchBaseError) as denied:
+            if stage == "request":
+                service.request_approval(requester, command)
+            else:
+                service.decide_approval(approver, _decide(command))
+    assert_first_share(statements, B09_SHARE_SQL if stage == "request" else B09_DECIDE_SHARE_SQL)
+    if stage == "decision":
+        assert (
+            "LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE",
+            "READ_COMMITTED",
+            False,
+        ) in statements
+    assert denied.value.code is (
+        ErrorCode.APPROVAL_GATE_FAILED if fact == "blocking" else ErrorCode.APPROVAL_TARGET_STALE
+    )
+    assert counts(base[8]) == before
+    fresh = ApprovalService(base[1], base[9], base[2])
+    if prior:
+        with sql_protocol(base[8]) as statements:
+            assert fresh.get_request(requester, command.project_id, command.id).status == "PENDING"
+        assert_snapshot_read(statements)
+    else:
+        with pytest.raises(ResearchBaseError) as absent:
+            fresh.get_request(requester, command.project_id, command.id)
+        assert absent.value.code is ErrorCode.NOT_FOUND
+    assert counts(base[8]) == before
+
+
+@pytest.mark.parametrize(
+    "case,code",
+    [
+        ("owner_only", ErrorCode.FORBIDDEN),
+        ("requester", ErrorCode.CONFLICT_OF_INTEREST),
+        ("reviewer", ErrorCode.CONFLICT_OF_INTEREST),
+        ("author", ErrorCode.CONFLICT_OF_INTEREST),
+        ("credential", ErrorCode.FORBIDDEN),
+        ("wrong_project", ErrorCode.FORBIDDEN),
+    ],
+)
+def test_approval_independence_and_authority_matrix(approval_env, case, code):
+    from uuid import uuid4
+
+    from researchbase.application.phase2_identity import AssignProjectRole
+    from tests.integration.phase2.test_approval import _actor, _decide
+    from tests.integration.phase2.test_pr2_00_challenges import _service
+
+    service, requester, approver, request, env = approval_env
+    base = env[-1]
+    prior = service.request_approval(requester, request)
+    actor = approver
+    if case in {"owner_only", "requester", "reviewer", "author"}:
+        actor = {"requester": requester, "reviewer": env[2], "author": base[3]}.get(case)
+        if actor is None:
+            actor = _actor(env)
+        if case != "owner_only":
+            identity, _, _ = _service(str(base[8].url))
+            identity.assign_project_role(
+                AssignProjectRole(
+                    actor if case == "author" else env[2],
+                    request.project_id,
+                    actor.actor_id,
+                    "APPROVER",
+                    "Test independence even with role",
+                    uuid4(),
+                )
+            )
+    command = _decide(request)
+    if case == "credential":
+        del base[9].principals[actor.actor_id]
+    elif case == "wrong_project":
+        command = replace(command, project_id=uuid4())
+    before = counts(base[8])
+    with pytest.raises(ResearchBaseError) as denied:
+        service.decide_approval(actor, command)
+    assert denied.value.code is code
+    assert counts(base[8]) == before
+    assert service.get_request(requester, request.project_id, prior.id).status == "PENDING"
+
+
+approval_env = _approval_env
+
+
+def test_snapshot_observer_uses_server_settings_across_pooled_reuse(approval_env):
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+
+    engine = approval_env[-1][-1][8]
+    with engine.connect() as conn:
+        with sql_protocol(engine) as observed:
+            conn.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+            conn.execute(text("SELECT 1"))
+            conn.rollback()
+            conn.execute(text("SELECT 2"))
+            conn.rollback()
+    assert len(observed.transactions) == 2
+    first, second = observed.transactions
+    assert first.backend_pid == second.backend_pid
+    assert_snapshot_read(first.statements)
+    assert all(mode == "READ_COMMITTED" and not readonly for _, mode, readonly in second.statements)
+    with pytest.raises(AssertionError):
+        assert_snapshot_read(observed)
+
+
+@pytest.mark.parametrize("field", ["on_behalf_of_actor_id", "approved", "skip_review"])
+def test_closed_approval_command_rejects_bypass_fields(approval_env, field):
+    from dataclasses import asdict
+    from uuid import uuid4
+
+    from researchbase.application.approval import RequestApprovalCommand
+
+    service, requester, _, command, env = approval_env
+    before = counts(env[-1][8])
+    with pytest.raises(TypeError):
+        RequestApprovalCommand(**{**asdict(command), field: uuid4()})
+    assert counts(env[-1][8]) == before
+    with pytest.raises(ResearchBaseError) as missing:
+        service.get_request(requester, command.project_id, command.id)
+    assert missing.value.code is ErrorCode.NOT_FOUND
+
+
+def test_wrong_purpose_target_tuple_never_creates_approval(approval_env):
+    _, _, _, command, env = approval_env
+    before = counts(env[-1][8])
+    with pytest.raises(ResearchBaseError) as denied:
+        replace(command, approval_purpose="READY_FOR_SUBMISSION")
+    assert denied.value.code is ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID
+    assert counts(env[-1][8]) == before
+
+
+@pytest.mark.parametrize("delta", [-1, 0, 31])
+def test_approval_expiry_denial_retains_committed_request(approval_env, delta):
+    from datetime import timedelta
+
+    from researchbase.application.approval import ApprovalService
+    from tests.integration.phase2.test_approval import _decide
+
+    service, requester, approver, request, env = approval_env
+    prior = service.request_approval(requester, request)
+    with env[-1][8].connect() as conn:
+        expiry = conn.execute(text("SELECT clock_timestamp()")).scalar_one() + timedelta(days=delta)
+    before = counts(env[-1][8])
+    with pytest.raises(ResearchBaseError) as denied:
+        service.decide_approval(
+            approver, _decide(request, "APPROVE_WITH_CONDITIONS", valid_until=expiry)
+        )
+    assert denied.value.code is ErrorCode.VALIDATION_ERROR
+    assert counts(env[-1][8]) == before
+    reader = ApprovalService(env[-1][1], env[-1][9], env[-1][2])
+    assert reader.get_request(requester, request.project_id, prior.id).status == "PENDING"
+
+
+def test_complete_adverse_review_basis_cannot_be_substituted(approval_env):
+    from tests.integration.phase2.test_approval import _decide
+
+    service, requester, approver, command, env = approval_env
+    adverse = cases._review(env, "REJECT")
+    before = counts(env[-1][8])
+    with pytest.raises(ResearchBaseError) as denied:
+        service.request_approval(
+            requester,
+            replace(command, review_ids=tuple(sorted(command.review_ids + (adverse.id,)))),
+        )
+    assert denied.value.code is ErrorCode.DECISION_BASIS_INVALID
+    assert counts(env[-1][8]) == before
+    # Later adverse review is historical evidence; the saved Decision's exact
+    # basis remains the only admissible request basis (no implicit replacement).
+    saved = service.request_approval(requester, command)
+    result = service.decide_approval(approver, _decide(command))
+    assert result.grant is not None
+    assert tuple(ref.id for ref in saved.reviews) == command.review_ids
+
+
+def test_agent_with_existing_role_and_verified_binding_cannot_approve(approval_env):
+    from uuid import uuid4
+
+    from researchbase.application.phase2_identity import AssignProjectRole
+    from tests.integration.phase2.test_approval import _actor, _decide
+    from tests.integration.phase2.test_pr2_00_challenges import _service
+
+    service, requester, _, request, env = approval_env
+    actor = _actor(env)
+    identity, _, _ = _service(str(env[-1][8].url))
+    identity.assign_project_role(
+        AssignProjectRole(
+            env[2], request.project_id, actor.actor_id, "APPROVER", "Test HUMAN-only gate", uuid4()
+        )
+    )
+    # Existing discussion fixture pattern: isolated test actor classification,
+    # with valid binding/membership/role retained. No scientific/grant fabrication.
+    with env[-1][8].begin() as conn:
+        conn.execute(
+            text("UPDATE actors SET actor_type='AGENT' WHERE id=:id"), {"id": actor.actor_id}
+        )
+    prior = service.request_approval(requester, request)
+    before = counts(env[-1][8])
+    with pytest.raises(ResearchBaseError) as denied:
+        service.decide_approval(actor, _decide(request))
+    assert denied.value.code is ErrorCode.FORBIDDEN
+    assert counts(env[-1][8]) == before
+    assert service.get_request(requester, request.project_id, prior.id).status == "PENDING"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from datetime import UTC, datetime
 from typing import Any, Literal, NoReturn, cast, dataclass_transform
 from uuid import UUID
@@ -67,7 +67,9 @@ def _bounded(size: int, limit: int = _LIMIT) -> None:
 @dataclass_transform(frozen_default=True)
 def _closed[T](record: type[T]) -> type[T]:
     decorated = checked_dataclass(
-        record, config=ConfigDict(extra="forbid", frozen=True, strict=True), slots=True
+        record,
+        config=ConfigDict(extra="forbid", frozen=True, strict=True, arbitrary_types_allowed=True),
+        slots=True,
     )
     original = decorated.__init__
 
@@ -426,11 +428,7 @@ class ManuscriptValidityService:
             if row["status"] != "FROZEN":
                 _closure("unsupported persisted manuscript lifecycle")
             try:
-                checked = collector.verify_in_uow(
-                    uow, query.project_id, parent, row, admission=False
-                )
-                state = collector._merge(checked.current_validity, collector.active_state)
-                collector._observe("ManuscriptVersion", row["id"], state)
+                validity = self.build_in_uow(uow, query, parent, row, collector)
                 trace = (
                     self._trace.build_in_uow(
                         uow, query.project_id, query.publication_id, row["id"], row
@@ -440,17 +438,7 @@ class ManuscriptValidityService:
                 )
                 concerns, blocking = self._audit(uow, query, collector) if audit else ((), ())
                 at = collector.authorize(uow, principal, query.project_id, _READERS)
-                validity = ManuscriptValidityReadback(
-                    query.project_id,
-                    query.publication_id,
-                    row["id"],
-                    "FROZEN",
-                    row["content_hash"],
-                    row["placement_set_hash"],
-                    cast(State, state),
-                    collector.witnesses(),
-                    at.astimezone(UTC),
-                )
+                validity = replace(validity, evaluated_at=at.astimezone(UTC))
                 if trace is None:
                     return validity
                 # Bound paths across the entire embedded response, including concerns.
@@ -470,6 +458,30 @@ class ManuscriptValidityService:
                     ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                     "invalid saved manuscript audit material",
                 ) from exc
+
+    def build_in_uow(
+        self,
+        uow: UnitOfWork,
+        query: GetManuscriptValidityQuery | GetManuscriptAuditQuery,
+        parent: Any,
+        row: Any,
+        collector: _Collector,
+    ) -> ManuscriptValidityReadback:
+        """Verify exact closure on the caller's prepared snapshot; caller authorizes return."""
+        checked = collector.verify_in_uow(uow, query.project_id, parent, row, admission=False)
+        state = collector._merge(checked.current_validity, collector.active_state)
+        collector._observe("ManuscriptVersion", row["id"], state)
+        return ManuscriptValidityReadback(
+            query.project_id,
+            query.publication_id,
+            row["id"],
+            "FROZEN",
+            row["content_hash"],
+            row["placement_set_hash"],
+            cast(State, state),
+            collector.witnesses(),
+            row["created_at"].astimezone(UTC),
+        )
 
     def _audit(
         self,

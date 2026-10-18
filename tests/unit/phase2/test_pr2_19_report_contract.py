@@ -206,3 +206,131 @@ def test_cross_scenario_command_is_rejected():
         replace(records()[0], command_steps=("DecisionService.record_decision",))
     with pytest.raises(ValueError, match="scenario"):
         replace(records()[4], command_identity="DecisionService.record_decision")
+
+
+def test_b30_labels_resolve_to_existing_owning_application_methods():
+    import ast
+    import importlib
+
+    from tests.integration.phase2.pr2_19_support import B30_COMMANDS
+
+    modules = (
+        "search_result_resolution",
+        "manuscript_freeze",
+        "manuscript_placement",
+        "manuscript_scientific_trace",
+        "manuscript_validity",
+        "scientific_conclusion",
+        "revision_action",
+        "internal_review",
+        "decision",
+        "approval",
+    )
+    owners = {}
+    for module in modules:
+        imported = importlib.import_module("researchbase.application." + module)
+        assert imported.__file__ is not None
+        tree = ast.parse(Path(imported.__file__).read_text())
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                owners[node.name] = {n.name for n in node.body if isinstance(n, ast.FunctionDef)}
+    for labels in B30_COMMANDS.values():
+        for label in labels:
+            owner, method = label.split(".")
+            assert method in owners[owner]
+    assert not any("Authorship" in label for labels in B30_COMMANDS.values() for label in labels)
+    assert SCENARIO_COMMANDS["G7"] == {c for c in COMMANDS if c.startswith("NoveltyService.")}
+
+
+def test_report_fields_remain_closed_and_full_gate_cannot_accept_green_prefix():
+    from tests.integration.phase2.test_pr2_19_dependencies import (
+        full_gate_report,
+        require_full_gate,
+    )
+
+    assert [f.name for f in fields(ScenarioSpec)] == [
+        "scenario_id",
+        "authority_clause",
+        "prerequisite_contracts",
+        "actor_ids",
+        "fixture_case",
+        "command_steps",
+        "fault_point",
+        "expected_outcome",
+        "expected_error_code",
+    ]
+    assert [f.name for f in fields(ScenarioObservation)] == [
+        "scenario_id",
+        "step_index",
+        "command_identity",
+        "result_ids",
+        "error_code",
+        "state_deltas",
+        "verified_hashes",
+        "backend_pids",
+        "lock_events",
+        "evidence_paths",
+    ]
+    report = full_gate_report()
+    assert report["status"] == "BLOCKED" and "G7" in report["blocked_rows"]
+    with pytest.raises(ValueError, match="BLOCKED"):
+        require_full_gate(report)
+
+
+@pytest.mark.parametrize(
+    "name,http,cli",
+    [
+        ("VALIDATION_ERROR", 422, 2),
+        ("AUTHENTICATION_REQUIRED", 401, 3),
+        ("FORBIDDEN", 403, 3),
+        ("CONFLICT_OF_INTEREST", 403, 3),
+        ("SUBJECT_BINDING_UNPROVEN", 403, 3),
+        ("NOT_FOUND", 404, 3),
+        ("SOURCE_VERSION_NOT_FOUND", 404, 3),
+        ("REVIEW_TARGET_NOT_FROZEN", 409, 4),
+        ("VERSION_NOT_FROZEN", 409, 4),
+        ("INVALID_STATE_TRANSITION", 409, 4),
+        ("INVALID_SOURCE_VERSION_LINEAGE", 409, 4),
+        ("SOURCE_VERSION_NOT_FREEZABLE", 409, 4),
+        ("SOURCE_VERSION_IMMUTABLE", 409, 4),
+        ("FROZEN_REFERENCE_REQUIRED", 409, 5),
+        ("PROVENANCE_CLOSURE_VIOLATION", 409, 5),
+        ("REFERENTIAL_INTEGRITY_ERROR", 409, 5),
+        ("IMMUTABLE_RECORD", 409, 4),
+        ("IDEMPOTENCY_CONFLICT", 409, 4),
+        ("CONCURRENT_MODIFICATION", 409, 4),
+        ("APPROVAL_PURPOSE_TARGET_COMMAND_INVALID", 409, 4),
+        ("DECISION_BASIS_INVALID", 409, 4),
+        ("APPROVAL_GATE_FAILED", 409, 4),
+        ("APPROVAL_TARGET_STALE", 409, 4),
+        ("REJECTION_RECONSIDERATION_REQUIRED", 409, 4),
+        ("GRANT_INVALID", 409, 4),
+        ("GRANT_STALE", 409, 4),
+    ],
+)
+def test_b30_pinned_error_transports(name, http, cli):
+    from researchbase.api.errors import _STATUS
+    from researchbase.cli.errors import CLI_EXIT_CODES
+    from researchbase.foundation.errors import ErrorCode
+
+    code = ErrorCode(name)
+    assert _STATUS[code] == http and CLI_EXIT_CODES[code] == cli
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT set_config('x','y',true)",
+        "SELECT public.pg_try_advisory_xact_lock(1)",
+        "SELECT public.rb_phase2_lock_actor(1)",
+        "WITH changed AS (DELETE FROM claims RETURNING *) SELECT * FROM changed",
+        "SELECT nextval('history')",
+        "SELECT * FROM claims FOR NO KEY UPDATE",
+        "SELECT * FROM claims FOR KEY SHARE",
+    ],
+)
+def test_snapshot_observer_rejects_mutating_or_exclusion_statements(sql):
+    from tests.integration.phase2.b30_observations import assert_snapshot_read
+
+    with pytest.raises(AssertionError):
+        assert_snapshot_read([(sql, "REPEATABLE_READ", True)])

@@ -242,3 +242,33 @@ def test_one_blocker_among_many_favorable_reviews_is_never_filtered(decision_env
             conn.execute(text("SELECT review_record_id FROM review_issues")).scalar_one()
             == blocker.id
         )
+
+
+def test_b29_candidate_only_in_owned_clone_with_exact_catalog_and_snapshot(decision_env):
+    from tests.integration.phase2 import b29_measurement as b
+
+    engine = decision_env[-1][8]
+    with pytest.raises(ValueError, match="fixture-owned"):
+        b.install_candidate(engine)
+    with b.measurement_clone(engine) as clone:
+        before = s.manifest(clone, ("review_issues", "review_issue_events"))
+        with s.capture(clone) as reads, s.read_snapshot(clone) as conn:
+            assert (
+                conn.execute(text("SHOW transaction_isolation")).scalar_one() == "repeatable read"
+            )
+            assert conn.execute(text("SHOW transaction_read_only")).scalar_one() == "on"
+            assert b.INDEX not in {row["name"] for row in b.candidate_catalog(clone)}
+        assert all(
+            not any(term in sql.lower() for term in ("lock table", "pg_advisory", "for update"))
+            for sql, _ in reads.statements
+        )
+        result = b.install_candidate(clone)
+        assert result["index"]["valid"] and result["index"]["bytes"] > 0
+        with pytest.raises(ValueError, match="equivalent"):
+            b.install_candidate(clone)
+        assert s.manifest(clone, tuple(before)) == before
+        assert b.INDEX not in {row["name"] for row in b.candidate_catalog(engine)}
+        with clone.begin() as conn:
+            conn.execute(text(f"ALTER INDEX {b.INDEX} RENAME TO b29_equivalent"))
+        with pytest.raises(ValueError, match="equivalent"):
+            b.install_candidate(clone)

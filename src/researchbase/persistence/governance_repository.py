@@ -421,6 +421,50 @@ class SqlAlchemyGovernanceRepository:
         )
         self._session.flush()
 
+    def finding_header(self, project_id: UUID, finding_id: UUID) -> UUID | None:
+        """Scope the root before hydrating any saved target or payload."""
+        return self._session.scalar(
+            select(AuditFindingModel.id).where(
+                AuditFindingModel.id == finding_id, AuditFindingModel.project_id == project_id
+            )
+        )
+
+    def finding_assessments(
+        self, project_id: UUID, finding_id: UUID
+    ) -> tuple[ImpactAssessment, ...]:
+        # Inventory the complete linked set and target count before domain hydration.
+        # Every SELECT is ceiling+1 bounded by the caller's prepared B25 Session.
+        ids = self._session.scalars(
+            select(ImpactAssessmentModel.id)
+            .where(ImpactAssessmentModel.audit_finding_id == finding_id)
+            .order_by(ImpactAssessmentModel.created_at, ImpactAssessmentModel.id)
+            .limit(10001)
+        ).all()
+        targets = self._session.execute(
+            select(ImpactTargetModel.impact_assessment_id, ImpactTargetModel.target_id)
+            .join(
+                ImpactAssessmentModel,
+                ImpactAssessmentModel.id == ImpactTargetModel.impact_assessment_id,
+            )
+            .where(ImpactAssessmentModel.audit_finding_id == finding_id)
+            .limit(10001)
+        ).all()
+        if len(ids) > 10000 or len(targets) > 10000:
+            raise ResearchBaseError(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "complete Finding assessment set exceeds fixed ceiling",
+            )
+        result = []
+        for identity in ids:
+            item = self.get_impact_assessment(identity)
+            if item is None or item.project_id != project_id or item.audit_finding_id != finding_id:
+                raise ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "incomplete or foreign saved Finding assessment",
+                )
+            result.append(item)
+        return tuple(sorted(result, key=lambda item: (item.created_at, str(item.id))))
+
     def get_audit_finding(self, finding_id: UUID) -> AuditFinding | None:
         model = self._session.get(AuditFindingModel, finding_id)
         if model is None:
@@ -499,7 +543,12 @@ class SqlAlchemyGovernanceRepository:
             .where(ImpactTargetModel.impact_assessment_id == assessment_id)
             .order_by(ImpactTargetModel.target_type, ImpactTargetModel.target_id)
         ).all()
-        targets = tuple(_impact_target_from_model(item) for item in target_models)
+        targets = tuple(
+            sorted(
+                (_impact_target_from_model(item) for item in target_models),
+                key=lambda item: (item.target_type.value, str(item.target_id)),
+            )
+        )
         assessment = _impact_assessment_from_models(model, targets)
         for target in targets:
             self._verify_target_binding(

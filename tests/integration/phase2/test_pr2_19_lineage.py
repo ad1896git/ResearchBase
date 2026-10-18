@@ -26,6 +26,8 @@ from tests.integration.phase2.pr2_19_support import m3 as _m3
 from tests.integration.phase2.pr2_19_support import phase2_database_url as _phase2_database_url
 from tests.integration.phase2.pr2_19_support import pr219_candidate_env as _pr219_candidate_env
 from tests.integration.phase2.pr2_19_support import pr219_evidence_env as _pr219_evidence_env
+from tests.integration.phase2.test_b05_manuscript_review import b04_env as _b04_env
+from tests.integration.phase2.test_b05_manuscript_review import b05_env as _b05_env
 from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
 
 pytestmark = pytest.mark.integration
@@ -275,3 +277,54 @@ m3 = _m3
 phase2_database_url = _phase2_database_url
 pr219_candidate_env = _pr219_candidate_env
 pr219_evidence_env = _pr219_evidence_env
+
+
+@pytest.mark.parametrize("snapshot", [False, True])
+@pytest.mark.parametrize("kind", ["CORRECTED", "RETRACTED"])
+def test_current_manuscript_projection_audit_retains_frozen_material(b05_env, snapshot, kind):
+    from tests.integration.phase2.b25_support import (
+        literature_conclusion,
+        queries,
+        source_transition,
+    )
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+    from tests.integration.phase2.test_b05_manuscript_review import seal
+
+    env = b05_env
+    evidence, support, conclusion = literature_conclusion(env, snapshot=snapshot)
+    sealed = seal(env)
+    service, q, aq = queries(env)
+    initial = service.get_manuscript_audit(env[3], aq)
+    assert initial.validity.current_validity == "VALID"
+    with env[5].connect() as conn:
+        document_hash = conn.execute(
+            text("SELECT content_hash FROM artifact_versions WHERE id=:id"),
+            {"id": sealed.document_artifact_version_id},
+        ).scalar_one()
+    document_bytes = env[7].open(document_hash)
+    source_transition(env, kind)
+    service, q, aq = queries(env)  # Fresh owning readers.
+    with sql_protocol(env[5]) as observed:
+        current = service.get_manuscript_validity(env[3], q)
+        audit = service.get_manuscript_audit(env[3], aq)
+    assert_snapshot_read(observed)
+    assert current.current_validity == ("INVALID" if kind == "RETRACTED" else "STALE")
+    assert (
+        current.content_hash == sealed.content_hash
+        and current.placement_set_hash == sealed.placement_set_hash
+    )
+    assert audit.validity.content_hash == current.content_hash
+    assert audit.validity.witnesses == current.witnesses
+    witness = next(w for w in current.witnesses if w.node.kind == "LiteratureEvidence")
+    assert witness.node.id == evidence
+    assert witness.occurrences[0].nodes[1].id == conclusion
+    if snapshot:
+        assert support in {node.id for node in witness.occurrences[0].nodes}
+    assert env[7].verify(document_hash) and env[7].open(document_hash) == document_bytes
+    # No automatic finding/impact assertion: the source owner supplies lineage.
+    assert audit.unsupported_concerns == ()
+
+
+b04_env = _b04_env
+
+b05_env = _b05_env

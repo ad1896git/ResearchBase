@@ -356,3 +356,150 @@ def build(m3, url, tmp_path, counts: dict[str, int]) -> dict[str, Any]:
         "prepare": prepare,
         "limitation": "Superseded manuscript history BLOCKED: owning lifecycle unavailable",
     }
+
+
+def build_b29(decision_env):
+    """Legal mostly-OPEN/selectivity fixture; identity shared by physical clones.
+
+    Distribution is deterministic; owning services allocate and persist the exact
+    UUIDs subsequently copied into both databases. No direct scientific writes.
+    """
+    from researchbase.application.decision import RecordRevisionDecisionCommand
+    from researchbase.application.internal_review import RecordIssueDispositionCommand
+    from researchbase.application.revision_action import (
+        RecordConcernReReviewCommand,
+        RecordRevisionActionCommand,
+        RevisionActionService,
+    )
+
+    decisions, reviews, actor, _, base = decision_env
+    scientific, _, literature, author, _, project, claim, _, engine, credentials = base
+    revisions = RevisionActionService(base[1], credentials, literature)
+
+    def target(label):
+        item = scientific.create(
+            author,
+            project,
+            f"TEST ONLY B29 {label}",
+            SCOPE,
+            "MODERATE",
+            None,
+            (ClaimInputRequest(claim, "SUPPORTS"),),
+            (),
+            uuid4(),
+        )
+        scientific.freeze(author, project, item.conclusion_id, item.version_id, uuid4())
+        return item.version_id
+
+    targets = {name: target(name) for name in ("sparse", "dense", "miss", "terminal")}
+
+    def review(exact, issues=()):
+        return reviews.create(
+            actor,
+            project,
+            "SCIENTIFIC_CONCLUSION_VERSION",
+            exact,
+            "SCIENTIFIC",
+            "ACCEPT",
+            "TEST ONLY B29 complete review",
+            issues,
+            uuid4(),
+        )
+
+    for kind in ("sparse", "dense", "miss"):
+        # 25 zero-Issue favorable reviews plus 24 populated reviews per target.
+        for _ in range(25):
+            review(targets[kind])
+        for number in range(24):
+            review(
+                targets[kind],
+                tuple(
+                    ReviewIssueRequest(
+                        "BLOCKING"
+                        if kind == "dense" or (kind == "sparse" and number == i == 0)
+                        else "INFO",
+                        "OTHER",
+                        f"TEST ONLY B29 Issue {i}",
+                    )
+                    for i in range(32)
+                ),
+            )
+    # A second target class for measured cardinalities; zero-Issue reviews count.
+    reviews.create(
+        actor,
+        project,
+        "CLAIM_VERSION",
+        claim,
+        "SCIENTIFIC",
+        "ACCEPT",
+        "TEST ONLY B29 Claim review",
+        (),
+        uuid4(),
+    )
+    cost_targets = [target(f"cost-{i}") for i in range(13)]
+    pending = []
+    for index in range(14):
+        exact = targets["terminal"] if index == 0 else cost_targets[index - 1]
+        old = review(exact, (ReviewIssueRequest("BLOCKING", "OTHER", "TEST ONLY concern"),))
+        decision = decisions.record_revision_decision(
+            actor,
+            RecordRevisionDecisionCommand(
+                uuid4(),
+                project,
+                old.issues[0].id,
+                "Dismiss concern?",
+                "Exact basis",
+                "ACCEPT_NO_CHANGE",
+            ),
+        )
+        action = revisions.record_revision_action(
+            author,
+            RecordRevisionActionCommand(
+                uuid4(), project, "NO_CHANGE", decision_record_id=decision.id
+            ),
+        )
+        rereview = review(exact)
+        revisions.record_concern_re_review(
+            actor, RecordConcernReReviewCommand(project, action.id, rereview.id)
+        )
+        command = RecordIssueDispositionCommand(
+            uuid4(),
+            project,
+            old.issues[0].id,
+            "DISMISSED",
+            action.id,
+            rereview.id,
+            "I attest the exact no-change response resolves this concern",
+            decision.id,
+        )
+        if index == 0:
+            reviews.record_issue_disposition(actor, command)
+            terminal_issue = command.review_issue_id
+        else:
+            pending.append(command)
+    replay = RecordDecisionCommand(uuid4(), project, targets["miss"], "Proceed?", "Complete basis")
+    saved = decisions.record_decision(actor, replay)
+    assert len([ref for ref in saved.basis if ref.type == "InternalReviewRecord"]) == 49
+    denied = RecordDecisionCommand(
+        uuid4(), project, targets["sparse"], "Proceed?", "Complete basis"
+    )
+    try:
+        decisions.record_decision(actor, denied)
+    except ResearchBaseError as error:
+        denial_code = error.code.value
+    else:
+        raise AssertionError("single blocker was filtered")
+    with engine.begin() as conn:
+        conn.execute(text("ANALYZE"))
+    return dict(
+        terminal_issue=terminal_issue,
+        base=base,
+        actor=actor,
+        **targets,
+        dispositions=pending,
+        insert_ids=[uuid4() for _ in range(13)],
+        insert_targets=cost_targets,
+        replay=replay,
+        denied=denied,
+        denial_code=denial_code,
+    )

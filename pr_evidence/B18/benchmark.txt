@@ -1,0 +1,24 @@
+.DISPOSABLE_PG_PREFLIGHT: port=5432 system_id=7696072587520791948
+DISPOSABLE_CREATED: researchbase_pr211_r2_test_091c13eac6484250a3ff16b320f3e79e
+PR211_R2_REVISION: researchbase_pr211_r2_test_091c13eac6484250a3ff16b320f3e79e=0033_pr2_11_r2_scientific_conclusion
+.DISPOSABLE_DROPPED: researchbase_pr211_r2_test_091c13eac6484250a3ff16b320f3e79e
+DISPOSABLE_PG_PREFLIGHT: port=5432 system_id=7696072587520791948
+DISPOSABLE_CREATED: researchbase_pr211_r2_test_ed36221cbe6c45efa94dfded32f3b2a5
+PR211_R2_REVISION: researchbase_pr211_r2_test_ed36221cbe6c45efa94dfded32f3b2a5=0033_pr2_11_r2_scientific_conclusion
+.DISPOSABLE_DROPPED: researchbase_pr211_r2_test_ed36221cbe6c45efa94dfded32f3b2a5
+ssssssssssssssssssssssssssssssssssssssssssssssssDISPOSABLE_PG_PREFLIGHT: port=5432 system_id=7696072587520791948
+DISPOSABLE_CREATED: researchbase_pr211_r2_test_d5b8de2e94504b6587f1818d9bda084e
+PR211_R2_REVISION: researchbase_pr211_r2_test_d5b8de2e94504b6587f1818d9bda084e=0033_pr2_11_r2_scientific_conclusion
+.DISPOSABLE_DROPPED: researchbase_pr211_r2_test_d5b8de2e94504b6587f1818d9bda084e
+DISPOSABLE_PG_PREFLIGHT: port=5432 system_id=7696072587520791948
+DISPOSABLE_CREATED: researchbase_pr211_r2_test_2c47807ad463457183ce3f7584d3e11c
+PR211_R2_REVISION: researchbase_pr211_r2_test_2c47807ad463457183ce3f7584d3e11c=0033_pr2_11_r2_scientific_conclusion
+.DISPOSABLE_DROPPED: researchbase_pr211_r2_test_2c47807ad463457183ce3f7584d3e11c
+ss
+=============================== warnings summary ===============================
+tests/e2e/test_pr2_20_benchmark.py: 10 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane26/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 passed, 50 skipped, 10 warnings in 50.21s

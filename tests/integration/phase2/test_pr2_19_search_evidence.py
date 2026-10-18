@@ -166,3 +166,30 @@ def test_persisted_resolution_exact_source_verified_evidence_conclusion_path(b01
     assert bridge[4] == version == resolution.source_version_id
     assert bridge[6] == UUID(evidence["id"]) and bridge[7] == evidence["content_hash"]
     assert bridge[8] == "VERIFIED" and all(bridge[i] for i in (1, 3, 5, 7))
+
+    from sqlalchemy.orm import sessionmaker
+
+    from researchbase.application.search_result_resolution import (
+        ExactResolutionQuery,
+        SearchResultResolutionService,
+    )
+    from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+
+    sessions = sessionmaker(e["engine"], expire_on_commit=False, autoflush=False)
+
+    def observed_factory():
+        return SqlAlchemyUnitOfWork(sessions)
+
+    fresh = ScientificConclusionService(observed_factory, credentials, literature)
+    resolver = SearchResultResolutionService(observed_factory, credentials, original._store)
+    with sql_protocol(e["engine"]) as statements:
+        assert fresh.read(author, e["project"], created.conclusion_id, created.version_id) == saved
+        assert (
+            resolver.get_search_result_resolution(
+                author, ExactResolutionQuery(e["project"], resolution.id)
+            )
+            == resolution
+        )
+    assert_snapshot_read(statements)
+    assert record(e, source_version_id=version) == resolution

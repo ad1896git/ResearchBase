@@ -178,3 +178,27 @@ def test_runtime_observations_and_profiles_stay_under_pytest_tmp_path(tmp_path):
     directory = tmp_path / e.SUBJECT_PREFIX / reports.subject()[2]
     assert len(list(directory.glob("*.json"))) == 3
     assert set((reports.ROOT / "pr_evidence/pr2-20").iterdir()) == repository_subjects
+
+
+@pytest.mark.parametrize("name", ["ix_pr220_issue_open_blocking_review", "equivalent_other_name"])
+def test_b29_preflight_rejects_conflicting_name_and_equivalent_predicate(name):
+    from tests.integration.phase2.b29_measurement import preflight
+
+    row = dict(
+        name=name,
+        first_key="review_record_id",
+        keys=1,
+        attributes=1,
+        predicate="((severity)::text = 'BLOCKING'::text) AND ((status)::text = 'OPEN'::text)",
+    )
+    with pytest.raises(ValueError, match="equivalent"):
+        preflight([row])
+    if name == "equivalent_other_name":
+        preflight([row | {"predicate": "status='OPEN'"}])
+
+
+def test_b29_candidate_requires_live_measurement_clone_before_access():
+    from tests.integration.phase2.b29_measurement import install_candidate
+
+    with pytest.raises(ValueError, match="fixture-owned"):
+        install_candidate(object())

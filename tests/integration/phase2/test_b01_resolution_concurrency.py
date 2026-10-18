@@ -379,14 +379,23 @@ def test_both_coverage_commit_orders_and_empty_history_phantom(b01_env, monkeypa
             deadline = monotonic() + 10
             while True:
                 with e["engine"].connect() as observer:
-                    blocked = observer.execute(
-                        text(
-                            "SELECT count(*) FROM pg_stat_activity WHERE "
-                            "datname=current_database() AND "
-                            "wait_event_type='Lock'"
+                    blocked = (
+                        observer.execute(
+                            text(
+                                "SELECT pid,xact_start,clock_timestamp() AS observed_at,"
+                                "pg_blocking_pids(pid) AS blocker_pids FROM pg_stat_activity WHERE "
+                                "datname=current_database() AND "
+                                "wait_event_type='Lock'"
+                            )
                         )
-                    ).scalar_one()
+                        .mappings()
+                        .all()
+                    )
                 if blocked:
+                    print(
+                        "B18_PHANTOM_WAIT",
+                        dict(writer_first=writer_first, waiters=[dict(row) for row in blocked]),
+                    )
                     break
                 assert monotonic() < deadline
                 Event().wait(0.01)
@@ -399,6 +408,18 @@ def test_both_coverage_commit_orders_and_empty_history_phantom(b01_env, monkeypa
     )
     assert value.resolved_source_count == (1 if writer_first else 0)
     assert value.quality.current_unresolved_result_count == 1
+    print(
+        "B18_PHANTOM_CAPTURE",
+        dict(
+            writer_first=writer_first,
+            coverage_id=str(value.id),
+            content_hash=value.content_hash,
+            query_count=value.query_count,
+            result_count=value.result_count,
+            resolved_source_count=value.resolved_source_count,
+            current_unresolved_result_count=value.quality.current_unresolved_result_count,
+        ),
+    )
 
 
 def test_b01_append_after_source_only_stays_ambiguous(b01_env):

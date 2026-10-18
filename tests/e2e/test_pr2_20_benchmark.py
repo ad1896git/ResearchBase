@@ -15,6 +15,7 @@ from sqlalchemy import text
 from tests.contracts import pr2_20_evidence as evidence
 from tests.contracts.pr2_20_evidence import BenchmarkProfile, digest_bytes, to_bytes
 from tests.contracts.pr2_20_reports import ROOT, context, subject
+from tests.integration.phase2 import b18_novelty_support as novelty
 from tests.integration.phase2 import pr2_20_support as s
 from tests.integration.phase2.test_m3_evidence import m3 as _m3
 from tests.integration.phase2.test_pr2_20_catalog_plans import trace_fixture
@@ -76,15 +77,16 @@ CASES = (
 def profile(engine, large: bool) -> BenchmarkProfile:
     import psycopg
 
-    with engine.connect() as conn:
-        settings = dict(
-            conn.execute(
+    with s.read_snapshot(engine) as conn:
+        settings = {
+            str(row[0]): str(row[1])
+            for row in conn.execute(
                 text(
                     "SELECT name,setting FROM pg_settings WHERE name IN "
                     "('shared_buffers','work_mem','max_connections','jit','track_io_timing')"
                 )
             ).all()
-        )
+        }
     # PostgreSQL reports shared_buffers in 8KiB blocks, work_mem in KiB.
     return BenchmarkProfile(
         **context(),
@@ -256,3 +258,160 @@ def test_declared_large_service_profile(m3, phase2_database_url, tmp_path, case,
             "limitation": generated["limitation"],
         },
     )
+
+
+# Novelty cardinalities are bounded independently of the scaled source/trace fixture.
+
+b18_env = novelty.b18_env
+pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
+NOVELTY_CASES = novelty.NOVELTY_CASES
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize(
+    "large",
+    [
+        False,
+        pytest.param(
+            True,
+            marks=pytest.mark.skipif(
+                os.getenv("RB_PR220_BENCHMARK") != "1",
+                reason="NOT RUN: opt-in novelty sampling profile",
+            ),
+        ),
+    ],
+)
+def test_bounded_novelty_service_profile(b18_env, workers, large):
+    e = b18_env
+    value = profile(e["engine"], large)
+    save_profile(value)
+    protected = novelty.protected_manifest(e)
+    for case in NOVELTY_CASES:
+        kind, operation = case.rsplit("-", 1)
+        for repeat in range(value.repetitions):
+            before = s.manifest(e["engine"], novelty.NOVELTY_TABLES)
+            # Allocate outside timing. Fresh roots never form a supersession chain.
+            commands = [
+                [
+                    novelty.fresh_command(e, kind) if operation == "first" else e["commands"][kind]
+                    for _ in range(value.warmups + value.calls_per_worker)
+                ]
+                for _ in range(workers)
+            ]
+
+            def worker(index, commands=commands, kind=kind, operation=operation):
+                pending = iter(commands[index])
+
+                def call():
+                    return novelty.invoke(e, kind, operation, command=next(pending))
+
+                return s.sample(call, value.warmups, value.calls_per_worker)
+
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                observations = list(pool.map(worker, range(workers)))
+            times = [duration for durations, _ in observations for duration in durations]
+            assert len(times) == workers * value.calls_per_worker
+            for index, (_, results) in enumerate(observations):
+                for command, result in zip(commands[index][value.warmups :], results, strict=True):
+                    for check in ("replay", "read"):
+                        assert novelty.stable(
+                            novelty.invoke(e, kind, check, command=command)
+                        ) == novelty.stable(result)
+                    if kind == "coverage":
+                        assert (
+                            result.query_count,
+                            result.result_count,
+                            result.resolved_source_count,
+                        ) == (1, 2, 1)
+                    if kind == "novelty":
+                        assert result.supersedes_assessment_id is None
+            after = s.manifest(e["engine"], novelty.NOVELTY_TABLES)
+            increments = {
+                "coverage": {"search_coverage", "search_coverage_executions"},
+                "prior_art": {"prior_art_relations", "prior_art_evidence_inputs"},
+                "novelty": {"novelty_assessments"},
+            }[kind]
+            for table in before:
+                delta = (
+                    workers * (value.warmups + value.calls_per_worker)
+                    if operation == "first" and table in increments
+                    else 0
+                )
+                assert after[table]["count"] == before[table]["count"] + delta
+                if delta == 0:
+                    assert after[table] == before[table]
+            assert novelty.protected_manifest(e) == protected
+            data = {
+                "status": "PASS",
+                "scope": "bounded correctness and informational timing only",
+                "large_profile_acceptance": "NOT ESTABLISHED",
+                "case": case,
+                "workers": workers,
+                "repeat": repeat,
+                "warmups": value.warmups,
+                "calls_per_worker": value.calls_per_worker,
+                "samples_ms": times,
+                "p50_ms": s.percentile(times, 0.5),
+                "p95_ms": s.percentile(times, 0.95),
+                "max_ms": max(times),
+                "novelty_cardinalities": novelty.CARDINALITIES,
+                "saved_ids_hashes": {
+                    k: {"id": str(v.id), "content_hash": v.content_hash}
+                    for k, v in e["saved"].items()
+                },
+                "sample_outputs": [
+                    {
+                        "id": str(result.id),
+                        "content_hash": result.content_hash,
+                        "created_at": result.created_at.isoformat(),
+                        "created_by": str(result.created_by),
+                    }
+                    for _, results in observations
+                    for result in results
+                ],
+                "postgres_version": value.postgres_version,
+                "lock_wait_ms": None,
+                "phantom_references": novelty.PHANTOM_REFERENCES,
+                "external_latency_ms": None,
+            }
+            s.save_observation(f"novelty-{case}-{workers}-{repeat}", data)
+            print("B18_BENCHMARK", data)
+
+
+@pytest.mark.skipif(
+    os.getenv("RB_B29_MEASUREMENT") != "1", reason="NOT RUN: opt-in B29 measurement"
+)
+def test_b29_measurement(decision_env, monkeypatch):
+    """Only this opt-in runner installs candidate DDL, in disposable clones."""
+    from dataclasses import asdict
+
+    from tests.integration.phase2.b29_measurement import measure
+    from tests.integration.phase2.pr2_20_scaled import build_b29
+
+    # Explicit opt-in preserves durable evidence; ordinary test observations stay temporary.
+    monkeypatch.setattr(evidence, "EVIDENCE_ROOT", ROOT)
+    fixture = build_b29(decision_env)
+    reference = asdict(profile(decision_env[-1][8], False))
+    host = {
+        key: reference[key]
+        for key in (
+            "host_os",
+            "cpu_model",
+            "kernel",
+            "storage_model",
+            "postgres_version",
+            "python_version",
+            "driver_version",
+            "lock_sha256",
+            "vcpus",
+            "ram_gib",
+            "shared_buffers_mb",
+            "work_mem_mb",
+            "max_connections",
+            "jit",
+            "track_io_timing",
+        )
+    }
+    result = measure(decision_env[-1][8], fixture, host)
+    assert len(result["rows"]) == 54
+    assert result["status"] == "BLOCKED"  # measurements never self-admit DDL

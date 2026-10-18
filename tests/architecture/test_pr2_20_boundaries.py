@@ -67,3 +67,27 @@ def test_strategy_and_adapter_import_graph_excludes_direct_persistence():
                 )
                 for name in imports
             )
+
+
+def test_b29_measurement_stays_in_tests_and_observers_are_snapshot_only():
+    helper = Path("tests/integration/phase2/b29_measurement.py").read_text()
+    tree = ast.parse(helper)
+    assert "engine not in _CLONES" in helper
+    assert "enable_seqscan" not in helper
+    assert not list(Path("migrations/versions").glob("*b29*"))
+    assert not list(Path("src/researchbase").rglob("*b29*"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            assert not node.module or not node.module.startswith(
+                ("researchbase.persistence.models", "researchbase.api", "researchbase.cli")
+            )
+    support = Path("tests/integration/phase2/pr2_20_support.py").read_text()
+    snapshot = next(
+        node
+        for node in ast.parse(support).body
+        if isinstance(node, ast.FunctionDef) and node.name == "read_snapshot"
+    )
+    body = ast.get_source_segment(support, snapshot)
+    assert body and 'isolation_level="REPEATABLE READ"' in body
+    assert "SET TRANSACTION READ ONLY" in body
+    assert not any(lock in body.lower() for lock in ("lock table", "pg_advisory", "for update"))

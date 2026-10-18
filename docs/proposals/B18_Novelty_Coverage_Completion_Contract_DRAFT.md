@@ -1,6 +1,6 @@
 # B18 PR2-18 Coverage / Prior-art / INCONCLUSIVE Completion (S1) — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-18 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -62,7 +62,7 @@ structure; their old inspected-baseline paragraphs are not today's inventory.
 Proposed delta: test/evidence wiring only for accepted S1 behavior. Dependencies
 B01 and PR2-18 S1 exist in code and migrations. Full G7 also depends on publication
 work; presence of that code does not make its acceptance part of B18. Preserve
-the existing owning services and evidence formats. This task changes this file only.
+the existing owning services and evidence formats. The original proposal-preparation task changed this file only; the owner-authorized first slice changes consumer tests and evidence as specified below.
 
 ## 3. Invariants and conservative judgments
 
@@ -358,3 +358,27 @@ and static-acceptance rerun above followed. The temporary link was removed.
 No executable/configuration/dependency files were changed. No fresh PostgreSQL
 server version or database acceptance is claimed. Historical PR2-18 counts are
 not reused as a pass. The loop owns the whole-suite run; it was not run here.
+
+
+## 15. Authorized first-slice implementation record — 2026-10-18
+
+Production delta is empty: domain, Application, persistence and all migrations
+are unchanged. Existing 0047/0050 guards and the N-first READ COMMITTED write /
+lock-free read-only REPEATABLE READ protocols remain authoritative.
+
+Consumer coverage is in `test_pr2_19_novelty.py`, `test_pr2_20_novelty.py` and the
+bounded novelty branch of `test_pr2_20_benchmark.py`. Shared test construction is
+in `b18_novelty_support.py`, using `pr2_18_fixtures.novelty_env` and
+`b01_support.record`. The old fixture's title-only hits cannot pass B01 DOI/title
+admission, so the consumer fixture creates a matching execution and verified DOI
+through owning commands; it does not use the older direct-SQL `add_resolution`
+helper. One hit is resolved before capture and the second after it. No production
+name/location substitutions were required. Missing package/consent tables are
+recorded as absent in side-effect manifests, rather than invented.
+
+The existing two-order B01 phantom test is reused, with additional read-only
+backend/wait and saved-capture output. No new phantom protocol is implemented.
+Full G7 remains blocked by its publication/readiness/preparation prerequisites.
+Full PR2-18, large-profile performance and Phase 2 acceptance are not established.
+Focused commands, exact results, IDs/hashes, and measurements are recorded in
+`pr_evidence/B18/VERIFICATION.md`; the loop owns the full-suite run.

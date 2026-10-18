@@ -150,3 +150,34 @@ def test_f2b_unresolved_saved_review_denies_owning_replay(pr219_decision_env):
     assert denied.value.message == "saved formal provenance is unresolved"
     assert denied.value.details is None
     assert counts(base[8]) == before
+
+    from researchbase.application.scientific_conclusion import ScientificConclusionService
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+
+    # Independent formal reader follows the saved conclusion's Phase 1 evidence FK.
+    target = env[3]
+    with base[8].connect() as conn:
+        edge = conn.execute(
+            text("SELECT id FROM evidence_relations WHERE claim_version_id=:id"), {"id": base[6]}
+        ).scalar_one()
+    corrupt_edge(base[8], "evidence_relations", "measurement_id", edge, uuid4())
+    before = counts(base[8])
+    reader = ScientificConclusionService(base[1], base[9], base[2])
+    with sql_protocol(base[8]) as observed:
+        with pytest.raises(ResearchBaseError) as broken:
+            reader.read(env[2], base[5], target.conclusion_id, target.version_id)
+    assert_snapshot_read(observed)
+    assert broken.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    assert (
+        broken.value.message == "saved formal provenance is unresolved"
+        and broken.value.details is None
+    )
+    with pytest.raises(ResearchBaseError) as absent:
+        reader.read(env[2], base[5], uuid4(), uuid4())
+    assert absent.value.code is ErrorCode.NOT_FOUND
+    base[9].enabled = False
+    with pytest.raises(ResearchBaseError) as forbidden:
+        reader.read(env[2], base[5], target.conclusion_id, target.version_id)
+    assert forbidden.value.code is ErrorCode.FORBIDDEN and forbidden.value.details is None
+    base[9].enabled = True
+    assert counts(base[8]) == before

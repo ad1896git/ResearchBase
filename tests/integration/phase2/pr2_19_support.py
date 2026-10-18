@@ -27,6 +27,7 @@ from researchbase.domain.source_version import (
     SourceVersionKind,
     SourceVersionMaterial,
 )
+from tests.integration.phase2.test_approval import approval_env as _approval_env
 from tests.integration.phase2.test_m3_evidence import m3 as _m3
 from tests.integration.phase2.test_pr2_10_discussion_persistence import (
     discussion_database_url as _discussion_database_url,
@@ -44,6 +45,7 @@ from tests.integration.phase2.test_pr2_14_internal_review import (
 )
 from tests.integration.phase2.test_pr2_15_decision import decision_env as _decision_env
 from tests.integration.phase2.test_pr2_15_decision import normal_sql_role as _normal_sql_role
+from tests.integration.phase2.test_revision_action import revision_env as _revision_env
 
 REPORT_ROOT = Path(__file__).resolve().parents[3] / "artifacts/pr_evidence/PR2-19"
 SCENARIO_IDS = frozenset(
@@ -89,6 +91,12 @@ EVENTS = frozenset(
 )
 COMMANDS = frozenset(
     (
+        "NoveltyService.record_search_coverage",
+        "NoveltyService.read_search_coverage",
+        "NoveltyService.record_prior_art_relation",
+        "NoveltyService.read_prior_art_relation",
+        "NoveltyService.record_novelty_assessment",
+        "NoveltyService.read_novelty_assessment",
         "SourceVersionService.create",
         "SourceVersionService.freeze",
         "LiteratureEvidenceService.import_document",
@@ -144,7 +152,7 @@ SCENARIO_COMMANDS = {
         )
     ),
     "G6": frozenset({"InternalReviewService.create", "DecisionService.record_decision"}),
-    "G7": frozenset(),
+    "G7": frozenset(name for name in COMMANDS if name.startswith("NoveltyService.")),
 }
 for _row in ("F1", "F1b", "F2", "F2b", "F3", "F4", "F5", "F5b", "F5c", "F6", "F7", "F8", "F9"):
     SCENARIO_COMMANDS[_row] = {
@@ -197,6 +205,86 @@ for _row in ("F1", "F1b", "F2", "F2b", "F3", "F4", "F5", "F5b", "F5c", "F6", "F7
         "F9": frozenset(),
     }[_row]
 
+# B30 finite extensions: an operational label never makes a blocked suffix runnable.
+B30_COMMANDS = {
+    "G1": (
+        "SearchResultResolutionService.record_search_result_resolution",
+        "SearchResultResolutionService.get_search_result_resolution",
+        "ScientificConclusionService.create",
+        "ScientificConclusionService.freeze",
+        "ScientificConclusionService.read",
+    ),
+    "G5": (
+        "ArtifactPlacementService.add",
+        "ManuscriptFreezeService.freeze_manuscript_version",
+        "ManuscriptFreezeService.get_manuscript_version",
+    ),
+    "G6": (
+        "RevisionActionService.record_revision_action",
+        "RevisionActionService.read_revision_action",
+        "RevisionActionService.record_concern_re_review",
+        "RevisionActionService.get_concern_carry_forward",
+        "InternalReviewService.record_issue_disposition",
+        "InternalReviewService.get_issue_history",
+        "DecisionService.record_revision_decision",
+        "DecisionService.get_revision_decision",
+        "ApprovalService.request_approval",
+        "ApprovalService.decide_approval",
+    ),
+    "F1": (
+        "ManuscriptValidityService.get_manuscript_validity",
+        "ManuscriptValidityService.get_manuscript_audit",
+        "ManuscriptScientificTraceService.trace",
+        "ManuscriptFreezeService.get_manuscript_version",
+        "ApprovalService.request_approval",
+        "ApprovalService.decide_approval",
+    ),
+    "F2b": (
+        "ScientificConclusionService.read",
+        "ApprovalService.get_request",
+        "ApprovalService.get_decision",
+        "ApprovalService.get_grant",
+    ),
+    "F5": (
+        "ApprovalService.request_approval",
+        "ApprovalService.decide_approval",
+        "ApprovalService.get_request",
+    ),
+    "F5b": (
+        "ApprovalService.request_approval",
+        "ApprovalService.decide_approval",
+        "ApprovalService.get_request",
+    ),
+    "F5c": (
+        "DecisionService.record_rejection_reconsideration",
+        "DecisionService.get_rejection_reconsideration",
+        "ApprovalService.request_approval",
+        "ApprovalService.decide_approval",
+        "ApprovalService.get_request",
+    ),
+    "F6": (
+        "RevisionActionService.record_revision_action",
+        "RevisionActionService.read_revision_action",
+        "DecisionService.record_revision_decision",
+        "InternalReviewService.get_issue_history",
+    ),
+    "F7": (
+        "ApprovalService.request_approval",
+        "ApprovalService.decide_approval",
+        "ApprovalService.get_request",
+    ),
+    "F9": (
+        "ScientificConclusionService.record_internal_scientific_release",
+        "ApprovalService.get_grant_consumption",
+        "ApprovalService.get_grant",
+        "ApprovalService.evaluate_approval_grant",
+        "ApprovalService.revoke_approval_grant",
+    ),
+}
+COMMANDS |= frozenset(name for names in B30_COMMANDS.values() for name in names)
+for _row, _names in B30_COMMANDS.items():
+    SCENARIO_COMMANDS[_row] |= frozenset(_names)
+
 CORPUS = (
     b"A measured effect improved recall.\n\nLimitations remain.",
     b"A separate control found no benefit.\n\nReplication is needed.",
@@ -224,6 +312,18 @@ TABLES = (
     "approval_grants",
     "discussion_sessions",
     "discussion_turns",
+    "review_issue_events",
+    "revision_actions",
+    "decision_basis_revision_actions",
+    "approval_request_reviews",
+    "approval_request_events",
+    "approval_grant_events",
+    "approval_grant_consumptions",
+    "search_coverage",
+    "search_coverage_executions",
+    "prior_art_relations",
+    "prior_art_evidence_inputs",
+    "novelty_assessments",
 )
 
 
@@ -463,3 +563,18 @@ def emit_observation(observation: ScenarioObservation):
     from dataclasses import asdict
 
     print("PR219_OBSERVATION", json.dumps(asdict(observation), default=str, sort_keys=True))
+
+
+@pytest.fixture
+def pr219_approval_env(approval_env):
+    return approval_env
+
+
+@pytest.fixture
+def pr219_revision_env(revision_env):
+    return revision_env
+
+
+approval_env = _approval_env
+
+revision_env = _revision_env

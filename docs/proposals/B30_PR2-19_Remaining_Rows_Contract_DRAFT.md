@@ -1,6 +1,6 @@
 # Remaining PR2-19 Golden/Failure Rows (B30) Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-18 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -418,6 +418,17 @@ Phase 3 runtime and any production schema/code fix. Missing fixture state must
 remain missing rather than being inserted with SQL to make a golden row green.
 
 ## 13. Open questions for the owner — override register
+
+Review follow-up (2026-10-18): the reviewer permits the novelty test to cover
+lock-free exact GET and command-replay equality separately while the owner decides
+whether to authorize a production lock-free replay path or defer that requirement.
+The §7 completed-replay requirement is unchanged; its command-replay lock assertion
+is pending owner resolution and remains an explicit G7 subcase blocker. No production
+fix or contract relaxation is inferred. Owner-availability flags in the dependency
+inventory are informational, never proof that a subcase ran or passed. “Start here”
+step 2 and §§11.1/12.3 authorize reconciliation of that inventory; acceptance still
+requires actual test evidence.
+
 
 The adopted proposal is S1 with all §2 blockers retained. Owner approval may
 change test ordering/scope, but requires corresponding body/matrix edits before

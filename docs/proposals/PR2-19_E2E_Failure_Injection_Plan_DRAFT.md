@@ -640,7 +640,7 @@ G0's explicitly named existing E2E module. Named fixtures are defined below.
 | G4 | BLOCKED BY successful discussion-to-HypothesisVersion DRAFT promotion | `test_pr2_19_discussion.py`; `pr219_discussion_env`; negative prefix F4 is runnable. |
 | G5 | BLOCKED BY manuscript freeze command | `test_pr2_19_citation_trace.py`; `pr219_trace_env`; draft/placements/trace prefix runnable. |
 | G6 | BLOCKED BY completed RevisionAction, Issue disposition, revision-purpose Decision, concern carry-forward, manuscript review and Basic Approval | `test_pr2_19_governance.py`; `pr219_decision_env`; no-blocker review → minimal PROCEED prefix runnable, request/grant suffix blocked. |
-| G7 | BLOCKED BY PR2-17 package/authorship/consent and PR2-18 coverage/prior-art/novelty contracts | `test_pr2_19_dependencies.py`; no synthetic READY/package/novelty fixtures. |
+| G7 | BLOCKED BY PR2-17 package/authorship/consent and readiness prerequisites | `test_pr2_19_novelty.py` executes the novelty branch through owning commands; `test_pr2_19_dependencies.py` retains combined G7 blockers. |
 | F1 | BLOCKED BY manuscript current-validity/audit projection and Basic Approval | `test_pr2_19_lineage.py`; `pr219_evidence_env`, `pr219_trace_env`; source/direct-literature/snapshot/conclusion prefix runnable; no automatic audit creation claim. |
 | F1b | RUNNABLE NOW | `test_pr2_19_lineage.py`; `pr219_evidence_env`; missing/wrong-source/unfrozen predecessor, bad correction basis and concurrent corrections. |
 | F2 | RUNNABLE NOW | `test_pr2_19_candidates.py`; `pr219_candidate_env`, `pr219_evidence_env`; invented/out-of-corpus IDs, absent paragraph and substituted quotation, valid control and zero canonical delta. |
@@ -815,7 +815,6 @@ contract changes an order, update its race oracle before activating that row.
 | Automatic finding/impact propagation | Only if an owning contract requires automation; no automatic rows inferred from retraction. |
 | Defensive unresolved-FK read | Contract for fail-closed read of privileged corrupt closure; F2b suffix. Normal SQL FK denial remains runnable. |
 | PR2-17 preparation | Package, contribution/authorship/consent fields/limits/resolver; G7. No consent-to-grant resolver is invented here. |
-| PR2-18 novelty | Serializable coverage capture, prior-art relations, INCONCLUSIVE-only first slice and DB guard; G7. |
 
 ## 15. Open questions for the owner — override only
 

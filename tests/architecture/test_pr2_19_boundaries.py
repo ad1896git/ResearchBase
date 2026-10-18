@@ -1,8 +1,9 @@
-"""05 §49 executable boundaries; approval obligation remains explicitly BLOCKED."""
+"""05 §49 thirteen executable boundaries; full row suffixes remain BLOCKED."""
 
 import ast
 from pathlib import Path
 
+import pytest
 from scripts.pr2_04_pytest_evidence import FactRecorder
 from sqlalchemy import text
 from tests.integration.phase2 import test_pr2_15_decision as decision_cases
@@ -20,6 +21,7 @@ from tests.integration.phase2.pr2_19_support import pr219_decision_env as _pr219
 from tests.integration.phase2.pr2_19_support import pr219_discussion_env as _pr219_discussion_env
 from tests.integration.phase2.pr2_19_support import pr219_evidence_env as _pr219_evidence_env
 from tests.integration.phase2.pr2_19_support import pr219_trace_env as _pr219_trace_env
+from tests.integration.phase2.test_approval import approval_env as _approval_env
 from tests.integration.phase2.test_pr2_04_transaction_coverage import (
     test_pg_provider_entry_wait_and_backoff_hold_no_service_transaction as provider_boundary,
 )
@@ -29,7 +31,6 @@ from tests.integration.phase2.test_pr2_19_candidates import (
 from tests.integration.phase2.test_pr2_19_citation_trace import (
     test_citation_only_preserves_claim_hashes_and_numeric_facts as citation_boundary,
 )
-from tests.integration.phase2.test_pr2_19_dependencies import BLOCKED_ARCHITECTURE, full_gate_report
 from tests.integration.phase2.test_pr2_19_discussion import (
     test_transcript_binding_restart_and_forbidden_promotion as discussion_boundary,
 )
@@ -137,10 +138,32 @@ def test_decision_does_not_mutate_history(pr219_decision_env):
     )
 
 
-def test_approval_does_not_override_invalid_fact():
-    """Inventory assertion only: this behavioral acceptance obligation is BLOCKED."""
-    assert "test_approval_does_not_override_invalid_fact" in BLOCKED_ARCHITECTURE
-    assert full_gate_report()["status"] == "BLOCKED"
+@pytest.mark.parametrize("boundary", ["approval", "release"])
+def test_approval_does_not_override_invalid_fact(approval_env, boundary):
+    from tests.integration.phase2.test_approval import _stale
+    from tests.integration.phase2.test_b13_grant_consumption import issued
+
+    from researchbase.application.approval import ApprovalService
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    service, requester, _, command, env = approval_env
+    base = env[-1]
+    if boundary == "release":
+        owner, requester, command, _ = issued(approval_env)
+    _stale(env)
+    before = counts(base[8])
+    with pytest.raises(ResearchBaseError) as denied:
+        if boundary == "approval":
+            service.request_approval(requester, command)
+        else:
+            owner.record_internal_scientific_release(requester, command)
+    assert denied.value.code is (
+        ErrorCode.APPROVAL_TARGET_STALE if boundary == "approval" else ErrorCode.GRANT_STALE
+    )
+    assert counts(base[8]) == before
+    if boundary == "release":
+        fresh = ApprovalService(base[1], base[9], base[2])
+        assert fresh.get_grant(requester, command.project_id, command.grant_id).status == "ACTIVE"
 
 
 def test_external_call_not_inside_long_db_transaction(phase2_database_url):
@@ -161,3 +184,35 @@ pr219_decision_env = _pr219_decision_env
 pr219_discussion_env = _pr219_discussion_env
 pr219_evidence_env = _pr219_evidence_env
 pr219_trace_env = _pr219_trace_env
+
+
+def test_b30_has_no_production_fault_hook_or_generic_scenario_executor():
+    test_root = Path("tests/integration/phase2")
+    for filename in (
+        "b30_observations.py",
+        "test_pr2_19_approval_atomicity.py",
+        "test_pr2_19_grant_consumption_release.py",
+    ):
+        tree = ast.parse((test_root / filename).read_text())
+        assert not any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"eval", "exec"}
+            for node in ast.walk(tree)
+        )
+    # Independent snapshot predicates cannot silently become exclusion-lock reads.
+    from tests.integration.phase2.b30_observations import assert_snapshot_read
+
+    with pytest.raises(AssertionError):
+        assert_snapshot_read([("LOCK TABLE claims IN SHARE MODE", "REPEATABLE_READ", True)])
+    for sql in (
+        "SELECT * FROM claims FOR UPDATE",
+        "SELECT pg_advisory_xact_lock(1)",
+        "SELECT rb_phase2_lock_project(1)",
+        "UPDATE claims SET id=1",
+    ):
+        with pytest.raises(AssertionError):
+            assert_snapshot_read([(sql, "REPEATABLE_READ", True)])
+
+
+approval_env = _approval_env
