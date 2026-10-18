@@ -24,6 +24,9 @@ class SqlAlchemyAuthorshipRepository:
     def __init__(self, session: Session):
         self._session = session
 
+    def prepare_read(self) -> None:
+        self._session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+
     def _one(self, sql, params):
         row = self._session.execute(text(sql), params).mappings().first()
         return dict(row) if row else None
@@ -48,15 +51,6 @@ class SqlAlchemyAuthorshipRepository:
             "SELECT * FROM publications WHERE id=:id AND project_id=:project FOR "
             + ("SHARE" if read else "UPDATE"),
             {"id": publication_id, "project": project_id},
-        )
-
-    def lock_record_publication(self, identity: UUID, project_id: UUID, *, snapshot=False):
-        self._timeouts()
-        table = "authorship_snapshots" if snapshot else "contribution_records"
-        return self._one(
-            f"SELECT p.* FROM publications p JOIN {table} r ON r.publication_id=p.id "
-            "WHERE r.id=:id AND p.project_id=:project FOR SHARE OF p",
-            {"id": identity, "project": project_id},
         )
 
     def lock_snapshot(self) -> None:
@@ -84,7 +78,7 @@ class SqlAlchemyAuthorshipRepository:
         return self._one("SELECT * FROM actors WHERE id=:id", {"id": identity})
 
     def authority(self, principal, project):
-        # SHARE table locks already exclude INSERT/UPDATE/DELETE phantoms. No late actor lock.
+        # Writes hold the authority locks; reads use one REPEATABLE READ snapshot.
         return self._many(
             """SELECT a.retired_at,m.status AS membership_status,m.started_at,
           r.role,r.effective_from,r.effective_until,b.status AS binding_status,

@@ -526,9 +526,7 @@ class AuthorshipService:
         with self._factory() as uow:
             uow.enable_authorship_error_normalization()
             repo = uow.authorship
-            repo.lock_record_publication(query.id, query.project_id, snapshot=snapshot)
-            repo.lock_snapshot()
-            repo.lock_project(query.project_id)
+            repo.prepare_read()
             self._authorize(repo, principal, query.project_id, _READERS)
             row = repo.snapshot(query.id) if snapshot else repo.contribution(query.id)
             result = (
