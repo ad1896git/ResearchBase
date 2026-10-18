@@ -355,3 +355,23 @@ class SqlAlchemyInternalReviewRepository:
     def validate_issue_history(self, identity: UUID) -> None:
         # Historical SQL functions contain only snapshot reads, including nested closure checks.
         self._session.execute(text("SELECT b08_check_history(:id)"), {"id": identity})
+
+    def entry_review_independent(self, row: dict) -> bool:
+        if row.get("manuscript_version_id") is not None:
+            return row["reviewer_actor_id"] not in self.material_authors(
+                row["manuscript_version_id"]
+            )
+        return bool(
+            self._session.execute(
+                text("""SELECT NOT EXISTS(
+          SELECT 1 FROM claim_versions WHERE id=:claim AND created_by=:actor
+          UNION ALL SELECT 1 FROM scientific_conclusion_versions WHERE id=:conclusion AND created_by=:actor
+          UNION ALL SELECT 1 FROM artifact_versions WHERE id=:artifact AND created_by=:actor)"""),
+                {
+                    "claim": row["claim_version_id"],
+                    "conclusion": row["scientific_conclusion_version_id"],
+                    "artifact": row["artifact_version_id"],
+                    "actor": row["reviewer_actor_id"],
+                },
+            ).scalar_one()
+        )

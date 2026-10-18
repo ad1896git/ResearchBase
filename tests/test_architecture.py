@@ -119,10 +119,24 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
         "scientific_conclusions",
         "manuscripts",
     }
+    authorized_tables["migrations/versions/0062_b14a_publication_entry.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+        "manuscripts",
+    }
     authorized_tables["migrations/versions/0061_b16_consent_withdrawal.py"] = {
         "literature_evidence",
         "scientific_conclusions",
         "manuscripts",
+    }
+    authorized_tables["migrations/versions/0063_b14r_ready_approval.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+        "manuscripts",
+    }
+    authorized_tables["migrations/versions/0064_b14_publication_ready.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
     }
     for path in _python_files(ROOT / "migrations"):
         contents = path.read_text()

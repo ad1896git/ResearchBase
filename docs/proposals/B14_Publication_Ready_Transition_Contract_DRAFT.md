@@ -1,6 +1,8 @@
 # B14 Publication READY Transition Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-18 — first slice authorized for implementation**
+
+Implementation evidence and reconciled names: [B14 READY first slice](../phase2/B14-ready-evidence.md).
 
 ## Start here (for the implementer)
 

@@ -272,14 +272,16 @@ class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
             ).scalars()
         )
 
-    def rejected(self, project, purpose):
+    def rejected(self, project, purpose, *, exclude_decision=None):
         return (
             self._one(
                 """SELECT d.id FROM approval_decisions d JOIN approval_requests r
             ON r.id=d.approval_request_id WHERE r.project_id=:project
             AND r.approval_purpose=:purpose AND d.decision='REJECT'
+            AND NOT (d.id IS NOT DISTINCT FROM CAST(:exclude AS uuid)
+              AND d.xmin=pg_current_xact_id()::xid)
             LIMIT 1""",
-                {"project": project, "purpose": purpose},
+                {"project": project, "purpose": purpose, "exclude": exclude_decision},
             )
             is not None
         )
@@ -462,6 +464,22 @@ class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
         self._session.execute(
             text("SELECT id FROM approval_grants WHERE id=:id FOR UPDATE"), {"id": grant["id"]}
         )
+
+    def issuer_bindings(self, actor, at):
+        return [
+            dict(r)
+            for r in self._session.execute(
+                text(
+                    "SELECT * FROM actor_subject_bindings "
+                    "WHERE actor_id=:actor AND status='ACTIVE' "
+                    "AND bound_at<=:at AND (revoked_at IS NULL OR :at<revoked_at) ORDER BY id"
+                ),
+                {"actor": actor, "at": at},
+            ).mappings()
+        ]
+
+    def consumption_by_id(self, identity):
+        return self._one("SELECT * FROM approval_grant_consumptions WHERE id=:id", {"id": identity})
 
     def consumption(self, key):
         return self._one(

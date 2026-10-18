@@ -52,7 +52,11 @@ def test_readiness_decision_cannot_authorize_prepare(b05_env, purpose):
     )
     with pytest.raises(ResearchBaseError) as exc:
         approval.request_approval(env[2], cmd)
-    assert exc.value.code == ErrorCode.DECISION_BASIS_INVALID
+    assert exc.value.code == (
+        ErrorCode.APPROVAL_GATE_FAILED
+        if purpose == "READY_FOR_SUBMISSION"
+        else ErrorCode.DECISION_BASIS_INVALID
+    )
     with env[5].connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM approval_requests")).scalar_one() == 0
 

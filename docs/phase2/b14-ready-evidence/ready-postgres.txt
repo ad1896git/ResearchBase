@@ -1,0 +1,19 @@
+........................................................................ [ 92%]
+......                                                                   [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b14_publication_ready.py: 66 warnings
+tests/integration/phase2/test_b14_ready_schema.py: 47 warnings
+tests/integration/phase2/test_b14_ready_replay.py: 54 warnings
+tests/integration/phase2/test_b14_ready_concurrency.py: 69 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b14_publication_ready.py: 22 warnings
+tests/integration/phase2/test_b14_ready_schema.py: 14 warnings
+tests/integration/phase2/test_b14_ready_replay.py: 18 warnings
+tests/integration/phase2/test_b14_ready_concurrency.py: 23 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+78 passed, 313 warnings in 155.47s (0:02:35)

@@ -1,4 +1,4 @@
-"""Project-confined SQL for the PR2-12 draft publication slice."""
+"""Project-confined publication drafts and atomic internal lifecycle history."""
 
 from __future__ import annotations
 
@@ -6,6 +6,55 @@ from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+B14A_SNAPSHOT_TABLES = (
+    "actor_subject_bindings",
+    "actors",
+    "artifact_versions",
+    "artifacts",
+    "audit_findings",
+    "claim_versions",
+    "claims",
+    "correction_records",
+    "dataset_snapshots",
+    "datasets",
+    "evidence_relations",
+    "experiment_spec_versions",
+    "experiment_specs",
+    "impact_assessments",
+    "impact_targets",
+    "internal_review_records",
+    "literature_evidence",
+    "literature_evidence_relations",
+    "literature_evidence_review_events",
+    "literature_source_project_links",
+    "literature_sources",
+    "literature_support_snapshots",
+    "manuscript_artifact_placements",
+    "manuscript_citation_placements",
+    "manuscript_claim_placements",
+    "manuscript_versions",
+    "measurements",
+    "metric_definition_versions",
+    "metric_definitions",
+    "project_membership_events",
+    "project_memberships",
+    "project_role_assignments",
+    "projects",
+    "review_issue_events",
+    "review_issues",
+    "run_artifact_inputs",
+    "run_dataset_inputs",
+    "runs",
+    "scientific_conclusion_claim_inputs",
+    "scientific_conclusion_literature_inputs",
+    "scientific_conclusion_versions",
+    "scientific_conclusions",
+    "source_versions",
+    "statistical_result_inputs",
+    "statistical_results",
+)
+B14A_SHARE_SQL = "LOCK TABLE " + ",".join(B14A_SNAPSHOT_TABLES) + " IN SHARE MODE"
 
 
 class SqlAlchemyPublicationRepository:
@@ -531,3 +580,151 @@ class SqlAlchemyPublicationRepository:
                 {"manuscript": manuscript},
             ).mappings()
         ]
+
+    def prepare_entry_write(self) -> None:
+        self._session.execute(text(B14A_SHARE_SQL))
+        self._session.execute(text("LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"))
+        self._session.execute(
+            text(
+                "LOCK TABLE "
+                "approval_decisions,approval_request_reviews,approval_requests IN SHARE "
+                "MODE"
+            )
+        )
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+
+    def lock_entry_target(self, identity: UUID) -> None:
+        self._session.execute(
+            text("SELECT id FROM manuscript_versions WHERE id=:id FOR UPDATE"), {"id": identity}
+        )
+
+    def entry_event(self, identity: UUID) -> dict | None:
+        row = (
+            self._session.execute(
+                text(
+                    "SELECT e.*,p.project_id FROM publication_lifecycle_events e JOIN "
+                    "publications p ON p.id=e.publication_id WHERE e.id=:id"
+                ),
+                {"id": identity},
+            )
+            .mappings()
+            .first()
+        )
+        return dict(row) if row else None
+
+    def initial_events(self, publication: UUID) -> list[dict]:
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT * FROM publication_lifecycle_events WHERE publication_id=:id AND "
+                    "prior_status IS NULL ORDER BY id"
+                ),
+                {"id": publication},
+            ).mappings()
+        ]
+
+    def entry_events(self, publication: UUID) -> list[dict]:
+        return [
+            dict(row)
+            for row in self._session.execute(
+                text(
+                    "SELECT * FROM publication_lifecycle_events WHERE publication_id=:id AND "
+                    "new_status='INTERNAL_REVIEW' ORDER BY id"
+                ),
+                {"id": publication},
+            ).mappings()
+        ]
+
+    def publication_exists(self, identity: UUID) -> bool:
+        return bool(
+            self._session.execute(
+                text("SELECT EXISTS(SELECT 1 FROM publications WHERE id=:id)"), {"id": identity}
+            ).scalar_one()
+        )
+
+    def transition_entry(self, parent: dict, values: dict) -> bool:
+        changed = self._session.execute(
+            text(
+                "UPDATE publications SET "
+                "lifecycle_status='INTERNAL_REVIEW',row_version=row_version+1 WHERE "
+                "id=:id AND row_version=:version AND lifecycle_status='DRAFTING' "
+                "RETURNING id"
+            ),
+            {"id": parent["id"], "version": parent["row_version"]},
+        ).scalar_one_or_none()
+        if changed is None:
+            return False
+        self._session.execute(
+            text(
+                "INSERT INTO publication_lifecycle_events "
+                "(id,publication_id,prior_status,new_status,actor_id,occurred_at,manuscri"
+                "pt_version_id,basis_decision_id,basis_grant_consumption_id) VALUES "
+                "(:id,:publication_id,'DRAFTING','INTERNAL_REVIEW',:actor_id,:occurred_at"
+                ",:manuscript_version_id,NULL,NULL)"
+            ),
+            values,
+        )
+        return True
+
+    def force_entry_constraints(self) -> None:
+        self._session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    def entry_creation_authorized(self, row: dict) -> bool:
+        return bool(
+            self._session.execute(
+                text("""SELECT EXISTS(
+          SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id
+          JOIN project_role_assignments r ON r.membership_id=m.id
+           AND r.project_id=m.project_id AND r.actor_id=m.actor_id
+          WHERE a.id=:actor AND a.created_at<=:at AND (a.retired_at IS NULL OR :at<a.retired_at)
+           AND m.project_id=:project AND m.started_at<=:at
+           AND (SELECT e.new_status FROM project_membership_events e
+            WHERE e.membership_id=m.id AND e.occurred_at<=:at
+            ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1)='ACTIVE'
+           AND r.role IN ('OWNER','RESEARCHER') AND r.effective_from<=:at
+           AND (r.effective_until IS NULL OR :at<r.effective_until)
+           AND EXISTS(SELECT 1 FROM actor_subject_bindings b WHERE b.actor_id=a.id
+            AND b.bound_at<=:at AND (b.revoked_at IS NULL OR :at<b.revoked_at)))"""),
+                {"actor": row["actor_id"], "project": row["project_id"], "at": row["occurred_at"]},
+            ).scalar_one()
+        )
+
+    def ready_event(self, consumption):
+        row = (
+            self._session.execute(
+                text(
+                    "SELECT * FROM publication_lifecycle_events "
+                    "WHERE basis_grant_consumption_id=:id"
+                ),
+                {"id": consumption},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return None if row is None else dict(row)
+
+    def transition_ready(self, publication, values):
+        changed = self._session.execute(
+            text(
+                "UPDATE publications SET lifecycle_status='READY',row_version=row_version+1 "
+                "WHERE id=:id AND lifecycle_status='INTERNAL_REVIEW' "
+                "AND row_version<2147483647 RETURNING id"
+            ),
+            {"id": publication},
+        ).scalar_one_or_none()
+        if changed is None:
+            from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+            raise ResearchBaseError(ErrorCode.APPROVAL_GATE_FAILED, "publication must be in review")
+        self._session.execute(
+            text(
+                "INSERT INTO publication_lifecycle_events "
+                "(id,publication_id,prior_status,new_status,"
+                "actor_id,occurred_at,basis_decision_id,basis_grant_consumption_id) "
+                "VALUES (:id,:publication_id,'INTERNAL_REVIEW','READY',:actor_id,:occurred_at,"
+                ":basis_decision_id,:basis_grant_consumption_id)"
+            ),
+            values,
+        )

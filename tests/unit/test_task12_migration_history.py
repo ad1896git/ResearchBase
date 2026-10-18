@@ -40,10 +40,13 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
             "migrations/versions/0059_b13_grant_consumption.py",
             "migrations/versions/0060_b15_package_preparation.py",
             "migrations/versions/0061_b16_consent_withdrawal.py",
+            "migrations/versions/0062_b14a_publication_entry.py",
+            "migrations/versions/0063_b14r_ready_approval.py",
+            "migrations/versions/0064_b14_publication_ready.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0061_b16_consent_withdrawal"]
+    assert scripts.get_heads() == ["0064_b14_publication_ready"]
     assert (
         scripts.get_revision("0047_pr2_18_novelty_prior_art").down_revision
         == "0046_pr2_17_authorship"

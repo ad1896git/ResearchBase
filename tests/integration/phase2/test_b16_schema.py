@@ -215,7 +215,11 @@ def test_prepare_grant_graph_guards(b15_env, b04_env, normal_sql_role, case):
         )
         assert (
             conn.execute(
-                text("SELECT count(*) FROM approval_grant_events WHERE prior_status='ACTIVE'")
+                text(
+                    "SELECT count(*) FROM approval_grant_events WHERE prior_status='ACTIVE' "
+                    "AND grant_id IN (SELECT id FROM approval_grants "
+                    "WHERE purpose='PREPARE_SUBMISSION')"
+                )
             ).scalar_one()
             == 0
         )

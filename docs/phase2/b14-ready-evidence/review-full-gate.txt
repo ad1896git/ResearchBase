@@ -1,0 +1,16 @@
+== quick pre-check: 39 changed test files
+tests/integration/phase2/test_b14_ready_concurrency.py: 25 warnings
+tests/integration/phase2/test_b14_ready_replay.py: 18 warnings
+tests/integration/phase2/test_b14_ready_schema.py: 18 warnings
+tests/integration/phase2/test_b14a_entry_concurrency.py: 4 warnings
+tests/integration/phase2/test_b14a_entry_replay.py: 1 warning
+tests/integration/phase2/test_b14a_publication_entry.py: 22 warnings
+tests/integration/phase2/test_b14r_ready_approval.py: 34 warnings
+tests/integration/phase2/test_b14r_ready_approval_races.py: 42 warnings
+tests/integration/phase2/test_b14r_ready_approval_replay.py: 13 warnings
+tests/integration/phase2/test_b14r_ready_approval_schema.py: 18 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+762 passed, 1769 warnings in 554.91s (0:09:14)

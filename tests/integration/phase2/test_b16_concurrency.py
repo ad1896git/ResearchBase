@@ -233,14 +233,22 @@ def test_prepare_grant_serialization_and_rollback(b15_env, b04_env, monkeypatch,
                 assert (
                     conn.execute(
                         text(
-                            "SELECT count(*) FROM approval_grant_events WHERE prior_status='ACTIVE'"
+                            "SELECT count(*) FROM approval_grant_events "
+                            "WHERE prior_status='ACTIVE' "
+                            "AND grant_id IN (SELECT id FROM approval_grants "
+                            "WHERE purpose='PREPARE_SUBMISSION')"
                         )
                     ).scalar_one()
                     == 0
                 )
-                assert dict(conn.execute(text("SELECT id,status FROM approval_grants")).all()) == {
-                    g.id: "ACTIVE" for g in grants
-                }
+                assert dict(
+                    conn.execute(
+                        text(
+                            "SELECT id,status FROM approval_grants "
+                            "WHERE purpose='PREPARE_SUBMISSION'"
+                        )
+                    ).all()
+                ) == {g.id: "ACTIVE" for g in grants}
         return
     maintenance = case in {"maintenance_first", "withdrawal_first_maintenance"}
     grant = None
@@ -283,7 +291,9 @@ def test_prepare_grant_serialization_and_rollback(b15_env, b04_env, monkeypatch,
         original_approval(self)
         if not first_is_withdrawal and (
             maintenance
-            or self._session.execute(text("SELECT count(*) FROM approval_grants")).scalar_one()
+            or self._session.execute(
+                text("SELECT count(*) FROM approval_grants WHERE purpose='PREPARE_SUBMISSION'")
+            ).scalar_one()
         ):
             hold(self)
 
@@ -537,3 +547,229 @@ def test_regrant_rechecks_credential_after_final_context_verification(b15_env, m
     assert exc.value.code == ErrorCode.FORBIDDEN and len(checks) == 2
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM author_consents")).scalar_one() == 2
+
+
+@pytest.mark.parametrize("decision_first", [True, False])
+def test_ready_decision_prefix_excludes_publication_insert_phantoms(
+    b15_env, b04_env, monkeypatch, decision_first
+):
+    from threading import current_thread
+
+    from researchbase.application.approval import DecideApprovalCommand
+    from researchbase.persistence.approval_repository import B09_DECIDE_SHARE_SQL
+    from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+    from tests.integration.phase2.b16_fixtures import grant_context
+
+    ctx = grant_context(b15_env, b04_env[-1][4], consume_ready=False)
+    _, command, author, _, engine, *_ = b15_env
+    request = replace(ctx["ready_request"], id=uuid4())
+    ctx["approval"].request_approval(ctx["requester"], request)
+    entered, release = Event(), Event()
+    holder = []
+    transactions = []
+    original = SqlAlchemyUnitOfWork.commit
+
+    def commit(self):
+        if current_thread().name.startswith("b16-first") and not holder:
+            self._session.flush()
+            holder.append(self._session.execute(text("SELECT pg_backend_pid()")).scalar_one())
+            entered.set()
+            assert release.wait(10)
+        return original(self)
+
+    def begin(conn):
+        conn.info["b16_ready_sql"] = []
+        transactions.append(conn.info["b16_ready_sql"])
+
+    def capture(conn, cursor, statement, params, context, many):
+        conn.info["b16_ready_sql"].append(statement)
+
+    monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", commit)
+    event.listen(engine, "begin", begin)
+    event.listen(engine, "before_cursor_execute", capture)
+
+    def decide():
+        return ctx["approval"].decide_approval(
+            ctx["approver"],
+            DecideApprovalCommand(uuid4(), command.project_id, request.id, "APPROVE", "READY"),
+        )
+
+    def insert():
+        # Use guarded SQL so an earlier project-row lock in create_publication
+        # cannot hide the Publication INSERT relation-lock phantom witness.
+        identity = uuid4()
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO publications(id,project_id,publication_type,title,"
+                    "lifecycle_status,row_version,created_at,created_by) "
+                    "VALUES(:id,:project,'PAPER','Concurrent publication','DRAFTING',"
+                    "1,clock_timestamp(),:actor)"
+                ),
+                {"id": identity, "project": command.project_id, "actor": author.actor_id},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO publication_lifecycle_events(id,publication_id,actor_id,"
+                    "prior_status,new_status,occurred_at) "
+                    "SELECT :event,id,created_by,NULL,'DRAFTING',created_at "
+                    "FROM publications WHERE id=:id"
+                ),
+                {"id": identity, "event": uuid4()},
+            )
+            if not decision_first:
+                holder.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
+                entered.set()
+                assert release.wait(10)
+        return identity
+
+    try:
+        with (
+            ThreadPoolExecutor(1, thread_name_prefix="b16-first") as first_pool,
+            ThreadPoolExecutor(1) as second_pool,
+        ):
+            first = first_pool.submit(decide if decision_first else insert)
+            assert entered.wait(10)
+            second = second_pool.submit(insert if decision_first else decide)
+            try:
+                try:
+                    witness = _wait_for_pg_blocker(engine, holder[0], "relation")
+                except BaseException:
+                    if second.done():
+                        second.result()
+                    raise
+                assert witness["pid"] != holder[0]
+                assert witness["relation"] == "publications"
+            finally:
+                release.set()
+            first.result(15)
+            second.result(15)
+        writer = next(tx for tx in transactions if B09_DECIDE_SHARE_SQL in tx)
+        assert writer[:2] == [
+            B09_DECIDE_SHARE_SQL,
+            "LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE",
+        ]
+        request_lock = next(i for i, sql in enumerate(writer) if "pg_advisory_xact_lock" in sql)
+        assert request_lock > 1
+        assert "LOCK TABLE publications IN SHARE MODE" not in writer
+        with engine.connect() as conn:
+            assert conn.execute(text("SELECT count(*) FROM publications")).scalar_one() == 2
+    finally:
+        release.set()
+        event.remove(engine, "begin", begin)
+        event.remove(engine, "before_cursor_execute", capture)
+
+
+@pytest.mark.parametrize("withdrawal_first", [True, False])
+def test_ready_consumption_and_same_manuscript_consent_withdrawal(
+    b15_env, b04_env, monkeypatch, withdrawal_first
+):
+    from threading import current_thread
+
+    from researchbase.application.decision import (
+        DecisionService,
+        RecordPrepareSubmissionDecisionCommand,
+    )
+    from researchbase.application.literature_evidence import LiteratureEvidenceService
+    from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+    from tests.integration.phase2.b16_fixtures import grant_context, issue_grant
+
+    ctx = grant_context(b15_env, b04_env[-1][4], consume_ready=False)
+    service, command, author, factory, engine, store, credentials = b15_env
+    withdrawal = successor(ctx["consent"], ctx["root"])
+    entered, release = Event(), Event()
+    holder = []
+    original = SqlAlchemyUnitOfWork.commit
+
+    def commit(self):
+        if current_thread().name.startswith("b16-first") and not holder:
+            self._session.flush()
+            holder.append(self._session.execute(text("SELECT pg_backend_pid()")).scalar_one())
+            entered.set()
+            assert release.wait(10)
+        return original(self)
+
+    monkeypatch.setattr(SqlAlchemyUnitOfWork, "commit", commit)
+
+    def withdraw():
+        return service.record_author_consent(author, withdrawal)
+
+    def consume():
+        return ctx["ready_app"].transition_publication_ready(author, ctx["ready_command"])
+
+    try:
+        with (
+            ThreadPoolExecutor(1, thread_name_prefix="b16-first") as first_pool,
+            ThreadPoolExecutor(1) as second_pool,
+        ):
+            first = first_pool.submit(withdraw if withdrawal_first else consume)
+            assert entered.wait(10)
+            second = second_pool.submit(consume if withdrawal_first else withdraw)
+            try:
+                _wait_for_pg_blocker(engine, holder[0], "relation")
+            finally:
+                release.set()
+            a, b = first.result(15), second.result(15)
+        consumed = b if withdrawal_first else a
+        withdrawn = a if withdrawal_first else b
+        assert consumed.grant_id == ctx["ready_command"].grant_id
+        # PREPARE is legal only after READY. Issue real grants at that point,
+        # then prove a new withdrawal stales them without altering READY history.
+        ctx["basis"] = DecisionService(
+            factory, credentials, LiteratureEvidenceService(factory, credentials, store), store
+        ).record_prepare_submission_decision(
+            ctx["decider"],
+            RecordPrepareSubmissionDecisionCommand(
+                uuid4(),
+                command.project_id,
+                command.manuscript_version_id,
+                "Prepare?",
+                "Independent preparation basis",
+            ),
+        )
+        grants = [issue_grant(ctx), issue_grant(ctx)]
+        regrant = service.record_author_consent(
+            author, successor(ctx["consent"], withdrawn, "GRANTED")
+        )
+        # Also overlap exact consumption replay with the withdrawal that has
+        # nonempty PREPARE scope. The retained READY receipt stays readable while
+        # the withdrawal transaction holds its locks and stales those grants.
+        staling, finish = Event(), Event()
+        constraints = SqlAlchemyPreparedSubmissionRepository.force_constraints
+
+        def pause_staling(self):
+            constraints(self)
+            staling.set()
+            assert finish.wait(10)
+
+        monkeypatch.setattr(
+            SqlAlchemyPreparedSubmissionRepository, "force_constraints", pause_staling
+        )
+        with ThreadPoolExecutor(2) as pool:
+            pending = pool.submit(
+                service.record_author_consent, author, successor(ctx["consent"], regrant)
+            )
+            try:
+                assert staling.wait(10)
+                assert pool.submit(consume).result(5) == consumed
+            finally:
+                finish.set()
+            pending.result(15)
+        assert consume() == consumed
+        with engine.connect() as conn:
+            states = dict(conn.execute(text("SELECT id,status FROM approval_grants")).all())
+            assert states[consumed.grant_id] == "CONSUMED"
+            assert all(states[g.id] == "STALE" for g in grants)
+            assert (
+                conn.execute(
+                    text("SELECT lifecycle_status FROM publications WHERE id=:id"),
+                    {"id": command.publication_id},
+                ).scalar_one()
+                == "READY"
+            )
+            assert (
+                conn.execute(text("SELECT count(*) FROM approval_grant_consumptions")).scalar_one()
+                == 1
+            )
+    finally:
+        release.set()

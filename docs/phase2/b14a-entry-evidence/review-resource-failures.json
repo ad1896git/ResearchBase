@@ -1,0 +1,44 @@
+[
+  {
+    "shard": "junit-1",
+    "test": "tests.integration.test_p1_fcr3_current_pointer::test_downgrade_removes_only_p1_fcr3_objects",
+    "out_of_shared_memory": true,
+    "message": "AssertionError: Alembic downgrade failed:\n  \n  INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\n  INFO  [alembic.runtime.migration] Will assume transactional DDL.\n  INFO  [alembic.runtime.migration] Running downgrade 0060_b14a"
+  },
+  {
+    "shard": "junit-1",
+    "test": "tests.integration.phase2.test_pr2_03_effective_authority::test_authority_loss_during_observed_project_lock_wait[run-5]",
+    "out_of_shared_memory": true,
+    "message": "sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: \nLOCK TABLE approval_grants,approval_grant_events IN ACCESS EXCLUSIVE MODE;\nCREATE TABLE"
+  },
+  {
+    "shard": "junit-3",
+    "test": "tests.integration.phase2.test_pr2_04_planned_sql_completion::test_pg_planned_cannot_skip_running_into_provider_terminal_state[SUCCEEDED]",
+    "out_of_shared_memory": true,
+    "message": "failed on setup with \"sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: \n    LOCK TABLE literature_search_executions,literature_search_pro"
+  },
+  {
+    "shard": "junit-3",
+    "test": "tests.integration.phase2.test_pr2_18_replay::test_unknown_commit_exact_uuid_recovery[coverage]",
+    "out_of_shared_memory": true,
+    "message": "failed on setup with \"sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: \n\nLOCK TABLE decision_records,decision_basis_conclusions,decision_"
+  },
+  {
+    "shard": "junit-5",
+    "test": "tests.integration.phase2.test_pr2_04_r8a_reservation_guards::test_r8a_cancellation_reservation_ordering[reservation_first-SERIALIZABLE]",
+    "out_of_shared_memory": true,
+    "message": "sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: \n    CREATE TABLE discussion_sessions (\n      id UUID PRIMARY KEY,\n      project_id UUID"
+  },
+  {
+    "shard": "junit-4",
+    "test": "tests.integration.phase2.test_b14a_entry_replay::test_saved_graph_corruption_fails_closed[parent_state]",
+    "out_of_shared_memory": true,
+    "message": "failed on setup with \"sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: \n    CREATE TABLE literature_evidence (\n      id UUID PRIMARY KEY,"
+  },
+  {
+    "shard": "junit-4",
+    "test": "tests.integration.phase2.test_pr2_04_temporal_races::test_pg_contention_rechecks_db_time_and_authority_on_every_attempt[credential-1]",
+    "out_of_shared_memory": true,
+    "message": "sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: \nLOCK TABLE review_issues,review_issue_events IN ACCESS EXCLUSIVE MODE;\nDO $$ BEGIN\n  IF"
+  }
+]

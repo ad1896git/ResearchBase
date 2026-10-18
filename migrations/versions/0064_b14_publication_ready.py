@@ -1,0 +1,909 @@
+"""B14 one atomic INTERNAL_REVIEW to READY effect and concrete B13 receipt."""
+
+# Frozen predecessor definitions are retained for a history-preserving downgrade.
+# ruff: noqa: E501
+from alembic import op
+
+revision = "0064_b14_publication_ready"
+down_revision = "0063_b14r_ready_approval"
+branch_labels = None
+depends_on = None
+
+UPGRADE_SQL = r"""
+LOCK TABLE publications,publication_lifecycle_events,approval_grant_consumptions,approval_grants,approval_grant_events IN ACCESS EXCLUSIVE MODE;
+DO $$ DECLARE p publications; c approval_grant_consumptions; BEGIN
+ FOR p IN SELECT * FROM publications LOOP PERFORM b14a_verify_entry(p.id); END LOOP;
+ FOR c IN SELECT * FROM approval_grant_consumptions LOOP PERFORM b13_verify_receipt(c,true); END LOOP;
+END $$;
+ALTER TABLE publications DROP CONSTRAINT ck_b14a_publication_status;
+ALTER TABLE publications ADD CONSTRAINT ck_b14a_publication_status CHECK(lifecycle_status IN ('DRAFTING','INTERNAL_REVIEW','READY'));
+ALTER TABLE publication_lifecycle_events DROP CONSTRAINT ck_b14a_event_tuple;
+ALTER TABLE publication_lifecycle_events
+ ADD CONSTRAINT fk_b14_ready_decision FOREIGN KEY(basis_decision_id) REFERENCES decision_records(id) ON DELETE RESTRICT,
+ ADD CONSTRAINT fk_b14_ready_consumption FOREIGN KEY(basis_grant_consumption_id) REFERENCES approval_grant_consumptions(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+ ADD CONSTRAINT ck_b14a_event_tuple CHECK(
+ (prior_status IS NULL AND new_status='DRAFTING' AND manuscript_version_id IS NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL) OR
+ (prior_status IS NOT DISTINCT FROM 'DRAFTING' AND new_status='INTERNAL_REVIEW' AND manuscript_version_id IS NOT NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL) OR
+ (prior_status IS NOT DISTINCT FROM 'INTERNAL_REVIEW' AND new_status='READY' AND manuscript_version_id IS NULL AND basis_decision_id IS NOT NULL AND basis_grant_consumption_id IS NOT NULL));
+CREATE UNIQUE INDEX uq_b14_ready_event ON publication_lifecycle_events(publication_id) WHERE new_status='READY';
+CREATE UNIQUE INDEX uq_b14_ready_consumption ON publication_lifecycle_events(basis_grant_consumption_id) WHERE basis_grant_consumption_id IS NOT NULL;
+CREATE INDEX ix_b14_event_decision ON publication_lifecycle_events(basis_decision_id) WHERE basis_decision_id IS NOT NULL;
+ALTER TABLE approval_grant_consumptions DROP CONSTRAINT ck_b13_result_tuple;
+ALTER TABLE approval_grant_consumptions ADD CONSTRAINT ck_b13_result_tuple CHECK(
+ (command='RECORD_INTERNAL_SCIENTIFIC_RELEASE' AND result_scientific_conclusion_version_id IS NOT NULL AND result_publication_id IS NULL AND result_prepared_submission_version_id IS NULL) OR
+ (command='TRANSITION_PUBLICATION_READY' AND result_publication_id IS NOT NULL AND result_scientific_conclusion_version_id IS NULL AND result_prepared_submission_version_id IS NULL));
+CREATE FUNCTION b14_facts(target UUID,pid UUID) RETURNS void LANGUAGE plpgsql
+      SET search_path = pg_catalog, public, pg_temp AS $$
+    DECLARE node RECORD; row JSONB; material JSONB; expected TEXT; numerical DOUBLE PRECISION;
+      input_set JSONB; bound JSONB; previous JSONB; artifact JSONB; correction JSONB;
+    BEGIN
+      -- Closed inventory only. These are typed graph queries, never stored soft references.
+      FOR node IN SELECT * FROM b11_closure(target) WHERE kind IN (
+        'measurements','statistical_results','runs','metric_definition_versions',
+        'experiment_spec_versions','dataset_snapshots','artifact_versions','source_versions',
+        'literature_evidence','literature_support_snapshots') ORDER BY kind,id LOOP
+        EXECUTE format('SELECT to_jsonb(x) FROM %I x WHERE id=$1',node.kind) INTO row USING node.id;
+        IF row IS NULL THEN RAISE EXCEPTION 'missing frozen closure' USING ERRCODE='P17F2'; END IF;
+        material:=NULL; expected:=NULL;
+        IF node.kind IN ('metric_definition_versions','experiment_spec_versions',
+                         'artifact_versions','source_versions') AND (
+          row->>'status' NOT IN ('FROZEN','SUPERSEDED') OR row->>'frozen_at' IS NULL) THEN
+          RAISE EXCEPTION 'frozen closure required' USING ERRCODE='P17F2';
+        END IF;
+        CASE node.kind
+        WHEN 'measurements' THEN
+          SELECT numeric_value INTO numerical FROM measurements WHERE id=node.id;
+          IF NOT EXISTS(SELECT 1 FROM runs WHERE id=(row->>'run_id')::uuid AND project_id=pid)
+            OR NOT EXISTS(SELECT 1 FROM metric_definition_versions v JOIN metric_definitions p
+              ON p.id=v.metric_definition_id WHERE v.id=(row->>'metric_definition_version_id')::uuid
+                AND p.project_id=pid) THEN
+            RAISE EXCEPTION 'same-project measurement closure required' USING ERRCODE='P17F2';
+          END IF;
+          expected:=encode(sha256(convert_to(
+            '{"evaluation_scope":'||pr216_cjson(row->'evaluation_scope')||
+            ',"metric_definition_version_id":'||(row->'metric_definition_version_id')::text||
+            ',"numeric_value":'||pr216_float(numerical)||',"run_id":'||(row->'run_id')::text||
+            ',"structured_value":'||pr216_cjson(row->'structured_value')||
+            ',"unit":'||(row->'unit')::text||'}','UTF8')),'hex');
+        WHEN 'statistical_results' THEN
+          IF (row->>'project_id')::uuid<>pid OR NOT EXISTS(SELECT 1 FROM statistical_result_inputs
+            WHERE statistical_result_id=node.id) THEN
+            RAISE EXCEPTION 'same-project completed analysis required' USING ERRCODE='P17F2';
+          END IF;
+          material:=jsonb_build_object('analysis_type',row->'analysis_type',
+            'result_payload',row->'result_payload','analysis_definition',row->'analysis_definition');
+        WHEN 'metric_definition_versions' THEN
+          material:=jsonb_build_object('definition',row->'definition','unit',row->'unit',
+            'aggregation',row->'aggregation');
+        WHEN 'experiment_spec_versions' THEN
+          IF NOT EXISTS(SELECT 1 FROM experiment_specs WHERE id=(row->>'experiment_spec_id')::uuid
+            AND project_id=pid) THEN
+            RAISE EXCEPTION 'same-project specification required' USING ERRCODE='P17F2';
+          END IF;
+          material:=jsonb_build_object('title',row->'title','objective',row->'objective',
+            'protocol',row->'protocol','planned_metrics',row->'planned_metrics',
+            'seed_policy',row->'seed_policy','analysis_plan',row->'analysis_plan');
+        WHEN 'dataset_snapshots' THEN
+          material:=jsonb_build_object('manifest_hash',row->'manifest_hash',
+            'selection_definition',row->'selection_definition');
+        WHEN 'artifact_versions' THEN
+          -- Raw CAS content is verified by the Application/store, not rehashed as JSON.
+          IF row->>'content_hash' !~ '^[0-9a-f]{64}$' THEN
+            RAISE EXCEPTION 'exact artifact byte binding required' USING ERRCODE='P17F2';
+          END IF;
+        WHEN 'runs' THEN
+          IF (row->>'project_id')::uuid<>pid OR (row->>'status'<>'PLANNED'
+            AND row->>'inputs_sealed_at' IS NULL) OR EXISTS(
+            SELECT 1
+          FROM run_artifact_inputs b JOIN artifact_versions v ON v.id=b.artifact_version_id
+              JOIN artifacts p ON p.id=v.artifact_id WHERE b.run_id=node.id AND p.project_id<>pid)
+            OR EXISTS(SELECT 1 FROM run_dataset_inputs b
+              JOIN dataset_snapshots v ON v.id=b.dataset_snapshot_id
+              JOIN datasets p ON p.id=v.dataset_id
+          WHERE b.run_id=node.id AND p.project_id<>pid) THEN
+            RAISE EXCEPTION 'sealed same-project run inputs required' USING ERRCODE='P17F2';
+          END IF;
+        WHEN 'source_versions' THEN
+          SELECT pr216_ref('SourceVersion',v.id,v.content_hash) INTO previous
+            FROM source_versions v WHERE v.id=(row->>'predecessor_source_version_id')::uuid;
+          SELECT pr216_ref('ArtifactVersion',v.id,v.content_hash) INTO artifact
+            FROM artifact_versions v WHERE v.id=(row->>'fulltext_artifact_version_id')::uuid;
+          SELECT pr216_ref('ArtifactVersion',v.id,v.content_hash) INTO correction
+
+          FROM artifact_versions v
+          WHERE v.id=(row->>'correction_basis_artifact_version_id')::uuid;
+          material:=jsonb_build_object('type','SourceVersion','material_version',1,
+            'literature_source_id',row->'literature_source_id','version_kind',row->'version_kind',
+            'predecessor_source_version',previous,'correction_basis_artifact',correction,
+            'title',row->'title','abstract',row->'abstract','authors',row->'authors',
+            'publication_date',row->'publication_date','venue',row->'venue',
+            'external_version_label',row->'external_version_label','fulltext_artifact',artifact,
+            'metadata',row->'metadata');
+        WHEN 'literature_evidence' THEN
+          SELECT pr216_ref('SourceVersion',v.id,v.content_hash) INTO bound FROM source_versions v
+            WHERE v.id=(row->>'source_version_id')::uuid;
+          IF (row->>'project_id')::uuid<>pid THEN
+            RAISE EXCEPTION 'same-project literature required' USING ERRCODE='P17F2';
+          END IF;
+          material:=jsonb_build_object('type','LiteratureEvidence','material_version',1,
+            'project_id',row->'project_id','source_version',bound,'evidence_type',row->'evidence_type',
+            'locator',row->'locator','extracted_statement',row->'extracted_statement',
+            'normalized_assertion',row->'normalized_assertion',
+            'extraction_method',row->'extraction_method','confidence',row->'confidence');
+        WHEN 'literature_support_snapshots' THEN
+          SELECT pr216_ref('ClaimVersion',v.id,v.content_hash) INTO bound FROM claim_versions v
+            WHERE v.id=(row->>'claim_version_id')::uuid;
+          IF bound IS NULL OR (row->>'project_id')::uuid<>pid THEN
+            RAISE EXCEPTION 'exact claim snapshot required' USING ERRCODE='P17F2';
+          END IF;
+          SELECT pr216_ref('LiteratureSupportSnapshot',v.id,v.content_hash) INTO previous
+            FROM literature_support_snapshots v WHERE v.id=(row->>'previous_snapshot_id')::uuid;
+          SELECT coalesce(jsonb_agg(jsonb_build_object('literature_evidence',
+            pr216_ref('LiteratureEvidence',e.id,e.content_hash),'relation_type',b.relation_type,
+            'ordinal',b.ordinal,'qualification',b.qualification)
+              ORDER BY b.ordinal,e.id),'[]'::jsonb)
+            INTO input_set FROM literature_evidence_relations b JOIN literature_evidence e
+              ON e.id=b.literature_evidence_id WHERE b.literature_support_snapshot_id=node.id;
+          IF pr216_hash(jsonb_build_object('type','LiteratureSupportSnapshotSupportSet',
+            'material_version',1,'literature_inputs',input_set))
+            <>row->>'literature_support_set_hash' THEN
+            RAISE EXCEPTION 'snapshot input hash mismatch' USING ERRCODE='P17F2';
+          END IF;
+          material:=jsonb_build_object('type','LiteratureSupportSnapshot','material_version',1,
+            'project_id',row->'project_id','target',bound,'snapshot_number',row->'snapshot_number',
+            'previous_snapshot',previous,
+            'literature_support_set_hash',row->'literature_support_set_hash');
+        END CASE;
+        IF material IS NOT NULL THEN expected:=pr216_hash(material); END IF;
+        IF expected IS NOT NULL AND expected<>row->>'content_hash' THEN
+          RAISE EXCEPTION 'scientific closure hash mismatch' USING ERRCODE='P17F2';
+        END IF;
+      END LOOP;
+    END $$;
+
+CREATE FUNCTION b14_material(mid UUID,pid UUID) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+#variable_conflict use_column
+DECLARE m manuscript_versions; v scientific_conclusion_versions; cv claim_versions;
+ claims JSONB; literature JSONB; support TEXT; placements JSONB; cp JSONB; ap JSONB; citations JSONB;
+BEGIN
+ PERFORM b14_facts(mid,pid);
+ SELECT * INTO m FROM manuscript_versions WHERE id=mid;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('target',pr216_ref(
+   CASE WHEN p.claim_version_id IS NOT NULL THEN 'ClaimVersion' ELSE 'ScientificConclusionVersion' END,
+   coalesce(p.claim_version_id,p.scientific_conclusion_version_id),coalesce(c.content_hash,v.content_hash)),
+   'section_id',p.section_id,'locator',p.locator,'rhetorical_strength',p.rhetorical_strength,'ordinal',p.ordinal)
+   ORDER BY p.section_id COLLATE "C",p.ordinal),'[]'::jsonb) INTO cp FROM manuscript_claim_placements p
+   LEFT JOIN claim_versions c ON c.id=p.claim_version_id LEFT JOIN scientific_conclusion_versions v ON v.id=p.scientific_conclusion_version_id WHERE p.manuscript_version_id=mid;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('source_version',pr216_ref('SourceVersion',v.id,v.content_hash),
+   'section_id',p.section_id,'locator',p.locator,'citation_purpose',p.citation_purpose,'ordinal',p.ordinal)
+   ORDER BY p.section_id COLLATE "C",p.ordinal),'[]'::jsonb) INTO citations FROM manuscript_citation_placements p JOIN source_versions v ON v.id=p.source_version_id WHERE p.manuscript_version_id=mid;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('artifact_version',pr216_ref('ArtifactVersion',v.id,v.content_hash),
+   'section_id',p.section_id,'locator',p.locator,'artifact_role',p.artifact_role,'ordinal',p.ordinal)
+   ORDER BY p.section_id COLLATE "C",p.ordinal),'[]'::jsonb) INTO ap FROM manuscript_artifact_placements p JOIN artifact_versions v ON v.id=p.artifact_version_id WHERE p.manuscript_version_id=mid;
+ placements:=jsonb_build_object('type','ManuscriptVersionPlacementSet','material_version',1,'claim_placements',cp,'citation_placements',citations,'artifact_placements',ap);
+ IF pr216_hash(placements) IS DISTINCT FROM m.placement_set_hash OR m.content_hash IS DISTINCT FROM
+  (SELECT pr216_hash(jsonb_build_object('type','ManuscriptVersion','material_version',1,'publication_id',m.publication_id,
+   'document_artifact',pr216_ref('ArtifactVersion',a.id,a.content_hash),'title',m.title,'abstract',m.abstract,
+   'semantic_change_class',m.semantic_change_class,'placement_set_hash',m.placement_set_hash)) FROM artifact_versions a WHERE a.id=m.document_artifact_version_id) THEN
+  RAISE EXCEPTION 'manuscript material mismatch' USING ERRCODE='P17F2'; END IF;
+ FOR v IN SELECT c.* FROM scientific_conclusion_versions c JOIN b11_closure(mid) graph ON graph.kind='scientific_conclusion_versions' AND graph.id=c.id LOOP
+      SELECT coalesce(jsonb_agg(jsonb_build_object('claim_version',jsonb_build_object(
+        'type','ClaimVersion','id',c.id,'content_hash',c.content_hash),
+        'literature_support_snapshot',CASE WHEN s.id IS NULL THEN NULL ELSE
+          jsonb_build_object('type','LiteratureSupportSnapshot','id',s.id,
+            'content_hash',s.content_hash) END,'relation_type',b.relation_type,'ordinal',b.ordinal)
+        ORDER BY b.ordinal),'[]'::jsonb) INTO claims
+        FROM scientific_conclusion_claim_inputs b JOIN claim_versions c ON c.id=b.claim_version_id
+        LEFT JOIN literature_support_snapshots s ON s.id=b.literature_support_snapshot_id
+        WHERE b.conclusion_version_id=v.id;
+      SELECT coalesce(jsonb_agg(jsonb_build_object('literature_evidence',jsonb_build_object(
+        'type','LiteratureEvidence','id',e.id,'content_hash',e.content_hash),
+        'relation_type',b.relation_type,'ordinal',b.ordinal) ORDER BY b.ordinal),'[]'::jsonb)
+        INTO literature FROM scientific_conclusion_literature_inputs b
+        JOIN literature_evidence e ON e.id=b.literature_evidence_id
+          WHERE b.conclusion_version_id=v.id;
+      support:=pr216_hash(jsonb_build_object('type','ScientificConclusionVersionSupportSet',
+        'material_version',1,'claim_inputs',claims,'literature_inputs',literature));
+      IF support IS DISTINCT FROM v.support_set_hash OR pr216_hash(jsonb_build_object(
+        'type','ScientificConclusionVersion','material_version',1,'scientific_conclusion_id',
+        v.scientific_conclusion_id,'statement',v.statement,'scope',v.scope,'confidence',v.confidence,
+        'limitation_summary',v.limitation_summary,'support_set_hash',support))<>v.content_hash THEN
+        RAISE EXCEPTION 'target material hash mismatch' USING ERRCODE='P17F2';
+      END IF;
+      IF EXISTS(WITH effective AS (
+        SELECT b.literature_evidence_id,b.relation_type,v.created_by AS author
+          FROM scientific_conclusion_literature_inputs b
+          WHERE b.conclusion_version_id=v.id UNION ALL
+        SELECT e.literature_evidence_id,e.relation_type,snapshot.created_by
+          FROM scientific_conclusion_claim_inputs b
+          JOIN literature_support_snapshots snapshot ON snapshot.id=b.literature_support_snapshot_id
+          JOIN literature_evidence_relations e ON e.literature_support_snapshot_id=
+            b.literature_support_snapshot_id WHERE b.conclusion_version_id=v.id)
+        SELECT 1 FROM effective b JOIN literature_evidence e ON e.id=b.literature_evidence_id
+          JOIN source_versions s ON s.id=e.source_version_id
+          JOIN literature_sources p ON p.id=s.literature_source_id
+          LEFT JOIN source_versions current ON current.id=p.current_version_id
+        WHERE s.status NOT IN ('FROZEN','SUPERSEDED') OR s.version_kind='RETRACTED'
+          OR current.version_kind='RETRACTED'
+          OR (current.version_kind='CORRECTED' AND current.id<>s.id)
+          OR e.review_status IN ('DISPUTED','REJECTED')
+          OR (b.relation_type='SUPPORTS' AND (e.review_status<>'VERIFIED' OR NOT EXISTS(
+            SELECT 1 FROM literature_evidence_review_events event JOIN actors actor
+              ON actor.id=event.reviewed_by
+            WHERE event.id=(SELECT latest.id FROM literature_evidence_review_events latest
+              WHERE latest.literature_evidence_id=e.id
+              ORDER BY latest.reviewed_at DESC,latest.id DESC
+              LIMIT 1) AND event.new_status='VERIFIED' AND actor.actor_type='HUMAN'
+              AND event.reviewed_by<>e.created_by AND event.reviewed_by<>b.author)))) THEN
+        RAISE EXCEPTION 'current evidence invalid' USING ERRCODE='P16T1';
+      END IF;
+ END LOOP;
+      FOR cv IN SELECT c.* FROM claim_versions c JOIN b11_closure(mid) graph ON graph.kind='claim_versions' AND graph.id=c.id LOOP
+        IF cv.status NOT IN ('FROZEN','SUPERSEDED') OR cv.frozen_at IS NULL
+          OR pr216_hash(jsonb_build_object('statement',cv.statement,'scope',cv.scope,
+            'qualification',cv.qualification,'support_set_hash',cv.support_set_hash))<>cv.content_hash
+          OR cv.support_set_hash IS DISTINCT FROM (SELECT pr216_hash(coalesce(jsonb_agg(
+            jsonb_build_object('source_type',CASE WHEN e.measurement_id IS NULL THEN
+              'statistical_result' ELSE 'measurement' END,'source_id',
+              coalesce(e.measurement_id,e.statistical_result_id),'relation_type',lower(e.relation_type),
+              'qualification',e.qualification) ORDER BY
+              CASE WHEN e.measurement_id IS NULL THEN 'statistical_result' ELSE 'measurement' END,
+              coalesce(e.measurement_id,e.statistical_result_id),lower(e.relation_type),
+              e.qualification IS NOT NULL,coalesce(e.qualification,'')),'[]'::jsonb))
+            FROM evidence_relations e WHERE e.claim_version_id=cv.id) THEN
+          RAISE EXCEPTION 'claim material invalid' USING ERRCODE='P17F2';
+        END IF;
+        IF EXISTS(SELECT 1 FROM correction_records WHERE project_id=pid
+          AND lower(target_type)='claim_version' AND target_id=cv.id) OR EXISTS(
+          SELECT 1 FROM impact_targets t JOIN impact_assessments a ON a.id=t.impact_assessment_id
+          LEFT JOIN audit_findings f ON f.id=a.audit_finding_id WHERE a.project_id=pid
+          AND lower(t.target_type)='claim_version' AND t.target_id=cv.id
+          AND lower(f.status) IS DISTINCT
+          FROM 'dismissed' AND lower(a.conclusion)<>'no_impact') THEN
+          RAISE EXCEPTION 'current claim invalid' USING ERRCODE='P16T1';
+        END IF;
+      END LOOP;
+
+ IF EXISTS(SELECT 1 FROM b11_closure(mid) graph JOIN correction_records c ON c.target_id=graph.id AND lower(c.target_type)=rtrim(graph.kind,'s') WHERE c.project_id=pid)
+ OR EXISTS(SELECT 1 FROM b11_closure(mid) graph JOIN impact_targets t ON t.target_id=graph.id AND lower(t.target_type)=rtrim(graph.kind,'s')
+ JOIN impact_assessments a ON a.id=t.impact_assessment_id LEFT JOIN audit_findings f ON f.id=a.audit_finding_id
+ WHERE a.project_id=pid AND lower(f.status) IS DISTINCT FROM 'dismissed' AND lower(a.conclusion)<>'no_impact')
+ OR EXISTS(SELECT 1 FROM b11_closure(mid) graph JOIN source_versions v ON graph.kind='source_versions' AND graph.id=v.id
+ JOIN literature_sources source ON source.id=v.literature_source_id LEFT JOIN source_versions current ON current.id=source.current_version_id
+ WHERE v.version_kind='RETRACTED' OR current.version_kind='RETRACTED' OR (current.version_kind='CORRECTED' AND current.id<>v.id)) THEN
+ RAISE EXCEPTION 'current manuscript closure stale' USING ERRCODE='P16T1'; END IF;
+END $$;
+
+CREATE FUNCTION b14_consumption_gate(r approval_requests,approver UUID) RETURNS void
+ LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE m manuscript_versions; d decision_records; rr internal_review_records; iid UUID;
+BEGIN
+ IF r.approval_purpose IS DISTINCT FROM 'READY_FOR_SUBMISSION'
+ OR r.manuscript_version_id IS NULL OR r.scientific_conclusion_version_id IS NOT NULL THEN
+  RAISE EXCEPTION 'exact READY manuscript tuple required' USING ERRCODE='P16P1'; END IF;
+ SELECT * INTO m FROM manuscript_versions WHERE id=r.manuscript_version_id;
+ SELECT * INTO d FROM decision_records WHERE id=r.basis_decision_id;
+ IF NOT EXISTS(SELECT 1 FROM projects WHERE id=r.project_id AND lifecycle_status='ACTIVE')
+ OR NOT EXISTS(SELECT 1 FROM publications WHERE id=m.publication_id AND project_id=r.project_id
+  AND (lifecycle_status='INTERNAL_REVIEW' OR (lifecycle_status='READY' AND xmin=pg_current_xact_id()::xid))) THEN
+  RAISE EXCEPTION 'INTERNAL_REVIEW active project required' USING ERRCODE='P16G1'; END IF;
+ IF m.id IS NULL OR m.status<>'FROZEN' OR m.frozen_at IS NULL OR m.placement_set_hash IS NULL
+ OR m.content_hash IS DISTINCT FROM r.target_content_hash OR m.hash_scheme IS DISTINCT FROM r.target_hash_scheme
+ OR NOT EXISTS(SELECT 1 FROM publications WHERE id=m.publication_id AND current_manuscript_version_id=m.id) THEN
+  RAISE EXCEPTION 'sealed selected manuscript required' USING ERRCODE='P16T1'; END IF;
+ PERFORM b14r_saved_decision(d.id,m.id,r.project_id);
+ IF d.decided_at>coalesce(r.requested_at,clock_timestamp()) THEN
+  RAISE EXCEPTION 'prior committed Decision required' USING ERRCODE='P16B1'; END IF;
+ IF r.prior_rejected_request_id IS NOT NULL OR r.reconsideration_decision_id IS NOT NULL THEN
+  RAISE EXCEPTION 'READY successor unavailable' USING ERRCODE='P16B1'; END IF;
+ PERFORM b14a_verify_entry(m.publication_id);
+ PERFORM b04_verify_structure(m.id);
+ PERFORM b14a_admission(m.id,r.project_id);
+ PERFORM b14_material(m.id,r.project_id);
+ PERFORM b10_successor_check(r,approver);
+ FOR rr IN SELECT * FROM internal_review_records WHERE project_id=r.project_id AND manuscript_version_id=m.id ORDER BY id LOOP
+  IF rr.target_content_hash IS DISTINCT FROM m.content_hash OR rr.hash_scheme<>'sha256-cjson-v1'
+  OR rr.created_at>clock_timestamp() OR NOT EXISTS(SELECT 1 FROM actors a JOIN project_memberships mem ON mem.actor_id=a.id
+ JOIN project_role_assignments role ON role.membership_id=mem.id AND role.actor_id=mem.actor_id AND role.project_id=mem.project_id
+ WHERE a.id=rr.reviewer_actor_id AND a.actor_type='HUMAN' AND a.created_at<=rr.created_at
+ AND (a.retired_at IS NULL OR rr.created_at<a.retired_at) AND mem.project_id=rr.project_id AND mem.started_at<=rr.created_at
+ AND (SELECT e.new_status FROM project_membership_events e WHERE e.membership_id=mem.id AND e.occurred_at<=rr.created_at ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1)='ACTIVE'
+ AND role.role IN ('OWNER','REVIEWER') AND role.effective_from<=rr.created_at AND (role.effective_until IS NULL OR rr.created_at<role.effective_until)
+ AND EXISTS(SELECT 1 FROM actor_subject_bindings b WHERE b.actor_id=a.id AND b.bound_at<=rr.created_at AND (b.revoked_at IS NULL OR rr.created_at<b.revoked_at)))
+  OR rr.reviewer_actor_id IN (SELECT b11_authors(m.id))
+  OR rr.content_hash IS DISTINCT FROM pr216_hash(jsonb_build_object('type','InternalReviewRecord','material_version',1,
+   'project_id',rr.project_id,'target',pr216_ref('ManuscriptVersion',m.id,m.content_hash),
+   'reviewer_actor_id',rr.reviewer_actor_id,'review_type',rr.review_type,'recommendation',rr.recommendation,'summary',rr.summary)) THEN
+    RAISE EXCEPTION 'matching manuscript review corrupt' USING ERRCODE='P17F2'; END IF;
+ END LOOP;
+ FOR iid IN SELECT i.id FROM review_issues i JOIN b11_applicable_reviews(m.id,r.project_id) review ON review.id=i.review_record_id ORDER BY i.id LOOP
+  PERFORM b08_check_history(iid);
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM review_issues i JOIN b11_applicable_reviews(m.id,r.project_id) review ON review.id=i.review_record_id
+  WHERE i.status='OPEN' AND i.severity='BLOCKING') THEN
+   RAISE EXCEPTION 'applicable OPEN blocker' USING ERRCODE='P16G1'; END IF;
+ IF EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records review ON review.id=b.internal_review_record_id
+  WHERE b.decision_id=d.id AND review.reviewer_actor_id=r.requested_by) THEN
+   RAISE EXCEPTION 'independent requester required' USING ERRCODE='P16C1'; END IF;
+ IF approver IS NOT NULL THEN
+  IF NOT pr216_approver_active(approver,r.project_id) THEN
+   RAISE EXCEPTION 'HUMAN approver required' USING ERRCODE='P16A1'; END IF;
+  IF approver IN (r.requested_by,d.decided_by) OR approver IN (SELECT b11_authors(m.id))
+  OR EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records review ON review.id=b.internal_review_record_id
+    WHERE b.decision_id=d.id AND review.reviewer_actor_id=approver) THEN
+   RAISE EXCEPTION 'independent approver required' USING ERRCODE='P16C1'; END IF;
+  IF EXISTS(SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id AND q.approval_purpose=r.approval_purpose
+   AND q.manuscript_version_id<>m.id AND q.requested_at>r.requested_at) THEN
+   RAISE EXCEPTION 'newer target selected' USING ERRCODE='P16T1'; END IF;
+ END IF;
+END $$;
+CREATE OR REPLACE FUNCTION b13_request_hash(c approval_grant_consumptions) RETURNS text LANGUAGE SQL STABLE SET search_path=pg_catalog,public,pg_temp AS $$
+ SELECT pr216_hash(jsonb_build_object('type','ApprovalGrantConsumptionRequest','material_version',1,
+ 'command',c.command,'project_id',c.project_id,'actor_id',c.actor_id,'grant_id',c.grant_id,
+ 'target',jsonb_build_object('type',CASE WHEN c.command='TRANSITION_PUBLICATION_READY' THEN 'ManuscriptVersion' ELSE 'ScientificConclusionVersion' END,'id',coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id),'content_hash',r.target_content_hash),
+ 'result_id',coalesce(c.result_scientific_conclusion_version_id,c.result_publication_id),'expected_package_manifest_hash',NULL,
+ 'checked_review_ids',(SELECT jsonb_agg(rr.internal_review_record_id ORDER BY rr.internal_review_record_id::text) FROM approval_request_reviews rr WHERE rr.request_id=r.id)))
+ FROM approval_grants g JOIN approval_decisions d ON d.id=g.approval_decision_id JOIN approval_requests r ON r.id=d.approval_request_id WHERE g.id=c.grant_id
+$$;
+CREATE OR REPLACE FUNCTION b13_verify_receipt(c approval_grant_consumptions, complete boolean DEFAULT false) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE g approval_grants; d approval_decisions; r approval_requests;
+BEGIN
+ SELECT * INTO g FROM approval_grants WHERE id=c.grant_id;
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ IF r.id IS NULL OR g.project_id IS DISTINCT FROM c.project_id OR r.project_id IS DISTINCT FROM c.project_id
+ OR r.status<>'DECIDED' OR NOT ((g.purpose='INTERNAL_SCIENTIFIC_RELEASE' AND g.allowed_command='record_internal_scientific_release' AND c.command='RECORD_INTERNAL_SCIENTIFIC_RELEASE') OR (g.purpose='READY_FOR_SUBMISSION' AND g.allowed_command='transition_publication_ready' AND c.command='TRANSITION_PUBLICATION_READY'))
+ OR r.approval_purpose<>g.purpose OR d.decision NOT IN ('APPROVE','APPROVE_WITH_CONDITIONS')
+ OR g.valid_until IS DISTINCT FROM coalesce(d.valid_until,d.decided_at+interval '720 hours')
+ OR (c.command='RECORD_INTERNAL_SCIENTIFIC_RELEASE' AND c.result_scientific_conclusion_version_id IS DISTINCT FROM r.scientific_conclusion_version_id)
+ OR (c.command='TRANSITION_PUBLICATION_READY' AND NOT EXISTS(SELECT 1 FROM manuscript_versions WHERE id=r.manuscript_version_id AND publication_id=c.result_publication_id))
+ OR c.consumed_at<d.decided_at OR c.consumed_at>=g.valid_until
+ OR c.request_hash IS DISTINCT FROM b13_request_hash(c)
+ OR c.result_dto IS DISTINCT FROM jsonb_build_object('command',c.command,CASE WHEN c.command='TRANSITION_PUBLICATION_READY' THEN 'publication_id' ELSE 'scientific_conclusion_version_id' END,coalesce(c.result_publication_id,c.result_scientific_conclusion_version_id),'consumption_id',c.id)
+ OR NOT EXISTS(SELECT 1 FROM approval_request_reviews WHERE request_id=r.id)
+ OR EXISTS((SELECT internal_review_record_id FROM approval_request_reviews WHERE request_id=r.id) EXCEPT (SELECT internal_review_record_id FROM decision_basis_reviews WHERE decision_id=r.basis_decision_id))
+ OR EXISTS((SELECT internal_review_record_id FROM decision_basis_reviews WHERE decision_id=r.basis_decision_id) EXCEPT (SELECT internal_review_record_id FROM approval_request_reviews WHERE request_id=r.id)) THEN
+ RAISE EXCEPTION 'corrupt receipt history' USING ERRCODE='P17F2'; END IF;
+ IF complete AND (g.status<>'CONSUMED' OR NOT EXISTS(SELECT 1 FROM approval_grant_events e
+  WHERE e.grant_id=g.id AND e.prior_status IS NULL AND e.new_status='ACTIVE'
+    AND e.actor_id=d.decided_by AND e.reason='grant created' AND e.occurred_at>=d.decided_at)
+ OR NOT EXISTS(SELECT 1 FROM approval_grant_events e WHERE e.grant_id=g.id AND e.prior_status='ACTIVE'
+  AND e.new_status='CONSUMED' AND e.actor_id=c.actor_id AND e.occurred_at=c.consumed_at)) THEN
+ RAISE EXCEPTION 'incomplete receipt events' USING ERRCODE='P17F2'; END IF;
+
+ IF complete AND c.command='TRANSITION_PUBLICATION_READY' THEN PERFORM b14_verify_ready(c.result_publication_id); END IF;
+END $$;
+CREATE OR REPLACE FUNCTION b13_release_gate(r approval_requests, approver UUID) RETURNS void
+      LANGUAGE plpgsql
+      SET search_path = pg_catalog, public, pg_temp AS $$
+    DECLARE v scientific_conclusion_versions; d decision_records; pid UUID;
+    BEGIN
+      IF r.approval_purpose='READY_FOR_SUBMISSION' THEN PERFORM b14_consumption_gate(r,approver); RETURN; END IF;
+
+      IF (r.approval_purpose='INTERNAL_SCIENTIFIC_RELEASE' AND r.scientific_conclusion_version_id IS NOT NULL AND r.manuscript_version_id IS NULL)
+        OR (r.approval_purpose IN ('READY_FOR_SUBMISSION','PREPARE_SUBMISSION') AND r.manuscript_version_id IS NOT NULL AND r.scientific_conclusion_version_id IS NULL) THEN
+        NULL;
+      ELSE RAISE EXCEPTION 'unlisted approval tuple' USING ERRCODE='P16P1'; END IF;
+      IF r.manuscript_version_id IS NOT NULL THEN RAISE EXCEPTION 'B14 binding unavailable' USING ERRCODE='P16G1'; END IF;
+      SELECT * INTO v FROM scientific_conclusion_versions
+        WHERE id=r.scientific_conclusion_version_id;
+      SELECT project_id INTO pid FROM scientific_conclusions WHERE id=v.scientific_conclusion_id;
+      IF pid IS DISTINCT FROM r.project_id OR v.status NOT IN ('FROZEN','SUPERSEDED') OR v.frozen_at IS NULL
+        OR v.content_hash IS DISTINCT FROM r.target_content_hash
+        OR v.hash_scheme IS DISTINCT FROM r.target_hash_scheme THEN
+        RAISE EXCEPTION 'frozen exact target required' USING ERRCODE='P16T1';
+      END IF;
+      PERFORM b10_successor_check(r,approver);
+      SELECT * INTO d FROM decision_records WHERE id=r.basis_decision_id;
+      IF d.project_id IS DISTINCT FROM r.project_id OR d.decision<>'PROCEED'
+        OR d.decision_type<>r.approval_purpose
+        OR NOT EXISTS(SELECT 1 FROM decision_basis_conclusions WHERE decision_id=d.id
+          AND scientific_conclusion_version_id=v.id)
+        OR NOT EXISTS(SELECT 1 FROM decision_basis_reviews WHERE decision_id=d.id) THEN
+        RAISE EXCEPTION 'affirmative exact basis required' USING ERRCODE='P16B1';
+      END IF;
+      IF EXISTS(SELECT 1 FROM review_issues i JOIN internal_review_records x
+        ON x.id=i.review_record_id WHERE x.project_id=r.project_id
+        AND x.scientific_conclusion_version_id=v.id AND i.status='OPEN'
+          AND i.severity='BLOCKING') THEN
+        RAISE EXCEPTION 'blocking issue' USING ERRCODE='P16G1';
+      END IF;
+      IF EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records x
+        ON x.id=b.internal_review_record_id WHERE b.decision_id=d.id
+        AND (x.project_id IS DISTINCT FROM r.project_id
+          OR x.scientific_conclusion_version_id IS DISTINCT FROM v.id
+          OR x.target_content_hash IS DISTINCT FROM r.target_content_hash
+          OR x.reviewer_actor_id=r.requested_by
+          OR x.reviewer_actor_id IN (SELECT pr216_authors(v.id)))) THEN
+        RAISE EXCEPTION 'reviewer independence' USING ERRCODE='P16C1';
+      END IF;
+      IF NOT EXISTS(SELECT 1 FROM projects WHERE id=r.project_id AND lifecycle_status='ACTIVE') THEN
+        RAISE EXCEPTION 'active project required' USING ERRCODE='P16G1';
+      END IF;
+      PERFORM b08_check_history(i.id) FROM review_issues i JOIN internal_review_records rr
+        ON rr.id=i.review_record_id WHERE rr.project_id=r.project_id AND rr.scientific_conclusion_version_id=v.id;
+      PERFORM pr216_material_gate(r);
+      IF d.decided_by IN (SELECT pr216_authors(v.id)) THEN
+        RAISE EXCEPTION 'independent basis decider required' USING ERRCODE='P16C1';
+      END IF;
+      IF approver IS NOT NULL THEN
+        IF EXISTS(SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id
+          AND q.approval_purpose=r.approval_purpose
+          AND coalesce(q.scientific_conclusion_version_id,q.manuscript_version_id)<>coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id)
+          AND q.requested_at>r.requested_at) THEN
+          RAISE EXCEPTION 'newer approval target selected' USING ERRCODE='P16T1';
+        END IF;
+        IF NOT pr216_approver_active(approver,r.project_id) THEN
+          IF EXISTS(SELECT 1 FROM approval_grants g JOIN approval_decisions ad
+            ON ad.id=g.approval_decision_id WHERE ad.approval_request_id=r.id
+            AND clock_timestamp()>=g.valid_until) THEN
+            RAISE EXCEPTION 'grant expired during issuer check' USING ERRCODE='P13G1'; END IF;
+          RAISE EXCEPTION 'issuing authority lost' USING ERRCODE='P13S1';
+        END IF;
+        IF approver=r.requested_by OR approver=d.decided_by
+          OR approver IN (SELECT pr216_authors(v.id))
+          OR EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records x
+            ON x.id=b.internal_review_record_id WHERE b.decision_id=d.id
+            AND x.reviewer_actor_id=approver) THEN
+          RAISE EXCEPTION 'independent approver required' USING ERRCODE='P16C1';
+        END IF;
+      END IF;
+    END $$;
+CREATE OR REPLACE FUNCTION b13_stale(g approval_grants) RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE r approval_requests; d approval_decisions;
+BEGIN
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ IF NOT pr216_approver_active(d.decided_by,g.project_id) OR EXISTS(
+ SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id AND q.approval_purpose=r.approval_purpose
+ AND coalesce(q.scientific_conclusion_version_id,q.manuscript_version_id)<>coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id)
+ AND q.requested_at>r.requested_at) THEN RETURN true; END IF;
+ IF r.manuscript_version_id IS NOT NULL AND r.approval_purpose<>'READY_FOR_SUBMISSION' THEN
+ RAISE EXCEPTION 'B14 consent/effect dependency unavailable' USING ERRCODE='P16G1'; END IF;
+ BEGIN
+  PERFORM b13_release_gate(r,d.decided_by);
+ EXCEPTION WHEN SQLSTATE 'P16T1' OR SQLSTATE 'P16R1' OR SQLSTATE 'P16G1' OR SQLSTATE 'P16C1' OR SQLSTATE 'P16A1' OR SQLSTATE 'P13S1' THEN RETURN true;
+ END;
+ RETURN false;
+END $$;
+CREATE OR REPLACE FUNCTION b13_consumption_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE g approval_grants; d approval_decisions; r approval_requests;
+BEGIN
+ PERFORM b13_preheld(true);
+ SELECT * INTO g FROM approval_grants WHERE id=NEW.grant_id;
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ IF g.status IS DISTINCT FROM 'ACTIVE' OR clock_timestamp()>=g.valid_until THEN
+ RAISE EXCEPTION 'grant unavailable' USING ERRCODE='P13G1'; END IF;
+ IF NOT b13_authorized(NEW.actor_id,NEW.project_id,ARRAY['OWNER','RESEARCHER']) THEN
+ RAISE EXCEPTION 'writer required' USING ERRCODE='P16A1'; END IF;
+ PERFORM b13_release_gate(r,d.decided_by);
+ IF NEW.consumed_at>clock_timestamp() THEN RAISE EXCEPTION 'observed time required' USING ERRCODE='P17F2'; END IF;
+ IF NEW.command<>'TRANSITION_PUBLICATION_READY' THEN NEW.consumed_at:=clock_timestamp();
+ ELSE
+  IF NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE basis_grant_consumption_id=NEW.id AND actor_id=NEW.actor_id AND occurred_at=NEW.consumed_at AND publication_id=NEW.result_publication_id AND xmin=pg_current_xact_id()::xid) THEN
+   RAISE EXCEPTION 'atomic READY event required' USING ERRCODE='P17F2'; END IF;
+ END IF;
+ IF NEW.consumed_at>=g.valid_until THEN RAISE EXCEPTION 'grant expired during admission' USING ERRCODE='P13G1'; END IF;
+ PERFORM b13_verify_receipt(NEW);
+ RETURN NEW;
+END $$;
+CREATE OR REPLACE FUNCTION pr212_publication_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+    DECLARE candidate RECORD; admitted boolean;
+    BEGIN
+      IF TG_OP='DELETE' THEN
+        RAISE EXCEPTION 'publication history retained' USING ERRCODE='P17D1';
+      END IF;
+      IF TG_OP='INSERT' THEN
+        IF NEW.lifecycle_status<>'DRAFTING' OR NEW.row_version<>1
+           OR NEW.current_manuscript_version_id IS NOT NULL THEN
+          RAISE EXCEPTION 'publication starts drafting' USING ERRCODE='P17D2';
+        END IF;
+        RETURN NEW;
+      END IF;
+      IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='DRAFTING'
+        AND OLD.current_manuscript_version_id IS NULL AND NEW.current_manuscript_version_id IS NOT NULL
+        AND NEW.row_version=OLD.row_version+1
+        AND (to_jsonb(NEW)-ARRAY['current_manuscript_version_id','row_version'])
+          IS NOT DISTINCT FROM (to_jsonb(OLD)-ARRAY['current_manuscript_version_id','row_version'])
+        AND EXISTS (SELECT 1 FROM manuscript_versions m WHERE m.id=NEW.current_manuscript_version_id
+          AND m.publication_id=NEW.id AND m.status='FROZEN' AND m.content_hash IS NOT NULL
+          AND m.placement_set_hash IS NOT NULL AND m.frozen_at IS NOT NULL) THEN RETURN NEW; END IF;
+      IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='INTERNAL_REVIEW'
+        AND OLD.current_manuscript_version_id IS NOT NULL
+        AND NEW.row_version::bigint=OLD.row_version::bigint+1
+        AND (to_jsonb(NEW)-ARRAY['lifecycle_status','row_version']) IS NOT DISTINCT FROM
+            (to_jsonb(OLD)-ARRAY['lifecycle_status','row_version']) THEN
+        PERFORM b14a_preheld();
+        PERFORM b14a_admission(NEW.current_manuscript_version_id,NEW.project_id);
+        RETURN NEW;
+      END IF;
+      IF OLD.lifecycle_status='INTERNAL_REVIEW' AND NEW.lifecycle_status='READY'
+       AND NEW.row_version::bigint=OLD.row_version::bigint+1
+       AND (to_jsonb(NEW)-ARRAY['lifecycle_status','row_version']) IS NOT DISTINCT FROM
+           (to_jsonb(OLD)-ARRAY['lifecycle_status','row_version']) THEN
+        PERFORM b13_preheld(true);
+        admitted:=false;
+        FOR candidate IN SELECT r AS request,d.decided_by,g.valid_until FROM approval_grants g JOIN approval_decisions d ON d.id=g.approval_decision_id
+          JOIN approval_requests r ON r.id=d.approval_request_id WHERE g.status='ACTIVE'
+          AND g.purpose='READY_FOR_SUBMISSION' AND g.allowed_command='transition_publication_ready'
+          AND g.project_id=NEW.project_id AND r.manuscript_version_id=NEW.current_manuscript_version_id
+          AND clock_timestamp()<g.valid_until ORDER BY g.id LOOP
+          BEGIN
+            PERFORM b14_consumption_gate(candidate.request,candidate.decided_by);
+            IF clock_timestamp()<candidate.valid_until AND pr216_approver_active(candidate.decided_by,NEW.project_id) THEN
+              admitted:=true; EXIT;
+            END IF;
+          EXCEPTION WHEN SQLSTATE 'P16T1' OR SQLSTATE 'P16G1' OR SQLSTATE 'P16B1' OR SQLSTATE 'P16A1' OR SQLSTATE 'P16C1' OR SQLSTATE 'P16R1' THEN
+            CONTINUE;
+          END;
+        END LOOP;
+        IF NOT admitted THEN RAISE EXCEPTION 'valid ACTIVE readiness permission required' USING ERRCODE='P16G1'; END IF;
+        RETURN NEW;
+      END IF;
+      RAISE EXCEPTION 'invalid manuscript pointer transition' USING ERRCODE='P04M2';
+    END $$;
+CREATE OR REPLACE FUNCTION b14a_verify_entry(pid UUID) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE p publications; e publication_lifecycle_events; m manuscript_versions;
+BEGIN
+ SELECT * INTO p FROM publications WHERE id=pid;
+ IF p.id IS NULL OR (SELECT count(*) FROM publication_lifecycle_events WHERE publication_id=pid AND prior_status IS NULL)<>1
+ OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=pid AND prior_status IS NULL AND new_status='DRAFTING' AND actor_id=p.created_by AND occurred_at=p.created_at AND manuscript_version_id IS NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL) THEN
+ RAISE EXCEPTION 'complete initial history required' USING ERRCODE='P14P1'; END IF;
+ SELECT * INTO e FROM publication_lifecycle_events WHERE publication_id=pid AND new_status='INTERNAL_REVIEW';
+ IF p.lifecycle_status='DRAFTING' THEN
+  IF e.id IS NOT NULL THEN RAISE EXCEPTION 'event without transition' USING ERRCODE='P14P1'; END IF;
+  RETURN;
+ END IF;
+ SELECT * INTO m FROM manuscript_versions WHERE id=e.manuscript_version_id;
+ IF p.lifecycle_status NOT IN ('INTERNAL_REVIEW','READY') OR e.id IS NULL OR e.prior_status IS DISTINCT FROM 'DRAFTING'
+ OR m.id IS NULL OR m.publication_id IS DISTINCT FROM pid OR m.status<>'FROZEN' OR m.frozen_at IS NULL
+ OR e.manuscript_version_id IS DISTINCT FROM p.current_manuscript_version_id
+ OR e.occurred_at<m.frozen_at OR e.occurred_at<p.created_at OR e.occurred_at>clock_timestamp()
+ OR e.basis_decision_id IS NOT NULL OR e.basis_grant_consumption_id IS NOT NULL THEN
+ RAISE EXCEPTION 'complete exact entry graph required' USING ERRCODE='P14P1'; END IF;
+ PERFORM b04_verify_structure(m.id);
+ IF p.lifecycle_status='INTERNAL_REVIEW' AND EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid) THEN
+  IF NOT EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+   RAISE EXCEPTION 'same transaction transition required' USING ERRCODE='P14I1'; END IF;
+  PERFORM b14a_preheld(); PERFORM b14a_admission(m.id,p.project_id);
+  IF NOT b13_authorized(e.actor_id,p.project_id,ARRAY['OWNER','RESEARCHER']) OR NOT EXISTS(SELECT 1 FROM projects WHERE id=p.project_id AND lifecycle_status='ACTIVE') THEN
+   RAISE EXCEPTION 'final entry authority unavailable' USING ERRCODE='P14A1'; END IF;
+ ELSIF p.lifecycle_status='INTERNAL_REVIEW' AND EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+  RAISE EXCEPTION 'old event cannot complete new transition' USING ERRCODE='P14I1';
+ END IF;
+END $$;
+CREATE FUNCTION b14_ready_event_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE p publications; m manuscript_versions;
+BEGIN
+ SELECT * INTO p FROM publications WHERE id=NEW.publication_id;
+ IF NEW.prior_status IS NULL THEN
+  IF NOT EXISTS(SELECT 1 FROM publications WHERE id=p.id AND xmin=pg_current_xact_id()::xid)
+   OR p.lifecycle_status<>'DRAFTING' OR NEW.new_status<>'DRAFTING' OR NEW.actor_id IS DISTINCT FROM p.created_by OR NEW.occurred_at IS DISTINCT FROM p.created_at THEN
+   RAISE EXCEPTION 'creation event belongs to new parent' USING ERRCODE='P14I1'; END IF;
+  RETURN NEW;
+ END IF;
+ IF NEW.new_status='READY' THEN
+  PERFORM b13_preheld(true);
+  IF p.lifecycle_status<>'READY' OR NEW.prior_status IS DISTINCT FROM 'INTERNAL_REVIEW'
+   OR NEW.manuscript_version_id IS NOT NULL
+   OR NOT EXISTS(SELECT 1 FROM publications WHERE id=p.id AND xmin=pg_current_xact_id()::xid)
+   OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=p.id AND new_status='INTERNAL_REVIEW' AND occurred_at<=NEW.occurred_at AND xmin<>pg_current_xact_id()::xid)
+   OR NEW.occurred_at>clock_timestamp()
+   OR NOT b13_authorized(NEW.actor_id,p.project_id,ARRAY['OWNER','RESEARCHER']) THEN
+   RAISE EXCEPTION 'atomic READY event required' USING ERRCODE='P14I1'; END IF;
+  RETURN NEW;
+ END IF;
+ PERFORM b14a_preheld();
+ SELECT * INTO m FROM manuscript_versions WHERE id=NEW.manuscript_version_id;
+ IF p.lifecycle_status IS DISTINCT FROM 'INTERNAL_REVIEW'
+  OR NOT EXISTS(SELECT 1 FROM publications WHERE id=p.id AND xmin=pg_current_xact_id()::xid)
+  OR EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=p.id AND new_status='INTERNAL_REVIEW') THEN
+  RAISE EXCEPTION 'entry event belongs to new transition' USING ERRCODE='P14I1'; END IF;
+ IF m.id IS NULL OR m.publication_id IS DISTINCT FROM p.id OR p.current_manuscript_version_id IS DISTINCT FROM m.id OR m.status<>'FROZEN'
+  OR NEW.occurred_at<m.frozen_at OR NEW.occurred_at>clock_timestamp()
+  OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=p.id AND prior_status IS NULL AND occurred_at<=NEW.occurred_at) THEN
+  RAISE EXCEPTION 'entry target or chronology mismatch' USING ERRCODE='P14P1'; END IF;
+ IF NOT b13_authorized(NEW.actor_id,p.project_id,ARRAY['OWNER','RESEARCHER']) OR NOT EXISTS(SELECT 1 FROM projects WHERE id=p.project_id AND lifecycle_status='ACTIVE') THEN
+  RAISE EXCEPTION 'entry authority unavailable' USING ERRCODE='P14A1'; END IF;
+ RETURN NEW;
+END $$;
+CREATE FUNCTION b14_verify_ready(pid UUID) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE p publications; e publication_lifecycle_events; c approval_grant_consumptions; g approval_grants; d approval_decisions; r approval_requests; m manuscript_versions; ge approval_grant_events;
+BEGIN
+ SELECT * INTO p FROM publications WHERE id=pid;
+ SELECT * INTO e FROM publication_lifecycle_events WHERE publication_id=pid AND new_status='READY';
+ IF p.lifecycle_status<>'READY' THEN
+  IF e.id IS NOT NULL THEN RAISE EXCEPTION 'orphan READY event' USING ERRCODE='P17F2'; END IF;
+  RETURN;
+ END IF;
+ SELECT * INTO c FROM approval_grant_consumptions WHERE id=e.basis_grant_consumption_id;
+ SELECT * INTO g FROM approval_grants WHERE id=c.grant_id;
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ SELECT * INTO m FROM manuscript_versions WHERE id=r.manuscript_version_id;
+ SELECT * INTO ge FROM approval_grant_events WHERE grant_id=g.id AND prior_status='ACTIVE';
+ IF e.id IS NULL OR c.id IS NULL OR g.id IS NULL OR r.id IS NULL OR m.id IS NULL OR ge.id IS NULL
+  OR e.prior_status IS DISTINCT FROM 'INTERNAL_REVIEW' OR e.manuscript_version_id IS NOT NULL
+  OR c.command<>'TRANSITION_PUBLICATION_READY' OR g.purpose<>'READY_FOR_SUBMISSION'
+  OR g.allowed_command<>'transition_publication_ready' OR g.status<>'CONSUMED'
+  OR c.project_id IS DISTINCT FROM p.project_id OR g.project_id IS DISTINCT FROM p.project_id OR r.project_id IS DISTINCT FROM p.project_id
+  OR c.result_publication_id IS DISTINCT FROM pid OR m.publication_id IS DISTINCT FROM pid
+  OR p.current_manuscript_version_id IS DISTINCT FROM m.id OR m.content_hash IS DISTINCT FROM r.target_content_hash
+  OR m.hash_scheme IS DISTINCT FROM r.target_hash_scheme
+  OR e.basis_decision_id IS DISTINCT FROM r.basis_decision_id
+  OR e.actor_id IS DISTINCT FROM c.actor_id OR e.occurred_at IS DISTINCT FROM c.consumed_at
+  OR ge.actor_id IS DISTINCT FROM c.actor_id OR ge.occurred_at IS DISTINCT FROM c.consumed_at OR ge.new_status<>'CONSUMED'
+  OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=pid AND new_status='INTERNAL_REVIEW' AND manuscript_version_id=m.id AND occurred_at<=e.occurred_at)
+  OR (SELECT count(*) FROM publication_lifecycle_events WHERE publication_id=pid)<>3 THEN
+  RAISE EXCEPTION 'complete READY graph required' USING ERRCODE='P17F2'; END IF;
+ PERFORM b14r_saved_decision(r.basis_decision_id,m.id,p.project_id);
+ IF EXISTS(SELECT 1 FROM approval_grant_consumptions WHERE id=c.id AND xmin=pg_current_xact_id()::xid)
+ OR EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid)
+ OR EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+  IF NOT EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid)
+  OR NOT EXISTS(SELECT 1 FROM approval_grant_consumptions WHERE id=c.id AND xmin=pg_current_xact_id()::xid)
+  OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid)
+  OR NOT EXISTS(SELECT 1 FROM approval_grant_events WHERE id=ge.id AND xmin=pg_current_xact_id()::xid)
+  OR NOT EXISTS(SELECT 1 FROM approval_grants WHERE id=g.id AND xmin=pg_current_xact_id()::xid) THEN
+   RAISE EXCEPTION 'same transaction READY graph required' USING ERRCODE='P14I1'; END IF;
+  PERFORM b13_preheld(true);
+ END IF;
+END $$;
+CREATE FUNCTION b14_complete_graph() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE pid UUID;
+BEGIN
+ IF TG_TABLE_NAME='publications' THEN pid:=NEW.id;
+ ELSIF TG_TABLE_NAME='publication_lifecycle_events' THEN pid:=NEW.publication_id;
+ ELSE
+  IF NEW.command<>'TRANSITION_PUBLICATION_READY' THEN RETURN NULL; END IF;
+  pid:=NEW.result_publication_id;
+ END IF;
+ PERFORM b14a_verify_entry(pid);
+ PERFORM b14_verify_ready(pid);
+ RETURN NULL;
+END $$;
+DROP TRIGGER b14a_entry_event_guard ON publication_lifecycle_events;
+CREATE TRIGGER b14_ready_event_guard BEFORE INSERT ON publication_lifecycle_events FOR EACH ROW EXECUTE FUNCTION b14_ready_event_guard();
+CREATE CONSTRAINT TRIGGER b14_complete_publication AFTER INSERT OR UPDATE ON publications DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION b14_complete_graph();
+CREATE CONSTRAINT TRIGGER b14_complete_ready_event AFTER INSERT ON publication_lifecycle_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION b14_complete_graph();
+CREATE CONSTRAINT TRIGGER b14_complete_ready_consumption AFTER INSERT ON approval_grant_consumptions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION b14_complete_graph();
+"""
+
+DOWNGRADE_SQL = r"""
+LOCK TABLE publications,publication_lifecycle_events,approval_grant_consumptions IN ACCESS EXCLUSIVE MODE;
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE new_status<>'DRAFTING') OR EXISTS(SELECT 1 FROM approval_grant_consumptions WHERE command='TRANSITION_PUBLICATION_READY') THEN
+ RAISE EXCEPTION 'entry/READY history retained' USING ERRCODE='P14I1'; END IF;
+END $$;
+DROP TRIGGER b14_complete_publication ON publications;
+DROP TRIGGER b14_complete_ready_event ON publication_lifecycle_events;
+DROP TRIGGER b14_complete_ready_consumption ON approval_grant_consumptions;
+DROP TRIGGER b14_ready_event_guard ON publication_lifecycle_events;
+CREATE TRIGGER b14a_entry_event_guard BEFORE INSERT ON publication_lifecycle_events FOR EACH ROW EXECUTE FUNCTION b14a_entry_event_guard();
+DROP FUNCTION b14_complete_graph(); DROP FUNCTION b14_ready_event_guard();
+DROP INDEX uq_b14_ready_event; DROP INDEX uq_b14_ready_consumption; DROP INDEX ix_b14_event_decision;
+ALTER TABLE publication_lifecycle_events DROP CONSTRAINT fk_b14_ready_decision, DROP CONSTRAINT fk_b14_ready_consumption,DROP CONSTRAINT ck_b14a_event_tuple;
+ALTER TABLE publication_lifecycle_events ADD CONSTRAINT ck_b14a_event_tuple CHECK(
+ (prior_status IS NULL AND new_status='DRAFTING' AND manuscript_version_id IS NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL) OR
+ (prior_status IS NOT DISTINCT FROM 'DRAFTING' AND new_status='INTERNAL_REVIEW' AND manuscript_version_id IS NOT NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL));
+ALTER TABLE publications DROP CONSTRAINT ck_b14a_publication_status;
+ALTER TABLE publications ADD CONSTRAINT ck_b14a_publication_status CHECK(lifecycle_status IN ('DRAFTING','INTERNAL_REVIEW'));
+ALTER TABLE approval_grant_consumptions DROP CONSTRAINT ck_b13_result_tuple;
+ALTER TABLE approval_grant_consumptions ADD CONSTRAINT ck_b13_result_tuple CHECK(command='RECORD_INTERNAL_SCIENTIFIC_RELEASE' AND result_scientific_conclusion_version_id IS NOT NULL AND result_publication_id IS NULL AND result_prepared_submission_version_id IS NULL);
+CREATE OR REPLACE FUNCTION b13_request_hash(c approval_grant_consumptions) RETURNS text LANGUAGE SQL STABLE SET search_path=pg_catalog,public,pg_temp AS $$
+ SELECT pr216_hash(jsonb_build_object('type','ApprovalGrantConsumptionRequest','material_version',1,
+ 'command',c.command,'project_id',c.project_id,'actor_id',c.actor_id,'grant_id',c.grant_id,
+ 'target',jsonb_build_object('type','ScientificConclusionVersion','id',r.scientific_conclusion_version_id,'content_hash',r.target_content_hash),
+ 'result_id',c.result_scientific_conclusion_version_id,'expected_package_manifest_hash',NULL,
+ 'checked_review_ids',(SELECT jsonb_agg(rr.internal_review_record_id ORDER BY rr.internal_review_record_id::text) FROM approval_request_reviews rr WHERE rr.request_id=r.id)))
+ FROM approval_grants g JOIN approval_decisions d ON d.id=g.approval_decision_id JOIN approval_requests r ON r.id=d.approval_request_id WHERE g.id=c.grant_id
+$$;
+CREATE OR REPLACE FUNCTION b13_verify_receipt(c approval_grant_consumptions, complete boolean DEFAULT false) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE g approval_grants; d approval_decisions; r approval_requests;
+BEGIN
+ SELECT * INTO g FROM approval_grants WHERE id=c.grant_id;
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ IF r.id IS NULL OR g.project_id IS DISTINCT FROM c.project_id OR r.project_id IS DISTINCT FROM c.project_id
+ OR r.status<>'DECIDED' OR g.purpose<>'INTERNAL_SCIENTIFIC_RELEASE' OR g.allowed_command<>'record_internal_scientific_release'
+ OR r.approval_purpose<>g.purpose OR d.decision NOT IN ('APPROVE','APPROVE_WITH_CONDITIONS')
+ OR g.valid_until IS DISTINCT FROM coalesce(d.valid_until,d.decided_at+interval '720 hours')
+ OR c.result_scientific_conclusion_version_id IS DISTINCT FROM r.scientific_conclusion_version_id
+ OR c.consumed_at<d.decided_at OR c.consumed_at>=g.valid_until
+ OR c.request_hash IS DISTINCT FROM b13_request_hash(c)
+ OR c.result_dto IS DISTINCT FROM jsonb_build_object('command',c.command,'scientific_conclusion_version_id',r.scientific_conclusion_version_id,'consumption_id',c.id)
+ OR NOT EXISTS(SELECT 1 FROM approval_request_reviews WHERE request_id=r.id)
+ OR EXISTS((SELECT internal_review_record_id FROM approval_request_reviews WHERE request_id=r.id) EXCEPT (SELECT internal_review_record_id FROM decision_basis_reviews WHERE decision_id=r.basis_decision_id))
+ OR EXISTS((SELECT internal_review_record_id FROM decision_basis_reviews WHERE decision_id=r.basis_decision_id) EXCEPT (SELECT internal_review_record_id FROM approval_request_reviews WHERE request_id=r.id)) THEN
+ RAISE EXCEPTION 'corrupt receipt history' USING ERRCODE='P17F2'; END IF;
+ IF complete AND (g.status<>'CONSUMED' OR NOT EXISTS(SELECT 1 FROM approval_grant_events e
+  WHERE e.grant_id=g.id AND e.prior_status IS NULL AND e.new_status='ACTIVE'
+    AND e.actor_id=d.decided_by AND e.reason='grant created' AND e.occurred_at>=d.decided_at)
+ OR NOT EXISTS(SELECT 1 FROM approval_grant_events e WHERE e.grant_id=g.id AND e.prior_status='ACTIVE'
+  AND e.new_status='CONSUMED' AND e.actor_id=c.actor_id AND e.occurred_at=c.consumed_at)) THEN
+ RAISE EXCEPTION 'incomplete receipt events' USING ERRCODE='P17F2'; END IF;
+
+END $$;
+CREATE OR REPLACE FUNCTION b13_release_gate(r approval_requests, approver UUID) RETURNS void
+      LANGUAGE plpgsql
+      SET search_path = pg_catalog, public, pg_temp AS $$
+    DECLARE v scientific_conclusion_versions; d decision_records; pid UUID;
+    BEGIN
+
+      IF (r.approval_purpose='INTERNAL_SCIENTIFIC_RELEASE' AND r.scientific_conclusion_version_id IS NOT NULL AND r.manuscript_version_id IS NULL)
+        OR (r.approval_purpose IN ('READY_FOR_SUBMISSION','PREPARE_SUBMISSION') AND r.manuscript_version_id IS NOT NULL AND r.scientific_conclusion_version_id IS NULL) THEN
+        NULL;
+      ELSE RAISE EXCEPTION 'unlisted approval tuple' USING ERRCODE='P16P1'; END IF;
+      IF r.manuscript_version_id IS NOT NULL THEN RAISE EXCEPTION 'B14 binding unavailable' USING ERRCODE='P16G1'; END IF;
+      SELECT * INTO v FROM scientific_conclusion_versions
+        WHERE id=r.scientific_conclusion_version_id;
+      SELECT project_id INTO pid FROM scientific_conclusions WHERE id=v.scientific_conclusion_id;
+      IF pid IS DISTINCT FROM r.project_id OR v.status NOT IN ('FROZEN','SUPERSEDED') OR v.frozen_at IS NULL
+        OR v.content_hash IS DISTINCT FROM r.target_content_hash
+        OR v.hash_scheme IS DISTINCT FROM r.target_hash_scheme THEN
+        RAISE EXCEPTION 'frozen exact target required' USING ERRCODE='P16T1';
+      END IF;
+      PERFORM b10_successor_check(r,approver);
+      SELECT * INTO d FROM decision_records WHERE id=r.basis_decision_id;
+      IF d.project_id IS DISTINCT FROM r.project_id OR d.decision<>'PROCEED'
+        OR d.decision_type<>r.approval_purpose
+        OR NOT EXISTS(SELECT 1 FROM decision_basis_conclusions WHERE decision_id=d.id
+          AND scientific_conclusion_version_id=v.id)
+        OR NOT EXISTS(SELECT 1 FROM decision_basis_reviews WHERE decision_id=d.id) THEN
+        RAISE EXCEPTION 'affirmative exact basis required' USING ERRCODE='P16B1';
+      END IF;
+      IF EXISTS(SELECT 1 FROM review_issues i JOIN internal_review_records x
+        ON x.id=i.review_record_id WHERE x.project_id=r.project_id
+        AND x.scientific_conclusion_version_id=v.id AND i.status='OPEN'
+          AND i.severity='BLOCKING') THEN
+        RAISE EXCEPTION 'blocking issue' USING ERRCODE='P16G1';
+      END IF;
+      IF EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records x
+        ON x.id=b.internal_review_record_id WHERE b.decision_id=d.id
+        AND (x.project_id IS DISTINCT FROM r.project_id
+          OR x.scientific_conclusion_version_id IS DISTINCT FROM v.id
+          OR x.target_content_hash IS DISTINCT FROM r.target_content_hash
+          OR x.reviewer_actor_id=r.requested_by
+          OR x.reviewer_actor_id IN (SELECT pr216_authors(v.id)))) THEN
+        RAISE EXCEPTION 'reviewer independence' USING ERRCODE='P16C1';
+      END IF;
+      IF NOT EXISTS(SELECT 1 FROM projects WHERE id=r.project_id AND lifecycle_status='ACTIVE') THEN
+        RAISE EXCEPTION 'active project required' USING ERRCODE='P16G1';
+      END IF;
+      PERFORM b08_check_history(i.id) FROM review_issues i JOIN internal_review_records rr
+        ON rr.id=i.review_record_id WHERE rr.project_id=r.project_id AND rr.scientific_conclusion_version_id=v.id;
+      PERFORM pr216_material_gate(r);
+      IF d.decided_by IN (SELECT pr216_authors(v.id)) THEN
+        RAISE EXCEPTION 'independent basis decider required' USING ERRCODE='P16C1';
+      END IF;
+      IF approver IS NOT NULL THEN
+        IF EXISTS(SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id
+          AND q.approval_purpose=r.approval_purpose
+          AND coalesce(q.scientific_conclusion_version_id,q.manuscript_version_id)<>coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id)
+          AND q.requested_at>r.requested_at) THEN
+          RAISE EXCEPTION 'newer approval target selected' USING ERRCODE='P16T1';
+        END IF;
+        IF NOT pr216_approver_active(approver,r.project_id) THEN
+          IF EXISTS(SELECT 1 FROM approval_grants g JOIN approval_decisions ad
+            ON ad.id=g.approval_decision_id WHERE ad.approval_request_id=r.id
+            AND clock_timestamp()>=g.valid_until) THEN
+            RAISE EXCEPTION 'grant expired during issuer check' USING ERRCODE='P13G1'; END IF;
+          RAISE EXCEPTION 'issuing authority lost' USING ERRCODE='P13S1';
+        END IF;
+        IF approver=r.requested_by OR approver=d.decided_by
+          OR approver IN (SELECT pr216_authors(v.id))
+          OR EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records x
+            ON x.id=b.internal_review_record_id WHERE b.decision_id=d.id
+            AND x.reviewer_actor_id=approver) THEN
+          RAISE EXCEPTION 'independent approver required' USING ERRCODE='P16C1';
+        END IF;
+      END IF;
+    END $$;
+CREATE OR REPLACE FUNCTION b13_stale(g approval_grants) RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE r approval_requests; d approval_decisions;
+BEGIN
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ IF NOT pr216_approver_active(d.decided_by,g.project_id) OR EXISTS(
+ SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id AND q.approval_purpose=r.approval_purpose
+ AND coalesce(q.scientific_conclusion_version_id,q.manuscript_version_id)<>coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id)
+ AND q.requested_at>r.requested_at) THEN RETURN true; END IF;
+ IF r.manuscript_version_id IS NOT NULL THEN
+ RAISE EXCEPTION 'B14 consent/effect dependency unavailable' USING ERRCODE='P16G1'; END IF;
+ BEGIN
+  PERFORM b13_release_gate(r,d.decided_by);
+ EXCEPTION WHEN SQLSTATE 'P16T1' OR SQLSTATE 'P16R1' OR SQLSTATE 'P16G1' OR SQLSTATE 'P16C1' OR SQLSTATE 'P16A1' OR SQLSTATE 'P13S1' THEN RETURN true;
+ END;
+ RETURN false;
+END $$;
+CREATE OR REPLACE FUNCTION b13_consumption_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE g approval_grants; d approval_decisions; r approval_requests;
+BEGIN
+ PERFORM b13_preheld(true);
+ SELECT * INTO g FROM approval_grants WHERE id=NEW.grant_id;
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ IF g.status IS DISTINCT FROM 'ACTIVE' OR clock_timestamp()>=g.valid_until THEN
+ RAISE EXCEPTION 'grant unavailable' USING ERRCODE='P13G1'; END IF;
+ IF NOT b13_authorized(NEW.actor_id,NEW.project_id,ARRAY['OWNER','RESEARCHER']) THEN
+ RAISE EXCEPTION 'writer required' USING ERRCODE='P16A1'; END IF;
+ PERFORM b13_release_gate(r,d.decided_by);
+ IF NEW.consumed_at>clock_timestamp() THEN RAISE EXCEPTION 'observed time required' USING ERRCODE='P17F2'; END IF;
+ NEW.consumed_at:=clock_timestamp();
+ IF NEW.consumed_at>=g.valid_until THEN RAISE EXCEPTION 'grant expired during admission' USING ERRCODE='P13G1'; END IF;
+ PERFORM b13_verify_receipt(NEW);
+ RETURN NEW;
+END $$;
+CREATE OR REPLACE FUNCTION pr212_publication_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP='DELETE' THEN
+        RAISE EXCEPTION 'publication history retained' USING ERRCODE='P17D1';
+      END IF;
+      IF TG_OP='INSERT' THEN
+        IF NEW.lifecycle_status<>'DRAFTING' OR NEW.row_version<>1
+           OR NEW.current_manuscript_version_id IS NOT NULL THEN
+          RAISE EXCEPTION 'publication starts drafting' USING ERRCODE='P17D2';
+        END IF;
+        RETURN NEW;
+      END IF;
+      IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='DRAFTING'
+        AND OLD.current_manuscript_version_id IS NULL AND NEW.current_manuscript_version_id IS NOT NULL
+        AND NEW.row_version=OLD.row_version+1
+        AND (to_jsonb(NEW)-ARRAY['current_manuscript_version_id','row_version'])
+          IS NOT DISTINCT FROM (to_jsonb(OLD)-ARRAY['current_manuscript_version_id','row_version'])
+        AND EXISTS (SELECT 1 FROM manuscript_versions m WHERE m.id=NEW.current_manuscript_version_id
+          AND m.publication_id=NEW.id AND m.status='FROZEN' AND m.content_hash IS NOT NULL
+          AND m.placement_set_hash IS NOT NULL AND m.frozen_at IS NOT NULL) THEN RETURN NEW; END IF;
+      IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='INTERNAL_REVIEW'
+        AND OLD.current_manuscript_version_id IS NOT NULL
+        AND NEW.row_version::bigint=OLD.row_version::bigint+1
+        AND (to_jsonb(NEW)-ARRAY['lifecycle_status','row_version']) IS NOT DISTINCT FROM
+            (to_jsonb(OLD)-ARRAY['lifecycle_status','row_version']) THEN
+        PERFORM b14a_preheld();
+        PERFORM b14a_admission(NEW.current_manuscript_version_id,NEW.project_id);
+        RETURN NEW;
+      END IF;
+      RAISE EXCEPTION 'invalid manuscript pointer transition' USING ERRCODE='P04M2';
+    END $$;
+CREATE OR REPLACE FUNCTION b14a_verify_entry(pid UUID) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE p publications; e publication_lifecycle_events; m manuscript_versions;
+BEGIN
+ SELECT * INTO p FROM publications WHERE id=pid;
+ IF p.id IS NULL OR (SELECT count(*) FROM publication_lifecycle_events WHERE publication_id=pid AND prior_status IS NULL)<>1
+ OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=pid AND prior_status IS NULL AND new_status='DRAFTING' AND actor_id=p.created_by AND occurred_at=p.created_at AND manuscript_version_id IS NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL) THEN
+ RAISE EXCEPTION 'complete initial history required' USING ERRCODE='P14P1'; END IF;
+ SELECT * INTO e FROM publication_lifecycle_events WHERE publication_id=pid AND new_status='INTERNAL_REVIEW';
+ IF p.lifecycle_status='DRAFTING' THEN
+  IF e.id IS NOT NULL THEN RAISE EXCEPTION 'event without transition' USING ERRCODE='P14P1'; END IF;
+  RETURN;
+ END IF;
+ SELECT * INTO m FROM manuscript_versions WHERE id=e.manuscript_version_id;
+ IF p.lifecycle_status<>'INTERNAL_REVIEW' OR e.id IS NULL OR e.prior_status IS DISTINCT FROM 'DRAFTING'
+ OR m.id IS NULL OR m.publication_id IS DISTINCT FROM pid OR m.status<>'FROZEN' OR m.frozen_at IS NULL
+ OR e.manuscript_version_id IS DISTINCT FROM p.current_manuscript_version_id
+ OR e.occurred_at<m.frozen_at OR e.occurred_at<p.created_at OR e.occurred_at>clock_timestamp()
+ OR e.basis_decision_id IS NOT NULL OR e.basis_grant_consumption_id IS NOT NULL THEN
+ RAISE EXCEPTION 'complete exact entry graph required' USING ERRCODE='P14P1'; END IF;
+ PERFORM b04_verify_structure(m.id);
+ IF EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid) THEN
+  IF NOT EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+   RAISE EXCEPTION 'same transaction transition required' USING ERRCODE='P14I1'; END IF;
+  PERFORM b14a_preheld(); PERFORM b14a_admission(m.id,p.project_id);
+  IF NOT b13_authorized(e.actor_id,p.project_id,ARRAY['OWNER','RESEARCHER']) OR NOT EXISTS(SELECT 1 FROM projects WHERE id=p.project_id AND lifecycle_status='ACTIVE') THEN
+   RAISE EXCEPTION 'final entry authority unavailable' USING ERRCODE='P14A1'; END IF;
+ ELSIF EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+  RAISE EXCEPTION 'old event cannot complete new transition' USING ERRCODE='P14I1';
+ END IF;
+END $$;
+DROP FUNCTION b14_verify_ready(UUID); DROP FUNCTION b14_consumption_gate(approval_requests,UUID);
+DROP FUNCTION b14_material(UUID,UUID); DROP FUNCTION b14_facts(UUID,UUID);
+"""
+
+
+def upgrade() -> None:
+    op.execute(UPGRADE_SQL)
+
+
+def downgrade() -> None:
+    op.execute(DOWNGRADE_SQL)

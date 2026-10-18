@@ -216,22 +216,35 @@ class ScientificReleaseResult:
         _uuid(self.consumption_id, "consumption")
 
 
-def decode_consumption_result(version: int, value: dict) -> ScientificReleaseResult:
-    """Only the concrete release binding is enabled in B13's first slice."""
-    if (
-        type(version) is not int
-        or version != 1
-        or type(value) is not dict
-        or set(value) != {"command", "scientific_conclusion_version_id", "consumption_id"}
-        or value["command"] != "RECORD_INTERNAL_SCIENTIFIC_RELEASE"
-    ):
+@dataclass(frozen=True, slots=True)
+class PublicationReadyResult:
+    publication_id: UUID
+    consumption_id: UUID
+    command: str = field(default="TRANSITION_PUBLICATION_READY", init=False)
+
+    def __post_init__(self):
+        _uuid(self.publication_id, "result")
+        _uuid(self.consumption_id, "consumption")
+
+
+def decode_consumption_result(
+    version: int, value: dict
+) -> ScientificReleaseResult | PublicationReadyResult:
+    """Decode only the two authorized concrete saved v1 projections."""
+    if type(version) is not int or version != 1 or type(value) is not dict:
         raise ValueError("unsupported or corrupt saved result")
-    ids = tuple(UUID(value[k]) for k in ("scientific_conclusion_version_id", "consumption_id"))
+    command = value.get("command")
+    if command == "RECORD_INTERNAL_SCIENTIFIC_RELEASE":
+        key, result = "scientific_conclusion_version_id", ScientificReleaseResult
+    elif command == "TRANSITION_PUBLICATION_READY":
+        key, result = "publication_id", PublicationReadyResult
+    else:
+        raise ValueError("unsupported or corrupt saved result")
+    if set(value) != {"command", key, "consumption_id"}:
+        raise ValueError("unsupported or corrupt saved result")
+    ids = tuple(UUID(value[k]) for k in (key, "consumption_id"))
     if any(
-        str(identity) != value[key]
-        for identity, key in zip(
-            ids, ("scientific_conclusion_version_id", "consumption_id"), strict=True
-        )
+        str(identity) != value[k] for identity, k in zip(ids, (key, "consumption_id"), strict=True)
     ):
         raise ValueError("canonical UUID required")
-    return ScientificReleaseResult(ids[0], ids[1])
+    return result(ids[0], ids[1])

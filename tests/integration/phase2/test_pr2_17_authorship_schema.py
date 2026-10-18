@@ -9,6 +9,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import DBAPIError
 
+from researchbase.application.publication import PublicationService
 from tests.integration.phase2.test_pr2_17_authorship import (
     PREVIOUS,
     REVISION,
@@ -57,7 +58,7 @@ def _tables(conn):
 @pytest.mark.parametrize("start", ["base", "0018_current_pointer_same_parent_integrity", PREVIOUS])
 def test_install_upgrade_exact_catalog_and_one_head(authorship_url, start):
     config = _config(authorship_url)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0061_b16_consent_withdrawal"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0064_b14_publication_ready"]
     command.upgrade(config, start)
     command.upgrade(config, PREVIOUS)
     engine = create_engine(authorship_url)
@@ -187,7 +188,7 @@ def test_nonempty_downgrade_refuses(authorship_env, authorship_url):
     with env[2].connect() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0061_b16_consent_withdrawal"
+            == "0064_b14_publication_ready"
         )
 
 
@@ -285,22 +286,13 @@ def test_normal_role_aggregate_constraints_and_rollback(authorship_env, normal_r
         )
     selected = rec.id
     if change == "wrong_parent":
-        with env[2].begin() as conn:
-            pid = uuid4()
-            _insert(
-                conn,
-                "publications",
-                {
-                    "id": pid,
-                    "project_id": env[5],
-                    "publication_type": "PAPER",
-                    "lifecycle_status": "DRAFTING",
-                    "title": "TEST ONLY",
-                    "row_version": 1,
-                    "created_by": env[4].actor_id,
-                    "created_at": conn.execute(text("SELECT clock_timestamp()")).scalar_one(),
-                },
-            )
+        # A valid second parent includes its atomic creation event under B14a.
+        # Keep the original wrong-parent aggregate rejection (P17A2) below.
+        pid = (
+            PublicationService(env[1], env[3], None)
+            .create_publication(env[4], env[5], "PAPER", "TEST ONLY", uuid4())
+            .id
+        )
         selected = env[0].record_contribution(env[4], _record(env, publication_id=pid)).id
     before = _count(env)
     with pytest.raises(DBAPIError) as error:

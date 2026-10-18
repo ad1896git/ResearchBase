@@ -141,7 +141,11 @@ def test_real_prepare_grant_resolution(b15_env, b04_env, monkeypatch, case):
     )
     withdrawn = service.record_author_consent(author, successor(ctx["consent"], ctx["root"]))
     with engine.connect() as conn:
-        states = dict(conn.execute(text("SELECT id,status FROM approval_grants")).all())
+        states = dict(
+            conn.execute(
+                text("SELECT id,status FROM approval_grants WHERE purpose='PREPARE_SUBMISSION'")
+            ).all()
+        )
         assert states == {terminal.id: "EXPIRED", expired.id: "STALE", active.id: "STALE"}
         events = conn.execute(
             text(

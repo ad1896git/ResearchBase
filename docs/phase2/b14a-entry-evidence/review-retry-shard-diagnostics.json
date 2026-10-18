@@ -1,0 +1,49 @@
+[
+  {
+    "shard": 0,
+    "out_of_shared_memory_mentions": 2,
+    "tail": "629 passed, 630 warnings, 1 error in 2119.51s (0:35:19)",
+    "failures": [
+      "ERROR tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py::test_pg_remaining_required_lock_sites_reauthorize_after_expiry[4-role_expiry-execute_admission-project]"
+    ]
+  },
+  {
+    "shard": 1,
+    "out_of_shared_memory_mentions": 4,
+    "tail": "1594 passed, 1066 warnings, 2 errors in 1620.36s (0:27:00)",
+    "failures": [
+      "ERROR tests/integration/phase2/test_pr2_04_authority_coverage.py::test_pg_cross_project_get_provenance_cursor_and_writes_are_non_disclosing",
+      "ERROR tests/integration/phase2/test_pr2_04_authority_coverage.py::test_pg_authority_loss_denies_each_post_admission_boundary[TX_B]"
+    ]
+  },
+  {
+    "shard": 2,
+    "out_of_shared_memory_mentions": 2,
+    "tail": "3 failed, 1547 passed, 1432 warnings in 1741.35s (0:29:01)",
+    "failures": [
+      "FAILED tests/integration/phase2/test_b13_grant_concurrency.py::test_real_wait_crosses_grant_expiry_with_zero_partial_history[scope]",
+      "FAILED tests/integration/phase2/test_pr2_04_ownership_races.py::test_pg_competing_execute_keys_get_only_one_reservation_owner[A-first-4]",
+      "FAILED tests/integration/phase2/test_pr2_03_review_guards.py::test_abandon_commands_load_the_command_version_id[experiment_spec-experiment_spec_versions-experiment_spec_id]"
+    ]
+  },
+  {
+    "shard": 3,
+    "out_of_shared_memory_mentions": 0,
+    "tail": "935 passed, 750 warnings in 1617.96s (0:26:57)",
+    "failures": []
+  },
+  {
+    "shard": 4,
+    "out_of_shared_memory_mentions": 0,
+    "tail": "1389 passed, 49 skipped, 1613 warnings in 1753.65s (0:29:13)",
+    "failures": []
+  },
+  {
+    "shard": 5,
+    "out_of_shared_memory_mentions": 2,
+    "tail": "3652 passed, 1 skipped, 1361 warnings, 1 error in 1687.56s (0:28:07)",
+    "failures": [
+      "ERROR tests/integration/phase2/test_pr2_04_idempotency_coverage.py::test_pg_all_commands_exact_replay_preserves_every_durable_row[execute]"
+    ]
+  }
+]

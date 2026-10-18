@@ -329,6 +329,53 @@ class InternalReviewService:
             )
         )
 
+    def verify_entry_review_in_uow(self, uow: UnitOfWork, row: dict) -> None:
+        """Verify every applicable saved review before deriving entry blockers."""
+        try:
+            if (
+                review_text(row["summary"], "saved summary") != row["summary"]
+                or row["hash_scheme"] != "sha256-cjson-v1"
+            ):
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved review material")
+            with saved_dependency():
+                if row.get("artifact_version_id") is not None:
+                    self._verify_entry_artifact_review(uow, row)
+                else:
+                    self._verify(uow, row)
+            if not uow.internal_review.entry_review_independent(
+                row
+            ) or not uow.internal_review.review_creation_authorized(row):
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved review attribution")
+        except (ValueError, TypeError, UnicodeError, KeyError):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved review material")
+
+    def _verify_entry_artifact_review(self, uow: UnitOfWork, row: dict) -> None:
+        target = uow.manuscript_freeze.artifact(row["artifact_version_id"], row["project_id"])
+        if (
+            target is None
+            or row.get("manuscript_version_id") is not None
+            or target["status"] not in {"FROZEN", "SUPERSEDED"}
+            or target["frozen_at"] is None
+            or target["content_hash"] != row["target_content_hash"]
+            or row["hash_scheme"] != "sha256-cjson-v1"
+            or row["claim_version_id"] is not None
+            or row["scientific_conclusion_version_id"] is not None
+            or self._hash(
+                row["project_id"],
+                "ArtifactVersion",
+                target["id"],
+                target["content_hash"],
+                row["reviewer_actor_id"],
+                row["review_type"],
+                row["recommendation"],
+                row["summary"],
+            )
+            != row["content_hash"]
+            or not uow.internal_review.review_creation_authorized(row)
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved artifact review")
+        return
+
     def _verify(self, uow: UnitOfWork, row: dict) -> None:
         with saved_dependency():
             return self._verify_saved(uow, row)

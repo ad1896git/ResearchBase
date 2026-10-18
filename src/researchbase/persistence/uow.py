@@ -281,10 +281,14 @@ def _issue_disposition_database_error(exc: DBAPIError) -> ResearchBaseError:
     return error
 
 
-def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
+def _approval_database_error(exc: DBAPIError, *, strict: bool = False) -> ResearchBaseError:
     state = getattr(exc.orig, "sqlstate", None)
     codes = {
         "P10B1": ErrorCode.DECISION_BASIS_INVALID,
+        "P04M3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+        "P14P1": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+        "P14I1": ErrorCode.IMMUTABLE_RECORD,
+        "P14A1": ErrorCode.FORBIDDEN,
         "P16P1": ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
         "P16T1": ErrorCode.APPROVAL_TARGET_STALE,
         "P16R1": ErrorCode.REJECTION_RECONSIDERATION_REQUIRED,
@@ -341,6 +345,33 @@ def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
         return ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "database wait timed out")
     if state in codes:
         return ResearchBaseError(codes[state], "approval transaction rejected")
+    if strict:
+        ready_codes = {
+            "P17F1": ErrorCode.IMMUTABLE_RECORD,
+            "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+            "P17D1": ErrorCode.IMMUTABLE_RECORD,
+            "P04M1": ErrorCode.IMMUTABLE_RECORD,
+            "P04M2": ErrorCode.APPROVAL_GATE_FAILED,
+            "P14B1": ErrorCode.APPROVAL_GATE_FAILED,
+            "P14C1": ErrorCode.CONCURRENT_MODIFICATION,
+            "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+        }
+        if state in ready_codes:
+            return ResearchBaseError(ready_codes[state], "readiness transaction rejected")
+        if state == "23505" and constraint in {"uq_b14_ready_event", "uq_b14_ready_consumption"}:
+            return ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "READY history already sealed")
+        if state == "23514" and constraint in {
+            "ck_b14a_publication_status",
+            "ck_b14a_event_tuple",
+            "ck_b14a_event_time",
+            "ck_b13_hash",
+            "ck_b13_time",
+            "ck_b13_dto",
+        }:
+            return ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR, "invalid closed readiness material"
+            )
+        raise RuntimeError("readiness transaction failed; recover by exact command key") from None
     return _decision_database_error(exc)
 
 
@@ -438,10 +469,12 @@ class SqlAlchemyUnitOfWork:
     ) -> None:
         self._session_factory = session_factory
         self._pr204_error_normalization = pr204_error_normalization
+        self._publication_entry_error_normalization = False
         self._decision_error_normalization = False
         self._prepare_submission_error_normalization = False
         self._approval_error_normalization = False
         self._package_preparation_error_normalization = False
+        self._strict_approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._b01_error_normalization = False
@@ -454,10 +487,12 @@ class SqlAlchemyUnitOfWork:
         self._committed = False
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
+        self._publication_entry_error_normalization = False
         self._decision_error_normalization = False
         self._prepare_submission_error_normalization = False
         self._approval_error_normalization = False
         self._package_preparation_error_normalization = False
+        self._strict_approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._b01_error_normalization = False
@@ -649,9 +684,10 @@ class SqlAlchemyUnitOfWork:
         )
         self.source_version = SqlAlchemySourceVersionRepository(session, protected_reads=True)
 
-    def enable_approval_error_normalization(self) -> None:
+    def enable_approval_error_normalization(self, *, strict: bool = False) -> None:
         self._decision_error_normalization = True
         self._approval_error_normalization = True
+        self._strict_approval_error_normalization = strict
 
     def enable_package_preparation_error_normalization(self) -> None:
         self._decision_error_normalization = True
@@ -668,6 +704,10 @@ class SqlAlchemyUnitOfWork:
     def enable_issue_disposition_error_normalization(self) -> None:
         self._decision_error_normalization = True
         self._issue_disposition_error_normalization = True
+
+    def enable_publication_entry_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._publication_entry_error_normalization = True
 
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
         if self._package_preparation_error_normalization:
@@ -706,6 +746,54 @@ class SqlAlchemyUnitOfWork:
             raise RuntimeError(
                 "package transaction failed; recover by entitled exact read"
             ) from None
+        if self._publication_entry_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"40001", "40P01"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "entry transaction rejected",
+                    {"retryable_b14a": True},
+                )
+            if state == "23505" and name == "publication_lifecycle_events_pkey":
+                return ResearchBaseError(
+                    ErrorCode.IDEMPOTENCY_CONFLICT,
+                    "reload exact entry",
+                    {"b14a_pk_collision": True},
+                )
+            codes = {
+                "P14C1": ErrorCode.CONCURRENT_MODIFICATION,
+                "P14P1": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "P14B1": ErrorCode.APPROVAL_GATE_FAILED,
+                "P14A1": ErrorCode.FORBIDDEN,
+                "P14I1": ErrorCode.IMMUTABLE_RECORD,
+                "P04M1": ErrorCode.IMMUTABLE_RECORD,
+                "P04M2": ErrorCode.INVALID_STATE_TRANSITION,
+                "P04M3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "P17D1": ErrorCode.IMMUTABLE_RECORD,
+                "P17F1": ErrorCode.IMMUTABLE_RECORD,
+                "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "22003": ErrorCode.CONCURRENT_MODIFICATION,
+                "55P03": ErrorCode.CONCURRENT_MODIFICATION,
+                "57014": ErrorCode.CONCURRENT_MODIFICATION,
+            }
+            if state == "23505" and name in {"uq_b14a_initial_event", "uq_b14a_review_entry"}:
+                return ResearchBaseError(
+                    ErrorCode.INVALID_STATE_TRANSITION, "lifecycle event already exists"
+                )
+            if state == "23514" and name in {
+                "ck_b14a_publication_status",
+                "ck_b14a_event_tuple",
+                "ck_b14a_event_time",
+            }:
+                return ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid entry graph"
+                )
+            if state in codes:
+                return ResearchBaseError(codes[state], "publication entry transaction rejected")
+            # Programming, infrastructure and unknown commit failures remain unexpected.
+            raise exc
         if self._prepare_submission_error_normalization:
             state = getattr(exc.orig, "sqlstate", None)
             constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -792,7 +880,7 @@ class SqlAlchemyUnitOfWork:
                 return normalized
             raise RuntimeError("novelty transaction failed; recover by exact request ID") from None
         return (
-            _approval_database_error(exc)
+            _approval_database_error(exc, strict=self._strict_approval_error_normalization)
             if self._approval_error_normalization
             else _decision_database_error(exc)
         )

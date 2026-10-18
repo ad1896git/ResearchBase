@@ -18,6 +18,7 @@ from researchbase.domain.approval import (
     PURPOSE,
     TUPLES,
     GrantEvaluation,
+    PublicationReadyResult,
     ScientificReleaseResult,
     approval_decision_material,
     approval_tuple,
@@ -254,7 +255,7 @@ class GrantLifecycleReadback:
 
 
 @dataclass(frozen=True, slots=True)
-class ConsumptionReadback:
+class ConsumptionReadback[Result: ScientificReleaseResult | PublicationReadyResult]:
     id: UUID
     project_id: UUID
     grant_id: UUID
@@ -269,7 +270,7 @@ class ConsumptionReadback:
     result_prepared_submission_version_id: UUID | None
     result_scientific_conclusion_version_id: UUID | None
     result_dto_version: int
-    result: ScientificReleaseResult
+    result: Result
 
 
 class ApprovalService:
@@ -301,20 +302,33 @@ class ApprovalService:
             return at
         _fail(ErrorCode.FORBIDDEN, "current authenticated project authority unavailable")
 
-    def _prepare_read(self, uow, principal, project):
-        uow.enable_approval_error_normalization()
+    def _prepare_read(self, uow, principal, project, *, strict=False):
+        uow.enable_approval_error_normalization(strict=strict)
         uow.configure_approval_transaction(readonly=True)
         self._authorize(uow, principal, project, _READERS)
 
     def _manuscript_gate(self, uow, project, identity, purpose, basis_id):
-        if purpose != "PREPARE_SUBMISSION":
+        if purpose not in {"PREPARE_SUBMISSION", "READY_FOR_SUBMISSION"}:
             _fail(
                 ErrorCode.DECISION_BASIS_INVALID, "manuscript Decision basis extension unavailable"
             )
         row = uow.decision.decision(basis_id, project)
         if row is None or row["decision_type"] != purpose or row["decision"] != "PROCEED":
-            _fail(ErrorCode.DECISION_BASIS_INVALID, "matching PREPARE Decision required")
-        return self._decisions._prepare_submission_readback(uow, row)
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "matching manuscript Decision required")
+        if purpose == "READY_FOR_SUBMISSION" and uow.decision.prepare_submission_other_basis(
+            row["id"]
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unexpected saved READY basis")
+        if purpose == "READY_FOR_SUBMISSION":
+            from researchbase.application.saved_provenance import saved_seal
+
+            with saved_seal():
+                result = self._decisions._readiness_readback(uow, row)
+        else:
+            result = self._decisions._prepare_submission_readback(uow, row)
+        if result.manuscript_version_id != identity:
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "exact manuscript Decision required")
+        return result
 
     def _prepare_basis(self, uow, request):
         result = self._manuscript_gate(
@@ -330,26 +344,64 @@ class ApprovalService:
             or result.target_content_hash != request["target_content_hash"]
             or result.decided_at > min(request.get("requested_at", at), at)
         ):
-            _fail(ErrorCode.DECISION_BASIS_INVALID, "exact prior preparation Decision required")
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "exact prior manuscript Decision required")
         return result, tuple(r for r in result.basis if r.type == "InternalReviewRecord")
 
-    def _prepare_gate(self, uow, request, approver):
+    def _ready_entry(self, uow, project, identity):
+        from researchbase.application.publication import PublicationService
+
+        target = uow.internal_review.manuscript_target(identity, project)
+        if target is None:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved entry target missing")
+        entries = uow.publication.entry_events(target["publication_id"])
+        if len(entries) != 1 or entries[0]["manuscript_version_id"] != identity:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact saved manuscript entry required")
+        service = PublicationService(
+            self._factory, self._policy._credentials, self._decisions._manuscripts._store
+        )
+        return service._entry_readback(
+            uow, self._decisions, uow.publication.entry_event(entries[0]["id"])
+        )
+
+    def _prepare_gate(self, uow, request, approver, *, exclude_rejection=None):
         project, identity = request["project_id"], request["manuscript_version_id"]
+        ready = request["approval_purpose"] == "READY_FOR_SUBMISSION"
+        if ready:
+            current = uow.internal_review.manuscript_target(identity, project)
+            if (
+                current is None
+                or current["status"] != "FROZEN"
+                or any(
+                    current[k] is None for k in ("frozen_at", "placement_set_hash", "content_hash")
+                )
+                or current["hash_scheme"] != "sha256-cjson-v1"
+            ):
+                _fail(ErrorCode.APPROVAL_TARGET_STALE, "exact sealed READY target required")
+            parent = uow.publication.publication(current["publication_id"], project)
+            if parent is not None and parent["current_manuscript_version_id"] != identity:
+                _fail(ErrorCode.APPROVAL_TARGET_STALE, "selected READY manuscript replaced")
         decision, required = self._prepare_basis(uow, request)
-        target, parent, checked = self._decisions._prepare_submission_target(uow, project, identity)
+        verifier = (
+            self._decisions._readiness_target
+            if ready
+            else self._decisions._prepare_submission_target
+        )
+        target, parent, checked = verifier(uow, project, identity)
         if checked.current_validity != "VALID":
             _fail(ErrorCode.APPROVAL_TARGET_STALE, "current manuscript closure invalid")
-        if parent["lifecycle_status"] != "READY":
-            _fail(ErrorCode.APPROVAL_GATE_FAILED, "Publication READY required")
+        stage = "INTERNAL_REVIEW" if ready else "READY"
+        if parent["lifecycle_status"] != stage:
+            _fail(ErrorCode.APPROVAL_GATE_FAILED, f"Publication {stage} required")
+        if ready:
+            self._ready_entry(uow, project, identity)
         if parent["current_manuscript_version_id"] != identity:
             _fail(ErrorCode.APPROVAL_TARGET_STALE, "selected manuscript replaced")
         try:
             self._decisions._manuscripts.verify_in_uow(uow, project, parent, target, admission=True)
         except ResearchBaseError as error:
-            if error.code in {
-                ErrorCode.FROZEN_REFERENCE_REQUIRED,
-                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
-            }:
+            if error.code == ErrorCode.FROZEN_REFERENCE_REQUIRED or (
+                not ready and error.code == ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+            ):
                 _fail(ErrorCode.APPROVAL_TARGET_STALE, "current manuscript closure unavailable")
             raise
         if target["hash_scheme"] != request["target_hash_scheme"]:
@@ -373,12 +425,21 @@ class ApprovalService:
             _fail(ErrorCode.CONFLICT_OF_INTEREST, "independent HUMAN approver required")
         if self._decisions._readiness_blockers(uow, project, identity):
             _fail(ErrorCode.APPROVAL_GATE_FAILED, "applicable OPEN blocker remains")
-        if uow.approval.rejected(project, request["approval_purpose"]):
-            _fail(ErrorCode.REJECTION_RECONSIDERATION_REQUIRED, "preparation rejection fence")
+        if ready and any(
+            request.get(key) is not None
+            for key in ("prior_rejected_request_id", "reconsideration_decision_id")
+        ):
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "READY reconsideration unavailable")
+        if uow.approval.rejected(
+            project, request["approval_purpose"], exclude_decision=exclude_rejection
+        ):
+            _fail(
+                ErrorCode.REJECTION_RECONSIDERATION_REQUIRED, "manuscript purpose rejection fence"
+            )
         if request.get("reconsideration_decision_id") is not None:
-            _fail(ErrorCode.DECISION_BASIS_INVALID, "preparation reconsideration unavailable")
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "manuscript reconsideration unavailable")
         if approver is not None and uow.approval.newer_target_selected(request):
-            _fail(ErrorCode.APPROVAL_TARGET_STALE, "newer preparation target selected")
+            _fail(ErrorCode.APPROVAL_TARGET_STALE, "newer manuscript target selected")
         return decision, required
 
     def _basis(self, uow, request):
@@ -406,13 +467,13 @@ class ApprovalService:
             _fail(ErrorCode.DECISION_BASIS_INVALID, "exact decision basis required")
         return result, required
 
-    def _gate(self, uow, request, approver=None, *, allow_superseded=False):
+    def _gate(self, uow, request, approver=None, *, allow_superseded=False, exclude_rejection=None):
         repo = uow.approval
         project = request["project_id"]
         if not uow.literature_search_plan.project_active(project):
             _fail(ErrorCode.APPROVAL_GATE_FAILED, "active project required")
         if request.get("manuscript_version_id") is not None:
-            return self._prepare_gate(uow, request, approver)
+            return self._prepare_gate(uow, request, approver, exclude_rejection=exclude_rejection)
         target = repo.target(request["scientific_conclusion_version_id"], project)
         allowed_states = {"FROZEN", "SUPERSEDED"} if allow_superseded else {"FROZEN"}
         if target is None or target["status"] not in allowed_states or target["frozen_at"] is None:
@@ -467,6 +528,8 @@ class ApprovalService:
 
     def _request_view(self, uow, row):
         decision, required = self._basis(uow, row)
+        if row["approval_purpose"] == "READY_FOR_SUBMISSION":
+            self._ready_entry(uow, row["project_id"], row["manuscript_version_id"])
         saved = uow.approval.reviews(row["id"])
         if {r["id"] for r in saved} != {r.id for r in required}:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "sealed request basis corrupt")
@@ -702,7 +765,7 @@ class ApprovalService:
             if kind == "request":
                 if len(command.review_ids) > 100:
                     _fail(ErrorCode.VALIDATION_ERROR, "at most 100 reviews required")
-                if manuscript is not None:
+                if manuscript is not None and purpose != "READY_FOR_SUBMISSION":
                     self._manuscript_gate(
                         uow,
                         command.project_id,
@@ -743,6 +806,8 @@ class ApprovalService:
                 ):
                     _fail(ErrorCode.DECISION_BASIS_INVALID, "committed basis required")
                 repo.lock_affected_grants(request, reject=False)
+                if purpose == "READY_FOR_SUBMISSION":
+                    self._gate(uow, request)
                 request["requested_at"] = self._authorize(uow, principal, command.project_id, roles)
                 repo.insert("approval_requests", request)
                 for ref in refs:
@@ -767,6 +832,8 @@ class ApprovalService:
                     )
                 self._gate(uow, request, principal.actor_id)
                 repo.lock_affected_grants(request, reject=command.decision == "REJECT")
+                if purpose == "READY_FOR_SUBMISSION":
+                    self._gate(uow, request, principal.actor_id)
                 at = self._authorize(uow, principal, command.project_id, roles)
                 if command.valid_until is not None and not (
                     at < command.valid_until <= at + timedelta(days=30)
@@ -803,6 +870,11 @@ class ApprovalService:
                 }
                 row["hash_scheme"] = "sha256-cjson-v1"
                 repo.insert("approval_decisions", row)
+                if purpose == "READY_FOR_SUBMISSION":
+                    # The decision/event actor FKs may have waited after the pre-insert gate.
+                    after_insert = self._authorize(uow, principal, command.project_id, roles)
+                    if command.valid_until is not None and after_insert >= command.valid_until:
+                        _fail(ErrorCode.VALIDATION_ERROR, "approval conditions expired after wait")
                 row = repo.decision(command.id, command.project_id)
                 assert row is not None
                 if command.decision != "REJECT":
@@ -823,6 +895,15 @@ class ApprovalService:
                     uow, row, repo.request(request["id"], command.project_id)
                 )
             repo.force_constraints()
+            if purpose == "READY_FOR_SUBMISSION":
+                self._gate(
+                    uow,
+                    request,
+                    principal.actor_id if kind == "decision" else None,
+                    exclude_rejection=(
+                        command.id if kind == "decision" and command.decision == "REJECT" else None
+                    ),
+                )
             final_at = self._authorize(uow, principal, command.project_id, roles)
             if (
                 kind == "decision"
@@ -1143,6 +1224,7 @@ class ApprovalService:
             uow.approval.verify_receipt(receipt["id"])
         reasons = set()
         dependency = request.get("manuscript_version_id") is None
+        dependency = dependency or request["approval_purpose"] == "READY_FOR_SUBMISSION"
         at = to_utc(uow.source_version.at())
         if grant["status"] == "ACTIVE" and at < grant["valid_until"] and dependency:
             try:
@@ -1159,7 +1241,9 @@ class ApprovalService:
             # Independent causes are complete even when an earlier gate denied.
             if uow.approval.newer_target_selected(request):
                 reasons.add(ErrorCode.APPROVAL_TARGET_STALE.value)
-            if uow.decision.has_blockers(
+            if request[
+                "scientific_conclusion_version_id"
+            ] is not None and uow.decision.has_blockers(
                 request["scientific_conclusion_version_id"], request["project_id"]
             ):
                 reasons.add(ErrorCode.APPROVAL_GATE_FAILED.value)
@@ -1283,10 +1367,10 @@ class ApprovalService:
             row["actor_id"],
             row["grant_id"],
             row["command"],
-            "ScientificConclusionVersion",
-            request["scientific_conclusion_version_id"],
+            TUPLES[request["approval_purpose"]][0],
+            request["scientific_conclusion_version_id"] or request["manuscript_version_id"],
             request["target_content_hash"],
-            row["result_scientific_conclusion_version_id"],
+            row["result_scientific_conclusion_version_id"] or row["result_publication_id"],
             None,
             reviews,
         )
@@ -1323,7 +1407,7 @@ class ApprovalService:
         if any(type(x) is not UUID for x in (project, key)):
             _fail(ErrorCode.VALIDATION_ERROR, "exact receipt read required")
         with self._factory() as uow:
-            self._prepare_read(uow, principal, project)
+            self._prepare_read(uow, principal, project, strict=True)
             row = uow.approval.consumption(key)
             if row is None:
                 if command is not None:
@@ -1335,8 +1419,10 @@ class ApprovalService:
                 _fail(ErrorCode.FORBIDDEN, "saved scope differs")
             result = self._receipt_view(uow, row)
             if command is not None and (
-                result.grant_id != command.grant_id
-                or result.result_scientific_conclusion_version_id != command.result_id
+                result.command != "RECORD_INTERNAL_SCIENTIFIC_RELEASE"
+                or result.grant_id != command.grant_id
+                or (result.result_scientific_conclusion_version_id or result.result_publication_id)
+                != command.result_id
                 or result.checked_review_ids != command.checked_review_ids
             ):
                 _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "saved command material differs")
@@ -1350,7 +1436,7 @@ class ApprovalService:
 
     def _release(
         self, principal, command: RecordInternalScientificReleaseCommand
-    ) -> ConsumptionReadback:
+    ) -> ConsumptionReadback[ScientificReleaseResult]:
         if not isinstance(principal, VerifiedPrincipal):
             _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
         if type(command) is not RecordInternalScientificReleaseCommand:
@@ -1361,12 +1447,12 @@ class ApprovalService:
                     principal, command.project_id, command.command_key, command
                 )
                 if replay is not None:
-                    return replay
+                    return cast(ConsumptionReadback[ScientificReleaseResult], replay)
                 result = self._release_once(principal, command)
                 if result is not None:
-                    return result
+                    return cast(ConsumptionReadback[ScientificReleaseResult], result)
                 return cast(
-                    ConsumptionReadback,
+                    ConsumptionReadback[ScientificReleaseResult],
                     self._consumption_read(
                         principal, command.project_id, command.command_key, command
                     ),
@@ -1374,7 +1460,7 @@ class ApprovalService:
             except ResearchBaseError as error:
                 if (error.details or {}).get("b13_key_race"):
                     return cast(
-                        ConsumptionReadback,
+                        ConsumptionReadback[ScientificReleaseResult],
                         self._consumption_read(
                             principal, command.project_id, command.command_key, command
                         ),
@@ -1400,6 +1486,126 @@ class ApprovalService:
             result = self._consume_in_uow(uow, principal, command, grant, decision, request)
             uow.commit()
             return result
+
+    def _issuer_live(self, uow, decision, project, at):
+        if not uow.approval.approver_active(decision["decided_by"], project, at=at):
+            return False
+        for binding in uow.approval.issuer_bindings(decision["decided_by"], at):
+            try:
+                principal = VerifiedPrincipal(
+                    decision["decided_by"],
+                    binding["deployment_id"],
+                    binding["subject_kind"],
+                    binding["subject_value"],
+                    binding["subject_credential_id"],
+                    at,
+                )
+                if self._policy._credentials.is_valid(principal, at):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    def _consume_ready_in_uow(self, uow, principal, command):
+        """B13-owned READY consumption; caller owns the sole transaction."""
+        repo = uow.approval
+        try:
+            grant, decision, request = self._grant_chain(uow, command.project_id, command.grant_id)
+        except ResearchBaseError:
+            self._authorize(uow, principal, command.project_id, _READERS)
+            raise
+        repo.lock_grant_chain(grant, request)
+        grant, decision, request = self._grant_chain(uow, command.project_id, command.grant_id)
+        self._authorize(uow, principal, command.project_id, _READERS)
+        at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
+        if (
+            grant["purpose"] != "READY_FOR_SUBMISSION"
+            or grant["allowed_command"] != "transition_publication_ready"
+        ):
+            _fail(
+                ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, "exact readiness tuple required"
+            )
+        # Expiry precedes effective material/authority staleness.
+        if grant["status"] != "ACTIVE" or at >= grant["valid_until"]:
+            _fail(
+                ErrorCode.GRANT_STALE if grant["status"] == "STALE" else ErrorCode.GRANT_INVALID,
+                "grant unavailable",
+            )
+        if not self._issuer_live(uow, decision, command.project_id, at):
+            _fail(ErrorCode.GRANT_STALE, "issuing credential unavailable")
+        self._gate(uow, request, decision["decided_by"])
+        parent = uow.internal_review.manuscript_target(
+            request["manuscript_version_id"], command.project_id
+        )
+        if parent is None or parent["publication_id"] != command.result_id:
+            _fail(
+                ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
+                "exact publication result required",
+            )
+        self._evaluate_in_uow(uow, grant, decision, request)
+        reviews = tuple(r["id"] for r in repo.reviews(request["id"]))
+        if reviews != command.checked_review_ids:
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "complete sealed review set required")
+        material = consumption_request_material(
+            command.project_id,
+            principal.actor_id,
+            grant["id"],
+            "TRANSITION_PUBLICATION_READY",
+            "ManuscriptVersion",
+            request["manuscript_version_id"],
+            request["target_content_hash"],
+            command.result_id,
+            None,
+            reviews,
+        )
+        at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
+        if at >= grant["valid_until"]:
+            _fail(ErrorCode.GRANT_INVALID, "grant expired before effect")
+        if not self._issuer_live(uow, decision, command.project_id, at):
+            _fail(ErrorCode.GRANT_STALE, "issuing credential expired")
+        identity, event_id = new_uuid7(), new_uuid7()
+        uow.publication.transition_ready(
+            command.result_id,
+            dict(
+                id=event_id,
+                publication_id=command.result_id,
+                actor_id=principal.actor_id,
+                occurred_at=at,
+                basis_decision_id=request["basis_decision_id"],
+                basis_grant_consumption_id=identity,
+            ),
+        )
+        repo.insert_consumption(
+            dict(
+                id=identity,
+                grant_id=grant["id"],
+                command_key=command.command_key,
+                project_id=command.project_id,
+                actor_id=principal.actor_id,
+                consumed_at=at,
+                command="TRANSITION_PUBLICATION_READY",
+                request_hash=str(sha256_canonical_json(material)),
+                hash_scheme="sha256-cjson-v1",
+                result_dto_version=1,
+                result_dto=dict(
+                    command="TRANSITION_PUBLICATION_READY",
+                    publication_id=str(command.result_id),
+                    consumption_id=str(identity),
+                ),
+                result_publication_id=command.result_id,
+            )
+        )
+        repo.terminalize(grant["id"], principal.actor_id, "CONSUMED", at, "grant consumed")
+        repo.force_constraints()
+        result = self._receipt_view(uow, repo.consumption(command.command_key))
+        final_at = self._authorize(
+            uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"})
+        )
+        if final_at >= grant["valid_until"]:
+            _fail(ErrorCode.GRANT_INVALID, "final grant expiry reached")
+        if not self._issuer_live(uow, decision, command.project_id, final_at):
+            _fail(ErrorCode.GRANT_STALE, "final issuing credential expired")
+        return result
 
     def _consume_in_uow(self, uow, principal, command, grant, decision, request):
         """Private first-slice binding; the owning command commits before exposing it."""

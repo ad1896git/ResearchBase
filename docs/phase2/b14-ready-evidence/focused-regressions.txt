@@ -1,0 +1,544 @@
+........................................................................ [  7%]
+............................s........................................... [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 55%]
+........................................................................ [ 63%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
+..........................................................F............. [ 87%]
+........................................................................ [ 95%]
+.........................................                                [100%]
+=================================== FAILURES ===================================
+___ test_populated_predecessor_preserved_and_ready_history_refuses_downgrade ___
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: in execute
+    raise ex.with_traceback(None)
+E   psycopg.ProgrammingError: entry/READY history retained
+E   CONTEXT:  PL/pgSQL function inline_code_block line 3 at RAISE
+
+The above exception was the direct cause of the following exception:
+tests/integration/phase2/test_b14r_ready_approval_schema.py:83: in test_populated_predecessor_preserved_and_ready_history_refuses_downgrade
+    ???
+.venv/lib/python3.12/site-packages/alembic/command.py:534: in downgrade
+    script.run_env()
+.venv/lib/python3.12/site-packages/alembic/script/base.py:550: in run_env
+    util.load_python_file(self.dir, "env.py")
+.venv/lib/python3.12/site-packages/alembic/util/pyfiles.py:114: in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/alembic/util/pyfiles.py:132: in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap_external>:999: in exec_module
+    ???
+<frozen importlib._bootstrap>:488: in _call_with_frames_removed
+    ???
+migrations/env.py:44: in <module>
+    run_migrations_online()
+migrations/env.py:38: in run_migrations_online
+    context.run_migrations()
+<string>:8: in run_migrations
+    ???
+.venv/lib/python3.12/site-packages/alembic/runtime/environment.py:967: in run_migrations
+    self.get_context().run_migrations(**kw)
+.venv/lib/python3.12/site-packages/alembic/runtime/migration.py:621: in run_migrations
+    step.migration_fn(**kw)
+migrations/versions/0062_b14_publication_ready.py:906: in downgrade
+    op.execute(DOWNGRADE_SQL)
+<string>:8: in execute
+    ???
+<string>:3: in execute
+    ???
+.venv/lib/python3.12/site-packages/alembic/operations/ops.py:2645: in execute
+    return operations.invoke(op)
+           ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/alembic/operations/base.py:448: in invoke
+    return fn(self, operation)
+           ^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/alembic/operations/toimpl.py:259: in execute_sql
+    operations.migration_context.impl.execute(
+.venv/lib/python3.12/site-packages/alembic/ddl/impl.py:259: in execute
+    self._exec(sql, execution_options)
+.venv/lib/python3.12/site-packages/alembic/ddl/impl.py:252: in _exec
+    return conn.execute(construct, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+.venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: in execute
+    raise ex.with_traceback(None)
+E   sqlalchemy.exc.ProgrammingError: (psycopg.ProgrammingError) entry/READY history retained
+E   CONTEXT:  PL/pgSQL function inline_code_block line 3 at RAISE
+E   [SQL:
+E   LOCK TABLE publications,publication_lifecycle_events,approval_grant_consumptions IN ACCESS EXCLUSIVE MODE;
+E   DO $$ BEGIN
+E    IF EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE new_status<>'DRAFTING') OR EXISTS(SELECT 1 FROM approval_grant_consumptions WHERE command='TRANSITION_PUBLICATION_READY') THEN
+E    RAISE EXCEPTION 'entry/READY history retained' USING ERRCODE='P14I1'; END IF;
+E   END $$;
+E   DROP TRIGGER b14_complete_publication ON publications;
+E   DROP TRIGGER b14_complete_ready_event ON publication_lifecycle_events;
+E   DROP TRIGGER b14_complete_ready_consumption ON approval_grant_consumptions;
+E   DROP TRIGGER b14_ready_event_guard ON publication_lifecycle_events;
+E   CREATE TRIGGER b14a_entry_event_guard BEFORE INSERT ON publication_lifecycle_events FOR EACH ROW EXECUTE FUNCTION b14a_entry_event_guard();
+E   DROP FUNCTION b14_complete_graph(); DROP FUNCTION b14_ready_event_guard();
+E   DROP INDEX uq_b14_ready_event; DROP INDEX uq_b14_ready_consumption; DROP INDEX ix_b14_event_decision;
+E   ALTER TABLE publication_lifecycle_events DROP CONSTRAINT fk_b14_ready_decision, DROP CONSTRAINT fk_b14_ready_consumption,DROP CONSTRAINT ck_b14a_event_tuple;
+E   ALTER TABLE publication_lifecycle_events ADD CONSTRAINT ck_b14a_event_tuple CHECK(
+E    (prior_status IS NULL AND new_status='DRAFTING' AND manuscript_version_id IS NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL) OR
+E    (prior_status IS NOT DISTINCT FROM 'DRAFTING' AND new_status='INTERNAL_REVIEW' AND manuscript_version_id IS NOT NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL));
+E   ALTER TABLE publications DROP CONSTRAINT ck_b14a_publication_status;
+E   ALTER TABLE publications ADD CONSTRAINT ck_b14a_publication_status CHECK(lifecycle_status IN ('DRAFTING','INTERNAL_REVIEW'));
+E   ALTER TABLE approval_grant_consumptions DROP CONSTRAINT ck_b13_result_tuple;
+E   ALTER TABLE approval_grant_consumptions ADD CONSTRAINT ck_b13_result_tuple CHECK(command='RECORD_INTERNAL_SCIENTIFIC_RELEASE' AND result_scientific_conclusion_version_id IS NOT NULL AND result_publication_id IS NULL AND result_prepared_submission_version_id IS NULL);
+E   CREATE OR REPLACE FUNCTION b13_request_hash(c approval_grant_consumptions) RETURNS text LANGUAGE SQL STABLE SET search_path=pg_catalog,public,pg_temp AS $$
+E    SELECT pr216_hash(jsonb_build_object('type','ApprovalGrantConsumptionRequest','material_version',1,
+E    'command',c.command,'project_id',c.project_id,'actor_id',c.actor_id,'grant_id',c.grant_id,
+E    'target',jsonb_build_object('type','ScientificConclusionVersion','id',r.scientific_conclusion_version_id,'content_hash',r.target_content_hash),
+E    'result_id',c.result_scientific_conclusion_version_id,'expected_package_manifest_hash',NULL,
+E    'checked_review_ids',(SELECT jsonb_agg(rr.internal_review_record_id ORDER BY rr.internal_review_record_id::text) FROM approval_request_reviews rr WHERE rr.request_id=r.id)))
+E    FROM approval_grants g JOIN approval_decisions d ON d.id=g.approval_decision_id JOIN approval_requests r ON r.id=d.approval_request_id WHERE g.id=c.grant_id
+E   $$;
+E   CREATE OR REPLACE FUNCTION b13_verify_receipt(c approval_grant_consumptions, complete boolean DEFAULT false) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+E   DECLARE g approval_grants; d approval_decisions; r approval_requests;
+E   BEGIN
+E    SELECT * INTO g FROM approval_grants WHERE id=c.grant_id;
+E    SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+E    SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+E    IF r.id IS NULL OR g.project_id IS DISTINCT FROM c.project_id OR r.project_id IS DISTINCT FROM c.project_id
+E    OR r.status<>'DECIDED' OR g.purpose<>'INTERNAL_SCIENTIFIC_RELEASE' OR g.allowed_command<>'record_internal_scientific_release'
+E    OR r.approval_purpose<>g.purpose OR d.decision NOT IN ('APPROVE','APPROVE_WITH_CONDITIONS')
+E    OR g.valid_until IS DISTINCT FROM coalesce(d.valid_until,d.decided_at+interval '720 hours')
+E    OR c.result_scientific_conclusion_version_id IS DISTINCT FROM r.scientific_conclusion_version_id
+E    OR c.consumed_at<d.decided_at OR c.consumed_at>=g.valid_until
+E    OR c.request_hash IS DISTINCT FROM b13_request_hash(c)
+E    OR c.result_dto IS DISTINCT FROM jsonb_build_object('command',c.command,'scientific_conclusion_version_id',r.scientific_conclusion_version_id,'consumption_id',c.id)
+E    OR NOT EXISTS(SELECT 1 FROM approval_request_reviews WHERE request_id=r.id)
+E    OR EXISTS((SELECT internal_review_record_id FROM approval_request_reviews WHERE request_id=r.id) EXCEPT (SELECT internal_review_record_id FROM decision_basis_reviews WHERE decision_id=r.basis_decision_id))
+E    OR EXISTS((SELECT internal_review_record_id FROM decision_basis_reviews WHERE decision_id=r.basis_decision_id) EXCEPT (SELECT internal_review_record_id FROM approval_request_reviews WHERE request_id=r.id)) THEN
+E    RAISE EXCEPTION 'corrupt receipt history' USING ERRCODE='P17F2'; END IF;
+E    IF complete AND (g.status<>'CONSUMED' OR NOT EXISTS(SELECT 1 FROM approval_grant_events e
+E     WHERE e.grant_id=g.id AND e.prior_status IS NULL AND e.new_status='ACTIVE'
+E       AND e.actor_id=d.decided_by AND e.reason='grant created' AND e.occurred_at>=d.decided_at)
+E    OR NOT EXISTS(SELECT 1 FROM approval_grant_events e WHERE e.grant_id=g.id AND e.prior_status='ACTIVE'
+E     AND e.new_status='CONSUMED' AND e.actor_id=c.actor_id AND e.occurred_at=c.consumed_at)) THEN
+E    RAISE EXCEPTION 'incomplete receipt events' USING ERRCODE='P17F2'; END IF;
+E
+E   END $$;
+E   CREATE OR REPLACE FUNCTION b13_release_gate(r approval_requests, approver UUID) RETURNS void
+E         LANGUAGE plpgsql
+E         SET search_path = pg_catalog, public, pg_temp AS $$
+E       DECLARE v scientific_conclusion_versions; d decision_records; pid UUID;
+E       BEGIN
+E
+E         IF (r.approval_purpose='INTERNAL_SCIENTIFIC_RELEASE' AND r.scientific_conclusion_version_id IS NOT NULL AND r.manuscript_version_id IS NULL)
+E           OR (r.approval_purpose IN ('READY_FOR_SUBMISSION','PREPARE_SUBMISSION') AND r.manuscript_version_id IS NOT NULL AND r.scientific_conclusion_version_id IS NULL) THEN
+E           NULL;
+E         ELSE RAISE EXCEPTION 'unlisted approval tuple' USING ERRCODE='P16P1'; END IF;
+E         IF r.manuscript_version_id IS NOT NULL THEN RAISE EXCEPTION 'B14 binding unavailable' USING ERRCODE='P16G1'; END IF;
+E         SELECT * INTO v FROM scientific_conclusion_versions
+E           WHERE id=r.scientific_conclusion_version_id;
+E         SELECT project_id INTO pid FROM scientific_conclusions WHERE id=v.scientific_conclusion_id;
+E         IF pid IS DISTINCT FROM r.project_id OR v.status NOT IN ('FROZEN','SUPERSEDED') OR v.frozen_at IS NULL
+E           OR v.content_hash IS DISTINCT FROM r.target_content_hash
+E           OR v.hash_scheme IS DISTINCT FROM r.target_hash_scheme THEN
+E           RAISE EXCEPTION 'frozen exact target required' USING ERRCODE='P16T1';
+E         END IF;
+E         PERFORM b10_successor_check(r,approver);
+E         SELECT * INTO d FROM decision_records WHERE id=r.basis_decision_id;
+E         IF d.project_id IS DISTINCT FROM r.project_id OR d.decision<>'PROCEED'
+E           OR d.decision_type<>r.approval_purpose
+E           OR NOT EXISTS(SELECT 1 FROM decision_basis_conclusions WHERE decision_id=d.id
+E             AND scientific_conclusion_version_id=v.id)
+E           OR NOT EXISTS(SELECT 1 FROM decision_basis_reviews WHERE decision_id=d.id) THEN
+E           RAISE EXCEPTION 'affirmative exact basis required' USING ERRCODE='P16B1';
+E         END IF;
+E         IF EXISTS(SELECT 1 FROM review_issues i JOIN internal_review_records x
+E           ON x.id=i.review_record_id WHERE x.project_id=r.project_id
+E           AND x.scientific_conclusion_version_id=v.id AND i.status='OPEN'
+E             AND i.severity='BLOCKING') THEN
+E           RAISE EXCEPTION 'blocking issue' USING ERRCODE='P16G1';
+E         END IF;
+E         IF EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records x
+E           ON x.id=b.internal_review_record_id WHERE b.decision_id=d.id
+E           AND (x.project_id IS DISTINCT FROM r.project_id
+E             OR x.scientific_conclusion_version_id IS DISTINCT FROM v.id
+E             OR x.target_content_hash IS DISTINCT FROM r.target_content_hash
+E             OR x.reviewer_actor_id=r.requested_by
+E             OR x.reviewer_actor_id IN (SELECT pr216_authors(v.id)))) THEN
+E           RAISE EXCEPTION 'reviewer independence' USING ERRCODE='P16C1';
+E         END IF;
+E         IF NOT EXISTS(SELECT 1 FROM projects WHERE id=r.project_id AND lifecycle_status='ACTIVE') THEN
+E           RAISE EXCEPTION 'active project required' USING ERRCODE='P16G1';
+E         END IF;
+E         PERFORM b08_check_history(i.id) FROM review_issues i JOIN internal_review_records rr
+E           ON rr.id=i.review_record_id WHERE rr.project_id=r.project_id AND rr.scientific_conclusion_version_id=v.id;
+E         PERFORM pr216_material_gate(r);
+E         IF d.decided_by IN (SELECT pr216_authors(v.id)) THEN
+E           RAISE EXCEPTION 'independent basis decider required' USING ERRCODE='P16C1';
+E         END IF;
+E         IF approver IS NOT NULL THEN
+E           IF EXISTS(SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id
+E             AND q.approval_purpose=r.approval_purpose
+E             AND coalesce(q.scientific_conclusion_version_id,q.manuscript_version_id)<>coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id)
+E             AND q.requested_at>r.requested_at) THEN
+E             RAISE EXCEPTION 'newer approval target selected' USING ERRCODE='P16T1';
+E           END IF;
+E           IF NOT pr216_approver_active(approver,r.project_id) THEN
+E             IF EXISTS(SELECT 1 FROM approval_grants g JOIN approval_decisions ad
+E               ON ad.id=g.approval_decision_id WHERE ad.approval_request_id=r.id
+E               AND clock_timestamp()>=g.valid_until) THEN
+E               RAISE EXCEPTION 'grant expired during issuer check' USING ERRCODE='P13G1'; END IF;
+E             RAISE EXCEPTION 'issuing authority lost' USING ERRCODE='P13S1';
+E           END IF;
+E           IF approver=r.requested_by OR approver=d.decided_by
+E             OR approver IN (SELECT pr216_authors(v.id))
+E             OR EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records x
+E               ON x.id=b.internal_review_record_id WHERE b.decision_id=d.id
+E               AND x.reviewer_actor_id=approver) THEN
+E             RAISE EXCEPTION 'independent approver required' USING ERRCODE='P16C1';
+E           END IF;
+E         END IF;
+E       END $$;
+E   CREATE OR REPLACE FUNCTION b13_stale(g approval_grants) RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+E   DECLARE r approval_requests; d approval_decisions;
+E   BEGIN
+E    SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+E    SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+E    IF NOT pr216_approver_active(d.decided_by,g.project_id) OR EXISTS(
+E    SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id AND q.approval_purpose=r.approval_purpose
+E    AND coalesce(q.scientific_conclusion_version_id,q.manuscript_version_id)<>coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id)
+E    AND q.requested_at>r.requested_at) THEN RETURN true; END IF;
+E    IF r.manuscript_version_id IS NOT NULL THEN
+E    RAISE EXCEPTION 'B14 consent/effect dependency unavailable' USING ERRCODE='P16G1'; END IF;
+E    BEGIN
+E     PERFORM b13_release_gate(r,d.decided_by);
+E    EXCEPTION WHEN SQLSTATE 'P16T1' OR SQLSTATE 'P16R1' OR SQLSTATE 'P16G1' OR SQLSTATE 'P16C1' OR SQLSTATE 'P16A1' OR SQLSTATE 'P13S1' THEN RETURN true;
+E    END;
+E    RETURN false;
+E   END $$;
+E   CREATE OR REPLACE FUNCTION b13_consumption_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+E   DECLARE g approval_grants; d approval_decisions; r approval_requests;
+E   BEGIN
+E    PERFORM b13_preheld(true);
+E    SELECT * INTO g FROM approval_grants WHERE id=NEW.grant_id;
+E    SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+E    SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+E    IF g.status IS DISTINCT FROM 'ACTIVE' OR clock_timestamp()>=g.valid_until THEN
+E    RAISE EXCEPTION 'grant unavailable' USING ERRCODE='P13G1'; END IF;
+E    IF NOT b13_authorized(NEW.actor_id,NEW.project_id,ARRAY['OWNER','RESEARCHER']) THEN
+E    RAISE EXCEPTION 'writer required' USING ERRCODE='P16A1'; END IF;
+E    PERFORM b13_release_gate(r,d.decided_by);
+E    IF NEW.consumed_at>clock_timestamp() THEN RAISE EXCEPTION 'observed time required' USING ERRCODE='P17F2'; END IF;
+E    NEW.consumed_at:=clock_timestamp();
+E    IF NEW.consumed_at>=g.valid_until THEN RAISE EXCEPTION 'grant expired during admission' USING ERRCODE='P13G1'; END IF;
+E    PERFORM b13_verify_receipt(NEW);
+E    RETURN NEW;
+E   END $$;
+E   CREATE OR REPLACE FUNCTION pr212_publication_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+E       BEGIN
+E         IF TG_OP='DELETE' THEN
+E           RAISE EXCEPTION 'publication history retained' USING ERRCODE='P17D1';
+E         END IF;
+E         IF TG_OP='INSERT' THEN
+E           IF NEW.lifecycle_status<>'DRAFTING' OR NEW.row_version<>1
+E              OR NEW.current_manuscript_version_id IS NOT NULL THEN
+E             RAISE EXCEPTION 'publication starts drafting' USING ERRCODE='P17D2';
+E           END IF;
+E           RETURN NEW;
+E         END IF;
+E         IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='DRAFTING'
+E           AND OLD.current_manuscript_version_id IS NULL AND NEW.current_manuscript_version_id IS NOT NULL
+E           AND NEW.row_version=OLD.row_version+1
+E           AND (to_jsonb(NEW)-ARRAY['current_manuscript_version_id','row_version'])
+E             IS NOT DISTINCT FROM (to_jsonb(OLD)-ARRAY['current_manuscript_version_id','row_version'])
+E           AND EXISTS (SELECT 1 FROM manuscript_versions m WHERE m.id=NEW.current_manuscript_version_id
+E             AND m.publication_id=NEW.id AND m.status='FROZEN' AND m.content_hash IS NOT NULL
+E             AND m.placement_set_hash IS NOT NULL AND m.frozen_at IS NOT NULL) THEN RETURN NEW; END IF;
+E         IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='INTERNAL_REVIEW'
+E           AND OLD.current_manuscript_version_id IS NOT NULL
+E           AND NEW.row_version::bigint=OLD.row_version::bigint+1
+E           AND (to_jsonb(NEW)-ARRAY['lifecycle_status','row_version']) IS NOT DISTINCT FROM
+E               (to_jsonb(OLD)-ARRAY['lifecycle_status','row_version']) THEN
+E           PERFORM b14a_preheld();
+E           PERFORM b14a_admission(NEW.current_manuscript_version_id,NEW.project_id);
+E           RETURN NEW;
+E         END IF;
+E         RAISE EXCEPTION 'invalid manuscript pointer transition' USING ERRCODE='P04M2';
+E       END $$;
+E   CREATE OR REPLACE FUNCTION b14a_verify_entry(pid UUID) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+E   DECLARE p publications; e publication_lifecycle_events; m manuscript_versions;
+E   BEGIN
+E    SELECT * INTO p FROM publications WHERE id=pid;
+E    IF p.id IS NULL OR (SELECT count(*) FROM publication_lifecycle_events WHERE publication_id=pid AND prior_status IS NULL)<>1
+E    OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=pid AND prior_status IS NULL AND new_status='DRAFTING' AND actor_id=p.created_by AND occurred_at=p.created_at AND manuscript_version_id IS NULL AND basis_decision_id IS NULL AND basis_grant_consumption_id IS NULL) THEN
+E    RAISE EXCEPTION 'complete initial history required' USING ERRCODE='P14P1'; END IF;
+E    SELECT * INTO e FROM publication_lifecycle_events WHERE publication_id=pid AND new_status='INTERNAL_REVIEW';
+E    IF p.lifecycle_status='DRAFTING' THEN
+E     IF e.id IS NOT NULL THEN RAISE EXCEPTION 'event without transition' USING ERRCODE='P14P1'; END IF;
+E     RETURN;
+E    END IF;
+E    SELECT * INTO m FROM manuscript_versions WHERE id=e.manuscript_version_id;
+E    IF p.lifecycle_status<>'INTERNAL_REVIEW' OR e.id IS NULL OR e.prior_status IS DISTINCT FROM 'DRAFTING'
+E    OR m.id IS NULL OR m.publication_id IS DISTINCT FROM pid OR m.status<>'FROZEN' OR m.frozen_at IS NULL
+E    OR e.manuscript_version_id IS DISTINCT FROM p.current_manuscript_version_id
+E    OR e.occurred_at<m.frozen_at OR e.occurred_at<p.created_at OR e.occurred_at>clock_timestamp()
+E    OR e.basis_decision_id IS NOT NULL OR e.basis_grant_consumption_id IS NOT NULL THEN
+E    RAISE EXCEPTION 'complete exact entry graph required' USING ERRCODE='P14P1'; END IF;
+E    PERFORM b04_verify_structure(m.id);
+E    IF EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid) THEN
+E     IF NOT EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+E      RAISE EXCEPTION 'same transaction transition required' USING ERRCODE='P14I1'; END IF;
+E     PERFORM b14a_preheld(); PERFORM b14a_admission(m.id,p.project_id);
+E     IF NOT b13_authorized(e.actor_id,p.project_id,ARRAY['OWNER','RESEARCHER']) OR NOT EXISTS(SELECT 1 FROM projects WHERE id=p.project_id AND lifecycle_status='ACTIVE') THEN
+E      RAISE EXCEPTION 'final entry authority unavailable' USING ERRCODE='P14A1'; END IF;
+E    ELSIF EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+E     RAISE EXCEPTION 'old event cannot complete new transition' USING ERRCODE='P14I1';
+E    END IF;
+E   END $$;
+E   DROP FUNCTION b14_verify_ready(UUID); DROP FUNCTION b14_consumption_gate(approval_requests,UUID);
+E   DROP FUNCTION b14_material(UUID,UUID); DROP FUNCTION b14_facts(UUID,UUID);
+E   ]
+E   (Background on this error at: https://sqlalche.me/e/20/f405)
+---------------------------- Captured stdout setup -----------------------------
+DISPOSABLE_PG_PREFLIGHT: port=5432 system_id=7696072587520791948
+DISPOSABLE_CREATED: researchbase_pr211_r2_test_c363911271a44e219e98aa0298f18f38
+PR211_R2_REVISION: researchbase_pr211_r2_test_c363911271a44e219e98aa0298f18f38=0033_pr2_11_r2_scientific_conclusion
+---------------------------- Captured stderr setup -----------------------------
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_empty, Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Running upgrade 0001_empty -> 0002_actor_project_workspace, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running upgrade 0002_actor_project_workspace -> 0003_research_question_hypothesis, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0003_research_question_hypothesis -> 0004_experiment_spec, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0004_experiment_spec -> 0005_dataset_snapshot, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_dataset_snapshot -> 0006_artifact_version, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0006_artifact_version -> 0007_metric_definition, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0007_metric_definition -> 0008_run_core, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running upgrade 0008_run_core -> 0009_run_input_seal_fix, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running upgrade 0009_run_input_seal_fix -> 0010_measurement, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running upgrade 0010_measurement -> 0011_statistical_result, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_statistical_result -> 0012_statistical_result_input_guard, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running upgrade 0012_statistical_result_input_guard -> 0013_statistical_result_legacy_input_precheck, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running upgrade 0013_statistical_result_legacy_input_precheck -> 0014_claim_evidence, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running upgrade 0014_claim_evidence -> 0015_governance_audit, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running upgrade 0015_governance_audit -> 0016_pr17d_history_protection, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running upgrade 0016_pr17d_history_protection -> 0017_persisted_canonical_enum_normalization, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running upgrade 0017_persisted_canonical_enum_normalization -> 0018_current_pointer_same_parent_integrity, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0018_current_pointer_same_parent_integrity -> 0019_phase2_bootstrap_membership, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running upgrade 0019_phase2_bootstrap_membership -> 0020_literature_source_identity, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running upgrade 0020_literature_source_identity -> 0021_source_merge_governance_bridge, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0021_source_merge_governance_bridge -> 0021a_source_merge_gov_guards, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running upgrade 0021a_source_merge_gov_guards -> 0022_source_version_and_merge_lineage, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_source_version_and_merge_lineage -> 0023_literature_search_plan, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running upgrade 0023_literature_search_plan -> 0023a_search_plan_review_guards, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running upgrade 0023a_search_plan_review_guards -> 0024_literature_search_execution, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0024_literature_search_execution -> 0025_pr2_04_reservation_guards, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0025_pr2_04_reservation_guards -> 0026_pr2_04_p1_contract_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0026_pr2_04_p1_contract_guards -> 0027_pr2_04_hash_scheme_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0027_pr2_04_hash_scheme_guards -> 0028_provider_cancellation, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running upgrade 0028_provider_cancellation -> 0029_metadata_observations, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running upgrade 0029_metadata_observations -> 0030_literature_evidence, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0030_literature_evidence -> 0031_m3_snapshot_relation_cardinality, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running upgrade 0031_m3_snapshot_relation_cardinality -> 0032_pr2_10_discussion, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running upgrade 0032_pr2_10_discussion -> 0033_pr2_11_r2_scientific_conclusion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "create_hypothesis", "correlation_id": null, "duration_ms": 3.349, "error_code": null, "level": "INFO", "project_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "request_id": "236c91e3-a506-46b5-a068-46d15da21f25", "result": "success", "rollback": false, "target_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "timestamp": "2026-10-18T15:47:59.243709+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "freeze_hypothesis", "correlation_id": null, "duration_ms": 2.003, "error_code": null, "level": "INFO", "project_id": null, "request_id": "236c91e3-a506-46b5-a068-46d15da21f25", "result": "success", "rollback": false, "target_id": "01a14fb2-c889-74b0-b8e5-41c5e2629689", "timestamp": "2026-10-18T15:47:59.245769+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "create_metric_definition", "correlation_id": null, "duration_ms": 2.051, "error_code": null, "level": "INFO", "project_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "timestamp": "2026-10-18T15:47:59.248013+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.248507+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition", "correlation_id": null, "duration_ms": 0.48, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.248534+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.505, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c88e-7adc-bcb1-303d8c590b88", "timestamp": "2026-10-18T15:47:59.248553+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "freeze_metric_definition", "correlation_id": null, "duration_ms": 2.677, "error_code": null, "level": "INFO", "project_id": null, "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "01a14fb2-c88e-7adc-bcb1-303d8c590b88", "timestamp": "2026-10-18T15:47:59.251253+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.251645+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition_version", "correlation_id": null, "duration_ms": 0.34, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.251668+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.359, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c88e-7adc-bcb1-303d8c590b88", "timestamp": "2026-10-18T15:47:59.251682+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "create_experiment_spec", "correlation_id": null, "duration_ms": 2.031, "error_code": null, "level": "INFO", "project_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "timestamp": "2026-10-18T15:47:59.253739+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.254141+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec", "correlation_id": null, "duration_ms": 0.394, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.254163+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.411, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c894-758f-8321-5dd4336f9477", "timestamp": "2026-10-18T15:47:59.254177+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "freeze_experiment_spec", "correlation_id": null, "duration_ms": 1.933, "error_code": null, "level": "INFO", "project_id": null, "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "01a14fb2-c894-758f-8321-5dd4336f9477", "timestamp": "2026-10-18T15:47:59.256129+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.256471+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec_version", "correlation_id": null, "duration_ms": 0.329, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.256494+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.347, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c894-758f-8321-5dd4336f9477", "timestamp": "2026-10-18T15:47:59.256508+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "create_run", "correlation_id": null, "duration_ms": 1.337, "error_code": null, "level": "INFO", "project_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "timestamp": "2026-10-18T15:47:59.257865+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.258530+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0.646, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.258561+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.669, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.258579+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "start_run", "correlation_id": null, "duration_ms": 2.525, "error_code": null, "level": "INFO", "project_id": null, "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "01a14fb2-c899-7fd9-a4bc-fe0631827fa9", "timestamp": "2026-10-18T15:47:59.261125+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.261489+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0.347, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.261513+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.366, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.261527+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "finish_run", "correlation_id": null, "duration_ms": 0.844, "error_code": null, "level": "INFO", "project_id": null, "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "01a14fb2-c899-7fd9-a4bc-fe0631827fa9", "timestamp": "2026-10-18T15:47:59.262397+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.262711+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0.301, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.262732+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.317, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.262744+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "record_measurement", "correlation_id": null, "duration_ms": 2.581, "error_code": null, "level": "INFO", "project_id": null, "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "01a14fb2-c899-7fd9-a4bc-fe0631827fa9", "timestamp": "2026-10-18T15:47:59.265348+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_measurement", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.265861+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_measurement", "correlation_id": null, "duration_ms": 0.498, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.265884+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.516, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.265898+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "create_claim", "correlation_id": null, "duration_ms": 2.022, "error_code": null, "level": "INFO", "project_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "timestamp": "2026-10-18T15:47:59.267948+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.268351+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim", "correlation_id": null, "duration_ms": 0.393, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.268373+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.414, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c8a2-724c-9c83-87e2876fd611", "timestamp": "2026-10-18T15:47:59.268389+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.269120+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 0.738, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.269141+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "link_evidence", "correlation_id": null, "duration_ms": 2.487, "error_code": null, "level": "INFO", "project_id": null, "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "01a14fb2-c8a2-724c-9c83-87e2876fd611", "timestamp": "2026-10-18T15:47:59.271651+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_evidence_relation", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.272250+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_evidence_relation", "correlation_id": null, "duration_ms": 0.584, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.272291+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.662, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.272363+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.273113+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 0.753, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.273165+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "freeze_claim_version", "correlation_id": null, "duration_ms": 2.28, "error_code": null, "level": "INFO", "project_id": null, "request_id": "9fe0eeb6-4fb7-4365-8411-364c6d135139", "result": "success", "rollback": false, "target_id": "01a14fb2-c8a2-724c-9c83-87e2876fd611", "timestamp": "2026-10-18T15:47:59.275468+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.275795+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim_version", "correlation_id": null, "duration_ms": 0.319, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.275820+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.337, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c8a2-724c-9c83-87e2876fd611", "timestamp": "2026-10-18T15:47:59.275833+00:00"}
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0033_pr2_11_r2_scientific_conclusion -> 0034_pr2_10_exact_transcript_binding, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running upgrade 0034_pr2_10_exact_transcript_binding -> 0035_pr2_12_publication_draft, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running upgrade 0035_pr2_12_publication_draft -> 0036_pr2_13_citation_placement, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running upgrade 0036_pr2_13_citation_placement -> 0037_pr2_13_claim_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0037_pr2_13_claim_placement -> 0038_pr2_13_artifact_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0038_pr2_13_artifact_placement -> 0039_pr2_13_citation_rebinding_guard, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running upgrade 0039_pr2_13_citation_rebinding_guard -> 0040_pr2_14_initial_internal_review, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running upgrade 0040_pr2_14_initial_internal_review -> 0041_pr2_15_review_coordination, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running upgrade 0041_pr2_15_review_coordination -> 0042_pr2_15_minimal_decision, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running upgrade 0042_pr2_15_minimal_decision -> 0043_pr2_04_schema_contract, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running upgrade 0043_pr2_04_schema_contract -> 0044_pr2_15_revision_action, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running upgrade 0044_pr2_15_revision_action -> 0045_pr2_16_basic_approval, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running upgrade 0045_pr2_16_basic_approval -> 0046_pr2_17_authorship, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running upgrade 0046_pr2_17_authorship -> 0047_pr2_18_novelty_prior_art, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running upgrade 0047_pr2_18_novelty_prior_art -> 0048_b04_manuscript_freeze, B04 initial manuscript seal; retain scientific history and draft placement checks.
+INFO  [alembic.runtime.migration] Running upgrade 0048_b04_manuscript_freeze -> 0049_b05_manuscript_review, B05 manuscript review coordination and deferred immutable OPEN history guards.
+INFO  [alembic.runtime.migration] Running upgrade 0049_b05_manuscript_review -> 0050_b01_resolution_admission, Repeat the existing M2 structural resolution closure at transaction end.
+INFO  [alembic.runtime.migration] Running upgrade 0050_b01_resolution_admission -> 0051_b06_revision_action, Owner-approved B06 issue-only completed results; no result or Issue mutation.
+INFO  [alembic.runtime.migration] Running upgrade 0051_b06_revision_action -> 0052_b07_revision_decisions, B07 approved revision choices and immutable concern/re-review relations.
+INFO  [alembic.runtime.migration] Running upgrade 0052_b07_revision_decisions -> 0053_b08_issue_disposition, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running upgrade 0053_b08_issue_disposition -> 0054_b11_ready_for_submission, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Running upgrade 0056_b10_reconsideration -> 0057_xid_wraparound_guards, Keep transaction-identity guards correct across PostgreSQL XID epochs.
+INFO  [alembic.runtime.migration] Running upgrade 0057_xid_wraparound_guards -> 0058_b12_prepare_submission, B12 PREPARE judgment and exact approval tuple, without lifecycle effects.
+INFO  [alembic.runtime.migration] Running upgrade 0058_b12_prepare_submission -> 0059_b13_grant_consumption, B13 one-use release receipts and explicit terminal grant maintenance.
+INFO  [alembic.runtime.migration] Running upgrade 0059_b13_grant_consumption -> 0060_b14a_publication_entry, B14a exact frozen manuscript entry, with retained atomic lifecycle history.
+INFO  [alembic.runtime.migration] Running upgrade 0060_b14a_publication_entry -> 0061_b14r_ready_approval, B14r exact READY approval permission; no publication or consumption effects.
+INFO  [alembic.runtime.migration] Running upgrade 0061_b14r_ready_approval -> 0062_b14_publication_ready, B14 one atomic INTERNAL_REVIEW to READY effect and concrete B13 receipt.
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "create_artifact", "correlation_id": null, "duration_ms": 2.947, "error_code": null, "level": "INFO", "project_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "request_id": "57223a12-32c0-4e8c-a287-f13463836f25", "result": "success", "rollback": false, "target_id": "cc5a8f4f-af10-482f-ab28-a53a86d00fab", "timestamp": "2026-10-18T15:47:59.413188+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_artifact", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.414120+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_artifact", "correlation_id": null, "duration_ms": 0.864, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.414158+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.897, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.414177+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "create_artifact_version", "correlation_id": null, "duration_ms": 3.747, "error_code": null, "level": "INFO", "project_id": null, "request_id": "57223a12-32c0-4e8c-a287-f13463836f25", "result": "success", "rollback": false, "target_id": "01a14fb2-c934-7d64-afc2-96ab3d9c2efa", "timestamp": "2026-10-18T15:47:59.417950+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_artifact_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.418477+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_artifact_version", "correlation_id": null, "duration_ms": 0.503, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.418505+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.526, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c937-7ef3-aeb6-10ebabd92b9d", "timestamp": "2026-10-18T15:47:59.418521+00:00"}
+INFO  [researchbase.commands] {"actor_id": "0f60a91a-8ed9-4069-a1d0-7f66161f6133", "application_env": "development", "command_name": "freeze_artifact_version", "correlation_id": null, "duration_ms": 2.554, "error_code": null, "level": "INFO", "project_id": null, "request_id": "57223a12-32c0-4e8c-a287-f13463836f25", "result": "success", "rollback": false, "target_id": "01a14fb2-c937-7ef3-aeb6-10ebabd92b9d", "timestamp": "2026-10-18T15:47:59.421098+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_artifact_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.421677+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_artifact_version", "correlation_id": null, "duration_ms": 0.515, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-18T15:47:59.421731+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.632, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14fb2-c937-7ef3-aeb6-10ebabd92b9d", "timestamp": "2026-10-18T15:47:59.421842+00:00"}
+----------------------------- Captured stderr call -----------------------------
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "unknown", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.433108+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "unknown", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.531481+00:00"}
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0062_b14_publication_ready -> 0061_b14r_ready_approval, B14 one atomic INTERNAL_REVIEW to READY effect and concrete B13 receipt.
+------------------------------ Captured log call -------------------------------
+ERROR    researchbase.commands:structured_logging.py:118 {"actor_id": null, "application_env": "development", "command_name": "unknown", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.433108+00:00"}
+ERROR    researchbase.commands:structured_logging.py:118 {"actor_id": null, "application_env": "development", "command_name": "unknown", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T15:47:59.531481+00:00"}
+--------------------------- Captured stdout teardown ---------------------------
+DISPOSABLE_DROPPED: researchbase_pr211_r2_test_c363911271a44e219e98aa0298f18f38
+=============================== warnings summary ===============================
+tests/integration/phase2/test_pr2_12_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_12_publication_draft.py: 16 warnings
+tests/integration/phase2/test_b04_manuscript_freeze.py: 69 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b04_manuscript_races.py: 72 warnings
+tests/integration/phase2/test_b05_manuscript_review.py: 63 warnings
+tests/integration/phase2/test_b05_review_basis.py: 24 warnings
+tests/integration/phase2/test_b05_review_migration.py: 76 warnings
+tests/integration/phase2/test_b05_review_races.py: 60 warnings
+tests/integration/phase2/test_b08_concurrency.py: 138 warnings
+tests/integration/phase2/test_b08_issue_disposition.py: 99 warnings
+tests/integration/phase2/test_b08_issue_history.py: 18 warnings
+tests/integration/phase2/test_b08_schema.py: 53 warnings
+tests/integration/phase2/test_b09_approval_concurrency.py: 42 warnings
+tests/integration/phase2/test_b09_approval_schema.py: 55 warnings
+tests/integration/phase2/test_b10_reconsideration.py: 87 warnings
+tests/integration/phase2/test_b10_reconsideration_concurrency.py: 24 warnings
+tests/integration/phase2/test_b10_reconsideration_schema.py: 69 warnings
+tests/integration/phase2/test_b11_readiness_decision.py: 100 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 125 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 21 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 99 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 12 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 18 warnings
+tests/integration/phase2/test_b12_prepare_races.py: 39 warnings
+tests/integration/phase2/test_b12_prepare_replay.py: 6 warnings
+tests/integration/phase2/test_b12_prepare_schema.py: 37 warnings
+tests/integration/phase2/test_b13_grant_concurrency.py: 78 warnings
+tests/integration/phase2/test_b13_grant_consumption.py: 24 warnings
+tests/integration/phase2/test_b13_grant_lifecycle.py: 9 warnings
+tests/integration/phase2/test_b13_grant_replay.py: 51 warnings
+tests/integration/phase2/test_b13_grant_schema.py: 72 warnings
+tests/integration/phase2/test_b14a_entry_concurrency.py: 122 warnings
+tests/integration/phase2/test_b14a_entry_replay.py: 45 warnings
+tests/integration/phase2/test_b14a_entry_schema.py: 63 warnings
+tests/integration/phase2/test_b14a_publication_entry.py: 124 warnings
+tests/integration/phase2/test_b14r_ready_approval.py: 102 warnings
+tests/integration/phase2/test_b14r_ready_approval_races.py: 126 warnings
+tests/integration/phase2/test_b14r_ready_approval_replay.py: 39 warnings
+tests/integration/phase2/test_b14r_ready_approval_schema.py: 65 warnings
+tests/integration/phase2/test_approval.py: 213 warnings
+tests/integration/phase2/test_pr2_15_decision.py: 108 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b04_manuscript_races.py::test_mixed_existing_repository_lock_protocols[decision]
+tests/integration/phase2/test_b05_review_races.py::test_mixed_existing_protocols_with_protected_verifier[decision]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/decision_repository.py:141: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_b05_manuscript_review.py: 20 warnings
+tests/integration/phase2/test_b05_review_basis.py: 7 warnings
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+tests/integration/phase2/test_b05_review_races.py: 19 warnings
+tests/integration/phase2/test_b11_readiness_decision.py: 31 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 41 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 7 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 25 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 2 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 4 warnings
+tests/integration/phase2/test_b14a_entry_concurrency.py: 4 warnings
+tests/integration/phase2/test_b14a_entry_replay.py: 1 warning
+tests/integration/phase2/test_b14a_publication_entry.py: 22 warnings
+tests/integration/phase2/test_b14r_ready_approval.py: 34 warnings
+tests/integration/phase2/test_b14r_ready_approval_races.py: 42 warnings
+tests/integration/phase2/test_b14r_ready_approval_replay.py: 13 warnings
+tests/integration/phase2/test_b14r_ready_approval_schema.py: 18 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/phase2/test_b14r_ready_approval_schema.py::test_populated_predecessor_preserved_and_ready_history_refuses_downgrade
+1 failed, 903 passed, 1 skipped, 3091 warnings in 1203.44s (0:20:03)

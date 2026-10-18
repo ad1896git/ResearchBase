@@ -1,0 +1,59 @@
+........................................................................ [ 15%]
+.....................s.................................................. [ 30%]
+........................................................................ [ 45%]
+........................................................................ [ 61%]
+........................................................................ [ 76%]
+........................................................................ [ 91%]
+........................................                                 [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b04_manuscript_freeze.py: 69 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b04_manuscript_races.py: 72 warnings
+tests/integration/phase2/test_b05_manuscript_review.py: 63 warnings
+tests/integration/phase2/test_b05_review_basis.py: 24 warnings
+tests/integration/phase2/test_b05_review_migration.py: 76 warnings
+tests/integration/phase2/test_b05_review_races.py: 60 warnings
+tests/integration/phase2/test_b09_approval_concurrency.py: 42 warnings
+tests/integration/phase2/test_b09_approval_schema.py: 55 warnings
+tests/integration/phase2/test_b10_reconsideration.py: 87 warnings
+tests/integration/phase2/test_b10_reconsideration_concurrency.py: 24 warnings
+tests/integration/phase2/test_b10_reconsideration_schema.py: 69 warnings
+tests/integration/phase2/test_b11_readiness_decision.py: 100 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 125 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 21 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 99 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 12 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 18 warnings
+tests/integration/phase2/test_b12_prepare_races.py: 39 warnings
+tests/integration/phase2/test_b12_prepare_replay.py: 6 warnings
+tests/integration/phase2/test_b12_prepare_schema.py: 37 warnings
+tests/integration/phase2/test_b13_grant_concurrency.py: 78 warnings
+tests/integration/phase2/test_b13_grant_consumption.py: 24 warnings
+tests/integration/phase2/test_b13_grant_lifecycle.py: 9 warnings
+tests/integration/phase2/test_b13_grant_replay.py: 51 warnings
+tests/integration/phase2/test_b13_grant_schema.py: 72 warnings
+tests/integration/phase2/test_pr2_12_publication_draft.py: 16 warnings
+tests/integration/phase2/test_pr2_12_migration.py: 7 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b04_manuscript_races.py::test_mixed_existing_repository_lock_protocols[decision]
+tests/integration/phase2/test_b05_review_races.py::test_mixed_existing_protocols_with_protected_verifier[decision]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/decision_repository.py:141: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_b05_manuscript_review.py: 20 warnings
+tests/integration/phase2/test_b05_review_basis.py: 7 warnings
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+tests/integration/phase2/test_b05_review_races.py: 19 warnings
+tests/integration/phase2/test_b11_readiness_decision.py: 31 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 41 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 7 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 25 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 2 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 4 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+471 passed, 1 skipped, 1629 warnings in 530.72s (0:08:50)

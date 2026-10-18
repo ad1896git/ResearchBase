@@ -52,7 +52,5 @@ def test_no_approval_effect_surface():
 
 def test_single_forward_revision():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0061_b16_consent_withdrawal"]
-    assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0060_b15_package_preparation"
-    )
+    assert scripts.get_heads() == ["0064_b14_publication_ready"]
+    assert scripts.get_revision(scripts.get_heads()[0]).down_revision == "0063_b14r_ready_approval"

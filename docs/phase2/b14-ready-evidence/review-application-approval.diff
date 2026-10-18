@@ -1,0 +1,178 @@
+diff --git a/src/researchbase/application/approval.py b/src/researchbase/application/approval.py
+index fb6b736..d52f095 100644
+--- a/src/researchbase/application/approval.py
++++ b/src/researchbase/application/approval.py
+@@ -20,0 +21 @@ from researchbase.domain.approval import (
++    PublicationReadyResult,
+@@ -257 +258 @@ class GrantLifecycleReadback:
+-class ConsumptionReadback:
++class ConsumptionReadback[Result: ScientificReleaseResult | PublicationReadyResult]:
+@@ -272 +273 @@ class ConsumptionReadback:
+-    result: ScientificReleaseResult
++    result: Result
+@@ -304,2 +305,2 @@ class ApprovalService:
+-    def _prepare_read(self, uow, principal, project):
+-        uow.enable_approval_error_normalization()
++    def _prepare_read(self, uow, principal, project, *, strict=False):
++        uow.enable_approval_error_normalization(strict=strict)
+@@ -1099,0 +1101 @@ class ApprovalService:
++        dependency = dependency or request["approval_purpose"] == "READY_FOR_SUBMISSION"
+@@ -1116 +1118,3 @@ class ApprovalService:
+-            if uow.decision.has_blockers(
++            if request[
++                "scientific_conclusion_version_id"
++            ] is not None and uow.decision.has_blockers(
+@@ -1240,2 +1244,2 @@ class ApprovalService:
+-            "ScientificConclusionVersion",
+-            request["scientific_conclusion_version_id"],
++            TUPLES[request["approval_purpose"]][0],
++            request["scientific_conclusion_version_id"] or request["manuscript_version_id"],
+@@ -1243 +1247 @@ class ApprovalService:
+-            row["result_scientific_conclusion_version_id"],
++            row["result_scientific_conclusion_version_id"] or row["result_publication_id"],
+@@ -1280 +1284 @@ class ApprovalService:
+-            self._prepare_read(uow, principal, project)
++            self._prepare_read(uow, principal, project, strict=True)
+@@ -1292,2 +1296,4 @@ class ApprovalService:
+-                result.grant_id != command.grant_id
+-                or result.result_scientific_conclusion_version_id != command.result_id
++                result.command != "RECORD_INTERNAL_SCIENTIFIC_RELEASE"
++                or result.grant_id != command.grant_id
++                or (result.result_scientific_conclusion_version_id or result.result_publication_id)
++                != command.result_id
+@@ -1307 +1313 @@ class ApprovalService:
+-    ) -> ConsumptionReadback:
++    ) -> ConsumptionReadback[ScientificReleaseResult]:
+@@ -1318 +1324 @@ class ApprovalService:
+-                    return replay
++                    return cast(ConsumptionReadback[ScientificReleaseResult], replay)
+@@ -1321 +1327 @@ class ApprovalService:
+-                    return result
++                    return cast(ConsumptionReadback[ScientificReleaseResult], result)
+@@ -1323 +1329 @@ class ApprovalService:
+-                    ConsumptionReadback,
++                    ConsumptionReadback[ScientificReleaseResult],
+@@ -1331 +1337 @@ class ApprovalService:
+-                        ConsumptionReadback,
++                        ConsumptionReadback[ScientificReleaseResult],
+@@ -1357,0 +1364,120 @@ class ApprovalService:
++    def _issuer_live(self, uow, decision, project, at):
++        if not uow.approval.approver_active(decision["decided_by"], project, at=at):
++            return False
++        for binding in uow.approval.issuer_bindings(decision["decided_by"], at):
++            try:
++                principal = VerifiedPrincipal(
++                    decision["decided_by"],
++                    binding["deployment_id"],
++                    binding["subject_kind"],
++                    binding["subject_value"],
++                    binding["subject_credential_id"],
++                    at,
++                )
++                if self._policy._credentials.is_valid(principal, at):
++                    return True
++            except Exception:
++                continue
++        return False
++
++    def _consume_ready_in_uow(self, uow, principal, command):
++        """B13-owned READY consumption; caller owns the sole transaction."""
++        repo = uow.approval
++        try:
++            grant, decision, request = self._grant_chain(uow, command.project_id, command.grant_id)
++        except ResearchBaseError:
++            self._authorize(uow, principal, command.project_id, _READERS)
++            raise
++        repo.lock_grant_chain(grant, request)
++        grant, decision, request = self._grant_chain(uow, command.project_id, command.grant_id)
++        self._authorize(uow, principal, command.project_id, _READERS)
++        at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
++        if (
++            grant["purpose"] != "READY_FOR_SUBMISSION"
++            or grant["allowed_command"] != "transition_publication_ready"
++        ):
++            _fail(
++                ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID, "exact readiness tuple required"
++            )
++        # Expiry precedes effective material/authority staleness.
++        if grant["status"] != "ACTIVE" or at >= grant["valid_until"]:
++            _fail(
++                ErrorCode.GRANT_STALE if grant["status"] == "STALE" else ErrorCode.GRANT_INVALID,
++                "grant unavailable",
++            )
++        if not self._issuer_live(uow, decision, command.project_id, at):
++            _fail(ErrorCode.GRANT_STALE, "issuing credential unavailable")
++        self._gate(uow, request, decision["decided_by"])
++        parent = uow.internal_review.manuscript_target(
++            request["manuscript_version_id"], command.project_id
++        )
++        if parent is None or parent["publication_id"] != command.result_id:
++            _fail(
++                ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
++                "exact publication result required",
++            )
++        self._evaluate_in_uow(uow, grant, decision, request)
++        reviews = tuple(r["id"] for r in repo.reviews(request["id"]))
++        if reviews != command.checked_review_ids:
++            _fail(ErrorCode.DECISION_BASIS_INVALID, "complete sealed review set required")
++        material = consumption_request_material(
++            command.project_id,
++            principal.actor_id,
++            grant["id"],
++            "TRANSITION_PUBLICATION_READY",
++            "ManuscriptVersion",
++            request["manuscript_version_id"],
++            request["target_content_hash"],
++            command.result_id,
++            None,
++            reviews,
++        )
++        at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
++        if at >= grant["valid_until"]:
++            _fail(ErrorCode.GRANT_INVALID, "grant expired before effect")
++        if not self._issuer_live(uow, decision, command.project_id, at):
++            _fail(ErrorCode.GRANT_STALE, "issuing credential expired")
++        identity, event_id = new_uuid7(), new_uuid7()
++        uow.publication.transition_ready(
++            command.result_id,
++            dict(
++                id=event_id,
++                publication_id=command.result_id,
++                actor_id=principal.actor_id,
++                occurred_at=at,
++                basis_decision_id=request["basis_decision_id"],
++                basis_grant_consumption_id=identity,
++            ),
++        )
++        repo.insert_consumption(
++            dict(
++                id=identity,
++                grant_id=grant["id"],
++                command_key=command.command_key,
++                project_id=command.project_id,
++                actor_id=principal.actor_id,
++                consumed_at=at,
++                command="TRANSITION_PUBLICATION_READY",
++                request_hash=str(sha256_canonical_json(material)),
++                hash_scheme="sha256-cjson-v1",
++                result_dto_version=1,
++                result_dto=dict(
++                    command="TRANSITION_PUBLICATION_READY",
++                    publication_id=str(command.result_id),
++                    consumption_id=str(identity),
++                ),
++                result_publication_id=command.result_id,
++            )
++        )
++        repo.terminalize(grant["id"], principal.actor_id, "CONSUMED", at, "grant consumed")
++        repo.force_constraints()
++        result = self._receipt_view(uow, repo.consumption(command.command_key))
++        final_at = self._authorize(
++            uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"})
++        )
++        if final_at >= grant["valid_until"]:
++            _fail(ErrorCode.GRANT_INVALID, "final grant expiry reached")
++        if not self._issuer_live(uow, decision, command.project_id, final_at):
++            _fail(ErrorCode.GRANT_STALE, "final issuing credential expired")
++        return result
++

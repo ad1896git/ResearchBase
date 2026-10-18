@@ -10,7 +10,7 @@ from researchbase.adapters.source_document import locate, paragraphs, relocate
 from researchbase.application.closure import ProvenanceClosureValidator
 from researchbase.application.governance_queries import GovernanceQueryService, ValidityState
 from researchbase.application.ports import UnitOfWork
-from researchbase.application.saved_provenance import saved_dependency
+from researchbase.application.saved_provenance import reading_saved_seal, saved_dependency
 from researchbase.application.source_version import SourceVersionService, _material_from_row
 from researchbase.domain.artifact import Artifact, ArtifactId, ArtifactVersion, ArtifactVersionId
 from researchbase.domain.claim import ClaimVersionId
@@ -153,9 +153,14 @@ class LiteratureEvidenceService:
         if row["locator"] != "sha256:" + row["content_hash"]:
             _fail("document artifact hash binding mismatch", ErrorCode.PROVENANCE_CLOSURE_VIOLATION)
         try:
-            data = self._store.open(row["locator"])
-            if digest_bytes(data) != row["content_hash"] or len(data) != row["byte_size"]:
-                raise ValueError("content digest/size mismatch")
+            if reading_saved_seal():
+                if type(row["byte_size"]) is not int or row["byte_size"] < 0:
+                    raise ValueError("invalid retained byte size")
+                data = None
+            else:
+                data = self._store.open(row["locator"])
+                if digest_bytes(data) != row["content_hash"] or len(data) != row["byte_size"]:
+                    raise ValueError("content digest/size mismatch")
         except (OSError, ValueError) as exc:
             raise ResearchBaseError(
                 ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "source artifact missing or altered"
@@ -171,7 +176,7 @@ class LiteratureEvidenceService:
                 "document retention/access policy unavailable",
                 ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
             )
-        values = paragraphs(data, row["media_type"])
+        values = paragraphs(data, row["media_type"]) if data is not None else None
         return {
             "artifact_id": row["artifact_id"],
             "artifact_version_id": row["id"],
@@ -265,7 +270,7 @@ class LiteratureEvidenceService:
                 uow, principal, project, {"OWNER", "RESEARCHER", "REVIEWER", "VIEWER", "APPROVER"}
             )
             row, artifact, values, valid = self._source(uow, source_version_id, project)
-            if type(paragraph) is not int or not 1 <= paragraph <= len(values):
+            if values is None or type(paragraph) is not int or not 1 <= paragraph <= len(values):
                 _fail("paragraph out of range")
             return _public(
                 {
@@ -344,9 +349,9 @@ class LiteratureEvidenceService:
     def _read_saved(self, uow, row, project):
         identity = row["id"]
         source, artifact, values, valid = self._source(uow, row["source_version_id"], project)
-        if (
-            digest(evidence_material(row, source)) != row["content_hash"]
-            or relocate(values, row["locator"]) != row["extracted_statement"]
+        if digest(evidence_material(row, source)) != row["content_hash"] or (
+            not reading_saved_seal()
+            and relocate(values, row["locator"]) != row["extracted_statement"]
         ):
             _fail(
                 "evidence hash or exact passage integrity failure",

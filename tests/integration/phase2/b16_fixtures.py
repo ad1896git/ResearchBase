@@ -1,4 +1,4 @@
-"""B16 disposable READY prerequisite and guarded Application grant builders."""
+"""B16 real READY prerequisite and guarded Application grant builders."""
 
 from dataclasses import replace
 from typing import Any
@@ -24,51 +24,96 @@ def successor(command, prior, state="WITHDRAWN"):
     return replace(command, id=uuid4(), prior_consent_id=prior.id, consent_state=state)
 
 
-def ready_prerequisite(env):
-    """Owner-authorized disposable READY prerequisite, never a production transition.
-
-    Keep every trigger enabled. Temporarily extend only the Publication guard for
-    one exact presealed row, restore the function verbatim, and retain its original
-    lifecycle CHECK as NOT VALID. All scientific/approval/grant guards stay intact.
-    """
+def ready_prerequisite(env, decider, requester, approver, review, *, consume=True):
+    """Real B14a/B14r/B14 prerequisite, preserving all production guards."""
     from sqlalchemy import text
 
-    _, command, _, _, engine, *_ = env
-    with engine.begin() as conn:
-        checks = conn.execute(
-            text(
-                "SELECT conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint "
-                "WHERE conrelid='publications'::regclass AND contype='c' "
-                "AND pg_get_constraintdef(oid) LIKE '%lifecycle_status%'"
-            )
-        ).all()
-        original = conn.execute(
-            text("SELECT pg_get_functiondef('pr212_publication_guard()'::regprocedure)")
-        ).scalar_one()
-        extra = f"""BEGIN
-        IF TG_OP='UPDATE' AND OLD.id='{command.publication_id}'::uuid
-         AND OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='READY'
-         AND (to_jsonb(NEW)-'lifecycle_status')=(to_jsonb(OLD)-'lifecycle_status')
-         AND EXISTS(SELECT 1 FROM manuscript_versions WHERE id=NEW.current_manuscript_version_id
-           AND publication_id=NEW.id AND status='FROZEN' AND frozen_at IS NOT NULL)
-        THEN RETURN NEW; END IF;
-        """
-        for name, _ in checks:
-            conn.exec_driver_sql(f'ALTER TABLE publications DROP CONSTRAINT "{name}"')
-        conn.exec_driver_sql(original.replace("BEGIN", extra, 1))
-        conn.execute(
-            text("UPDATE publications SET lifecycle_status='READY' WHERE id=:id"),
-            {"id": command.publication_id},
+    from researchbase.application.approval import (
+        ApprovalService,
+        DecideApprovalCommand,
+        RequestApprovalCommand,
+    )
+    from researchbase.application.decision import (
+        DecisionService,
+        RecordReadyForSubmissionDecisionCommand,
+    )
+    from researchbase.application.literature_evidence import LiteratureEvidenceService
+    from researchbase.application.publication import (
+        PublicationService,
+        TransitionPublicationInternalReviewCommand,
+        TransitionPublicationReadyCommand,
+    )
+
+    _, command, author, factory, engine, store, credentials = env
+
+    # Consumption refreshes verification time; the test provider validates the
+    # retained credential identity independently of that fresh timestamp.
+    def credential_live(principal, at):
+        saved = credentials.principals.get(principal.actor_id)
+        return (
+            credentials.enabled
+            and saved is not None
+            and saved.verified_at <= at
+            and replace(principal, verified_at=saved.verified_at) == saved
         )
-        conn.exec_driver_sql(original)
-        conn.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
-        for name, definition in checks:
-            conn.exec_driver_sql(
-                f'ALTER TABLE publications ADD CONSTRAINT "{name}" {definition} NOT VALID'
-            )
+
+    credentials.is_valid = credential_live
+    literature = LiteratureEvidenceService(factory, credentials, store)
+    publication = PublicationService(factory, credentials, store)
+    with engine.connect() as conn:
+        digest = conn.execute(
+            text("SELECT content_hash FROM manuscript_versions WHERE id=:id"),
+            {"id": command.manuscript_version_id},
+        ).scalar_one()
+    publication.transition_publication_internal_review(
+        author,
+        TransitionPublicationInternalReviewCommand(
+            uuid4(),
+            command.project_id,
+            command.publication_id,
+            command.manuscript_version_id,
+            digest,
+        ),
+    )
+    basis = DecisionService(
+        factory, credentials, literature, store
+    ).record_ready_for_submission_decision(
+        decider,
+        RecordReadyForSubmissionDecisionCommand(
+            uuid4(),
+            command.project_id,
+            command.manuscript_version_id,
+            "Ready?",
+            "Independent readiness basis",
+        ),
+    )
+    approval = ApprovalService(factory, credentials, literature)
+    request = RequestApprovalCommand(
+        uuid4(),
+        command.project_id,
+        None,
+        basis.id,
+        (review.id,),
+        approval_purpose="READY_FOR_SUBMISSION",
+        manuscript_version_id=command.manuscript_version_id,
+    )
+    approval.request_approval(requester, request)
+    grant = approval.decide_approval(
+        approver,
+        DecideApprovalCommand(
+            uuid4(), command.project_id, request.id, "APPROVE", "Independent readiness permission"
+        ),
+    ).grant
+    assert grant is not None
+    transition = TransitionPublicationReadyCommand(
+        uuid4(), command.project_id, grant.id, command.publication_id, (review.id,)
+    )
+    if consume:
+        publication.transition_publication_ready(author, transition)
+    return publication, transition, request
 
 
-def grant_context(env, reviewer) -> dict[str, Any]:
+def grant_context(env, reviewer, *, consume_ready=True) -> dict[str, Any]:
     from sqlalchemy import text
 
     from researchbase.application.approval import ApprovalService
@@ -125,21 +170,31 @@ def grant_context(env, reviewer) -> dict[str, Any]:
             decider, command.project_id, approver.actor_id, "APPROVER", "B16 grant fixture", uuid4()
         )
     )
-    ready_prerequisite(env)
-    basis = DecisionService(
-        factory, credentials, literature, store
-    ).record_prepare_submission_decision(
-        decider,
-        RecordPrepareSubmissionDecisionCommand(
-            uuid4(),
-            command.project_id,
-            command.manuscript_version_id,
-            "Prepare?",
-            "Independent preparation basis",
-        ),
+    ready_app, ready_command, ready_request = ready_prerequisite(
+        env, decider, requester, approver, review, consume=consume_ready
+    )
+    basis = (
+        None
+        if not consume_ready
+        else DecisionService(
+            factory, credentials, literature, store
+        ).record_prepare_submission_decision(
+            decider,
+            RecordPrepareSubmissionDecisionCommand(
+                uuid4(),
+                command.project_id,
+                command.manuscript_version_id,
+                "Prepare?",
+                "Independent preparation basis",
+            ),
+        )
     )
     return dict(
         env=env,
+        ready_app=ready_app,
+        ready_command=ready_command,
+        ready_request=ready_request,
+        decider=decider,
         service=service,
         package=package,
         query=query,

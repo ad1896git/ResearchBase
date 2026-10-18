@@ -1,0 +1,46 @@
+diff --git a/src/researchbase/persistence/publication_repository.py b/src/researchbase/persistence/publication_repository.py
+index 8eff06a..073e08b 100644
+--- a/src/researchbase/persistence/publication_repository.py
++++ b/src/researchbase/persistence/publication_repository.py
+@@ -1 +1 @@
+-"""Project-confined SQL for the PR2-12 draft publication slice."""
++"""Project-confined publication drafts and atomic internal lifecycle history."""
+@@ -692,0 +693,38 @@ class SqlAlchemyPublicationRepository:
++
++    def ready_event(self, consumption):
++        row = (
++            self._session.execute(
++                text(
++                    "SELECT * FROM publication_lifecycle_events "
++                    "WHERE basis_grant_consumption_id=:id"
++                ),
++                {"id": consumption},
++            )
++            .mappings()
++            .one_or_none()
++        )
++        return None if row is None else dict(row)
++
++    def transition_ready(self, publication, values):
++        changed = self._session.execute(
++            text(
++                "UPDATE publications SET lifecycle_status='READY',row_version=row_version+1 "
++                "WHERE id=:id AND lifecycle_status='INTERNAL_REVIEW' "
++                "AND row_version<2147483647 RETURNING id"
++            ),
++            {"id": publication},
++        ).scalar_one_or_none()
++        if changed is None:
++            from researchbase.foundation.errors import ErrorCode, ResearchBaseError
++
++            raise ResearchBaseError(ErrorCode.APPROVAL_GATE_FAILED, "publication must be in review")
++        self._session.execute(
++            text(
++                "INSERT INTO publication_lifecycle_events "
++                "(id,publication_id,prior_status,new_status,"
++                "actor_id,occurred_at,basis_decision_id,basis_grant_consumption_id) "
++                "VALUES (:id,:publication_id,'INTERNAL_REVIEW','READY',:actor_id,:occurred_at,"
++                ":basis_decision_id,:basis_grant_consumption_id)"
++            ),
++            values,
++        )

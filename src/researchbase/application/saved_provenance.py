@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
@@ -28,3 +29,22 @@ def saved_dependency(*, ownership: bool = False) -> Iterator[None]:
         ):
             raise
         raise ResearchBaseError(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, MESSAGE) from None
+
+
+# Scoped to exact immutable event readback; ordinary B04/B05 readers retain CAS checks.
+_SAVED_SEAL = ContextVar("publication_entry_saved_seal", default=False)
+
+
+def reading_saved_seal() -> bool:
+    return _SAVED_SEAL.get()
+
+
+@contextmanager
+def saved_seal() -> Iterator[None]:
+    """Verify retained hashes/graph without readmitting bytes or live projections."""
+    token = _SAVED_SEAL.set(True)
+    try:
+        with saved_dependency(ownership=True):
+            yield
+    finally:
+        _SAVED_SEAL.reset(token)

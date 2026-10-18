@@ -14,6 +14,7 @@ from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.literature_evidence import LiteratureEvidenceService
 from researchbase.application.ports import UnitOfWork
 from researchbase.application.publication import _READERS, _WRITERS
+from researchbase.application.saved_provenance import reading_saved_seal, saved_seal
 from researchbase.application.scientific_conclusion import ScientificConclusionService
 from researchbase.domain.manuscript import (
     ManuscriptPlacement,
@@ -192,11 +193,15 @@ class ManuscriptFreezeService:
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "manuscript document required")
             try:
                 content = digest(row["content_hash"])
-                if self._store is None or not self._store.verify(content):
+                if reading_saved_seal():
+                    if type(row["byte_size"]) is not int or row["byte_size"] < 0:
+                        raise ValueError("invalid retained byte size")
+                elif self._store is None or not self._store.verify(content):
                     raise ValueError("CAS verification failed")
-                data = self._store.open(content)
-                if len(data) != row["byte_size"] or str(sha256_bytes(data)) != content:
-                    raise ValueError("CAS size/hash mismatch")
+                if not reading_saved_seal():
+                    data = self._store.open(content)
+                    if len(data) != row["byte_size"] or str(sha256_bytes(data)) != content:
+                        raise ValueError("CAS size/hash mismatch")
             except (OSError, ValueError, TypeError):
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "artifact bytes missing or altered")
             return ManuscriptReference("ArtifactVersion", identity, content), self._validity(
@@ -392,6 +397,13 @@ class ManuscriptFreezeService:
                 ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current independent human review required"
             )
 
+    def verify_saved_seal_in_uow(self, uow, project, parent, row):
+        """Exact retained event target; current pointer is navigation, not selection."""
+        with saved_seal():
+            return self.verify_in_uow(
+                uow, project, {**parent, "current_manuscript_version_id": row["id"]}, row
+            )
+
     def verify_in_uow(
         self,
         uow: UnitOfWork,
@@ -531,7 +543,11 @@ class ManuscriptFreezeService:
                 row["content_hash"] != content_hash
                 or row["placement_set_hash"] != placement_hash
                 or row["frozen_at"] is None
-                or (require_current and parent["current_manuscript_version_id"] != row["id"])
+                or (
+                    require_current
+                    and parent["current_manuscript_version_id"] != row["id"]
+                    and not reading_saved_seal()
+                )
             ):
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "manuscript seal mismatch")
         elif row["status"] != "DRAFT" or any(

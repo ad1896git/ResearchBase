@@ -52,7 +52,12 @@ def review_material(
     for value in (project, target_id, actor):
         _uuid(value, "review reference")
     _digest(digest, "target hash")
-    if target_kind not in {"ClaimVersion", "ScientificConclusionVersion", "ManuscriptVersion"}:
+    if target_kind not in {
+        "ClaimVersion",
+        "ScientificConclusionVersion",
+        "ManuscriptVersion",
+        "ArtifactVersion",
+    }:
         raise ValueError("unsupported review target")
     if type(review_type) is not str or review_type not in _TYPES:
         raise ValueError("invalid review type")

@@ -1,0 +1,42 @@
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+646 files already formatted
+I001 [*] Import block is un-sorted or un-formatted
+  --> tests/integration/phase2/test_pr2_17_authorship_schema.py:3:1
+   |
+ 1 |   """TEST ONLY exact S1 catalog, normal-role guards and preserving migration paths."""
+ 2 |
+ 3 | / from uuid import uuid4
+ 4 | |
+ 5 | | import pytest
+ 6 | | from alembic import command
+ 7 | | from alembic.config import Config
+ 8 | | from alembic.script import ScriptDirectory
+ 9 | | from sqlalchemy import create_engine, inspect, text
+10 | | from sqlalchemy.exc import DBAPIError
+11 | |
+12 | | from researchbase.application.publication import PublicationService
+13 | |
+14 | | from tests.integration.phase2.test_pr2_17_authorship import (
+15 | |     PREVIOUS,
+16 | |     REVISION,
+17 | |     _count,
+18 | |     _record,
+19 | |     _snapshot,
+20 | | )
+21 | | from tests.integration.phase2.test_pr2_17_authorship import (
+22 | |     authorship_env as _env,
+23 | | )
+24 | | from tests.integration.phase2.test_pr2_17_authorship import (
+25 | |     authorship_url as _url,
+26 | | )
+   | |_^
+27 |
+28 |   pytestmark = pytest.mark.integration
+   |
+help: Organize imports
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.
