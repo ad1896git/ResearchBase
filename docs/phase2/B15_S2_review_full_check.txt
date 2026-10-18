@@ -1,0 +1,36 @@
+Original owner-loop check output (FAIL)
+exit 1
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+654 files already formatted
+All checks passed!
+== shard 0: 630 passed, 630 warnings in 1863.79s (0:31:03)
+== shard 1: 3468 passed, 1 skipped, 1157 warnings in 1376.52s (0:22:56)
+== shard 2: 1748 passed, 48 skipped, 1252 warnings in 1433.52s (0:23:53)
+== shard 3: 1312 passed, 1 skipped, 1205 warnings in 1464.13s (0:24:24)
+== shard 4: 1 failed, 1270 passed, 1282 warnings in 1231.78s (0:20:31)
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "unknown", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T09:30:58.760487+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "unknown", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T09:30:58.782155+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "unknown", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-18T09:30:59.158615+00:00"}
+FAILED tests/integration/phase2/test_pr2_04_ownership_races.py::test_pg_competing_execute_keys_get_only_one_reservation_owner[B-first-1]
+== shard 5: 1 failed, 1271 passed, 1109 warnings in 1317.55s (0:21:57)
+FAILED tests/integration/phase2/test_b07_schema.py::test_empty_forward_upgrade_and_downgrade
+9699 passed, 6635 warning, 50 skipped, 2 failed (all shards)
+
+Current exact-chain attempt
+Environment: UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache
+$ uv run pyright && uv run ruff format --check . && uv run ruff check . && /Users/fengwang/Documents/ResearchBaseProject/.pipeline/bin/full_suite_sharded.sh 6
+0 errors, 0 warnings, 0 informations
+654 files already formatted
+All checks passed!
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
+
+The runner detected a stale shared mutex, but the sandbox denied its cleanup.
+It could not acquire that mutex or launch any shard. The waiting process was
+interrupted (exit 130); no full-suite result is available from this attempt.
+The runner also writes .pipeline/test_durations.json outside the writable roots.
+No runner file, lock file, sandbox setting or approval policy was changed.
+Overall required-check status: BLOCKED / NOT PASS.

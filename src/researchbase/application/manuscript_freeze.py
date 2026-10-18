@@ -393,7 +393,14 @@ class ManuscriptFreezeService:
             )
 
     def verify_in_uow(
-        self, uow: UnitOfWork, project: UUID, parent: dict, row: dict, *, admission: bool = False
+        self,
+        uow: UnitOfWork,
+        project: UUID,
+        parent: dict,
+        row: dict,
+        *,
+        admission: bool = False,
+        require_current: bool = True,
     ) -> ManuscriptVersionReadback:
         uow.enable_revision_action_snapshot_reads()
         repo = uow.publication
@@ -524,7 +531,7 @@ class ManuscriptFreezeService:
                 row["content_hash"] != content_hash
                 or row["placement_set_hash"] != placement_hash
                 or row["frozen_at"] is None
-                or parent["current_manuscript_version_id"] != row["id"]
+                or (require_current and parent["current_manuscript_version_id"] != row["id"])
             ):
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "manuscript seal mismatch")
         elif row["status"] != "DRAFT" or any(

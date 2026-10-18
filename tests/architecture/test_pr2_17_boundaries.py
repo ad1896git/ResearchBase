@@ -44,7 +44,7 @@ def test_exact_four_methods_and_no_future_transport():
         "get_authorship_snapshot",
     }
     assert "ExternalEffect" not in source
-    assert not (ROOT / "src/researchbase/application/prepared_submission.py").exists()
+    assert (ROOT / "src/researchbase/application/prepared_submission.py").exists()
     assert not (ROOT / "src/researchbase/cli/commands/authorship.py").exists()
     assert "authorship" not in (ROOT / "src/researchbase/api/routes.py").read_text()
 

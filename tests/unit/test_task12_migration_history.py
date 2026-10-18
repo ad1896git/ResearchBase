@@ -38,10 +38,11 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
             "migrations/versions/0057_xid_wraparound_guards.py",
             "migrations/versions/0058_b12_prepare_submission.py",
             "migrations/versions/0059_b13_grant_consumption.py",
+            "migrations/versions/0060_b15_package_preparation.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0059_b13_grant_consumption"]
+    assert scripts.get_heads() == ["0060_b15_package_preparation"]
     assert (
         scripts.get_revision("0047_pr2_18_novelty_prior_art").down_revision
         == "0046_pr2_17_authorship"

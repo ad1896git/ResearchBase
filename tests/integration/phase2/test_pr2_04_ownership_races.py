@@ -42,9 +42,9 @@ def _sqlstates(error):
     return values
 
 
-def _race(engine, provider, winner, commands, operation, trace):
+def _race(engine, provider, winner, commands, operation, trace, *, gate_followup=False):
     """Hold a real production admission commit, not an invented inverse lock."""
-    ready, release = Event(), Event()
+    ready, release, loser_done = Event(), Event(), Event()
     context = local()
     guard = Lock()
     waiting = Queue()
@@ -68,7 +68,8 @@ def _race(engine, provider, winner, commands, operation, trace):
 
         def commit(self):
             nonlocal held
-            if context.label == winner and not held:
+            first_commit = context.label == winner and not held
+            if first_commit:
                 held = True
                 ready.set()
                 assert release.wait(15), "race controller did not release production commit"
@@ -76,6 +77,11 @@ def _race(engine, provider, winner, commands, operation, trace):
             with guard:
                 self.observation["commit_order"] = len(commits) + 1
                 commits.append(context.label)
+            if first_commit and gate_followup:
+                # Admission ownership is durable and holds no transaction locks.
+                # Let the competing admission finish before dispatch transactions
+                # can consume its bounded SERIALIZABLE retry budget.
+                assert loser_done.wait(20), "losing admission did not finish"
 
         def __exit__(self, *args):
             try:
@@ -117,6 +123,9 @@ def _race(engine, provider, winner, commands, operation, trace):
             return getattr(service, selected)(commands[label])
         except ResearchBaseError as error:
             return error.code
+        finally:
+            if label != winner:
+                loser_done.set()
 
     with patch.object(SqlAlchemyLiteratureSearchPlanRepository, "lock_project", observed_lock):
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -359,7 +368,9 @@ def test_pg_competing_execute_keys_get_only_one_reservation_owner(
             for label in ("A", "B")
         }
         pr204_trace.record(run=run, ordering=winner)
-        results = _race(engine, provider, winner, commands, "execute", pr204_trace)
+        results = _race(
+            engine, provider, winner, commands, "execute", pr204_trace, gate_followup=True
+        )
         # A loser sees RESERVED or a completed execution, never receives dispatch ownership.
         assert isinstance(results[winner], dict)
         assert (

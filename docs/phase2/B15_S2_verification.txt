@@ -1,0 +1,221 @@
+Ruff
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv uv run --no-sync ruff check .
+All checks passed!
+
+
+Format
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv uv run --no-sync ruff format --check .
+654 files already formatted
+
+
+Pyright
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv uv run --no-sync pyright --venvpath /Users/fengwang/Documents/ResearchBaseProject
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+
+
+Unit and architecture
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv PYTHONPATH=src RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run --no-sync pytest tests/unit tests/architecture --tb=short
+........................................................................ [  1%]
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  5%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 12%]
+........................................................................ [ 13%]
+........................................................................ [ 15%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 19%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 23%]
+........................................................................ [ 25%]
+........................................................................ [ 26%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 33%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 37%]
+........................................................................ [ 39%]
+........................................................................ [ 40%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 44%]
+........................................................................ [ 46%]
+........................................................................ [ 47%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 54%]
+........................................................................ [ 55%]
+........................................................................ [ 57%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 61%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 68%]
+........................................................................ [ 69%]
+........................................................................ [ 71%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 75%]
+........................................................................ [ 76%]
+........................................................................ [ 78%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 82%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 89%]
+........................................................................ [ 90%]
+........................................................................ [ 92%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 96%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+....................................                                     [100%]
+=============================== warnings summary ===============================
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py: 1 warning
+tests/unit/phase2/test_pr2_04_static_acceptance.py: 1 warning
+tests/unit/test_batch_c_migration_history.py: 1 warning
+tests/unit/test_ci_migration_head.py: 1 warning
+tests/unit/test_task12_migration_history.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 34 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5148 passed, 43 warnings in 95.29s (0:01:35)
+
+
+B15 six suites
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv PYTHONPATH=src RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run --no-sync pytest tests/integration/phase2/test_b15_package_preparation.py tests/integration/phase2/test_b15_package_consent.py tests/integration/phase2/test_b15_package_history.py tests/integration/phase2/test_b15_package_withdrawal.py tests/integration/phase2/test_b15_package_schema.py tests/integration/phase2/test_b15_package_concurrency.py --tb=short
+........................................................................ [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b15_package_preparation.py: 8 warnings
+tests/integration/phase2/test_b15_package_consent.py: 10 warnings
+tests/integration/phase2/test_b15_package_history.py: 14 warnings
+tests/integration/phase2/test_b15_package_withdrawal.py: 20 warnings
+tests/integration/phase2/test_b15_package_schema.py: 31 warnings
+tests/integration/phase2/test_b15_package_concurrency.py: 66 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+72 passed, 149 warnings in 99.53s (0:01:39)
+
+
+B15 UTC follow-up
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv PYTHONPATH=src RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run --no-sync pytest tests/integration/phase2/test_b15_package_history.py::test_readback_utc_in_non_utc_database_session --tb=short
+.                                                                        [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b15_package_history.py::test_readback_utc_in_non_utc_database_session
+tests/integration/phase2/test_b15_package_history.py::test_readback_utc_in_non_utc_database_session
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1 passed, 2 warnings in 0.83s
+
+
+B15 insert rollback and SQL roots follow-up
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv PYTHONPATH=src RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run --no-sync pytest tests/integration/phase2/test_b15_package_withdrawal.py::test_item_insert_failure_rolls_back_complete_package tests/integration/phase2/test_b15_package_withdrawal.py::test_consent_insert_failure_retains_only_original_package tests/integration/phase2/test_b15_package_schema.py::test_normal_sql_cannot_forge_root_shape --tb=short
+.....                                                                    [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b15_package_withdrawal.py: 4 warnings
+tests/integration/phase2/test_b15_package_schema.py: 6 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 passed, 10 warnings in 4.57s
+
+
+S1/B04/B12/B13 regressions
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv PYTHONPATH=src RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run --no-sync pytest tests/integration/phase2/test_pr2_17_authorship.py tests/integration/phase2/test_pr2_17_authorship_reads.py tests/integration/phase2/test_pr2_17_authorship_schema.py tests/integration/phase2/test_pr2_17_authorship_concurrency.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b04_manuscript_migration.py tests/integration/phase2/test_b04_manuscript_races.py tests/integration/phase2/test_b12_prepare_decision.py tests/integration/phase2/test_b12_prepare_approval.py tests/integration/phase2/test_b12_prepare_replay.py tests/integration/phase2/test_b12_prepare_schema.py tests/integration/phase2/test_b12_prepare_races.py tests/integration/phase2/test_b13_grant_lifecycle.py tests/integration/phase2/test_b13_grant_schema.py tests/integration/phase2/test_b13_grant_consumption.py tests/integration/phase2/test_b13_grant_concurrency.py --tb=short
+........................................................................ [ 28%]
+........................................................................ [ 57%]
+........................................................................ [ 86%]
+..................................                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_pr2_17_authorship.py: 8 warnings
+tests/integration/phase2/test_pr2_17_authorship_reads.py: 4 warnings
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_pr2_17_authorship_concurrency.py: 26 warnings
+tests/integration/phase2/test_b04_manuscript_freeze.py: 69 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b04_manuscript_races.py: 72 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 18 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 12 warnings
+tests/integration/phase2/test_b12_prepare_replay.py: 6 warnings
+tests/integration/phase2/test_b12_prepare_schema.py: 37 warnings
+tests/integration/phase2/test_b12_prepare_races.py: 39 warnings
+tests/integration/phase2/test_b13_grant_lifecycle.py: 9 warnings
+tests/integration/phase2/test_b13_grant_schema.py: 72 warnings
+tests/integration/phase2/test_b13_grant_consumption.py: 24 warnings
+tests/integration/phase2/test_b13_grant_concurrency.py: 78 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b04_manuscript_races.py::test_mixed_existing_repository_lock_protocols[decision]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane25/src/researchbase/persistence/decision_repository.py:141: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_b12_prepare_decision.py::test_unavailable_ready_lifecycle_denies_atomically[ACCEPT]
+tests/integration/phase2/test_b12_prepare_decision.py::test_unavailable_ready_lifecycle_denies_atomically[REJECT]
+tests/integration/phase2/test_b12_prepare_decision.py::test_unavailable_ready_lifecycle_denies_atomically[UNCERTAIN]
+tests/integration/phase2/test_b12_prepare_decision.py::test_readiness_history_is_not_prepare_history
+tests/integration/phase2/test_b12_prepare_approval.py::test_readiness_decision_cannot_authorize_prepare[READY_FOR_SUBMISSION]
+tests/integration/phase2/test_b12_prepare_approval.py::test_readiness_decision_cannot_authorize_prepare[PREPARE_SUBMISSION]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane25/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+250 passed, 632 warnings in 513.24s (0:08:33)
+
+
+Changed migration head expectations
+$ UV_CACHE_DIR=/tmp/researchbase-b15-uv-cache UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv PYTHONPATH=src RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run --no-sync pytest tests/integration/phase2/test_b05_review_migration.py::test_upgrade_actual_head_catalog_and_empty_downgrade tests/integration/phase2/test_b08_schema.py::test_populated_b07_upgrade_open_downgrade_and_terminal_refusal tests/integration/phase2/test_batch_c_migration.py::test_batch_c_empty_database_roundtrip tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py::test_pr2_03_fresh_install_adds_exact_four_tables_and_unique_head tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py::test_pr2_03_populated_downgrade_refuses_before_dropping_tables tests/integration/phase2/test_pr2_03_review_guards.py::test_remediation_child_upgrade_empty_downgrade_and_unique_head tests/integration/phase2/test_pr2_04_execution_migration.py::test_pr2_04_upgrade_adds_exact_tables_and_unique_head tests/integration/phase2/test_pr2_04_migration_coverage.py::test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta tests/integration/phase2/test_pr2_04_migration_coverage.py::test_historical_migration_bytes_match_frozen_accepted_tree tests/integration/phase2/test_pr2_15_decision_schema.py::test_0042_exact_minimal_schema_fks_indexes_and_no_extra_tables tests/integration/phase2/test_revision_action.py::test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog --tb=short
+..............                                                           [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b05_review_migration.py: 7 warnings
+tests/integration/phase2/test_b08_schema.py: 6 warnings
+tests/integration/phase2/test_batch_c_migration.py: 3 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py: 3 warnings
+tests/integration/phase2/test_pr2_03_review_guards.py: 5 warnings
+tests/integration/phase2/test_pr2_04_execution_migration.py: 3 warnings
+tests/integration/phase2/test_pr2_04_migration_coverage.py: 9 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 4 warnings
+tests/integration/phase2/test_revision_action.py: 6 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+14 passed, 46 warnings in 34.57s
+
+Whitespace and migration preservation
+$ git diff --check
+Exit 0, no whitespace errors.
+$ git diff --quiet -- migrations/versions
+Exit 0, no existing migration edits.
+Untracked-file git diff --no-index --check checks: 17 files; 0 whitespace errors.

@@ -24,6 +24,7 @@ from researchbase.application.ports import (
     MetricDefinitionRepository,
     MetricDefinitionVersionRepository,
     Phase2IdentityRepository,
+    PreparedSubmissionRepository,
     ProjectRepository,
     ResearchQuestionRepository,
     RunRepository,
@@ -56,6 +57,9 @@ from researchbase.persistence.metadata_observation_repository import (
 )
 from researchbase.persistence.novelty_repository import SqlAlchemyNoveltyRepository
 from researchbase.persistence.phase2_identity_repository import SqlAlchemyPhase2IdentityRepository
+from researchbase.persistence.prepared_submission_repository import (
+    SqlAlchemyPreparedSubmissionRepository,
+)
 from researchbase.persistence.publication_repository import SqlAlchemyPublicationRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
@@ -390,6 +394,7 @@ def _manuscript_freeze_database_error(exc: DBAPIError) -> ResearchBaseError:
 
 
 class SqlAlchemyUnitOfWork:
+    prepared_submission: PreparedSubmissionRepository
     manuscript_freeze: SqlAlchemyManuscriptFreezeRepository
     authorship: AuthorshipRepository
     search_result_resolutions: SearchResultResolutionRepository
@@ -436,6 +441,7 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = False
         self._prepare_submission_error_normalization = False
         self._approval_error_normalization = False
+        self._package_preparation_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._b01_error_normalization = False
@@ -451,6 +457,7 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = False
         self._prepare_submission_error_normalization = False
         self._approval_error_normalization = False
+        self._package_preparation_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
         self._b01_error_normalization = False
@@ -497,6 +504,7 @@ class SqlAlchemyUnitOfWork:
         self.decision = SqlAlchemyDecisionRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)
+        self.prepared_submission = SqlAlchemyPreparedSubmissionRepository(self._session)
         self.novelty = SqlAlchemyNoveltyRepository(self._session)
         return self
 
@@ -645,6 +653,10 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = True
         self._approval_error_normalization = True
 
+    def enable_package_preparation_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._package_preparation_error_normalization = True
+
     def enable_authorship_error_normalization(self) -> None:
         self._decision_error_normalization = True
         self._authorship_error_normalization = True
@@ -658,6 +670,29 @@ class SqlAlchemyUnitOfWork:
         self._issue_disposition_error_normalization = True
 
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if self._package_preparation_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            codes = {
+                "P15S1": ErrorCode.IMMUTABLE_RECORD,
+                "P15S2": ErrorCode.INVALID_STATE_TRANSITION,
+                "P15S3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "23514": ErrorCode.VALIDATION_ERROR,
+                "23502": ErrorCode.VALIDATION_ERROR,
+                **{
+                    key: ErrorCode.CONCURRENT_MODIFICATION
+                    for key in ("23505", "40001", "40P01", "55P03", "57014")
+                },
+            }
+            if state in codes:
+                return ResearchBaseError(
+                    codes[state],
+                    "package transaction rejected",
+                    {"retryable_b15": state in {"40001", "40P01"}},
+                )
+            raise RuntimeError(
+                "package transaction failed; recover by entitled exact read"
+            ) from None
         if self._prepare_submission_error_normalization:
             state = getattr(exc.orig, "sqlstate", None)
             constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)

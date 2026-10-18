@@ -37,6 +37,10 @@ def test_empty_forward_upgrade_and_downgrade(phase2_database_url):
                 "decision_basis_approval_decisions",
                 "decision_basis_revision_actions",
                 "approval_grant_consumptions",
+                "prepared_submission_versions",
+                "author_consents",
+                "prepared_submission_manifest_items",
+                "prepared_submission_events",
             }
             fks = (
                 conn.execute(

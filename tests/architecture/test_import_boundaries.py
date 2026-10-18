@@ -175,6 +175,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0057_xid_wraparound_guards.py",
         "0058_b12_prepare_submission.py",
         "0059_b13_grant_consumption.py",
+        "0060_b15_package_preparation.py",
     ]
 
 
