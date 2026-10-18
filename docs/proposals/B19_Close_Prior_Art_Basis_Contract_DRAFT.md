@@ -75,12 +75,24 @@ replace execution authorization.
 
 ## 2. Scope, dependency boundaries and non-goals
 
+**Order:** B22 must land before B19 (CLOSE_PRIOR_ART_FOUND selects only
+non-superseded B22 relations). B19 does not depend on B21. The new basis relation is
+AQ B19-AQ-01 in ADR-0017.
+
 Proposed delta: extend the existing assessment command/read for a positive close-art
 finding. Reuse existing Claim, coverage, relation, evidence and resolution owners.
 Add a typed child relation rather than a new canonical entity, snapshot service,
 receipt, JSON reference list or persistence mechanism. B18 S1 and B01 resolution
 admission are prerequisites. The extra storage and v2 payload require explicit
 architecture admission (§9); they are proposals, not current frozen architecture.
+
+Cross-draft order and guard ownership are defined once in
+[ADR-0017 Decision 3](ADR-0017_Novelty_Material_v2_DRAFT.md#3-cross-draft-order-and-migration-composition).
+That decision is the dependency contract for this draft's single forward migration.
+
+New CLOSE_PRIOR_ART_FOUND basis relations must be non-superseded B22 chain
+terminals. Explicit basis selection across independent roots is allowed; it does
+not assert B22 UNIQUE selection or adjudicate competing roots.
 
 A positive existential finding does not require every result to be resolved or
 screened, successful execution of every planned provider, or proof of no omitted
@@ -91,6 +103,7 @@ Approval, publication or external-effect workflow is introduced.
 
 1. Bind one exact frozen ClaimVersion and immutable SearchCoverage in the same
    Project. A basis relation must bind that exact Claim, not another version.
+   It must have no B22 successor at admission.
    Its exact SourceVersion must be project-accessible and currently usable.
 2. Each selected relation contributes **all** its sealed
    `prior_art_evidence_inputs`; no second assessment-owned evidence selection.
@@ -110,7 +123,11 @@ Approval, publication or external-effect workflow is introduced.
    may be retained as qualification/contradiction; none alone establishes close
    art. Validate every selected input, not just the favorable one. Scope statement,
    closeness criteria and limitations explain the judgment; no computed similarity
-   threshold or automated language/time-filter compliance is asserted.
+   threshold or automated language/time-filter compliance is asserted. Criteria
+   admission validates presence, ordered text shape and bounds only; it never
+   parses narrative as formal rules. Closed outcome/comparison enums and the
+   typed basis/evidence checks establish admission, as justified in
+   [ADR-0017 Alternatives](ADR-0017_Novelty_Material_v2_DRAFT.md#alternatives).
 5. This is an explicit selected basis, not a complete inventory of all comparisons.
    Unselected and later contradictory relations remain independently readable;
    no implicit favorable-subset discovery, “latest wins”, deletion or adjudication.
@@ -119,18 +136,20 @@ Approval, publication or external-effect workflow is introduced.
    scope, criteria, witness nor material changes. Corrections create a new record
    using the existing same-Claim, single-successor supersession chain. No cycles,
    forks or current-assessment pointer; supersession alone is not invalidity.
-7. Later source correction/retraction, evidence dispute or new ambiguous resolution
+7. Later B22 succession, source correction/retraction, evidence dispute or new ambiguous resolution
    makes a saved v2 finding unusable for current judgment when its bound closure
    fails current validity. Preserve the saved material/hash and show timestamped
    diagnostics. Hash/identity corruption fails closed; legitimate later invalidity
-   is a projection, not a read error or historical rewrite. Replay remains a
+   is a projection, not a read error or historical rewrite. A later B22 successor
+   sets current usability false without redirecting the saved basis; the historical
+   finding and its hash remain valid history. Replay remains a
    historical read with current entitlement, not re-admission of the finding.
 
 ## 4. Proposed commands, DTOs and historical readback
 
 Extend `RecordNoveltyAssessmentCommand` and `NoveltyReadback`, not the service's
-method inventory. Existing recording methods for coverage and prior art retain
-unchanged DTOs. The six existing methods remain the only public operations.
+method inventory. B19 adds no coverage/prior-art command fields or public
+operations; retain B22's predecessor fields and additional pair selector.
 The command UUID is canonical assessment identity and replay key; no new receipt.
 
 | Outcome | Proposed command admission and read material |
@@ -153,20 +172,22 @@ without adding these fields to their hashed payload. Unknown material versions
 fail PROVENANCE_CLOSURE_VIOLATION. Old callers omitting new optional command fields
 retain v1 behavior; updated transports expose the additive read fields explicitly.
 
-## 5. Schema and literal hash proposal — no migration in this task
+## 5. Schema and literal hash proposal — one forward migration; one new table
 
-Add only §12.1's columns and typed child table. No direct assessment/evidence table:
+The migration adds `material_version`, `scope_statement` and typed
+`closeness_criteria TEXT[]` columns to `novelty_assessments`, the
+`novelty_assessment_prior_art_inputs` table and §12.1 constraints/guards.
+No direct assessment/evidence table:
 relation membership plus immutable `prior_art_evidence_inputs` already fixes it.
 Retain `sha256-cjson-v1`, canonical JSON and all existing v1 literal payloads.
 `material_version` identifies NoveltyAssessment material, not a new hash algorithm.
 
-Proposed **complete** v2 payload, with notation R(T)/I(T) exactly as Architecture 15:
+The complete NoveltyAssessment v2 payload and shared v1 compatibility decision
+are specified once in [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md),
+Decision 1. This draft requests that amendment to frozen Hash Contract 15; it cannot approve it.
 
-```json
-{"type":"NoveltyAssessment","material_version":2,"claim_version":"<R(ClaimVersion)>","search_coverage":"<R(SearchCoverage)>","assessment":"CLOSE_PRIOR_ART_FOUND","limitations":"<string>","supersedes_assessment":"<R(NoveltyAssessment)|null>","assessed_by":"<I(ActorIdentity)>","scope_statement":"<string>","closeness_criteria":{"statements":["<string>"]},"prior_art_basis":[{"prior_art_relation":"<R(PriorArtRelation)>","search_result_resolution":"<R(SearchResultResolution)>"}]}
-```
-
-`closeness_criteria` reuses Architecture 15's closed criteria value: authored
+`closeness_criteria` serializes the typed SQL array as the closed
+`{"statements":[...]}` value specified by ADR-0017: authored
 statement order is material. Basis entries sort by prior-art relation UUID;
 duplicate relation IDs reject before sorting, even with different witnesses.
 Shared witness IDs across distinct relations are allowed. Embedded relation hashes
@@ -175,9 +196,10 @@ verifier unchanged. Predecessor may be v1 or v2; verify it by its saved version
 before embedding its existing hash. No recomputation of a v1 predecessor as v2.
 
 Exclude row/child IDs, timestamps, derived project/validity, verification status,
-current warnings and hash scheme, as with existing novelty material. Do not change
-Claim/support, coverage, prior-art, evidence or resolution hash contracts. The
-transitive evidence closure is verified on read/restart, not duplicated in v2.
+current warnings and hash scheme, as with existing novelty material. B19 changes
+only assessment material; B21/B22 separately version coverage/prior-art material
+under the same ADR. Claim/support, evidence and resolution hashes stay unchanged.
+The transitive evidence closure is verified on read/restart, not duplicated in v2.
 
 ## 6. Error contract
 
@@ -189,7 +211,8 @@ evidence is INVALID_STATE_TRANSITION. Same-Claim/source/coverage/witness mismatc
 ambiguous witness result, unusable scientific inputs or digest corruption is
 PROVENANCE_CLOSURE_VIOLATION. DTO field/outcome-shape inconsistencies are
 VALIDATION_ERROR; the unavailable negative outcome is INVALID_STATE_TRANSITION.
-A predecessor already superseded is INVALID_STATE_TRANSITION; concurrent unique
+A selected basis relation or assessment predecessor already superseded is
+INVALID_STATE_TRANSITION; concurrent unique
 predecessor loss is CONCURRENT_MODIFICATION.
 
 Keep existing UoW normalization: immutable guard P17D1 → IMMUTABLE_RECORD;
@@ -231,11 +254,11 @@ Do not replace executed concurrency evidence with source-string or timing checks
 
 ## 9. Acceptance criteria and evidence boundary
 
-Before implementation, approve an ADR/compatibility review admitting the one typed
+Before implementation, approve [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md) admitting the one typed
 relation, new columns and v2 payload, and reconcile Architecture 13/15 and the
 PR2-18 stronger-outcome guard explicitly. This draft alone cannot amend them.
 Contract approval, architecture admission and execution authorization are distinct.
-No ADR or architecture file is changed by this documentation task.
+ADR-0017 is a proposal in `docs/proposals/`; no frozen architecture file changes.
 
 After authorization, completion requires focused static/unit/architecture and
 PostgreSQL results, migration preservation/refusal tests, transport parity and
@@ -304,15 +327,19 @@ assessor, time, principal, role or validity. Hashes below are derived lowercase
 | --- | --- |
 | RecordNoveltyAssessmentCommand | Existing `id: UUID`, `project_id: UUID`, `claim_version_id: UUID`, `search_coverage_id: UUID`, `assessment: NoveltyOutcome`, `limitations: str`, `supersedes_assessment_id: UUID \| None = None`; append `prior_art_basis: tuple[PriorArtBasisInput, ...] = ()`, `scope_statement: str \| None = None`, `closeness_criteria: ClosenessCriteria \| None = None`. |
 | PriorArtBasisInput | Exactly `prior_art_relation_id: UUID`, `search_result_resolution_id: UUID`. Frozen typed value, no own entity identity/hash. |
-| ClosenessCriteria | Exactly `statements: tuple[str, ...]`, 1..100 statements, each narrative-bounded; total ≤16,384 Unicode characters. Authored order retained. Wire/storage is exactly `{"statements":[...]}`. |
+| ClosenessCriteria | Exactly `statements: tuple[str, ...]`, 1..100 statements, each narrative-bounded; total ≤16,384 Unicode characters. Authored order retained. Wire/hash form is exactly `{"statements":[...]}`; storage is one ordered `TEXT[]` column, never JSONB. |
 | ExactReadQuery | Unchanged: `project_id: UUID`, `id: UUID`. |
 | NoveltyReadback | Existing fields retained (§4); append `material_version: Literal[1, 2]`, `scope_statement: str \| None`, `closeness_criteria: ClosenessCriteria \| None`, `prior_art_basis: tuple[PriorArtBasisReadback, ...]`. |
 | PriorArtBasisReadback | Exactly `prior_art_relation: PriorArtReadback`, `search_result_resolution: HashRef`. Extend HashRef's closed type literals with SearchResultResolution and PriorArtRelation for witness and v2 hash building. Relation readback includes its sealed evidence HashRefs and current validity. |
 
 Basis: zero for INCONCLUSIVE; 1..100 for CLOSE, distinct relation IDs, sorted
 by UUID after rejection of duplicates. Shared witness IDs are allowed. Scope and
-criteria both null for INCONCLUSIVE, both required for CLOSE. No caller can set
-version 2 on an empty or inconclusive basis. Narrative remains independently
+criteria both null for INCONCLUSIVE, both required for CLOSE. Criteria statements
+are explanatory narrative, never parsed as executable rules or used to replace
+closed PriorArtKind/outcome and typed basis/evidence admission. ADR-0017
+Alternatives explicitly compares this bounded narrative column with a closed enum
+and typed criterion child rows; its justification requires owner approval.
+No caller can set version 2 on an empty or inconclusive basis. Narrative remains independently
 bounded for limitations and scope. Existing input evidence sets remain 1..100;
 therefore one assessment reaches at most 10,000 evidence occurrences before
 cross-relation deduplication. No truncation of a saved set on read.
@@ -338,7 +365,7 @@ RESTRICT FKs, immutable triggers and `uq_pr218_novelty_predecessor`.
 ALTER TABLE novelty_assessments
   ADD COLUMN material_version SMALLINT NOT NULL DEFAULT 1,
   ADD COLUMN scope_statement TEXT NULL,
-  ADD COLUMN closeness_criteria JSONB NULL;
+  ADD COLUMN closeness_criteria TEXT[] NULL;
 ALTER TABLE novelty_assessments DROP CONSTRAINT ck_pr218_novelty_initial_slice;
 ALTER TABLE novelty_assessments ADD CONSTRAINT ck_b19_novelty_material CHECK (
   (material_version=1 AND assessment='INCONCLUSIVE'
@@ -368,12 +395,15 @@ CREATE INDEX ix_b19_basis_relation ON novelty_assessment_prior_art_inputs(prior_
 CREATE INDEX ix_b19_basis_resolution ON novelty_assessment_prior_art_inputs(search_result_resolution_id);
 ```
 
-`b19_valid_criteria(JSONB) RETURNS BOOLEAN` is an immutable, closed scalar-value
-validator: object has exactly `statements`, an array of 1..100 strings, each
-nonblank NFC, total 1..16,384 characters. It returns false for all wrong shapes;
-SQL NULL never accidentally satisfies a required v2 field. Existing own hashes
-remain CHAR(64), `ck_pr218_novelty_hash`; scheme remains VARCHAR(32),
-`ck_pr218_novelty_scheme`. Add no project owner or JSON reference column.
+`b19_valid_criteria(TEXT[]) RETURNS BOOLEAN` validates a typed ordered column:
+one dimension with lower bound 1, 1..100 nonnull text elements, each nonblank NFC,
+valid UTF-8 and at most 16,384 characters, total at most 16,384 characters. It is
+immutable and rejects empty/multidimensional arrays, NULL elements and nonstandard
+bounds; SQL NULL is allowed only for v1 by `ck_b19_novelty_material`. The
+Application maps the ordered tuple to this column and reconstructs exactly
+`{"statements":[...]}` for wire/hash material. No free-form JSON semantic storage
+or new criteria entity/table is introduced. Existing own hashes remain CHAR(64),
+`ck_pr218_novelty_hash`; scheme remains VARCHAR(32), `ck_pr218_novelty_scheme`.
 
 Proposed guards, all with fixed `search_path = pg_catalog, public, pg_temp`:
 
@@ -386,14 +416,20 @@ Proposed guards, all with fixed `search_path = pg_catalog, public, pg_temp`:
   AFTER INSERT constraint triggers, DEFERRABLE INITIALLY DEFERRED, invoking
   `b19_complete_basis()`. At transaction end require zero children for v1;
   1..100 for v2, at least one close kind, exact Claim/project/source/evidence
-  and witness execution/resolution agreement, usable current inputs. No parent
-  without basis can commit, including normal-role SQL. Missing/oversized basis or
-  absence of a close kind raises P17D2; typed closure failures raise P17D3. Use existing verification
+  and witness execution/resolution agreement, non-superseded B22 terminals and
+  usable current inputs. No parent without basis can commit, including normal-role SQL. Missing/oversized basis or
+  absence of a close kind or a superseded basis raises P17D2; typed closure failures raise P17D3. Use existing verification
   predicates and 0050's resolution closure; never mutate existing evidence rows.
-- Update the forward definition of `pr218_parent_guard()` to require preheld N
-  for assessment inserts before target reads/locks; retain its existing Claim,
-  project and chain checks. The child and deferred guards do not discover/acquire
-  new locks. Existing coverage/prior-art guards retain their accepted behavior.
+- Add BEFORE INSERT `trg_b19_novelty_prelocked` on novelty_assessments,
+  calling `b19_require_prelocked() RETURNS trigger`: require
+  `pr218_capture_prelocked()`, else P17D3, then return NEW without acquiring locks.
+  Its fixed name sorts before both `trg_pr218_novelty_chain` and
+  `trg_pr218_novelty_assessments_parent_guard`, so the baseline guard cannot
+  acquire Claim/N locks first for a bypass writer. Leave `pr218_parent_guard()`
+  and every sibling function unchanged; attach the additional check as specified
+  in ADR-0017 Decision 3. `trg_b19_basis_insert` calls `b19_basis_insert_guard()`;
+  immutable children reuse `pr218_immutable()`. Child/deferred guards acquire no
+  new locks.
 
 Database guards enforce structural admission and independent verification;
 Application recomputes scientific hashes/retained bytes, as today. No claim that
@@ -405,8 +441,8 @@ or broken immutable closure rather than guessing repairs. Existing rows receive
 version 1 only; own hashes and material remain untouched. Migration tests compare
 pre/post exact v1 digests. Downgrade takes ACCESS EXCLUSIVE on the assessment and
 new input table, refuses any v2 or input rows, and otherwise restores the original
-INCONCLUSIVE guard and drops only added objects/columns. Never erase history to
-make downgrade succeed; refuse inside the migration transaction.
+INCONCLUSIVE guard and drops only B19 objects/columns, preserving B21/B22 guards.
+Never erase history to make downgrade succeed; refuse inside the migration transaction.
 
 ### 12.2 Exact lock order and transactions
 
@@ -434,9 +470,9 @@ prior_art_relations or either immutable input table.
 
 | Command | Exact remaining order after N/timeouts |
 | --- | --- |
-| record_search_coverage | kind=coverage advisory; reader auth; replay check; writer auth if new; plan and sorted execution/history capture; writer recheck; parent then sorted execution children. No target row lock. |
-| record_prior_art_relation | kind=prior_art advisory; exact ClaimVersion FOR UPDATE; reader auth/replay; writer auth if new; exact Claim/source and sorted evidence validation; writer recheck; parent then sorted evidence children. |
-| record_novelty_assessment, v1 or v2 | kind=novelty advisory; exact ClaimVersion FOR UPDATE; reader auth/replay including version/basis; writer auth if new; Claim/coverage verification; v2 selected relation/witness validation in relation-UUID order using plain reads; optional predecessor FOR UPDATE, same-Claim/single-successor validation and versioned read; writer recheck; parent then basis children in relation-UUID order. No other explicit row locks. |
+| record_search_coverage | kind=coverage advisory; reader auth; replay check; writer auth if new; plan and sorted execution/history capture; writer recheck; parent then sorted execution children (plus B21 capture children when installed). No target row lock. |
+| record_prior_art_relation | kind=prior_art advisory; exact ClaimVersion FOR UPDATE; reader auth/replay; writer auth if new; exact Claim/source and sorted evidence validation; writer recheck; parent then sorted evidence children, retaining B22 predecessor admission/locking for corrections. |
+| record_novelty_assessment, v1 or v2 | kind=novelty advisory; exact ClaimVersion FOR UPDATE; reader auth/replay including version/basis; writer auth if new; Claim/coverage verification; v2 selected relation/witness validation in relation-UUID order using plain reads, rejecting any B22 successor after the Claim lock; optional predecessor FOR UPDATE, same-Claim/single-successor validation and versioned read; writer recheck; parent then basis children in relation-UUID order. B22 corrections use this same Claim lock, so terminal checks stay stable through commit. No other explicit row locks. |
 
 New writes force SET CONSTRAINTS ALL IMMEDIATE, verify versioned saved readback,
 recheck writer at fresh DB time, commit. Matching replay verifies saved hashes and
@@ -487,11 +523,11 @@ Names marked new are proposed files; existing paths are regression anchors.
 | --- | --- |
 | New `tests/unit/phase2/test_b19_close_prior_art_contract.py` | Strict UUID/tuple/closed nested types; duplicate relation/different witness rejection; shared witness allowed; 0/1/100/101 limits; text/NFC/Unicode/criteria total limits; outcome-field XOR; version derived, never caller chosen; error mappings. |
 | New `tests/unit/phase2/test_b19_close_prior_art_hash_vectors.py`; existing `test_pr2_18_hash_vectors.py` | Independent literal v2 vector; reorder basis invariant, criteria order material; changed relation/evidence/witness/scope affects digest; all excluded fields invariant; unchanged v1 bytes; mixed-version predecessor; unknown version rejected. |
-| New `tests/architecture/test_b19_close_prior_art_boundaries.py`; existing `test_pr2_18_boundaries.py` | No new canonical owner, domain adapter dependency or direct evidence owner; six-method boundary; first-N writes and read traversal without explicit locks; no negative-outcome admission. |
-| New `tests/integration/phase2/test_b19_close_prior_art_schema.py` | Clean upgrade; populated v1 migration/read/hash preservation; normal-role SQL wrong Claim/project/source/execution, ambiguous/source-only resolution, nonverified evidence, parent without children, 101 children and non-close-only basis denied; parent/child UPDATE/DELETE and late insertion denied; same-transaction seal epoch-safe; rollback; populated-v2 downgrade refusal, v1-only downgrade preservation. Force constraints and test commit-time rejection separately. |
+| New `tests/architecture/test_b19_close_prior_art_boundaries.py`; existing `test_pr2_18_boundaries.py` | No new canonical owner, domain adapter dependency or direct evidence owner; no B19 method additions; retain B22 selector; first-N writes and read traversal without explicit locks; no negative-outcome admission. |
+| New `tests/integration/phase2/test_b19_close_prior_art_schema.py` | Clean upgrade; populated v1 migration/read/hash preservation; typed array shape/NULL/NFC/bounds; normal-role SQL superseded relation, wrong Claim/project/source/execution, ambiguous/source-only resolution, nonverified evidence, parent without children, 101 children and non-close-only basis denied; parent/child UPDATE/DELETE and late insertion denied; same-transaction seal epoch-safe; rollback; populated-v2 downgrade refusal, v1-only downgrade preservation. Force constraints and test commit-time rejection separately. |
 | New `tests/integration/phase2/test_b19_close_prior_art_basis.py` | Real owning commands → coverage → verified close relation → v2 assessment → restart exact read. Full evidence membership retained; selected witness may postdate coverage, saved counts unchanged; qualified close plus contradictory selected input retained; missing witness/unresolved result/cross-version/wrong coverage rejected; no negative admission or unrelated support/governance effects. |
-| New `tests/integration/phase2/test_b19_close_prior_art_replay.py` | Equal normalized replay/restart; changed pairing/scope/criteria conflict; original actor/project checks; role downgrade to reader; expired/revoked access denied; later dispute/retraction/correction/ambiguous resolution alters only current usability; new unrelated comparison leaves saved basis unchanged; v1↔v2 predecessor chains with one successor. |
-| New `tests/integration/phase2/test_b19_close_prior_art_concurrency.py` | Observe backend wait/blocker for both commit orders: source/evidence validity change and initially empty additional-resolution range versus capture; one legal basis or denial, never hybrid. Concurrent same UUID yields one record; same Claim/predecessor distinct UUID yields one successor; post-lock credential expiry rolls back; injected retry/commit uncertainty follows §7. Read paths observed without explicit lock helpers under concurrent writes, one snapshot and zero writes. |
+| New `tests/integration/phase2/test_b19_close_prior_art_replay.py` | Equal normalized replay/restart; changed pairing/scope/criteria conflict; original actor/project checks; role downgrade to reader; expired/revoked access denied; later B22 succession/dispute/retraction/correction/ambiguous resolution alters only current usability; new unrelated comparison leaves saved basis unchanged; v1↔v2 predecessor chains with one successor. |
+| New `tests/integration/phase2/test_b19_close_prior_art_concurrency.py` | Observe B19 versus B22 correction in both Claim-lock orders (correction first rejects predecessor; assessment first retains history with later unusability); backend wait/blocker for both commit orders: source/evidence validity change and initially empty additional-resolution range versus capture; one legal basis or denial, never hybrid. Concurrent same UUID yields one record; same Claim/predecessor distinct UUID yields one successor; post-lock credential expiry rolls back; injected retry/commit uncertainty follows §7. Read paths observed without explicit lock helpers under concurrent writes, one snapshot and zero writes. |
 | Existing `tests/unit/phase2/test_pr2_18_transports.py`; new `tests/integration/phase2/test_b19_close_prior_art_api.py` | Existing v1 API/CLI parity; v2 nested input, readback, JSON closure, forbidden server fields and exact §11.2 status/exit codes; injected unexpected failure HTTP 500/CLI 1. |
 | Existing `tests/integration/phase2/test_pr2_18_*.py`, `test_b01_resolution_*.py`, `test_pr2_19_novelty.py`, `test_pr2_20_novelty.py` | Unchanged coverage accounting, six comparisons, v1 replay, sealed/deferred guards, B01 phantoms and bounded B18 consumers. Update only tests whose intentional “CLOSE always denied” premise becomes superseded; keep unbacked CLOSE and all NO_CLOSE denial assertions. |
 
@@ -510,52 +546,51 @@ new captured unresolved counts; correction/adjudication of conflicting prior-art
 relations; new novelty review/Decision/Approval targets; impact-propagation engine;
 Claim literature-support changes; manuscript/package workflows; provider calls,
 queues, agent frameworks or runtime dependencies. No implementation, tests,
-migrations, ADR or canonical architecture documents change in this task.
+migrations or canonical architecture documents change in this task. ADR-0017 is
+the shared proposed decision only.
 
 ## 13. Open questions for the owner — override register
 
-Approve or replace the proposed selected positive basis, exact-resolution witness,
+Approve or replace [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md), Decisions 1–3, and the proposed selected
+positive basis, exact-resolution witness,
 explicit criteria bounds and v1/v2 split. Architecture admission must explicitly
 approve the typed child table and scope/criteria/version columns; until then the
-current INCONCLUSIVE-only guard remains binding. There is no deferred choice for
-the implementer to invent. Contract approval does not authorize implementation.
+implemented INCONCLUSIVE-only guard remains binding until B19 authorization.
+There is no deferred choice for the implementer to invent. Contract approval does not authorize implementation.
 
 ## 14. Documentation verification note
 
-Observed 2026-10-18. Only this draft was added. Checks used the existing shared
-environment with current-checkout imports; no dependency installation or repository
-environment/configuration change was made. Common prefix for commands below:
+### Reviewer-remediation verification — 2026-10-18
+
+Only B19, B21, B22 and proposed ADR-0017 changed; the three status lines are
+unchanged. These are current-code regression checks, not implementation evidence
+for the proposed contracts. No whole-suite run, commit, push or branch creation.
+Commands below used this shared environment without dependency synchronization:
 
 ```sh
 export PYTHONPATH="$PWD/src:$PWD"
 export VIRTUAL_ENV=/Users/fengwang/Documents/ResearchBaseProject/.venv
-export UV_CACHE_DIR="$PWD/.data/uv-cache"
+export UV_CACHE_DIR=/private/tmp/rb-novelty-review-uv-cache
+export DATABASE_URL=postgresql+psycopg://fengwang@localhost/postgres
+export RB_TEST_ADMIN_URL=postgresql+psycopg://fengwang@localhost/postgres
 ```
 
-| Exact command after prefix | Observed result |
+| Exact command after exports | Observed result |
 | --- | --- |
-| `uv run --active --no-sync ruff check .` | PASS; all checks passed. |
-| `uv run --active --no-sync ruff format --check .` | PASS; 699 files already formatted. |
-| `uv run --active --no-sync pyright --venvpath /Users/fengwang/Documents/ResearchBaseProject` | PASS; 0 errors, 0 warnings, 0 informations. |
-| `uv run --active --no-sync pytest tests/unit tests/architecture tests/test_architecture.py` | 5,441 passed, 4 failed, 14 errors, 9 warnings in 64.44s; exit 1. Four runner tests could not bind Unix sockets (Operation not permitted). Fourteen PR2-19 architecture setups rejected the initial admin selector format below. |
-| `uv run --active --no-sync pytest tests/unit/phase2/test_pr2_18_*.py tests/unit/phase2/test_b01_*.py tests/architecture/test_pr2_18_boundaries.py tests/architecture/test_b01_resolution_boundaries.py` | PASS; 126 passed in 2.38s. |
-| `uv run --active --no-sync pytest -x tests/integration/phase2/test_pr2_18_*.py tests/integration/phase2/test_b01_resolution_*.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_20_novelty.py` | Initial attempt: 1 setup error, 1 warning in 0.60s; corrected-selector attempt: 1 setup error, 1 warning in 0.63s. Both exit 1, denied PostgreSQL socket access; zero cases passed, remaining cases not run. |
-| `uv run --active --no-sync pytest -x tests/architecture/test_pr2_19_boundaries.py` | Corrected-selector recheck: 1 setup error in 1.58s; exit 1. PostgreSQL socket access denied, zero cases passed. |
-| `git diff --check` | PASS; no output. Separate draft validation: all 26 local links resolve; fences, trailing whitespace, required status and sections 1–14 checked. |
+| `uv run --active --offline --no-sync ruff check .` | Exit 0; all checks passed. |
+| `uv run --active --offline --no-sync ruff format --check .` | Exit 0; 699 files already formatted. |
+| `uv run --active --offline --no-sync pyright --venvpath /Users/fengwang/Documents/ResearchBaseProject` | Exit 0; 0 errors, 0 warnings, 0 informations. |
+| `uv run --active --offline --no-sync pytest tests/unit/phase2/test_pr2_18_*.py tests/unit/phase2/test_b01_*.py tests/architecture/test_pr2_18_boundaries.py tests/architecture/test_b01_resolution_boundaries.py` | Exit 0; 126 passed in 2.82s. |
+| `uv run --active --offline --no-sync pytest -x tests/integration/phase2/test_pr2_18_*.py` | Exit 1; 1 setup error in 0.43s; zero PostgreSQL cases passed, remaining cases not run after fail-fast. |
+| `git diff --check` | Exit 0; no whitespace errors. |
+| `test -z "$(git status --porcelain -- . ':!docs/proposals' ':!.pipeline')"` | Exit 0; no changes outside the permitted paths. |
 
-The initial broad and PostgreSQL runs additionally exported
-`DATABASE_URL=postgresql+psycopg:///postgres` and the same `RB_TEST_ADMIN_URL`.
-The strict disposable-database selector requires explicit username and local host;
-that format was corrected for the two rechecks to:
-
-```sh
-export DATABASE_URL='postgresql+psycopg://fengwang@/postgres?host=/tmp'
-export RB_TEST_ADMIN_URL="$DATABASE_URL"
-```
-
-The corrected selector passed format validation but PostgreSQL connection on
-`/tmp/.s.PGSQL.5432` was denied with Operation not permitted. No PostgreSQL version,
-migration acceptance or database-suite pass is claimed. Historical B18 counts
-are not reused as fresh evidence. Counts overlap between invocations and must not
-be added as distinct tests. The whole suite was not run; its execution and evidence
-belong to the loop. These environment failures do not authorize implementation.
+**Verdict: documentation checks passed; PostgreSQL verification BLOCKED.** The
+requested PR2-18 rerun failed before its first case because the sandbox denied
+connections to localhost:5432 (`Operation not permitted`). PostgreSQL 18.x and
+proposed guard behavior remain unverified. The prior broader run's four runner
+socket failures and 14 PostgreSQL setup errors were environment failures, not
+passes; that broader run was not repeated for this documentation-only remediation.
+Stale per-draft authoring tables have been removed; this is the sole current
+verification record. No implementation acceptance, migration-order test result or
+Phase exit is claimed. The full-suite check remains with the owning loop.

@@ -13,7 +13,7 @@ After owner approval of the material amendment and separate execution authorizat
 
 1. Confirm the actual migration head and approve the bounded amendment to Field
    Contract 13 and Hash Contract 15 (§§1, 5). This proposal does not override them.
-2. Add two typed membership relations and version/count columns on the existing
+2. Add one typed membership relation and version/count columns on the existing
    assessment, with sealed children and deferred completeness guards (§12.1).
 3. Add version-dispatched material verification, capture and readback in the
    existing novelty modules; keep commands and caller inputs unchanged (§12.3).
@@ -24,8 +24,8 @@ After owner approval of the material amendment and separate execution authorizat
 
 The five review rules:
 
-1. Never infer the historical count from current rows, timestamps or source counts.
-2. Capture every result and every then-visible resolution, including empty histories.
+1. Never infer historical resolutions from current resolution membership, timestamps or source counts.
+2. Recover every result from sealed executions; save every then-visible resolution, including an empty set.
 3. Preserve version-1 bytes and all existing downstream references.
 4. Capture and seal membership in the same transaction as the coverage parent.
 5. Keep unknown legacy history explicit; capture is neither screening nor novelty proof.
@@ -67,14 +67,34 @@ choose the successor from the actual head at implementation time.
 
 ## 2. Scope, dependency boundaries and non-goals
 
+**Order:** B21 is independent of B19 and B22 and may land in any position.
+Migration independence is a design claim until the combined upgrade/downgrade test runs.
+
 Extend existing SearchCoverage, not a new canonical entity or capture service.
 Reuse concrete relation tables, immutable rows, canonical JSON hashing and the
 existing Application/repository/UoW boundary. No new persistence mechanism,
 runtime dependency, JSON membership store or external call is needed.
 
-Keep the three recording methods and three exact reads. Only coverage capture,
-versioned verification and its nested output change. PriorArtRelation and
-NoveltyAssessment retain their current material and admission policy.
+Keep the three recording methods and three exact reads, plus B22's selector
+when installed. Only coverage capture, versioned verification and its nested
+output change. B21 alone does not change PriorArtRelation or NoveltyAssessment
+material or admission; B22 and B19 respectively own those amendments.
+
+Cross-draft order and guard ownership are defined once in
+[ADR-0017 Decision 3](ADR-0017_Novelty_Material_v2_DRAFT.md#3-cross-draft-order-and-migration-composition).
+That decision is the dependency contract for this draft's single forward migration.
+
+Existing representation and ordering-key alternatives are evaluated in
+[ADR-0017 Decision 2](ADR-0017_Novelty_Material_v2_DRAFT.md#2-architecture-question-b21-aq-01--admit-one-capture-relation).
+That decision compares existing immutable rows plus a membership hash, a single
+coverage/result/resolution spanning row and the existing terminal result seals,
+timestamp and sequence cutoffs, and an explicitly serialized new ordering protocol.
+It quotes PostgreSQL's visibility evidence and shows why timestamps are not
+transaction visibility. PR2-04 already seals result membership at terminalization;
+reuse that closure, including zero-resolution results, without a second table.
+The proposed relation reuses the existing sealed Assessment/Relation pattern;
+its registration remains an Architecture Question,
+not permission inferred from Architecture 12/13.
 
 ## 3. Invariants and conservative judgments
 
@@ -95,7 +115,7 @@ Historical unresolved count is the number of unresolved **results**. Existing
 resolved_source_count counts distinct source IDs among resolved results. Two
 resolved hits for one source yield result_count=2, resolved_source_count=1,
 unresolved=0; subtraction is invalid. Zero results yields zero unresolved and
-empty result/resolution membership, while the execution set remains nonempty.
+empty result and saved resolution sets, while the execution set remains nonempty.
 
 Later resolution append, source correction/retraction or lost write authority
 cannot alter captured membership, count or hash. Existing current validity and
@@ -111,33 +131,22 @@ Add `material_version` to SearchCoverageReadback. Change
 CoverageQuality.captured_unresolved_result_count to `int | None`. Nested novelty
 readback uses the same versioned coverage verifier. Current count, observed_at,
 warnings, attempts and validity remain projections from the current read snapshot.
-Do not expose membership lists in public responses in this slice; internal typed
-rows suffice for verification. Routes/CLI outputs must accept legacy null and v2
-integer without inventing a new endpoint or assuming all stored rows are v2.
+Do not expose membership lists in public responses in this slice; the sealed
+execution/result closure plus internal typed resolution-membership rows suffice
+for verification. Routes/CLI outputs must accept legacy null and v2 integer without inventing a new endpoint or assuming all stored rows are v2.
 
-## 5. Schema and literal hash proposal — no migration
+## 5. Schema and literal hash proposal — one forward migration; one new table
 
-This is a **proposed architecture/material amendment**, requiring recorded owner
-and architecture disposition before implementation. Version 1 remains exactly
-Hash Contract 15 and `coverage_material` today. Version 2 has exactly those keys,
-with material_version=2, plus these two keys:
+The migration adds `material_version` and `captured_unresolved_result_count`
+columns to `search_coverage`, one typed `search_coverage_resolutions` table,
+and §12.1 constraints/guards.
 
-```json
-{
-  "captured_unresolved_result_count": 1,
-  "captured_results": [
-    {
-      "search_result_record": {"type": "SearchResultRecord", "id": "<uuid>"},
-      "resolutions": [
-        {"type": "SearchResultResolution", "id": "<uuid>", "content_hash": "<digest>"}
-      ]
-    }
-  ]
-}
-```
+The complete SearchCoverage v2 payload is specified once in [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md),
+Decision 1; Decision 2 (B21-AQ-01) separately requests admission of the one
+relation absent from Architecture 12/13. Both decisions require owner approval.
+Version 1 remains exactly Hash Contract 15 and `coverage_material` today.
 
-This fragment extends, rather than replaces, the full v1 payload. Sort result
-entries by canonical UUID text and each resolution set by canonical UUID text;
+Sort result entries by canonical UUID text and each resolution set by canonical UUID text;
 reject duplicates. An unresolved result with no resolution has `resolutions: []`.
 Result identity uses I(T), since no new result-content hash is introduced.
 Resolution R(T) binds the existing unchanged M2/B01 digest, not a newly invented
@@ -153,8 +162,9 @@ All new captures are v2; replay selects the stored version and never upgrades an
 existing UUID. A new UUID captures a new observation. Version-1 digests and saved
 NoveltyAssessment refs remain identical. New NoveltyAssessments may bind either
 verified version through the existing SearchCoverage R(T); their own payload
-stays version 1. Unknown versions, mismatched count/membership or digest fail
-closed. Roll out migration and dual-version readers before enabling v2 writers;
+is v1 for INCONCLUSIVE or B19 v2 for CLOSE_PRIOR_ART_FOUND when B19 is enabled.
+Unknown versions, mismatched count/membership or digest fail closed. Roll out
+migration and dual-version readers before enabling v2 writers;
 old binaries cannot safely read v2. Downgrade refuses any v2 parent or new child.
 
 ## 6. Error contract — existing categories
@@ -202,16 +212,17 @@ belongs to the owner's loop. Stop after this bounded evidence.
 | I(T) / R(T) | Exact typed ID / exact typed ID plus existing content hash. |
 | Legacy | Stored material version 1; historical unresolved count is unknown. |
 | N | Exact ordered table tuple in novelty_repository.py, expanded in §12.2. |
-| Seal | Children may be inserted only with their newly inserted parent in the same transaction. |
+| Seal | Membership children may be inserted only with their newly inserted coverage parent; terminal execution query/result membership is already sealed by PR2-04. |
 
 ## 11. Decisions taken in this draft
 
 ### 11.1 Scope and policy decisions
 
-Adopt v2 only for new coverage, two concrete child relations, complete all-row
-membership, no retrospective reconstruction, dual-version reads and unchanged
-resolution/novelty hashes. Reject a count-only column: it cannot establish what
-was inspected. These are proposed decisions, not current architecture authority.
+Adopt v2 only for new coverage, one concrete child relation, complete all-row
+resolution membership, no retrospective v1 reconstruction, dual-version reads,
+unchanged resolution hashes and independently versioned novelty material. Recover
+v2 result membership through the existing terminal seals. Reject a count-only
+column: it cannot establish what was inspected. These are proposed decisions, not current architecture authority.
 
 ### 11.2 Pinned error mappings
 
@@ -265,7 +276,8 @@ PARTIAL_RESULTS, UNRESOLVED_RESULTS, FILTER_COMPLIANCE_UNPROVEN,
 SCREENING_NOT_CAPTURED, INPUT_CURRENTLY_UNUSABLE. UNRESOLVED_RESULTS continues to
 describe the current projection. NoveltyOutcome remains INCONCLUSIVE,
 CLOSE_PRIOR_ART_FOUND, NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE, with only INCONCLUSIVE
-admitted. PriorArtKind and attempt-status enums remain unchanged.
+admitted by B21 alone; B19 separately admits backed CLOSE after B22.
+PriorArtKind and attempt-status enums remain unchanged.
 PriorArtKind is exactly IDENTICAL, HIGHLY_SIMILAR, PARTIAL_OVERLAP, RELATED,
 CONTRASTING, UNCLEAR. Attempt status is exactly RESERVED, SUCCEEDED,
 RETRYABLE_FAILURE, PERMANENT_FAILURE, CANCELLED, UNKNOWN; RESERVED prevents
@@ -289,58 +301,48 @@ ALTER TABLE search_coverage
       AND captured_unresolved_result_count BETWEEN 0 AND result_count));
 ALTER TABLE search_coverage ALTER COLUMN material_version SET DEFAULT 2;
 
-CREATE TABLE search_coverage_results (
-  id UUID CONSTRAINT pk_b21_results PRIMARY KEY,
-  created_at TIMESTAMPTZ NOT NULL,
-  created_by UUID NOT NULL CONSTRAINT fk_b21_results_actor
-    REFERENCES actors(id) ON DELETE RESTRICT,
-  search_coverage_id UUID NOT NULL CONSTRAINT fk_b21_results_coverage
-    REFERENCES search_coverage(id) ON DELETE RESTRICT,
-  search_result_record_id UUID NOT NULL CONSTRAINT fk_b21_results_result
-    REFERENCES search_result_records(id) ON DELETE RESTRICT,
-  CONSTRAINT uq_b21_results_pair UNIQUE(search_coverage_id,search_result_record_id)
-);
 CREATE TABLE search_coverage_resolutions (
   id UUID CONSTRAINT pk_b21_resolutions PRIMARY KEY,
   created_at TIMESTAMPTZ NOT NULL,
   created_by UUID NOT NULL CONSTRAINT fk_b21_resolutions_actor
     REFERENCES actors(id) ON DELETE RESTRICT,
-  search_coverage_id UUID NOT NULL,
-  search_result_record_id UUID NOT NULL,
+  search_coverage_id UUID NOT NULL CONSTRAINT fk_b21_resolutions_coverage
+    REFERENCES search_coverage(id) ON DELETE RESTRICT,
   search_result_resolution_id UUID NOT NULL CONSTRAINT fk_b21_resolutions_resolution
     REFERENCES search_result_resolutions(id) ON DELETE RESTRICT,
   resolution_content_hash CHAR(64) NOT NULL,
   CONSTRAINT ck_b21_resolution_hash CHECK (resolution_content_hash ~ '^[0-9a-f]{64}$'),
-  CONSTRAINT fk_b21_resolutions_result FOREIGN KEY
-    (search_coverage_id,search_result_record_id) REFERENCES search_coverage_results
-    (search_coverage_id,search_result_record_id) ON DELETE RESTRICT,
   CONSTRAINT uq_b21_resolutions_pair UNIQUE(search_coverage_id,search_result_resolution_id)
 );
-CREATE INDEX ix_b21_results_target ON search_coverage_results(search_result_record_id);
+CREATE INDEX ix_b21_resolutions_actor ON search_coverage_resolutions(created_by);
 CREATE INDEX ix_b21_resolutions_target ON search_coverage_resolutions(search_result_resolution_id);
 ```
 
-Preserve existing parent/execution immutability. Add BEFORE UPDATE OR DELETE
-`trg_b21_results_immutable`, `trg_b21_resolutions_immutable`, calling
-pr218_immutable(). BEFORE INSERT `trg_b21_results_guard` and
-`trg_b21_resolutions_guard` require v2, pr218_capture_prelocked(), parent inserted
-in this transaction and equal created_by/created_at. Use native
+Preserve existing parent/execution immutability and PR2-04 terminal query/result
+seals. The result set is reconstructed through saved coverage execution children,
+never through timestamps or mutable resolution rows; no result-membership table
+is needed. Add BEFORE UPDATE OR DELETE `trg_b21_resolutions_immutable`, calling
+`pr218_immutable()`. BEFORE INSERT `trg_b21_resolutions_guard`, calling
+`b21_guard_resolution_insert()`, requires v2, `pr218_capture_prelocked()`, parent
+inserted in this transaction and equal created_by/created_at. Use native
 `parent.xmin = pg_current_xact_id()::xid` as corrected by 0057, never bigint
-comparison, a saved xmin or a durable transaction ID. Check result belongs to a
-selected execution; resolution belongs to that exact result and saved digest
-matches its row. New-parent guard `trg_b21_capture_version_guard` requires v2
-on INSERT, including explicit caller-supplied v1; legacy rows are untouched.
+comparison, a saved xmin or a durable transaction ID. Join resolution → result →
+query → execution and require that execution in this coverage's sealed set;
+verify saved digest against the exact resolution row. New-parent guard
+`trg_b21_capture_version_guard`, calling `b21_require_capture_version()`, requires
+v2 on INSERT, including explicit caller-supplied v1; legacy rows are untouched.
 
 Following [0042's deferred constraint-trigger pattern](../../migrations/versions/0042_pr2_15_minimal_decision.py),
 add DEFERRABLE INITIALLY DEFERRED AFTER INSERT row triggers named
 `trg_b21_parent_complete`, `trg_b21_executions_complete`,
-`trg_b21_results_complete`, `trg_b21_resolutions_complete`, all calling
-`b21_capture_complete()`. They validate v2 complete result membership by bidirectional
-set difference against selected executions and complete resolution membership by
-bidirectional set difference against then-visible resolutions. Check exact tuple
-bindings, hashes, counts and existing providers/query/time accounting. Empty
-sets are legal only when the actual selected executions produced no results.
-The parent trigger catches omitted children even when no child event exists.
+`trg_b21_resolutions_complete`, all calling `b21_capture_complete()`. Reconstruct
+all results from terminal executions and validate captured resolution membership
+by bidirectional set difference against every then-visible resolution for those
+results. Check exact tuples, hashes, counts and existing providers/query/time
+accounting. A nonempty result set may have an empty resolution set: preserve each
+such result in the derived `captured_results` payload with `resolutions: []`.
+Zero results yields `captured_results: []`. The parent trigger catches omitted
+resolution children even when no child event exists.
 
 Keep existing pr218_complete_coverage validation and B01 deferred closure;
 coordinate functions without replacing v1 history or allowing late completion.
@@ -348,7 +350,9 @@ Completeness runs only on insertion, never against later resolution rows during
 historical reads. DB guards enforce structure/accounting; Application recomputes
 canonical digests. Do not claim the SQL lock inventory proves first-statement
 ordering: test that separately. Refuse populated-v2 downgrade before any DDL;
-legacy-only downgrade removes added metadata/guards without changing old bytes.
+legacy-only downgrade removes only B21 metadata/guards without changing old
+bytes or B19/B22 guards. B21 never replaces the shared parent guard or adds
+assessment/prior-art columns; its migration may run on either side of B22/B19.
 
 ### 12.2 Exact lock order and transactions
 
@@ -371,13 +375,13 @@ search_result_resolutions,source_versions IN SHARE MODE;
 Then SET LOCAL lock_timeout='10s', statement_timeout='30s'; request advisory
 `pg_advisory_xact_lock(hashtextextended(:key,0))` using
 `pr218:{kind}:{canonical request UUID}`. No lock upgrade, preceding SELECT/SET,
-new namespace or explicit lock on the new membership tables is required.
+new namespace or explicit lock on the new membership table is required.
 
 | Command | Remaining order after N, timeouts and request advisory |
 | --- | --- |
-| record_search_coverage (`kind=coverage`) | Authorize reader at DB clock; read existing parent for replay. New request: authorize writer, validate exact plan, UUID-sorted executions/attempts/queries/results/resolutions under N, retain membership and compute v2. Recheck writer; INSERT parent, sorted execution children, sorted result children, then resolution children sorted by result/ID. No FOR UPDATE. |
-| record_prior_art_relation (`kind=prior_art`) | Exact ClaimVersion FOR UPDATE; authorize reader/replay; if new authorize writer, verify exact Claim/source and sorted evidence; recheck writer; parent and evidence children. No B21 membership writes. |
-| record_novelty_assessment (`kind=novelty`) | Exact ClaimVersion FOR UPDATE; authorize reader/replay; if new authorize writer, enforce INCONCLUSIVE, verify Claim and stored-version coverage, optional predecessor FOR UPDATE then reread successor; recheck writer; parent INSERT. |
+| record_search_coverage (`kind=coverage`) | Authorize reader at DB clock; read existing parent for replay. New request: authorize writer, validate exact plan, UUID-sorted executions/attempts/queries/results/resolutions under N, retain membership and compute v2. Recheck writer; INSERT parent, sorted execution children, then resolution children sorted by result/ID; result membership is reconstructed from sealed terminal executions. No FOR UPDATE. |
+| record_prior_art_relation (`kind=prior_art`) | Exact ClaimVersion FOR UPDATE; authorize reader/replay; if new authorize writer, verify exact Claim/source and sorted evidence; recheck writer; parent and evidence children. Preserve B22 correction admission/locks when installed. No B21 membership writes. |
+| record_novelty_assessment (`kind=novelty`) | Exact ClaimVersion FOR UPDATE; authorize reader/replay; if new authorize writer, use the installed outcome policy (INCONCLUSIVE alone until B19), verify Claim and stored-version coverage, optional predecessor FOR UPDATE then reread successor; recheck writer; parent INSERT (plus B19 basis checks/children when installed). |
 | Three exact reads | begin_formal_read(): read-only REPEATABLE READ, authorize reader, read parent/children/exact dependencies, verify stored material and compute current projections in that one snapshot, final read-entitlement clock check, return. No explicit table, advisory, FOR SHARE or FOR UPDATE locks; no writes. |
 
 New writes force SET CONSTRAINTS ALL IMMEDIATE, read back and verify, recheck
@@ -391,9 +395,9 @@ read helpers must remain configured for protected/snapshot reads.
 
 ### 12.3 Ordered build steps and real file paths
 
-1. Freeze the approved amendment in `docs/architecture/13_Phase2_Schema_Field_Contract_v1.0.md`
-   and `docs/architecture/15_Phase2_Hash_Payload_Contract_R2_v1.0.md`, with bounded
-   architecture disposition. Add the successor migration from §12.1; preserve
+1. Obtain owner approval of ADR-0017 Decisions 1–3, including B21-AQ-01,
+   and separate execution authorization. The owner moves the approved ADR into
+   frozen architecture as the additive field/hash registration; do not edit 12/13/15. Add the successor migration from §12.1; preserve
    0047/0050/0057 and all existing hashes. No changes to those files in this task.
 2. In `src/researchbase/domain/novelty.py`, retain v1 builder; add typed capture
    values, strict v2 builder and accounting validation. Reuse foundation hashing;
@@ -424,7 +428,7 @@ Files marked new are future artifacts, not part of this documentation change.
 | `tests/unit/phase2/test_b21_capture_contract.py` (new) | Strict count/version/UUID types, bool rejection, bounds, Unicode, closed caller DTOs; no caller membership/version; exact legacy null/v2 int output. |
 | `tests/unit/phase2/test_b21_capture_hash_vectors.py` (new) | Independent literal full v2 canonical bytes/digests; empty results, empty resolution set, sorted/permuted children, changed resolution hash/membership inequality; v1 vectors unchanged; no extra material keys. |
 | `tests/integration/phase2/test_b21_capture.py` (new) | Real owning services via pr2_18_fixtures.py/b01_support.py; zero-result, two hits/one source, no resolution, identical tuple duplicates, source-only plus exact, conflicting versions; restart then append resolution changes current only; valid nested novelty read/replay on both versions; lost entitlement, corrupt refs and atomic failures. |
-| `tests/integration/phase2/test_b21_capture_schema.py` (new) | Catalog names/types/FKs; clean install and populated-v1 upgrade without digest/novelty-ref changes; explicit v1 insert denial, wrong execution/result/resolution, missing/extra children, false count, invalid digest, late insert/update/delete, missing prelocks/wrong isolation, rollback on deferred failure; downgrade refusal with v2. |
+| `tests/integration/phase2/test_b21_capture_schema.py` (new) | Exactly one new table, catalog names/types/FKs; inherited terminal query/result append denial and zero-resolution restart reconstruction; clean install and populated-v1 upgrade without digest/novelty-ref changes; explicit v1 insert denial, wrong execution/result/resolution, missing/extra children, false count, invalid digest, late insert/update/delete, missing prelocks/wrong isolation, rollback on deferred failure; downgrade refusal with v2. |
 | `tests/integration/phase2/test_b21_capture_concurrency.py` (new) | Capture first vs B01 resolution first, empty-history phantom, two engines/PIDs with blocked-lock witness; first SQL N; reader does not block writer and keeps one snapshot; no explicit read locks; credential/role expiry after waits; exactly three 40001/40P01 attempts, no timeout/business retry, same-ID single saved set and uncertain-commit replay. |
 | `tests/architecture/test_b21_capture_boundaries.py` (new) | Domain/Application/adapter separation, no direct scientific writes by transports, no generic JSON membership, existing canonical owner, no external call in transaction, inherited v1 and Phase 1 hashes. |
 | Existing PR2-18/B01 unit, schema, replay, coverage and concurrency files | Preserve all-row ambiguity, error mappings, immutable history and replay. Extend `test_pr2_18_api.py`/`test_pr2_18_transports.py` for legacy/v2 coverage and nested output. |
@@ -442,8 +446,8 @@ or public membership-detail endpoint; queues, event sourcing or new infrastructu
 
 | Approval item | Decision adopted in this draft |
 | --- | --- |
-| Material compatibility | Approve v2 extension with retained v1 verifier, unchanged scheme and no rehash/backfill. Update architecture contracts before implementation. |
-| Concrete membership | Approve two typed existing-assessment relations binding every result and every visible resolution, including empty histories. |
+| Material compatibility | Approve [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md) Decision 1: retained v1 verifier, unchanged scheme, no rehash/backfill. |
+| Concrete membership | Approve ADR-0017 Decision 2, B21-AQ-01, after the existing-representation analysis; register one typed coverage/resolution relation before implementation. |
 | Public output/limits | Expose version and historical count only; preserve command limits; never truncate complete membership. |
 | Release boundary | Dual readers before v2 writers; old binaries unsupported for v2; populated-v2 downgrade refuses. |
 
@@ -452,35 +456,7 @@ freeze. Contract approval alone is not execution authorization.
 
 ## 14. Documentation verification note
 
-Only this draft is changed. Executed against current code on 2026-10-18; these
-are baseline checks, not evidence that proposed B21 behavior exists. Every command
-below used this exact prefix:
-
-```bash
-VIRTUAL_ENV=/Users/fengwang/Documents/ResearchBaseProject/.venv UV_CACHE_DIR=/private/tmp/rb-b21-uv-cache uv run --active --offline --no-sync
-```
-
-| Command suffix | Observed result |
-| --- | --- |
-| `ruff check .` | Exit 0; All checks passed. |
-| `ruff format --check .` | Exit 0; 699 files already formatted. |
-| `pyright` | Exit 0; 0 errors, 0 warnings, 0 informations. Initial diagnostic: local .venv subdirectory absent; shared active environment used. |
-| `pytest tests/unit/phase2/test_pr2_18_hash_vectors.py tests/unit/phase2/test_pr2_18_novelty_contract.py tests/unit/phase2/test_pr2_18_transports.py tests/unit/phase2/test_b01_resolution_contract.py tests/architecture/test_pr2_18_boundaries.py tests/architecture/test_b01_resolution_boundaries.py tests/integration/phase2/test_pr2_19_dependencies.py -o addopts='' -q -p no:cacheprovider` | Exit 0; 129 passed in 1.55s. |
-
-Focused PostgreSQL command, with the same prefix between the DB variables and pytest:
-
-```bash
-DATABASE_URL=postgresql+psycopg:///postgres RB_TEST_ADMIN_URL=postgresql+psycopg:///postgres VIRTUAL_ENV=/Users/fengwang/Documents/ResearchBaseProject/.venv UV_CACHE_DIR=/private/tmp/rb-b21-uv-cache uv run --active --offline --no-sync pytest tests/integration/phase2/test_pr2_18_search_coverage.py tests/integration/phase2/test_pr2_18_schema.py tests/integration/phase2/test_pr2_18_replay.py tests/integration/phase2/test_pr2_18_concurrency.py tests/integration/phase2/test_b01_resolution_concurrency.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_20_novelty.py -o addopts='' -q -p no:cacheprovider --maxfail=1
-```
-
-Exit 1: **1 error, 1 warning in 0.62s; zero database cases passed**. First fixture
-`test_capture_and_restart` could not connect to `/tmp/.s.PGSQL.5432`: Operation
-not permitted. Remaining PostgreSQL cases were not run after fail-fast. The
-warning concerns already imported b01_support assertion rewriting. No database
-PASS, implementation acceptance or Phase exit is claimed. Full suite reserved
-for the owner's loop.
-
-Documentation checks: `git diff --no-index --check /dev/null
-docs/proposals/B21_Unresolved_Count_Capture_Contract_DRAFT.md` exited 0. A local
-Python Markdown-link check resolved all 27 relative links, with zero missing.
-`git status --short` showed only this new draft; no branch or commit was created.
+Current coordinated verification and its environment limitations are recorded once
+in [B19 §14](B19_Close_Prior_Art_Basis_Contract_DRAFT.md#14-documentation-verification-note).
+No proposed migration or PostgreSQL guard behavior is verified by documentation
+checks. No implementation, acceptance gate or Phase exit is claimed.

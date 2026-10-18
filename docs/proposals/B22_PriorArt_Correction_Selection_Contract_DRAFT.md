@@ -62,6 +62,8 @@ supplied; B18 is the implemented dependency, not permission to extend it.
 
 ## 2. Scope, dependency boundaries and non-goals
 
+**Order:** B22 has no prerequisite among B19/B21 and must land before B19.
+
 Propose an optional typed predecessor on the existing recording command, an
 additive correction-aware exact read, and a pair-scoped selector. Reuse the
 existing tables, service, repository/UoW, serializer and trusted principals.
@@ -71,6 +73,16 @@ current pointer, cache, queue or external dependency is needed.
 This draft proposes a bounded amendment to contracts 13/15; it does not claim
 that those frozen documents already authorize correction fields. Approval of
 this draft alone does not authorize implementation. See §12.5 for exclusions.
+
+Cross-draft order and guard ownership are defined once in
+[ADR-0017 Decision 3](ADR-0017_Novelty_Material_v2_DRAFT.md#3-cross-draft-order-and-migration-composition).
+That decision is the dependency contract for this draft's single forward migration.
+
+B22 alone retains INCONCLUSIVE-only assessment admission. When B19 later lands,
+new CLOSE_PRIOR_ART_FOUND bases must select non-superseded terminals; independent
+roots remain explicit choices, never an assertion of UNIQUE pair selection. A
+later correction preserves the assessment's saved basis/hash and marks it unusable
+for current judgment. B22 never silently redirects a historical assessment.
 
 ## 3. Invariants and conservative judgments
 
@@ -97,8 +109,9 @@ this draft alone does not authorize implementation. See §12.5 for exclusions.
 7. Current usability is timestamped separately. An unusable selected terminal is
    still selected history, with `usable_for_current_judgment=false`; never restore
    its predecessor. Multiple roots remain ambiguous even if only one is usable.
-8. B18's INCONCLUSIVE-only NoveltyAssessment guard and all Phase 1 scientific
-   hashes/support sets remain unchanged. Selection creates no downstream effects.
+8. B22 does not change NoveltyAssessment admission; B19 owns the later
+   positive-outcome amendment. All Phase 1 scientific hashes/support sets remain
+   unchanged. Selection creates no downstream effects.
 
 ## 4. Proposed commands, DTOs and historical readback
 
@@ -124,17 +137,16 @@ ambiguity is explicit data, not an error. CLI adds
 `literature select-prior-art-relation` with the same three IDs and JSON output.
 Existing `record-prior-art-relation` gains the optional predecessor flag.
 
-## 5. Schema and literal hash proposal — no migration
+## 5. Schema and literal hash proposal — one forward migration; no new table
 
-Add `material_version SMALLINT NOT NULL DEFAULT 1` and nullable predecessor UUID
-on `prior_art_relations`; no new table. Existing v1 rows and new roots serialize
+The migration adds `material_version SMALLINT NOT NULL DEFAULT 1`, nullable
+`supersedes_prior_art_relation_id UUID`, and §12.1 constraints/indexes/guards on
+`prior_art_relations`; it adds no table. Existing v1 rows and new roots serialize
 exactly Hash R2 15's v1 template, with no extra null predecessor key.
 
-For corrections only, the **entire proposed v2 material** is:
-
-```json
-{"type":"PriorArtRelation","material_version":2,"claim_version":"<R(ClaimVersion)>","source_version":"<R(SourceVersion)>","relation":"<PriorArtKind>","rationale":"<NFC string>","literature_evidence":["<R(LiteratureEvidence)>"],"assessed_by":"<I(ActorIdentity)>","supersedes_prior_art_relation":"<R(PriorArtRelation)>"}
-```
+The complete correction-only PriorArtRelation v2 payload and shared compatibility
+amendment to frozen Hash Contract 15 are specified once in [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md),
+Decision 1. This draft requests that decision; it does not approve it.
 
 R/I notation, UUID-sorted evidence, NFC normalization and excluded metadata are
 exactly R2 15. `sha256-cjson-v1` remains the encoding/hash scheme; material version
@@ -276,7 +288,7 @@ CONTRASTING, UNCLEAR. New `PriorArtSelectionState` is EMPTY, UNIQUE, AMBIGUOUS.
 Rationale uses existing `narrative`: NFC, 1..16,384 characters, nonblank, valid UTF-8,
 no NUL, meaningful whitespace preserved. Evidence uses `uuid_set`: 1..100 unique
 UUIDs, UUID-sorted; reject duplicates rather than deduplicate. HashRef is type/id/
-64-lowercase-hex content_hash, with the one new literal in §5. Existing
+64-lowercase-hex content_hash, with the PriorArtRelation literal specified in §5 and ADR-0017. Existing
 CurrentValidity fields/types/warnings stay unchanged; all datetimes are aware UTC.
 
 Selector inspects at most 10,000 pair records (fetch 10,001 to detect overflow),
@@ -292,6 +304,8 @@ snapshot's projections, not a durable as-of token or commit timestamp.
 
 ### 12.1 DDL sketch and guard inventory
 
+This migration owns only prior-art additions and retains any installed B21
+coverage guards; it never replaces the shared parent guard. B19 must follow it.
 Only additive columns/constraints/index on the existing table; sketch to implement
 in a new migration after the then-current head, never edit 0047:
 
@@ -445,7 +459,7 @@ external effects or Agent runtime. Each requires its own approved contract.
 | --- | --- |
 | How should conflicting independent roots resolve? | Report AMBIGUOUS; no automatic arbitration. Cross-root resolution is separate scope. |
 | Who may correct whose comparison? | Any active OWNER/RESEARCHER with B18 admission; retain distinct attribution, never imply adjudication. |
-| Approve field/hash compatibility amendment? | Add same-pair typed predecessor and explicit v2 material; preserve v1 roots and all historical digests. Require ADR before implementation. |
+| Approve [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md) field/hash compatibility amendment? | Add same-pair typed predecessor and explicit v2 material; preserve v1 roots and all historical digests. Require ADR-0017 Decisions 1–3 before implementation. |
 | Accept bounded selector? | 10,000 pair records; explicit failure above bound, never partial authority. |
 
 Any override requires body/schema/hash/test-plan updates before approval. No owner
@@ -453,39 +467,7 @@ approval or implementation authorization is inferred from the backlog entry.
 
 ## 14. Documentation verification note
 
-Only this proposal is changed. B22 tests/migration above are planned and were not
-created or run. The following current-code checks were observed on 2026-10-18;
-they cannot establish B22 implementation or Phase 2 completion. No full suite was
-run; the loop owns that evidence.
-
-The existing shared environment was used without syncing dependencies. Final
-pytest runs explicitly selected this checkout's source with:
-
-```sh
-export UV_CACHE_DIR=/private/tmp/b22-uv-cache
-export UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv
-export PYTHONPATH="$PWD/src:$PWD"
-export DATABASE_URL=postgresql+psycopg://fengwang@localhost/postgres
-export RB_TEST_ADMIN_URL=postgresql+psycopg://fengwang@localhost/postgres
-```
-
-| Exact command | Observed result |
-| --- | --- |
-| `uv run --no-sync ruff check .` | All checks passed; exit 0. |
-| `uv run --no-sync ruff format --check .` | 699 files already formatted; exit 0. |
-| `uv run --no-sync pyright` | 0 errors, 0 warnings, 0 informations; exit 0. Printed a separate missing local .venv configuration notice. |
-| `uv run --no-sync pytest tests/unit tests/architecture tests/test_architecture.py` | 5,441 passed, 4 failed, 14 errors, 9 warnings in 57.24s; exit 1. |
-| `uv run --no-sync pytest tests/integration/phase2/test_pr2_18_*.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_20_novelty.py` | 94 setup errors in 15.98s; exit 1. No PostgreSQL test passed. |
-| `git diff --check` | No output; exit 0. |
-
-Four existing `test_hg1_runner.py` tests failed when binding Unix sockets; 14
-`test_pr2_19_boundaries.py` cases and all 94 selected PostgreSQL cases errored on
-connection setup. The sandbox returned `Operation not permitted` for TCP and Unix
-sockets. PostgreSQL server version could not be verified in this session. These
-are blocked checks, not passes, and no unrelated implementation was changed.
-An earlier run without the explicit checkout PYTHONPATH had the same pass/failure/
-error counts; the final runs above supersede it as checkout-specific evidence.
-
-A read-only Python inspection confirmed all 18 local links resolve, sections
-1–14 match the reference numbering, the status line is exact, and all 11 listed
-ErrorCode HTTP/CLI pairs plus the CLI fallback match the current dictionaries.
+Current coordinated verification and its environment limitations are recorded once
+in [B19 §14](B19_Close_Prior_Art_Basis_Contract_DRAFT.md#14-documentation-verification-note).
+No proposed migration or PostgreSQL guard behavior is verified by documentation
+checks. No implementation, acceptance gate or Phase exit is claimed.
