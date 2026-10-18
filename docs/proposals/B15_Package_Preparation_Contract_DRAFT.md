@@ -21,7 +21,9 @@ Build only after separate authorization, in this order:
 2. Add pure occurrence projection and literal R2 consent/manifest hash builders
    (§§5, 11), then closed Application commands and ports at §12.3's paths.
 3. Implement SHARE-first READ COMMITTED writes and plain REPEATABLE READ reads,
-   including every nested verifier (§12.2). Do not call locking S1 read services.
+   including every nested verifier (§12.2). Do not call S1 public read services
+   inside a write UoW (they open their own transaction); reuse their material
+   verification with plain repository reads in the same UoW.
 4. Add preparation, root consent, history/preview and OWNER withdrawal (§4).
    Preserve material from creation; corrections require another package UUID.
 5. Run §12.4's focused checks, retain actual results and stop at §12.5.
@@ -57,8 +59,9 @@ Inspected 2026-10-18; source presence does not establish acceptance:
   [domain/authorship.py](../../src/researchbase/domain/authorship.py) and
   [application/authorship.py](../../src/researchbase/application/authorship.py)
   supply contribution/snapshot hashes, ordered typed relations and exact readers.
-  S1's public `_get` path takes locks; reuse its material verification with plain
-  repository reads inside B15's UoW, not that public transaction path.
+  Do not call S1 public read services inside a write UoW (they open their own
+  transaction); reuse their material verification with plain repository reads
+  in the same UoW.
 - [0048/B04](../../migrations/versions/0048_b04_manuscript_freeze.py) and
   [ManuscriptFreezeService.verify_in_uow](../../src/researchbase/application/manuscript_freeze.py)
   provide sealed document/placement/transitive closure verification. Its
@@ -173,11 +176,14 @@ returns the saved event, with no new transition. Fresh writes always reauthorize
 All completed replay paths use §12.2's read snapshot; a cache miss starts a fresh
 write UoW and rechecks for a concurrent committed result under exclusion.
 
-## 5. Schema and literal hash proposal — no migration
+## 5. Schema and literal hash proposal — registered tables, one forward migration
 
-Use the four registered tables in §12.1; no new snapshot of author relations or
-copied scientific facts. Package owns its manuscript/snapshot references; do not
-add reciprocal snapshot→package FK or mutable current-package pointer.
+One forward migration adds the four registered tables `prepared_submission_versions`,
+`author_consents`, `prepared_submission_manifest_items` and `prepared_submission_events`,
+with the keys, CHECKs, indexes and guards specified in §12.1.
+Do not add a snapshot of author relations or copied scientific facts. Package
+owns its manuscript/snapshot references; do not add reciprocal snapshot→package
+FK or mutable current-package pointer.
 
 Reuse [Hash R2 15](../architecture/15_Phase2_Hash_Payload_Contract_R2_v1.0.md)
 exactly: canonical-json-v1 UTF-8, sha256-cjson-v1, type and material_version=1,
@@ -487,9 +493,10 @@ isolation/autoflush on the fresh connection must not execute a preceding SELECT.
 
 Every write rereads protected facts after required waits and uses
 clock_timestamp() immediately before its effect and after deferred checks (§7).
-Use plain in-UoW verification, never nested public services/UoWs; S1 `_get`,
-`lock_record_publication`, `lock_project`, `_authorize` paths that acquire locks
-are not read helpers for B15. Reuse pure S1 hash/coverage logic and plain SQL
+Do not call S1 public read services inside a write UoW (they open their own
+transaction); reuse their material verification with plain repository reads in
+the same UoW. `lock_record_publication`, `lock_project` and locking `_authorize`
+paths are not read helpers for B15. Reuse pure S1 hash/coverage logic and plain SQL
 methods; B04 verify_in_uow and UoW protected-read adapters provide the pattern.
 
 | Participating writer | Compatibility proof required |
@@ -512,8 +519,9 @@ methods; B04 verify_in_uow and UoW protected-read adapters provide the pattern.
    `foundation/canonical_json.py`; domain imports no ORM/transport.
 3. Create `src/researchbase/application/prepared_submission.py` with §4/§11 DTOs,
    seven service methods, in-UoW verification, replay and three-attempt SQLSTATE
-   retry. Reuse B04 verification and S1 hash/coverage verification with plain
-   repository methods. No call to public S1 read service that starts/locks a UoW.
+   retry. Reuse B04 verification. Do not call S1 public read services inside a
+   write UoW (they open their own transaction); reuse their material verification
+   with plain repository reads in the same UoW.
 4. Extend `src/researchbase/application/ports.py` with typed package repository/UoW
    protocols; create `src/researchbase/persistence/prepared_submission_repository.py`
    with literal inventory, separate prepare_write/prepare_read, plain exact reads,
@@ -554,6 +562,10 @@ unit/architecture tests; exact observed counts belong in evidence. Whole-suite
 execution belongs to the owner's loop for this drafting task.
 
 ### 12.5 Not in this slice
+
+B17 freeze must widen both `ck_b15_package_status` and
+`ck_b15_package_row_version` in its own forward migration to support the registered
+PREPARED/FROZEN/SUPERSEDED/WITHDRAWN lifecycle.
 
 | Deferred behavior | Required owning contract |
 | --- | --- |

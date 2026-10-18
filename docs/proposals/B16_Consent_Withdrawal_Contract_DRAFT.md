@@ -193,8 +193,11 @@ Completed replay never reruns first-use gates or adds events. New grants created
 after the original withdrawal are not swept by replay. A writer noticing a saved
 UUID closes its UoW and uses the lock-free replay snapshot.
 
-## 5. Schema and literal hash proposal — no migration
+## 5. Schema and literal hash proposal — one forward migration, no new table
 
+One forward migration replaces B15's root-only consent CHECK with the state,
+scope, root and non-self CHECKs and adds/replaces the consent-chain, withdrawal-staling,
+B13 consent-cause and preheld grant-issuance guards specified in §12.1.
 Extend B15 `author_consents`; add no table, mutable head, offboarding token,
 withdrawal receipt, JSON policy or package-to-grant relation. Evidence and prior
 are concrete RESTRICT FKs. B13's grant events are the grant history.
@@ -447,8 +450,8 @@ IN SHARE ROW EXCLUSIVE MODE`; (3) `LOCK TABLE approval_decisions,
 approval_request_reviews,approval_requests IN SHARE MODE`; (4) SET LOCAL
 lock_timeout='10s', statement_timeout='30s'. No SHARE on consent/package/grant/event
 output tables and no table-mode upgrade. The global Publication SRE is the existing
-B13 coordination mechanism: it excludes B09's preheld Publication SHARE before
-B09 can issue a grant, and excludes B13 maintenance before either reaches scopes.
+B13 coordination mechanism: it excludes B09 issuance and B13 maintenance before
+any participant reaches scopes, using the compatible prefixes below.
 
 | Command | Exact subsequent operations |
 | --- | --- |
@@ -457,7 +460,9 @@ B09 can issue a grant, and excludes B13 maintenance before either reaches scopes
 | GRANTED continuation | Root or alternating PREPARED regrant only; reverify B15 context/evidence and current entitlement. Fresh clock; insert consent/hash; force constraints; final fresh admission; commit. No grant status/event writes. |
 | own read / general read / preview / completed replay | Fresh REPEATABLE READ READ ONLY; no explicit locks. Authorize narrow own path or B15 project read path; plain exact parent/chain/hash reads and diagnostics within snapshot; final fresh credential/entitlement clock check; return only authorized DTO. No lifecycle maintenance. |
 
-All new helpers are in-UoW, with no nested public S1 `_get`, B13 lifecycle service,
+Do not call S1 public read services inside a write UoW (they open their own
+transaction); reuse their material verification with plain repository reads in
+the same UoW. All new helpers are in-UoW, with no nested B13 lifecycle service,
 locking authorization helper or independent transaction. Head selection is an
 anti-successor query under package exclusion, never ORDER BY captured_at LIMIT 1.
 
@@ -520,7 +525,7 @@ it exists rather than bypassing it. Two independent engines/PIDs for races.
 | `tests/integration/phase2/test_b16_replay.py` | Same UUID after restart/role loss/upstream invalidity; changed actor/material conflict only after permission; old-head new UUID loses; root/regrant replay requires read entitlement; replay does not stale later grants or create events; unknown commit recovered by exact ID. |
 | `tests/integration/phase2/test_b16_schema.py` | Catalog names/types/FKs/indexes, populated root upgrade preserving hashes, empty downgrade/populated refusal; normal-role SQL fork/same-state/forged cause/missing preheld protection, empty deferred graph, missing/extra/wrong event and ACTIVE remainder denial; evidence NOT NULL; immutable UPDATE/DELETE; preserved B13 OWNER/expiry/receipt guards outside consent-cause branch. |
 | `tests/integration/phase2/test_b16_concurrency.py` | Grant INSERT vs withdrawal both commit orders, including initially empty request/grant ranges; issuance waits on Publication coordination before snapshot; two successors/withdraw-regrant/OWNER-withdraw races; resolver waits then fresh reread; grant maintenance both orders; authority revocation and scheduled credential expiry across each wait; SQLSTATE 40001/40P01 three attempts and no business/timeout retry; failure after consent/each grant/event/deferred check leaves zero partial changes. |
-| `tests/architecture/test_b16_boundaries.py` | Common Application boundary, no new schema/JSON semantic owner/head/token, no role bypass for general reads, lock-free nested reads/replay, first-SHARE SQL and no upgrades, no external send/receipt/effect enabling; future adapters use exact pinned errors. |
+| `tests/architecture/test_b16_boundaries.py` | Common Application boundary, no new table/JSON semantic owner/head/token, no role bypass for general reads, lock-free nested reads/replay, first-SHARE SQL and no upgrades, no external send/receipt/effect enabling; future adapters use exact pinned errors. |
 
 After implementation run these tests plus B09, B12 preparation approvals, B13
 lifecycle/schema/concurrency and B15 regressions. Static commands:
@@ -541,6 +546,10 @@ version. The owner's loop runs the whole suite; do not run it here.
   bulk author discovery, external send, SubmissionVersion/Record or ExternalEffect.
 
 ## 13. Open questions for the owner — override register
+
+| Owner may override | Recommendation and reason |
+| --- | --- |
+| Change B09 `decide_approval`'s existing write protocol? | Adopt §12.2: exclude publications from the first SHARE inventory, then acquire Publication SHARE ROW EXCLUSIVE directly before request/scope/target locks, unconditionally before purpose lookup. This existing-protocol change provides grant-insertion phantom protection against B16 withdrawal, including empty resolver ranges; never upgrade Publication SHARE. |
 
 All choices above are adopted proposals; none delegates policy invention to the
 implementer. Owner approval must explicitly accept the narrow self permission,
