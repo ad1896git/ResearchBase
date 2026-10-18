@@ -1,6 +1,6 @@
 # ADR-0017 — Novelty material v2 and typed capture membership
 
-Status: PROPOSED — awaiting owner approval
+Status: ACCEPTED — APPROVED by owner 2026-10-18 (including B19-AQ-01 and B21-AQ-01); slices B19, B21, B22 authorized for implementation.
 
 ## Context
 

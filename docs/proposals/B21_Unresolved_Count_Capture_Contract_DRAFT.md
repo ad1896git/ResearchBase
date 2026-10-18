@@ -81,11 +81,11 @@ output change. B21 alone does not change PriorArtRelation or NoveltyAssessment
 material or admission; B22 and B19 respectively own those amendments.
 
 Cross-draft order and guard ownership are defined once in
-[ADR-0017 Decision 3](ADR-0017_Novelty_Material_v2_DRAFT.md#3-cross-draft-order-and-migration-composition).
+[ADR-0017 Decision 3](../architecture/adr/ADR-0017-novelty-material-v2.md#3-cross-draft-order-and-migration-composition).
 That decision is the dependency contract for this draft's single forward migration.
 
 Existing representation and ordering-key alternatives are evaluated in
-[ADR-0017 Decision 2](ADR-0017_Novelty_Material_v2_DRAFT.md#2-architecture-question-b21-aq-01--admit-one-capture-relation).
+[ADR-0017 Decision 2](../architecture/adr/ADR-0017-novelty-material-v2.md#2-architecture-question-b21-aq-01--admit-one-capture-relation).
 That decision compares existing immutable rows plus a membership hash, a single
 coverage/result/resolution spanning row and the existing terminal result seals,
 timestamp and sequence cutoffs, and an explicitly serialized new ordering protocol.
@@ -141,7 +141,7 @@ The migration adds `material_version` and `captured_unresolved_result_count`
 columns to `search_coverage`, one typed `search_coverage_resolutions` table,
 and §12.1 constraints/guards.
 
-The complete SearchCoverage v2 payload is specified once in [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md),
+The complete SearchCoverage v2 payload is specified once in [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md),
 Decision 1; Decision 2 (B21-AQ-01) separately requests admission of the one
 relation absent from Architecture 12/13. Both decisions require owner approval.
 Version 1 remains exactly Hash Contract 15 and `coverage_material` today.
@@ -446,7 +446,7 @@ or public membership-detail endpoint; queues, event sourcing or new infrastructu
 
 | Approval item | Decision adopted in this draft |
 | --- | --- |
-| Material compatibility | Approve [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md) Decision 1: retained v1 verifier, unchanged scheme, no rehash/backfill. |
+| Material compatibility | Approve [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md) Decision 1: retained v1 verifier, unchanged scheme, no rehash/backfill. |
 | Concrete membership | Approve ADR-0017 Decision 2, B21-AQ-01, after the existing-representation analysis; register one typed coverage/resolution relation before implementation. |
 | Public output/limits | Expose version and historical count only; preserve command limits; never truncate complete membership. |
 | Release boundary | Dual readers before v2 writers; old binaries unsupported for v2; populated-v2 downgrade refuses. |

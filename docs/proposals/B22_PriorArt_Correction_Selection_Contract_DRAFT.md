@@ -75,7 +75,7 @@ that those frozen documents already authorize correction fields. Approval of
 this draft alone does not authorize implementation. See §12.5 for exclusions.
 
 Cross-draft order and guard ownership are defined once in
-[ADR-0017 Decision 3](ADR-0017_Novelty_Material_v2_DRAFT.md#3-cross-draft-order-and-migration-composition).
+[ADR-0017 Decision 3](../architecture/adr/ADR-0017-novelty-material-v2.md#3-cross-draft-order-and-migration-composition).
 That decision is the dependency contract for this draft's single forward migration.
 
 B22 alone retains INCONCLUSIVE-only assessment admission. When B19 later lands,
@@ -145,7 +145,7 @@ The migration adds `material_version SMALLINT NOT NULL DEFAULT 1`, nullable
 exactly Hash R2 15's v1 template, with no extra null predecessor key.
 
 The complete correction-only PriorArtRelation v2 payload and shared compatibility
-amendment to frozen Hash Contract 15 are specified once in [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md),
+amendment to frozen Hash Contract 15 are specified once in [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md),
 Decision 1. This draft requests that decision; it does not approve it.
 
 R/I notation, UUID-sorted evidence, NFC normalization and excluded metadata are
@@ -459,7 +459,7 @@ external effects or Agent runtime. Each requires its own approved contract.
 | --- | --- |
 | How should conflicting independent roots resolve? | Report AMBIGUOUS; no automatic arbitration. Cross-root resolution is separate scope. |
 | Who may correct whose comparison? | Any active OWNER/RESEARCHER with B18 admission; retain distinct attribution, never imply adjudication. |
-| Approve [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md) field/hash compatibility amendment? | Add same-pair typed predecessor and explicit v2 material; preserve v1 roots and all historical digests. Require ADR-0017 Decisions 1–3 before implementation. |
+| Approve [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md) field/hash compatibility amendment? | Add same-pair typed predecessor and explicit v2 material; preserve v1 roots and all historical digests. Require ADR-0017 Decisions 1–3 before implementation. |
 | Accept bounded selector? | 10,000 pair records; explicit failure above bound, never partial authority. |
 
 Any override requires body/schema/hash/test-plan updates before approval. No owner

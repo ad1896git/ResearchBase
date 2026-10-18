@@ -87,7 +87,7 @@ admission are prerequisites. The extra storage and v2 payload require explicit
 architecture admission (§9); they are proposals, not current frozen architecture.
 
 Cross-draft order and guard ownership are defined once in
-[ADR-0017 Decision 3](ADR-0017_Novelty_Material_v2_DRAFT.md#3-cross-draft-order-and-migration-composition).
+[ADR-0017 Decision 3](../architecture/adr/ADR-0017-novelty-material-v2.md#3-cross-draft-order-and-migration-composition).
 That decision is the dependency contract for this draft's single forward migration.
 
 New CLOSE_PRIOR_ART_FOUND basis relations must be non-superseded B22 chain
@@ -127,7 +127,7 @@ Approval, publication or external-effect workflow is introduced.
    admission validates presence, ordered text shape and bounds only; it never
    parses narrative as formal rules. Closed outcome/comparison enums and the
    typed basis/evidence checks establish admission, as justified in
-   [ADR-0017 Alternatives](ADR-0017_Novelty_Material_v2_DRAFT.md#alternatives).
+   [ADR-0017 Alternatives](../architecture/adr/ADR-0017-novelty-material-v2.md#alternatives).
 5. This is an explicit selected basis, not a complete inventory of all comparisons.
    Unselected and later contradictory relations remain independently readable;
    no implicit favorable-subset discovery, “latest wins”, deletion or adjudication.
@@ -183,7 +183,7 @@ Retain `sha256-cjson-v1`, canonical JSON and all existing v1 literal payloads.
 `material_version` identifies NoveltyAssessment material, not a new hash algorithm.
 
 The complete NoveltyAssessment v2 payload and shared v1 compatibility decision
-are specified once in [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md),
+are specified once in [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md),
 Decision 1. This draft requests that amendment to frozen Hash Contract 15; it cannot approve it.
 
 `closeness_criteria` serializes the typed SQL array as the closed
@@ -254,7 +254,7 @@ Do not replace executed concurrency evidence with source-string or timing checks
 
 ## 9. Acceptance criteria and evidence boundary
 
-Before implementation, approve [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md) admitting the one typed
+Before implementation, approve [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md) admitting the one typed
 relation, new columns and v2 payload, and reconcile Architecture 13/15 and the
 PR2-18 stronger-outcome guard explicitly. This draft alone cannot amend them.
 Contract approval, architecture admission and execution authorization are distinct.
@@ -551,7 +551,7 @@ the shared proposed decision only.
 
 ## 13. Open questions for the owner — override register
 
-Approve or replace [ADR-0017](ADR-0017_Novelty_Material_v2_DRAFT.md), Decisions 1–3, and the proposed selected
+Approve or replace [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md), Decisions 1–3, and the proposed selected
 positive basis, exact-resolution witness,
 explicit criteria bounds and v1/v2 split. Architecture admission must explicitly
 approve the typed child table and scope/criteria/version columns; until then the
