@@ -97,7 +97,7 @@ criteria cannot override deterministic facts.
 
 ### Architecture Question B20-AQ-02 — preserve B19 guard ownership
 
-[0066](../../migrations/versions/0066_b19_close_prior_art_basis.py)'s
+[0066](../../../migrations/versions/0066_b19_close_prior_art_basis.py)'s
 b19_complete_basis() requires positive basis on every material_version=2 row.
 Simply widening a CHECK would therefore reject every new screening assessment.
 ADR-0017 also forbids silently replacing sibling/shared functions.

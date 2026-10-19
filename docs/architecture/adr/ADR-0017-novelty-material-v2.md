@@ -4,19 +4,19 @@ Status: ACCEPTED — APPROVED by owner 2026-10-18 (including B19-AQ-01 and B21-A
 
 ## Context
 
-[B19](B19_Close_Prior_Art_Basis_Contract_DRAFT.md),
-[B21](B21_Unresolved_Count_Capture_Contract_DRAFT.md) and
-[B22](B22_PriorArt_Correction_Selection_Contract_DRAFT.md) each amend one PR2-18
+[B19](../../proposals/B19_Close_Prior_Art_Basis_Contract_DRAFT.md),
+[B21](../../proposals/B21_Unresolved_Count_Capture_Contract_DRAFT.md) and
+[B22](../../proposals/B22_PriorArt_Correction_Selection_Contract_DRAFT.md) each amend one PR2-18
 material type fixed at version 1 in frozen
-[Hash Contract 15](../architecture/15_Phase2_Hash_Payload_Contract_R2_v1.0.md).
+[Hash Contract 15](../15_Phase2_Hash_Payload_Contract_R2_v1.0.md).
 Respectively, v1 cannot bind a positive assessment's comparison basis, reconstruct
 historical unresolved-result membership, or bind a comparison's correction parent.
 New fields cannot silently enter v1 bytes. Architecture 12/13 do not register
 B21's proposed membership relation; AGENTS.md §4 requires proof that existing
 patterns cannot express the missing fact before admitting schema.
 
-Following [ADR-0015](../architecture/adr/ADR-0015-b07-revision-decisions-concern-carry-forward.md)
-and [ADR-0016](../architecture/adr/ADR-0016-b08-issue-disposition.md), this single
+Following [ADR-0015](ADR-0015-b07-revision-decisions-concern-carry-forward.md)
+and [ADR-0016](ADR-0016-b08-issue-disposition.md), this single
 additive ADR requests field/registry and hash-contract admission without editing
 frozen numbered architecture. It remains in `docs/proposals/`; only the owner
 moves it into architecture on approval. No approval or execution authorization
@@ -129,9 +129,9 @@ says a SELECT “sees only data committed before the query began”.
 [Date/time functions](https://www.postgresql.org/docs/18/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT)
 describe transaction timestamps as “the start time of the current transaction”;
 clock timestamps measure evaluation time, not commit visibility. In this repository,
-[migration 0029](../../migrations/versions/0029_metadata_observations.py) defines
+[migration 0029](../../../migrations/versions/0029_metadata_observations.py) defines
 `search_result_resolutions.resolved_at TIMESTAMPTZ NOT NULL`, with no `created_at`,
-commit marker or sequence. The [repository](../../src/researchbase/persistence/metadata_observation_repository.py)
+commit marker or sequence. The [repository](../../../src/researchbase/persistence/metadata_observation_repository.py)
 inserts `:resolved_at` and sorts `ORDER BY resolved_at,id`; sorting is not capture
 membership. There is no existing ordering key with the required guarantee.
 
@@ -159,7 +159,7 @@ wider cross-owner protocol in favor of explicit typed captured membership; do
 not claim ordering is impossible.
 
 **One typed spanning-row alternative — sufficient with existing seals:**
-[migration 0024](../../migrations/versions/0024_literature_search_execution.py),
+[migration 0024](../../../migrations/versions/0024_literature_search_execution.py),
 `pr204_reject_terminal_child()` / `pr204_reject_terminal_result()` and their query/
 result INSERT triggers forbid adding provenance to a terminal execution; existing
 query/result UPDATE/DELETE guards retain the rows. Coverage already requires
