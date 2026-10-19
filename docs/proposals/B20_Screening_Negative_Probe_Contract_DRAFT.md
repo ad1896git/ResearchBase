@@ -163,7 +163,11 @@ it does not require the old basis to remain eligible for a new negative judgment
 Changed normalized input is IDEMPOTENCY_CONFLICT. Unknown commit recovery reuses
 the exact UUID. No automatic same-ID upgrade or alternative UUID retry.
 
-## 5. Schema and literal hash proposal — no migration
+## 5. Schema and literal hash proposal — one forward migration; two new tables
+
+One forward migration adds `novelty_assessments.screening_captured BOOLEAN NOT NULL
+DEFAULT FALSE` and two new tables, `novelty_assessment_probes` and
+`novelty_assessment_screening_results`, with the constraints and guards in §12.1.
 
 ADR-0018 requests **outcome/shape-specific v2 dispatch**, preserving all existing
 payloads exactly. INCONCLUSIVE without screening stays v1; positive v2 stays
@@ -468,9 +472,10 @@ automatic impact propagation; new Skill/Agent runtime, queues or dependencies.
 | Owner decision required | Proposed decision pinned above |
 | --- | --- |
 | Is retrospective bounded inventory sufficient? | Yes, explicitly disclose all exact-plan executions visible at admission; no prospective/external completeness claim. Otherwise contract a preregistration slice first. |
-| Admit two child relations? | Yes, only through ADR-0018's existing-pattern justification; no new top-level entity. |
+| Admit `novelty_assessment_probes`? | Yes, subject to [ADR-0018 Decision 1](ADR-0018_Screening_Negative_Probe_Basis_DRAFT.md#1-owner-decision--admit-novelty_assessment_probes)'s separate schema admission; no new top-level entity. |
+| Admit `novelty_assessment_screening_results`? | Yes, subject to [ADR-0018 Decision 2](ADR-0018_Screening_Negative_Probe_Basis_DRAFT.md#2-owner-decision--admit-novelty_assessment_screening_results)'s separate schema admission; no new top-level entity. |
 | Conservative failures and comparisons? | Any failed/warning-bearing attempt blocks a negative; RELATED/CONTRASTING with UNIQUE verified basis only. Broader policy requires an approved contract change. |
-| Compatible v2 extension and B19 attachment amendment? | Preserve existing payloads/functions; add closed outcome-specific v2 shape and narrow the B19 parent trigger attachment explicitly. |
+| Compatible v2 extension and B19 attachment amendment? | Subject to [ADR-0018 Decision 3](ADR-0018_Screening_Negative_Probe_Basis_DRAFT.md#3-owner-decision--compatible-outcome-specific-material-v2) and B20-AQ-02: preserve existing payloads/functions; add closed outcome-specific v2 shape and narrow the B19 parent trigger attachment explicitly. |
 
 All answers are proposed, not owner-approved. An override requires corresponding
 body/ADR edits before implementation authorization.

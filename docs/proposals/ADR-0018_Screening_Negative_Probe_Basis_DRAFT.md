@@ -17,7 +17,9 @@ it deliberately leaves negative admission disabled. Architecture
 B20 children or its hash shape. This is a requested additive amendment, not an
 assertion that frozen architecture already authorizes them.
 
-## Architecture Question B20-AQ-01 — can existing records express the basis?
+## Decision — proposed; each admission requires owner approval
+
+### Architecture Question B20-AQ-01 — can existing records express the basis?
 
 Reuse existing facts first: immutable execution_context stores ordered intended
 queries/provider/budgets; terminal execution seals retain attempts/query/results,
@@ -33,11 +35,23 @@ a query with zero hits, or a never-invoked query. Overloading it would change it
 FK semantics and B19 completeness rules. Current result lists, counts, timestamps
 or a digest alone cannot enumerate these missing judgments after restart.
 
-**Proposed answer:** admit two literature-owned immutable child Relations of the
-existing NoveltyAssessment: novelty_assessment_probes and
-novelty_assessment_screening_results, with the exact columns/constraints/guards
-in B20 §12.1. One key is assessment/execution/query-index; the other is
-assessment/result. Concrete RESTRICT FKs, closed enums and criterion ordinals
+### 1. Owner decision — admit novelty_assessment_probes
+
+**Proposed separate decision:** admit `novelty_assessment_probes` as a
+literature-owned immutable child Relation of the existing NoveltyAssessment,
+keyed by assessment/execution/query-index, with B20 §12.1's exact columns,
+constraints and guards. It retains per-assessment dispositions and explanations
+for intended probes, including zero-hit and never-invoked queries.
+
+### 2. Owner decision — admit novelty_assessment_screening_results
+
+**Proposed separate decision:** admit `novelty_assessment_screening_results` as a
+literature-owned immutable child Relation of the existing NoveltyAssessment,
+keyed by assessment/result, with B20 §12.1's exact columns, constraints and guards.
+It retains per-assessment result dispositions, criterion ordinals and exact
+comparison/resolution witnesses where applicable.
+
+For both admissions, concrete RESTRICT FKs, closed enums and criterion ordinals
 form the semantic core. Bounded narrative explains judgments. No top-level Probe,
 Screening entity, criteria table, generic polymorphic JSON or new persistence
 mechanism is admitted. Two typed shapes avoid an XOR table with nullable
@@ -52,7 +66,7 @@ proof of exhaustive external literature discovery. Later expanded inventories
 change current usability only. An owner requiring prospective completeness must
 approve a separate plan contract before negative admission, not weaken this label.
 
-## Proposed decision — compatible outcome-specific material v2
+### 3. Owner decision — compatible outcome-specific material v2
 
 Admit exactly B20 §5's complete new payload shape for screening INCONCLUSIVE and
 NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE. Preserve ADR-0017 positive v2 and original v1
@@ -81,7 +95,7 @@ at least one completed NO_HITS probe. EXCLUDED, CLOSE, UNCLEAR, partial overlap,
 ambiguous roots or failed probes cannot prove absence. Authority and narrative
 criteria cannot override deterministic facts.
 
-## Architecture Question B20-AQ-02 — preserve B19 guard ownership
+### Architecture Question B20-AQ-02 — preserve B19 guard ownership
 
 [0066](../../migrations/versions/0066_b19_close_prior_art_basis.py)'s
 b19_complete_basis() requires positive basis on every material_version=2 row.
