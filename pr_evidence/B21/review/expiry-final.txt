@@ -1,0 +1,16 @@
+...                                                                      [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[issuer]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[issuer]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[issuer]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[caller]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[caller]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[caller]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[issuer_and_grant]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[issuer_and_grant]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance[issuer_and_grant]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane39/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 9 warnings in 25.54s

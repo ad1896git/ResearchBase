@@ -55,6 +55,8 @@ def test_novelty_endpoint_with_composed_services(
             assert saved["id"] == str(identity)
             assert saved["assessed_by"] == str(e["author"].actor_id)
             assert saved["assessment"] == "INCONCLUSIVE"
+            assert saved["search_coverage"]["material_version"] == 2
+            assert saved["search_coverage"]["quality"]["captured_unresolved_result_count"] == 2
             assert read.json()["content_hash"] == saved["content_hash"]
             replay = client.post(base, json=body)
             assert replay.status_code == 200

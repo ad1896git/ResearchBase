@@ -1,0 +1,53 @@
+{
+  "backend_pids": [],
+  "command_identity": "PreparedSubmissionService.freeze_prepared_submission",
+  "error_code": null,
+  "evidence_paths": [],
+  "lock_events": [],
+  "result_ids": [
+    "01a15191-0353-7165-9b35-ae39df3fdcc4",
+    "c7e72ca4-241e-47a1-ad4f-ede5d6c375bf"
+  ],
+  "scenario_id": "G7",
+  "state_deltas": [
+    {
+      "after_count": 1,
+      "before_count": 1,
+      "table_name": "prepared_submission_versions"
+    },
+    {
+      "after_count": 1,
+      "before_count": 0,
+      "table_name": "prepared_submission_manifest_items"
+    },
+    {
+      "after_count": 2,
+      "before_count": 1,
+      "table_name": "prepared_submission_events"
+    },
+    {
+      "after_count": 2,
+      "before_count": 1,
+      "table_name": "approval_grant_consumptions"
+    },
+    {
+      "after_count": 4,
+      "before_count": 3,
+      "table_name": "approval_grant_events"
+    },
+    {
+      "after_count": 1,
+      "before_count": 1,
+      "table_name": "author_consents"
+    }
+  ],
+  "step_index": 0,
+  "verified_hashes": [
+    {
+      "actual": "8ef43d8dbc791303b5048a78add0befe56e932f3d83b7746f9455e5caf64a57e",
+      "expected": "8ef43d8dbc791303b5048a78add0befe56e932f3d83b7746f9455e5caf64a57e",
+      "hash_field": "package_manifest_hash",
+      "record_id": "c7e72ca4-241e-47a1-ad4f-ede5d6c375bf"
+    }
+  ]
+}

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal, NoReturn, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, cast
 from uuid import UUID, uuid4
 
 from researchbase.application.authorship import AuthorshipService, _ids
@@ -27,11 +28,17 @@ from researchbase.domain.prepared_submission import (
     consent_chain,
     consent_material,
     manifest_material,
+    package_material,
     project_occurrences,
     withdrawal_reason,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_bytes, sha256_canonical_json
+
+if TYPE_CHECKING:
+    from researchbase.application.approval import ConsumptionReadback
+    from researchbase.domain.approval import PreparedSubmissionFreezeResult
+
 
 _READERS = frozenset({"OWNER", "RESEARCHER", "VIEWER", "REVIEWER", "APPROVER"})
 _WRITERS = frozenset({"OWNER", "RESEARCHER"})
@@ -74,6 +81,31 @@ class PrepareSubmissionCommand:
             self.publication_id,
             self.manuscript_version_id,
             self.authorship_snapshot_id,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class FreezePreparedSubmissionCommand:
+    command_key: UUID
+    project_id: UUID
+    grant_id: UUID
+    result_id: UUID
+    expected_package_manifest_hash: str
+    checked_review_ids: tuple[UUID, ...]
+
+    def __post_init__(self):
+        _validate_ids(self.command_key, self.project_id, self.grant_id, self.result_id)
+        if (
+            type(self.expected_package_manifest_hash) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", self.expected_package_manifest_hash) is None
+            or type(self.checked_review_ids) is not tuple
+            or not 1 <= len(self.checked_review_ids) <= 100
+            or any(type(x) is not UUID for x in self.checked_review_ids)
+            or len(set(self.checked_review_ids)) != len(self.checked_review_ids)
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "closed package freeze input required")
+        object.__setattr__(
+            self, "checked_review_ids", tuple(sorted(self.checked_review_ids, key=str))
         )
 
 
@@ -174,7 +206,7 @@ class OwnAuthorConsentReadback:
 class PreparedSubmissionEventReadback:
     id: UUID
     prepared_submission_version_id: UUID
-    prior_status: Literal["PREPARED"] | None
+    prior_status: PackageStatus | None
     new_status: PackageStatus
     actor_id: UUID
     occurred_at: datetime
@@ -191,17 +223,17 @@ class PreparedSubmissionReadback:
     authorship_snapshot_id: UUID
     status: PackageStatus
     row_version: int
-    package_manifest_hash: None
-    content_hash: None
+    package_manifest_hash: str | None
+    content_hash: str | None
     hash_scheme: Literal["sha256-cjson-v1"]
-    frozen_at: None
+    frozen_at: datetime | None
     created_by: UUID
     created_at: datetime
     items: tuple[ManifestItemReadback, ...]
     consents: tuple[AuthorConsentReadback, ...]
     events: tuple[PreparedSubmissionEventReadback, ...]
-    grant_id: None
-    consumption_id: None
+    grant_id: UUID | None
+    consumption_id: UUID | None
     current_validity: Validity
     validity_reasons: tuple[ValidityReason, ...]
 
@@ -407,43 +439,54 @@ class PreparedSubmissionService:
 
     def _events(self, uow, row):
         events = uow.prepared_submission.events(row["id"])
-        expected = 1 if row["status"] == "PREPARED" else 2 if row["status"] == "WITHDRAWN" else 0
+        previous = None
         if (
-            len(events) != expected
-            or row["row_version"] != expected
-            or expected == 0
-            or row["package_manifest_hash"] is not None
-            or row["content_hash"] is not None
-            or row["frozen_at"] is not None
+            len(events) != row["row_version"]
+            or not events
             or row["hash_scheme"] != "sha256-cjson-v1"
             or not 1 <= row["version_number"] <= 2147483647
         ):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid package history")
+        transitions = {
+            (None, "PREPARED"),
+            ("PREPARED", "FROZEN"),
+            ("PREPARED", "WITHDRAWN"),
+            ("FROZEN", "SUPERSEDED"),
+            ("FROZEN", "WITHDRAWN"),
+        }
         for index, event in enumerate(events):
             if (
                 event["actor_id"] != event["created_by"]
                 or event["occurred_at"] != event["created_at"]
-                or event["prior_status"] != (None if index == 0 else "PREPARED")
-                or event["new_status"] != ("PREPARED" if index == 0 else "WITHDRAWN")
+                or event["prior_status"] != previous
+                or (previous, event["new_status"]) not in transitions
                 or (
                     index == 0
                     and (
-                        event["reason"] is not None
-                        or event["actor_id"] != row["created_by"]
+                        event["actor_id"] != row["created_by"]
                         or event["occurred_at"] != row["created_at"]
                     )
                 )
+                or event["occurred_at"] < events[max(0, index - 1)]["occurred_at"]
             ):
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "contradictory package event")
-            if index:
+            if event["new_status"] == "WITHDRAWN":
                 try:
-                    if (
-                        withdrawal_reason(event["reason"]) != event["reason"]
-                        or event["occurred_at"] < row["created_at"]
-                    ):
+                    if withdrawal_reason(event["reason"]) != event["reason"]:
                         raise ValueError()
                 except (ValueError, TypeError):
                     _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid withdrawal event")
+            elif event["reason"] is not None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unexpected event reason")
+            previous = event["new_status"]
+        if previous != row["status"]:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "incomplete package events")
+        sealed = any(e["new_status"] == "FROZEN" for e in events)
+        if sealed != (row["frozen_at"] is not None) or (
+            not sealed
+            and any(row[k] is not None for k in ("package_manifest_hash", "content_hash"))
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "inconsistent package seal")
         return tuple(
             PreparedSubmissionEventReadback(
                 e["id"],
@@ -461,14 +504,24 @@ class PreparedSubmissionService:
         uow.enable_revision_action_snapshot_reads()
         snapshot = self._snapshot(uow, row, project)
         projection = self._projection(uow, row["manuscript_version_id"], snapshot.authors)
+        authors = {a.actor_id for a in snapshot.authors}
+        if any(c["actor_id"] not in authors for c in uow.prepared_submission.consents(row["id"])):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unlisted author consent chain")
         items = []
         for item in uow.prepared_submission.items(row["id"]):
-            if item["category"] not in _TARGETS:
-                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "non-consent items required")
-            column, table, target_type = _TARGETS[item["category"]]
+            if item["category"] not in _TARGETS and item["category"] != "AUTHOR_CONSENT":
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid manifest category")
+            consent = item["category"] == "AUTHOR_CONSENT"
+            if consent and row["frozen_at"] is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unfrozen consent manifest")
+            column, table, target_type = (
+                ("author_consent_id", "author_consents", "AuthorConsent")
+                if consent
+                else _TARGETS[item["category"]]
+            )
             target = uow.prepared_submission.target(table, item[column])
             try:
-                if (
+                if not consent and (
                     item["created_by"] != row["created_by"]
                     or item["created_at"] != row["created_at"]
                 ):
@@ -483,7 +536,12 @@ class PreparedSubmissionService:
                 )
             except (TypeError, ValueError, KeyError):
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid stored occurrence")
-        if tuple((i.category, i.ordinal, i.target) for i in items) != projection:
+        if (
+            tuple(
+                (i.category, i.ordinal, i.target) for i in items if i.category != "AUTHOR_CONSENT"
+            )
+            != projection
+        ):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "occurrence mismatch")
         return snapshot, tuple(items), self._events(uow, row)
 
@@ -682,10 +740,68 @@ class PreparedSubmissionService:
                 heads.append(chain[-1])
         authors = tuple(a.actor_id for a in snapshot.authors)
         missing = tuple(a for a in authors if a not in {c.actor_id for c in heads})
-        reasons = {"NOT_FROZEN"}
+        sealed = row["frozen_at"] is not None
+        receipt = uow.prepared_submission.package_consumption(row["id"])
+        if sealed:
+            captured = tuple(i for i in items if i.category == "AUTHOR_CONSENT")
+            if len(captured) != len(snapshot.authors):
+                _fail(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "complete frozen consent set required"
+                )
+            for ordinal, author in enumerate(snapshot.authors):
+                item = next((i for i in captured if i.ordinal == ordinal), None)
+                saved = next((c for c in roots if item and c.id == item.target.id), None)
+                if (
+                    item is None
+                    or saved is None
+                    or saved.actor_id != author.actor_id
+                    or saved.consent_state != "GRANTED"
+                    or saved.content_hash != item.target.content_hash
+                ):
+                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid captured consent")
+                _, absent = self._evidence(
+                    uow, saved.evidence_artifact.id, project, allow_missing=True
+                )
+                if absent:
+                    unavailable.add(saved.evidence_artifact.id)
+            manuscript_ref = ExactReference(
+                "ManuscriptVersion", row["manuscript_version_id"], cast(str, verified.content_hash)
+            )
+            snapshot_ref = ExactReference("AuthorshipSnapshot", snapshot.id, snapshot.content_hash)
+            manifest_hash = str(
+                sha256_canonical_json(manifest_material(manuscript_ref, snapshot_ref, items))
+            )
+            content_hash = str(
+                sha256_canonical_json(
+                    package_material(
+                        row["publication_id"], manuscript_ref, snapshot_ref, manifest_hash
+                    )
+                )
+            )
+            if (
+                row["package_manifest_hash"] != manifest_hash
+                or row["content_hash"] != content_hash
+                or receipt is None
+            ):
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "corrupt frozen package")
+            self._approval()._receipt_view(uow, receipt)
+            frozen_event = next(e for e in events if e.new_status == "FROZEN")
+            if (
+                receipt["actor_id"] != frozen_event.actor_id
+                or receipt["consumed_at"] != frozen_event.occurred_at
+                or receipt["consumed_at"] != row["frozen_at"]
+            ):
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "package receipt observation differs")
+        elif receipt is not None:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unfrozen package receipt")
+        reasons = set() if sealed else {"NOT_FROZEN"}
         if missing:
             reasons.add("CONSENT_MISSING")
-        validity = "NOT_FROZEN"
+        validity = "VALID" if sealed else "NOT_FROZEN"
+        if sealed and missing:
+            reasons.discard("CONSENT_MISSING")
+            reasons.add("CONSENT_WITHDRAWN")
+            validity = "STALE"
         if verified.current_validity in {"STALE", "INVALID"}:
             validity = verified.current_validity
             reasons.add("UPSTREAM_" + validity)
@@ -695,6 +811,8 @@ class PreparedSubmissionService:
                 validity = "STALE"
         if unavailable:
             reasons.add("DEPENDENCY_UNAVAILABLE")
+            if sealed and validity != "INVALID":
+                validity = "STALE"
         result = PreparedSubmissionReadback(
             row["id"],
             project,
@@ -704,17 +822,17 @@ class PreparedSubmissionService:
             row["authorship_snapshot_id"],
             row["status"],
             row["row_version"],
-            None,
-            None,
+            row["package_manifest_hash"],
+            row["content_hash"],
             "sha256-cjson-v1",
-            None,
+            row["frozen_at"],
             row["created_by"],
             row["created_at"].astimezone(UTC),
             items,
             tuple(roots),
             events,
-            None,
-            None,
+            receipt["grant_id"] if receipt else None,
+            receipt["id"] if receipt else None,
             cast(Validity, validity),
             cast(tuple[ValidityReason, ...], tuple(sorted(reasons))),
         )
@@ -746,23 +864,28 @@ class PreparedSubmissionService:
                         result.events,
                     )
                 elif mode == "preview":
-                    items = result.items + tuple(
-                        ManifestItemReadback(
-                            c.id,
-                            "AUTHOR_CONSENT",
-                            index,
-                            ExactReference("AuthorConsent", c.id, c.content_hash),
-                        )
-                        for index, author in enumerate(snapshot.authors)
-                        for c in result.consents
-                        if c.actor_id == author.actor_id
-                        and c.consent_state == "GRANTED"
-                        and not any(
-                            x.prior_consent and x.prior_consent.id == c.id for x in result.consents
+                    items = result.items + (
+                        ()
+                        if row["frozen_at"] is not None
+                        else tuple(
+                            ManifestItemReadback(
+                                c.id,
+                                "AUTHOR_CONSENT",
+                                index,
+                                ExactReference("AuthorConsent", c.id, c.content_hash),
+                            )
+                            for index, author in enumerate(snapshot.authors)
+                            for c in result.consents
+                            if c.actor_id == author.actor_id
+                            and c.consent_state == "GRANTED"
+                            and not any(
+                                x.prior_consent and x.prior_consent.id == c.id
+                                for x in result.consents
+                            )
                         )
                     )
                     # Missing authors retain their reserved authored ordinal.
-                    candidate = None
+                    candidate = result.package_manifest_hash
                     if result.validity_reasons == ("NOT_FROZEN",):
                         candidate = str(
                             sha256_canonical_json(
@@ -838,8 +961,10 @@ class PreparedSubmissionService:
             return self._readback(uow, row, parent, project)[0]
         row, _ = self._package(uow, command.prepared_submission_version_id, project)
         events = self._events(uow, row)
-        if row["status"] == "PREPARED":
+        if row["status"] in {"PREPARED", "FROZEN"}:
             return None
+        if row["status"] != "WITHDRAWN":
+            _fail(ErrorCode.INVALID_STATE_TRANSITION, "terminal package cannot be withdrawn")
         event = events[-1]
         if event.actor_id != principal.actor_id or event.reason != command.reason:
             _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "withdrawal material differs")
@@ -1149,7 +1274,13 @@ class PreparedSubmissionService:
                 at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER"}))
                 repo.withdraw(row["id"], principal.actor_id, at, command.reason)
                 self._insert_event(
-                    repo, row["id"], principal.actor_id, at, "PREPARED", "WITHDRAWN", command.reason
+                    repo,
+                    row["id"],
+                    principal.actor_id,
+                    at,
+                    row["status"],
+                    "WITHDRAWN",
+                    command.reason,
                 )
             if replay is None:
                 if mode == "prepare":
@@ -1180,10 +1311,10 @@ class PreparedSubmissionService:
             return result
 
     @staticmethod
-    def _insert_event(repo, package, actor, at, prior, status, reason):
+    def _insert_event(repo, package, actor, at, prior, status, reason, *, identity=None):
         repo.insert_event(
             {
-                "id": uuid4(),
+                "id": identity or uuid4(),
                 "prepared_submission_version_id": package,
                 "prior_status": prior,
                 "new_status": status,
@@ -1194,3 +1325,235 @@ class PreparedSubmissionService:
                 "created_by": actor,
             }
         )
+
+    def _approval(self):
+        from researchbase.application.approval import ApprovalService
+
+        return ApprovalService(
+            self._factory,
+            self._credentials,
+            LiteratureEvidenceService(self._factory, self._credentials, self._store),
+        )
+
+    def _freeze_replay(
+        self, principal, command
+    ) -> ConsumptionReadback[PreparedSubmissionFreezeResult] | None:
+        app = self._approval()
+        with self._factory() as uow:
+            app._prepare_read(uow, principal, command.project_id, strict=True)
+            row = uow.approval.consumption(command.command_key)
+            if row is None:
+                self._authorize(uow, principal, command.project_id)
+                return None
+            if row["project_id"] != command.project_id:
+                _fail(ErrorCode.FORBIDDEN, "receipt outside project")
+            saved = app._receipt_view(uow, row)
+            package = (
+                uow.prepared_submission.package(saved.result_prepared_submission_version_id)
+                if saved.result_prepared_submission_version_id
+                else None
+            )
+            if (
+                saved.actor_id != principal.actor_id
+                or saved.command != "FREEZE_PREPARED_SUBMISSION"
+                or saved.grant_id != command.grant_id
+                or saved.result_prepared_submission_version_id != command.result_id
+                or saved.checked_review_ids != command.checked_review_ids
+                or package is None
+                or package["package_manifest_hash"] != command.expected_package_manifest_hash
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "saved freeze material differs")
+            self._authorize(uow, principal, command.project_id)
+            return cast("ConsumptionReadback[PreparedSubmissionFreezeResult]", saved)
+
+    def freeze_prepared_submission(
+        self, principal: VerifiedPrincipal, command: FreezePreparedSubmissionCommand
+    ) -> ConsumptionReadback[PreparedSubmissionFreezeResult]:
+        self._boundary(principal, command, FreezePreparedSubmissionCommand)
+        command.__post_init__()
+        for attempt in range(3):
+            prior = self._freeze_replay(principal, command)
+            if prior is not None:
+                return prior
+            try:
+                with self._factory() as uow:
+                    uow.enable_approval_error_normalization(strict=True)
+                    uow.enable_revision_action_snapshot_reads()
+                    repo = uow.prepared_submission
+                    repo.prepare_freeze_write()
+                    repo.coordinate(f"b13:consume:{command.command_key}")
+                    self._authorize(uow, principal, command.project_id)
+                    if uow.approval.consumption(command.command_key) is not None:
+                        continue
+                    package, parent = self._package(uow, command.result_id, command.project_id)
+                    app = self._approval()
+                    _, _, request = app._grant_chain(uow, command.project_id, command.grant_id)
+                    uow.approval.lock_scope(command.project_id, "PREPARE_SUBMISSION")
+                    repo.manuscript(package["manuscript_version_id"], lock=True)
+                    parent = repo.parent(parent["id"], lock=True)
+                    package = repo.package(command.result_id, lock=True)
+                    if parent is None or package is None:
+                        _fail(
+                            ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "protected parent unavailable"
+                        )
+                    older = repo.frozen_packages(parent["id"], lock=True)
+                    snapshot = self._snapshot(uow, package, command.project_id)
+                    for author in sorted(snapshot.authors, key=lambda a: str(a.actor_id)):
+                        repo.lock_chain(package["id"], author.actor_id)
+                    uow.approval.lock_consumption_request(request["id"])
+                    uow.approval.lock_grant(command.grant_id)
+                    package, parent = self._package(uow, command.result_id, command.project_id)
+                    snapshot, items, _ = self._structure(uow, package, command.project_id)
+                    try:
+                        verified, _ = self._context(
+                            uow, package, parent, command.project_id, admission=True
+                        )
+                    except ResearchBaseError as error:
+                        if error.code == ErrorCode.INVALID_STATE_TRANSITION:
+                            _fail(
+                                ErrorCode.APPROVAL_TARGET_STALE, "current scientific target stale"
+                            )
+                        raise
+                    grant, _, grant_request = app._grant_chain(
+                        uow, command.project_id, command.grant_id
+                    )
+                    at = self._authorize(uow, principal, command.project_id)
+                    if (
+                        grant["purpose"] != "PREPARE_SUBMISSION"
+                        or grant["allowed_command"] != "freeze_prepared_submission"
+                        or grant_request["manuscript_version_id"]
+                        != package["manuscript_version_id"]
+                    ):
+                        _fail(
+                            ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
+                            "exact preparation grant required",
+                        )
+                    if grant["status"] != "ACTIVE" or at >= grant["valid_until"]:
+                        _fail(
+                            ErrorCode.GRANT_STALE
+                            if grant["status"] == "STALE"
+                            else ErrorCode.GRANT_INVALID,
+                            "grant unavailable",
+                        )
+                    if package["status"] != "PREPARED" or any(
+                        p["version_number"] >= package["version_number"] for p in older
+                    ):
+                        _fail(ErrorCode.INVALID_STATE_TRANSITION, "newer PREPARED package required")
+                    if parent["lifecycle_status"] != "READY":
+                        _fail(ErrorCode.APPROVAL_GATE_FAILED, "Publication READY required")
+                    if parent["current_manuscript_version_id"] != package["manuscript_version_id"]:
+                        _fail(ErrorCode.APPROVAL_TARGET_STALE, "current manuscript changed")
+                    ready = repo.ready_consumption(parent["id"])
+                    if ready is None:
+                        _fail(ErrorCode.APPROVAL_GATE_FAILED, "saved READY receipt required")
+                    from researchbase.application.publication import PublicationService
+
+                    ready_receipt = app._receipt_view(uow, ready)
+                    PublicationService(
+                        self._factory, self._credentials, self._store
+                    )._ready_readback(uow, app, ready_receipt)
+                    consent_items = []
+                    for ordinal, author in enumerate(snapshot.authors):
+                        chain = self._chain(uow, package, author.actor_id, command.project_id)
+                        if not chain or chain[-1].consent_state != "GRANTED":
+                            _fail(
+                                ErrorCode.APPROVAL_GATE_FAILED,
+                                "current direct author consent required",
+                            )
+                        for consent in chain:
+                            self._evidence(uow, consent.evidence_artifact.id, command.project_id)
+                        consent = chain[-1]
+                        consent_items.append(
+                            ManifestItemReadback(
+                                uuid4(),
+                                "AUTHOR_CONSENT",
+                                ordinal,
+                                ExactReference("AuthorConsent", consent.id, consent.content_hash),
+                            )
+                        )
+                    items += tuple(consent_items)
+                    manuscript_ref = ExactReference(
+                        "ManuscriptVersion",
+                        package["manuscript_version_id"],
+                        cast(str, verified.content_hash),
+                    )
+                    snapshot_ref = ExactReference(
+                        "AuthorshipSnapshot", snapshot.id, snapshot.content_hash
+                    )
+                    manifest_hash = str(
+                        sha256_canonical_json(
+                            manifest_material(manuscript_ref, snapshot_ref, items)
+                        )
+                    )
+                    content_hash = str(
+                        sha256_canonical_json(
+                            package_material(
+                                parent["id"], manuscript_ref, snapshot_ref, manifest_hash
+                            )
+                        )
+                    )
+                    if manifest_hash != command.expected_package_manifest_hash:
+                        _fail(ErrorCode.CONCURRENT_MODIFICATION, "candidate manifest changed")
+
+                    event_ids = {p["id"]: uuid4() for p in (*older, package)}
+
+                    def effect(
+                        at,
+                        receipt_id,
+                        *,
+                        consent_items=consent_items,
+                        repo=repo,
+                        package=package,
+                        older=older,
+                        manifest_hash=manifest_hash,
+                        content_hash=content_hash,
+                        event_ids=event_ids,
+                    ):
+                        for item in consent_items:
+                            repo.insert_item(
+                                dict(
+                                    id=item.id,
+                                    prepared_submission_version_id=package["id"],
+                                    category="AUTHOR_CONSENT",
+                                    ordinal=item.ordinal,
+                                    author_consent_id=item.target.id,
+                                    created_by=principal.actor_id,
+                                    created_at=at,
+                                )
+                            )
+                        for previous in older:
+                            repo.supersede(previous["id"])
+                            self._insert_event(
+                                repo,
+                                previous["id"],
+                                principal.actor_id,
+                                at,
+                                "FROZEN",
+                                "SUPERSEDED",
+                                None,
+                                identity=event_ids[previous["id"]],
+                            )
+                        repo.seal(package["id"], manifest_hash, content_hash, at)
+                        self._insert_event(
+                            repo,
+                            package["id"],
+                            principal.actor_id,
+                            at,
+                            "PREPARED",
+                            "FROZEN",
+                            None,
+                            identity=event_ids[package["id"]],
+                        )
+
+                    result = app._consume_package_in_uow(uow, principal, command, package, effect)
+                    uow.commit()
+                    return result
+            except ResearchBaseError as error:
+                if (error.details or {}).get("b13_key_race"):
+                    break
+                if not (error.details or {}).get("retryable_b13") or attempt == 2:
+                    raise
+        prior = self._freeze_replay(principal, command)
+        if prior is None:
+            _fail(ErrorCode.CONCURRENT_MODIFICATION, "freeze outcome unresolved; replay same key")
+        return prior

@@ -327,7 +327,12 @@ def test_bounded_novelty_service_profile(b18_env, workers, large):
                         assert result.supersedes_assessment_id is None
             after = s.manifest(e["engine"], novelty.NOVELTY_TABLES)
             increments = {
-                "coverage": {"search_coverage", "search_coverage_executions"},
+                # This bounded fixture has one saved resolution per capture (B21).
+                "coverage": {
+                    "search_coverage",
+                    "search_coverage_executions",
+                    "search_coverage_resolutions",
+                },
                 "prior_art": {"prior_art_relations", "prior_art_evidence_inputs"},
                 "novelty": {"novelty_assessments"},
             }[kind]
@@ -415,3 +420,154 @@ def test_b29_measurement(decision_env, monkeypatch):
     result = measure(decision_env[-1][8], fixture, host)
     assert len(result["rows"]) == 54
     assert result["status"] == "BLOCKED"  # measurements never self-admit DDL
+
+
+PACKAGE_CASES = (
+    "package-first-freeze",
+    "package-exact-replay",
+    "package-consent-denied",
+    "package-frozen-read",
+)
+
+# Existing owning fixtures, registered locally without changing global bootstrap.
+from tests.integration.phase2.b17_fixtures import b04_env, b05_env, revision_env  # noqa: E402
+
+_B17_FIXTURES = (b04_env, b05_env, revision_env)
+
+
+def test_bounded_prepared_package_service_profile(b05_env):
+    from tests.integration.phase2.b17_fixtures import build, next_package, withdraw_consent
+
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    f = build(b05_env)
+    saved = f.app.freeze_prepared_submission(f.actor, f.command)
+    current_frozen, current_receipt = f, saved
+    value = profile(f.engine, False)
+    inventory = {
+        "projects": "projects",
+        "sources": "literature_sources",
+        "source_versions": "source_versions",
+        "identifiers": "source_identifiers",
+        "project_links": "literature_source_project_links",
+        "claims": "claims",
+        "manuscripts": "manuscript_versions",
+        "conclusion_targets": "scientific_conclusion_versions",
+        "reviews": "internal_review_records",
+        "issues": "review_issues",
+    }
+    with s.read_snapshot(f.engine) as conn:
+        cardinalities = {
+            field: conn.execute(text("SELECT count(*) FROM " + table)).scalar_one()
+            for field, table in inventory.items()
+        }
+        cardinalities["shared_sources"] = conn.execute(
+            text(
+                "SELECT count(*) FROM (SELECT literature_source_id "
+                "FROM literature_source_project_links GROUP BY literature_source_id "
+                "HAVING count(DISTINCT project_id)>1) shared"
+            )
+        ).scalar_one()
+        cardinalities["busy_project_sources"] = conn.execute(
+            text(
+                "SELECT coalesce(max(n),0) FROM (SELECT count(*) n "
+                "FROM literature_source_project_links GROUP BY project_id) busy"
+            )
+        ).scalar_one()
+        cardinalities["evidence_per_claim"] = conn.execute(
+            text(
+                "SELECT coalesce(max(n),0) FROM (SELECT count(*) n "
+                "FROM evidence_relations GROUP BY claim_version_id) evidence"
+            )
+        ).scalar_one()
+        placements = sum(
+            conn.execute(
+                text("SELECT count(*) FROM " + table + " WHERE manuscript_version_id=:id"),
+                {"id": f.package_command.manuscript_version_id},
+            ).scalar_one()
+            for table in (
+                "manuscript_claim_placements",
+                "manuscript_citation_placements",
+                "manuscript_artifact_placements",
+            )
+        )
+    value = replace(
+        value,
+        **cardinalities,
+        seed=0,
+        typical_placements=placements,
+        high_placements=placements,
+        concurrency_profiles=(1,),
+    )
+    save_profile(value)
+    for case in PACKAGE_CASES:
+        for repeat in range(value.repetitions):
+            samples = value.warmups + value.calls_per_worker
+            fresh = (
+                [next_package(f) for _ in range(samples)]
+                if case in {"package-first-freeze", "package-consent-denied"}
+                else []
+            )
+            if case == "package-consent-denied":
+                for fixture in fresh:
+                    withdraw_consent(fixture)
+            pending = iter(fresh)
+
+            def invoke(case=case, pending=pending):
+                nonlocal current_frozen, current_receipt
+                if case == "package-first-freeze":
+                    fixture = next(pending)
+                    result = fixture.app.freeze_prepared_submission(fixture.actor, fixture.command)
+                    current_frozen, current_receipt = fixture, result
+                    return result
+                if case == "package-exact-replay":
+                    result = f.app.freeze_prepared_submission(f.actor, f.command)
+                    assert result == saved
+                    return result
+                if case == "package-frozen-read":
+                    result = current_frozen.app.get_prepared_submission(
+                        current_frozen.actor, current_frozen.query
+                    )
+                    assert result.status == "FROZEN"
+                    assert result.consumption_id == current_receipt.id
+                    return result
+                fixture = next(pending)
+                try:
+                    fixture.app.freeze_prepared_submission(fixture.actor, fixture.command)
+                except ResearchBaseError as exc:
+                    assert exc.code == ErrorCode.GRANT_STALE
+                    return exc.code.value
+                raise AssertionError("withdrawn consent must deny")
+
+            times, results = s.sample(invoke, value.warmups, value.calls_per_worker)
+            data = dict(
+                status="PASS",
+                scope="B17 bounded correctness and informational timing",
+                large_profile_acceptance="NOT ESTABLISHED",
+                case=case,
+                workers=1,
+                repeat=repeat,
+                warmups=value.warmups,
+                calls_per_worker=value.calls_per_worker,
+                samples_ms=times,
+                p50_ms=s.percentile(times, 0.5),
+                p95_ms=s.percentile(times, 0.95),
+                max_ms=max(times),
+                failures=0,
+                expected_denials=len(results) if case == "package-consent-denied" else 0,
+                postgres_version=value.postgres_version,
+                fixture_counts=dict(
+                    samples=samples,
+                    fresh_packages=len(fresh),
+                    authors=1,
+                    reviews=len(f.command.checked_review_ids),
+                ),
+                profile="SMALL",
+                seed_semantics=(
+                    "0: fixed Application fixture structure; UUID identities are unseeded"
+                ),
+                scientific_cardinalities=cardinalities,
+                external_latency_ms=None,
+            )
+            s.save_observation(f"{case}-1-{repeat}", data)
+            print("B17_BENCHMARK", data)

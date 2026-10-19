@@ -1,0 +1,26 @@
+........................................................................ [ 30%]
+........................................................................ [ 60%]
+........................................................................ [ 90%]
+......................                                                   [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b05_review_migration.py: 76 warnings
+tests/integration/phase2/test_b08_schema.py: 53 warnings
+tests/integration/phase2/test_b14a_entry_schema.py: 63 warnings
+tests/integration/phase2/test_batch_c_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_review_guards.py: 42 warnings
+tests/integration/phase2/test_pr2_04_execution_migration.py: 11 warnings
+tests/integration/phase2/test_pr2_04_migration_coverage.py: 24 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_revision_action.py: 163 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane39/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane39/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+238 passed, 626 warnings in 302.09s (0:05:02)

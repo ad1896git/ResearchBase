@@ -48,7 +48,14 @@ from researchbase.foundation.errors import ErrorCode
 )
 def test_closed_transport(model, values):
     assert model.model_validate(values)
-    for extra in ("assessed_by", "created_by", "query_count"):
+    for extra in (
+        "assessed_by",
+        "created_by",
+        "query_count",
+        "material_version",
+        "captured_results",
+        "captured_unresolved_result_count",
+    ):
         with pytest.raises(ValidationError):
             model.model_validate({**values, extra: str(uuid4())})
     with pytest.raises(ValidationError):
@@ -87,8 +94,9 @@ def test_cli_pinned_mappings(code, exit_code):
     assert INTERNAL_ERROR_EXIT_CODE == 1
 
 
-@pytest.fixture
-def novelty_transports():
+@pytest.fixture(params=[1, 2])
+def novelty_transports(request):
+    version = request.param
     from datetime import UTC, datetime
     from types import SimpleNamespace
     from typing import Any, cast
@@ -116,7 +124,7 @@ def novelty_transports():
     source = uuid4()
     evidence = uuid4()
     principal = VerifiedPrincipal(actor, "test-deployment", "OS_UID", "501", "credential", now)
-    quality = CoverageQuality(now, None, 0, True, False, (), (), ())
+    quality = CoverageQuality(now, None if version == 1 else 0, 0, True, False, (), (), ())
     valid = CurrentValidity(now, True, ())
     cov = SearchCoverageReadback(
         request,
@@ -134,6 +142,7 @@ def novelty_transports():
         "a" * 64,
         "sha256-cjson-v1",
         quality,
+        version,
     )
     prior = PriorArtReadback(
         request,
@@ -236,7 +245,16 @@ def test_all_six_http_and_cli_commands_share_principal(novelty_transports):
         base = f"/v1/projects/{e.project}/{path}"
         assert e.client.post(base, json=body).status_code == 200
         assert e.client.post(base, json=body).status_code == 200
-        assert e.client.get(base + "/" + str(e.id)).status_code == 200
+        response = e.client.get(base + "/" + str(e.id))
+        assert response.status_code == 200
+        if method in {"search_coverage", "novelty_assessment"}:
+            coverage = response.json()
+            if method == "novelty_assessment":
+                coverage = coverage["search_coverage"]
+            version = coverage["material_version"]
+            assert coverage["quality"]["captured_unresolved_result_count"] == (
+                None if version == 1 else 0
+            )
         for action in ("record", "read"):
             args = ["literature", action + "-" + cli_name, "--project-id", str(e.project), "--json"]
             args += (
@@ -244,6 +262,14 @@ def test_all_six_http_and_cli_commands_share_principal(novelty_transports):
             )
             result = CliRunner().invoke(e.cli, args)
             assert result.exit_code == 0, (result.stdout, result.stderr, result.exception)
+            if method in {"search_coverage", "novelty_assessment"}:
+                coverage = json.loads(result.stdout)
+                if method == "novelty_assessment":
+                    coverage = coverage["search_coverage"]
+                version = coverage["material_version"]
+                assert coverage["quality"]["captured_unresolved_result_count"] == (
+                    None if version == 1 else 0
+                )
             assert getattr(e.service, action + "_" + method).call_args.args[0] is e.principal
 
 

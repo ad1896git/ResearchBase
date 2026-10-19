@@ -142,6 +142,14 @@ class SqlAlchemyNoveltyRepository:
             )
         )
 
+    def resolutions(self, identity):
+        return self.many(
+            """SELECT r.*,b.resolution_content_hash FROM search_coverage_resolutions b
+            LEFT JOIN search_result_resolutions r ON r.id=b.search_result_resolution_id
+            WHERE b.search_coverage_id=:id ORDER BY r.search_result_record_id,r.id""",
+            {"id": identity},
+        )
+
     def evidence(self, identity):
         return tuple(
             row["literature_evidence_id"]
@@ -225,6 +233,7 @@ class SqlAlchemyNoveltyRepository:
     def insert_child(self, kind, values):
         table = {
             "coverage": "search_coverage_executions",
+            "coverage_resolution": "search_coverage_resolutions",
             "prior_art": "prior_art_evidence_inputs",
             "novelty": "novelty_assessment_prior_art_inputs",
         }[kind]

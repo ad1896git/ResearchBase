@@ -54,12 +54,97 @@ source_versions statistical_result_inputs statistical_results
 B16_SHARE_SQL = "LOCK TABLE " + ",".join(B16_SNAPSHOT_TABLES) + " IN SHARE MODE"
 
 
+B17_SNAPSHOT_TABLES = tuple(
+    sorted(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings
+authorship_snapshot_authors authorship_snapshot_contributions
+authorship_snapshot_corresponding_authors authorship_snapshot_equal_groups
+authorship_snapshots claim_versions claims contribution_records correction_records
+dataset_snapshots datasets evidence_relations experiment_spec_versions experiment_specs
+impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events literature_source_project_links
+literature_sources literature_support_snapshots manuscript_artifact_placements
+manuscript_citation_placements manuscript_claim_placements manuscript_versions
+measurements metric_definition_versions metric_definitions project_membership_events
+project_memberships project_role_assignments projects review_issue_events
+review_issues run_artifact_inputs run_dataset_inputs runs scientific_conclusion_claim_inputs
+scientific_conclusion_literature_inputs scientific_conclusion_versions scientific_conclusions
+source_versions statistical_result_inputs statistical_results
+""".split()
+    )
+)
+B17_SHARE_SQL = "LOCK TABLE " + ",".join(B17_SNAPSHOT_TABLES) + " IN SHARE MODE"
+
+
 class SqlAlchemyPreparedSubmissionRepository(SqlAlchemyAuthorshipRepository):
     def prepare_write(self) -> None:
         self._session.autoflush = False
         self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
         self._session.execute(text(B15_SHARE_SQL))
         self._timeouts()
+
+    def prepare_freeze_write(self) -> None:
+        self._session.autoflush = False
+        connection = self._session.connection(execution_options={"isolation_level": "SERIALIZABLE"})
+        from researchbase.persistence.database import configure_revision_connection
+
+        # Connection configuration occurs in driver autocommit before BEGIN.
+        configure_revision_connection(connection)
+        self._session.execute(text(B17_SHARE_SQL))
+        self._session.execute(text("LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"))
+        self._session.execute(
+            text("LOCK TABLE prepared_submission_versions IN SHARE ROW EXCLUSIVE MODE")
+        )
+        self._session.execute(
+            text(
+                "LOCK TABLE "
+                "approval_decisions,approval_request_reviews,approval_requests IN "
+                "SHARE MODE"
+            )
+        )
+        self._timeouts()
+
+    def frozen_packages(self, publication, *, lock=False):
+        return self._many(
+            "SELECT * FROM prepared_submission_versions WHERE publication_id=:id AND "
+            "status='FROZEN' ORDER BY id" + (" FOR UPDATE" if lock else ""),
+            {"id": publication},
+        )
+
+    def package_consumption(self, identity):
+        return self._one(
+            "SELECT * FROM approval_grant_consumptions WHERE "
+            "result_prepared_submission_version_id=:id",
+            {"id": identity},
+        )
+
+    def ready_consumption(self, publication):
+        return self._one(
+            "SELECT c.* FROM publication_lifecycle_events e JOIN "
+            "approval_grant_consumptions c ON c.id=e.basis_grant_consumption_id "
+            "WHERE e.publication_id=:id AND e.new_status='READY'",
+            {"id": publication},
+        )
+
+    def seal(self, identity, manifest_hash, content_hash, at):
+        self._session.execute(
+            text(
+                "UPDATE prepared_submission_versions SET "
+                "status='FROZEN',row_version=row_version+1,package_manifest_hash=:manifest,"
+                "content_hash=:content,frozen_at=:at WHERE id=:id"
+            ),
+            {"id": identity, "manifest": manifest_hash, "content": content_hash, "at": at},
+        )
+
+    def supersede(self, identity):
+        self._session.execute(
+            text(
+                "UPDATE prepared_submission_versions SET "
+                "status='SUPERSEDED',row_version=row_version+1 WHERE id=:id"
+            ),
+            {"id": identity},
+        )
 
     def prepare_consent_write(self) -> None:
         self._session.autoflush = False
@@ -131,10 +216,13 @@ class SqlAlchemyPreparedSubmissionRepository(SqlAlchemyAuthorshipRepository):
 
     def consents(self, identity: UUID):
         return self._many(
-            "SELECT c.* FROM author_consents c JOIN prepared_submission_versions p "
-            "ON p.id=c.prepared_submission_version_id JOIN authorship_snapshot_authors a "
-            "ON a.authorship_snapshot_id=p.authorship_snapshot_id AND a.actor_id=c.actor_id "
-            "WHERE p.id=:id ORDER BY a.ordinal",
+            "SELECT c.* FROM author_consents c "
+            "LEFT JOIN prepared_submission_versions p ON p.id=c.prepared_submission_version_id "
+            "LEFT JOIN authorship_snapshot_authors a ON "
+            "a.authorship_snapshot_id=p.authorship_snapshot_id AND "
+            "a.actor_id=c.actor_id "
+            "WHERE c.prepared_submission_version_id=:id ORDER BY a.ordinal NULLS "
+            "LAST,c.actor_id,c.id",
             {"id": identity},
         )
 
@@ -234,8 +322,9 @@ class SqlAlchemyPreparedSubmissionRepository(SqlAlchemyAuthorshipRepository):
         )
         self._session.execute(
             text(
-                "UPDATE prepared_submission_versions SET status='WITHDRAWN',row_version=2 "
-                "WHERE id=:id AND status='PREPARED' AND row_version=1"
+                "UPDATE prepared_submission_versions SET status='WITHDRAWN',"
+                "row_version=row_version+1 "
+                "WHERE id=:id AND status IN ('PREPARED','FROZEN')"
             ),
             {"id": identity},
         )

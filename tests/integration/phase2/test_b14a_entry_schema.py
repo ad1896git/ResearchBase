@@ -96,8 +96,17 @@ def test_fresh_upgrade_catalog_and_empty_downgrade(start, monkeypatch):
             retained = {
                 row[:2]: row[2]
                 for row in predecessor["functions"]
-                if row[0].startswith(("b15_", "b16_"))
-                or row[0] in {"b09_preheld", "b13_validate_event", "b13_complete"}
+                if row[0].startswith(("b16_",))
+                or row[0]
+                in {
+                    "b09_preheld",
+                    "b13_validate_event",
+                    "b15_manuscript_structure",
+                    "b15_snapshot_structure",
+                    "b15_projection",
+                    "b15_immutable",
+                    "b15_consent_guard",
+                }
             }
             current = {row[:2]: row[2] for row in extension["functions"]}
             assert retained and all(current[key] == value for key, value in retained.items())
@@ -174,7 +183,7 @@ def test_populated_creation_and_b04_seal_survive_forward_roundtrip(b05_env):
         assert catalog_inventory(conn) == inventory
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0066_b19_close_prior_art_basis"
+            == "0068_b21_unresolved_capture"
         )
 
 

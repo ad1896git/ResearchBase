@@ -45,10 +45,12 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
             "migrations/versions/0064_b14_publication_ready.py",
             "migrations/versions/0065_b22_prior_art_correction.py",
             "migrations/versions/0066_b19_close_prior_art_basis.py",
+            "migrations/versions/0067_b17_prepared_package_freeze.py",
+            "migrations/versions/0068_b21_unresolved_capture.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0066_b19_close_prior_art_basis"]
+    assert scripts.get_heads() == ["0068_b21_unresolved_capture"]
     assert (
         scripts.get_revision("0047_pr2_18_novelty_prior_art").down_revision
         == "0046_pr2_17_authorship"

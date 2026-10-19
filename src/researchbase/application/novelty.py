@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from datetime import date, datetime
 from typing import Literal, NoReturn
 from uuid import UUID, uuid4
 
 from researchbase.application.literature_search_plan import _validate_question_row
-from researchbase.application.metadata_observation import _hash
 from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.source_version import _material_from_row
 from researchbase.domain.novelty import (
+    CapturedResolution,
+    CapturedResult,
     ClosenessCriteria,
     HashRef,
     NoveltyOutcome,
@@ -22,6 +23,7 @@ from researchbase.domain.novelty import (
     TimeScope,
     basis_inputs,
     coverage_material,
+    coverage_material_v2,
     narrative,
     prior_art_chains,
     prior_art_material,
@@ -29,6 +31,7 @@ from researchbase.domain.novelty import (
     versioned_novelty_material,
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
+from researchbase.domain.search_result_resolution import resolution_hash
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_canonical_json
 
@@ -167,13 +170,20 @@ class AttemptQuality:
 @dataclass(frozen=True, slots=True)
 class CoverageQuality:
     observed_at: datetime
-    captured_unresolved_result_count: None
+    captured_unresolved_result_count: int | None
     current_unresolved_result_count: int
     selected_scope: Literal[True]
     screening_captured: Literal[False]
     attempts: tuple[AttemptQuality, ...]
     uninvoked_providers: tuple[str, ...]
     warnings: tuple[QualityWarning, ...]
+
+    def __post_init__(self):
+        if type(self.current_unresolved_result_count) is not int:
+            raise ValueError("strict current count required")
+        for count in (self.captured_unresolved_result_count, self.current_unresolved_result_count):
+            if count is not None and (type(count) is not int or not 0 <= count <= 2147483647):
+                raise ValueError("strict bounded count required")
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +210,25 @@ class SearchCoverageReadback:
     content_hash: str
     hash_scheme: Literal["sha256-cjson-v1"]
     quality: CoverageQuality
+    material_version: Literal[1, 2] = 1
+
+    def __post_init__(self):
+        count = self.quality.captured_unresolved_result_count
+        if (
+            type(self.material_version) is not int
+            or self.material_version not in (1, 2)
+            or any(
+                type(x) is not int or not 0 <= x <= 2147483647
+                for x in (self.query_count, self.result_count, self.resolved_source_count)
+            )
+            or self.resolved_source_count > self.result_count
+            or (self.material_version == 1 and count is not None)
+            or (
+                self.material_version == 2
+                and (type(count) is not int or not 0 <= count <= self.result_count)
+            )
+        ):
+            raise ValueError("coverage version/count mismatch")
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,6 +315,13 @@ class NoveltyReadback:
     prior_art_basis: tuple[PriorArtBasisReadback, ...] = ()
 
 
+def _capture_material(*args):
+    try:
+        return coverage_material_v2(*args)
+    except ValueError:
+        fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid capture accounting")
+
+
 def _digest(material):
     return str(sha256_canonical_json(material))
 
@@ -336,7 +372,7 @@ class NoveltyService:
                 return at
         fail(ErrorCode.FORBIDDEN, "current authenticated project authority unavailable")
 
-    def _capture(self, uow, project, plan_id, executions):
+    def _capture(self, uow, project, plan_id, executions, saved=None):
         plan_row = uow.novelty.plan(plan_id)
         if plan_row is None:
             fail(ErrorCode.NOT_FOUND, "plan version not found")
@@ -406,10 +442,35 @@ class NoveltyService:
         providers = tuple(sorted({narrative(q.provider_id, 128) for q in queries}))
         resolved = set()
         unresolved = 0
-        for result in results:
+        captured = []
+        used = set()
+        saved_by_result = {}
+        if saved is not None:
+            for row in saved:
+                saved_by_result.setdefault(row["search_result_record_id"], []).append(row)
+        for result in sorted(results, key=lambda x: x.id):
             bindings = []
-            for row in uow.metadata_observations.resolutions(result.id):
-                if row["hash_scheme"] != "sha256-cjson-v1" or _hash(row) != row["content_hash"]:
+            refs = []
+            rows = (
+                uow.metadata_observations.resolutions(result.id)
+                if saved is None
+                else saved_by_result.get(result.id, [])
+            )
+            for row in sorted(rows, key=lambda x: x["id"]):
+                used.add(row["id"])
+                if saved is not None and row["resolution_content_hash"] != row["content_hash"]:
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved resolution digest mismatch")
+                try:
+                    reference = CapturedResolution(
+                        row["id"], row["content_hash"], row["source_id"], row["source_version_id"]
+                    )
+                except ValueError:
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid captured resolution")
+                refs.append(reference)
+                if (
+                    row["hash_scheme"] != "sha256-cjson-v1"
+                    or resolution_hash(row) != row["content_hash"]
+                ):
                     fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "resolution digest mismatch")
                 if uow.source_version.source(row["source_id"], project) is None:
                     fail(ErrorCode.FORBIDDEN, "source project access unavailable")
@@ -453,10 +514,17 @@ class NoveltyService:
                             "resolution exact source mismatch",
                         )
                 bindings.append((row["source_id"], row["source_version_id"]))
+            try:
+                captured_result = CapturedResult(result.id, tuple(refs))
+            except ValueError:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid captured result")
+            captured.append(captured_result)
             if bindings and len(set(bindings)) == 1 and bindings[0][1] is not None:
                 resolved.add(bindings[0][0])
             else:
                 unresolved += 1
+        if saved is not None and (len(used) != len(saved) or used != {r["id"] for r in saved}):
+            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "foreign or duplicate capture membership")
         uninvoked = tuple(sorted(set(plan["planned_providers"]) - set(providers)))
         if not queries:
             warnings.add(QualityWarning.NO_INVOKED_QUERIES)
@@ -464,6 +532,8 @@ class NoveltyService:
             warnings.add(QualityWarning.UNRESOLVED_RESULTS)
         if uninvoked:
             warnings.add(QualityWarning.UNINVOKED_PROVIDER)
+        if any(n > 2147483647 for n in (len(queries), len(results), len(resolved), unresolved)):
+            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "capture accounting overflow")
         quality = CoverageQuality(
             uow.novelty.at(),
             None,
@@ -482,6 +552,7 @@ class NoveltyService:
             len(resolved),
             _scope(plan["time_range"]),
             quality,
+            tuple(captured),
         )
 
     def _claim(self, uow, project, identity):
@@ -535,7 +606,7 @@ class NoveltyService:
         repo = uow.novelty
         if kind == "coverage":
             executions = repo.executions(row["id"])
-            plan, _, _, _, _, _, quality = self._capture(
+            plan, _, _, _, _, _, quality, _ = self._capture(
                 uow, project, row["search_plan_version_id"], executions
             )
             scope = _scope(row["time_scope"])
@@ -549,6 +620,48 @@ class NoveltyService:
                 scope,
                 row["coverage_limitations"],
             )
+            version = row["material_version"]
+            if type(version) is not int or version not in (1, 2):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unsupported coverage version")
+            saved = repo.resolutions(row["id"])
+            if any(r["id"] is None for r in saved):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "missing captured resolution")
+            count = row["captured_unresolved_result_count"]
+            if version == 1:
+                if count is not None or saved:
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "legacy capture shape mismatch")
+            else:
+                _, providers, queries, results, resolved, saved_scope, _, captured = self._capture(
+                    uow, project, row["search_plan_version_id"], executions, saved=saved
+                )
+                if (
+                    providers != tuple(row["providers"])
+                    or queries != row["query_count"]
+                    or results != row["result_count"]
+                    or resolved != row["resolved_source_count"]
+                    or saved_scope != scope
+                ):
+                    fail(
+                        ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved capture accounting mismatch"
+                    )
+                try:
+                    material = coverage_material_v2(
+                        plan,
+                        executions,
+                        providers,
+                        queries,
+                        results,
+                        resolved,
+                        scope,
+                        row["coverage_limitations"],
+                        count,
+                        captured,
+                    )
+                except ValueError:
+                    fail(
+                        ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved capture accounting mismatch"
+                    )
+            quality = replace(quality, captured_unresolved_result_count=count)
             result = SearchCoverageReadback(
                 row["id"],
                 project,
@@ -565,6 +678,7 @@ class NoveltyService:
                 row["content_hash"],
                 row["hash_scheme"],
                 quality,
+                version,
             )
         elif kind == "prior_art":
             return self._prior_art_history(uow, row)
@@ -674,7 +788,7 @@ class NoveltyService:
                 fail(ErrorCode.INVALID_STATE_TRANSITION, "basis already superseded")
             if (
                 witness["hash_scheme"] != "sha256-cjson-v1"
-                or _hash(
+                or resolution_hash(
                     {k: v for k, v in witness.items() if k not in {"project_id", "execution_id"}}
                 )
                 != witness["content_hash"]
@@ -690,7 +804,7 @@ class NoveltyService:
             for resolution in resolutions:
                 if (
                     resolution["hash_scheme"] != "sha256-cjson-v1"
-                    or _hash(resolution) != resolution["content_hash"]
+                    or resolution_hash(resolution) != resolution["content_hash"]
                 ):
                     fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "resolution digest mismatch")
             agreed = all((x["source_id"], x["source_version_id"]) == pair for x in resolutions)
@@ -869,11 +983,14 @@ class NoveltyService:
                 "hash_scheme": "sha256-cjson-v1",
             }
             children = ()
+            captured = ()
             if kind == "coverage":
-                plan, providers, queries, results, resolved, scope, _ = self._capture(
-                    uow, c.project_id, c.search_plan_version_id, c.search_execution_ids
+                plan, providers, queries, results, resolved, scope, quality, captured = (
+                    self._capture(
+                        uow, c.project_id, c.search_plan_version_id, c.search_execution_ids
+                    )
                 )
-                material = coverage_material(
+                material = _capture_material(
                     plan,
                     c.search_execution_ids,
                     providers,
@@ -882,8 +999,12 @@ class NoveltyService:
                     resolved,
                     scope,
                     c.coverage_limitations,
+                    quality.current_unresolved_result_count,
+                    captured,
                 )
                 values.update(
+                    material_version=2,
+                    captured_unresolved_result_count=quality.current_unresolved_result_count,
                     search_plan_version_id=c.search_plan_version_id,
                     providers=list(providers),
                     query_count=queries,
@@ -1058,6 +1179,19 @@ class NoveltyService:
                             "novelty_assessment_id": c.id,
                             "prior_art_relation_id": item.prior_art_relation_id,
                             "search_result_resolution_id": item.search_result_resolution_id,
+                        },
+                    )
+            for result_capture in captured:
+                for resolution in sorted(result_capture.resolutions, key=lambda x: x.id):
+                    repo.insert_child(
+                        "coverage_resolution",
+                        {
+                            "id": uuid4(),
+                            "created_at": at,
+                            "created_by": principal.actor_id,
+                            "search_coverage_id": c.id,
+                            "search_result_resolution_id": resolution.id,
+                            "resolution_content_hash": resolution.content_hash,
                         },
                     )
             repo.force_constraints()

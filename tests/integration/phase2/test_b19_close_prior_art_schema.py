@@ -10,7 +10,7 @@ from sqlalchemy.exc import DBAPIError
 
 from researchbase.domain.novelty import NoveltyOutcome, PriorArtKind
 from researchbase.persistence.novelty_repository import N
-from tests.integration.phase2.b19_basis_support import record, setup
+from tests.integration.phase2.b19_basis_support import legacy_coverage, record, setup
 from tests.integration.phase2.test_b22_prior_art_schema import config
 
 pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
@@ -133,7 +133,11 @@ def test_populated_v1_upgrade_preserves_hash_and_v2_refuses_downgrade(
     novelty_env, phase2_database_url
 ):
     e = novelty_env
-    c, _, _, _ = setup(e)
+    cfg = config(phase2_database_url)
+    command.downgrade(cfg, "0067_b17_prepared_package_freeze")
+    coverage = legacy_coverage(e)
+    command.upgrade(cfg, "head")
+    c, _, _, _ = setup(e, coverage=coverage)
     v1 = record(
         e,
         replace(
@@ -370,7 +374,11 @@ def test_normal_role_exact_join_mismatches(novelty_env, novelty_sql_role, case):
 
 def test_preflight_refuses_broken_v1_capture_closure(novelty_env, phase2_database_url):
     e = novelty_env
-    c, _, _, _ = setup(e)
+    cfg = config(phase2_database_url)
+    command.downgrade(cfg, "0067_b17_prepared_package_freeze")
+    coverage = legacy_coverage(e)
+    command.upgrade(cfg, "head")
+    c, _, _, _ = setup(e, coverage=coverage)
     record(
         e,
         replace(

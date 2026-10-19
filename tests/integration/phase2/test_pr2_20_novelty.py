@@ -25,10 +25,14 @@ def test_bounded_first_write_replay_read_and_later_resolution(b18_env, kind):
     later = b.invoke(e, kind, "read", command=command)
     assert later.content_hash == first.content_hash
     if kind == "coverage":
+        assert later.material_version == 2
+        assert later.quality.captured_unresolved_result_count == 1
         assert later.quality.current_unresolved_result_count == 0
         assert b.stable(replace(later, quality=first.quality)) == b.stable(first)
     elif kind == "novelty":
         coverage = later.search_coverage
+        assert coverage.material_version == 2
+        assert coverage.quality.captured_unresolved_result_count == 1
         assert coverage.quality.current_unresolved_result_count == 0
         assert b.stable(replace(later, search_coverage=first.search_coverage)) == b.stable(first)
         assert coverage.content_hash == first.search_coverage.content_hash

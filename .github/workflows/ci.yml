@@ -39,5 +39,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0066_b19_close_prior_art_basis (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0068_b21_unresolved_capture (head)"
       - run: uv run pytest

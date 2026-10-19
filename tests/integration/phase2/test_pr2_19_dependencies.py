@@ -70,8 +70,8 @@ SUBCASES = (
         "G7",
         "readiness-package-consent",
         "publication/package",
-        False,
-        "B14/package/consent commands absent",
+        True,
+        None,
     ),
     ("G7", "strong-novelty", "novelty", False, "Exact screening/comparison basis absent"),
     ("G7", "authorship-lock-free-read", "authorship", False, "Authorship _get still locks"),
@@ -93,7 +93,7 @@ SUBCASES = (
     ("F6", "manuscript-result", "revision_action", False, "Seventh action type deferred"),
     ("F7", "approval-command-atomicity", "approval", True, None),
     ("F9", "internal-release", "approval/scientific_conclusion", True, None),
-    ("F9", "ready-package-consumption", "package", False, "B14/package effect owner absent"),
+    ("F9", "ready-package-consumption", "package", True, None),
 )
 BLOCKED_ROWS = {
     row: tuple(blocker for r, _, _, _, blocker in SUBCASES if r == row and blocker)
@@ -160,7 +160,7 @@ def test_current_subcases_reconcile_b30_without_claiming_full_rows_passed():
     for _, _, owner, owner_available, blocker in SUBCASES:
         assert owner and owner_available == (blocker is None)
     assert not {"G1", "G5", "F2b", "F5b", "F7"} & BLOCKED_ROWS.keys()
-    assert {"G2", "G4", "G6", "G7", "F1", "F5", "F5c", "F6", "F9"} == BLOCKED_ROWS.keys()
+    assert {"G2", "G4", "G6", "G7", "F1", "F5", "F5c", "F6"} == BLOCKED_ROWS.keys()
     assert full_gate_report()["status"] == "BLOCKED"
 
 

@@ -21,7 +21,7 @@ def test_capture_and_restart(novelty_env):
     result = e["service"].record_search_coverage(e["author"], command)
     assert (result.query_count, result.result_count, result.resolved_source_count) == (1, 2, 0)
     assert result.providers == ("test",)
-    assert result.quality.captured_unresolved_result_count is None
+    assert result.quality.captured_unresolved_result_count == 2
     assert result.quality.current_unresolved_result_count == 2
     assert (
         e["service"]
@@ -63,7 +63,7 @@ def test_saved_counts_and_current_resolution_after_restart(novelty_env):
     )
     assert captured.resolved_source_count == 1
     assert captured.result_count == 2
-    assert captured.quality.captured_unresolved_result_count is None
+    assert captured.quality.captured_unresolved_result_count == 0
 
 
 def test_source_only_conflict_remains_unresolved(novelty_env):

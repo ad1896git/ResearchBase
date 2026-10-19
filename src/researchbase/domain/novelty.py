@@ -163,6 +163,110 @@ def coverage_material(
     }
 
 
+@dataclass(frozen=True, slots=True)
+class CapturedResolution:
+    id: UUID
+    content_hash: str
+    source_id: UUID
+    source_version_id: UUID | None
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.id) is not UUID
+            or type(self.source_id) is not UUID
+            or (self.source_version_id is not None and type(self.source_version_id) is not UUID)
+            or type(self.content_hash) is not str
+            or not re.fullmatch("[0-9a-f]{64}", self.content_hash)
+        ):
+            raise ValueError("exact captured resolution required")
+
+    def material(self) -> dict[str, str]:
+        return {
+            "type": "SearchResultResolution",
+            "id": str(self.id),
+            "content_hash": self.content_hash,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CapturedResult:
+    search_result_record_id: UUID
+    resolutions: tuple[CapturedResolution, ...]
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.search_result_record_id) is not UUID
+            or type(self.resolutions) is not tuple
+            or any(type(x) is not CapturedResolution for x in self.resolutions)
+            or len({x.id for x in self.resolutions}) != len(self.resolutions)
+        ):
+            raise ValueError("distinct typed captured resolutions required")
+
+    @property
+    def resolved_source(self) -> UUID | None:
+        pairs = {(x.source_id, x.source_version_id) for x in self.resolutions}
+        if len(pairs) == 1 and all(x.source_version_id is not None for x in self.resolutions):
+            return self.resolutions[0].source_id
+        return None
+
+    def material(self) -> dict[str, object]:
+        return {
+            "search_result_record": {
+                "type": "SearchResultRecord",
+                "id": str(self.search_result_record_id),
+            },
+            "resolutions": [x.material() for x in sorted(self.resolutions, key=lambda x: x.id)],
+        }
+
+
+def coverage_material_v2(
+    plan: HashRef,
+    executions: tuple[UUID, ...],
+    providers: tuple[str, ...],
+    query_count: int,
+    result_count: int,
+    resolved_source_count: int,
+    time_scope: TimeScope | None,
+    limitations: str,
+    captured_unresolved_result_count: int,
+    captured_results: tuple[CapturedResult, ...],
+) -> dict[str, object]:
+    material = coverage_material(
+        plan,
+        executions,
+        providers,
+        query_count,
+        result_count,
+        resolved_source_count,
+        time_scope,
+        limitations,
+    )
+    if (
+        type(captured_results) is not tuple
+        or any(type(x) is not CapturedResult for x in captured_results)
+        or len({x.search_result_record_id for x in captured_results}) != len(captured_results)
+        or len(captured_results) != result_count
+        or type(captured_unresolved_result_count) is not int
+        or not 0 <= captured_unresolved_result_count <= result_count
+        or captured_unresolved_result_count
+        != sum(x.resolved_source is None for x in captured_results)
+        or resolved_source_count
+        != len({x.resolved_source for x in captured_results if x.resolved_source is not None})
+    ):
+        raise ValueError("invalid captured membership accounting")
+    refs = [r.id for x in captured_results for r in x.resolutions]
+    if len(set(refs)) != len(refs):
+        raise ValueError("duplicate captured resolution")
+    material.update(
+        material_version=2,
+        captured_unresolved_result_count=captured_unresolved_result_count,
+        captured_results=[
+            x.material() for x in sorted(captured_results, key=lambda x: x.search_result_record_id)
+        ],
+    )
+    return material
+
+
 def prior_art_material(
     claim: HashRef,
     source: HashRef,

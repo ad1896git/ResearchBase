@@ -136,8 +136,12 @@ def test_direct_sql_requires_preheld_locks(novelty_env):
             conn.execute(
                 text(
                     """INSERT INTO search_coverage
+                            (id,created_at,created_by,search_plan_version_id,providers,query_count,
+                             result_count,resolved_source_count,time_scope,coverage_limitations,
+                             content_hash,hash_scheme,material_version,
+                             captured_unresolved_result_count)
                             VALUES(:id,clock_timestamp(),:actor,:plan,'[]',0,0,0,NULL,
-                                   'Bounded scope',:hash,'sha256-cjson-v1')"""
+                                   'Bounded scope',:hash,'sha256-cjson-v1',2,0)"""
                 ),
                 {"id": uuid4(), "actor": e["author"].actor_id, "plan": e["plan"], "hash": "a" * 64},
             )
@@ -315,13 +319,19 @@ def test_normal_sql_false_aggregates_and_empty_sets_fail(novelty_env, novelty_sq
             conn.execute(text("LOCK TABLE " + ",".join(N) + " IN SHARE MODE"))
             conn.execute(
                 text(
-                    """INSERT INTO search_coverage SELECT :id,created_at,created_by,
+                    """INSERT INTO search_coverage
+                (id,created_at,created_by,search_plan_version_id,providers,query_count,
+                             result_count,resolved_source_count,time_scope,coverage_limitations,
+                             content_hash,hash_scheme,material_version,
+                             captured_unresolved_result_count)
+                SELECT :id,created_at,created_by,
                 search_plan_version_id,"""
                     + providers
                     + ","
                     + ",".join(counts.values())
                     + """,time_scope,
-                coverage_limitations,content_hash,hash_scheme FROM search_coverage WHERE id=:old"""
+                coverage_limitations,content_hash,hash_scheme,material_version,
+                captured_unresolved_result_count FROM search_coverage WHERE id=:old"""
                 ),
                 {"id": fresh, "old": original.id},
             )

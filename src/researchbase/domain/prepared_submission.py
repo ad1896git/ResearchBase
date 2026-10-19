@@ -7,14 +7,15 @@ from uuid import UUID
 from researchbase.domain.authorship import ExactReference, contribution_text
 from researchbase.domain.scientific_conclusion import _uuid
 
-PackageStatus = Literal["PREPARED", "WITHDRAWN"]
+PackageStatus = Literal["PREPARED", "FROZEN", "SUPERSEDED", "WITHDRAWN"]
 ConsentState = Literal["GRANTED", "WITHDRAWN"]
 ConsentScope = Literal["PREPARED_PACKAGE"]
 Category = Literal["FIGURE", "TABLE", "CITATION", "CLAIM", "CONCLUSION", "AUTHOR_CONSENT"]
-Validity = Literal["NOT_FROZEN", "STALE", "INVALID"]
+Validity = Literal["NOT_FROZEN", "VALID", "STALE", "INVALID"]
 ValidityReason = Literal[
     "NOT_FROZEN",
     "CONSENT_MISSING",
+    "CONSENT_WITHDRAWN",
     "UPSTREAM_INVALID",
     "UPSTREAM_STALE",
     "PACKAGE_WITHDRAWN",
@@ -170,3 +171,24 @@ def consent_chain(rows):
     if len(visited) != len(rows):
         raise ValueError("disconnected chain")
     return tuple(result)
+
+
+def package_material(
+    publication_id: UUID,
+    manuscript: ExactReference,
+    snapshot: ExactReference,
+    package_manifest_hash: str,
+):
+    from researchbase.domain.scientific_conclusion import _digest
+
+    _uuid(publication_id, "publication")
+    if manuscript.type != "ManuscriptVersion" or snapshot.type != "AuthorshipSnapshot":
+        raise ValueError("exact package context required")
+    return {
+        "type": "PreparedSubmissionVersion",
+        "material_version": 1,
+        "publication_id": str(publication_id),
+        "manuscript_version": reference_material(manuscript),
+        "authorship_snapshot": reference_material(snapshot),
+        "package_manifest_hash": _digest(package_manifest_hash, "manifest hash"),
+    }

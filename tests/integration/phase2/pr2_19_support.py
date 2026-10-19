@@ -578,3 +578,29 @@ def pr219_revision_env(revision_env):
 approval_env = _approval_env
 
 revision_env = _revision_env
+
+
+def prepared_package_trace(fixture):
+    """B17-owned G7 suffix: local Application freeze and immutable readback only."""
+    receipt = fixture.app.freeze_prepared_submission(fixture.actor, fixture.command)
+    package = fixture.app.get_prepared_submission(fixture.actor, fixture.query)
+    assert receipt.result_prepared_submission_version_id == package.id
+    assert package.consumption_id == receipt.id and package.grant_id == receipt.grant_id
+    return receipt, package
+
+
+# B17 adds only the demonstrated local package suffix; novelty remains independent.
+B17_COMMANDS = frozenset(
+    {
+        "PublicationService.transition_publication_ready",
+        "DecisionService.record_prepare_submission_decision",
+        "ApprovalService.request_approval",
+        "ApprovalService.decide_approval",
+        "PreparedSubmissionService.prepare_submission",
+        "PreparedSubmissionService.record_author_consent",
+        "PreparedSubmissionService.freeze_prepared_submission",
+        "PreparedSubmissionService.get_prepared_submission",
+    }
+)
+COMMANDS |= B17_COMMANDS
+SCENARIO_COMMANDS["G7"] |= B17_COMMANDS

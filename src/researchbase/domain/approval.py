@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from researchbase.domain.scientific_conclusion import _digest, _text, _uuid
@@ -227,21 +228,40 @@ class PublicationReadyResult:
         _uuid(self.consumption_id, "consumption")
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedSubmissionFreezeResult:
+    prepared_submission_version_id: UUID
+    consumption_id: UUID
+    command: Literal["FREEZE_PREPARED_SUBMISSION"] = field(
+        default="FREEZE_PREPARED_SUBMISSION", init=False
+    )
+
+    def __post_init__(self):
+        _uuid(self.prepared_submission_version_id, "result")
+        _uuid(self.consumption_id, "consumption")
+
+
 def decode_consumption_result(
     version: int, value: dict
-) -> ScientificReleaseResult | PublicationReadyResult:
-    """Decode only the two authorized concrete saved v1 projections."""
+) -> ScientificReleaseResult | PublicationReadyResult | PreparedSubmissionFreezeResult:
+    """Decode only the authorized concrete saved v1 projections."""
     if type(version) is not int or version != 1 or type(value) is not dict:
         raise ValueError("unsupported or corrupt saved result")
     command = value.get("command")
+    if type(command) is not str:
+        raise ValueError("closed command required")
     if command == "RECORD_INTERNAL_SCIENTIFIC_RELEASE":
         key, result = "scientific_conclusion_version_id", ScientificReleaseResult
     elif command == "TRANSITION_PUBLICATION_READY":
         key, result = "publication_id", PublicationReadyResult
+    elif command == "FREEZE_PREPARED_SUBMISSION":
+        key, result = "prepared_submission_version_id", PreparedSubmissionFreezeResult
     else:
         raise ValueError("unsupported or corrupt saved result")
     if set(value) != {"command", key, "consumption_id"}:
         raise ValueError("unsupported or corrupt saved result")
+    if any(type(value[k]) is not str for k in (key, "consumption_id")):
+        raise ValueError("canonical UUID strings required")
     ids = tuple(UUID(value[k]) for k in (key, "consumption_id"))
     if any(
         str(identity) != value[k] for identity, k in zip(ids, (key, "consumption_id"), strict=True)

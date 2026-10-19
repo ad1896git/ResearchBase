@@ -60,6 +60,7 @@ SIDE_EFFECT_TABLES = (
 NOVELTY_TABLES = (
     "search_coverage",
     "search_coverage_executions",
+    "search_coverage_resolutions",
     "prior_art_relations",
     "prior_art_evidence_inputs",
     "novelty_assessments",

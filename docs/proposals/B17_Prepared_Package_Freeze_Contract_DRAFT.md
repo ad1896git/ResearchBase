@@ -1,6 +1,6 @@
-# Prepared-package Freeze (B17) Contract — DRAFT
+APPROVED by owner 2026-10-18 — first slice authorized for implementation
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+# Prepared-package Freeze (B17) Contract — DRAFT
 
 ## Start here (for the implementer)
 
@@ -358,8 +358,8 @@ actor, status, clock, receipt ID, content hash, consent head or row_version.
 
 ### 12.1 DDL sketch with types and constraint names
 
-Proposed file `migrations/versions/0065_b17_prepared_package_freeze.py`,
-`down_revision='0064_b14_publication_ready'`; recheck actual head before building.
+Proposed file `migrations/versions/0067_b17_prepared_package_freeze.py`,
+`down_revision='0066_b19_close_prior_art_basis'`; recheck actual head before building.
 Use synchronous PostgreSQL 18.x SQL, existing named guards and immutable records.
 All existing column types remain: UUID IDs/FKs, INTEGER versions/ordinals,
 VARCHAR(16) status, CHAR(64) hashes, TIMESTAMPTZ clocks, VARCHAR(32) scheme.
@@ -645,3 +645,30 @@ with imported `_STATUS`/`CLI_EXIT_CODES` (0 mismatches). `git diff --check`
 exited 0. The added-file whitespace check also reported no errors.
 Only this requested draft is added. No whole-suite run, commit, push or branch
 creation occurred. The owner's loop supplies the subsequent whole-suite evidence.
+
+## First-slice implementation record (2026-10-18)
+
+The approval status above supersedes the draft-era statements about pending owner
+approval. The authorized slice is implemented through the existing Application,
+Repository and UoW boundaries, with one forward migration,
+`0067_b17_prepared_package_freeze` after `0066_b19_close_prior_art_basis`
+(integrated Batch F order).
+No external submission command or new canonical table is introduced.
+
+Existing equivalents used during implementation:
+
+- The grant readback exposes the fixed single-use capability as `max_uses=1`;
+  persistence has no `max_uses` column. The existing B13 unique grant consumption
+  constraint enforces that capability. No parallel column was added.
+- S1 authorship uses one-based authored ordinals. B17 AUTHOR_CONSENT manifest
+  positions use the required zero-based ordinals, so SQL compares `ordinal-1`.
+- Existing `configure_revision_connection` configures bounded waits in driver
+  autocommit before BEGIN. The first transactional statements remain the literal
+  B17 SHARE inventory, Publication SRE, Package SRE and approval SHARE inventory.
+- The existing B16 immutable preparation verifier also verifies historical B17
+  receipts. Frozen reads diagnose unavailable bytes separately and retain the
+  exact saved consent references, hashes and receipt.
+
+Focused commands, observed counts, migration evidence, race witnesses and bounded
+benchmark limitations are recorded in
+[the implementation evidence](../verification/b17/implementation-evidence.md).

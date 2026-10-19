@@ -92,7 +92,7 @@ def test_g7_novelty_restart_denials_and_later_resolution(b18_env):
     assert (later.query_count, later.result_count, later.resolved_source_count) == (1, 2, 1)
     assert saved.quality.current_unresolved_result_count == 1
     assert later.quality.current_unresolved_result_count == 0
-    assert later.quality.captured_unresolved_result_count is None
+    assert later.quality.captured_unresolved_result_count == 1
     assert b.stable(replace(later, quality=saved.quality)) == b.stable(saved)
     for kind in b.KINDS:
         assert (

@@ -333,8 +333,11 @@ def test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance(
     from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 
     engine = approval_env[-1][-1][8]
+    # This deadline includes grant issuance and role-event provisioning before
+    # the observed FK wait. Allow that setup under six concurrent suite shards;
+    # stay below the production 10s lock timeout and retain all assertions.
     with engine.connect() as conn:
-        until = conn.execute(text("SELECT clock_timestamp()+interval '2 seconds'")).scalar_one()
+        until = conn.execute(text("SELECT clock_timestamp()+interval '6 seconds'")).scalar_one()
     owner, actor, cmd, _ = issued(
         approval_env, expiry=until if authority == "issuer_and_grant" else None
     )
@@ -361,7 +364,7 @@ def test_authority_expiry_during_late_fk_wait_denies_without_hidden_maintenance(
         try:
             witness = _wait_for_pg_blocker(engine, pid, "transactionid")
             assert witness["observed_at"] < until
-            deadline = monotonic() + 5
+            deadline = monotonic() + 10
             while holder.execute(text("SELECT clock_timestamp()")).scalar_one() < until:
                 assert monotonic() < deadline
                 sleep(0.01)

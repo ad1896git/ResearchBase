@@ -16,8 +16,8 @@ from researchbase.domain.novelty import (
 from tests.integration.phase2.pr2_18_fixtures import add_resolution
 
 
-def setup(e, *, kind=PriorArtKind.IDENTICAL):
-    cov = e["service"].record_search_coverage(
+def setup(e, *, kind=PriorArtKind.IDENTICAL, coverage=None):
+    cov = coverage or e["service"].record_search_coverage(
         e["author"],
         RecordSearchCoverageCommand(
             uuid4(), e["project"], e["plan"], e["executions"], "Selected scope; not exhaustive"
@@ -94,3 +94,60 @@ def source_change(e, kind):
         e["author"], e["project"], UUID(str(draft["source_version_id"])), uuid4()
     )
     return service, command
+
+
+def legacy_coverage(e):
+    """Seed v1 coverage at the pre-B21 revision for populated migration witnesses."""
+    from researchbase.domain.novelty import HashRef, coverage_material
+    from researchbase.foundation.hashing import sha256_canonical_json
+
+    identity = uuid4()
+    with e["factory"]() as uow:
+        repo = uow.novelty
+        repo.prepare("coverage", identity)
+        plan, providers, queries, results, resolved, scope, _, _ = e["service"]._capture(
+            uow, e["project"], e["plan"], e["executions"]
+        )
+        material = coverage_material(
+            plan,
+            e["executions"],
+            providers,
+            queries,
+            results,
+            resolved,
+            scope,
+            "Legacy selected scope",
+        )
+        at = repo.at()
+        repo.insert(
+            "coverage",
+            dict(
+                id=identity,
+                created_at=at,
+                created_by=e["author"].actor_id,
+                search_plan_version_id=e["plan"],
+                providers=list(providers),
+                query_count=queries,
+                result_count=results,
+                resolved_source_count=resolved,
+                time_scope=scope.material() if scope else None,
+                coverage_limitations="Legacy selected scope",
+                content_hash=str(sha256_canonical_json(material)),
+                hash_scheme="sha256-cjson-v1",
+            ),
+        )
+        for execution in e["executions"]:
+            repo.insert_child(
+                "coverage",
+                dict(
+                    id=uuid4(),
+                    created_at=at,
+                    created_by=e["author"].actor_id,
+                    search_coverage_id=identity,
+                    search_execution_id=execution,
+                ),
+            )
+        repo.force_constraints()
+        result = HashRef("SearchCoverage", identity, str(sha256_canonical_json(material)))
+        uow.commit()
+        return result

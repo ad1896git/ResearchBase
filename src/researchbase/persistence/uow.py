@@ -312,6 +312,20 @@ def _approval_database_error(exc: DBAPIError, *, strict: bool = False) -> Resear
         return ResearchBaseError(
             ErrorCode.IDEMPOTENCY_CONFLICT, "command key already committed", {"b13_key_race": True}
         )
+    if state == "23505" and constraint in {
+        "uq_b17_frozen_publication",
+        "uq_b17_package_consumption",
+    }:
+        return ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "competing package freeze")
+    if state in {"P15S1", "P15S2", "P15S3"}:
+        return ResearchBaseError(
+            {
+                "P15S1": ErrorCode.IMMUTABLE_RECORD,
+                "P15S2": ErrorCode.INVALID_STATE_TRANSITION,
+                "P15S3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+            }[state],
+            "package transaction rejected",
+        )
     if state == "23505" and constraint == "uq_b13_consumption_grant":
         return ResearchBaseError(ErrorCode.GRANT_INVALID, "grant already consumed")
     if state == "23514" and constraint == "ck_b13_result_tuple":
@@ -866,6 +880,16 @@ class SqlAlchemyUnitOfWork:
                     ErrorCode.CONCURRENT_MODIFICATION,
                     "novelty transaction conflict",
                     {"retryable_novelty": True},
+                )
+            if constraint in {
+                "ck_b21_capture_version",
+                "ck_b21_capture_count",
+                "ck_b21_resolution_hash",
+                "uq_b21_resolutions_pair",
+                "pk_b21_resolutions",
+            }:
+                return ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved capture structure"
                 )
             if constraint in {
                 "ck_b22_prior_art_material",

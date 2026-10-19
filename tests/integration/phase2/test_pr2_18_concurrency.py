@@ -157,8 +157,12 @@ def test_stale_serializable_capture_fails_closed(novelty_env):
                 capture.execute(
                     text(
                         """INSERT INTO search_coverage
+                            (id,created_at,created_by,search_plan_version_id,providers,query_count,
+                             result_count,resolved_source_count,time_scope,coverage_limitations,
+                             content_hash,hash_scheme,material_version,
+                             captured_unresolved_result_count)
                             VALUES(:id,clock_timestamp(),:actor,:plan,'[]',0,0,0,NULL,
-                                   'Stale capture',:hash,'sha256-cjson-v1')"""
+                                   'Stale capture',:hash,'sha256-cjson-v1',2,0)"""
                     ),
                     {
                         "id": uuid4(),

@@ -18,6 +18,7 @@ from researchbase.domain.approval import (
     PURPOSE,
     TUPLES,
     GrantEvaluation,
+    PreparedSubmissionFreezeResult,
     PublicationReadyResult,
     ScientificReleaseResult,
     approval_decision_material,
@@ -255,7 +256,9 @@ class GrantLifecycleReadback:
 
 
 @dataclass(frozen=True, slots=True)
-class ConsumptionReadback[Result: ScientificReleaseResult | PublicationReadyResult]:
+class ConsumptionReadback[
+    Result: ScientificReleaseResult | PublicationReadyResult | PreparedSubmissionFreezeResult
+]:
     id: UUID
     project_id: UUID
     grant_id: UUID
@@ -1224,9 +1227,17 @@ class ApprovalService:
             uow.approval.verify_receipt(receipt["id"])
         reasons = set()
         dependency = request.get("manuscript_version_id") is None
-        dependency = dependency or request["approval_purpose"] == "READY_FOR_SUBMISSION"
+        dependency = dependency or request["approval_purpose"] in {
+            "READY_FOR_SUBMISSION",
+            "PREPARE_SUBMISSION",
+        }
         at = to_utc(uow.source_version.at())
         if grant["status"] == "ACTIVE" and at < grant["valid_until"] and dependency:
+            if (
+                request["approval_purpose"] == "PREPARE_SUBMISSION"
+                and not decision["requires_current_author_consent"]
+            ):
+                reasons.add(ErrorCode.APPROVAL_GATE_FAILED.value)
             try:
                 self._gate(uow, request, decision["decided_by"], allow_superseded=True)
             except ResearchBaseError as error:
@@ -1355,8 +1366,14 @@ class ApprovalService:
 
     def _receipt_view(self, uow, row):
         grant, decision, request = self._grant_chain(uow, row["project_id"], row["grant_id"])
+        # B16's immutable preparation verifier retains exact saved material without
+        # requiring currently available document bytes or current effect authority.
         self._evaluate_in_uow(
-            uow, grant, decision, request
+            uow,
+            grant,
+            decision,
+            request,
+            withdrawal=row["command"] == "FREEZE_PREPARED_SUBMISSION",
         )  # terminal: historical verification only
         if grant["status"] != "CONSUMED":
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "receipt grant is not consumed")
@@ -1370,8 +1387,14 @@ class ApprovalService:
             TUPLES[request["approval_purpose"]][0],
             request["scientific_conclusion_version_id"] or request["manuscript_version_id"],
             request["target_content_hash"],
-            row["result_scientific_conclusion_version_id"] or row["result_publication_id"],
-            None,
+            row["result_scientific_conclusion_version_id"]
+            or row["result_publication_id"]
+            or row["result_prepared_submission_version_id"],
+            uow.prepared_submission.package(row["result_prepared_submission_version_id"])[
+                "package_manifest_hash"
+            ]
+            if row["result_prepared_submission_version_id"]
+            else None,
             reviews,
         )
         try:
@@ -1681,3 +1704,84 @@ class ApprovalService:
         if not repo.approver_active(decision["decided_by"], command.project_id, at=final_at):
             _fail(ErrorCode.GRANT_STALE, "issuing authority expired during final readback")
         return result
+
+    def _consume_package_in_uow(
+        self, uow, principal, command, package, effect
+    ) -> ConsumptionReadback[PreparedSubmissionFreezeResult]:
+        """B13 owns the receipt/terminal grant; package owner supplies the local effect."""
+        repo = uow.approval
+        grant, decision, request = self._grant_chain(uow, command.project_id, command.grant_id)
+        at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
+        if (
+            grant["purpose"] != "PREPARE_SUBMISSION"
+            or grant["allowed_command"] != "freeze_prepared_submission"
+            or request["manuscript_version_id"] != package["manuscript_version_id"]
+        ):
+            _fail(
+                ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID,
+                "exact preparation tuple required",
+            )
+        if grant["status"] != "ACTIVE" or at >= grant["valid_until"]:
+            _fail(
+                ErrorCode.GRANT_STALE if grant["status"] == "STALE" else ErrorCode.GRANT_INVALID,
+                "grant unavailable",
+            )
+        if not self._issuer_live(uow, decision, command.project_id, at):
+            _fail(ErrorCode.GRANT_STALE, "issuing credential unavailable")
+        if not decision["requires_current_author_consent"]:
+            _fail(ErrorCode.APPROVAL_GATE_FAILED, "current author consent condition required")
+        self._gate(uow, request, decision["decided_by"])
+        self._evaluate_in_uow(uow, grant, decision, request)
+        reviews = tuple(r["id"] for r in repo.reviews(request["id"]))
+        if reviews != command.checked_review_ids:
+            _fail(ErrorCode.DECISION_BASIS_INVALID, "complete sealed review set required")
+        material = consumption_request_material(
+            command.project_id,
+            principal.actor_id,
+            grant["id"],
+            "FREEZE_PREPARED_SUBMISSION",
+            "ManuscriptVersion",
+            request["manuscript_version_id"],
+            request["target_content_hash"],
+            command.result_id,
+            command.expected_package_manifest_hash,
+            reviews,
+        )
+        at = self._authorize(uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"}))
+        if at >= grant["valid_until"]:
+            _fail(ErrorCode.GRANT_INVALID, "grant expired before freeze")
+        if not self._issuer_live(uow, decision, command.project_id, at):
+            _fail(ErrorCode.GRANT_STALE, "issuing credential expired")
+        identity = new_uuid7()
+        effect(at, identity)
+        repo.insert_consumption(
+            dict(
+                id=identity,
+                grant_id=grant["id"],
+                command_key=command.command_key,
+                project_id=command.project_id,
+                actor_id=principal.actor_id,
+                consumed_at=at,
+                command="FREEZE_PREPARED_SUBMISSION",
+                request_hash=str(sha256_canonical_json(material)),
+                hash_scheme="sha256-cjson-v1",
+                result_dto_version=1,
+                result_dto=dict(
+                    command="FREEZE_PREPARED_SUBMISSION",
+                    prepared_submission_version_id=str(command.result_id),
+                    consumption_id=str(identity),
+                ),
+                result_prepared_submission_version_id=command.result_id,
+            )
+        )
+        repo.terminalize(grant["id"], principal.actor_id, "CONSUMED", at, "grant consumed")
+        repo.force_constraints()
+        result = self._receipt_view(uow, repo.consumption(command.command_key))
+        final = self._authorize(
+            uow, principal, command.project_id, frozenset({"OWNER", "RESEARCHER"})
+        )
+        if final >= grant["valid_until"]:
+            _fail(ErrorCode.GRANT_INVALID, "final grant expiry reached")
+        if not self._issuer_live(uow, decision, command.project_id, final):
+            _fail(ErrorCode.GRANT_STALE, "final issuing credential expired")
+        return cast(ConsumptionReadback[PreparedSubmissionFreezeResult], result)

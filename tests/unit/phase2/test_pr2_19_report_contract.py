@@ -239,7 +239,12 @@ def test_b30_labels_resolve_to_existing_owning_application_methods():
             owner, method = label.split(".")
             assert method in owners[owner]
     assert not any("Authorship" in label for labels in B30_COMMANDS.values() for label in labels)
-    assert SCENARIO_COMMANDS["G7"] == {c for c in COMMANDS if c.startswith("NoveltyService.")}
+    from tests.integration.phase2.pr2_19_support import B17_COMMANDS
+
+    assert (
+        SCENARIO_COMMANDS["G7"]
+        == {c for c in COMMANDS if c.startswith("NoveltyService.")} | B17_COMMANDS
+    )
 
 
 def test_report_fields_remain_closed_and_full_gate_cannot_accept_green_prefix():

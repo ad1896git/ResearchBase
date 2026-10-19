@@ -84,3 +84,25 @@ migration. The empty B27 revision was removed by owner instruction; defensive
 reads require no schema change. B14 remains deferred. No new PR2-20 evidence
 directory was generated. Focused verification is recorded in
 [Batch D integration evidence](../verification/batch-d/integration-evidence.md).
+
+
+Batch F integration: retain B22 and B19, then append B17 and B21 in one linear
+history. The scientific guard bodies and PR2-18 lock inventory remain unchanged
+by B22, B19 and B21. B17 extends the package/receipt functions; its downgrade
+restores the definitions inherited through B19. Each migration's empty downgrade
+restores its immediate predecessor's functions, CHECK constraints and triggers.
+
+| Integrated revision | Parent | File SHA-256 |
+| --- | --- | --- |
+| 0065_b22_prior_art_correction | 0064_b14_publication_ready | 2f5bc6c2c37c3d148c6ac1c8530fec5ec4e170e6da68023d14ba280f17e94aae |
+| 0066_b19_close_prior_art_basis | 0065_b22_prior_art_correction | 6b645483f24aa62b1b221403e7fe55245ca105978ed1a85515d70a5cc4ede9d3 |
+| 0067_b17_prepared_package_freeze | 0066_b19_close_prior_art_basis | 88d899a46214f857a7bda0328d7503979c2b0bc872c753681695437b0f2778b5 |
+| 0068_b21_unresolved_capture | 0067_b17_prepared_package_freeze | 2cc512e4fd26e0fe5beb6695d980bcfb87351ac9d02b9e720127679170a54d2e |
+
+B17 extends the existing prepared-package graph and B13 receipt branch without
+new canonical tables. B21 adds versioned historical resolution capture to the
+existing coverage graph. Populated history downgrade refusals remain in force.
+Original standalone lane evidence remains historical evidence; its recorded
+revision names and hashes describe those lane runs before this integration.
+
+Batch F commands and observed counts: [verification record](../verification/batch-f/commands.txt).

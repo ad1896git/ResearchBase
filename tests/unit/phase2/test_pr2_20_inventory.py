@@ -48,7 +48,7 @@ def test_inventory_resolves_actual_source_lock_modes_and_unversioned_api():
     assert "paper-qa" not in packages and "paperqa" not in packages
     # Manifest/source identities, not upstream licenses, are resolved locally.
     assert len(r.migration_inventory()) >= 47
-    assert r.migration_inventory()[-1]["revision"] == "0066_b19_close_prior_art_basis"
+    assert r.migration_inventory()[-1]["revision"] == "0068_b21_unresolved_capture"
 
 
 def test_offline_replacement_candidates_preserve_contract_and_do_not_enable_paperqa():
@@ -81,3 +81,14 @@ def test_reference_entries_are_not_executable_pins_or_license_clearance():
     assert "reference_only" in text or "reference-only" in text
     assert not any(Path(name).exists() for name in ("LICENSE", "LICENSE.md", "LICENSE.txt"))
     assert all(item.license_sha256 is None for item in r.adapter_inventory())
+
+
+def test_b17_benchmark_cases_are_bounded_and_do_not_expand_large_acceptance():
+    from tests.e2e.test_pr2_20_benchmark import PACKAGE_CASES
+
+    assert PACKAGE_CASES == (
+        "package-first-freeze",
+        "package-exact-replay",
+        "package-consent-denied",
+        "package-frozen-read",
+    )

@@ -516,6 +516,11 @@ class SqlAlchemyApprovalRepository(SqlAlchemyRevisionActionRepository):
             row,
         ).scalar_one()
 
+    def lock_consumption_request(self, identity):
+        self._session.execute(
+            text("SELECT id FROM approval_requests WHERE id=:id FOR SHARE"), {"id": identity}
+        )
+
     def lock_grant(self, identity):
         self._session.execute(
             text("SELECT id FROM approval_grants WHERE id=:id FOR UPDATE"), {"id": identity}
