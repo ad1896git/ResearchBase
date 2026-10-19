@@ -35,9 +35,10 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
             hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
         )
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0065_b22_prior_art_correction"]
+    assert scripts.get_heads() == ["0066_b19_close_prior_art_basis"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0064_b14_publication_ready"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision
+        == "0065_b22_prior_art_correction"
     )
 
 

@@ -152,6 +152,25 @@ class SqlAlchemyNoveltyRepository:
             )
         )
 
+    def basis(self, identity):
+        return self.many(
+            """SELECT prior_art_relation_id,search_result_resolution_id
+            FROM novelty_assessment_prior_art_inputs WHERE novelty_assessment_id=:id
+            ORDER BY prior_art_relation_id""",
+            {"id": identity},
+        )
+
+    def resolution(self, identity):
+        return self.one(
+            """SELECT s.*,q.literature_search_execution_id AS execution_id,e.project_id
+            FROM search_result_resolutions s
+            JOIN search_result_records r ON r.id=s.search_result_record_id
+            JOIN search_query_records q ON q.id=r.search_query_record_id
+            JOIN literature_search_executions e ON e.id=q.literature_search_execution_id
+            WHERE s.id=:id""",
+            {"id": identity},
+        )
+
     def predecessor(self, identity):
         return self.one(
             "SELECT id FROM novelty_assessments WHERE id=:id FOR UPDATE", {"id": identity}
@@ -207,6 +226,7 @@ class SqlAlchemyNoveltyRepository:
         table = {
             "coverage": "search_coverage_executions",
             "prior_art": "prior_art_evidence_inputs",
+            "novelty": "novelty_assessment_prior_art_inputs",
         }[kind]
         columns = tuple(values)
         self._session.execute(

@@ -63,16 +63,24 @@ def test_g7_novelty_restart_denials_and_later_resolution(b18_env):
             ),
             ErrorCode.INVALID_STATE_TRANSITION,
         ),
-        *(
-            (
-                "novelty",
-                replace(e["commands"]["novelty"], id=uuid4(), assessment=outcome),
-                ErrorCode.INVALID_STATE_TRANSITION,
-            )
-            for outcome in NoveltyOutcome
-            if outcome is not NoveltyOutcome.INCONCLUSIVE
+        (
+            "novelty",
+            replace(
+                e["commands"]["novelty"],
+                id=uuid4(),
+                assessment=NoveltyOutcome.NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE,
+            ),
+            ErrorCode.INVALID_STATE_TRANSITION,
         ),
     )
+    with pytest.raises(ResearchBaseError) as missing_basis:
+        replace(
+            e["commands"]["novelty"],
+            id=uuid4(),
+            assessment=NoveltyOutcome.CLOSE_PRIOR_ART_FOUND,
+        )
+    assert missing_basis.value.code is ErrorCode.VALIDATION_ERROR
+    assert s.manifest(e["engine"], b.NOVELTY_TABLES) == saved_manifest
     for kind, command, code in denied:
         with pytest.raises(ResearchBaseError) as error:
             b.invoke(e, kind, "first", command=command, service=fresh)

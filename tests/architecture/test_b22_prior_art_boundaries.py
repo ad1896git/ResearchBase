@@ -43,9 +43,9 @@ def test_selection_and_exact_reads_have_no_lock_or_write_calls():
                 assert "begin_formal_read" in calls
 
 
-def test_no_positive_assessment_or_downstream_effect_admission():
+def test_no_negative_assessment_or_downstream_effect_admission():
     source = (ROOT / "src/researchbase/application/novelty.py").read_text()
-    assert "c.assessment is not NoveltyOutcome.INCONCLUSIVE" in source
+    assert "c.assessment is NoveltyOutcome.NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE" in source
     for forbidden in ("approval_grant", "publication_ready", "support_set_hash", "create_decision"):
         assert forbidden not in source
     tree = ast.parse((ROOT / "src/researchbase/domain/novelty.py").read_text())

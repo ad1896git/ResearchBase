@@ -151,7 +151,13 @@ from researchbase.domain.literature_search_plan import (
     LiteratureSearchStrategy,
     LiteratureSourceScope,
 )
-from researchbase.domain.novelty import NoveltyOutcome, PriorArtKind, TimeScope
+from researchbase.domain.novelty import (
+    ClosenessCriteria,
+    NoveltyOutcome,
+    PriorArtBasisInput,
+    PriorArtKind,
+    TimeScope,
+)
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
 from researchbase.domain.source_identity import IdentifierType, SourceKind
@@ -160,6 +166,7 @@ from researchbase.domain.source_version import (
     SourceVersionKind,
     SourceVersionMaterial,
 )
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 
@@ -2157,6 +2164,17 @@ class PriorArtSelectionIn(InputModel):
     source_version_id: NoveltyUUID
 
 
+class PriorArtBasisIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    prior_art_relation_id: NoveltyUUID
+    search_result_resolution_id: NoveltyUUID
+
+
+class ClosenessCriteriaIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    statements: tuple[str, ...] = Field(min_length=1, max_length=100)
+
+
 class NoveltyAssessmentIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: NoveltyUUID
@@ -2165,6 +2183,9 @@ class NoveltyAssessmentIn(BaseModel):
     assessment: NoveltyOutcome
     limitations: str
     supersedes_assessment_id: NoveltyUUID | None = None
+    prior_art_basis: tuple[PriorArtBasisIn, ...] = Field(default=(), max_length=100)
+    scope_statement: str | None = None
+    closeness_criteria: ClosenessCriteriaIn | None = None
 
 
 @router.post(
@@ -2245,11 +2266,23 @@ def read_prior_art_relation(project_id: NoveltyUUID, id: NoveltyUUID, request: R
     response_model=_response_schema(NoveltyReadback),
 )
 def record_novelty_assessment(project_id: NoveltyUUID, body: NoveltyAssessmentIn, request: Request):
-    return _json(
-        _services(request).novelty.record_novelty_assessment(
-            _verified_principal(request),
-            RecordNoveltyAssessmentCommand(project_id=project_id, **body.model_dump()),
+    try:
+        command = RecordNoveltyAssessmentCommand(
+            project_id=project_id,
+            **body.model_dump(exclude={"prior_art_basis", "closeness_criteria"}),
+            prior_art_basis=tuple(
+                PriorArtBasisInput(**x.model_dump()) for x in body.prior_art_basis
+            ),
+            closeness_criteria=ClosenessCriteria(body.closeness_criteria.statements)
+            if body.closeness_criteria
+            else None,
         )
+    except (ValueError, TypeError):
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "invalid closed novelty command"
+        ) from None
+    return _json(
+        _services(request).novelty.record_novelty_assessment(_verified_principal(request), command)
     )
 
 

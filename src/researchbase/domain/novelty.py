@@ -96,6 +96,7 @@ class HashRef:
         "SearchCoverage",
         "NoveltyAssessment",
         "PriorArtRelation",
+        "SearchResultResolution",
     ]
     id: UUID
     content_hash: str
@@ -109,6 +110,7 @@ class HashRef:
             "SearchCoverage",
             "NoveltyAssessment",
             "PriorArtRelation",
+            "SearchResultResolution",
         }:
             raise ValueError("unsupported reference")
         if (
@@ -262,3 +264,113 @@ def prior_art_chains(
     if len(visited) != len(nodes):
         raise ValueError("cyclic correction")
     return tuple(result)
+
+
+@dataclass(frozen=True, slots=True)
+class PriorArtBasisInput:
+    prior_art_relation_id: UUID
+    search_result_resolution_id: UUID
+
+    def __post_init__(self):
+        if any(
+            type(x) is not UUID
+            for x in (self.prior_art_relation_id, self.search_result_resolution_id)
+        ):
+            raise ValueError("exact basis UUIDs required")
+
+
+@dataclass(frozen=True, slots=True)
+class ClosenessCriteria:
+    statements: tuple[str, ...]
+
+    def __post_init__(self):
+        if type(self.statements) is not tuple or not 1 <= len(self.statements) <= 100:
+            raise ValueError("one to 100 criteria statements required")
+        values = tuple(narrative(x) for x in self.statements)
+        if sum(map(len, values)) > 16384:
+            raise ValueError("criteria total exceeds bound")
+        object.__setattr__(self, "statements", values)
+
+    def material(self):
+        return {"statements": list(self.statements)}
+
+
+def basis_inputs(values):
+    if (
+        type(values) is not tuple
+        or len(values) > 100
+        or any(type(x) is not PriorArtBasisInput for x in values)
+    ):
+        raise ValueError("closed bounded basis required")
+    if len({x.prior_art_relation_id for x in values}) != len(values):
+        raise ValueError("distinct basis relations required")
+    return tuple(sorted(values, key=lambda x: x.prior_art_relation_id))
+
+
+def novelty_material_v2(
+    claim,
+    coverage,
+    assessment,
+    limitations,
+    predecessor,
+    actor,
+    scope_statement,
+    closeness_criteria,
+    prior_art_basis,
+):
+    if (
+        assessment is not NoveltyOutcome.CLOSE_PRIOR_ART_FOUND
+        or type(closeness_criteria) is not ClosenessCriteria
+    ):
+        raise ValueError("typed close finding required")
+    if type(prior_art_basis) is not tuple or not 1 <= len(prior_art_basis) <= 100:
+        raise ValueError("bounded close basis required")
+    seen = set()
+    for relation, witness in prior_art_basis:
+        if (
+            type(relation) is not HashRef
+            or type(witness) is not HashRef
+            or relation.type != "PriorArtRelation"
+            or witness.type != "SearchResultResolution"
+            or relation.id in seen
+        ):
+            raise ValueError("distinct typed basis required")
+        seen.add(relation.id)
+    material = novelty_material(claim, coverage, assessment, limitations, predecessor, actor)
+    material.update(
+        material_version=2,
+        scope_statement=narrative(scope_statement),
+        closeness_criteria=closeness_criteria.material(),
+        prior_art_basis=[
+            {"prior_art_relation": r.material(), "search_result_resolution": w.material()}
+            for r, w in sorted(prior_art_basis, key=lambda pair: pair[0].id)
+        ],
+    )
+    return material
+
+
+def versioned_novelty_material(
+    version, *args, scope_statement=None, closeness_criteria=None, prior_art_basis=()
+):
+    if type(version) is not int or version not in (1, 2):
+        raise ValueError("unknown novelty material version")
+    if version == 1:
+        if (
+            args[2] is not NoveltyOutcome.INCONCLUSIVE
+            or scope_statement is not None
+            or closeness_criteria is not None
+            or prior_art_basis
+        ):
+            raise ValueError("invalid v1 material")
+        return novelty_material(*args)
+    return novelty_material_v2(
+        args[0],
+        args[1],
+        args[2],
+        args[3],
+        args[4],
+        args[5],
+        scope_statement,
+        closeness_criteria,
+        prior_art_basis,
+    )

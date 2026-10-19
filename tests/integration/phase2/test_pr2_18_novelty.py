@@ -56,12 +56,16 @@ def test_inconclusive_chain_and_roots(novelty_env):
 )
 def test_stronger_outcome_denied_before_inputs(novelty_env, outcome):
     e = novelty_env
-    c = RecordNoveltyAssessmentCommand(
-        uuid4(), e["project"], e["claim"], uuid4(), outcome, "No such basis has been approved."
-    )
     with pytest.raises(ResearchBaseError) as error:
+        c = RecordNoveltyAssessmentCommand(
+            uuid4(), e["project"], e["claim"], uuid4(), outcome, "No selected basis."
+        )
         e["service"].record_novelty_assessment(e["author"], c)
-    assert error.value.code is ErrorCode.INVALID_STATE_TRANSITION
+    assert error.value.code is (
+        ErrorCode.VALIDATION_ERROR
+        if outcome is NoveltyOutcome.CLOSE_PRIOR_ART_FOUND
+        else ErrorCode.INVALID_STATE_TRANSITION
+    )
     with e["engine"].connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM novelty_assessments")).scalar_one() == 0
 

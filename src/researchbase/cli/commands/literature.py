@@ -49,7 +49,12 @@ from researchbase.domain.literature_search_plan import (
     LiteratureSearchStrategy,
     LiteratureSourceScope,
 )
-from researchbase.domain.novelty import NoveltyOutcome, PriorArtKind
+from researchbase.domain.novelty import (
+    ClosenessCriteria,
+    NoveltyOutcome,
+    PriorArtBasisInput,
+    PriorArtKind,
+)
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.source_identity import IdentifierType, SourceKind
 from researchbase.domain.source_version import (
@@ -974,6 +979,28 @@ def _novelty_record(ctx, project_id, material_json, json_mode, kind, predecessor
                 values["relation"] = PriorArtKind(values["relation"])
             if "assessment" in values:
                 values["assessment"] = NoveltyOutcome(values["assessment"])
+            if "prior_art_basis" in values:
+                if type(values["prior_art_basis"]) is not list:
+                    raise ValueError("basis array required")
+                if any(
+                    type(x) is not dict
+                    or set(x) != {"prior_art_relation_id", "search_result_resolution_id"}
+                    for x in values["prior_art_basis"]
+                ):
+                    raise ValueError("closed basis pair required")
+                values["prior_art_basis"] = tuple(
+                    PriorArtBasisInput(**{k: _novelty_id(v) for k, v in item.items()})
+                    for item in values["prior_art_basis"]
+                )
+            if values.get("closeness_criteria") is not None:
+                criteria = values["closeness_criteria"]
+                if (
+                    type(criteria) is not dict
+                    or set(criteria) != {"statements"}
+                    or type(criteria["statements"]) is not list
+                ):
+                    raise ValueError("closed criteria object required")
+                values["closeness_criteria"] = ClosenessCriteria(tuple(criteria["statements"]))
             constructor = {
                 "coverage": RecordSearchCoverageCommand,
                 "prior_art": RecordPriorArtRelationCommand,

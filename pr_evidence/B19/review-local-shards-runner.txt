@@ -1,0 +1,61 @@
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+import xml.etree.ElementTree as ET
+
+import psycopg
+from psycopg import sql
+
+out = Path('/private/tmp/b19-review-local-shards')
+out.mkdir(exist_ok=True)
+files = sorted(str(p) for p in Path('tests').rglob('test_*.py') if '.venv' not in p.parts)
+duration_path = Path('/Users/fengwang/Documents/ResearchBaseProject/.pipeline/test_durations.json')
+durations = json.loads(duration_path.read_text())
+avg = sum(durations.values()) / sum(Path(f).stat().st_size for f in durations if Path(f).exists())
+cost = {f: durations.get(f, Path(f).stat().st_size * (avg or 1)) for f in files}
+loads = [0.0] * 6
+shards = [[] for _ in range(6)]
+for f in sorted(files, key=lambda f: -cost[f]):
+    i = min(range(6), key=lambda j: loads[j])
+    loads[i] += cost[f]
+    shards[i].append(f)
+admin_url = os.environ['RB_TEST_ADMIN_URL'].replace('postgresql+psycopg://', 'postgresql://')
+processes = []
+started = time.monotonic()
+for i, shard in enumerate(shards):
+    database = f'researchbase_b19_review_lane38_local_s{i}'
+    with psycopg.connect(admin_url, autocommit=True) as conn:
+        conn.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
+    env = dict(os.environ)
+    env['DATABASE_URL'] = os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/' + database
+    (out / f'files-{i}.txt').write_text('\n'.join(shard) + '\n')
+    with (out / f'migration-{i}.txt').open('w') as migration_log:
+        subprocess.run(['uv', 'run', 'alembic', 'upgrade', 'head'], env=env,
+                       stdout=migration_log, stderr=subprocess.STDOUT, check=True)
+    log = (out / f'log-{i}.txt').open('w')
+    process = subprocess.Popen(['uv', 'run', 'pytest', '-o', 'addopts=', '-q', '-rfE',
+                               '-p', 'no:cacheprovider', f'--junitxml={out}/junit-{i}.xml',
+                               *shard], env=env, stdout=log, stderr=subprocess.STDOUT)
+    processes.append((process, log, database))
+    print(f'Started shard {i}: {len(shard)} files', flush=True)
+results = []
+for i, (process, log, database) in enumerate(processes):
+    rc = process.wait()
+    log.close()
+    root = ET.parse(out / f'junit-{i}.xml').getroot()
+    suites = [root] if root.tag == 'testsuite' else list(root.iter('testsuite'))
+    counts = {k: sum(int(s.get(k, 0)) for s in suites) for k in ['tests', 'failures', 'errors', 'skipped']}
+    counts['passed'] = counts['tests'] - counts['failures'] - counts['errors'] - counts['skipped']
+    result = dict(shard=i, exit_code=rc, **counts)
+    results.append(result)
+    print(json.dumps(result), flush=True)
+    print((out / f'log-{i}.txt').read_text().splitlines()[-1], flush=True)
+    with psycopg.connect(admin_url, autocommit=True) as conn:
+        conn.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(database)))
+summary = {'elapsed_seconds': round(time.monotonic() - started, 2), 'shards': results,
+           'total': {k: sum(r[k] for r in results) for k in ['tests', 'passed', 'failures', 'errors', 'skipped']}}
+(out / 'results.json').write_text(json.dumps(summary, indent=2) + '\n')
+print(json.dumps(summary), flush=True)
+raise SystemExit(int(any(r['exit_code'] for r in results)))

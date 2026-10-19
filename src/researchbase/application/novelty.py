@@ -1,4 +1,4 @@
-"""Authenticated first-slice novelty commands; no stronger scientific finding."""
+"""Authenticated selected-scope novelty commands with immutable positive basis."""
 
 from __future__ import annotations
 
@@ -12,18 +12,21 @@ from researchbase.application.metadata_observation import _hash
 from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.source_version import _material_from_row
 from researchbase.domain.novelty import (
+    ClosenessCriteria,
     HashRef,
     NoveltyOutcome,
+    PriorArtBasisInput,
     PriorArtKind,
     PriorArtSelectionState,
     QualityWarning,
     TimeScope,
+    basis_inputs,
     coverage_material,
     narrative,
-    novelty_material,
     prior_art_chains,
     prior_art_material,
     uuid_set,
+    versioned_novelty_material,
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
@@ -97,9 +100,37 @@ class RecordNoveltyAssessmentCommand:
     assessment: NoveltyOutcome
     limitations: str
     supersedes_assessment_id: UUID | None = None
+    prior_art_basis: tuple[PriorArtBasisInput, ...] = ()
+    scope_statement: str | None = None
+    closeness_criteria: ClosenessCriteria | None = None
 
     def __post_init__(self):
         _normalize(self)
+        try:
+            object.__setattr__(self, "prior_art_basis", basis_inputs(self.prior_art_basis))
+            if self.scope_statement is not None:
+                object.__setattr__(self, "scope_statement", narrative(self.scope_statement))
+            if (
+                self.closeness_criteria is not None
+                and type(self.closeness_criteria) is not ClosenessCriteria
+            ):
+                raise ValueError("closed criteria required")
+            if self.assessment is NoveltyOutcome.INCONCLUSIVE:
+                if (
+                    self.prior_art_basis
+                    or self.scope_statement is not None
+                    or self.closeness_criteria is not None
+                ):
+                    raise ValueError("inconclusive requires empty basis and null scope/criteria")
+            elif self.assessment is NoveltyOutcome.CLOSE_PRIOR_ART_FOUND:
+                if (
+                    not self.prior_art_basis
+                    or self.scope_statement is None
+                    or self.closeness_criteria is None
+                ):
+                    raise ValueError("close finding requires basis, scope and criteria")
+        except (ValueError, TypeError) as exc:
+            fail(ErrorCode.VALIDATION_ERROR, str(exc))
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +258,12 @@ class PriorArtSelectionReadback:
 
 
 @dataclass(frozen=True, slots=True)
+class PriorArtBasisReadback:
+    prior_art_relation: PriorArtReadback
+    search_result_resolution: HashRef
+
+
+@dataclass(frozen=True, slots=True)
 class NoveltyReadback:
     id: UUID
     project_id: UUID
@@ -243,6 +280,10 @@ class NoveltyReadback:
     current_validity: CurrentValidity
     supersedes_assessment_id: UUID | None
     superseded_by_assessment_id: UUID | None
+    material_version: Literal[1, 2] = 1
+    scope_statement: str | None = None
+    closeness_criteria: ClosenessCriteria | None = None
+    prior_art_basis: tuple[PriorArtBasisReadback, ...] = ()
 
 
 def _digest(material):
@@ -485,11 +526,11 @@ class NoveltyService:
             refs.append(_ref("LiteratureEvidence", row))
         return claim, _ref("SourceVersion", source), tuple(refs), valid and verified, verified
 
-    def _view(self, uow, kind, row):
+    def _view(self, uow, kind, row, ancestry=()):
         with saved_dependency(ownership=True):
-            return self._view_saved(uow, kind, row)
+            return self._view_saved(uow, kind, row, ancestry)
 
-    def _view_saved(self, uow, kind, row):
+    def _view_saved(self, uow, kind, row, ancestry=()):
         project = row["project_id"]
         repo = uow.novelty
         if kind == "coverage":
@@ -528,6 +569,9 @@ class NoveltyService:
         elif kind == "prior_art":
             return self._prior_art_history(uow, row)
         else:
+            if row["id"] in ancestry:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid assessment ancestry")
+            ancestry = (*ancestry, row["id"])
             claim, valid = self._claim(uow, project, row["claim_version_id"])
             coverage_row = repo.parent("coverage", row["search_coverage_id"])
             if coverage_row is None or coverage_row["project_id"] != project:
@@ -545,15 +589,46 @@ class NoveltyService:
                     or predecessor["claim_version_id"] != row["claim_version_id"]
                 ):
                     fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid predecessor")
+                self._view(uow, "novelty", predecessor, ancestry)
                 previous = _ref("NoveltyAssessment", predecessor)
-            material = novelty_material(
-                claim,
-                HashRef("SearchCoverage", coverage.id, coverage.content_hash),
-                NoveltyOutcome(row["assessment"]),
-                row["limitations"],
-                previous,
-                row["assessed_by"],
+            basis, basis_valid = self._basis(
+                uow,
+                project,
+                row["claim_version_id"],
+                coverage,
+                tuple(PriorArtBasisInput(**x) for x in repo.basis(row["id"])),
             )
+            valid = valid and basis_valid
+            try:
+                criteria = (
+                    ClosenessCriteria(tuple(row["closeness_criteria"]))
+                    if row["closeness_criteria"] is not None
+                    else None
+                )
+                material = versioned_novelty_material(
+                    row["material_version"],
+                    claim,
+                    HashRef("SearchCoverage", coverage.id, coverage.content_hash),
+                    NoveltyOutcome(row["assessment"]),
+                    row["limitations"],
+                    previous,
+                    row["assessed_by"],
+                    scope_statement=row["scope_statement"],
+                    closeness_criteria=criteria,
+                    prior_art_basis=tuple(
+                        (
+                            HashRef(
+                                "PriorArtRelation",
+                                x.prior_art_relation.id,
+                                x.prior_art_relation.content_hash,
+                            ),
+                            x.search_result_resolution,
+                        )
+                        for x in basis
+                    ),
+                )
+            except (ValueError, TypeError):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved assessment material")
             result = NoveltyReadback(
                 row["id"],
                 project,
@@ -570,10 +645,97 @@ class NoveltyService:
                 self._validity(repo, valid),
                 row["supersedes_assessment_id"],
                 repo.successor(row["id"]),
+                row["material_version"],
+                row["scope_statement"],
+                criteria,
+                basis,
             )
         if row["hash_scheme"] != "sha256-cjson-v1" or _digest(material) != row["content_hash"]:
             fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved novelty material mismatch")
         return result
+
+    def _basis(self, uow, project, claim_id, coverage, inputs, *, admission=False):
+        result = []
+        valid = True
+        close = False
+        for item in inputs:
+            row = uow.novelty.parent("prior_art", item.prior_art_relation_id)
+            witness = uow.novelty.resolution(item.search_result_resolution_id)
+            if row is None or witness is None:
+                fail(ErrorCode.NOT_FOUND, "selected basis not found")
+            if row["project_id"] != project or witness["project_id"] != project:
+                fail(ErrorCode.FORBIDDEN, "selected basis project unavailable")
+            if row["claim_version_id"] != claim_id:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "basis exact Claim mismatch")
+            relation = self._view(uow, "prior_art", row)
+            assert isinstance(relation, PriorArtReadback)
+            terminal = relation.superseded_by_prior_art_relation_id is None
+            if admission and not terminal:
+                fail(ErrorCode.INVALID_STATE_TRANSITION, "basis already superseded")
+            if (
+                witness["hash_scheme"] != "sha256-cjson-v1"
+                or _hash(
+                    {k: v for k, v in witness.items() if k not in {"project_id", "execution_id"}}
+                )
+                != witness["content_hash"]
+            ):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "witness digest mismatch")
+            source = uow.source_version.version(row["source_version_id"])
+            pair = (source["literature_source_id"], source["id"])
+            if (witness["source_id"], witness["source_version_id"]) != pair or witness[
+                "execution_id"
+            ] not in coverage.search_execution_ids:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "witness selected coverage mismatch")
+            resolutions = uow.metadata_observations.resolutions(witness["search_result_record_id"])
+            for resolution in resolutions:
+                if (
+                    resolution["hash_scheme"] != "sha256-cjson-v1"
+                    or _hash(resolution) != resolution["content_hash"]
+                ):
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "resolution digest mismatch")
+            agreed = all((x["source_id"], x["source_version_id"]) == pair for x in resolutions)
+            independent = all(
+                uow.novelty.independent_verification(
+                    x.id, self._literature._read(uow, x.id, project)["created_by"]
+                )
+                for x in relation.literature_evidence
+            )
+            usable = (
+                relation.current_validity.usable_for_current_judgment
+                and independent
+                and agreed
+                and terminal
+            )
+            if admission:
+                _, _, _, scientific_valid, verified = self._comparison(
+                    uow,
+                    project,
+                    claim_id,
+                    row["source_version_id"],
+                    uow.novelty.evidence(row["id"]),
+                    admission=True,
+                )
+                if not verified:
+                    fail(
+                        ErrorCode.INVALID_STATE_TRANSITION,
+                        "independently VERIFIED evidence required",
+                    )
+                if not scientific_valid or not agreed or not independent:
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current basis closure unusable")
+            valid = valid and usable
+            close = close or relation.relation in {
+                PriorArtKind.IDENTICAL,
+                PriorArtKind.HIGHLY_SIMILAR,
+            }
+            result.append(PriorArtBasisReadback(relation, _ref("SearchResultResolution", witness)))
+        if inputs and not close:
+            fail(
+                ErrorCode.INVALID_STATE_TRANSITION
+                if admission
+                else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "close-kind basis required",
+            )
+        return tuple(result), valid
 
     def _prior_art_history(self, uow, row, cache=None, known=None):
         repo = uow.novelty
@@ -691,6 +853,10 @@ class NoveltyService:
                         actual = repo.executions(c.id)
                     if field.name == "literature_evidence_ids":
                         actual = repo.evidence(c.id)
+                    if field.name == "prior_art_basis":
+                        actual = tuple(PriorArtBasisInput(**x) for x in repo.basis(c.id))
+                    if field.name == "closeness_criteria" and actual is not None:
+                        actual = ClosenessCriteria(tuple(old[field.name]))
                     if actual != getattr(c, field.name):
                         fail(ErrorCode.IDEMPOTENCY_CONFLICT, "request material conflicts")
                 self._authorize(uow, principal, c.project_id, _READERS)
@@ -784,8 +950,8 @@ class NoveltyService:
                 )
                 children = c.literature_evidence_ids
             else:
-                if c.assessment is not NoveltyOutcome.INCONCLUSIVE:
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "only INCONCLUSIVE is available")
+                if c.assessment is NoveltyOutcome.NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE:
+                    fail(ErrorCode.INVALID_STATE_TRANSITION, "negative novelty unavailable")
                 claim, valid = self._claim(uow, c.project_id, c.claim_version_id)
                 if not valid:
                     fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current Claim unusable")
@@ -798,9 +964,18 @@ class NoveltyService:
                 assert isinstance(checked_coverage, SearchCoverageReadback)
                 if QualityWarning.INPUT_CURRENTLY_UNUSABLE in checked_coverage.quality.warnings:
                     fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current coverage inputs unusable")
+                basis, _ = self._basis(
+                    uow,
+                    c.project_id,
+                    c.claim_version_id,
+                    checked_coverage,
+                    c.prior_art_basis,
+                    admission=True,
+                )
                 previous = None
                 if c.supersedes_assessment_id:
                     repo.predecessor(c.supersedes_assessment_id)
+                    self._authorize(uow, principal, c.project_id, _WRITERS)
                     prev = repo.parent("novelty", c.supersedes_assessment_id)
                     if prev is not None and prev["project_id"] != c.project_id:
                         fail(ErrorCode.FORBIDDEN, "predecessor project access unavailable")
@@ -817,15 +992,35 @@ class NoveltyService:
                         fail(ErrorCode.INVALID_STATE_TRANSITION, "predecessor already superseded")
                     self._view(uow, "novelty", prev)
                     previous = _ref("NoveltyAssessment", prev)
-                material = novelty_material(
+                version = 2 if c.assessment is NoveltyOutcome.CLOSE_PRIOR_ART_FOUND else 1
+                material = versioned_novelty_material(
+                    version,
                     claim,
                     _ref("SearchCoverage", cov),
                     c.assessment,
                     c.limitations,
                     previous,
                     principal.actor_id,
+                    scope_statement=c.scope_statement,
+                    closeness_criteria=c.closeness_criteria,
+                    prior_art_basis=tuple(
+                        (
+                            HashRef(
+                                "PriorArtRelation",
+                                x.prior_art_relation.id,
+                                x.prior_art_relation.content_hash,
+                            ),
+                            x.search_result_resolution,
+                        )
+                        for x in basis
+                    ),
                 )
                 values.update(
+                    material_version=version,
+                    scope_statement=c.scope_statement,
+                    closeness_criteria=list(c.closeness_criteria.statements)
+                    if c.closeness_criteria
+                    else None,
                     claim_version_id=c.claim_version_id,
                     search_coverage_id=c.search_coverage_id,
                     assessment=c.assessment.value,
@@ -852,6 +1047,19 @@ class NoveltyService:
                         child_col: identity,
                     },
                 )
+            if kind == "novelty":
+                for item in c.prior_art_basis:
+                    repo.insert_child(
+                        kind,
+                        {
+                            "id": uuid4(),
+                            "created_at": at,
+                            "created_by": principal.actor_id,
+                            "novelty_assessment_id": c.id,
+                            "prior_art_relation_id": item.prior_art_relation_id,
+                            "search_result_resolution_id": item.search_result_resolution_id,
+                        },
+                    )
             repo.force_constraints()
             result = self._view(uow, kind, repo.parent(kind, c.id))
             self._authorize(uow, principal, c.project_id, _WRITERS)

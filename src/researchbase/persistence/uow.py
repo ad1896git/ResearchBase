@@ -883,9 +883,9 @@ class SqlAlchemyUnitOfWork:
                 return ResearchBaseError(
                     ErrorCode.CONCURRENT_MODIFICATION, "predecessor concurrently superseded"
                 )
-            if constraint == "ck_pr218_novelty_initial_slice":
+            if constraint in {"ck_pr218_novelty_initial_slice", "ck_b19_novelty_material"}:
                 return ResearchBaseError(
-                    ErrorCode.INVALID_STATE_TRANSITION, "only INCONCLUSIVE is available"
+                    ErrorCode.INVALID_STATE_TRANSITION, "unsupported novelty outcome material"
                 )
             normalized = _normalize_database_error(exc)
             if normalized is not None:

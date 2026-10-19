@@ -1,0 +1,108 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 13%]
+........................................................................ [ 18%]
+........................................................................ [ 23%]
+........................................................................ [ 27%]
+........................................................................ [ 32%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 46%]
+........................................................................ [ 50%]
+......ssssssssssssssssssssssssssssssssssssssssssssssss..sss............. [ 55%]
+........................................................................ [ 60%]
+........................................................................ [ 64%]
+........................................................................ [ 69%]
+........................................................................ [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 83%]
+........................................................................ [ 87%]
+........................................................................ [ 92%]
+........................................................................ [ 97%]
+...............................s...........                              [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_m2_metadata.py: 25 warnings
+tests/integration/phase2/test_pr2_04_schema_coverage.py: 226 warnings
+tests/integration/phase2/test_b08_concurrency.py: 138 warnings
+tests/integration/phase2/test_approval.py: 213 warnings
+tests/integration/phase2/test_b07_concurrency.py: 162 warnings
+tests/integration/phase2/test_b14r_ready_approval.py: 102 warnings
+tests/integration/phase2/test_b10_reconsideration_schema.py: 69 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 125 warnings
+tests/integration/phase2/test_b25_manuscript_validity.py: 129 warnings
+tests/integration/phase2/test_b14a_entry_concurrency.py: 122 warnings
+tests/integration/phase2/test_b10_reconsideration.py: 87 warnings
+tests/integration/phase2/test_b08_schema.py: 53 warnings
+tests/integration/phase2/test_pr2_19_governance.py: 93 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 99 warnings
+tests/integration/phase2/test_b27_defensive_closure_read.py: 86 warnings
+tests/integration/phase2/test_b14_ready_schema.py: 59 warnings
+tests/integration/phase2/test_b05_review_migration.py: 76 warnings
+tests/integration/phase2/test_b14r_ready_approval_replay.py: 39 warnings
+tests/integration/phase2/test_b16_consent.py: 14 warnings
+tests/integration/phase2/test_m3_real_cli.py: 1 warning
+tests/e2e/test_pr2_20_benchmark.py: 10 warnings
+tests/integration/phase2/test_pr2_14_conclusion_review.py: 24 warnings
+tests/integration/phase2/test_pr2_18_prior_art.py: 13 warnings
+tests/architecture/test_pr2_19_boundaries.py: 40 warnings
+tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py: 15 warnings
+tests/integration/phase2/test_pr2_19_integrity.py: 33 warnings
+tests/integration/phase2/test_pr2_19_approval_atomicity.py: 24 warnings
+tests/integration/phase2/test_b13_grant_consumption.py: 24 warnings
+tests/integration/phase2/test_b16_offboarding.py: 22 warnings
+tests/integration/phase2/test_pr2_19_novelty.py: 8 warnings
+tests/unit/phase2/test_pr2_04_static_acceptance.py: 1 warning
+tests/integration/phase2/test_pr2_01_source_identity.py: 11 warnings
+tests/integration/phase2/test_pr2_03_effective_authority.py: 8 warnings
+tests/integration/phase2/test_m0_hash_scheme.py: 14 warnings
+tests/integration/phase2/test_b22_prior_art_selection.py: 5 warnings
+tests/integration/phase2/test_pr2_02_gov_application.py: 5 warnings
+tests/integration/phase2/test_pr2_19_candidates.py: 18 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 12 warnings
+tests/integration/phase2/test_pr2_00_migration.py: 25 warnings
+tests/integration/phase2/test_pr2_12_publication_draft.py: 16 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+tests/integration/phase2/test_pr2_19_discussion.py: 12 warnings
+tests/integration/phase2/test_pr2_13_citation_rebinding.py: 15 warnings
+tests/integration/phase2/test_pr2_04_maximum_accounting_acceptance.py: 1 warning
+tests/integration/phase2/test_pr2_04_cas_completion.py: 3 warnings
+tests/integration/phase2/test_pr2_13_claim_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_12_migration.py: 7 warnings
+tests/integration/phase2/test_xid_wraparound_guards.py: 5 warnings
+tests/integration/phase2/test_pr2_00_ownership.py: 2 warnings
+tests/integration/phase2/test_pr2_04_attempt_number_unique_acceptance.py: 1 warning
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py: 1 warning
+tests/integration/phase2/test_hg1_bound_subject.py: 1 warning
+tests/unit/test_batch_c_migration_history.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b14r_ready_approval.py: 34 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 41 warnings
+tests/integration/phase2/test_b14a_entry_concurrency.py: 4 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 25 warnings
+tests/integration/phase2/test_b14_ready_schema.py: 18 warnings
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+tests/integration/phase2/test_b14r_ready_approval_replay.py: 13 warnings
+tests/integration/phase2/test_b16_consent.py: 4 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 2 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane38/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_historical_roles_do_not_determine_current_write_authority[OWNER-VIEWER-False]
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_historical_roles_do_not_determine_current_write_authority[VIEWER-RESEARCHER-True]
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_historical_roles_do_not_determine_current_write_authority[RESEARCHER-VIEWER-False]
+  tests/integration/phase2/test_pr2_03_effective_authority.py:124: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize(
+
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_authority_loss_during_observed_project_lock_wait[run-1]
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_authority_loss_during_observed_project_lock_wait[run-2]
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_authority_loss_during_observed_project_lock_wait[run-3]
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_authority_loss_during_observed_project_lock_wait[run-4]
+tests/integration/phase2/test_pr2_03_effective_authority.py::test_authority_loss_during_observed_project_lock_wait[run-5]
+  tests/integration/phase2/test_pr2_03_effective_authority.py:242: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize("attempt", range(1, 6), ids=lambda value: f"run-{value}")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+----- generated xml file: /private/tmp/b19-review-local-shards/junit-5.xml -----
+1503 passed, 52 skipped, 2484 warnings in 1379.77s (0:22:59)

@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from researchbase.application.novelty import RecordSearchCoverageCommand
+from researchbase.persistence.novelty_repository import N
 
 pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 
@@ -161,6 +162,7 @@ def test_normal_role_stronger_outcomes_denied(novelty_env, novelty_sql_role, out
                 ).scalar_one()
                 is False
             )
+            conn.execute(text("LOCK TABLE " + ",".join(N) + " IN SHARE MODE"))
             conn.execute(
                 text("""INSERT INTO novelty_assessments VALUES(
                 :id,clock_timestamp(),:actor,:claim,:coverage,:outcome,'No approved basis',
@@ -176,7 +178,7 @@ def test_normal_role_stronger_outcomes_denied(novelty_env, novelty_sql_role, out
             )
     assert (
         getattr(getattr(error.value.orig, "diag", None), "constraint_name", None)
-        == "ck_pr218_novelty_initial_slice"
+        == "ck_b19_novelty_material"
     )
 
 

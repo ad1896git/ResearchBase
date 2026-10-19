@@ -1,0 +1,123 @@
+........................................................................ [  1%]
+........................................................................ [  3%]
+........................................................................ [  5%]
+........................................................................ [  7%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 13%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 35%]
+........................................................................ [ 37%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 45%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+........................................................................ [ 51%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 69%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 90%]
+........................................................................ [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 96%]
+........................................................................ [ 98%]
+.................................................................        [100%]
+=============================== warnings summary ===============================
+../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; tests.integration.phase2.b01_support
+    self.import_plugin(import_spec)
+
+tests/integration/phase2/test_b01_resolution_concurrency.py: 23 warnings
+tests/integration/phase2/test_b01_resolution_replay.py: 19 warnings
+tests/integration/phase2/test_b01_resolution_admission.py: 17 warnings
+tests/integration/phase2/test_pr2_04_fault_acceptance_completion.py: 42 warnings
+tests/integration/phase2/test_b08_issue_disposition.py: 99 warnings
+tests/integration/phase2/test_pr2_04_commit_fault_coverage.py: 15 warnings
+tests/integration/phase2/test_b14r_ready_approval_races.py: 126 warnings
+tests/integration/phase2/test_b14_ready_concurrency.py: 84 warnings
+tests/integration/phase2/test_b01_resolution_schema.py: 9 warnings
+tests/integration/phase2/test_b07_revision_decisions.py: 96 warnings
+tests/integration/phase2/test_b06_revision_action.py: 110 warnings
+tests/integration/phase2/test_pr2_18_concurrency.py: 25 warnings
+tests/integration/phase2/test_b22_prior_art_concurrency.py: 27 warnings
+tests/integration/phase2/test_b08_issue_history.py: 18 warnings
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_pr2_17_authorship_concurrency.py: 26 warnings
+tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py: 27 warnings
+tests/integration/phase2/test_b04_manuscript_freeze.py: 69 warnings
+tests/integration/phase2/test_b16_schema.py: 35 warnings
+tests/integration/phase2/test_b09_approval_concurrency.py: 42 warnings
+tests/integration/phase2/test_pr2_04_authority_coverage.py: 21 warnings
+tests/integration/phase2/test_b14a_entry_schema.py: 63 warnings
+tests/integration/phase2/test_pr2_15_coordination.py: 46 warnings
+tests/integration/phase2/test_b06_revision_concurrency.py: 27 warnings
+tests/integration/test_pr11r2_migration.py: 2 warnings
+tests/integration/phase2/test_b10_reconsideration_concurrency.py: 24 warnings
+tests/integration/phase2/test_pr2_04_execution_shape_acceptance.py: 14 warnings
+tests/integration/phase2/test_b26_finding_impact_races.py: 18 warnings
+tests/integration/phase2/test_b15_package_history.py: 16 warnings
+tests/integration/phase2/test_b25_manuscript_read_races.py: 24 warnings
+tests/integration/phase2/test_b05_review_basis.py: 24 warnings
+tests/integration/phase2/test_pr2_04_reservation_predecessor_acceptance.py: 8 warnings
+tests/integration/phase2/test_pr2_04_planned_sql_completion.py: 9 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 21 warnings
+tests/integration/phase2/test_b15_package_consent.py: 10 warnings
+tests/integration/phase2/test_pr2_19_atomicity.py: 18 warnings
+tests/integration/phase2/test_pr2_10_discussion_persistence.py: 19 warnings
+tests/integration/phase2/test_pr2_19_citation_trace.py: 9 warnings
+tests/integration/phase2/test_pr2_13_scientific_trace.py: 12 warnings
+tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py: 6 warnings
+tests/integration/phase2/test_pr2_04_read_completion.py: 4 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py: 7 warnings
+tests/integration/phase2/test_b12_prepare_replay.py: 6 warnings
+tests/integration/phase2/test_pr2_04_restart_completion.py: 2 warnings
+tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py: 2 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_application.py: 1 warning
+tests/integration/test_pr18_hardening.py: 2 warnings
+tests/integration/phase2/test_pr2_00_identity.py: 2 warnings
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b14r_ready_approval_races.py: 42 warnings
+tests/integration/phase2/test_b14_ready_concurrency.py: 25 warnings
+tests/integration/phase2/test_b16_schema.py: 6 warnings
+tests/integration/phase2/test_b25_manuscript_read_races.py: 2 warnings
+tests/integration/phase2/test_b05_review_basis.py: 7 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 7 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane38/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+----- generated xml file: /private/tmp/b19-review-local-shards/junit-4.xml -----
+3809 passed, 1469 warnings in 1465.04s (0:24:25)

@@ -68,7 +68,9 @@ def test_clean_upgrade_catalog_and_empty_downgrade(monkeypatch):
         command.upgrade(config, "head")
         with engine.connect() as conn:
             assert int(conn.execute(text("SHOW server_version_num")).scalar_one()) // 10000 == 18
-            assert set(inspect(conn).get_table_names()) - before == set(TABLES)
+            assert set(inspect(conn).get_table_names()) - before == set(TABLES) | {
+                "novelty_assessment_prior_art_inputs"
+            }
             assert (
                 conn.execute(
                     text(
