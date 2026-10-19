@@ -37,8 +37,9 @@ Five review rules:
    the entire specified SHARE set as their first SQL statement.
 
 **Scope:** this document is a proposal, not an ADR, architecture freeze, execution
-pack, migration authorization, B02 acceptance or Phase 2 gate success. Only this
-file changes. Proposed names and policies below describe future work explicitly.
+pack, migration authorization, B02 acceptance or Phase 2 gate success. This revision
+changes only B02, B03 and their shared ADR draft. Proposed names and policies below
+describe future work explicitly.
 
 ## 1. Purpose, authority and inspected baseline
 
@@ -142,8 +143,8 @@ distinct. Source/result links, if used to construct the corpus, remain B01-owned
 | Method | Inputs/result |
 | --- | --- |
 | `capture_native_strategy` | VerifiedPrincipal plus CaptureNativeStrategyCommand; execute outside transaction, then save artifact/bindings atomically; return CaptureReadback. |
-| `promote_strategy_question` | Principal plus PromoteStrategyQuestionCommand; return QuestionPromotionReadback. |
-| `promote_strategy_hypothesis` | Principal plus PromoteStrategyHypothesisCommand; return HypothesisPromotionReadback, explicitly labeled researcher adaptation. |
+| `promote_strategy_question` | Principal plus PromoteStrategyQuestionCommand; return StrategyQuestionAdmission. |
+| `promote_strategy_hypothesis` | Principal plus PromoteStrategyHypothesisCommand; return StrategyHypothesisAdmission, explicitly labeled researcher adaptation. |
 | `get_strategy_capture`, `get_strategy_question_promotion`, `get_strategy_hypothesis_promotion` | Principal plus ExactStrategyQuery; exact immutable readback, no current-pointer substitution. |
 
 All current project reader roles (OWNER, RESEARCHER, REVIEWER, APPROVER, VIEWER)
@@ -159,7 +160,56 @@ or writer gates on historical reads/replay. Still verify saved immutable artifac
 receipt hashes and FKs; corrupt history fails closed. A separate ordinary research
 read obtains current science. Uncertain commit recovery uses the same command ID.
 
-## 5. Schema and literal hash proposal — no migration
+## 5. Proposed migration — four typed capture/source/admission relations
+
+The proposed migration adds `strategy_candidate_captures`,
+`strategy_candidate_sources`, `strategy_question_admissions` and
+`strategy_hypothesis_admissions`, with the constraints, indexes and guards in §12.1;
+it adds no columns to existing tables.
+None is registered in Registry 03 or Field Contract 13. Reusing the Relation
+pattern does not authorize a new table: [ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md)
+asks four separate Architecture Questions under AGENTS.md §4. No migration is
+implemented or authorized here.
+
+| Proposed table | Existing representation tried; missing fact and disposition |
+| --- | --- |
+| `strategy_candidate_captures` | Reuse the frozen ResearchBrief ArtifactVersion for all output bytes. `literature_search_executions` owns a frozen search plan/query/result lifecycle, not the native strategy result over a preselected corpus. Native `ResearchStrategyResult` is transient; artifact creator/hash alone does not bind a capture request to an actually service-executed strategy/revision. Retain one immutable request/attribution-to-artifact relation, also the capture receipt; do not add a native execution entity. |
+| `strategy_candidate_sources` | SourceVersions already own source material; existing query/result resolutions bind search hits, not this capture's exact corpus, which can omit search entirely. UUIDs in an artifact cannot enforce source FKs or enumerate protected relational membership. Retain only capture → exact SourceVersion pairs, sealed at capture; no copied sources or second source owner. |
+| `strategy_question_admissions` | Question versions own editable scientific text and creator/time, not capture/index, validation or immutable initial text. Search records and ArtifactVersion have no typed question-output FK. Retain one typed origin → exact new question-version relation that also serves as its receipt. |
+| `strategy_hypothesis_admissions` | Hypothesis versions and optional question parent likewise lack the selected brief section/adaptation and replay binding. Retain one typed origin → exact new hypothesis-version relation/receipt, distinct from question selection; no separate strategy command-receipt table. |
+
+### 5.1 Shared B02/B03 admission convention
+
+Both drafts name the records `StrategyQuestionAdmission`,
+`StrategyHypothesisAdmission` or `DiscussionHypothesisAdmission`, with
+`admitted_by`, `admitted_at`, exact `*_version_id` outputs and retained
+`question_text` / `statement`, `expected_direction` where supported, and `rationale`.
+These fields always mean admission-time material, never the current draft.
+Both use one immutable typed origin-to-output relation, atomically created with
+version 1 DRAFT, request serialization, original-actor/read-entitled replay,
+normalized request comparison, changed-input IDEMPOTENCY_CONFLICT and
+cross-request candidate DUPLICATE_CONTENT. Replay never reruns admission or create.
+
+Provenance in both is concrete RESTRICT FKs to exact saved versions, with hashes
+verified from those immutable inputs and exact CAS bytes; no current pointer or
+JSON-only reference substitutes. The output DRAFT's version ID is historical
+creation provenance, not a FrozenReference or a claim of immutable draft content.
+Initial material lives in the immutable admission, outside scientific hash payloads.
+
+Necessary differences: B02 has no existing command receipt owner, so admission
+`id` is the command ID and the relation doubles as receipt; request material is
+reconstructed from retained fields. B03 reuses its existing scoped receipt's
+`input_hash`, and `receipt_id` is the admission's PK/FK; its request_id is not the
+receipt ID. Do not add another receipt table or a redundant output FK to that
+receipt. B02 selects an ordered frozen candidate/section; B03 hashes manual
+extraction from a sealed turn. B02 allows verified Human/Agent writers and an
+optional question identity as organizational parent (not frozen question basis);
+B03 preserves HUMAN-only authority and requires an exact frozen session question
+version. B02 requires trimmed adaptation rationale and fixes expected_direction
+null; B03 preserves discussion NFC/whitespace rules and optional direction/rationale.
+These origin-specific policies are not a shared validation or authority expansion.
+
+### 5.2 Literal material
 
 Capture's exact UTF-8 canonical JSON envelope has exactly these top-level keys:
 `schema='b02-native-capture-v1'`, `project_id`, `request`, `result`. Request fields
@@ -180,7 +230,7 @@ use `sha256_canonical_json` / `sha256-cjson-v1`. Literal material builders:
 - Question: `{type:'StrategyQuestionAdmission', material_version:1, id, project_id,
   capture_id, capture_content_hash, candidate_index, candidate_text, question_text,
   rationale, research_question_id, research_question_version_id, admitted_by, admitted_at}`.
-- Hypothesis: `{type:'StrategyHypothesisAdaptation', material_version:1, id, project_id,
+- Hypothesis: `{type:'StrategyHypothesisAdmission', material_version:1, id, project_id,
   capture_id, capture_content_hash, candidate_index, candidate_text, statement,
   rationale, research_question_id, hypothesis_id, hypothesis_version_id,
   admitted_by, admitted_at}`. Optional question ID is serialized as null when absent.
@@ -308,8 +358,8 @@ never a command field. Reject unknown keys and caller actor/time/hash/status IDs
 | PromoteStrategyHypothesisCommand | Same five fields plus `statement: str`, `research_question_id: UUID \| None = None`. |
 | ExactStrategyQuery | `id: UUID`, `project_id: UUID`. |
 | CaptureReadback | `id: UUID`, `project_id: UUID`, `artifact_version_id: UUID`, `artifact_content_hash: str`, `topic: str`, `source_version_ids: tuple[UUID, ...]`, `max_evidence_candidates: int`, `strategy_id: Literal['native-storm-like']`, `strategy_version: Literal['candidate-v1']`, `captured_by: UUID`, `captured_at: datetime`, `content_hash: str`, `hash_scheme: Literal['sha256-cjson-v1']`. |
-| QuestionPromotionReadback | `id: UUID`, `project_id: UUID`, `capture_id: UUID`, `capture_content_hash: str`, `candidate_index: int`, `candidate_text: str`, `question_text: str`, `rationale: str`, `research_question_id: UUID`, `research_question_version_id: UUID`, `admitted_by: UUID`, `admitted_at: datetime`, `content_hash: str`, `hash_scheme: Literal['sha256-cjson-v1']`. |
-| HypothesisPromotionReadback | Same common admission fields; replace `question_text` and question-version ID with `statement: str`, `hypothesis_id: UUID`, `hypothesis_version_id: UUID`; `research_question_id: UUID \| None`; all remaining fields unchanged. |
+| StrategyQuestionAdmission | `id: UUID`, `project_id: UUID`, `capture_id: UUID`, `capture_content_hash: str`, `candidate_index: int`, `candidate_text: str`, `question_text: str`, `rationale: str`, `research_question_id: UUID`, `research_question_version_id: UUID`, `admitted_by: UUID`, `admitted_at: datetime`, `content_hash: str`, `hash_scheme: Literal['sha256-cjson-v1']`. |
+| StrategyHypothesisAdmission | Same common admission fields; replace `question_text` and question-version ID with `statement: str`, `hypothesis_id: UUID`, `hypothesis_version_id: UUID`; `research_question_id: UUID \| None`; all remaining fields unchanged. |
 
 Times are aware UTC; hashes are 64 lowercase hex. Topic is stripped, NFC, nonblank
 1–255 characters. Rationale and hypothesis statement are NFC, outer-trimmed,
@@ -519,7 +569,11 @@ other backlog items, full G2/Phase 2 gate success.
 
 ## 13. Open questions for the owner — override register
 
-Approve or override the bounded artifact/relation schema, service-owned capture,
+Resolve the four table-specific Architecture Questions in
+[ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md) before admitting any
+unregistered relation. The shared admission convention is §5.1 and B03 §5.1;
+there is no pending parallel-draft reconciliation or generic promotion schema.
+Approve or override service-owned capture,
 explicit researcher adaptation policy, source usability restriction, one admission
 per candidate index and Application-only boundary. These choices are fixed in this
 draft; an override requires corresponding body edits before freeze. If G2 instead
@@ -529,43 +583,47 @@ partial implementation.
 
 ## 14. Documentation verification note
 
-Verification below concerns existing code and this document, not future B02
-methods, migrations or tests. The full suite is reserved for the owner's loop.
-
-Executed 2026-10-19 using the existing shared Python environment, without dependency
-synchronization or application/test changes. Commands ran from the repository root;
-pytest output was captured to temporary logs. No whole-suite run was made.
+Joint B02/B03/ADR-0020 documentation revision, 2026-10-19. Only these three files
+change; both proposal status lines remain unchanged and the ADR is PROPOSED.
+Existing-code results below do not verify future admission behavior, migrations
+or tests. No dependency sync, implementation, commit, push or branch creation.
+The owner's loop runs the whole suite; this task did not run it.
 
 | Exact command | Observed result |
 | --- | --- |
-| `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/ruff check .` | Exit 0; All checks passed. |
-| `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/ruff format --check .` | Exit 0; 736 files already formatted. |
+| `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/ruff check .` | All checks passed. |
+| `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/ruff format --check .` | 736 files already formatted. |
 | `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/pyright --venvpath /Users/fengwang/Documents/ResearchBaseProject` | Exit 0; 0 errors, 0 warnings, 0 informations. |
-| `PYTHONPATH=src /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/pytest tests/unit tests/architecture -o addopts='' -q -p no:cacheprovider` | Exit 1; 5618 passed, 5 failed, 14 errors, 9 warnings in 61.95s. |
 
-The five failures are one inherited static-acceptance subprocess that invokes
-Pyright without the shared-environment override (this checkout has no `.venv`),
-and four runner tests whose Unix socket bind receives PermissionError. Fourteen
-PR2-19 architecture cases require explicitly configured `RB_TEST_ADMIN_URL`, which
-was unset in that invocation. These failures/errors are not passes; the explicit
-Pyright command above does not establish that its differently configured subprocess
-passed. No environment wrapper, source change or test repair was applied.
+Focused unit and architecture command (exit 1):
 
-Exact focused PostgreSQL command:
-
-```bash
-DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres PYTHONPATH=src /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/pytest tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_b01_resolution_admission.py tests/integration/phase2/test_b01_resolution_replay.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/integration/phase2/test_pr2_18_search_coverage.py tests/integration/test_pr04_application.py tests/integration/test_pr04_schema.py -o addopts='' -q -p no:cacheprovider
+```sh
+PYTHONPATH=src /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python -m pytest tests/unit/domain/test_pr04_research.py tests/unit/phase2/test_pr2_08_native_strategy.py tests/unit/phase2/test_pr2_10_discussion_artifacts.py tests/architecture -o addopts='' -q -p no:cacheprovider > /private/tmp/lane54-unit-architecture.log 2>&1
 ```
 
-Observed: exit 1; **14 failed, 54 errors, 1 warning in 10.22s**; no passed case.
-PostgreSQL connection attempts received `Operation not permitted` in this sandbox.
-`/opt/homebrew/opt/postgresql@18/bin/pg_isready` reported `/tmp:5432 - no response`.
-A disposable local initialization attempt,
-`/opt/homebrew/opt/postgresql@18/bin/initdb -D /private/tmp/lane49-b02-pgdata -A trust --no-locale`,
-exited 1: shared-memory allocation failed with `No space left on device`
-(`shmget`; initdb removed its partial directory). No PostgreSQL suite is claimed PASS.
+Observed **184 passed, 14 errors, 4 warnings in 6.28s**. The 14 PR2-19 architecture
+setup errors require an explicitly configured RB_TEST_ADMIN_URL. This is not an
+all-architecture PASS. The separate configured PostgreSQL run below establishes
+that local socket access is unavailable in this sandbox; no database success is
+inferred and no test/environment workaround was introduced.
 
-A focused Python/AST documentation check resolved all 24 local links, compared all
-14 error rows to the current API/CLI dictionaries (including the existing fallback),
-and checked numbered sections 1–14. `git diff --check` passed; only this new draft
-is present in `git status --short`. No commit, branch or push was created.
+Focused PostgreSQL regression command, combining the existing targets from both
+§12.4 inventories (exit 1):
+
+```sh
+RB_TEST_ADMIN_URL='postgresql+psycopg://fengwang@/postgres?host=/private/tmp' DATABASE_URL='postgresql+psycopg://fengwang@/postgres?host=/private/tmp' PYTHONPATH=src /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python -m pytest tests/integration/test_pr04_application.py tests/integration/test_pr04_schema.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_b01_resolution_admission.py tests/integration/phase2/test_b01_resolution_replay.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/integration/phase2/test_pr2_18_search_coverage.py tests/integration/phase2/test_pr2_10_discussion_persistence.py tests/integration/phase2/test_pr2_10_binding_contract.py tests/integration/phase2/test_pr2_19_discussion.py -o addopts='' -q -p no:cacheprovider --tb=short > /private/tmp/lane54-postgres.log 2>&1
+```
+
+Observed **14 failed, 73 errors, 1 warning in 12.50s**, zero passing cases.
+Connections to `/private/tmp/.s.PGSQL.5432` fail with `Operation not permitted`.
+PostgreSQL admission/constraint/replay verification remains unverified here;
+planned B02/B03 tests do not exist yet and are not PASS.
+
+Documentation checks: `git diff --check` returned exit 0.
+`git diff --no-index --check /dev/null docs/proposals/ADR-0020_Candidate_Promotion_Admission_DRAFT.md`
+returned exit 1 for the new-file difference, with no whitespace diagnostics.
+A focused Python check verified all 53 relative file links across
+the three documents, two unchanged proposal status lines against HEAD, one AQ per
+remaining table, no new existing-table column in either DDL sketch, and exactly
+the three authorized paths in git status. These are documentation checks, not
+approval of the proposed schema or gate success.

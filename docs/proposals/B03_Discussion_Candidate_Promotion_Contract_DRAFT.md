@@ -12,7 +12,7 @@ scientific truth or permission. This document changes no runtime behavior.
 
 Build only after owner approval and separate implementation authorization:
 
-1. Reconcile B02's admission shape and the actual migration head (§§9, 13).
+1. Resolve ADR-0020's Architecture Questions and inspect the actual migration head (§§5, 13).
 2. Add the typed provenance relation and extend the existing discussion receipt;
    preserve historical receipts (§12.1).
 3. Add closed candidate/command DTOs and reuse research's creation rules inside
@@ -68,8 +68,8 @@ Inspected baseline:
   supplies the deferred completeness-trigger pattern. Decision and novelty
   repositories supply first-statement SHARE locking and lock-free snapshot reads.
 
-No B03 execution pack or B02 draft was found in this checkout. The B02 alignment
-below is a proposal for owner reconciliation, not a claim of parallel agreement.
+No B03 execution pack exists in this proposal. B02 and this draft share the
+admission convention in §5.1; neither draft is approved for implementation.
 
 ## 2. Scope, dependency boundaries and non-goals
 
@@ -142,15 +142,51 @@ callers use the typed research command; discussion may expose a thin delegate
 only after authorization, without owning scientific creation or a second UoW.
 No new HTTP route or CLI command is needed for the first Application slice.
 
-## 5. Schema and literal hash proposal — no migration
+## 5. Proposed migration — one admission relation and existing receipt constraints
 
-Extend `discussion_command_receipts` with a concrete output-version FK and
-`PROMOTE_HYPOTHESIS` command enum value. Add only the research-owned typed
-`discussion_hypothesis_admissions` relation keyed by receipt_id (§12.1).
-It is not AgentPromotionRecord or a new top-level canonical object. Its need is
-specific: current receipts cannot retain a selected turn, question, original
-material or scientific output, and editable DRAFT rows cannot preserve history.
-Owner approval must admit this bounded relation under the schema budget.
+The proposed migration adds `discussion_hypothesis_admissions` and extends only
+the constraints/indexes/guards on `discussion_command_receipts` to accept
+`PROMOTE_HYPOTHESIS` and enforce receipt/admission completeness (§12.1); it adds
+no column to an existing table.
+The relation is not registered in Registry 03 or Field Contract 13. Calling it a
+Relation pattern is not schema approval: [ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md)
+asks B03-AQ-01 under AGENTS.md §4. No migration is implemented or authorized here.
+
+| Proposed addition | Existing representation tried; missing fact and disposition |
+| --- | --- |
+| `discussion_hypothesis_admissions` | Reuse session/turn/input/citation seals and bound ArtifactVersion for all discussion history. Existing receipts already own actor, time, scoped request and input_hash, but result_session_id/result_turn_id cannot name a scientific version or retain the manual extraction. HypothesisVersion stores editable material and a question identity, not immutable initial text, selected turn/transcript/exact question version or request binding. No existing provenance relation connects those facts. Retain one typed receipt → origin → exact new hypothesis-version relation. |
+| `discussion_command_receipts.result_hypothesis_version_id` | Dropped. Receipt → admission via receipt_id PK/FK → hypothesis_version_id already supplies the exact output, uniquely. Deferred guards enforce one admission per PROMOTE receipt and forbid admissions on other commands. A second output FK duplicates that fact and is not needed for replay. |
+
+### 5.1 Shared B02/B03 admission convention
+
+Use [B02 §5.1](B02_Strategy_Candidate_Promotion_Contract_DRAFT.md#51-shared-b02b03-admission-convention):
+`DiscussionHypothesisAdmission` uses `admitted_by`, `admitted_at`, exact
+`hypothesis_version_id` and retained `statement`, `expected_direction`, `rationale`.
+These are initial material, never current draft values. Both drafts atomically
+create typed provenance plus version 1 DRAFT, serialize requests, compare normalized
+input only after original-actor/current-read authorization, and return saved IDs
+and material on replay. Different input conflicts; another request admitting the
+same origin candidate is DUPLICATE_CONTENT. No second creation on replay.
+
+Both use concrete RESTRICT FKs and verified hashes/bytes of exact immutable input
+versions. Here the bound transcript and frozen question hashes are verified through
+existing rows, not copied into new hash columns; candidate_hash binds their exact
+IDs and retained extraction. The output DRAFT ID is creation provenance, not a
+FrozenReference. No scientific hash is added to a DRAFT or changed on later edits.
+
+Necessary differences: B03 already has a deployment/project/actor/command/request
+receipt and saved input_hash; reuse it, with receipt_id as the admission PK/FK,
+and derive admitted_by/time from actor_id/completed_at. B02's relation is itself
+the receipt, keyed by command id, with request comparison reconstructed from its
+retained fields. B03 requires a frozen question input and HUMAN admission; B02
+allows Human/Agent and optional organizational question parent. B03 manually
+extracts content from a turn and permits optional direction/rationale with existing
+NFC/whitespace semantics; B02 selects an ordered candidate/section, requires
+trimmed adaptation rationale and leaves direction null. These differences do not
+justify a generic target table, new discussion capture/source tables or a second
+receipt mechanism.
+
+### 5.2 Literal material
 
 Use existing `sha256_canonical_json`, lowercase UUID strings and explicit nulls.
 Candidate hash literal:
@@ -226,7 +262,8 @@ candidate, retained initial material and exact ArtifactVersion/context FKs,
 existing scoped durable receipt, one transaction, DRAFT-only output and historical
 replay. Reuse transaction-local research creation logic and hash conventions;
 do not force strategy/discussion origins into generic `target_type + target_id`
-or invent a shared Phase 3 record. Reconcile actual B02 names before approval.
+or invent a shared Phase 3 record. The names and origin-specific differences
+are pinned in §5.1.
 
 Acceptance requires approved contract, separate execution scope, real PostgreSQL
 18 migration/constraint/race tests, existing discussion and research regressions,
@@ -256,9 +293,9 @@ Fresh hypothesis only; exactly one selected turn and question; transcript must
 already be bound; manual explicit candidate; initial success_criteria=null.
 Only existing HUMAN writer roles. No new agent authority. Historical replay uses
 current read entitlement. New queries never call the locking discussion
-`_authorize`. Persist one typed relation plus the existing receipt extension.
+`_authorize`. Persist one typed relation plus the existing receipt constraint extension.
 No new runtime dependencies, event framework, generic promotion registry or
-storage backend. B02 reconciliation is required before implementation approval.
+storage backend. ADR-0020 approval is required before implementation authorization.
 
 ### 11.2 Pinned error mappings
 
@@ -303,7 +340,7 @@ NFC; whitespace-only strings fail.
 | Candidate success_criteria | No caller field; always derived null in this slice. |
 | Admission IDs | `UUID`: receipt/project/session/turn/transcript/question/hypothesis/version/admitted_by. |
 | Admission candidate_hash | `ContentHash`, lowercase SHA-256 hex64. |
-| Admission initial_statement, initial_expected_direction, initial_rationale | Same text/null types and bounds as candidate. |
+| Admission statement, expected_direction, rationale | Same text/null types and bounds as candidate. |
 | Admission admitted_at | UTC-aware `datetime`, database-derived. |
 
 No lists, batches or extra references. Enums are command `PROMOTE_HYPOTHESIS`,
@@ -321,17 +358,12 @@ receipt CHECKs by inspected names, including historically anonymous checks;
 never edit migration 0032 or invalidate APPEND_TURN/BIND_TRANSCRIPT receipts.
 
 ```sql
-ALTER TABLE discussion_command_receipts ADD COLUMN
-  result_hypothesis_version_id UUID
-  CONSTRAINT fk_b03_receipt_hv REFERENCES hypothesis_versions(id) ON DELETE RESTRICT;
 ALTER TABLE discussion_command_receipts
   DROP CONSTRAINT ck_pr210_receipt_command_with_binding;
 ALTER TABLE discussion_command_receipts ADD CONSTRAINT ck_b03_receipt_command
   CHECK(command_name IN ('CREATE_SESSION','APPEND_TURN','CLOSE_SESSION',
                         'BIND_TRANSCRIPT','PROMOTE_HYPOTHESIS'));
 -- Retain (command_name='APPEND_TURN')=(result_turn_id IS NOT NULL).
-ALTER TABLE discussion_command_receipts ADD CONSTRAINT ck_b03_receipt_output
-  CHECK ((command_name='PROMOTE_HYPOTHESIS')=(result_hypothesis_version_id IS NOT NULL));
 ALTER TABLE discussion_command_receipts ADD CONSTRAINT uq_b03_receipt_context
   UNIQUE(id,project_id,result_session_id);
 
@@ -344,9 +376,9 @@ CREATE TABLE discussion_hypothesis_admissions (
   research_question_version_id UUID NOT NULL,
   hypothesis_version_id UUID NOT NULL,
   candidate_hash CHAR(64) NOT NULL,
-  initial_statement TEXT NOT NULL,
-  initial_expected_direction VARCHAR(64),
-  initial_rationale TEXT,
+  statement TEXT NOT NULL,
+  expected_direction VARCHAR(64),
+  rationale TEXT,
   CONSTRAINT fk_b03_receipt FOREIGN KEY(receipt_id,project_id,session_id)
     REFERENCES discussion_command_receipts(id,project_id,result_session_id) ON DELETE RESTRICT,
   CONSTRAINT fk_b03_session FOREIGN KEY(project_id,session_id)
@@ -362,14 +394,14 @@ CREATE TABLE discussion_hypothesis_admissions (
   CONSTRAINT uq_b03_output UNIQUE(hypothesis_version_id),
   CONSTRAINT uq_b03_candidate UNIQUE(session_id,turn_id,candidate_hash),
   CONSTRAINT ck_b03_hash CHECK(candidate_hash ~ '^[0-9a-f]{64}$'),
-  CONSTRAINT ck_b03_statement CHECK(length(initial_statement) BETWEEN 1 AND 16000
-    AND length(btrim(initial_statement)) > 0),
-  CONSTRAINT ck_b03_direction CHECK(initial_expected_direction IS NULL OR
-    (length(initial_expected_direction) BETWEEN 1 AND 64
-     AND length(btrim(initial_expected_direction)) > 0)),
-  CONSTRAINT ck_b03_rationale CHECK(initial_rationale IS NULL OR
-    (length(initial_rationale) BETWEEN 1 AND 16000
-     AND length(btrim(initial_rationale)) > 0))
+  CONSTRAINT ck_b03_statement CHECK(length(statement) BETWEEN 1 AND 16000
+    AND length(btrim(statement)) > 0),
+  CONSTRAINT ck_b03_direction CHECK(expected_direction IS NULL OR
+    (length(expected_direction) BETWEEN 1 AND 64
+     AND length(btrim(expected_direction)) > 0)),
+  CONSTRAINT ck_b03_rationale CHECK(rationale IS NULL OR
+    (length(rationale) BETWEEN 1 AND 16000
+     AND length(btrim(rationale)) > 0))
 );
 ```
 
@@ -382,13 +414,16 @@ Use `b03_admission_immutable` BEFORE UPDATE OR DELETE calling existing
 Following 0042, `b03_complete_receipt` AFTER INSERT on receipts and
 `b03_complete_admission` AFTER INSERT on admissions are CONSTRAINT TRIGGERs,
 DEFERRABLE INITIALLY DEFERRED, calling `b03_complete_admission_guard()`.
-For each PROMOTE receipt require exactly one relation, same output version,
+For each PROMOTE receipt require exactly one relation; reject an admission whose
+receipt command is not PROMOTE_HYPOTHESIS. Resolve the only output via the relation's
+hypothesis_version_id (no output column on the receipt). Require
 CLOSED session and matching bound transcript, same-project question parent and
 hypothesis, parent question match, version 1/current pointer, same creator/time
 as receipt, initial DRAFT/null hashes and material equal to retained columns with
 success_criteria null. Require the new hypothesis and version to have been
 inserted in this transaction (existing `xmin`/transaction pattern); reject grafts
-onto preexisting outputs. The function skips non-promotion receipts.
+onto preexisting outputs. On a receipt trigger, non-promotion receipts with no admission are left unchanged;
+an admission trigger always checks its referenced receipt command before proceeding.
 Checks validate creation only; later legal draft edit/freeze must not reapply
 initial-DRAFT requirements. `SET CONSTRAINTS ALL IMMEDIATE` before final auth.
 
@@ -396,7 +431,8 @@ Byte rendering, candidate/input hash recomputation, NFC/Unicode bounds and crede
 authority remain Application checks; SQL must not pretend to authenticate CAS
 bytes. Completeness guard failures use existing P17D3 → PROVENANCE_CLOSURE_VIOLATION; immutability
 uses existing P17D1. Preflight existing receipts; downgrade refuses if promotion
-history exists, otherwise remove guards/relation/column and restore old CHECKs.
+history exists, otherwise remove owned guards/relation/receipt context UNIQUE
+and restore old CHECKs.
 
 ### 12.2 Exact lock order and transactions
 
@@ -512,58 +548,26 @@ No repair of unrelated legacy discussion read transactions is bundled here.
 
 ## 13. Open questions for the owner — override register
 
-Approval must resolve B02 convergence and admit the narrow relation/receipt
-extension; no B02 draft is currently available here. Proposed default is the
-same pattern of typed origin-to-output provenance and scoped replay, with separate
-origin-specific relations where needed. If B02 defines a reusable approved typed
-research receipt instead, reconcile §12 before implementation; do not ship both
-mechanisms or infer approval from parallel work. Also approve the bounded manual,
-single-turn, question-required candidate and null-success-criteria policy.
+Resolve B03-AQ-01 in
+[ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md) before admitting the
+unregistered relation and receipt constraint extension. The redundant receipt
+output column is withdrawn. B02/B03 convergence is pinned in §5.1, including the
+existing scoped receipt and explicit domain differences; approval must not add a
+second receipt mechanism. Also approve the bounded manual, single-turn,
+question-required candidate, HUMAN-only policy and null-success-criteria policy.
+Neither this draft nor the ADR authorizes implementation.
 
 ## 14. Documentation verification note
 
-This file is the only intended tracked change. Current-code checks verify the
-baseline, not the proposed admission behavior. Exact commands/results for this
-documentation task are recorded below after execution. Future tests in §12.4
-remain planned, not PASS. The loop's subsequent full-suite run supplies its own
-evidence; this task does not run the whole suite.
+Joint B02/B03/ADR-0020 documentation revision, 2026-10-19. Exact commands and
+results are recorded once in [B02 §14](B02_Strategy_Candidate_Promotion_Contract_DRAFT.md#14-documentation-verification-note).
+Static checks passed (736 files formatted; Pyright 0 errors/warnings/informations).
+Focused unit/architecture: **184 passed, 14 setup errors, 4 warnings** (missing
+explicit DB admin URL). Configured focused PostgreSQL: **14 failed, 73 errors,
+1 warning**, zero passing cases (sandbox socket access denied). Neither result
+is an all-tests PASS. Documentation link/status/scope and whitespace checks passed.
 
-Observed on 2026-10-19 (documentation task only):
-
-| Exact command | Result |
-| --- | --- |
-| `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/ruff format --check .` | Exit 0; 736 files already formatted. |
-| `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/ruff check .` | Exit 0; All checks passed. |
-| `/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/pyright --venvpath /Users/fengwang/Documents/ResearchBaseProject` | Exit 0; 0 errors, 0 warnings, 0 informations. |
-| `PYTHONPATH=src /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python -m pytest tests/unit/domain/test_pr04_research.py tests/unit/phase2/test_pr2_10_discussion_artifacts.py tests/architecture` | Exit 1; 174 passed, 4 warnings, 14 setup errors. DB-dependent architecture fixtures require an admin URL. |
-| `PYTHONPATH=src /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python -m pytest tests/unit/domain/test_pr04_research.py tests/unit/phase2/test_pr2_10_discussion_artifacts.py tests/architecture --ignore=tests/architecture/test_pr2_19_boundaries.py` | Exit 0; 173 passed, 4 warnings. Excludes the module with DB fixtures; not an all-architecture PASS. |
-| `git diff --check` | Exit 0; no tracked-diff whitespace errors; new file separately inspected. |
-
-Focused PostgreSQL command (no full-suite run):
-
-```sh
-RB_TEST_ADMIN_URL='postgresql+psycopg://fengwang@/postgres?host=/private/tmp' DATABASE_URL='postgresql+psycopg://fengwang@/postgres?host=/private/tmp' PYTHONPATH=src /Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python -m pytest tests/integration/test_pr04_application.py tests/integration/test_pr04_schema.py tests/integration/phase2/test_pr2_10_discussion_persistence.py tests/integration/phase2/test_pr2_10_binding_contract.py tests/integration/phase2/test_pr2_19_discussion.py --tb=no
-```
-
-Result: exit 1, **14 failed, 19 errors**, no passing PostgreSQL cases. Local
-PostgreSQL socket access is denied by the sandbox (`Operation not permitted`),
-confirmed with `psql -h /private/tmp -U fengwang -d postgres -Atc 'select version()'`
-(exit 2). Before explicit URL selection, the same pytest file selection without
-the two database environment assignments returned **14 skipped, 19 errors**.
-An isolated PG18 `initdb` also failed during bootstrap with `shmget: No space
-left on device`; no integration success is inferred from either attempt.
-
-Environment limitation: `UV_CACHE_DIR=/tmp/researchbase-lane50-uv-cache uv sync
---locked --group dev` failed with exit 2 on package-download DNS resolution.
-The corresponding `uv run ruff format --check .`, `uv run ruff check .`,
-`uv run pyright` and focused `uv run pytest` attempts with that cache prefix also
-failed during dependency resolution, before checks executed. Thus the successful
-checks above use the existing repository environment; a fresh locked environment
-was not verified. An initial direct `pyright` using this checkout's incomplete
-`.venv` reported 1332 errors and 2 warnings, including missing dependencies;
-the explicit existing-environment rerun above resolved them. No lockfile or
-dependency declaration was changed. All 18 relative Markdown links resolve.
-
-Final `git diff --no-index --check /dev/null docs/proposals/B03_Discussion_Candidate_Promotion_Contract_DRAFT.md`
-returned exit 0, covering this new file's whitespace. A focused Python assertion
-against `_STATUS` and `CLI_EXIT_CODES` verified all 12 pinned error mappings.
+Only the two drafts and ADR-0020 change; proposal status lines remain unchanged.
+No implementation, migration, commit, branch or push. Current-code checks do not
+prove proposed admission behavior; §12.4's tests remain planned. The loop's next
+whole-suite run supplies its own evidence; this task did not run the whole suite.
