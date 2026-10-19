@@ -17,6 +17,7 @@ from researchbase.application.ports import (
     ClaimRepository,
     DatasetRepository,
     DatasetSnapshotRepository,
+    DiscussionHypothesisRepository,
     ExperimentSpecRepository,
     GovernanceRepository,
     HypothesisRepository,
@@ -30,6 +31,7 @@ from researchbase.application.ports import (
     RunRepository,
     SearchResultResolutionRepository,
     StatisticalResultRepository,
+    StrategyCandidatePromotionRepository,
     WorkspaceRepository,
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
@@ -37,6 +39,9 @@ from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
 from researchbase.persistence.authorship_repository import SqlAlchemyAuthorshipRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
+from researchbase.persistence.discussion_hypothesis_repository import (
+    SqlAlchemyDiscussionHypothesisRepository,
+)
 from researchbase.persistence.discussion_repository import SqlAlchemyDiscussionRepository
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
 from researchbase.persistence.internal_review_repository import SqlAlchemyInternalReviewRepository
@@ -89,6 +94,9 @@ from researchbase.persistence.search_result_resolution_repository import (
 from researchbase.persistence.source_identity_repository import SqlAlchemySourceIdentityRepository
 from researchbase.persistence.source_merge_repository import SqlAlchemySourceMergeRepository
 from researchbase.persistence.source_version_repository import SqlAlchemySourceVersionRepository
+from researchbase.persistence.strategy_candidate_promotion_repository import (
+    SqlAlchemyStrategyCandidatePromotionRepository,
+)
 
 
 def _normalize_database_error(
@@ -442,6 +450,7 @@ class SqlAlchemyUnitOfWork:
     prepared_submission: PreparedSubmissionRepository
     manuscript_freeze: SqlAlchemyManuscriptFreezeRepository
     authorship: AuthorshipRepository
+    strategy_candidates: StrategyCandidatePromotionRepository
     search_result_resolutions: SearchResultResolutionRepository
     actors: ActorRepository
     projects: ProjectRepository
@@ -468,6 +477,7 @@ class SqlAlchemyUnitOfWork:
     metadata_observations: SqlAlchemyMetadataObservationRepository
     literature_evidence: SqlAlchemyLiteratureEvidenceRepository
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
+    discussion_hypothesis: DiscussionHypothesisRepository
     discussion: SqlAlchemyDiscussionRepository
     scientific_conclusion: SqlAlchemyScientificConclusionRepository
     publication: SqlAlchemyPublicationRepository
@@ -491,7 +501,9 @@ class SqlAlchemyUnitOfWork:
         self._strict_approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
+        self._b02_error_normalization = False
         self._b01_error_normalization = False
+        self._b03_error_normalization = False
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
         self._internal_review_error_normalization = False
@@ -509,7 +521,9 @@ class SqlAlchemyUnitOfWork:
         self._strict_approval_error_normalization = False
         self._authorship_error_normalization = False
         self._serializable_retry_normalization = False
+        self._b02_error_normalization = False
         self._b01_error_normalization = False
+        self._b03_error_normalization = False
         self._novelty_error_normalization = False
         self._manuscript_freeze_error_normalization = False
         self._internal_review_error_normalization = False
@@ -534,6 +548,7 @@ class SqlAlchemyUnitOfWork:
         self.claims = SqlAlchemyClaimRepository(self._session)
         self.governance = SqlAlchemyGovernanceRepository(self._session)
         self.phase2_identity = SqlAlchemyPhase2IdentityRepository(self._session)
+        self.strategy_candidates = SqlAlchemyStrategyCandidatePromotionRepository(self._session)
         self.search_result_resolutions = SqlAlchemySearchResultResolutionRepository(self._session)
         self.metadata_observations = SqlAlchemyMetadataObservationRepository(self._session)
         self.source_identity = SqlAlchemySourceIdentityRepository(self._session)
@@ -545,6 +560,7 @@ class SqlAlchemyUnitOfWork:
             self._session
         )
         self.discussion = SqlAlchemyDiscussionRepository(self._session)
+        self.discussion_hypothesis = SqlAlchemyDiscussionHypothesisRepository(self._session)
         self.scientific_conclusion = SqlAlchemyScientificConclusionRepository(self._session)
         self.publication = SqlAlchemyPublicationRepository(self._session)
         self.manuscript_freeze = SqlAlchemyManuscriptFreezeRepository(self._session)
@@ -560,6 +576,14 @@ class SqlAlchemyUnitOfWork:
     def enable_manuscript_freeze_error_normalization(self) -> None:
         self._decision_error_normalization = True
         self._manuscript_freeze_error_normalization = True
+
+    def begin_discussion_hypothesis(self, *, read_only: bool) -> None:
+        self._decision_error_normalization = True
+        self._b03_error_normalization = True
+        self.discussion_hypothesis.prepare(read_only=read_only)
+        self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(
+            self._require_session(), protected_reads=True
+        )
 
     def begin_formal_read(self) -> None:
         """One lock-free snapshot, including nested authorization and verification."""
@@ -589,6 +613,11 @@ class SqlAlchemyUnitOfWork:
             }
         )
         self.enable_revision_action_snapshot_reads()
+
+    def begin_strategy(self, *, read_only: bool) -> None:
+        self.begin_resolution(read_only=read_only)
+        self._b01_error_normalization = False
+        self._b02_error_normalization = True
 
     def enable_novelty_error_normalization(self) -> None:
         self._decision_error_normalization = True
@@ -761,6 +790,33 @@ class SqlAlchemyUnitOfWork:
             raise RuntimeError(
                 "novelty review transaction failed; recover by exact entitled read"
             ) from None
+        if self._b03_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            codes = {
+                "P17D1": ErrorCode.IMMUTABLE_RECORD,
+                "P17D3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "40001": ErrorCode.CONCURRENT_MODIFICATION,
+                "40P01": ErrorCode.CONCURRENT_MODIFICATION,
+                "55P03": ErrorCode.CONCURRENT_MODIFICATION,
+            }
+            if state in codes:
+                return ResearchBaseError(codes[state], "admission transaction rejected")
+            if state == "23505" and name == "uq_b03_candidate":
+                return ResearchBaseError(ErrorCode.DUPLICATE_CONTENT, "candidate already admitted")
+            if state == "23505" and name == (
+                "discussion_command_receipts_deployment_id_project_id_actor_id_key"
+            ):
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION, "reload scoped admission receipt"
+                )
+            if state == "23503" and isinstance(name, str) and name.startswith("fk_b03_"):
+                return ResearchBaseError(
+                    ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "invalid admission reference"
+                )
+            if state == "23514" and isinstance(name, str) and name.startswith("ck_b03_"):
+                return ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid admission material")
+            raise exc
         if self._package_preparation_error_normalization:
             state = getattr(exc.orig, "sqlstate", None)
             codes = {
@@ -881,6 +937,41 @@ class SqlAlchemyUnitOfWork:
             raise RuntimeError("review transaction failed; recover by exact request ID") from None
         if self._manuscript_freeze_error_normalization:
             return _manuscript_freeze_database_error(exc)
+        if self._b02_error_normalization:
+            state = getattr(exc.orig, "sqlstate", None)
+            constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            if state in {"40001", "40P01"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "strategy transaction conflict",
+                    {"retryable_b02": True},
+                )
+            if state in {"P22B1", "P22B2"}:
+                return ResearchBaseError(
+                    ErrorCode.IMMUTABLE_RECORD
+                    if state == "P22B1"
+                    else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "strategy history guard rejected write",
+                )
+            if state == "23505":
+                if constraint in {"uq_b02_q_candidate", "uq_b02_h_candidate"}:
+                    return ResearchBaseError(
+                        ErrorCode.DUPLICATE_CONTENT, "candidate already admitted"
+                    )
+                if constraint in {"pk_b02_capture", "pk_b02_q", "pk_b02_h"}:
+                    return ResearchBaseError(
+                        ErrorCode.CONCURRENT_MODIFICATION,
+                        "strategy ID concurrently inserted",
+                        {"reread_b02": True},
+                    )
+            if state in {"55P03", "57014"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION, "strategy transaction timeout"
+                )
+            normalized = _normalize_database_error(exc)
+            if normalized is not None:
+                return normalized
+            raise RuntimeError("strategy transaction failed; recover by exact command ID") from None
         if self._b01_error_normalization:
             state = getattr(exc.orig, "sqlstate", None)
             constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -1103,3 +1194,8 @@ def search_result_resolution_uow_factory(url: str) -> Callable[[], SqlAlchemyUni
     )
     sessions = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
     return lambda: SqlAlchemyUnitOfWork(sessions)
+
+
+def strategy_candidate_promotion_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
+    """The startup timeout bounds B02's first SHARE wait before SET LOCAL."""
+    return search_result_resolution_uow_factory(url)

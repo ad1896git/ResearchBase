@@ -17,10 +17,13 @@ from tests.contracts.pr2_20_evidence import BenchmarkProfile, digest_bytes, to_b
 from tests.contracts.pr2_20_reports import ROOT, context, subject
 from tests.integration.phase2 import b18_novelty_support as novelty
 from tests.integration.phase2 import pr2_20_support as s
+from tests.integration.phase2.pr2_20_scaled import APPROVAL_CASES, approval_profile
+from tests.integration.phase2.test_approval import approval_env as _approval_env
 from tests.integration.phase2.test_m3_evidence import m3 as _m3
 from tests.integration.phase2.test_pr2_20_catalog_plans import trace_fixture
 
 m3 = _m3
+approval_env = _approval_env
 conclusion_env = s.conclusion_env
 phase2_database_url = s.phase2_database_url
 decision_env = s.decision_env
@@ -571,3 +574,201 @@ def test_bounded_prepared_package_service_profile(b05_env):
             )
             s.save_observation(f"{case}-1-{repeat}", data)
             print("B17_BENCHMARK", data)
+
+
+@pytest.mark.parametrize("case", APPROVAL_CASES)
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize(
+    "large",
+    [
+        False,
+        pytest.param(
+            True,
+            marks=pytest.mark.skipif(
+                os.getenv("RB_PR220_BENCHMARK") != "1", reason="NOT RUN: opt-in H2 approval profile"
+            ),
+        ),
+    ],
+)
+def test_h2_unchanged_approval_inventories(approval_env, case, workers, large):
+    from sqlalchemy import create_engine, event
+
+    from researchbase.persistence.approval_repository import B09_DECIDE_SHARE_SQL, B09_SHARE_SQL
+
+    engine = approval_env[-1][-1][8]
+    value = profile(engine, large)
+    if large:
+        blockers = (
+            *large_host_blockers(value),
+            "H2 approval scientific envelope unverified; bounded fixture only",
+        )
+        if blockers:
+            save_profile(replace(value, reason="; ".join(blockers)))
+            pytest.skip("BLOCKED: " + "; ".join(blockers))
+    warmups, calls = (5, 100) if large else (1, 2)
+    observer = create_engine(engine.url)
+    try:
+        for repeat in range(3):
+            invoke = approval_profile(approval_env, case, workers * (warmups + calls))
+            locks = []
+            sqlstates = {}
+
+            def record_sqlstate(context, sqlstates=sqlstates):
+                state = getattr(context.original_exception, "sqlstate", None)
+                if state:
+                    sqlstates[state] = sqlstates.get(state, 0) + 1
+
+            def observe(conn, cursor, sql, parameters, context, many, locks=locks):
+                if sql.startswith("LOCK TABLE"):
+                    pid = conn.connection.driver_connection.info.backend_pid
+                    locks.append(dict(sql=sql, **s.passive_locks(observer, (pid,))))
+
+            event.listen(engine, "after_cursor_execute", observe)
+            event.listen(engine, "handle_error", record_sqlstate)
+            try:
+                with s.capture(engine) as captured:
+
+                    def worker(position, invoke=invoke):
+                        cursor = iter(
+                            range(position * (warmups + calls), (position + 1) * (warmups + calls))
+                        )
+                        return s.sample(lambda: invoke(next(cursor)), warmups, calls)
+
+                    with ThreadPoolExecutor(max_workers=workers) as pool:
+                        results = list(pool.map(worker, range(workers)))
+            finally:
+                event.remove(engine, "after_cursor_execute", observe)
+                event.remove(engine, "handle_error", record_sqlstate)
+            samples = [sample for times, _ in results for sample in times]
+            assert len(samples) == workers * calls
+            writers = [
+                tx
+                for tx in captured.transactions
+                if any(sql.startswith("LOCK TABLE") for sql in tx)
+            ]
+            if case in {"request-first", "request-denied"}:
+                assert writers and all(tx[0] == B09_SHARE_SQL for tx in writers)
+            elif case in {"decision-first", "decision-denied"}:
+                assert writers and all(
+                    tx[:2]
+                    == [B09_DECIDE_SHARE_SQL, "LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"]
+                    for tx in writers
+                )
+            else:
+                assert not locks
+            directory = evidence.EVIDENCE_ROOT / "pr_evidence/pr2-20" / subject()[2]
+            paths = evidence.write_chunks(directory, f"h2-locks-{case}-{workers}-{repeat}", locks)
+            s.save_observation(
+                f"h2-approval-{case}-{workers}-{repeat}",
+                dict(
+                    status="BLOCKED",
+                    reason="Reference host/baseline unavailable; inventories retained",
+                    profile="declared" if large else "small informational",
+                    samples_ms=samples,
+                    p50_ms=s.percentile(samples, 0.5),
+                    p95_ms=s.percentile(samples, 0.95),
+                    throughput_per_second=len(samples) * 1000 / max(captured.elapsed_ms, 0.001),
+                    first_sql=captured.transaction_first_statements,
+                    inventory_refs=[
+                        path.relative_to(evidence.EVIDENCE_ROOT).as_posix() for path in paths
+                    ],
+                    sqlstate_counts=sqlstates,
+                ),
+            )
+    finally:
+        observer.dispose()
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_h2_same_target_writer_contention_observes_wait_and_no_partial_effect(
+    approval_env, duplicate
+):
+    from threading import Event
+    from time import monotonic
+    from uuid import uuid4
+
+    from sqlalchemy import create_engine, event, text
+
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    service, actor, _, command, env = approval_env
+    engine = env[-1][8]
+    observer = create_engine(engine.url)
+    entered, release = Event(), Event()
+    pids, failures = [], {}
+
+    def pause(conn, cursor, sql, parameters, context, many):
+        if sql.startswith("INSERT INTO approval_requests") and not entered.is_set():
+            pids.append(conn.connection.driver_connection.info.backend_pid)
+            entered.set()
+            assert release.wait(15)
+
+    def sql_error(context):
+        state = getattr(context.original_exception, "sqlstate", None)
+        if state:
+            failures[state] = failures.get(state, 0) + 1
+
+    event.listen(engine, "after_cursor_execute", pause)
+    event.listen(engine, "handle_error", sql_error)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(service.request_approval, actor, command)
+            assert entered.wait(10)
+            second = pool.submit(
+                service.request_approval,
+                actor,
+                command if duplicate else replace(command, id=uuid4()),
+            )
+            deadline = monotonic() + 10
+            witness = None
+            while monotonic() < deadline:
+                with s.read_snapshot(observer) as conn:
+                    waiters = tuple(
+                        conn.execute(
+                            text(
+                                "SELECT pid FROM pg_stat_activity "
+                                "WHERE :pid=ANY(pg_blocking_pids(pid))"
+                            ),
+                            {"pid": pids[0]},
+                        ).scalars()
+                    )
+                snapshot = s.passive_locks(observer, waiters)
+                if any(
+                    not row["granted"] and pids[0] in row["blockers"] and row["wait_ms"] > 0
+                    for row in snapshot["locks"]
+                ):
+                    witness = snapshot
+                    break
+                if second.done():
+                    second.result()
+            assert witness is not None
+            assert any(row["wait_ms"] > 0 for row in witness["locks"] if not row["granted"])
+            release.set()
+            saved = first.result(timeout=15)
+            if duplicate:
+                assert second.result(timeout=15) == saved
+            else:
+                with pytest.raises(ResearchBaseError) as caught:
+                    second.result(timeout=15)
+                assert caught.value.code == ErrorCode.IDEMPOTENCY_CONFLICT
+        with s.read_snapshot(observer) as conn:
+            assert conn.execute(text("SELECT count(*) FROM approval_requests")).scalar_one() == 1
+            assert (
+                conn.execute(text("SELECT count(*) FROM approval_grant_consumptions")).scalar_one()
+                == 0
+            )
+        s.save_observation(
+            f"h2-same-target-{duplicate}",
+            dict(
+                status="BLOCKED",
+                reason="Bounded contention correctness; reference-host timing unavailable",
+                witnesses=witness,
+                sqlstate_counts=failures,
+                duplicate=duplicate,
+            ),
+        )
+    finally:
+        release.set()
+        event.remove(engine, "after_cursor_execute", pause)
+        event.remove(engine, "handle_error", sql_error)
+        observer.dispose()

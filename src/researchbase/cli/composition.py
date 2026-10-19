@@ -29,11 +29,13 @@ from researchbase.application.novelty import NoveltyService
 from researchbase.application.phase2_identity import Phase2IdentityService, VerifiedSubject
 from researchbase.application.provenance_queries import ProvenanceQueryService
 from researchbase.application.revision_action import RevisionActionService
+from researchbase.application.scientific_rag_provider import ScientificRAGCapability
 from researchbase.application.search_result_resolution import SearchResultResolutionService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
 from researchbase.application.source_merge_execution import SourceMergeExecutionService
 from researchbase.application.source_version import SourceVersionService
+from researchbase.application.strategy_candidate_promotion import StrategyCandidatePromotionService
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.errors import ResearchBaseError
@@ -45,7 +47,11 @@ from researchbase.persistence.database import create_database_engine, create_ses
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork, search_result_resolution_uow_factory
+from researchbase.persistence.uow import (
+    SqlAlchemyUnitOfWork,
+    search_result_resolution_uow_factory,
+    strategy_candidate_promotion_uow_factory,
+)
 
 
 class CliServices(Protocol):
@@ -86,9 +92,10 @@ class ServiceBundle:
     decisions: DecisionService | None = None
     internal_reviews: InternalReviewService | None = None
     revision_actions: RevisionActionService | None = None
+    strategy_candidates: StrategyCandidatePromotionService | None = None
 
 
-def build_services() -> ServiceBundle:
+def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> ServiceBundle:
     settings = load_settings()
     configure_logging(settings.log_level, settings.application_env)
     engine = create_database_engine(settings.database_url)
@@ -164,6 +171,12 @@ def build_services() -> ServiceBundle:
         ),
         revision_actions=RevisionActionService(
             uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
+        strategy_candidates=StrategyCandidatePromotionService(
+            strategy_candidate_promotion_uow_factory(settings.database_url),
+            credentials,
+            store,
+            scientific_rag,
         ),
         decisions=DecisionService(
             uow_factory,

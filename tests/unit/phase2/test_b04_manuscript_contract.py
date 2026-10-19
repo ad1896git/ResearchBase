@@ -127,3 +127,37 @@ def test_connection_timeouts_are_opt_in_for_b04_writes(monkeypatch):
     assert calls[1]["connect_args"] == {
         "options": "-c lock_timeout=10000 -c statement_timeout=30000"
     }
+
+
+@pytest.mark.parametrize("name", ["researchbase.api.app", "researchbase.cli.composition"])
+def test_shared_production_compositions_do_not_construct_freeze_writers(
+    name, monkeypatch, tmp_path
+):
+    from dataclasses import fields
+    from importlib import import_module
+    from types import SimpleNamespace
+
+    from researchbase.application.manuscript_freeze import ManuscriptFreezeService
+
+    module = import_module(name)
+    calls = []
+    monkeypatch.setattr(
+        module,
+        "load_settings",
+        lambda: SimpleNamespace(
+            log_level="WARNING",
+            application_env="test",
+            database_url="postgresql+psycopg://unused",
+            artifact_store_root=tmp_path,
+        ),
+    )
+    monkeypatch.setattr(module, "configure_logging", lambda *_: None)
+    monkeypatch.setattr(
+        module, "create_database_engine", lambda url, **options: calls.append(options)
+    )
+    monkeypatch.setattr(module, "create_session_factory", lambda _: lambda: None)
+    services = module.build_services()
+    assert calls == [{}]
+    assert not any(
+        isinstance(getattr(services, f.name), ManuscriptFreezeService) for f in fields(services)
+    )

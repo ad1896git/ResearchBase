@@ -64,3 +64,47 @@ def test_post_lock_source_impact_both_commit_orders(decision_env, first):
     owning.test_upstream_impact_writer_and_decision_actual_table_wait_both_orders(
         decision_env, first
     )
+
+
+def test_h2_decision_passive_inventory_and_first_statement(decision_env):
+    from sqlalchemy import create_engine, event
+
+    from researchbase.persistence.approval_repository import B09_SHARE_SQL, B09_SNAPSHOT_TABLES
+    from tests.integration.phase2.test_pr2_15_decision import _command, _review
+
+    engine = decision_env[-1][8]
+    observer = create_engine(engine.url)
+    witnesses = []
+    _review(decision_env)
+
+    def observed(conn, cursor, sql, parameters, context, many):
+        if sql == B09_SHARE_SQL:
+            pid = conn.connection.driver_connection.info.backend_pid
+            witnesses.append(s.passive_locks(observer, (pid,)))
+
+    event.listen(engine, "after_cursor_execute", observed)
+    try:
+        with s.capture(engine) as captured:
+            decision_env[0].record_decision(decision_env[2], _command(decision_env))
+        writers = [tx for tx in captured.transactions if B09_SHARE_SQL in tx]
+        assert len(writers) == 1 and writers[0][0] == B09_SHARE_SQL
+        assert len(witnesses) == 1
+        inventory = {
+            row["relname"]
+            for row in witnesses[0]["locks"]
+            if row["mode"] == "ShareLock" and row["granted"]
+        }
+        assert inventory == set(B09_SNAPSHOT_TABLES)
+        assert witnesses[0]["observer_isolation"] == "repeatable read"
+        s.save_observation(
+            "h2-decision-retained-inventory",
+            dict(
+                status="BLOCKED",
+                reason="Retain unchanged inventories; reference-host measurement unavailable",
+                first_sql=writers[0][0],
+                witnesses=witnesses,
+            ),
+        )
+    finally:
+        event.remove(engine, "after_cursor_execute", observed)
+        observer.dispose()

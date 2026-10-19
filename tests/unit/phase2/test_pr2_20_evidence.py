@@ -202,3 +202,165 @@ def test_b29_candidate_requires_live_measurement_clone_before_access():
 
     with pytest.raises(ValueError, match="fixture-owned"):
         install_candidate(object())
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_compaction_round_trip_fresh_checkout_exact_bytes(tmp_path, compressed):
+    import gzip
+    import subprocess
+
+    root = tmp_path / "origin"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    raw = (
+        b"command: pytest focused\nexit: 1\npassed=2 failed=1 errors=1 skipped=1\n"
+        b"FAILED a::x\nERROR b::y\nSKIPPED c::z\n"
+    )
+    retained = gzip.compress(raw, mtime=0) if compressed else raw
+    locator = "retained.txt.gz" if compressed else "retained.txt"
+    (root / locator).write_bytes(retained)
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.org",
+            "commit",
+            "-qm",
+            "retained bytes",
+        ],
+        check=True,
+    )
+    revision = (
+        subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"]).decode().strip()
+    )
+    item = record(
+        e.CompactionEvidence,
+        original_path="original.txt",
+        retained_path=locator,
+        retained_revision=revision,
+        original_bytes=len(raw),
+        retained_bytes=len(retained),
+        original_sha256=e.digest_bytes(raw),
+        retained_sha256=e.digest_bytes(retained),
+        summary="Failed attempt; exact command, counts and all unsuccessful nodes retained.",
+    )
+    assert e.from_bytes(e.CompactionEvidence, e.to_bytes(item)) == item
+    clone = tmp_path / "fresh"
+    subprocess.run(["git", "clone", "-q", "--no-local", str(root), str(clone)], check=True)
+    assert e.recover_compaction(clone, item) == raw
+    for change in (
+        {"original_sha256": "0" * 64},
+        {"retained_sha256": "0" * 64},
+        {"retained_path": "missing"},
+        {"retained_revision": "0" * 40},
+    ):
+        with pytest.raises(ValueError):
+            e.recover_compaction(clone, replace(item, **change))
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"original_bytes": True},
+        {"retained_bytes": -1},
+        {"summary": " "},
+        {"summary": "x" * 16001},
+        {"summary": "api_key=private"},
+        {"original_path": "../escape"},
+        {"retained_path": "/absolute"},
+        {"retained_path": "a//b"},
+        {"retained_revision": "HEAD"},
+        {"original_sha256": "A" * 64},
+        {"retained_path": "a" * 1025},
+    ],
+)
+def test_compaction_strict_fields(change):
+    args = dict(
+        original_path="old.txt",
+        retained_path="retained.txt",
+        retained_revision="a" * 40,
+        summary="Original retained pending approval",
+    )
+    args.update(change)
+    with pytest.raises(ValueError):
+        record(e.CompactionEvidence, **args)
+
+
+@pytest.mark.parametrize("status", ["FAIL", "BLOCKED", "NOT RUN", "DEFERRED"])
+def test_recovery_summary_never_promotes_execution_result(status):
+    from tests.contracts.pr2_20_reports import compaction_status
+
+    item = record(
+        e.CompactionEvidence,
+        original_path="old",
+        retained_path="kept",
+        retained_revision="a" * 40,
+        summary="Exact failed run",
+        status="PASS",
+    )
+    assert compaction_status(item, status) == status
+
+
+def test_compaction_inventory_retains_originals_and_consumers(tmp_path):
+    import subprocess
+
+    from tests.contracts.pr2_20_reports import compaction_inventory
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    original = tmp_path / "docs/verification/task12/attempt/partition.json"
+    original.parent.mkdir(parents=True)
+    original.write_bytes(b'{"failed":["test::failure"]}')
+    (tmp_path / "report.md").write_text(
+        "[original](docs/verification/task12/attempt/partition.json)"
+    )
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    first = compaction_inventory(tmp_path)
+    assert first == compaction_inventory(tmp_path)
+    assert first[0]["status"] == "BLOCKED"
+    assert "report.md" in first[0]["consumers"]
+    assert original.read_bytes() == b'{"failed":["test::failure"]}'
+
+
+def test_corrupt_compressed_locator_is_refused_with_matching_retained_hash(tmp_path):
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    raw = b"not a gzip stream"
+    (tmp_path / "corrupt.gz").write_bytes(raw)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(tmp_path),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.org",
+            "commit",
+            "-qm",
+            "corrupt fixture",
+        ],
+        check=True,
+    )
+    revision = (
+        subprocess.check_output(["git", "-C", str(tmp_path), "rev-parse", "HEAD"]).decode().strip()
+    )
+    item = record(
+        e.CompactionEvidence,
+        original_path="original.txt",
+        retained_path="corrupt.gz",
+        retained_revision=revision,
+        original_bytes=1,
+        retained_bytes=len(raw),
+        original_sha256="a" * 64,
+        retained_sha256=e.digest_bytes(raw),
+        summary="Corrupt retained stream, never accepted",
+    )
+    with pytest.raises(ValueError, match="compressed"):
+        e.recover_compaction(tmp_path, item)

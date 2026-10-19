@@ -91,3 +91,32 @@ def test_b29_measurement_stays_in_tests_and_observers_are_snapshot_only():
     assert body and 'isolation_level="REPEATABLE READ"' in body
     assert "SET TRANSACTION READ ONLY" in body
     assert not any(lock in body.lower() for lock in ("lock table", "pg_advisory", "for update"))
+
+
+def test_h2_compaction_metadata_and_lock_observers_stay_engineering_only():
+    from dataclasses import fields
+
+    from tests.contracts.pr2_20_evidence import CompactionEvidence
+
+    assert {f.name for f in fields(CompactionEvidence)} >= {
+        "original_path",
+        "retained_path",
+        "retained_revision",
+        "summary",
+        "original_bytes",
+        "retained_bytes",
+        "original_sha256",
+        "retained_sha256",
+    }
+    support = Path("tests/integration/phase2/pr2_20_support.py").read_text()
+    node = next(
+        n
+        for n in ast.parse(support).body
+        if isinstance(n, ast.FunctionDef) and n.name == "passive_locks"
+    )
+    body = ast.get_source_segment(support, node)
+    assert body and "read_snapshot(engine)" in body
+    assert "pg_locks" in body and "pg_blocking_pids" in body
+    assert not any(
+        token in body.lower() for token in ("lock table", "for update", "for share", "pg_advisory")
+    )

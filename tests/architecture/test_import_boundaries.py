@@ -187,6 +187,8 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0069_b13_stale_gate_denials.py",
         "0070_b20_screening_basis.py",
         "0071_b23_novelty_review.py",
+        "0072_b03_discussion_hypothesis.py",
+        "0073_b02_strategy_admission.py",
     ]
 
 

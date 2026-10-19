@@ -1,0 +1,6 @@
+3:**Status: APPROVED by owner 2026-10-19 — first slice authorized for implementation**
+207:extraction from a sealed turn. B02 allows verified Human/Agent writers and an
+569:Agent writers are deferred until an owning Agent identity/provisioning contract exists
+575:Agent writers are deferred until an owning Agent identity/provisioning contract
+tests/integration/phase2/test_b02_identity_boundary.py:16:@pytest.mark.parametrize("actor_type", ["HUMAN", "AGENT"])
+tests/integration/phase2/test_b02_identity_boundary.py:60:            if actor_type == "AGENT":

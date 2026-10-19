@@ -447,7 +447,7 @@ def test_freeze_serializes_owner_changes_and_insert_phantoms(b04_env, owner, mon
     )
 
 
-@pytest.mark.parametrize("expire", [False, True])
+@pytest.mark.parametrize("expire", [False, True, "role"])
 def test_first_share_wait_is_bounded_and_authority_is_fresh(b04_env, expire, monkeypatch):
     from time import monotonic
 
@@ -475,6 +475,28 @@ def test_first_share_wait_is_bounded_and_authority_is_fresh(b04_env, expire, mon
     monkeypatch.setattr(
         credentials, "is_valid", lambda principal, at: valid[0] and original(principal, at)
     )
+    until = None
+    if expire == "role":
+        with engine.begin() as conn:
+            role, until = conn.execute(
+                text("""UPDATE project_role_assignments SET
+                effective_until=clock_timestamp()+interval '3 seconds',row_version=row_version+1
+                WHERE actor_id=:actor AND project_id=:project AND role='OWNER'
+                AND effective_until IS NULL RETURNING id,effective_until"""),
+                {"actor": actor.actor_id, "project": q.project_id},
+            ).one()
+            conn.execute(
+                text("""INSERT INTO project_role_events
+                (id,role_assignment_id,actor_id,event_kind,occurred_at,reason,request_id)
+                VALUES (:id,:role,:actor,'CLOSED',:until,'H2 scheduled expiry',:request)"""),
+                {
+                    "id": uuid4(),
+                    "role": role,
+                    "actor": actor.actor_id,
+                    "until": until,
+                    "request": uuid4(),
+                },
+            )
     try:
         with engine.connect() as blocker, ThreadPoolExecutor(max_workers=1) as pool:
             transaction = blocker.begin()
@@ -487,12 +509,25 @@ def test_first_share_wait_is_bounded_and_authority_is_fresh(b04_env, expire, mon
                     with engine.connect() as conn:
                         witness = conn.execute(
                             text(
-                                "SELECT a.pid FROM pg_stat_activity a JOIN pg_locks l ON l.pid=a.pid WHERE a.datname=current_database() AND NOT l.granted AND l.relation='actors'::regclass AND l.mode='ShareLock' LIMIT 1"
+                                "SELECT a.pid,clock_timestamp() FROM pg_stat_activity a JOIN pg_locks l ON l.pid=a.pid WHERE a.datname=current_database() AND NOT l.granted AND l.relation='actors'::regclass AND l.mode='ShareLock' LIMIT 1"
                             )
-                        ).scalar_one_or_none()
+                        ).one_or_none()
                 assert witness is not None
+                if expire == "role":
+                    assert witness[1] < until
                 if expire:
-                    valid[0] = False
+                    if expire == "role":
+                        blocker.execute(
+                            text(
+                                "SELECT pg_sleep(GREATEST(0, EXTRACT(EPOCH FROM (:until-clock_timestamp()))+0.1))"
+                            ),
+                            {"until": until},
+                        )
+                        assert blocker.execute(
+                            text("SELECT clock_timestamp()>=:until"), {"until": until}
+                        ).scalar_one()
+                    else:
+                        valid[0] = False
                     transaction.rollback()
                 with pytest.raises(ResearchBaseError) as exc:
                     future.result(timeout=15)
@@ -505,7 +540,10 @@ def test_first_share_wait_is_bounded_and_authority_is_fresh(b04_env, expire, mon
     finally:
         bounded.dispose()
     valid[0] = True
-    assert service.get_manuscript_version(actor, q).status == "DRAFT"
+    assert (
+        service.get_manuscript_version(b04_env[-1][4] if expire == "role" else actor, q).status
+        == "DRAFT"
+    )
 
 
 @pytest.mark.parametrize("protocol", ["decision", "novelty_coverage", "novelty_claim"])
@@ -669,3 +707,41 @@ def test_freeze_vs_direct_placement_mutation(b04_env, operation, monkeypatch):
             writing.result(timeout=15)
         assert getattr(exc.value.orig, "sqlstate", None) == "P04M1"
     assert service.get_manuscript_version(actor, q) == frozen
+
+
+def test_h2_connection_and_local_bounds_survive_rollback_without_pool_leak(b04_env):
+    from researchbase.persistence.database import create_database_engine
+    from researchbase.persistence.manuscript_freeze_repository import B04_SHARE_SQL
+    from tests.integration.phase2 import pr2_20_support as s
+
+    engine = b04_env[4]
+    bounded = create_database_engine(
+        engine.url.render_as_string(hide_password=False), b04_write_timeouts=True
+    )
+
+    def settings(conn):
+        return tuple(
+            conn.execute(
+                text("SELECT current_setting('lock_timeout'),current_setting('statement_timeout')")
+            ).one()
+        )
+
+    try:
+        with engine.connect() as ordinary:
+            defaults = settings(ordinary)
+        with bounded.connect() as conn:
+            assert settings(conn) == ("10s", "30s")
+        with s.capture(bounded) as capture:
+            with bounded.connect() as conn:
+                conn.execute(text(B04_SHARE_SQL))
+                conn.execute(text("SET LOCAL lock_timeout='1s'"))
+                conn.execute(text("SET LOCAL statement_timeout='2s'"))
+                assert settings(conn) == ("1s", "2s")
+                conn.rollback()
+        assert capture.transaction_first_statements == [B04_SHARE_SQL]
+        with bounded.connect() as conn:
+            assert settings(conn) == ("10s", "30s")
+        with engine.connect() as ordinary:
+            assert settings(ordinary) == defaults
+    finally:
+        bounded.dispose()

@@ -1,6 +1,8 @@
 # B02 Strategy Candidate Promotion Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-19 — first slice authorized for implementation**
+
+Director ruling 2026-10-19 resolves the Agent identity blocker for this slice; see [retained evidence and ruling](../verification/b02/implementation-blocker.md).
 
 ## Start here (for the implementer)
 
@@ -460,6 +462,13 @@ later legitimate research draft updates do not revalidate old admission material
 Output identities/versions must also have current-transaction xmin at admission;
 ordinary existing create followed by receipt insertion in another UoW is denied.
 
+The existing Phase 1 research repositories derive Domain `hash_scheme` from the
+nullable persisted `content_hash`; research version tables have no `hash_scheme`
+column. Guards check persisted `content_hash`/`frozen_at` null and Application
+readback verifies the derived null scheme. Existing JSONB repository encoding may
+represent absent scope/success criteria as JSON null; both SQL NULL and JSON null
+mean the required absent value. No existing-table column or mapping is changed.
+
 SQL verifies typed structural closure; Application verifies CAS bytes, complete
 source-set equality with envelope, hashes, selected index/text, native provenance
 and authorization. SQL must not purport to execute Python or inspect the filesystem.
@@ -537,7 +546,7 @@ that check if any later operation waits. Reads never use this lock protocol.
 | --- | --- |
 | `tests/unit/phase2/test_b02_strategy_promotion_contract.py` (new) | Every closed DTO/type/bound; bool/unknown fields, NFC and controls, stable source sorting, duplicate question text by index, empty/out-of-range selectors; no native hypothesis list; explicit adaptation/null defaults and enum literals; exact transport mapping table. |
 | `tests/unit/phase2/test_b02_strategy_promotion_hashes.py` (new) | Independent literal envelope/three relation hash vectors, Unicode/null/time/order, byte substitution and changed material; no reuse of production builders as expected oracle; unchanged Phase 1 vectors. |
-| `tests/integration/phase2/b02_support.py` (new) | PG18 disposable migrated fixture, real CAS, configured native strategy/scripted RAG, two projects, verified Human/Agent writers/readers and separate capture/admission actors; two engines/backend PIDs for races. |
+| `tests/integration/phase2/b02_support.py` (new) | PG18 disposable migrated fixture, real CAS, configured native strategy/scripted RAG, two projects, verified HUMAN writers/readers and separate capture/admission actors; an unbound/AGENT principal is denied fail-closed with existing FORBIDDEN; two engines/backend PIDs for races. |
 | `tests/integration/phase2/test_b02_strategy_capture.py` (new) | Real native run and artifact read after restart, exact revisions/limitations, source membership and handled retrieval failures retained; no scientific delta; reject caller-manufactured artifact/result, bad source closure, corruption/oversize/cancellation; concurrent capture first result wins, no external call in transaction. |
 | `tests/integration/phase2/test_b02_strategy_admission.py` (new) | Saved question and explicitly adapted hypothesis create exact version 1 DRAFT with null hashes and concrete bindings; optional parent closure; authority parity, writer denial, wrong project, empty hypothesis output never relabeled, missing answer denied, retained warnings; ordinary create lacks promotion proof. |
 | `tests/integration/phase2/test_b02_strategy_replay.py` (new) | Restart/unknown commit exact-ID recovery, actor takeover, changed normalized request, other-ID candidate duplicate; lost writer versus lost reader/credential; source later merge/retraction and target edit/freeze/abandon do not change saved historical replay; zero duplicate effect. |
@@ -557,7 +566,14 @@ assertions separate from positive admission tests. Future planned command:
 Run static checks, unit/architecture and these affected PostgreSQL suites; do not
 run the full suite, which belongs to the owner's loop. Planned tests are not PASS.
 
+Agent writers are deferred until an owning Agent identity/provisioning contract exists
+(Phase 3 agent runtime); policy code needs no change. This replaces the verified
+Agent writer positive fixture by director ruling 2026-10-19.
+
 ### 12.5 Not in this slice
+
+Agent writers are deferred until an owning Agent identity/provisioning contract
+exists (Phase 3 agent runtime); policy code needs no change.
 
 Native hypothesis generation or new strategy revision; automated scientific
 validation, claim/support/evidence promotion, independent review, approval or

@@ -73,6 +73,11 @@ def test_clean_upgrade_catalog_and_empty_downgrade(monkeypatch):
                 "search_coverage_resolutions",
                 "novelty_assessment_probes",
                 "novelty_assessment_screening_results",
+                "discussion_hypothesis_admissions",
+                "strategy_candidate_captures",
+                "strategy_candidate_sources",
+                "strategy_question_admissions",
+                "strategy_hypothesis_admissions",
             }
             assert (
                 conn.execute(

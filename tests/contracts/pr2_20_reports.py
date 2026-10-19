@@ -378,7 +378,8 @@ def write_reports(root: Path = ROOT) -> Path:
         + (
             f"[Complete revision/predecessor/script digests]({ref}migration_scripts.json). "
             "No existing migration was edited; first-slice DDL and index proposals are empty. "
-            "The live head is 0047, superseding the plan observation of 0042. "
+            "The live head is 0068_b21_unresolved_capture, "
+            "superseding the plan observation of 0042. "
             "Owning legacy predicates and populated downgrade refusals remain authoritative. "
             "Empty/no-op, reconnect, accepted populated checkpoints, rollback and histo"
             "rical-manifest tests "
@@ -574,3 +575,53 @@ EXIT_NODES = {
 
 if __name__ == "__main__":
     print(write_reports().relative_to(ROOT))
+
+
+def compaction_inventory(root: Path = ROOT) -> tuple[dict[str, Any], ...]:
+    """Inventory originals and literal consumers before any destructive compaction.
+
+    No file is removed. Dynamic parsers need manual review, so every entry remains
+    BLOCKED until its consumer and retained-history review is attached.
+    """
+    candidates = sorted(
+        {
+            *root.glob("docs/verification/task12/*/partition.json"),
+            *(p for p in (root / "docs/verification/task14").rglob("*") if p.is_file()),
+            *(
+                p
+                for p in (root / "pr_evidence").rglob("*")
+                if p.is_file() and p.stat().st_size >= 100_000
+            ),
+        }
+    )
+    consumers = {}
+    import subprocess
+
+    listed = subprocess.check_output(["git", "ls-files", "-z"], cwd=root)
+    for item in listed.split(b"\0"):
+        if item:
+            path = root / item.decode()
+            if path.is_file() and path.suffix in {".md", ".py", ".json", ".yml", ".yaml"}:
+                consumers[item.decode()] = path.read_text(errors="replace")
+    return tuple(
+        dict(
+            original_path=path.relative_to(root).as_posix(),
+            original_bytes=path.stat().st_size,
+            original_sha256=digest_bytes(path.read_bytes()),
+            status="BLOCKED",
+            reason="Retention and dynamic consumer recovery unapproved; original retained",
+            consumers=sorted(
+                name
+                for name, body in consumers.items()
+                if path.name in body or path.relative_to(root).as_posix() in body
+            ),
+        )
+        for path in candidates
+    )
+
+
+def compaction_status(record, source_status: str) -> str:
+    """Successful byte recovery never promotes the underlying execution result."""
+    if source_status not in {"PASS", "FAIL", "BLOCKED", "NOT RUN", "DEFERRED"}:
+        raise ValueError("invalid source result")
+    return source_status if record.status == "PASS" else record.status

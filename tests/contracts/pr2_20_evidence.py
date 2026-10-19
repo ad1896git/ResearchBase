@@ -413,3 +413,68 @@ def write_chunks(directory: Path, stem: str, items: list[Any]) -> tuple[Path, ..
         path.write_bytes(canonical_bytes(chunk))
         paths.append(path)
     return tuple(paths)
+
+
+def repository_path(value: str) -> None:
+    """Compaction locators may name older evidence, without weakening EvidenceRef."""
+    path = PurePosixPath(value)
+    if (
+        not value
+        or len(value) > 1024
+        or path.is_absolute()
+        or ".." in path.parts
+        or "\\" in value
+        or str(path) != value
+        or any(char in value for char in "?#:@\n\r\0")
+    ):
+        raise ValueError("invalid retained repository path")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CompactionEvidence(EvidenceRecord):
+    original_path: str
+    retained_path: str
+    retained_revision: str
+    original_bytes: int
+    retained_bytes: int
+    original_sha256: Digest
+    retained_sha256: Digest
+    summary: str
+
+    def __post_init__(self) -> None:
+        super(CompactionEvidence, self).__post_init__()
+        repository_path(self.original_path)
+        repository_path(self.retained_path)
+        if not re.fullmatch("[0-9a-f]{40}", self.retained_revision):
+            raise ValueError("exact retained Git revision required")
+        if not self.summary.strip():
+            raise ValueError("summary required")
+
+
+def recover_compaction(root: Path, record: CompactionEvidence) -> bytes:
+    """Verify retained Git bytes, then original bytes, including gzip recovery.
+
+    This is verification only: callers must inventory consumers and prove fresh
+    checkout recovery before removing anything. No working-tree fallback hides a
+    missing committed locator.
+    """
+    import gzip
+    import subprocess
+
+    try:
+        raw = subprocess.check_output(
+            ["git", "show", f"{record.retained_revision}:{record.retained_path}"],
+            cwd=root,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ValueError("retained evidence unavailable") from error
+    if len(raw) != record.retained_bytes or digest_bytes(raw) != record.retained_sha256:
+        raise ValueError("retained evidence mismatch")
+    try:
+        original = gzip.decompress(raw) if record.retained_path.endswith(".gz") else raw
+    except (OSError, EOFError) as error:
+        raise ValueError("invalid compressed evidence") from error
+    if len(original) != record.original_bytes or digest_bytes(original) != record.original_sha256:
+        raise ValueError("original evidence mismatch")
+    return original

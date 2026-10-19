@@ -63,6 +63,11 @@ def test_catalog_and_owned_downgrade(novelty_env, phase2_database_url):
         "search_coverage_resolutions",
         "novelty_assessment_probes",
         "novelty_assessment_screening_results",
+        "discussion_hypothesis_admissions",
+        "strategy_candidate_captures",
+        "strategy_candidate_sources",
+        "strategy_question_admissions",
+        "strategy_hypothesis_admissions",
     }
     command.upgrade(cfg, "head")
     with e["engine"].connect() as conn:

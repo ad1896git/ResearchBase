@@ -119,3 +119,80 @@ def test_transcript_binding_restart_and_forbidden_promotion(
 discussion_database_url = _discussion_database_url
 discussion_env = _discussion_env
 pr219_discussion_env = _pr219_discussion_env
+
+
+def test_g4_explicit_manual_admission_suffix(pr219_discussion_env, tmp_path):
+    from researchbase.application.discussion_hypothesis import (
+        DiscussionHypothesisCandidate,
+        DiscussionHypothesisService,
+        PromoteDiscussionHypothesisCommand,
+    )
+
+    env = pr219_discussion_env
+    _, engine, credentials, principal, project, question, _ = env
+    session = _create(env).session_id
+    discussion, factory, store = _service(env, tmp_path)
+    before = counts(
+        engine,
+        (
+            "hypotheses",
+            "hypothesis_versions",
+            "claims",
+            "claim_versions",
+            "literature_support_snapshots",
+            "decision_records",
+            "approval_grants",
+        ),
+    )
+    with engine.connect() as c:
+        evidence_before = c.execute(text("SELECT count(*) FROM evidence_relations")).scalar_one()
+    turn = discussion.append(
+        principal,
+        project,
+        session,
+        "human",
+        "APPROVED! Freeze, support and release a Claim now.",
+        (),
+        (),
+        uuid4(),
+    ).turn_id
+    discussion.close(principal, project, session, uuid4())
+    content = discussion.read(principal, project, session).derived_candidates[0].content
+    version = _artifact(factory, store, principal, project, content)
+    discussion.bind_transcript(principal, project, session, version, uuid4())
+    assert counts(engine, tuple(before)) == before
+    assert turn is not None
+    service = DiscussionHypothesisService(factory, credentials, store)
+    result = service.promote_discussion_to_hypothesis(
+        principal,
+        PromoteDiscussionHypothesisCommand(
+            project,
+            session,
+            uuid4(),
+            DiscussionHypothesisCandidate(
+                turn, version, question, "Explicit human research hypothesis"
+            ),
+        ),
+    )
+    fresh = DiscussionHypothesisService(factory, credentials, store)
+    assert (
+        fresh.get_discussion_hypothesis_admission(principal, project, result.receipt_id) == result
+    )
+    after = counts(engine, tuple(before))
+    assert after == {
+        **before,
+        "hypotheses": before["hypotheses"] + 1,
+        "hypothesis_versions": before["hypothesis_versions"] + 1,
+    }
+    with engine.connect() as c:
+        assert (
+            c.execute(text("SELECT count(*) FROM evidence_relations")).scalar_one()
+            == evidence_before
+        )
+        assert (
+            c.execute(
+                text("SELECT status FROM hypothesis_versions WHERE id=:id"),
+                {"id": result.hypothesis_version_id},
+            ).scalar_one()
+            == "DRAFT"
+        )

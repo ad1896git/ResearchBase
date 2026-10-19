@@ -96,3 +96,65 @@ m3 = _m3
 phase2_database_url = _phase2_database_url
 pr219_candidate_env = _pr219_candidate_env
 pr219_evidence_env = _pr219_evidence_env
+
+
+def test_g2_saved_native_brief_question_and_researcher_adaptation_after_restart(
+    pr219_candidate_env,
+):
+    """Persisted G2 suffix; no native hypothesis, evidence verification or gate claim."""
+    from researchbase.application.strategy_candidate_promotion import (
+        CaptureNativeStrategyCommand,
+        ExactStrategyQuery,
+        PromoteStrategyHypothesisCommand,
+        PromoteStrategyQuestionCommand,
+        StrategyCandidatePromotionService,
+    )
+    from researchbase.persistence.uow import strategy_candidate_promotion_uow_factory
+
+    env, sources = pr219_candidate_env
+    evidence, actor, admitting_actor, project, _, _, _, engine, credentials = env
+    factory = strategy_candidate_promotion_uow_factory(
+        engine.url.render_as_string(hide_password=False)
+    )
+    rag = ScriptedRAG(sources[0], missing={"What limitations are reported for Recall?"})
+    service = StrategyCandidatePromotionService(factory, credentials, evidence._store, rag)
+    saved = service.capture_native_strategy(
+        actor, CaptureNativeStrategyCommand(uuid4(), project, "Recall", sources)
+    )
+    question = service.promote_strategy_question(
+        admitting_actor,
+        PromoteStrategyQuestionCommand(
+            uuid4(), project, saved.id, 0, "Explicit open question validation"
+        ),
+    )
+    adapted = service.promote_strategy_hypothesis(
+        actor,
+        PromoteStrategyHypothesisCommand(
+            uuid4(),
+            project,
+            saved.id,
+            0,
+            "Researcher adaptation, not native hypothesis generation",
+            "Recall may improve",
+            question.research_question_id,
+        ),
+    )
+    fresh = StrategyCandidatePromotionService(
+        strategy_candidate_promotion_uow_factory(engine.url.render_as_string(hide_password=False)),
+        credentials,
+        evidence._store,
+        None,
+    )
+    assert fresh.get_strategy_capture(actor, ExactStrategyQuery(saved.id, project)) == saved
+    assert (
+        fresh.get_strategy_question_promotion(actor, ExactStrategyQuery(question.id, project))
+        == question
+    )
+    assert (
+        fresh.get_strategy_hypothesis_promotion(
+            admitting_actor, ExactStrategyQuery(adapted.id, project)
+        )
+        == adapted
+    )
+    assert adapted.research_question_id == question.research_question_id
+    assert question.capture_id == adapted.capture_id == saved.id

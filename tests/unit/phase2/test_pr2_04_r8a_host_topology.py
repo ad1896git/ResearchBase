@@ -35,8 +35,11 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
             hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
         )
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0071_b23_novelty_review"]
-    assert scripts.get_revision(scripts.get_heads()[0]).down_revision == "0070_b20_screening_basis"
+    assert scripts.get_heads() == ["0073_b02_strategy_admission"]
+    assert (
+        scripts.get_revision(scripts.get_heads()[0]).down_revision
+        == "0072_b03_discussion_hypothesis"
+    )
 
 
 @pytest.mark.parametrize(

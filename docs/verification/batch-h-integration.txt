@@ -1,0 +1,114 @@
+Batch H integration verification — 2026-10-19
+
+Integration changes
+- Continued the partial working-tree resolutions; combined B02/B03/H2 with the
+  branch's B13 stale fix, B20, B23, B30-S2 and B32 behavior.
+- Preserved both CLI service families, repository/UoW ports and scoped database
+  error handling; combined table and migration inventories.
+- Linear history: 0071_b23_novelty_review -> 0072_b03_discussion_hypothesis
+  -> 0073_b02_strategy_admission. Head assertions and CI use 0073.
+- Migrations 0069_b13, 0070_b20 and 0071_b23 remain byte-for-byte unchanged.
+- 0072/0073 contain no CREATE OR REPLACE FUNCTION and replace no existing
+  trigger. The only replaced CHECK is the discussion receipt command vocabulary;
+  its downgrade reinstalls its predecessor definition. The separate APPEND_TURN
+  / result_turn_id invariant remains installed. B23 review/revision guards are
+  untouched. Current-transaction comparisons retain pg_current_xact_id()::xid.
+- Extended the catalog round-trip test through both new migrations: complete
+  function definitions, CHECK/FK/other constraints and triggers are compared
+  against each predecessor snapshot after downgrade, then head on re-upgrade.
+- H2's populated historical-row check compares every pre-B23 column throughout
+  0044/0051/0052/head and compares complete head rows again at head. This handles
+  B23's four added columns without excluding any historical material column.
+- Lane evidence documents retain their original historical migration references.
+
+Environment
+Commands ran from the repository root, with:
+  export UV_PROJECT_ENVIRONMENT=/Users/fengwang/Documents/ResearchBaseProject/.venv
+  export UV_CACHE_DIR=/private/tmp/lane63-uv-cache
+  export PYTHONPATH=src
+  export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane63
+  export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+The focused PostgreSQL fixtures create and remove their own disposable databases.
+
+Static verification (final runs, exit 0)
+  uv run --no-sync --offline ruff format --check .
+  Result: 783 files already formatted.
+  uv run --no-sync --offline ruff check .
+  Result: All checks passed!
+  uv run --no-sync --offline pyright --venvpath /Users/fengwang/Documents/ResearchBaseProject
+  Result: 0 errors, 0 warnings, 0 informations.
+  uv run --no-sync --offline alembic heads
+  Result: 0073_b02_strategy_admission (head); exactly one head.
+
+Test commands and observed results
+
+Unit and architecture (final, exit 0)
+  uv run --no-sync --offline pytest -o addopts='' -q --tb=short tests/unit tests/architecture tests/test_architecture.py
+  6195 passed, 55 warnings in 90.26s (0:01:30)
+
+
+B02/B03/B20/B23 and batch composition (exit 0)
+  uv run --no-sync --offline pytest -o addopts='' -q --tb=short tests/integration/phase2/test_b02* tests/integration/phase2/test_b03* tests/integration/phase2/test_b20* tests/integration/phase2/test_b23* tests/integration/phase2/test_batch_g_integration.py
+  331 passed, 567 warnings in 364.65s (0:06:04)
+
+
+H2 and affected owning suites (exit 0)
+  uv run --no-sync --offline pytest -o addopts='' -q --tb=short tests/integration/phase2/test_b06_revision_concurrency.py tests/integration/phase2/test_b04_manuscript_races.py tests/integration/phase2/test_pr2_20_novelty.py tests/integration/phase2/test_pr2_20_governance_races.py tests/integration/phase2/test_b09_approval_concurrency.py tests/integration/phase2/test_b14r_ready_approval_races.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b13_grant_consumption.py tests/e2e/test_pr2_20_benchmark.py
+  189 passed, 65 skipped, 646 warnings in 406.88s (0:06:46)
+
+
+Catalog round trip (also included in batch composition; exit 0)
+  uv run --no-sync --offline pytest -o addopts='' -q --tb=short tests/integration/phase2/test_batch_g_integration.py::test_each_downgrade_restores_exact_predecessor_catalog
+  1 passed, 12 warnings in 1.48s
+
+
+Conflicted and touched integration files (initial run, exit 1)
+  xargs uv run --no-sync --offline pytest -o addopts='' -q --tb=short < /private/tmp/lane63-conflicted-paths
+  Input file contained exactly:
+    tests/integration/phase2/test_b04_manuscript_migration.py
+    tests/integration/phase2/test_b05_review_migration.py
+    tests/integration/phase2/test_b07_schema.py
+    tests/integration/phase2/test_b08_schema.py
+    tests/integration/phase2/test_b14a_entry_schema.py
+    tests/integration/phase2/test_b15_package_schema.py
+    tests/integration/phase2/test_b21_capture_schema.py
+    tests/integration/phase2/test_batch_c_migration.py
+    tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
+    tests/integration/phase2/test_pr2_03_review_guards.py
+    tests/integration/phase2/test_pr2_04_execution_migration.py
+    tests/integration/phase2/test_pr2_04_migration_coverage.py
+    tests/integration/phase2/test_pr2_15_decision_schema.py
+    tests/integration/phase2/test_pr2_17_authorship_schema.py
+    tests/integration/phase2/test_pr2_19_candidates.py
+    tests/integration/phase2/test_pr2_19_discussion.py
+    tests/integration/phase2/test_revision_action.py
+
+  1 failed, 308 passed, 800 warnings in 310.72s (0:05:10)
+
+  Sole failure: test_h2_populated_0044_0051_0052_head_upgrade_reconnect.
+  Whole-row manifests differed when the downgrade removed B23's added columns.
+  Corrected the cross-revision projection and retained complete head-row equality.
+  Owning file rerun (exit 0):
+  uv run --no-sync --offline pytest -o addopts='' -q --tb=short tests/integration/phase2/test_revision_action.py
+  55 passed, 173 warnings in 57.27s
+
+
+Initial unit/architecture run (same command as the final run; exit 1):
+  1 failed, 6194 passed, 55 warnings in 84.41s (0:01:24)
+  Sole failure was the old B02 predecessor assertion (0068 instead of 0072).
+  It was corrected; the complete final unit/architecture rerun above passed.
+
+Additional checks
+  git diff HEAD --check
+  Result: exit 0.
+  Changed text files, including the two new migration paths, were scanned:
+  zero conflict markers; zero trailing-whitespace lines; zero pr_evidence paths.
+
+Limits and working-tree state
+- The whole suite was NOT RUN; the loop owns that evidence.
+- 65 benchmark/profile skips remain NOT RUN; large opt-in profiles were not enabled.
+- Warnings above are retained as observed; they are not reported as zero warnings.
+- No commit, push or branch creation was performed.
+- Staging was attempted but denied because .git is read-only in this sandbox.
+  All resolutions and migration renames are present in the working tree; the
+  inherited index still contains its pre-resolution contents until the loop stages.

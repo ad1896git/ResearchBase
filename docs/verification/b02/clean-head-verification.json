@@ -1,0 +1,11 @@
+{
+  "head": "672f2501e37af8143a2322ffdb769eacbf6e835e",
+  "method": "git archive HEAD extracted into ignored tmp/b02-clean-head; no branch or worktree created",
+  "verified_src_and_tests_blobs": 677,
+  "test_module": "tests/integration/phase2/test_pr2_04_restart_completion.py",
+  "command": "uv run --no-sync pytest tests/integration/phase2/test_pr2_04_restart_completion.py -q -o addopts=''",
+  "cwd": "tmp/b02-clean-head",
+  "PYTHONPATH": "<repository>/tmp/b02-clean-head/src",
+  "environment": "shared locked .venv via symlink; UV_CACHE_DIR=<repository>/tmp/uv-cache; RB_TEST_ADMIN_URL=local postgres admin",
+  "result": "2 passed, 2 warnings in 4.08s"
+}

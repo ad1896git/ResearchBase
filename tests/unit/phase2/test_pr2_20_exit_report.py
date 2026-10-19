@@ -193,3 +193,22 @@ def test_exact_non_nfc_catalog_sql_is_encoded_without_rewriting_history():
     encoded = encode_catalog_text(raw)
     assert bytes.fromhex(encoded["utf8_hex"]).decode("utf-8") == raw
     assert encoded["sha256"] == digest_bytes(raw.encode())
+
+
+@pytest.mark.parametrize("source", ["FAIL", "BLOCKED", "NOT RUN", "DEFERRED"])
+def test_h2_compaction_success_does_not_close_source_or_exit(source, monkeypatch):
+    identity = r.subject()
+    monkeypatch.setattr(r, "subject", lambda root=r.ROOT: identity)
+    from tests.contracts.pr2_20_evidence import CompactionEvidence
+    from tests.unit.phase2.test_pr2_20_evidence import record
+
+    item = record(
+        CompactionEvidence,
+        status="PASS",
+        original_path="old.txt",
+        retained_path="kept.txt",
+        retained_revision="a" * 40,
+        summary="Byte recovery only",
+    )
+    assert r.compaction_status(item, source) == source
+    assert r.validate_exit(r.exit_rows(), ()) == "BLOCKED"

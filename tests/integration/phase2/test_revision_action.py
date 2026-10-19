@@ -490,7 +490,7 @@ def test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog(phase2_d
         with engine.connect() as conn:
             assert _tables(conn) - tables == {"revision_actions"}
             assert _catalog(conn, tables) == catalog
-        assert ScriptDirectory.from_config(config).get_heads() == ["0071_b23_novelty_review"]
+        assert ScriptDirectory.from_config(config).get_heads() == ["0073_b02_strategy_admission"]
         alembic_command.downgrade(config, "0043_pr2_04_schema_contract")
         with engine.connect() as conn:
             assert _tables(conn) == tables and _catalog(conn, tables) == catalog
@@ -1373,3 +1373,107 @@ def test_frozen_claim_writer_overlap_does_not_invert_snapshot(revision_env, tmp_
         action_release.set()
         event.remove(base[8], "after_cursor_execute", hold_parent)
     assert writer_pid
+
+
+def _h2_revision_catalog(engine):
+    from tests.integration.phase2.pr2_20_support import read_snapshot
+
+    with read_snapshot(engine) as conn:
+        definition, language, result = conn.execute(
+            text(
+                "SELECT pg_get_functiondef(p.oid),l.lanname,p.prorettype::regtype::text "
+                "FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang "
+                "WHERE p.oid='pr215_revision_guard()'::regprocedure"
+            )
+        ).one()
+        assert language == "plpgsql" and result == "trigger"
+        triggers = conn.execute(
+            text(
+                "SELECT tgname,tgtype,tgenabled,tgdeferrable,tginitdeferred "
+                "FROM pg_trigger WHERE tgname IN ('revision_action_guard',"
+                "'pr215_complete_decision','pr215_complete_conclusion','pr215_complete_review') "
+                "ORDER BY tgname"
+            )
+        ).all()
+        assert len(triggers) == 4
+        for name, kind, enabled, deferred, initially in triggers:
+            assert enabled == "O"
+            if name == "revision_action_guard":
+                assert kind == 31 and not deferred and not initially
+            else:
+                assert kind == 5 and deferred and initially
+        return definition
+
+
+def test_h2_installed_revision_guard_at_clean_head(phase2_database_url):
+    from sqlalchemy import create_engine
+
+    alembic_command.upgrade(_config(phase2_database_url), "head")
+    engine = create_engine(phase2_database_url)
+    try:
+        body = _h2_revision_catalog(engine)
+        assert "b07_validate_revision(NEW)" in body
+        assert "b07_action_hash(NEW)" in body
+        assert "revision_actions WHERE id=NEW.supersedes_revision_action_id FOR UPDATE" in body
+        assert body.count("FOR UPDATE") == 1
+        assert "old_conclusion" not in body
+    finally:
+        engine.dispose()
+
+
+def test_h2_populated_0044_0051_0052_head_upgrade_reconnect(revision_env, phase2_database_url):
+    from sqlalchemy import create_engine, inspect
+
+    from tests.integration.phase2.pr2_20_support import manifest
+
+    service, cmd, env, _, _ = revision_env
+    base = env[-1]
+    saved = service.record_revision_action(base[3], cmd)
+    tables = (
+        "revision_actions",
+        "internal_review_records",
+        "review_issues",
+        "claim_versions",
+        "scientific_conclusion_versions",
+    )
+    expected_head = manifest(base[8], tables)
+    # B23 adds these columns at 0071; every predecessor column must retain its
+    # exact bytes through the older revisions, and the full head rows must return.
+    b23_columns = {
+        "revision_actions": {"result_novelty_assessment_id", "material_version"},
+        "internal_review_records": {"novelty_assessment_id", "material_version"},
+    }
+    inspector = inspect(base[8])
+    columns = {
+        table: tuple(
+            column["name"]
+            for column in inspector.get_columns(table)
+            if column["name"] not in b23_columns.get(table, set())
+        )
+        for table in tables
+    }
+    expected = manifest(base[8], tables, columns)
+    base[8].dispose()
+    config = _config(phase2_database_url)
+    alembic_command.downgrade(config, "0044_pr2_15_revision_action")
+    for revision, marker in (
+        ("0044_pr2_15_revision_action", "old_conclusion"),
+        ("0051_b06_revision_action", "b06_validate_revision(NEW)"),
+        ("0052_b07_revision_decisions", "b07_validate_revision(NEW)"),
+        ("head", "b07_validate_revision(NEW)"),
+    ):
+        alembic_command.upgrade(config, revision)
+        engine = create_engine(phase2_database_url)
+        try:
+            assert manifest(engine, tables, columns) == expected
+            if revision == "head":
+                assert manifest(engine, tables) == expected_head
+            body = _h2_revision_catalog(engine)
+            assert marker in body
+            if revision != "0044_pr2_15_revision_action":
+                assert "internal_review_records WHERE id=concern.review_record_id FOR SHARE" in body
+                assert "review_issues WHERE id=concern.id FOR SHARE" in body
+                assert body.count("FOR UPDATE") == 1
+        finally:
+            engine.dispose()
+    assert service.read_revision_action(base[3], base[5], cmd.id) == saved

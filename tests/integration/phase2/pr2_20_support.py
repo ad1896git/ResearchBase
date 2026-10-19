@@ -134,6 +134,7 @@ class Capture:
     statements: list[tuple[str, Any]] = field(default_factory=list, repr=False)
     elapsed_ms: float = 0
     transaction_first_statements: list[str] = field(default_factory=list)
+    transactions: list[list[str]] = field(default_factory=list, repr=False)
 
     @property
     def query_count(self) -> int:
@@ -148,6 +149,7 @@ class Capture:
 def capture(engine: Engine) -> Iterator[Capture]:
     observed = Capture()
     pending = set()
+    transactions = {}
 
     def begin(conn):
         pending.add(conn)
@@ -158,6 +160,9 @@ def capture(engine: Engine) -> Iterator[Capture]:
         if conn in pending:
             pending.remove(conn)
             observed.transaction_first_statements.append(statement)
+            transactions[conn] = []
+            observed.transactions.append(transactions[conn])
+        transactions[conn].append(statement)
 
     event.listen(engine, "begin", begin)
     event.listen(engine, "before_cursor_execute", before)
@@ -442,3 +447,36 @@ def persist_manifest(case: str, data: dict[str, Any]) -> dict[str, Any]:
             path.relative_to(evidence.EVIDENCE_ROOT).as_posix() for path in paths
         ]
     return result
+
+
+def passive_locks(engine: Engine, pids: Sequence[int]) -> dict[str, Any]:
+    """Observe inventories/waits without adding writer SQL or explicit read locks."""
+    with read_snapshot(engine) as conn:
+        settings = conn.execute(
+            text(
+                "SELECT current_setting('server_version'),current_setting('transaction_isolation'),"
+                "current_setting('max_locks_per_transaction')"
+            )
+        ).one()
+        rows = (
+            conn.execute(
+                text(
+                    "SELECT l.pid,l.locktype,c.relname,l.mode,l.granted,"
+                    "pg_blocking_pids(l.pid) AS blockers,a.wait_event_type,a.wait_event, "
+                    "COALESCE(EXTRACT(EPOCH FROM (clock_timestamp()-l.waitstart))*1000,0)"
+                    "::float8 AS wait_ms "
+                    "FROM pg_locks l LEFT JOIN pg_class c ON c.oid=l.relation "
+                    "JOIN pg_stat_activity a ON a.pid=l.pid WHERE l.pid=ANY(:pids) "
+                    "ORDER BY l.pid,l.locktype,c.relname,l.mode"
+                ),
+                {"pids": list(pids)},
+            )
+            .mappings()
+            .all()
+        )
+        return dict(
+            postgres_version=settings[0],
+            observer_isolation=settings[1],
+            max_locks_per_transaction=int(settings[2]),
+            locks=[dict(row) for row in rows],
+        )

@@ -2,6 +2,7 @@
 
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -102,7 +103,11 @@ def stable(value):
 
 @pytest.fixture
 def b18_env(novelty_env):
-    e = dict(novelty_env)
+    return build(dict(novelty_env))
+
+
+def build(e: dict[str, Any], *, assessment=True) -> dict[str, Any]:
+    """Reuse the owning search/resolution graph with optional assessment absence."""
     with e["engine"].connect() as conn:
         source, artifact = conn.execute(
             text(
@@ -217,7 +222,7 @@ def b18_env(novelty_env):
         "Bounded selected coverage cannot establish universal priority",
     )
     e["saved"] = {"coverage": coverage}
-    for kind in KINDS[1:]:
+    for kind in KINDS[1:] if assessment else ("prior_art",):
         e["saved"][kind] = invoke(e, kind, "first")
     assert (coverage.query_count, coverage.result_count, coverage.resolved_source_count) == (
         1,

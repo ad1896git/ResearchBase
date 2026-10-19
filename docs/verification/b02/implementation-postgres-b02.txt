@@ -1,0 +1,18 @@
+........................................................................ [ 73%]
+..........................                                               [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; tests.integration.phase2.b02_support
+    self.import_plugin(import_spec)
+
+tests/integration/phase2/test_b02_identity_boundary.py: 4 warnings
+tests/integration/phase2/test_b02_strategy_admission.py: 26 warnings
+tests/integration/phase2/test_b02_strategy_capture.py: 18 warnings
+tests/integration/phase2/test_b02_strategy_concurrency.py: 62 warnings
+tests/integration/phase2/test_b02_strategy_replay.py: 31 warnings
+tests/integration/phase2/test_b02_strategy_schema.py: 53 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+98 passed, 195 warnings in 102.17s (0:01:42)

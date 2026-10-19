@@ -1066,25 +1066,7 @@ class ApplicationService:
                 if question is None:
                     raise _not_found("research question", question_id)
                 _require_same_project(project.id, question.project_id)
-            hypothesis = Hypothesis(
-                id=new_typed_id(HypothesisId),
-                project_id=project.id,
-                research_question_id=question_id,
-                created_by=actor_id,
-                created_at=self._clock.now(),
-            )
-            version = _new_hypothesis_version(
-                hypothesis.id,
-                command,
-                actor_id,
-                self._clock,
-                uow.hypotheses.max_version_number(hypothesis.id) + 1,
-            )
-            uow.hypotheses.add(hypothesis)
-            uow.hypotheses.add_version(version)
-            uow.hypotheses.update_current_version(
-                hypothesis.id, version.id, hypothesis.row_version, increment=False
-            )
+            hypothesis, version = create_hypothesis_in_uow(uow, command, actor_id, self._clock)
             uow.commit()
             return _hypothesis_read_model(replace(hypothesis, current_version_id=version.id))
 
@@ -2682,6 +2664,32 @@ def _new_question_version(
         )
     except ValueError as exc:
         raise _validation_error(str(exc), "question_text") from exc
+
+
+def create_hypothesis_in_uow(
+    uow: UnitOfWork, command: CreateHypothesisCommand, actor_id: ActorId, clock: Clock
+) -> tuple[Hypothesis, HypothesisVersion]:
+    """Create validated research material inside the caller's transaction; never commit."""
+    hypothesis = Hypothesis(
+        id=new_typed_id(HypothesisId),
+        project_id=command.project_id,
+        research_question_id=command.research_question_id,
+        created_by=actor_id,
+        created_at=clock.now(),
+    )
+    version = _new_hypothesis_version(
+        hypothesis.id,
+        command,
+        actor_id,
+        clock,
+        uow.hypotheses.max_version_number(hypothesis.id) + 1,
+    )
+    uow.hypotheses.add(hypothesis)
+    uow.hypotheses.add_version(version)
+    uow.hypotheses.update_current_version(
+        hypothesis.id, version.id, hypothesis.row_version, increment=False
+    )
+    return hypothesis, version
 
 
 def _new_hypothesis_version(

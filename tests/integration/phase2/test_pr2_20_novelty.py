@@ -6,8 +6,19 @@ import pytest
 
 from tests.integration.phase2 import b18_novelty_support as b
 from tests.integration.phase2 import pr2_20_support as s
+from tests.integration.phase2.b17_fixtures import (
+    b04_env,
+    b05_env,
+    conclusion_env,
+    decision_env,
+    phase2_database_url,
+    revision_env,
+)
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
+pytest_plugins = (
+    "tests.integration.phase2.pr2_18_fixtures",
+    "tests.integration.phase2.test_m3_evidence",
+)
 b18_env = b.b18_env
 
 
@@ -43,3 +54,333 @@ def test_bounded_first_write_replay_read_and_later_resolution(b18_env, kind):
     assert b.protected_manifest(e) == protected
     assert len(b.PHANTOM_REFERENCES) == 2
     print("B18_PHANTOM_REFERENCES", b.PHANTOM_REFERENCES)
+
+
+_H2_FIXTURES = (b04_env, b05_env, conclusion_env, decision_env, phase2_database_url, revision_env)
+
+
+def _h2_novelty(env):
+    from uuid import UUID, uuid4
+
+    from researchbase.application.literature_evidence import LiteratureEvidenceService
+    from researchbase.application.novelty import NoveltyService
+    from researchbase.domain.organization import ProjectId
+    from researchbase.foundation.execution_context import ExecutionContext
+    from researchbase.foundation.time import SystemClock
+    from tests.application_compat import LegacyApplicationService
+
+    factory, credentials, store = env[4], env[9], env[7]
+    author, project, version_id = env[2], env[1].project_id, env[10][7]
+    service = LiteratureEvidenceService(factory, credentials, store)
+    evidence = service.create(author, project, version_id, "improved recall", uuid4())
+    evidence_id = UUID(evidence["id"])
+    service.review(
+        env[3], project, evidence_id, "VERIFIED", "Independent exact inspection", uuid4()
+    )
+    app = LegacyApplicationService(factory, SystemClock(), store)
+    context = ExecutionContext(actor_id=author.actor_id, request_id=uuid4(), client_type="test")
+    # A plan with no invoked query is a truthful selected zero-invocation scope.
+    from researchbase.application.commands import (
+        CreateResearchQuestionCommand,
+        FreezeResearchQuestionCommand,
+    )
+    from researchbase.application.literature_search_plan import (
+        CreateLiteratureSearchPlan,
+        LiteratureSearchPlanService,
+        TransitionLiteratureSearchPlanVersion,
+    )
+    from researchbase.domain.literature_search_plan import (
+        FrozenResearchQuestionReference,
+        LiteratureSearchPlanMaterial,
+        LiteratureSearchStrategy,
+        LiteratureSourceScope,
+    )
+    from researchbase.domain.research import ResearchQuestionId, ResearchQuestionVersionId
+
+    question = app.create_research_question(
+        CreateResearchQuestionCommand(
+            ProjectId(project), "Bounded search question", None, None, context
+        )
+    )
+    qv = app.freeze_research_question(
+        FreezeResearchQuestionCommand(
+            ResearchQuestionId(question.id),
+            ResearchQuestionVersionId(question.current_version_id),
+            context,
+        )
+    )
+    plans = LiteratureSearchPlanService(factory, credentials)
+    plan = plans.create(
+        CreateLiteratureSearchPlan(
+            author,
+            project,
+            LiteratureSearchPlanMaterial(
+                uuid4(),
+                (
+                    FrozenResearchQuestionReference(
+                        UUID(str(question.id)), UUID(str(qv.id)), str(qv.content_hash)
+                    ),
+                ),
+                "Search prior work",
+                LiteratureSourceScope.BIBLIOGRAPHIC,
+                None,
+                None,
+                None,
+                (),
+                LiteratureSearchStrategy.KEYWORD,
+                ("test",),
+                None,
+            ),
+            uuid4(),
+        )
+    )
+    plan_id = UUID(str(plan["plan_id"]))
+    plan_version = UUID(str(plan["version_id"]))
+    plans.freeze(
+        TransitionLiteratureSearchPlanVersion(author, project, plan_id, plan_version, uuid4())
+    )
+    return b.build(
+        dict(
+            engine=env[5],
+            factory=factory,
+            credentials=credentials,
+            author=author,
+            reviewer=env[3],
+            project=project,
+            claim=env[8],
+            source=version_id,
+            store=store,
+            literature=service,
+            service=NoveltyService(factory, credentials, service),
+            evidence=evidence_id,
+            plan=plan_version,
+        ),
+        assessment=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "outcome", [None, "INCONCLUSIVE", "CLOSE_PRIOR_ART_FOUND", "NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE"]
+)
+@pytest.mark.parametrize(
+    "control", [None, "ready_issue", "ready_invalid", "package_issue", "package_invalid", "consent"]
+)
+def test_novelty_outcomes_never_gate_approval_ready_or_package_freeze(b05_env, outcome, control):
+    """H2 fallback: negative outcome remains rejected, never fabricated as history."""
+    from uuid import uuid4
+
+    from sqlalchemy import text
+
+    from researchbase.application.internal_review import ReviewIssueRequest
+    from researchbase.domain.novelty import (
+        ClosenessCriteria,
+        NoveltyOutcome,
+        PriorArtBasisInput,
+        PriorArtKind,
+    )
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+    from tests.integration.phase2 import b17_fixtures
+    from tests.integration.phase2.test_b05_manuscript_review import create
+    from tests.integration.phase2.test_b11_readiness_decision import place_claim
+    from tests.integration.phase2.test_b14_publication_ready import issued
+
+    env = b05_env
+    place_claim(env)
+    e = _h2_novelty(env)
+    if outcome is not None:
+        command = e["commands"]["novelty"]
+        if outcome == "CLOSE_PRIOR_ART_FOUND":
+            relation = e["service"].record_prior_art_relation(
+                e["author"],
+                replace(e["commands"]["prior_art"], id=uuid4(), relation=PriorArtKind.IDENTICAL),
+            )
+            command = replace(
+                command,
+                id=uuid4(),
+                assessment=NoveltyOutcome(outcome),
+                prior_art_basis=(PriorArtBasisInput(relation.id, e["resolution"]["command"].id),),
+                scope_statement="Inspected selected executions",
+                closeness_criteria=ClosenessCriteria(("Same method", "Same result")),
+            )
+        else:
+            command = replace(command, id=uuid4(), assessment=NoveltyOutcome(outcome))
+        if outcome == "NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE":
+            before = s.manifest(e["engine"], b.NOVELTY_TABLES)
+            with pytest.raises(ResearchBaseError) as denied:
+                e["service"].record_novelty_assessment(e["author"], command)
+            assert denied.value.code == ErrorCode.INVALID_STATE_TRANSITION
+            assert s.manifest(e["engine"], b.NOVELTY_TABLES) == before
+        else:
+            saved = e["service"].record_novelty_assessment(e["author"], command)
+            assert saved.assessment == NoveltyOutcome(outcome)
+    novelty = s.manifest(e["engine"], b.NOVELTY_TABLES)
+    science = s.manifest(e["engine"], ("claim_versions", "evidence_relations", "source_versions"))
+
+    def invalidate():
+        from researchbase.application.governance import (
+            CreateImpactAssessmentCommand,
+            GovernanceService,
+            ProposedImpactTarget,
+        )
+        from researchbase.foundation.execution_context import ExecutionContext
+        from researchbase.foundation.time import SystemClock
+
+        with s.read_snapshot(env[5]) as conn:
+            document = conn.execute(
+                text("SELECT document_artifact_version_id FROM manuscript_versions WHERE id=:id"),
+                {"id": env[1].manuscript_version_id},
+            ).scalar_one()
+        GovernanceService(env[4], SystemClock()).create_impact_assessment(
+            CreateImpactAssessmentCommand(
+                env[1].project_id,
+                None,
+                {"test": "independent invalid fact"},
+                "invalid",
+                (ProposedImpactTarget("artifact_version", document, "invalid"),),
+                ExecutionContext(actor_id=env[2].actor_id, request_id=uuid4(), client_type="test"),
+            )
+        )
+
+    def issue():
+        create(
+            env,
+            issues=(
+                ReviewIssueRequest("BLOCKING", "NOVELTY", "Independent recorded review concern"),
+            ),
+        )
+
+    if control in {"ready_issue", "ready_invalid"}:
+        publication, ready, approval, _ = issued(env)
+        grant = approval.get_grant(env[2], ready.project_id, ready.grant_id)
+        decision = approval.get_decision(env[2], ready.project_id, grant.approval_decision_id)
+        request = approval.get_request(env[2], ready.project_id, decision.approval_request_id)
+        issue() if control == "ready_issue" else invalidate()
+        before = s.manifest(
+            env[5],
+            (
+                "publications",
+                "approval_grants",
+                "approval_grant_consumptions",
+                "publication_lifecycle_events",
+            ),
+        )
+        with pytest.raises(ResearchBaseError) as denied:
+            publication.transition_publication_ready(env[2], ready)
+        assert denied.value.code in {
+            ErrorCode.APPROVAL_GATE_FAILED,
+            ErrorCode.APPROVAL_TARGET_STALE,
+        }
+        assert s.manifest(env[5], tuple(before)) == before
+        assert approval.get_grant(env[2], ready.project_id, ready.grant_id).status == "ACTIVE"
+        from researchbase.application.approval import RequestApprovalCommand
+
+        before_permission = s.manifest(
+            env[5],
+            (
+                "approval_requests",
+                "approval_request_events",
+                "approval_grants",
+                "approval_grant_consumptions",
+            ),
+        )
+        with pytest.raises(ResearchBaseError) as denied:
+            approval.request_approval(
+                env[2],
+                RequestApprovalCommand(
+                    uuid4(),
+                    request.project_id,
+                    None,
+                    request.basis_decision_id,
+                    tuple(ref.id for ref in request.reviews),
+                    approval_purpose="READY_FOR_SUBMISSION",
+                    manuscript_version_id=request.manuscript_version_id,
+                ),
+            )
+        assert denied.value.code in {
+            ErrorCode.APPROVAL_GATE_FAILED,
+            ErrorCode.APPROVAL_TARGET_STALE,
+            ErrorCode.DECISION_BASIS_INVALID,
+        }
+        assert s.manifest(env[5], tuple(before_permission)) == before_permission
+
+    else:
+        f = b17_fixtures.build(env, consent=control != "consent")
+        if control == "package_issue":
+            issue()
+        if control == "package_invalid":
+            invalidate()
+        before = b17_fixtures.counts(f)
+        if control:
+            with pytest.raises(ResearchBaseError) as denied:
+                f.app.freeze_prepared_submission(f.actor, f.command)
+            assert denied.value.code in {
+                ErrorCode.APPROVAL_GATE_FAILED,
+                ErrorCode.APPROVAL_TARGET_STALE,
+            }
+            assert b17_fixtures.counts(f) == before
+            assert f.app.get_prepared_submission(f.actor, f.query).status == "PREPARED"
+            assert (
+                f.approval.get_grant(f.actor, f.command.project_id, f.command.grant_id).status
+                == "ACTIVE"
+            )
+        else:
+            receipt = f.app.freeze_prepared_submission(f.actor, f.command)
+            package = f.app.get_prepared_submission(f.actor, f.query)
+            assert (package.status, package.current_validity, package.row_version) == (
+                "FROZEN",
+                "VALID",
+                2,
+            )
+            assert package.package_manifest_hash == f.command.expected_package_manifest_hash
+            assert receipt.grant_id == f.command.grant_id
+            assert not any("novelty" in item.category.lower() for item in package.items)
+            with s.read_snapshot(env[5]) as conn:
+                assert (
+                    conn.execute(
+                        text("SELECT count(*) FROM approval_grant_consumptions")
+                    ).scalar_one()
+                    == 2
+                )
+                assert (
+                    conn.execute(
+                        text("SELECT count(*) FROM review_issues WHERE severity='BLOCKING'")
+                    ).scalar_one()
+                    == 0
+                )
+    with s.read_snapshot(env[5]) as conn:
+        novelty_ids = tuple(
+            str(x) for x in conn.execute(text("SELECT id FROM novelty_assessments")).scalars()
+        )
+        for table in (
+            "approval_requests",
+            "approval_decisions",
+            "approval_grants",
+            "approval_grant_consumptions",
+        ):
+            rows = conn.execute(text(f"SELECT row_to_json(t)::text FROM {table} t")).scalars().all()
+            assert all(
+                "novelty" not in row.lower()
+                and not any(identity in row for identity in novelty_ids)
+                for row in rows
+            )
+        if control is None:
+            normalized = (
+                tuple(
+                    conn.execute(
+                        text("SELECT decision FROM approval_decisions ORDER BY decision")
+                    ).scalars()
+                ),
+                tuple(conn.execute(text("SELECT lifecycle_status FROM publications")).scalars()),
+                tuple(
+                    conn.execute(
+                        text("SELECT command FROM approval_grant_consumptions ORDER BY command")
+                    ).scalars()
+                ),
+            )
+            assert normalized == (
+                ("APPROVE", "APPROVE_WITH_CONDITIONS"),
+                ("READY",),
+                ("FREEZE_PREPARED_SUBMISSION", "TRANSITION_PUBLICATION_READY"),
+            )
+    assert s.manifest(e["engine"], b.NOVELTY_TABLES) == novelty
+    assert s.manifest(e["engine"], tuple(science)) == science

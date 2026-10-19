@@ -503,3 +503,129 @@ def build_b29(decision_env):
         denied=denied,
         denial_code=denial_code,
     )
+
+
+APPROVAL_CASES = (
+    "request-first",
+    "request-replay",
+    "decision-first",
+    "decision-replay",
+    "request-denied",
+    "decision-denied",
+    "same-target-replay",
+)
+
+
+def approval_profile(env, case, count):
+    """Allocate legal independent targets outside timing; preserve service retry rules."""
+    from researchbase.application.approval import RequestApprovalCommand
+    from researchbase.application.phase2_identity import AssignProjectRole
+    from tests.integration.phase2.test_approval import _decide
+
+    approval, requester, approver, template, decision_env = env
+    base = decision_env[-1]
+    scientific, _, _, _, _, project, claim, *_ = base
+    author = requester
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
+    app = LegacyApplicationService(base[1], SystemClock(), base[2]._store)
+    context = ExecutionContext(actor_id=author.actor_id, request_id=uuid4(), client_type="test")
+    commands, decisions, expected = [], [], []
+    for index in range(1 if case == "same-target-replay" else count):
+        # Selection is scoped by project/purpose, not target. Independent targets
+        # therefore need distinct projects; otherwise preparing a later request
+        # intentionally makes earlier requests stale before timing starts.
+        project = identity.create_project_with_owner(
+            author, name=f"TEST ONLY H2 scope {index}", request_id=uuid4()
+        )
+        for principal, role in (
+            (decision_env[2], "OWNER"),
+            (requester, "RESEARCHER"),
+            (approver, "APPROVER"),
+        ):
+            identity.assign_project_role(
+                AssignProjectRole(
+                    author,
+                    project,
+                    principal.actor_id,
+                    role,
+                    "Independent H2 benchmark scope",
+                    uuid4(),
+                )
+            )
+        measurement = seed_measurement(app, ProjectId(project), context, f"h2-{index}")
+        parent, draft = seed_claim(app, ProjectId(project), context)
+        app.link_evidence(
+            LinkEvidenceCommand(
+                parent.id, draft.id, measurement, None, "supports", None, draft.row_version, context
+            )
+        )
+        linked = app.get_current_claim_version(parent.id)
+        claim = app.freeze_claim_version(
+            FreezeClaimVersionCommand(parent.id, linked.id, context, linked.row_version)
+        ).id
+        target = scientific.create(
+            author,
+            project,
+            f"TEST ONLY H2 approval {index}",
+            SCOPE,
+            "MODERATE",
+            None,
+            (ClaimInputRequest(claim, "SUPPORTS"),),
+            (),
+            uuid4(),
+        )
+        scientific.freeze(author, project, target.conclusion_id, target.version_id, uuid4())
+        review = decision_env[1].create(
+            decision_env[2],
+            project,
+            "SCIENTIFIC_CONCLUSION_VERSION",
+            target.version_id,
+            "SCIENTIFIC",
+            "ACCEPT",
+            "Independent H2 review",
+            (),
+            uuid4(),
+        )
+        basis = decision_env[0].record_decision(
+            decision_env[2],
+            RecordDecisionCommand(
+                uuid4(), project, target.version_id, "Release?", "Independent H2 basis"
+            ),
+        )
+        request = RequestApprovalCommand(
+            uuid4(), project, target.version_id, basis.id, (review.id,)
+        )
+        command = _decide(request)
+        saved = None
+        if case not in {"request-first", "request-denied"}:
+            saved = approval.request_approval(requester, request)
+        if case == "decision-replay":
+            saved = approval.decide_approval(approver, command)
+        commands.append(request)
+        decisions.append(command)
+        expected.append(saved)
+
+    def call(index):
+        slot = 0 if case == "same-target-replay" else index
+        request = commands[slot]
+        try:
+            if case == "request-denied":
+                result = approval.request_approval(decision_env[2], request)
+            elif case == "decision-denied":
+                result = approval.decide_approval(requester, decisions[slot])
+            elif case.startswith("decision"):
+                result = approval.decide_approval(approver, decisions[slot])
+            else:
+                result = approval.request_approval(requester, request)
+        except ResearchBaseError as error:
+            assert case.endswith("denied")
+            assert error.code == (
+                ErrorCode.CONFLICT_OF_INTEREST if case == "request-denied" else ErrorCode.FORBIDDEN
+            )
+            return error.code.value
+        assert not case.endswith("denied")
+        if case.endswith("replay"):
+            assert result == expected[slot]
+        return result
+
+    return call
