@@ -22,6 +22,7 @@ from tests.integration.phase2.pr2_19_support import pr219_discussion_env as _pr2
 from tests.integration.phase2.pr2_19_support import pr219_evidence_env as _pr219_evidence_env
 from tests.integration.phase2.pr2_19_support import pr219_trace_env as _pr219_trace_env
 from tests.integration.phase2.test_approval import approval_env as _approval_env
+from tests.integration.phase2.test_b14_publication_ready import b04_env, b05_env, revision_env
 from tests.integration.phase2.test_pr2_04_transaction_coverage import (
     test_pg_provider_entry_wait_and_backoff_hold_no_service_transaction as provider_boundary,
 )
@@ -216,3 +217,54 @@ def test_b30_has_no_production_fault_hook_or_generic_scenario_executor():
 
 
 approval_env = _approval_env
+
+
+def test_s2_keeps_suffix_availability_distinct_from_full_gate():
+    from tests.integration.phase2.test_pr2_19_dependencies import (
+        SUBCASES,
+        full_gate_report,
+        require_full_gate,
+    )
+
+    inventory = {(row, case): available for row, case, _, available, _ in SUBCASES}
+    assert inventory["F1", "ready-package-downstream-projection"]
+    assert not inventory["F1", "automatic-finding-impact-propagation"]
+    assert inventory["F5", "ready-consumption"]
+    assert inventory["G7", "authorship-lock-free-read"]
+    with pytest.raises(ValueError, match="BLOCKED"):
+        require_full_gate(full_gate_report())
+
+
+def test_s2_saved_publication_and_package_readers_use_one_snapshot(b05_env):
+    from typing import Any
+
+    from tests.integration.phase2.b17_fixtures import build
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+    from tests.integration.phase2.pr2_19_support import (
+        fresh_package_service,
+        fresh_publication_service,
+    )
+
+    from researchbase.application.publication import GetPublicationReadyTransitionQuery
+
+    f: Any = build(b05_env)
+    saved = f.app.freeze_prepared_submission(f.actor, f.command)
+    app = fresh_package_service(f)
+    publication = fresh_publication_service(b05_env)
+    ready = f.approval.get_grant_consumption(
+        f.actor, f.command.project_id, f.ready_command.command_key
+    )
+    for read in (
+        lambda: app.freeze_prepared_submission(f.actor, f.command),
+        lambda: app.get_prepared_submission(f.actor, f.query),
+        lambda: publication.get_publication_ready_transition(
+            f.actor, GetPublicationReadyTransitionQuery(f.command.project_id, ready.id)
+        ),
+    ):
+        with sql_protocol(f.engine) as observed:
+            assert read() is not None
+        assert_snapshot_read(observed, snapshots=1)
+    assert saved.result_prepared_submission_version_id == f.command.result_id
+
+
+_FIXTURES = (b04_env, b05_env, revision_env)

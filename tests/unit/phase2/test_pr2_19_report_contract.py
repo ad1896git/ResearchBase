@@ -239,11 +239,11 @@ def test_b30_labels_resolve_to_existing_owning_application_methods():
             owner, method = label.split(".")
             assert method in owners[owner]
     assert not any("Authorship" in label for labels in B30_COMMANDS.values() for label in labels)
-    from tests.integration.phase2.pr2_19_support import B17_COMMANDS
+    from tests.integration.phase2.pr2_19_support import S2_COMMANDS
 
     assert (
         SCENARIO_COMMANDS["G7"]
-        == {c for c in COMMANDS if c.startswith("NoveltyService.")} | B17_COMMANDS
+        == {c for c in COMMANDS if c.startswith("NoveltyService.")} | S2_COMMANDS
     )
 
 
@@ -339,3 +339,17 @@ def test_snapshot_observer_rejects_mutating_or_exclusion_statements(sql):
 
     with pytest.raises(AssertionError):
         assert_snapshot_read([(sql, "REPEATABLE_READ", True)])
+
+
+@pytest.mark.parametrize("row", ["F1", "F5", "F9"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "PublicationService.transition_publication_ready",
+        "PreparedSubmissionService.freeze_prepared_submission",
+    ],
+)
+def test_s2_concrete_consumer_labels_are_bounded(row, command):
+    assert command in SCENARIO_COMMANDS[row]
+    assert "SubmissionService.send" not in COMMANDS
+    assert "ImpactService.propagate" not in COMMANDS

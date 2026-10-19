@@ -15,6 +15,7 @@ from tests.integration.phase2.pr2_19_support import m3 as _m3
 from tests.integration.phase2.pr2_19_support import phase2_database_url as _phase2_database_url
 from tests.integration.phase2.pr2_19_support import pr219_decision_env as _pr219_decision_env
 from tests.integration.phase2.test_approval import approval_env as _approval_env
+from tests.integration.phase2.test_b14_publication_ready import b04_env, b05_env, revision_env
 
 pytestmark = pytest.mark.integration
 
@@ -320,3 +321,75 @@ def test_agent_with_existing_role_and_verified_binding_cannot_approve(approval_e
     assert denied.value.code is ErrorCode.FORBIDDEN
     assert counts(env[-1][8]) == before
     assert service.get_request(requester, request.project_id, prior.id).status == "PENDING"
+
+
+@pytest.mark.parametrize("blocked", [False, True])
+@pytest.mark.parametrize("wait", [False, True])
+def test_f5_ready_consumption_uses_current_issue_not_recommendation(b05_env, blocked, wait):
+    from types import SimpleNamespace
+
+    from researchbase.application.internal_review import ReviewIssueRequest
+    from researchbase.persistence.approval_repository import B13_SHARE_SQL
+    from tests.integration.phase2.b30_observations import assert_first_share, sql_protocol
+    from tests.integration.phase2.test_b05_manuscript_review import create
+    from tests.integration.phase2.test_b14_publication_ready import issued
+    from tests.integration.phase2.test_b17_freeze_concurrency import observed_order
+
+    env = b05_env
+    app, command, approval, _ = issued(env)
+    before = counts(env[5])
+
+    def review():
+        return create(
+            env,
+            recommendation="REJECT",
+            issues=(ReviewIssueRequest("BLOCKING", "OTHER", "S2 current concern"),)
+            if blocked
+            else (),
+        )
+
+    def consume():
+        return app.transition_publication_ready(env[2], command)
+
+    if wait:
+        _, result = observed_order(
+            SimpleNamespace(engine=env[5]),
+            review,
+            consume,
+            "INSERT INTO INTERNAL_REVIEW_RECORDS",
+        )
+    else:
+        review()
+        with sql_protocol(env[5]) as observed:
+            try:
+                result = consume()
+            except ResearchBaseError as exc:
+                result = exc.code
+        assert_first_share(observed, B13_SHARE_SQL, "SERIALIZABLE")
+    after = counts(env[5])
+    if blocked:
+        assert result == ErrorCode.APPROVAL_GATE_FAILED
+        for table in (
+            "approval_grant_consumptions",
+            "approval_grant_events",
+            "publication_lifecycle_events",
+        ):
+            assert after[table] == before[table]
+    else:
+        assert not isinstance(result, ErrorCode)
+        assert result.result_publication_id == command.result_id
+        assert after["approval_grant_consumptions"] == before["approval_grant_consumptions"] + 1
+    from researchbase.application.approval import ApprovalService
+
+    fresh = ApprovalService(env[4], env[9], env[10][2])
+    grant = fresh.get_grant(env[2], command.project_id, command.grant_id)
+    assert grant.status == ("ACTIVE" if blocked else "CONSUMED")
+    assert fresh.get_decision(env[2], command.project_id, grant.approval_decision_id)
+    with env[5].connect() as conn:
+        assert conn.execute(
+            text("SELECT lifecycle_status FROM publications WHERE id=:id"),
+            {"id": command.result_id},
+        ).scalar_one() == ("INTERNAL_REVIEW" if blocked else "READY")
+
+
+_FIXTURES = (b04_env, b05_env, revision_env)

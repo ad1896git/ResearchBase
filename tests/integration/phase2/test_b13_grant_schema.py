@@ -250,3 +250,41 @@ def test_normal_role_preheld_receipt_cannot_commit_incomplete_graph(approval_env
                     conn.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
     assert getattr(error.value.orig, "sqlstate", None) == "P17F2"
     assert counts(approval_env) == (0, 1, 1)
+
+
+def test_stale_hardening_downgrade_restores_exact_0067_body(approval_env):
+    import importlib.util
+    from pathlib import Path
+
+    engine = approval_env[-1][-1][8]
+    cfg = config(approval_env)
+
+    def definition():
+        with engine.connect() as conn:
+            return conn.execute(
+                text("SELECT pg_get_functiondef('b13_stale(approval_grants)'::regprocedure)")
+            ).scalar_one()
+
+    hardened = definition()
+    alembic.downgrade(cfg, "0068_b21_unresolved_capture")
+    restored = definition()
+    path = Path("migrations/versions/0067_b17_prepared_package_freeze.py")
+    spec = importlib.util.spec_from_file_location("b17_predecessor", path)
+    assert spec is not None and spec.loader is not None
+    predecessor = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(predecessor)
+    original = (
+        "CREATE OR REPLACE FUNCTION b13_stale(g approval_grants)"
+        + (
+            predecessor.UPGRADE_SQL.split(
+                "CREATE OR REPLACE FUNCTION b13_stale(g approval_grants)", 1
+            )[1].split("END $$;", 1)[0]
+        )
+        + "END $$;"
+    )
+    with engine.begin() as conn:
+        conn.execute(text(original))
+    assert definition() == restored
+    assert hardened != restored
+    alembic.upgrade(cfg, "head")
+    assert definition() == hardened

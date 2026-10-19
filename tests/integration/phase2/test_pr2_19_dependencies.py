@@ -74,18 +74,25 @@ SUBCASES = (
         None,
     ),
     ("G7", "strong-novelty", "novelty", False, "Exact screening/comparison basis absent"),
-    ("G7", "authorship-lock-free-read", "authorship", False, "Authorship _get still locks"),
+    ("G7", "authorship-lock-free-read", "authorship", True, None),
     ("F1", "current-lineage-and-audit", "source_version/manuscript_validity", True, None),
     (
         "F1",
-        "ready-package-propagation",
-        "package",
+        "ready-package-downstream-projection",
+        "publication/prepared_submission",
+        True,
+        None,
+    ),
+    (
+        "F1",
+        "automatic-finding-impact-propagation",
+        "automatic propagation",
         False,
-        "B14/package and automatic impact propagation absent",
+        "No automatic finding/impact propagation owner",
     ),
     ("F2b", "saved-formal-dependencies", "saved_provenance", True, None),
     ("F5", "approval-blockers", "approval", True, None),
-    ("F5", "ready-consumption", "publication", False, "B14 transition absent"),
+    ("F5", "ready-consumption", "publication", True, None),
     ("F5b", "bounded-approval-denial", "approval", True, None),
     ("F5c", "release-reconsideration", "decision/approval", True, None),
     ("F5c", "manuscript-reconsideration", "decision", False, "B10 release-only scope"),
@@ -94,6 +101,14 @@ SUBCASES = (
     ("F7", "approval-command-atomicity", "approval", True, None),
     ("F9", "internal-release", "approval/scientific_conclusion", True, None),
     ("F9", "ready-package-consumption", "package", True, None),
+    ("F9", "credential-grant-expiry", "approval/credential", True, None),
+    (
+        "F9",
+        "scheduled-role-expiry",
+        "identity",
+        False,
+        "BLOCKED: no owning Application command to schedule role expiry (AQ-S2-02)",
+    ),
 )
 BLOCKED_ROWS = {
     row: tuple(blocker for r, _, _, _, blocker in SUBCASES if r == row and blocker)
@@ -160,7 +175,7 @@ def test_current_subcases_reconcile_b30_without_claiming_full_rows_passed():
     for _, _, owner, owner_available, blocker in SUBCASES:
         assert owner and owner_available == (blocker is None)
     assert not {"G1", "G5", "F2b", "F5b", "F7"} & BLOCKED_ROWS.keys()
-    assert {"G2", "G4", "G6", "G7", "F1", "F5", "F5c", "F6"} == BLOCKED_ROWS.keys()
+    assert {"G2", "G4", "G6", "G7", "F1", "F5c", "F6", "F9"} == BLOCKED_ROWS.keys()
     assert full_gate_report()["status"] == "BLOCKED"
 
 

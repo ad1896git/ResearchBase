@@ -52,8 +52,7 @@ def test_no_approval_effect_surface():
 
 def test_single_forward_revision():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0068_b21_unresolved_capture"]
+    assert scripts.get_heads() == ["0069_b13_stale_gate_denials"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision
-        == "0067_b17_prepared_package_freeze"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0068_b21_unresolved_capture"
     )

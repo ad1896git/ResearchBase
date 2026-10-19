@@ -238,3 +238,31 @@ def test_every_current_author_is_captured_at_zero_based_authored_position(b05_en
         ]
     assert authors == [f.actor.actor_id, coauthor.actor_id]
     assert saved.current_validity == "VALID" and len(saved.consents) == 2
+
+
+def test_prepare_blocker_maintenance_persists_stale_and_event(b17_env):
+    from sqlalchemy import text
+
+    from researchbase.application.approval import EvaluateApprovalGrantCommand
+    from researchbase.application.internal_review import ReviewIssueRequest
+    from tests.integration.phase2.test_b05_manuscript_review import create
+
+    f = b17_env
+    create(f.env, issues=(ReviewIssueRequest("BLOCKING", "WRITING", "New PREPARE blocker"),))
+    before = counts(f)
+    result = f.approval.evaluate_approval_grant(
+        f.actor, EvaluateApprovalGrantCommand(f.command.project_id, f.command.grant_id)
+    )
+    assert result.grant.status == "STALE"
+    assert result.evaluation.unusable_code == ErrorCode.GRANT_STALE.value
+    assert f.approval.get_grant(f.actor, f.command.project_id, f.command.grant_id).status == "STALE"
+    with f.engine.connect() as conn:
+        assert conn.execute(
+            text(
+                "SELECT prior_status,new_status FROM approval_grant_events "
+                "WHERE grant_id=:id ORDER BY occurred_at,id"
+            ),
+            {"id": f.command.grant_id},
+        ).all() == [(None, "ACTIVE"), ("ACTIVE", "STALE")]
+    after = counts(f)
+    assert after == (*before[:4], before[4] + 1, before[5])

@@ -1,0 +1,52 @@
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 36%]
+........................................................................ [ 48%]
+........................................................................ [ 60%]
+........................................................................ [ 72%]
+........................................................................ [ 84%]
+........................................................................ [ 96%]
+....................                                                     [100%]
+=============================== warnings summary ===============================
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b05_review_migration.py: 76 warnings
+tests/integration/phase2/test_b08_schema.py: 53 warnings
+tests/integration/phase2/test_b13_grant_schema.py: 77 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 120 warnings
+tests/integration/phase2/test_b14a_entry_schema.py: 63 warnings
+tests/integration/phase2/test_b17_package_freeze.py: 54 warnings
+tests/integration/phase2/test_batch_c_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_review_guards.py: 42 warnings
+tests/integration/phase2/test_pr2_04_execution_migration.py: 11 warnings
+tests/integration/phase2/test_pr2_04_migration_coverage.py: 24 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_pr2_19_governance.py: 105 warnings
+tests/integration/phase2/test_pr2_19_grant_consumption_publication.py: 192 warnings
+tests/integration/phase2/test_pr2_19_lineage.py: 81 warnings
+tests/integration/phase2/test_pr2_19_package_freeze.py: 9 warnings
+tests/integration/phase2/test_revision_action.py: 163 warnings
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py: 1 warning
+tests/unit/test_batch_c_migration_history.py: 1 warning
+tests/unit/test_task12_migration_history.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/architecture/test_pr2_19_boundaries.py: 1 warning
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 40 warnings
+tests/integration/phase2/test_b17_package_freeze.py: 18 warnings
+tests/integration/phase2/test_pr2_19_governance.py: 4 warnings
+tests/integration/phase2/test_pr2_19_grant_consumption_publication.py: 64 warnings
+tests/integration/phase2/test_pr2_19_lineage.py: 14 warnings
+tests/integration/phase2/test_pr2_19_package_freeze.py: 3 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+596 passed, 1457 warnings in 873.55s (0:14:33)

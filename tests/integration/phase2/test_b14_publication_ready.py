@@ -324,3 +324,107 @@ def test_failure_after_each_individual_sql_write_is_atomic(b05_env, statement):
             ).scalar_one()
             == "ACTIVE"
         )
+
+
+def test_ready_blocker_maintenance_persists_stale_and_event(b05_env):
+    from researchbase.application.approval import EvaluateApprovalGrantCommand
+    from researchbase.application.internal_review import ReviewIssueRequest
+
+    env = b05_env
+    _, cmd, approval, _ = issued(env)
+    create(env, issues=(ReviewIssueRequest("BLOCKING", "WRITING", "New READY blocker"),))
+    before = counts(env)
+    result = approval.evaluate_approval_grant(
+        env[2], EvaluateApprovalGrantCommand(cmd.project_id, cmd.grant_id)
+    )
+    assert result.grant.status == "STALE"
+    assert result.evaluation.unusable_code == ErrorCode.GRANT_STALE.value
+    assert counts(env) == (before[0], before[1], before[2] + 1)
+    assert approval.get_grant(env[2], cmd.project_id, cmd.grant_id).status == "STALE"
+    with env[5].connect() as conn:
+        assert conn.execute(
+            text(
+                "SELECT prior_status,new_status FROM approval_grant_events "
+                "WHERE grant_id=:id ORDER BY occurred_at,id"
+            ),
+            {"id": cmd.grant_id},
+        ).all() == [(None, "ACTIVE"), ("ACTIVE", "STALE")]
+
+
+@pytest.mark.parametrize("sqlstate", ["P14P1", "P17F2", "P16P1", "P16B1", "23514"])
+@pytest.mark.parametrize("purpose", ["READY", "PREPARE"])
+def test_stale_gate_integrity_errors_still_propagate(b05_env, sqlstate, purpose):
+    from sqlalchemy.exc import DBAPIError
+
+    from tests.integration.phase2.b17_fixtures import build
+
+    env = b05_env
+    if purpose == "READY":
+        _, cmd, _, _ = issued(env)
+        gate = "b14a_admission(mid UUID,pid UUID)"
+    else:
+        cmd = build(env).command
+        gate = "b12_approval_gate(r approval_requests,approver UUID)"
+    before = counts(env)
+    # Transaction-local fault injection at the real PostgreSQL gate boundary.
+    # Rollback restores the function; no canonical fixture facts are forged.
+    with env[5].connect() as conn:
+        transaction = conn.begin()
+        try:
+            conn.execute(
+                text(
+                    f"CREATE OR REPLACE FUNCTION {gate} "
+                    "RETURNS void LANGUAGE plpgsql AS $$ BEGIN "
+                    f"RAISE EXCEPTION 'injected integrity failure' USING ERRCODE='{sqlstate}'; "
+                    "END $$"
+                )
+            )
+            with pytest.raises(DBAPIError) as error:
+                conn.execute(
+                    text("SELECT b13_stale(g) FROM approval_grants g WHERE id=:id"),
+                    {"id": cmd.grant_id},
+                )
+            assert getattr(error.value.orig, "sqlstate", None) == sqlstate
+        finally:
+            transaction.rollback()
+    assert counts(env) == before
+
+
+@pytest.mark.parametrize("kind", ["CORRECTED", "RETRACTED"])
+def test_ready_source_validity_denial_p16t1_persists_stale(b05_env, kind):
+    from sqlalchemy.exc import DBAPIError
+
+    from researchbase.application.approval import EvaluateApprovalGrantCommand
+    from tests.integration.phase2.b25_support import literature_conclusion, source_transition
+
+    env = b05_env
+    literature_conclusion(env)
+    _, cmd, approval, _ = issued(env)
+    source_transition(env, kind)
+    before = counts(env)
+    # Inspect the actual gate before b13_stale translates its business denial.
+    with env[5].connect() as conn, pytest.raises(DBAPIError) as error:
+        conn.execute(
+            text(
+                "SELECT b13_release_gate(r,d.decided_by) FROM approval_grants g "
+                "JOIN approval_decisions d ON d.id=g.approval_decision_id "
+                "JOIN approval_requests r ON r.id=d.approval_request_id WHERE g.id=:id"
+            ),
+            {"id": cmd.grant_id},
+        )
+    assert getattr(error.value.orig, "sqlstate", None) == "P16T1"
+    result = approval.evaluate_approval_grant(
+        env[2], EvaluateApprovalGrantCommand(cmd.project_id, cmd.grant_id)
+    )
+    assert result.grant.status == "STALE"
+    assert result.evaluation.unusable_code == ErrorCode.GRANT_STALE.value
+    assert approval.get_grant(env[2], cmd.project_id, cmd.grant_id).status == "STALE"
+    assert counts(env) == (before[0], before[1], before[2] + 1)
+    with env[5].connect() as conn:
+        assert conn.execute(
+            text(
+                "SELECT prior_status,new_status FROM approval_grant_events "
+                "WHERE grant_id=:id ORDER BY occurred_at,id"
+            ),
+            {"id": cmd.grant_id},
+        ).all() == [(None, "ACTIVE"), ("ACTIVE", "STALE")]

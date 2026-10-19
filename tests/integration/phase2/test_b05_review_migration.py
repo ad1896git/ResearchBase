@@ -53,7 +53,7 @@ def test_upgrade_actual_head_catalog_and_empty_downgrade(start, monkeypatch):
         with engine.connect() as conn:
             assert (
                 conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                == "0068_b21_unresolved_capture"
+                == "0069_b13_stale_gate_denials"
             )
             triggers = conn.execute(
                 text(

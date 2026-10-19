@@ -324,6 +324,15 @@ TABLES = (
     "prior_art_relations",
     "prior_art_evidence_inputs",
     "novelty_assessments",
+    "publications",
+    "manuscript_versions",
+    "publication_lifecycle_events",
+    "prepared_submission_versions",
+    "prepared_submission_manifest_items",
+    "prepared_submission_events",
+    "author_consents",
+    "audit_findings",
+    "impact_assessments",
 )
 
 
@@ -604,3 +613,245 @@ B17_COMMANDS = frozenset(
 )
 COMMANDS |= B17_COMMANDS
 SCENARIO_COMMANDS["G7"] |= B17_COMMANDS
+
+
+# S2 permits only the concrete publication/package suffixes on these rows.
+S2_COMMANDS = B17_COMMANDS | frozenset(
+    {
+        "PublicationService.get_publication_ready_transition",
+        "PublicationService.transition_publication_internal_review",
+        "DecisionService.record_ready_for_submission_decision",
+        "PreparedSubmissionService.get_prepared_submission_history",
+        "PreparedSubmissionService.preview_prepared_submission",
+        "ApprovalService.get_grant_consumption",
+    }
+)
+COMMANDS |= S2_COMMANDS
+for _row in ("G7", "F1", "F5", "F9"):
+    SCENARIO_COMMANDS[_row] |= S2_COMMANDS
+
+
+def fresh_package_service(f):
+    from researchbase.application.prepared_submission import PreparedSubmissionService
+
+    return PreparedSubmissionService(f.env[4], f.env[9], f.env[7])
+
+
+def fresh_publication_service(env):
+    from researchbase.application.publication import PublicationService
+
+    return PublicationService(env[4], env[9], env[7])
+
+
+# Independent ordered transcription of the guide inventories for S2 assertions.
+# Equality with the production constants deliberately detects drift.
+S2_FIRST_SHARE = {
+    "B09_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings claim_versions claims
+correction_records dataset_snapshots datasets evidence_relations experiment_spec_versions
+experiment_specs impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects publications
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+    "B09_DECIDE_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings claim_versions claims
+correction_records dataset_snapshots datasets evidence_relations experiment_spec_versions
+experiment_specs impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+    "B13_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings claim_versions claims
+correction_records dataset_snapshots datasets evidence_relations experiment_spec_versions
+experiment_specs impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+    "B11_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings claim_versions claims
+correction_records dataset_snapshots datasets evidence_relations experiment_spec_versions
+experiment_specs impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects publications
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+    "B14A_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings claim_versions claims
+correction_records dataset_snapshots datasets evidence_relations experiment_spec_versions
+experiment_specs impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+    "B15_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings
+authorship_snapshot_authors authorship_snapshot_contributions
+authorship_snapshot_corresponding_authors authorship_snapshot_equal_groups
+authorship_snapshots claim_versions claims contribution_records correction_records
+dataset_snapshots datasets evidence_relations experiment_spec_versions experiment_specs
+impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects publications
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+    "B16_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings
+authorship_snapshot_authors authorship_snapshot_contributions
+authorship_snapshot_corresponding_authors authorship_snapshot_equal_groups
+authorship_snapshots claim_versions claims contribution_records correction_records
+dataset_snapshots datasets evidence_relations experiment_spec_versions experiment_specs
+impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+    "B17_SHARE_SQL": "LOCK TABLE "
+    + ",".join(
+        """
+actor_subject_bindings actors artifact_versions artifacts audit_findings
+authorship_snapshot_authors authorship_snapshot_contributions
+authorship_snapshot_corresponding_authors authorship_snapshot_equal_groups
+authorship_snapshots claim_versions claims contribution_records correction_records
+dataset_snapshots datasets evidence_relations experiment_spec_versions experiment_specs
+impact_assessments impact_targets internal_review_records literature_evidence
+literature_evidence_relations literature_evidence_review_events
+literature_source_project_links literature_sources literature_support_snapshots
+manuscript_artifact_placements manuscript_citation_placements manuscript_claim_placements
+manuscript_versions measurements metric_definition_versions metric_definitions
+project_membership_events project_memberships project_role_assignments projects
+review_issue_events review_issues run_artifact_inputs run_dataset_inputs runs
+scientific_conclusion_claim_inputs scientific_conclusion_literature_inputs
+scientific_conclusion_versions scientific_conclusions source_versions
+statistical_result_inputs statistical_results
+        """.split()
+    )
+    + " IN SHARE MODE",
+}
+
+
+def assert_s2_consumption_protocol(observed, command, *, package=False):
+    """Pin each actual consuming transaction, including row/advisory ordering."""
+    from tests.integration.phase2.b30_observations import assert_first_share
+
+    inventory = S2_FIRST_SHARE["B17_SHARE_SQL" if package else "B13_SHARE_SQL"]
+    assert_first_share(observed, inventory, "SERIALIZABLE")
+    for transaction in observed.transactions:
+        if not transaction.statements or transaction.statements[0][2]:
+            continue
+        sql = [" ".join(s.split()) for s, _, _ in transaction.statements]
+        prefix = [inventory, "LOCK TABLE publications IN SHARE ROW EXCLUSIVE MODE"]
+        if package:
+            prefix.append("LOCK TABLE prepared_submission_versions IN SHARE ROW EXCLUSIVE MODE")
+        prefix += [
+            "LOCK TABLE approval_decisions,approval_request_reviews,approval_requests "
+            "IN SHARE MODE",
+            "SET LOCAL lock_timeout = '10s'" if package else "SET LOCAL lock_timeout='10s'",
+            "SET LOCAL statement_timeout = '30s'"
+            if package
+            else "SET LOCAL statement_timeout='30s'",
+        ]
+        assert sql[: len(prefix)] == prefix
+        advisory = [
+            (index, parameters["key"])
+            for index, (statement, parameters) in enumerate(
+                zip(sql, transaction.parameters, strict=True)
+            )
+            if "pg_advisory_xact_lock" in statement
+        ]
+        purpose = "PREPARE_SUBMISSION" if package else "READY_FOR_SUBMISSION"
+        assert [key for _, key in advisory] == [
+            f"b13:consume:{command.command_key}",
+            f"pr216:scope:{command.project_id}:{purpose}",
+        ]
+
+        def lock(table, mode, sql=sql):
+            return next(i for i, s in enumerate(sql) if f"FROM {table} " in s and mode in s)
+
+        manuscript = lock("manuscript_versions", "FOR UPDATE")
+        publication = next(
+            i for i, s in enumerate(sql) if "publications" in s and "FOR UPDATE" in s
+        )
+        request = lock("approval_requests", "FOR SHARE")
+        grant = lock("approval_grants", "FOR UPDATE")
+        assert advisory[0][0] < advisory[1][0] < manuscript < publication < request < grant
+        if package:
+            saved_package = lock("prepared_submission_versions", "FOR UPDATE")
+            consent = lock("author_consents", "FOR UPDATE")
+            assert publication < saved_package < consent < request
+            assert "ORDER BY id FOR UPDATE" in sql[consent]
+        deferred = sql.index("SET CONSTRAINTS ALL IMMEDIATE")
+        assert grant < deferred
+        assert any("clock_timestamp()" in s for s in sql[deferred + 1 :])

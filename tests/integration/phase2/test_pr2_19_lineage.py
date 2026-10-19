@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from threading import Event
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -328,3 +329,135 @@ def test_current_manuscript_projection_audit_retains_frozen_material(b05_env, sn
 b04_env = _b04_env
 
 b05_env = _b05_env
+
+
+@pytest.mark.parametrize("snapshot", [False, True], ids=["direct", "claim-snapshot"])
+@pytest.mark.parametrize("kind", ["CORRECTED", "RETRACTED"])
+@pytest.mark.parametrize("stage", ["ready-pending", "prepared", "frozen"])
+def test_f1_current_downstream_facts_preserve_saved_consumptions(b05_env, snapshot, kind, stage):
+    from researchbase.application.publication import GetPublicationReadyTransitionQuery
+    from tests.integration.phase2.b17_fixtures import build, next_package
+    from tests.integration.phase2.b25_support import (
+        literature_conclusion,
+        queries,
+        source_transition,
+    )
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+    from tests.integration.phase2.pr2_19_support import (
+        fresh_package_service,
+        fresh_publication_service,
+    )
+    from tests.integration.phase2.test_b14_publication_ready import issued
+
+    env = b05_env
+    literature_conclusion(env, snapshot=snapshot)
+    f: Any = None
+    command: Any
+    if stage == "ready-pending":
+        app, command, approval, _ = issued(env)
+        saved = None
+    else:
+        f = build(env)
+        app = fresh_publication_service(env)
+        command, approval = f.ready_command, f.approval
+        saved = approval.get_grant_consumption(env[2], command.project_id, command.command_key)
+    frozen = (
+        f.app.freeze_prepared_submission(f.actor, f.command) if f and stage == "frozen" else None
+    )
+    package: Any = f.app.get_prepared_submission(f.actor, f.query) if f else None
+    pending: Any = next_package(f) if frozen else None
+    # Retain every saved scientific hash and its exact local CAS bytes, independent
+    # of the current read projections. Counts alone cannot prove immutability.
+    with env[5].connect() as conn:
+        historical = {
+            table: conn.execute(text(f"SELECT * FROM {table} ORDER BY id")).all()
+            for table in (
+                "literature_evidence",
+                "literature_support_snapshots",
+                "claim_versions",
+                "scientific_conclusion_versions",
+                "manuscript_versions",
+            )
+        }
+        hashes = conn.execute(text("SELECT content_hash FROM artifact_versions")).scalars().all()
+    retained = {digest: env[7].open(digest) for digest in hashes}
+    unsolicited = counts(env[5], ("audit_findings", "impact_assessments"))
+    with env[5].connect() as conn:
+        old_sources = conn.execute(
+            text("SELECT id,content_hash FROM source_versions ORDER BY id")
+        ).all()
+    source_transition(env, kind)
+    assert counts(env[5], ("audit_findings", "impact_assessments")) == unsolicited
+    with env[5].connect() as conn:
+        for identity, digest in old_sources:
+            assert (
+                conn.execute(
+                    text("SELECT content_hash FROM source_versions WHERE id=:id"), {"id": identity}
+                ).scalar_one()
+                == digest
+            )
+    service, q, aq = queries(env)
+    expected = "INVALID" if kind == "RETRACTED" else "STALE"
+    for read in (
+        lambda: service.get_manuscript_validity(env[3], q),
+        lambda: service.get_manuscript_audit(env[3], aq),
+    ):
+        with sql_protocol(env[5]) as observed:
+            current = read()
+        assert_snapshot_read(observed, snapshots=1)
+        validity: Any = getattr(current, "validity", current)
+        assert validity.current_validity == expected
+    before = counts(env[5])
+    if saved:
+        fresh = fresh_publication_service(env)
+        with sql_protocol(env[5]) as observed:
+            assert fresh.transition_publication_ready(env[2], command) == saved
+        assert_snapshot_read(observed, snapshots=1)
+        with sql_protocol(env[5]) as observed:
+            view = fresh.get_publication_ready_transition(
+                env[2], GetPublicationReadyTransitionQuery(command.project_id, saved.id)
+            )
+        assert_snapshot_read(observed, snapshots=1)
+        assert view.consumption == saved and view.current.target_validity == expected
+    else:
+        with pytest.raises(ResearchBaseError) as denied:
+            app.transition_publication_ready(env[2], command)
+        assert denied.value.code == ErrorCode.APPROVAL_TARGET_STALE
+    if f:
+        fresh_package = fresh_package_service(f)
+        with sql_protocol(env[5]) as observed:
+            current_package = fresh_package.get_prepared_submission(f.actor, f.query)
+        assert_snapshot_read(observed, snapshots=1)
+        assert current_package.items == package.items
+        assert current_package.content_hash == package.content_hash
+        assert current_package.current_validity == expected
+        if frozen:
+            with sql_protocol(env[5]) as observed:
+                assert fresh_package.freeze_prepared_submission(f.actor, f.command) == frozen
+            assert_snapshot_read(observed, snapshots=1)
+            with pytest.raises(ResearchBaseError) as denied:
+                fresh_package_service(pending).freeze_prepared_submission(
+                    pending.actor, pending.command
+                )
+            assert denied.value.code == ErrorCode.APPROVAL_TARGET_STALE
+        else:
+            with pytest.raises(ResearchBaseError) as denied:
+                fresh_package.freeze_prepared_submission(f.actor, f.command)
+            assert denied.value.code == ErrorCode.APPROVAL_TARGET_STALE
+    assert counts(env[5]) == before  # Includes zero unsolicited finding/impact writes.
+    with env[5].connect() as conn:
+        for table, rows in historical.items():
+            assert conn.execute(text(f"SELECT * FROM {table} ORDER BY id")).all() == rows
+    assert all(env[7].open(digest) == data for digest, data in retained.items())
+
+
+@pytest.mark.parametrize("kind", ["CORRECTED", "RETRACTED"])
+def test_f1_unrelated_source_control_does_not_block_ready_or_package(b05_env, kind):
+    from tests.integration.phase2.b17_fixtures import build
+    from tests.integration.phase2.b25_support import source_transition
+
+    f = build(b05_env)
+    source_transition(b05_env, kind)
+    saved = f.app.freeze_prepared_submission(f.actor, f.command)
+    assert saved.result_prepared_submission_version_id == f.command.result_id
+    assert f.app.get_prepared_submission(f.actor, f.query).current_validity == "VALID"

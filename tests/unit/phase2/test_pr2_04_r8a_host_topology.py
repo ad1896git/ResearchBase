@@ -35,10 +35,9 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
             hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
         )
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0068_b21_unresolved_capture"]
+    assert scripts.get_heads() == ["0069_b13_stale_gate_denials"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision
-        == "0067_b17_prepared_package_freeze"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0068_b21_unresolved_capture"
     )
 
 

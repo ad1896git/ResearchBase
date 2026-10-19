@@ -1,0 +1,117 @@
+=== HEAD run 1 ===
+   Building researchbase @ file:///Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.uv-cache/reviewer-head
+      Built researchbase @ file:///Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.uv-cache/reviewer-head
+Uninstalled 1 package in 1ms
+Installed 1 package in 1ms
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 51 deselected, 6 warnings in 2.32s
+
+=== HEAD run 2 ===
+Uninstalled 1 package in 0.43ms
+Installed 1 package in 1ms
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 51 deselected, 6 warnings in 2.73s
+
+=== HEAD run 3 ===
+Uninstalled 1 package in 0.57ms
+Installed 1 package in 1ms
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 51 deselected, 6 warnings in 2.20s
+
+=== WORKING run 1 ===
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 51 deselected, 6 warnings in 2.64s
+
+=== WORKING run 2 ===
+   Building researchbase @ file:///Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47
+      Built researchbase @ file:///Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47
+Uninstalled 1 package in 0.37ms
+Installed 1 package in 1ms
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 51 deselected, 6 warnings in 2.23s
+
+=== WORKING run 3 ===
+Uninstalled 1 package in 0.44ms
+Installed 1 package in 1ms
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[review_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+tests/integration/phase2/test_revision_action.py::test_normal_sql_review_writer_overlaps_revision_without_lock_inversion[action_first]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 51 deselected, 6 warnings in 2.33s
+
+=== READY/PREPARE integrity and READY source-validity regressions ===
+............                                                             [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b14_publication_ready.py: 36 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b14_publication_ready.py: 12 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+12 passed, 28 deselected, 48 warnings in 18.91s

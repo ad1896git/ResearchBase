@@ -1,6 +1,16 @@
 # Remaining PR2-19 Rows, Second Slice (B30-S2) Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-19 — first slice authorized for implementation**
+
+**Acceptance: BLOCKED — implementation authorization above is not slice acceptance.**
+See [director decisions](B30S2_Architecture_Questions_2026-10-19.md).
+
+Director disposition 2026-10-19: AQ-S2-01 authorizes the separate B13 production
+hardening fix in forward migration 0069 (no schema addition), overriding this
+slice's test-only restriction solely for that fix. AQ-S2-02 marks scheduled-role
+expiry **BLOCKED: no owning Application command**; keep credential/grant expiry
+coverage and do not fake scheduled expiry with SQL. Other scope restrictions
+remain binding. See the linked decision record and current verification evidence.
 
 ## Start here (for the implementer)
 
@@ -79,6 +89,7 @@ Keep these requirements **BLOCKED**, with these blockers (not skips/xfails):
 | G7 lock-free novelty completed command replay | B30 §13 owner decision pending; exact GET and replay equality do not prove lock-free command replay. |
 | F1 automatic finding/impact propagation | No automatic propagation owner; deterministic read projections and explicitly commanded assessments are available. |
 | F5c manuscript-purpose reconsideration | B10 reconsideration is release-only. |
+| F9 scheduled role expiry | BLOCKED: no owning Application command to schedule role expiry (AQ-S2-02). Credential/grant expiry coverage remains. |
 
 F5b consent-dependent package checks and F7 effect rollback are now available
 owner regressions; S2 uses them only as F9/G7 controls, without adding full-row
@@ -142,8 +153,9 @@ a newly invented READ COMMITTED substitute. Reads take no exclusion locks.
 
 Use independent connections/PIDs, barriers and `pg_locks`/`pg_blocking_pids`.
 Observe blocking and release; elapsed sleep is not evidence. Check advancing
-`clock_timestamp()` after blocking/deferred checks, including scheduled caller,
-issuer and grant expiry. Existing retry classification alone permits up to three
+`clock_timestamp()` after blocking/deferred checks, including credential and
+grant expiry. Scheduled role expiry remains BLOCKED under AQ-S2-02. Existing
+retry classification alone permits up to three
 total fresh-UoW attempts for retryable serialization/deadlock conflicts. Business
 denial, timeout and uncertain commit do not become generic retries. Recover a
 lost response with the same exact key and current read entitlement.
