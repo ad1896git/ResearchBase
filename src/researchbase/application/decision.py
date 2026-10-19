@@ -539,6 +539,8 @@ class DecisionService:
             issue = uow.revision_action.issue(command.review_issue_id, command.project_id)
             if issue is None:
                 policy._absent(uow, "ReviewIssue", command.review_issue_id)
+            if issue.get("novelty_assessment_id") is not None:
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "novelty Decision integration deferred")
             reviews = repo.revision_reviews(issue, command.project_id, lock=True)
             uow.revision_action.lock_issue(command.review_issue_id)
             if repo.concern_decision(issue["id"]) is not None:

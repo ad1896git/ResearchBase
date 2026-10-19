@@ -525,10 +525,34 @@ def test_populated_conclusion_placement_review_and_0042_checkpoints(
     saved = service.record_decision(reviewer, request)
     assert any(ref.id == review.id for ref in saved.basis)
     tables += ("decision_records", "decision_basis_conclusions", "decision_basis_reviews")
-    before = s.manifest(engine, tables)
+    # Preserve every checkpoint field while permitting B23's additive metadata.
+    # SELECT * would compare different row shapes after the authorized columns.
+    with engine.connect() as conn:
+        checkpoint_columns = {
+            table: tuple(
+                conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema='public' AND table_name=:table "
+                        "ORDER BY ordinal_position"
+                    ),
+                    {"table": table},
+                ).scalars()
+            )
+            for table in tables
+        }
+    before = s.manifest(engine, tables, columns=checkpoint_columns)
     s.upgrade(phase2_database_url)
     engine.dispose()
-    assert s.manifest(engine, tables) == before
+    after = s.manifest(engine, tables, columns=checkpoint_columns)
+    assert after == before
+    with engine.connect() as conn:
+        assert conn.execute(
+            text(
+                "SELECT id,novelty_assessment_id,material_version "
+                "FROM internal_review_records ORDER BY id"
+            )
+        ).all() == [(review.id, None, 1)]
     assert service.record_decision(reviewer, request) == saved
     s.save_migration(
         "conclusion-placement-review-decision",
@@ -542,5 +566,5 @@ def test_populated_conclusion_placement_review_and_0042_checkpoints(
             "alembic upgrade head",
         ),
         before,
-        s.manifest(engine, tables),
+        after,
     )

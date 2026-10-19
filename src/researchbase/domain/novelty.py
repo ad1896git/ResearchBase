@@ -32,6 +32,20 @@ class NoveltyOutcome(StrEnum):
     NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE = "NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE"
 
 
+class ProbeDisposition(StrEnum):
+    NO_HITS = "NO_HITS"
+    SCREENED = "SCREENED"
+    INCOMPLETE = "INCOMPLETE"
+
+
+class ScreeningDisposition(StrEnum):
+    NOT_CLOSE = "NOT_CLOSE"
+    CLOSE = "CLOSE"
+    UNCLEAR = "UNCLEAR"
+    EXCLUDED = "EXCLUDED"
+    UNRESOLVED = "UNRESOLVED"
+
+
 class QualityWarning(StrEnum):
     NO_INVOKED_QUERIES = "NO_INVOKED_QUERIES"
     FAILED_ATTEMPT = "FAILED_ATTEMPT"
@@ -454,7 +468,12 @@ def novelty_material_v2(
 
 
 def versioned_novelty_material(
-    version, *args, scope_statement=None, closeness_criteria=None, prior_art_basis=()
+    version,
+    *args,
+    scope_statement=None,
+    closeness_criteria=None,
+    prior_art_basis=(),
+    screening_basis=None,
 ):
     if type(version) is not int or version not in (1, 2):
         raise ValueError("unknown novelty material version")
@@ -464,9 +483,24 @@ def versioned_novelty_material(
             or scope_statement is not None
             or closeness_criteria is not None
             or prior_art_basis
+            or screening_basis is not None
         ):
             raise ValueError("invalid v1 material")
         return novelty_material(*args)
+    if screening_basis is not None:
+        if prior_art_basis:
+            raise ValueError("screening forbids positive basis")
+        return screening_novelty_material(
+            args[0],
+            args[1],
+            args[2],
+            args[3],
+            args[4],
+            args[5],
+            scope_statement,
+            closeness_criteria,
+            screening_basis,
+        )
     return novelty_material_v2(
         args[0],
         args[1],
@@ -478,3 +512,212 @@ def versioned_novelty_material(
         closeness_criteria,
         prior_art_basis,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class ProbeInput:
+    search_execution_id: UUID
+    query_index: int
+    disposition: ProbeDisposition
+    rationale: str
+
+    def __post_init__(self):
+        if (
+            type(self.search_execution_id) is not UUID
+            or type(self.query_index) is not int
+            or not 0 <= self.query_index <= 31
+            or type(self.disposition) is not ProbeDisposition
+        ):
+            raise ValueError("typed bounded probe required")
+        object.__setattr__(self, "rationale", narrative(self.rationale))
+
+    def material(self):
+        return {
+            "search_execution": {
+                "type": "LiteratureSearchExecution",
+                "id": str(self.search_execution_id),
+            },
+            "query_index": self.query_index,
+            "disposition": self.disposition.value,
+            "rationale": self.rationale,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ScreeningResultInput:
+    search_result_record_id: UUID
+    disposition: ScreeningDisposition
+    criteria_ordinals: tuple[int, ...]
+    rationale: str
+    prior_art_relation_id: UUID | None = None
+    search_result_resolution_id: UUID | None = None
+
+    def __post_init__(self):
+        if (
+            type(self.search_result_record_id) is not UUID
+            or type(self.disposition) is not ScreeningDisposition
+        ):
+            raise ValueError("typed result required")
+        refs = (self.prior_art_relation_id, self.search_result_resolution_id)
+        if (
+            any(x is not None and type(x) is not UUID for x in refs)
+            or (refs[0] is None) != (refs[1] is None)
+            or (
+                self.disposition in {ScreeningDisposition.NOT_CLOSE, ScreeningDisposition.CLOSE}
+                and refs[0] is None
+            )
+            or (self.disposition is ScreeningDisposition.UNRESOLVED and refs[0] is not None)
+        ):
+            raise ValueError("paired exact references required")
+        v = self.criteria_ordinals
+        if (
+            type(v) is not tuple
+            or not 1 <= len(v) <= 100
+            or any(type(x) is not int or not 0 <= x <= 99 for x in v)
+            or len(set(v)) != len(v)
+        ):
+            raise ValueError("distinct bounded criterion ordinals required")
+        object.__setattr__(self, "criteria_ordinals", tuple(sorted(v)))
+        object.__setattr__(self, "rationale", narrative(self.rationale))
+
+
+@dataclass(frozen=True, slots=True)
+class ScreeningBasisInput:
+    probes: tuple[ProbeInput, ...]
+    results: tuple[ScreeningResultInput, ...]
+
+    def __post_init__(self):
+        if (
+            type(self.probes) is not tuple
+            or not 1 <= len(self.probes) <= 3200
+            or any(type(x) is not ProbeInput for x in self.probes)
+            or type(self.results) is not tuple
+            or len(self.results) > 10000
+            or any(type(x) is not ScreeningResultInput for x in self.results)
+        ):
+            raise ValueError("bounded typed screening basis required")
+        keys = {(x.search_execution_id, x.query_index) for x in self.probes}
+        if (
+            len(keys) != len(self.probes)
+            or len({x.search_execution_id for x in self.probes}) > 100
+            or len({x.search_result_record_id for x in self.results}) != len(self.results)
+        ):
+            raise ValueError("distinct bounded screening inventory required")
+        object.__setattr__(
+            self,
+            "probes",
+            tuple(sorted(self.probes, key=lambda x: (x.search_execution_id, x.query_index))),
+        )
+        object.__setattr__(
+            self, "results", tuple(sorted(self.results, key=lambda x: x.search_result_record_id))
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ScreeningResult:
+    search_result_record_id: UUID
+    disposition: ScreeningDisposition
+    criteria_ordinals: tuple[int, ...]
+    rationale: str
+    prior_art_relation: HashRef | None
+    search_result_resolution: HashRef | None
+
+    def __post_init__(self):
+        for reference, kind in (
+            (self.prior_art_relation, "PriorArtRelation"),
+            (self.search_result_resolution, "SearchResultResolution"),
+        ):
+            if reference is not None and (type(reference) is not HashRef or reference.type != kind):
+                raise ValueError("typed screening references required")
+        normalized = ScreeningResultInput(
+            self.search_result_record_id,
+            self.disposition,
+            self.criteria_ordinals,
+            self.rationale,
+            self.prior_art_relation.id if self.prior_art_relation else None,
+            self.search_result_resolution.id if self.search_result_resolution else None,
+        )
+        object.__setattr__(self, "criteria_ordinals", normalized.criteria_ordinals)
+        object.__setattr__(self, "rationale", normalized.rationale)
+
+    def material(self):
+        return {
+            "search_result_record": {
+                "type": "SearchResultRecord",
+                "id": str(self.search_result_record_id),
+            },
+            "disposition": self.disposition.value,
+            "criteria_ordinals": list(self.criteria_ordinals),
+            "rationale": self.rationale,
+            "prior_art_relation": self.prior_art_relation.material()
+            if self.prior_art_relation
+            else None,
+            "search_result_resolution": self.search_result_resolution.material()
+            if self.search_result_resolution
+            else None,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ScreeningBasis:
+    probes: tuple[ProbeInput, ...]
+    results: tuple[ScreeningResult, ...]
+
+    def inputs(self):
+        return ScreeningBasisInput(
+            self.probes,
+            tuple(
+                ScreeningResultInput(
+                    x.search_result_record_id,
+                    x.disposition,
+                    x.criteria_ordinals,
+                    x.rationale,
+                    x.prior_art_relation.id if x.prior_art_relation else None,
+                    x.search_result_resolution.id if x.search_result_resolution else None,
+                )
+                for x in self.results
+            ),
+        )
+
+    def material(self):
+        inputs = self.inputs()
+        by_id = {x.search_result_record_id: x for x in self.results}
+        return {
+            "probes": [x.material() for x in inputs.probes],
+            "results": [by_id[x.search_result_record_id].material() for x in inputs.results],
+        }
+
+
+def screening_novelty_material(
+    claim,
+    coverage,
+    assessment,
+    limitations,
+    predecessor,
+    actor,
+    scope_statement,
+    closeness_criteria,
+    screening_basis,
+):
+    if (
+        assessment
+        not in {NoveltyOutcome.INCONCLUSIVE, NoveltyOutcome.NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE}
+        or type(closeness_criteria) is not ClosenessCriteria
+        or type(screening_basis) is not ScreeningBasis
+    ):
+        raise ValueError("typed screening shape required")
+    if any(
+        i >= len(closeness_criteria.statements)
+        for x in screening_basis.results
+        for i in x.criteria_ordinals
+    ):
+        raise ValueError("criterion outside parent")
+    material = novelty_material(claim, coverage, assessment, limitations, predecessor, actor)
+    material.update(
+        material_version=2,
+        scope_statement=narrative(scope_statement),
+        closeness_criteria=closeness_criteria.material(),
+        prior_art_basis=[],
+        screening_basis=screening_basis.material(),
+    )
+    return material

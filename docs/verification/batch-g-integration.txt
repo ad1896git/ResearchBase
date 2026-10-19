@@ -1,0 +1,52 @@
+Batch G verification — review correction (2026-10-19)
+
+The previous isolated-run summary is superseded. It did not establish that the
+required combined check was stable: the reviewer observed a B20 concurrency
+failure, reproduced during this correction on isolated attempt 4.
+
+Root cause: test_execution_insert_phantom_both_lock_orders paused create() after
+flushing the execution parent but before flushing its CREATED event. The waiting
+assessment could SHARE-lock events before blocking on executions; the writer then
+needed RowExclusive on events. PostgreSQL could abort/retry the writer, reversing
+the commit order assumed by the assertion. The reproduced failure returned a valid
+NoveltyReadback instead of the expected writer-first provenance denial, with a
+CONCURRENT_MODIFICATION retry logged. This is a test synchronization flake.
+
+Fix: pause save_receipt() after flushing the entire pending execution write set.
+Assert RowExclusive locks on executions and execution events before releasing the
+assessment thread, and assert that the held transaction was not retried. Keep the
+observed database wait and both original scientific outcome assertions. No
+production guard, transaction isolation, lock ordering, retry, or invariant changed.
+
+Fresh evidence in docs/verification/batch-g-review/:
+- pre-fix-deadlock.txt: actual PostgreSQL deadlock graphs at reproduction time.
+  Writer 6547 waits on the event table; assessment 6549 waits on executions.
+  A second graph records the retried writer waiting against the assessment INSERT.
+- b20-concurrency.txt: uv run pytest tests/integration/phase2/test_b20_screening_concurrency.py -x
+  24 passed, 24 warnings in 18.12s.
+- phantom-repeat.txt: twenty fresh pytest invocations of both lock orders, -x.
+  All forty cases passed (each invocation: 2 passed).
+- migration-cycle.txt: output of uv run alembic downgrade 0068_b21_unresolved_capture
+  && uv run alembic upgrade head. MIGRATION_CYCLE_EXIT=0.
+- composition-catalog.txt: uv run pytest tests/integration/phase2/test_batch_g_integration.py -s.
+  4 passed, 11 warnings in 5.08s. Includes screening insert/review/revision after
+  0071 and exact equality of all predecessor function/constraint/trigger catalogs.
+  Printed counts and SHA256 digests include b13_stale at every boundary.
+- head-catalog.txt: pg_get_triggerdef/pg_get_constraintdef for novelty_assessments,
+  plus b13_stale, b20_child_guard and pr218_capture_prelocked function definitions.
+  SQL control characters in constraint definitions are JSON-escaped losslessly.
+
+Required combined check: BLOCKED, not PASS.
+See batch-g-review/full-check.txt for the exact command and captured output.
+Static checks passed; quick pre-check: 1312 passed, 1984 warnings in 1126.79s.
+The runner then repeatedly failed to remove stale full_suite.lock and
+full_suite.lock2 files under /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs
+with "Operation not permitted". That directory is outside the session's writable
+roots. The session was interrupted with tool exit 130 after the queue could not
+advance; none of the six full-suite shards started. The governing runner was not
+modified, and its locking was not bypassed. The exact command still needs a run
+in an environment allowed to maintain those global runner locks.
+
+Fresh source fingerprints are in batch-g-review/source-sha256.txt. SHA256SUMS
+binds the captured output/catalog files and this correction note. No commit,
+push, branch creation, or new pr_evidence/pr2-20/<hash>/ directory was performed.

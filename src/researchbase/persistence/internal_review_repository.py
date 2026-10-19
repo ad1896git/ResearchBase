@@ -14,6 +14,9 @@ from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 from researchbase.persistence.manuscript_freeze_repository import B04_SNAPSHOT_TABLES
+from researchbase.persistence.novelty_repository import N
+
+B23_SNAPSHOT_TABLES = N
 
 # Same fixed inventory as B04; review tables are coordinated through the target.
 B05_SNAPSHOT_TABLES = B04_SNAPSHOT_TABLES
@@ -24,6 +27,35 @@ class SqlAlchemyInternalReviewRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
         self._write_prepared = False
+
+    def prepare_novelty_write(self, kind: str, key: str) -> None:
+        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+        self._session.execute(
+            text("LOCK TABLE " + ",".join(B23_SNAPSHOT_TABLES) + " IN SHARE MODE")
+        )
+        owners = {
+            "review": "internal_review_records,review_issue_events,review_issues",
+            "revision": "revision_actions",
+            "link": "revision_action_re_reviews",
+        }
+        self._session.execute(text("LOCK TABLE " + owners[kind] + " IN ROW EXCLUSIVE MODE"))
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"), {"key": key}
+        )
+
+    def lock_novelty_targets(self, claim: UUID, assessments: tuple[UUID, ...]) -> None:
+        self._session.execute(
+            text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"), {"id": claim}
+        )
+        self._session.execute(
+            text("SELECT id FROM novelty_assessments WHERE id=ANY(:ids) ORDER BY id FOR SHARE"),
+            {"ids": list(assessments)},
+        )
+
+    def force_novelty_constraints(self) -> None:
+        self._session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
 
     def prepare_insert(self) -> None:
         # Reserve the INSERT table mode before target/authority row locks. B07's
@@ -95,13 +127,31 @@ class SqlAlchemyInternalReviewRepository:
         return [dict(row) for row in rows]
 
     def insert_review(self, values: dict[str, object]) -> None:
-        values = {"manuscript_version_id": None, **values}
+        if "novelty_assessment_id" not in values and values.get("material_version", 1) == 1:
+            # The accepted v1 writer also runs against historical migration points.
+            self._session.execute(
+                text("""INSERT INTO internal_review_records
+                (id,project_id,manuscript_version_id,claim_version_id,scientific_conclusion_version_id,
+                 target_content_hash,reviewer_actor_id,review_type,recommendation,summary,
+                 created_at,content_hash,hash_scheme)
+                VALUES (:id,:project_id,:manuscript_version_id,:claim_version_id,
+                 :scientific_conclusion_version_id,:target_content_hash,:reviewer_actor_id,
+                 :review_type,:recommendation,:summary,:created_at,:content_hash,:hash_scheme)"""),
+                {"manuscript_version_id": None, **values},
+            )
+            return
+        values = {
+            "manuscript_version_id": None,
+            "novelty_assessment_id": None,
+            "material_version": 1,
+            **values,
+        }
         self._session.execute(
             text("""INSERT INTO internal_review_records
-          (id,project_id,manuscript_version_id,claim_version_id,scientific_conclusion_version_id,
+          (id,project_id,manuscript_version_id,claim_version_id,scientific_conclusion_version_id,novelty_assessment_id,material_version,
            target_content_hash,reviewer_actor_id,
            review_type,recommendation,summary,created_at,content_hash,hash_scheme)
-          VALUES (:id,:project_id,:manuscript_version_id,:claim_version_id,:scientific_conclusion_version_id,
+          VALUES (:id,:project_id,:manuscript_version_id,:claim_version_id,:scientific_conclusion_version_id,:novelty_assessment_id,:material_version,
            :target_content_hash,
            :reviewer_actor_id,:review_type,:recommendation,:summary,:created_at,
            :content_hash,:hash_scheme)"""),

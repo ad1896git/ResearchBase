@@ -44,6 +44,7 @@ class RevisionReference:
         _uuid(self.id, "reference")
         if self.type not in (
             *RESULT_TYPES,
+            "NoveltyAssessment",
             "RevisionAction",
             "ReviewIssue",
             "DecisionRecord",
@@ -235,3 +236,28 @@ def validate_concern_correspondence(
         valid = lineage and witness
     if not valid:
         raise ValueError("re-review does not bind the exact completed result and concern lineage")
+
+
+def novelty_revision_material(issue, result, predecessor, actor):
+    """ADR-0019 v2; the seven-shape v1 builder remains unchanged."""
+    for ref, kind in (
+        (issue, "ReviewIssue"),
+        (result, "NoveltyAssessment"),
+        (actor, "ActorIdentity"),
+    ):
+        if type(ref) is not RevisionReference or ref.type != kind:
+            raise ValueError("exact typed novelty revision reference required")
+    if predecessor is not None and (
+        type(predecessor) is not RevisionReference or predecessor.type != "RevisionAction"
+    ):
+        raise ValueError("exact predecessor required")
+    return {
+        "type": "RevisionAction",
+        "material_version": 2,
+        "review_issue": issue.material(),
+        "decision": None,
+        "action_type": "NOVELTY_REASSESSMENT",
+        "results": {**dict.fromkeys(RESULT_KEYS), "result_novelty_assessment": result.material()},
+        "supersedes_revision_action": predecessor.material() if predecessor else None,
+        "created_by": actor.material(),
+    }

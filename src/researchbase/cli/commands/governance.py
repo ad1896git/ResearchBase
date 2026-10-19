@@ -229,6 +229,19 @@ def optional_uuid(values: dict[str, object], name: str, runtime: CliRuntime):
 
 
 def register(app: typer.Typer) -> None:
+    reviews = command_group("Exact novelty reviews.")
+    add_command(reviews, "record", "Record an independent novelty review.", novelty_review_record)
+    add_command(reviews, "show", "Show exact novelty review history.", novelty_review_show)
+    app.add_typer(reviews, name="novelty-review")
+    revisions = command_group("Completed novelty reassessment correspondence.")
+    for name, callback in (
+        ("record", novelty_revision_record),
+        ("show", novelty_revision_show),
+        ("link", novelty_revision_link),
+        ("show-link", novelty_revision_show_link),
+    ):
+        add_command(revisions, name, "Exact novelty revision operation.", callback)
+    app.add_typer(revisions, name="novelty-revision")
     audit = command_group("Governance audit commands.")
     add_command(audit, "create", "Create an audit finding.", audit_create)
     app.add_typer(audit, name="audit")
@@ -246,3 +259,192 @@ def register(app: typer.Typer) -> None:
         correction_create,
     )
     app.add_typer(correction, name="correction")
+
+
+def _b23_invoke(ctx, json_mode, operation):
+    from dataclasses import asdict
+
+    from .literature import _principal
+
+    runtime = _runtime(ctx)
+
+    def run():
+        return asdict(operation(runtime, _principal(runtime)))
+
+    invoke(runtime, json_mode, run, internal_error_exit_code=1)
+
+
+def _b23_uuid(value):
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    from .literature import _novelty_id
+
+    try:
+        return _novelty_id(value)
+    except (ValueError, TypeError):
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "canonical UUID required") from None
+
+
+def novelty_review_record(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    target_id: str = typer.Option(..., "--target-id"),
+    review_type: str = typer.Option(..., "--review-type"),
+    recommendation: str = typer.Option(..., "--recommendation"),
+    summary: str = typer.Option(..., "--summary"),
+    issues: str = typer.Option("[]", "--issues"),
+    request: str = typer.Option(..., "--request"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    def run(runtime, principal):
+        import json
+
+        from researchbase.application.internal_review import (
+            NoveltyReviewCommand,
+            ReviewIssueRequest,
+        )
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        try:
+            rows = json.loads(issues)
+            if type(rows) is not list:
+                raise ValueError("ordered Issue array required")
+            command = NoveltyReviewCommand(
+                _b23_uuid(project_id),
+                "NOVELTY_ASSESSMENT",
+                _b23_uuid(target_id),
+                review_type,
+                recommendation,
+                summary,
+                tuple(ReviewIssueRequest(**i) for i in rows),
+                _b23_uuid(request),
+            )
+        except (ValueError, TypeError):
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR, "closed ordered Issues required"
+            ) from None
+        return runtime.services.internal_reviews.create(
+            principal,
+            command.project_id,
+            command.target_kind,
+            command.target_id,
+            command.review_type,
+            command.recommendation,
+            command.summary,
+            command.issues,
+            command.request,
+        )
+
+    _b23_invoke(ctx, json_mode, run)
+
+
+def novelty_review_show(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.internal_review import NoveltyReviewReadback
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    def show(runtime, principal):
+        value = runtime.services.internal_reviews.read(
+            principal, _b23_uuid(project_id), _b23_uuid(id)
+        )
+        if type(value) is not NoveltyReviewReadback:
+            raise ResearchBaseError(ErrorCode.NOT_FOUND, "novelty review not found")
+        return value
+
+    _b23_invoke(ctx, json_mode, show)
+
+
+def novelty_revision_record(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    review_issue_id: str = typer.Option(..., "--review-issue-id"),
+    result_novelty_assessment_id: str = typer.Option(..., "--result-novelty-assessment-id"),
+    supersedes_revision_action_id: str | None = typer.Option(
+        None, "--supersedes-revision-action-id"
+    ),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.revision_action import RecordNoveltyRevisionCommand
+
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.revision_actions.record_novelty_revision(
+            p,
+            RecordNoveltyRevisionCommand(
+                _b23_uuid(id),
+                _b23_uuid(project_id),
+                _b23_uuid(review_issue_id),
+                _b23_uuid(result_novelty_assessment_id),
+                _b23_uuid(supersedes_revision_action_id) if supersedes_revision_action_id else None,
+            ),
+        ),
+    )
+
+
+def novelty_revision_show(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.revision_action import NoveltyRevisionReadback
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    def show(runtime, principal):
+        value = runtime.services.revision_actions.read_revision_action(
+            principal, _b23_uuid(project_id), _b23_uuid(id)
+        )
+        if type(value) is not NoveltyRevisionReadback:
+            raise ResearchBaseError(ErrorCode.NOT_FOUND, "novelty revision not found")
+        return value
+
+    _b23_invoke(ctx, json_mode, show)
+
+
+def novelty_revision_link(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    revision_action_id: str = typer.Option(..., "--revision-action-id"),
+    internal_review_record_id: str = typer.Option(..., "--internal-review-record-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.revision_action import RecordConcernReReviewCommand
+
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.revision_actions.record_concern_re_review(
+            p,
+            RecordConcernReReviewCommand(
+                _b23_uuid(project_id),
+                _b23_uuid(revision_action_id),
+                _b23_uuid(internal_review_record_id),
+            ),
+            novelty=True,
+        ),
+    )
+
+
+def novelty_revision_show_link(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    revision_action_id: str = typer.Option(..., "--revision-action-id"),
+    internal_review_record_id: str = typer.Option(..., "--internal-review-record-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.revision_actions.read_novelty_re_review(
+            p,
+            _b23_uuid(project_id),
+            _b23_uuid(revision_action_id),
+            _b23_uuid(internal_review_record_id),
+        ),
+    )

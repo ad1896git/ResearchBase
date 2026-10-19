@@ -266,3 +266,113 @@ def test_prepare_blocker_maintenance_persists_stale_and_event(b17_env):
         ).all() == [(None, "ACTIVE"), ("ACTIVE", "STALE")]
     after = counts(f)
     assert after == (*before[:4], before[4] + 1, before[5])
+
+
+def test_b32_freeze_preserves_ready_history_and_local_receipt(b17_env):
+    from sqlalchemy import text
+
+    from researchbase.application.publication import PublicationService
+
+    f = b17_env
+    with f.engine.connect() as conn:
+        ready_history = conn.execute(
+            text("SELECT * FROM publication_lifecycle_events ORDER BY id")
+        ).all()
+    ready_receipt = f.approval.get_grant_consumption(
+        f.actor,
+        f.command.project_id,
+        f.ready_command.command_key,
+    )
+    assert f.command.grant_id != f.ready_command.grant_id
+    receipt = f.app.freeze_prepared_submission(f.actor, f.command)
+    assert receipt.command == "FREEZE_PREPARED_SUBMISSION"
+    assert receipt.result_publication_id is None
+    assert receipt.result_scientific_conclusion_version_id is None
+    assert receipt.result_prepared_submission_version_id == f.command.result_id
+    with f.engine.connect() as conn:
+        assert (
+            conn.execute(text("SELECT * FROM publication_lifecycle_events ORDER BY id")).all()
+            == ready_history
+        )
+        assert conn.execute(
+            text(
+                "SELECT c.id, c.grant_id, p.status FROM prepared_submission_versions p "
+                "JOIN approval_grant_consumptions c ON c.result_prepared_submission_version_id=p.id "
+                "WHERE p.id=:id"
+            ),
+            {"id": f.command.result_id},
+        ).one() == (receipt.id, f.command.grant_id, "FROZEN")
+        assert (
+            conn.execute(
+                text("SELECT lifecycle_status FROM publications WHERE id=:id"),
+                {"id": f.package_command.publication_id},
+            ).scalar_one()
+            == "READY"
+        )
+    assert (
+        f.approval.get_grant_consumption(
+            f.actor,
+            f.command.project_id,
+            f.ready_command.command_key,
+        )
+        == ready_receipt
+    )
+    before = counts(f)
+    # A saved freeze key cannot become a different command through another owner.
+    app = PublicationService(f.env[4], f.env[9], f.env[7])
+    with pytest.raises(ResearchBaseError) as caught:
+        app.transition_publication_ready(
+            f.actor,
+            replace(f.ready_command, command_key=f.command.command_key),
+        )
+    assert caught.value.code == ErrorCode.IDEMPOTENCY_CONFLICT
+    assert counts(f) == before
+
+
+def test_b32_exact_reads_and_completed_freeze_are_readonly_snapshots(b17_env):
+    from sqlalchemy import event
+
+    f = b17_env
+    receipt = f.app.freeze_prepared_submission(f.actor, f.command)
+    before = counts(f)
+    observed = []
+
+    def capture(conn, cursor, sql, params, context, many):
+        observed.append(
+            (sql.upper(), cursor.connection.isolation_level.name, cursor.connection.read_only)
+        )
+
+    event.listen(f.engine, "before_cursor_execute", capture)
+    try:
+        assert f.app.freeze_prepared_submission(f.actor, f.command) == receipt
+        f.app.get_prepared_submission(f.actor, f.query)
+        f.app.get_prepared_submission_history(f.actor, f.query)
+        f.app.preview_prepared_submission(f.actor, f.query)
+        assert (
+            f.approval.get_grant_consumption(
+                f.actor,
+                f.command.project_id,
+                f.command.command_key,
+            )
+            == receipt
+        )
+    finally:
+        event.remove(f.engine, "before_cursor_execute", capture)
+    assert observed and all(
+        level == "REPEATABLE_READ" and readonly for _, level, readonly in observed
+    )
+    assert not any(
+        token in sql
+        for sql, _, _ in observed
+        for token in (
+            "LOCK TABLE",
+            "PG_ADVISORY",
+            "FOR UPDATE",
+            "FOR SHARE",
+            "INSERT ",
+            "UPDATE ",
+            "DELETE ",
+            "SET CONSTRAINTS",
+        )
+    )
+    assert counts(f) == before

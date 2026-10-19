@@ -724,6 +724,64 @@ ROUTES = (
 )
 
 
+ROUTES += (
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/novelty-reviews",
+        "record_novelty_review",
+        "create",
+        "NoveltyReviewIn",
+        "NoveltyReviewReadbackResponse",
+        "record_novelty_review",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/novelty-reviews/{id}",
+        "read_novelty_review",
+        "read",
+        None,
+        "NoveltyReviewReadbackResponse",
+        "read_novelty_review",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/novelty-revision-actions",
+        "record_novelty_revision",
+        "record_novelty_revision",
+        "NoveltyRevisionIn",
+        "NoveltyRevisionReadbackResponse",
+        "record_novelty_revision",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/novelty-revision-actions/{id}",
+        "read_novelty_revision",
+        "read_revision_action",
+        None,
+        "NoveltyRevisionReadbackResponse",
+        "read_novelty_revision",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/novelty-revision-actions/{id}/re-reviews/{review_id}",
+        "link_novelty_re_review",
+        "record_concern_re_review",
+        None,
+        "NoveltyReReviewReadbackResponse",
+        "link_novelty_re_review",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/novelty-revision-actions/{id}/re-reviews/{review_id}",
+        "read_novelty_re_review",
+        "read_novelty_re_review",
+        None,
+        "NoveltyReReviewReadbackResponse",
+        "read_novelty_re_review",
+    ),
+)
+
+
 def _ref_name(schema: dict[str, object]) -> str:
     if "$ref" in schema:
         return str(schema["$ref"]).rsplit("/", 1)[-1]
@@ -735,7 +793,7 @@ def _ref_name(schema: dict[str, object]) -> str:
 
 
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 77
+    assert len(ROUTES) == 83
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -745,7 +803,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 77
+    assert len({item.operation_id for item in ROUTES}) == 83
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

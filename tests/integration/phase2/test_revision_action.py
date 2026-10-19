@@ -297,14 +297,14 @@ def test_catalog_immutable_sql_and_refused_downgrade(revision_env, phase2_databa
             .scalars()
             .all()
         )
-        assert len(fks) == 11 and set(fks) == {"r"}
+        assert len(fks) == 12 and set(fks) == {"r"}
         columns = set(
             conn.execute(
                 text("""SELECT column_name FROM information_schema.columns
             WHERE table_name='revision_actions'""")
             ).scalars()
         )
-        assert len(columns) == 16 and "project_id" not in columns
+        assert len(columns) == 18 and "project_id" not in columns
     for sql in (
         "UPDATE revision_actions SET content_hash=content_hash WHERE id=:id",
         "DELETE FROM revision_actions WHERE id=:id",
@@ -490,7 +490,7 @@ def test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog(phase2_d
         with engine.connect() as conn:
             assert _tables(conn) - tables == {"revision_actions"}
             assert _catalog(conn, tables) == catalog
-        assert ScriptDirectory.from_config(config).get_heads() == ["0069_b13_stale_gate_denials"]
+        assert ScriptDirectory.from_config(config).get_heads() == ["0071_b23_novelty_review"]
         alembic_command.downgrade(config, "0043_pr2_04_schema_contract")
         with engine.connect() as conn:
             assert _tables(conn) == tables and _catalog(conn, tables) == catalog

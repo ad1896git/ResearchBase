@@ -185,6 +185,8 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0067_b17_prepared_package_freeze.py",
         "0068_b21_unresolved_capture.py",
         "0069_b13_stale_gate_denials.py",
+        "0070_b20_screening_basis.py",
+        "0071_b23_novelty_review.py",
     ]
 
 

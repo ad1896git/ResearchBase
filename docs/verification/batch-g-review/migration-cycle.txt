@@ -1,0 +1,11 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0071_b23_novelty_review -> 0070_b20_screening_basis, B23 exact novelty reviews and precommitted reassessment correspondence.
+INFO  [alembic.runtime.migration] Running downgrade 0070_b20_screening_basis -> 0069_b13_stale_gate_denials, B20 sealed screening and negative-probe assessment basis.
+INFO  [alembic.runtime.migration] Running downgrade 0069_b13_stale_gate_denials -> 0068_b21_unresolved_capture, B13 hardening: recognize current READY/PREPARE fact denials as STALE.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0068_b21_unresolved_capture -> 0069_b13_stale_gate_denials, B13 hardening: recognize current READY/PREPARE fact denials as STALE.
+INFO  [alembic.runtime.migration] Running upgrade 0069_b13_stale_gate_denials -> 0070_b20_screening_basis, B20 sealed screening and negative-probe assessment basis.
+INFO  [alembic.runtime.migration] Running upgrade 0070_b20_screening_basis -> 0071_b23_novelty_review, B23 exact novelty reviews and precommitted reassessment correspondence.
+MIGRATION_CYCLE_EXIT=0

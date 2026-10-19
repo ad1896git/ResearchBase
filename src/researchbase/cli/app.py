@@ -42,6 +42,8 @@ def _root_callback(
                 None,
                 "local",
                 "literature",
+                "novelty-review",
+                "novelty-revision",
                 "literature-search-execution",
                 "literature-metadata",
                 "literature-evidence",

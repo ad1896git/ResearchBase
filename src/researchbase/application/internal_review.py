@@ -10,6 +10,7 @@ from typing import Any, Literal, NoReturn, Union, get_args, get_origin, get_type
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from researchbase.application.manuscript_freeze import ManuscriptFreezeService
+from researchbase.application.novelty import NoveltyReadback
 from researchbase.application.ports import UnitOfWork
 from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.scientific_conclusion import ScientificConclusionService
@@ -105,6 +106,59 @@ class InternalReviewReadback:
     target_kind: str
 
 
+@dataclass(frozen=True, slots=True)
+class NoveltyReviewCommand:
+    project_id: UUID
+    target_kind: Literal["NOVELTY_ASSESSMENT"]
+    target_id: UUID
+    review_type: str
+    recommendation: str
+    summary: str
+    issues: tuple[ReviewIssueRequest, ...]
+    request: UUID
+
+    def __post_init__(self):
+        if (
+            any(type(x) is not UUID for x in (self.project_id, self.target_id, self.request))
+            or type(self.target_kind) is not str
+            or self.target_kind != "NOVELTY_ASSESSMENT"
+            or type(self.review_type) is not str
+            or self.review_type not in _TYPES
+            or type(self.recommendation) is not str
+            or self.recommendation not in _RECOMMENDATIONS
+            or type(self.issues) is not tuple
+            or len(self.issues) > 100
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "closed novelty review command required")
+        object.__setattr__(self, "summary", _text(self.summary, "review summary"))
+        normalized = []
+        for issue in self.issues:
+            if (
+                type(issue) is not ReviewIssueRequest
+                or type(issue.severity) is not str
+                or issue.severity not in _SEVERITIES
+                or type(issue.issue_type) is not str
+                or issue.issue_type not in _ISSUE_TYPES
+            ):
+                _fail(ErrorCode.VALIDATION_ERROR, "closed review Issue required")
+            normalized.append(
+                ReviewIssueRequest(
+                    issue.severity, issue.issue_type, _text(issue.description, "Issue description")
+                )
+            )
+        object.__setattr__(self, "issues", tuple(normalized))
+
+
+@dataclass(frozen=True, slots=True)
+class NoveltyReviewReadback(InternalReviewReadback):
+    target_kind: Literal["NOVELTY_ASSESSMENT"]
+    material_version: Literal[2]
+    target: NoveltyReadback
+
+    def __post_init__(self):
+        _validate_issue_dto(self)
+
+
 Disposition = Literal["ADDRESSED", "DISMISSED"]
 IssueStatus = Literal["OPEN", "ADDRESSED", "DISMISSED"]
 Validity = Literal["VALID", "STALE", "INVALID"]
@@ -116,7 +170,9 @@ def _validate_issue_dto(value) -> None:
     def valid(item, annotation):
         origin = get_origin(annotation)
         if origin is Literal:
-            return type(item) is str and item in get_args(annotation)
+            return any(
+                type(item) is type(option) and item == option for option in get_args(annotation)
+            )
         if origin in (UnionType, Union):
             return any(valid(item, arg) for arg in get_args(annotation))
         if origin is tuple:
@@ -381,6 +437,11 @@ class InternalReviewService:
             return self._verify_saved(uow, row)
 
     def _verify_saved(self, uow: UnitOfWork, row: dict) -> None:
+        if row.get("novelty_assessment_id") is not None:
+            self._novelty_view(uow, row)
+            return
+        if type(row.get("material_version", 1)) is not int or row.get("material_version", 1) != 1:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unsupported review version")
         if row.get("manuscript_version_id") is not None:
             self._verify_manuscript_review(uow, row)
             return
@@ -461,6 +522,241 @@ class InternalReviewService:
             kind,
         )
 
+    def _novelty_service(self):
+        from researchbase.application.novelty import NoveltyService
+
+        return NoveltyService(self._factory, self._credentials, self._literature)
+
+    def _novelty_authorize(self, uow, principal, project, roles, *, human=False):
+        from researchbase.application.novelty import _READERS
+
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        at = self._novelty_service()._authorize(uow, principal, project, roles or _READERS)
+        if human and not uow.novelty.human(principal.actor_id):
+            _fail(ErrorCode.FORBIDDEN, "independent human reviewer required")
+        return at
+
+    def _novelty_view(self, uow, row):
+        with saved_dependency(ownership=True):
+            try:
+                return self._novelty_view_saved(uow, row)
+            except ResearchBaseError as error:
+                if error.code is ErrorCode.CONFLICT_OF_INTEREST:
+                    _fail(
+                        ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved review independence"
+                    )
+                raise
+
+    def _novelty_view_saved(self, uow, row):
+        from researchbase.application.novelty import NoveltyReadback
+
+        if type(row["material_version"]) is not int or row["material_version"] != 2:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unsupported review version")
+        target = self._novelty_service().verify_assessment_in_uow(
+            uow, row["project_id"], row["novelty_assessment_id"]
+        )
+        assert isinstance(target, NoveltyReadback)
+        try:
+            material = review_material(
+                row["project_id"],
+                "NoveltyAssessment",
+                target.id,
+                target.content_hash,
+                row["reviewer_actor_id"],
+                row["review_type"],
+                row["recommendation"],
+                row["summary"],
+                material_version=2,
+            )
+            if (
+                row["hash_scheme"] != "sha256-cjson-v1"
+                or row["created_at"] < target.created_at
+                or row["created_at"] > uow.novelty.at()
+                or row["target_content_hash"] != target.content_hash
+                or str(sha256_canonical_json(material)) != row["content_hash"]
+                or material["summary"] != row["summary"]
+                or any(
+                    row.get(k) is not None
+                    for k in (
+                        "claim_version_id",
+                        "scientific_conclusion_version_id",
+                        "manuscript_version_id",
+                        "artifact_version_id",
+                    )
+                )
+            ):
+                raise ValueError("invalid review material")
+            self._novelty_independence(uow, row["reviewer_actor_id"], target)
+            if not uow.internal_review.review_creation_authorized(row):
+                raise ValueError("invalid historical authority")
+            issues = uow.internal_review.issues(row["id"])
+            events = uow.internal_review.issue_events(row["id"])
+            if (
+                len(issues) > 100
+                or any(
+                    issue["review_record_id"] != row["id"]
+                    or issue["created_at"] != row["created_at"]
+                    or any(
+                        issue.get(key) is not None
+                        for key in (
+                            "target_locator",
+                            "related_claim_version_id",
+                            "related_source_version_id",
+                            "related_run_id",
+                        )
+                    )
+                    for issue in issues
+                )
+                or any(
+                    event.get(key) is not None
+                    for event in events
+                    for key in (
+                        "revision_action_id",
+                        "re_review_record_id",
+                        "decision_id",
+                        "rationale",
+                    )
+                )
+            ):
+                raise ValueError("invalid sealed novelty Issue closure")
+            verify_open_issue_history(row, issues, events)
+        except (ValueError, TypeError, KeyError, UnicodeError):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved novelty review")
+        return NoveltyReviewReadback(
+            row["id"],
+            row["project_id"],
+            target.id,
+            target.content_hash,
+            row["reviewer_actor_id"],
+            row["review_type"],
+            row["recommendation"],
+            row["summary"],
+            row["content_hash"],
+            tuple(
+                ReviewIssueReadback(
+                    i["id"], i["severity"], i["issue_type"], i["description"], i["status"]
+                )
+                for i in issues
+            ),
+            "NOVELTY_ASSESSMENT",
+            2,
+            target,
+        )
+
+    @staticmethod
+    def _novelty_independence(uow, actor, target):
+        claim = uow.novelty.claim(target.claim_version.id)
+        if actor in {target.assessed_by, target.created_by, claim["created_by"]}:
+            _fail(ErrorCode.CONFLICT_OF_INTEREST, "reviewer must be independent")
+
+    @staticmethod
+    def _novelty_cap(uow, identities):
+        if uow.novelty.dependency_count(identities) > 10000:
+            _fail(ErrorCode.VALIDATION_ERROR, "novelty dependency admission limit exceeded")
+
+    def _create_novelty(self, principal, command):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        identity = uuid5(
+            NAMESPACE_URL,
+            f"pr214:{principal.deployment_id}:{command.project_id}:{principal.actor_id}:{command.request}",
+        )
+        for attempt in range(3):
+            try:
+                with self._factory() as uow:
+                    uow.enable_b23_error_normalization()
+                    repo = uow.internal_review
+                    repo.prepare_novelty_write("review", f"pr214:review:{identity}")
+                    uow.enable_revision_action_snapshot_reads()
+                    self._novelty_authorize(uow, principal, command.project_id, None)
+                    saved = repo.review(identity, command.project_id)
+                    if saved is not None:
+                        if saved["reviewer_actor_id"] != principal.actor_id:
+                            _fail(ErrorCode.FORBIDDEN, "review unavailable")
+                        result = self._novelty_view(uow, saved)
+                        old_issues = tuple(
+                            ReviewIssueRequest(i.severity, i.issue_type, i.description)
+                            for i in result.issues
+                        )
+                        if (
+                            result.target_id != command.target_id
+                            or result.summary != command.summary
+                            or result.review_type != command.review_type
+                            or result.recommendation != command.recommendation
+                            or old_issues != command.issues
+                        ):
+                            _fail(
+                                ErrorCode.IDEMPOTENCY_CONFLICT, "review request material conflicts"
+                            )
+                        self._novelty_authorize(uow, principal, command.project_id, None)
+                        return result
+                    target = self._novelty_service().verify_assessment_in_uow(
+                        uow, command.project_id, command.target_id
+                    )
+                    repo.lock_novelty_targets(target.claim_version.id, (target.id,))
+                    target = self._novelty_service().verify_assessment_in_uow(
+                        uow, command.project_id, command.target_id
+                    )
+                    self._novelty_cap(uow, (target.id,))
+                    self._novelty_independence(uow, principal.actor_id, target)
+                    at = self._novelty_authorize(
+                        uow, principal, command.project_id, _REVIEWERS, human=True
+                    )
+                    material = review_material(
+                        command.project_id,
+                        "NoveltyAssessment",
+                        target.id,
+                        target.content_hash,
+                        principal.actor_id,
+                        command.review_type,
+                        command.recommendation,
+                        command.summary,
+                        material_version=2,
+                    )
+                    repo.insert_review(
+                        dict(
+                            id=identity,
+                            project_id=command.project_id,
+                            novelty_assessment_id=target.id,
+                            material_version=2,
+                            claim_version_id=None,
+                            scientific_conclusion_version_id=None,
+                            target_content_hash=target.content_hash,
+                            reviewer_actor_id=principal.actor_id,
+                            review_type=command.review_type,
+                            recommendation=command.recommendation,
+                            summary=command.summary,
+                            created_at=at,
+                            content_hash=str(sha256_canonical_json(material)),
+                            hash_scheme="sha256-cjson-v1",
+                        )
+                    )
+                    for ordinal, issue in enumerate(command.issues):
+                        repo.insert_issue(
+                            dict(
+                                id=uuid5(identity, f"issue:{ordinal}"),
+                                review_record_id=identity,
+                                severity=issue.severity,
+                                issue_type=issue.issue_type,
+                                description=issue.description,
+                                created_at=at,
+                                ordinal=ordinal,
+                            )
+                        )
+                    repo.force_novelty_constraints()
+                    result = self._novelty_view(uow, repo.review(identity, command.project_id))
+                    self._novelty_authorize(
+                        uow, principal, command.project_id, _REVIEWERS, human=True
+                    )
+                    uow.commit()
+                    return result
+            except ResearchBaseError as error:
+                if (error.details or {}).get("retryable_b23") and attempt < 2:
+                    continue
+                raise
+        raise AssertionError("unreachable novelty review retry")
+
     def create(
         self,
         principal: VerifiedPrincipal,
@@ -472,7 +768,21 @@ class InternalReviewService:
         summary: str,
         issues: tuple[ReviewIssueRequest, ...],
         request: UUID,
-    ) -> InternalReviewReadback:
+    ) -> InternalReviewReadback | NoveltyReviewReadback:
+        if target_kind == "NOVELTY_ASSESSMENT":
+            return self._create_novelty(
+                principal,
+                NoveltyReviewCommand(
+                    project,
+                    target_kind,
+                    target_id,
+                    review_type,
+                    recommendation,
+                    summary,
+                    issues,
+                    request,
+                ),
+            )
         if (
             type(target_kind) is not str
             or target_kind
@@ -659,18 +969,33 @@ class InternalReviewService:
             uow.enable_internal_review_error_normalization()
             uow.configure_revision_transaction(readonly=True)
             uow.enable_revision_action_snapshot_reads()
-            self._authorize_snapshot(uow, principal, project)
+            self._authorize_snapshot(uow, principal, project, read_entitlement=True)
             row = uow.internal_review.review(review_id, project)
             if row is None:
                 _fail(ErrorCode.NOT_FOUND, "review not found")
+            if row.get("novelty_assessment_id") is not None:
+                result = self._novelty_view(uow, row)
+                self._novelty_authorize(uow, principal, project, None)
+                return result
+            self._authorize_snapshot(uow, principal, project)
             self._verify(uow, row)
             result = self._view(row, self._issues(uow, row))
             self._authorize_snapshot(uow, principal, project)
             return result
 
+    def _novelty_read_entitlement(self, uow, principal, project):
+        return self._novelty_authorize(uow, principal, project, None)
+
     def _authorize_snapshot(
-        self, uow: UnitOfWork, principal: VerifiedPrincipal, project: UUID
+        self,
+        uow: UnitOfWork,
+        principal: VerifiedPrincipal,
+        project: UUID,
+        *,
+        read_entitlement: bool = False,
     ) -> Any:
+        if read_entitlement:
+            return self._novelty_read_entitlement(uow, principal, project)
         rows = uow.internal_review.authority(principal, project)
         at = uow.manuscript_freeze.at()
         try:

@@ -1,0 +1,39 @@
+Command (UV_CACHE_DIR set to repository .pipeline/uv-cache):
+! git grep -nE '^(<<<<<<<|>>>>>>>) ' -- . ':!.pipeline' && test $(uv run alembic heads | wc -l) -eq 1 && uv run alembic upgrade head && uv run pyright && uv run ruff format --check . && uv run ruff check . && git diff --check HEAD && /Users/fengwang/Documents/ResearchBaseProject/.pipeline/bin/full_suite_sharded.sh 6
+
+Captured command output:
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+761 files already formatted
+All checks passed!
+== quick pre-check: 61 changed test files
+
+tests/architecture/test_pr2_19_boundaries.py: 1 warning
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+tests/integration/phase2/test_b13_grant_consumption.py: 2 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 43 warnings
+tests/integration/phase2/test_b17_package_freeze.py: 20 warnings
+tests/integration/phase2/test_pr2_19_governance.py: 4 warnings
+tests/integration/phase2/test_pr2_19_grant_consumption_publication.py: 64 warnings
+tests/integration/phase2/test_pr2_19_lineage.py: 14 warnings
+tests/integration/phase2/test_pr2_19_package_freeze.py: 3 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/src/researchbase/persistence/internal_review_repository.py:174: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1312 passed, 1984 warnings in 1126.79s (0:18:46)
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted
+
+Tool result: exit 130 after interrupting the permission-blocked queue.
+The full-suite shards did not start. This is NOT a passing combined check.

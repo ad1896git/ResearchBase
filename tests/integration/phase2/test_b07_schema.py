@@ -43,6 +43,8 @@ def test_empty_forward_upgrade_and_downgrade(phase2_database_url):
                 "prepared_submission_events",
                 "novelty_assessment_prior_art_inputs",
                 "search_coverage_resolutions",
+                "novelty_assessment_probes",
+                "novelty_assessment_screening_results",
             }
             fks = (
                 conn.execute(

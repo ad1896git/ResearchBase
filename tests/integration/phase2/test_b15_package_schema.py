@@ -71,6 +71,8 @@ def test_clean_upgrade_catalog_and_empty_downgrade(monkeypatch):
             assert set(inspect(conn).get_table_names()) - before == set(TABLES) | {
                 "novelty_assessment_prior_art_inputs",
                 "search_coverage_resolutions",
+                "novelty_assessment_probes",
+                "novelty_assessment_screening_results",
             }
             assert (
                 conn.execute(

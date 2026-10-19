@@ -723,7 +723,44 @@ class SqlAlchemyUnitOfWork:
         self._decision_error_normalization = True
         self._publication_entry_error_normalization = True
 
+    def enable_b23_error_normalization(self) -> None:
+        self._decision_error_normalization = True
+        self._b23_error_normalization = True
+
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if getattr(self, "_b23_error_normalization", False):
+            state = getattr(exc.orig, "sqlstate", None)
+            name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            codes = {
+                "P17F1": ErrorCode.IMMUTABLE_RECORD,
+                "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "P17E1": ErrorCode.IMMUTABLE_RECORD,
+                "P17D1": ErrorCode.IMMUTABLE_RECORD,
+                "P17D2": ErrorCode.INVALID_STATE_TRANSITION,
+                "P17D3": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "P17D4": ErrorCode.VALIDATION_ERROR,
+                "P23A1": ErrorCode.FORBIDDEN,
+                "P23C1": ErrorCode.CONFLICT_OF_INTEREST,
+                "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "23514": ErrorCode.VALIDATION_ERROR,
+                "40001": ErrorCode.CONCURRENT_MODIFICATION,
+                "40P01": ErrorCode.CONCURRENT_MODIFICATION,
+            }
+            if state == "23505" and name == "uq_revision_action_predecessor":
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION,
+                    "predecessor concurrently used",
+                    {"b23": True, "retryable_b23": False},
+                )
+            if state in codes:
+                return ResearchBaseError(
+                    codes[state],
+                    "novelty review transaction rejected",
+                    {"b23": True, "retryable_b23": state in {"40001", "40P01"}},
+                )
+            raise RuntimeError(
+                "novelty review transaction failed; recover by exact entitled read"
+            ) from None
         if self._package_preparation_error_normalization:
             state = getattr(exc.orig, "sqlstate", None)
             codes = {
@@ -900,16 +937,26 @@ class SqlAlchemyUnitOfWork:
                     ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid correction ancestry"
                 )
             if state in {"55P03", "57014"}:
-                return ResearchBaseError(
-                    ErrorCode.CONCURRENT_MODIFICATION, "novelty transaction timeout"
-                )
+                raise RuntimeError("novelty transaction timeout") from None
             if constraint in {"uq_pr218_novelty_predecessor", "uq_b22_prior_art_predecessor"}:
                 return ResearchBaseError(
                     ErrorCode.CONCURRENT_MODIFICATION, "predecessor concurrently superseded"
                 )
-            if constraint in {"ck_pr218_novelty_initial_slice", "ck_b19_novelty_material"}:
+            if constraint in {
+                "ck_pr218_novelty_initial_slice",
+                "ck_b19_novelty_material",
+                "ck_b20_novelty_material",
+            }:
                 return ResearchBaseError(
                     ErrorCode.INVALID_STATE_TRANSITION, "unsupported novelty outcome material"
+                )
+            if constraint and (
+                constraint.startswith("ck_b20_")
+                or constraint.startswith("uq_b20_")
+                or constraint.startswith("pk_b20_")
+            ):
+                return ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid screening structure"
                 )
             normalized = _normalize_database_error(exc)
             if normalized is not None:

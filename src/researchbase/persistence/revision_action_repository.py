@@ -78,7 +78,8 @@ class SqlAlchemyRevisionActionRepository:
 
     def issue(self, identity, project):
         return self._one(
-            """SELECT i.*,r.claim_version_id,r.scientific_conclusion_version_id
+            """SELECT i.*,r.claim_version_id,r.scientific_conclusion_version_id,
+            r.novelty_assessment_id
             FROM review_issues i JOIN internal_review_records r ON r.id=i.review_record_id
             WHERE i.id=:id AND r.project_id=:project""",
             {"id": identity, "project": project},
@@ -220,6 +221,20 @@ class SqlAlchemyRevisionActionRepository:
             "ON p.id=v.experiment_spec_id WHERE v.id=:id AND p.project_id=:project",
             {"id": identity, "project": project},
         )
+
+    def lock_novelty_basis(self, issue, review_ids, action=None, predecessor=None):
+        self.lock_reviews(review_ids)
+        self._session.execute(
+            text("SELECT id FROM review_issues WHERE id=:id FOR SHARE"), {"id": issue}
+        )
+        if predecessor is not None:
+            self._session.execute(
+                text("SELECT id FROM revision_actions WHERE id=:id FOR UPDATE"), {"id": predecessor}
+            )
+        if action is not None:
+            self._session.execute(
+                text("SELECT id FROM revision_actions WHERE id=:id FOR SHARE"), {"id": action}
+            )
 
     def lock_issue(self, identity):
         self._session.execute(

@@ -58,7 +58,7 @@ def test_upgrade_catalog_and_empty_downgrade(start, monkeypatch):
         with engine.connect() as conn:
             assert (
                 conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                == "0069_b13_stale_gate_denials"
+                == "0071_b23_novelty_review"
             )
             assert (
                 conn.execute(

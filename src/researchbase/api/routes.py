@@ -11,12 +11,12 @@ from dataclasses import fields, is_dataclass
 from datetime import date
 from threading import Event
 from types import UnionType
-from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_type_hints
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, create_model
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictStr, create_model
 from starlette.concurrency import run_in_threadpool
 
 from researchbase.api.context import execution_context
@@ -83,6 +83,7 @@ from researchbase.application.governance import (
     ProposedImpactTarget,
 )
 from researchbase.application.governance_queries import DownstreamImpactTarget
+from researchbase.application.internal_review import NoveltyReviewReadback, ReviewIssueRequest
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
     CreateLiteratureSearchExecution,
@@ -113,6 +114,12 @@ from researchbase.application.novelty import (
     SearchCoverageReadback,
 )
 from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
+from researchbase.application.revision_action import (
+    NoveltyReReviewReadback,
+    NoveltyRevisionReadback,
+    RecordConcernReReviewCommand,
+    RecordNoveltyRevisionCommand,
+)
 from researchbase.application.source_identity import (
     AddSourceIdentifier,
     RegisterLiteratureSource,
@@ -156,6 +163,11 @@ from researchbase.domain.novelty import (
     NoveltyOutcome,
     PriorArtBasisInput,
     PriorArtKind,
+    ProbeDisposition,
+    ProbeInput,
+    ScreeningBasisInput,
+    ScreeningDisposition,
+    ScreeningResultInput,
     TimeScope,
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
@@ -2175,6 +2187,32 @@ class ClosenessCriteriaIn(BaseModel):
     statements: tuple[str, ...] = Field(min_length=1, max_length=100)
 
 
+class ProbeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    search_execution_id: NoveltyUUID
+    query_index: Annotated[int, Field(strict=True, ge=0, le=31)]
+    disposition: ProbeDisposition
+    rationale: str
+
+
+class ScreeningResultIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    search_result_record_id: NoveltyUUID
+    disposition: ScreeningDisposition
+    criteria_ordinals: tuple[Annotated[int, Field(strict=True, ge=0, le=99)], ...] = Field(
+        min_length=1, max_length=100
+    )
+    rationale: str
+    prior_art_relation_id: NoveltyUUID | None = None
+    search_result_resolution_id: NoveltyUUID | None = None
+
+
+class ScreeningBasisIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    probes: tuple[ProbeIn, ...] = Field(min_length=1, max_length=3200)
+    results: tuple[ScreeningResultIn, ...] = Field(max_length=10000)
+
+
 class NoveltyAssessmentIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: NoveltyUUID
@@ -2186,6 +2224,7 @@ class NoveltyAssessmentIn(BaseModel):
     prior_art_basis: tuple[PriorArtBasisIn, ...] = Field(default=(), max_length=100)
     scope_statement: str | None = None
     closeness_criteria: ClosenessCriteriaIn | None = None
+    screening_basis: ScreeningBasisIn | None = None
 
 
 @router.post(
@@ -2269,7 +2308,13 @@ def record_novelty_assessment(project_id: NoveltyUUID, body: NoveltyAssessmentIn
     try:
         command = RecordNoveltyAssessmentCommand(
             project_id=project_id,
-            **body.model_dump(exclude={"prior_art_basis", "closeness_criteria"}),
+            **body.model_dump(exclude={"prior_art_basis", "closeness_criteria", "screening_basis"}),
+            screening_basis=ScreeningBasisInput(
+                tuple(ProbeInput(**x.model_dump()) for x in body.screening_basis.probes),
+                tuple(ScreeningResultInput(**x.model_dump()) for x in body.screening_basis.results),
+            )
+            if body.screening_basis is not None
+            else None,
             prior_art_basis=tuple(
                 PriorArtBasisInput(**x.model_dump()) for x in body.prior_art_basis
             ),
@@ -2295,5 +2340,139 @@ def read_novelty_assessment(project_id: NoveltyUUID, id: NoveltyUUID, request: R
     return _json(
         _services(request).novelty.read_novelty_assessment(
             _verified_principal(request), ExactReadQuery(project_id, id)
+        )
+    )
+
+
+class NoveltyReviewIssueIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    severity: Literal["INFO", "MINOR", "MAJOR", "BLOCKING"]
+    issue_type: Literal[
+        "UNSUPPORTED_CLAIM",
+        "CITATION",
+        "STATISTICAL",
+        "METHODOLOGICAL",
+        "REPRODUCIBILITY",
+        "OVERCLAIM",
+        "CONTRADICTION",
+        "NOVELTY",
+        "WRITING",
+        "OTHER",
+    ]
+    description: str
+
+
+class NoveltyReviewIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target_id: NoveltyUUID
+    review_type: Literal[
+        "SCIENTIFIC", "STATISTICAL", "LITERATURE", "REPRODUCIBILITY", "EDITORIAL", "COMPREHENSIVE"
+    ]
+    recommendation: Literal["ACCEPT", "MINOR_REVISION", "MAJOR_REVISION", "REJECT", "UNCERTAIN"]
+    summary: StrictStr
+    issues: tuple[NoveltyReviewIssueIn, ...] = Field(max_length=100)
+    request: NoveltyUUID
+
+
+class NoveltyRevisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    review_issue_id: NoveltyUUID
+    result_novelty_assessment_id: NoveltyUUID
+    supersedes_revision_action_id: NoveltyUUID | None = None
+
+
+@router.post(
+    "/projects/{project_id}/novelty-reviews",
+    status_code=201,
+    operation_id="record_novelty_review",
+    response_model=_response_schema(NoveltyReviewReadback),
+)
+def record_novelty_review(project_id: NoveltyUUID, body: NoveltyReviewIn, request: Request):
+    return _json(
+        _services(request).internal_reviews.create(
+            _verified_principal(request),
+            project_id,
+            "NOVELTY_ASSESSMENT",
+            body.target_id,
+            body.review_type,
+            body.recommendation,
+            body.summary,
+            tuple(ReviewIssueRequest(**i.model_dump()) for i in body.issues),
+            body.request,
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-reviews/{id}",
+    operation_id="read_novelty_review",
+    response_model=_response_schema(NoveltyReviewReadback),
+)
+def read_novelty_review(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    value = _services(request).internal_reviews.read(_verified_principal(request), project_id, id)
+    if type(value) is not NoveltyReviewReadback:
+        raise ResearchBaseError(ErrorCode.NOT_FOUND, "novelty review not found")
+    return _json(value)
+
+
+@router.post(
+    "/projects/{project_id}/novelty-revision-actions",
+    status_code=201,
+    operation_id="record_novelty_revision",
+    response_model=_response_schema(NoveltyRevisionReadback),
+)
+def record_novelty_revision(project_id: NoveltyUUID, body: NoveltyRevisionIn, request: Request):
+    return _json(
+        _services(request).revision_actions.record_novelty_revision(
+            _verified_principal(request),
+            RecordNoveltyRevisionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-revision-actions/{id}",
+    operation_id="read_novelty_revision",
+    response_model=_response_schema(NoveltyRevisionReadback),
+)
+def read_novelty_revision(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    value = _services(request).revision_actions.read_revision_action(
+        _verified_principal(request), project_id, id
+    )
+    if type(value) is not NoveltyRevisionReadback:
+        raise ResearchBaseError(ErrorCode.NOT_FOUND, "novelty revision not found")
+    return _json(value)
+
+
+@router.post(
+    "/projects/{project_id}/novelty-revision-actions/{id}/re-reviews/{review_id}",
+    status_code=201,
+    operation_id="link_novelty_re_review",
+    response_model=_response_schema(NoveltyReReviewReadback),
+)
+def link_novelty_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.record_concern_re_review(
+            _verified_principal(request),
+            RecordConcernReReviewCommand(project_id, id, review_id),
+            novelty=True,
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-revision-actions/{id}/re-reviews/{review_id}",
+    operation_id="read_novelty_re_review",
+    response_model=_response_schema(NoveltyReReviewReadback),
+)
+def read_novelty_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.read_novelty_re_review(
+            _verified_principal(request), project_id, id, review_id
         )
     )

@@ -194,7 +194,12 @@ def test_retry_normalization(novelty_env, monkeypatch, state, cls, count):
         raise OperationalError("injected", {}, cls("injected"))
 
     monkeypatch.setattr(SqlAlchemyNoveltyRepository, "insert", injected)
-    assert outcome(lambda: record(e, c)) is ErrorCode.CONCURRENT_MODIFICATION
+    if state in {"55P03", "57014"}:
+        # Approved B20 §11.2: timeouts use the sanitized INTERNAL_ERROR fallback.
+        with pytest.raises(RuntimeError, match="novelty transaction timeout"):
+            record(e, c)
+    else:
+        assert outcome(lambda: record(e, c)) is ErrorCode.CONCURRENT_MODIFICATION
     assert len(calls) == count and len({id(x) for x in calls}) == count
 
 

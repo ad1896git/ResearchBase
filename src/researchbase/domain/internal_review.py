@@ -30,7 +30,7 @@ def _text(value: str, label: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{label} must be text")
     result = unicodedata.normalize("NFC", value)
-    if not result.strip() or len(result) > 16000:
+    if not result.strip() or len(result) > 16000 or "\x00" in result:
         raise ValueError(f"{label} must be nonblank and bounded")
     try:
         result.encode("utf-8", "strict")
@@ -48,11 +48,18 @@ def review_material(
     review_type: str,
     recommendation: str,
     summary: str,
+    *,
+    material_version: int = 1,
 ) -> dict:
     for value in (project, target_id, actor):
         _uuid(value, "review reference")
     _digest(digest, "target hash")
+    if type(material_version) is not int or material_version not in (1, 2):
+        raise ValueError("unsupported review material version")
+    if (target_kind == "NoveltyAssessment") != (material_version == 2):
+        raise ValueError("versioned review target required")
     if target_kind not in {
+        "NoveltyAssessment",
         "ClaimVersion",
         "ScientificConclusionVersion",
         "ManuscriptVersion",
@@ -65,7 +72,7 @@ def review_material(
         raise ValueError("invalid review recommendation")
     return {
         "type": "InternalReviewRecord",
-        "material_version": 1,
+        "material_version": material_version,
         "project_id": str(project),
         "target": {"type": target_kind, "id": str(target_id), "content_hash": digest},
         "reviewer_actor_id": str(actor),

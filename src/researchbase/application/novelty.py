@@ -19,7 +19,14 @@ from researchbase.domain.novelty import (
     PriorArtBasisInput,
     PriorArtKind,
     PriorArtSelectionState,
+    ProbeDisposition,
+    ProbeInput,
     QualityWarning,
+    ScreeningBasis,
+    ScreeningBasisInput,
+    ScreeningDisposition,
+    ScreeningResult,
+    ScreeningResultInput,
     TimeScope,
     basis_inputs,
     coverage_material,
@@ -106,6 +113,7 @@ class RecordNoveltyAssessmentCommand:
     prior_art_basis: tuple[PriorArtBasisInput, ...] = ()
     scope_statement: str | None = None
     closeness_criteria: ClosenessCriteria | None = None
+    screening_basis: ScreeningBasisInput | None = None
 
     def __post_init__(self):
         _normalize(self)
@@ -118,7 +126,22 @@ class RecordNoveltyAssessmentCommand:
                 and type(self.closeness_criteria) is not ClosenessCriteria
             ):
                 raise ValueError("closed criteria required")
-            if self.assessment is NoveltyOutcome.INCONCLUSIVE:
+            if self.screening_basis is not None:
+                if (
+                    type(self.screening_basis) is not ScreeningBasisInput
+                    or self.prior_art_basis
+                    or self.assessment is NoveltyOutcome.CLOSE_PRIOR_ART_FOUND
+                    or self.scope_statement is None
+                    or self.closeness_criteria is None
+                ):
+                    raise ValueError("screening requires empty positive basis, scope and criteria")
+                if any(
+                    i >= len(self.closeness_criteria.statements)
+                    for x in self.screening_basis.results
+                    for i in x.criteria_ordinals
+                ):
+                    raise ValueError("criterion outside parent")
+            elif self.assessment is NoveltyOutcome.INCONCLUSIVE:
                 if (
                     self.prior_art_basis
                     or self.scope_statement is not None
@@ -293,6 +316,14 @@ class PriorArtBasisReadback:
 
 
 @dataclass(frozen=True, slots=True)
+class ScreeningValidity:
+    observed_at: datetime
+    inventory_expanded: bool
+    complete: bool
+    usable_for_current_judgment: bool
+
+
+@dataclass(frozen=True, slots=True)
 class NoveltyReadback:
     id: UUID
     project_id: UUID
@@ -313,6 +344,8 @@ class NoveltyReadback:
     scope_statement: str | None = None
     closeness_criteria: ClosenessCriteria | None = None
     prior_art_basis: tuple[PriorArtBasisReadback, ...] = ()
+    screening_basis: ScreeningBasis | None = None
+    screening_validity: ScreeningValidity | None = None
 
 
 def _capture_material(*args):
@@ -597,6 +630,17 @@ class NoveltyService:
             refs.append(_ref("LiteratureEvidence", row))
         return claim, _ref("SourceVersion", source), tuple(refs), valid and verified, verified
 
+    def verify_assessment_in_uow(self, uow, project: UUID, identity: UUID) -> NoveltyReadback:
+        """Verify saved closure and observe diagnostics in the caller's snapshot."""
+        row = uow.novelty.parent("novelty", identity)
+        if row is None:
+            fail(ErrorCode.NOT_FOUND, "assessment not found")
+        if row["project_id"] != project:
+            fail(ErrorCode.FORBIDDEN, "assessment unavailable")
+        result = self._view(uow, "novelty", row)
+        assert isinstance(result, NoveltyReadback)
+        return result
+
     def _view(self, uow, kind, row, ancestry=()):
         with saved_dependency(ownership=True):
             return self._view_saved(uow, kind, row, ancestry)
@@ -713,6 +757,16 @@ class NoveltyService:
                 tuple(PriorArtBasisInput(**x) for x in repo.basis(row["id"])),
             )
             valid = valid and basis_valid
+            screening = screening_validity = None
+            if row.get("screening_captured", False):
+                screening, screening_validity = self._screening(
+                    uow,
+                    project,
+                    row["claim_version_id"],
+                    coverage,
+                    self._screening_input(repo, row["id"]),
+                )
+                valid = valid and screening_validity.usable_for_current_judgment
             try:
                 criteria = (
                     ClosenessCriteria(tuple(row["closeness_criteria"]))
@@ -727,6 +781,7 @@ class NoveltyService:
                     row["limitations"],
                     previous,
                     row["assessed_by"],
+                    screening_basis=screening,
                     scope_statement=row["scope_statement"],
                     closeness_criteria=criteria,
                     prior_art_basis=tuple(
@@ -763,10 +818,227 @@ class NoveltyService:
                 row["scope_statement"],
                 criteria,
                 basis,
+                screening,
+                screening_validity,
             )
         if row["hash_scheme"] != "sha256-cjson-v1" or _digest(material) != row["content_hash"]:
             fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved novelty material mismatch")
         return result
+
+    def _screening_input(self, repo, identity):
+        probes = tuple(
+            ProbeInput(
+                x["search_execution_id"],
+                x["query_index"],
+                ProbeDisposition(x["disposition"]),
+                x["rationale"],
+            )
+            for x in repo.probes(identity)
+        )
+        results = tuple(
+            ScreeningResultInput(
+                x["search_result_record_id"],
+                ScreeningDisposition(x["disposition"]),
+                tuple(x["criteria_ordinals"]),
+                x["rationale"],
+                x["prior_art_relation_id"],
+                x["search_result_resolution_id"],
+            )
+            for x in repo.screening_results(identity)
+        )
+        return ScreeningBasisInput(probes, results)
+
+    def _screening(
+        self, uow, project, claim_id, coverage, inputs, *, admission=False, negative=False
+    ):
+        repo = uow.novelty
+        if coverage.material_version != 2:
+            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "screening requires v2 coverage")
+        inventory = repo.plan_executions(coverage.search_plan_version.id)
+        expanded = inventory != coverage.search_execution_ids
+        if admission and expanded:
+            fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "complete exact-plan execution inventory required",
+            )
+        expected = {}
+        results = set()
+        for execution_id in coverage.search_execution_ids:
+            history = uow.literature_search_execution.provenance(execution_id)
+            execution = history["execution"]
+            attempts = history["attempts"]
+            bad = execution.status != "SUCCEEDED" or any(
+                a["status"] != "SUCCEEDED" or a["warning_codes"] for a in attempts
+            )
+            result_queries = {x.search_query_record_id for x in history["results"]}
+            results.update(x.id for x in history["results"])
+            for index in range(len(execution.execution_context["queries"])):
+                selected = [a for a in attempts if a["query_index"] == index]
+                disposition = ProbeDisposition.INCOMPLETE
+                if not bad and any(
+                    a["status"] == "SUCCEEDED" and a["query_record_id"] is not None
+                    for a in selected
+                ):
+                    disposition = (
+                        ProbeDisposition.SCREENED
+                        if any(a["query_record_id"] in result_queries for a in selected)
+                        else ProbeDisposition.NO_HITS
+                    )
+                expected[(execution_id, index)] = disposition
+        actual = {(x.search_execution_id, x.query_index): x.disposition for x in inputs.probes}
+        if actual != expected or {x.search_result_record_id for x in inputs.results} != results:
+            fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "exact complete screening membership required",
+            )
+        saved = {}
+        for row in repo.resolutions(coverage.id):
+            saved.setdefault(row["search_result_record_id"], []).append(row)
+        projected = []
+        usable = True
+        for item in inputs.results:
+            relation_ref = witness_ref = None
+            if item.prior_art_relation_id is not None:
+                row = repo.parent("prior_art", item.prior_art_relation_id)
+                witness = repo.resolution(item.search_result_resolution_id)
+                if row is None or witness is None:
+                    fail(ErrorCode.NOT_FOUND, "screening reference not found")
+                if row["project_id"] != project or witness["project_id"] != project:
+                    fail(ErrorCode.FORBIDDEN, "screening reference project unavailable")
+                relation = self._prior_art_history(uow, row)
+                captured = saved.get(item.search_result_record_id, [])
+                if (
+                    row["claim_version_id"] != claim_id
+                    or witness["search_result_record_id"] != item.search_result_record_id
+                    or not any(
+                        x["id"] == witness["id"] and x["content_hash"] == witness["content_hash"]
+                        for x in captured
+                    )
+                    or witness["source_version_id"] != row["source_version_id"]
+                    or any(
+                        (x["source_id"], x["source_version_id"])
+                        != (witness["source_id"], witness["source_version_id"])
+                        for x in captured
+                    )
+                ):
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact captured witness required")
+                if (
+                    (
+                        item.disposition is ScreeningDisposition.NOT_CLOSE
+                        and relation.relation
+                        not in {PriorArtKind.RELATED, PriorArtKind.CONTRASTING}
+                    )
+                    or (
+                        relation.relation in {PriorArtKind.IDENTICAL, PriorArtKind.HIGHLY_SIMILAR}
+                        and item.disposition is not ScreeningDisposition.CLOSE
+                    )
+                    or (
+                        relation.relation in {PriorArtKind.PARTIAL_OVERLAP, PriorArtKind.UNCLEAR}
+                        and item.disposition is not ScreeningDisposition.UNCLEAR
+                    )
+                ):
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "comparison disposition mismatch")
+                if item.disposition is ScreeningDisposition.NOT_CLOSE:
+                    graph = repo.prior_art_pair(claim_id, row["source_version_id"])
+                    try:
+                        chains = prior_art_chains(
+                            tuple(
+                                (
+                                    x["id"],
+                                    x["claim_version_id"],
+                                    x["source_version_id"],
+                                    x["supersedes_prior_art_relation_id"],
+                                )
+                                for x in graph
+                            )
+                        )
+                    except ValueError:
+                        fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid comparison graph")
+                    # Verify all roots/corrections, including independently conflicting roots.
+                    for member in graph:
+                        self._prior_art_history(uow, member)
+                    current = uow.metadata_observations.resolutions(item.search_result_record_id)
+                    agreed = all(
+                        (x["source_id"], x["source_version_id"])
+                        == (witness["source_id"], witness["source_version_id"])
+                        for x in current
+                    )
+                    for resolution in current:
+                        if (
+                            resolution["hash_scheme"] != "sha256-cjson-v1"
+                            or resolution_hash(resolution) != resolution["content_hash"]
+                        ):
+                            fail(
+                                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "resolution digest mismatch"
+                            )
+                    independent = all(
+                        repo.independent_verification(
+                            x.id, self._literature._read(uow, x.id, project)["created_by"]
+                        )
+                        for x in relation.literature_evidence
+                    )
+                    eligible = (
+                        len(chains) == 1
+                        and chains[0][1] == row["id"]
+                        and agreed
+                        and independent
+                        and relation.current_validity.usable_for_current_judgment
+                    )
+                    if admission:
+                        _, _, _, scientific, verified = self._comparison(
+                            uow,
+                            project,
+                            claim_id,
+                            row["source_version_id"],
+                            repo.evidence(row["id"]),
+                            admission=negative,
+                        )
+                        if (
+                            not independent
+                            or not verified
+                            or (negative and (not eligible or not scientific))
+                        ):
+                            fail(
+                                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                                "current screening comparison unusable",
+                            )
+                    usable = usable and eligible
+                relation_ref = _ref("PriorArtRelation", row)
+                witness_ref = _ref("SearchResultResolution", witness)
+            projected.append(
+                ScreeningResult(
+                    item.search_result_record_id,
+                    item.disposition,
+                    item.criteria_ordinals,
+                    item.rationale,
+                    relation_ref,
+                    witness_ref,
+                )
+            )
+        plan = repo.plan(coverage.search_plan_version.id)
+        planned = set(plan["planned_providers"])
+        complete = (
+            all(x is not ProbeDisposition.INCOMPLETE for x in expected.values())
+            and bool(planned)
+            and planned == set(coverage.providers)
+            and coverage.query_count > 0
+            and coverage.quality.captured_unresolved_result_count == 0
+            and all(x.disposition is ScreeningDisposition.NOT_CLOSE for x in inputs.results)
+        )
+        _, claim_usable = self._claim(uow, project, claim_id)
+        usable = (
+            usable
+            and claim_usable
+            and complete
+            and not expanded
+            and coverage.quality.current_unresolved_result_count == 0
+            and QualityWarning.INPUT_CURRENTLY_UNUSABLE not in coverage.quality.warnings
+        )
+        if admission and negative and not usable:
+            fail(ErrorCode.INVALID_STATE_TRANSITION, "complete negative screening basis required")
+        return ScreeningBasis(inputs.probes, tuple(projected)), ScreeningValidity(
+            repo.at(), expanded, complete, usable
+        )
 
     def _basis(self, uow, project, claim_id, coverage, inputs, *, admission=False):
         result = []
@@ -969,6 +1241,12 @@ class NoveltyService:
                         actual = repo.evidence(c.id)
                     if field.name == "prior_art_basis":
                         actual = tuple(PriorArtBasisInput(**x) for x in repo.basis(c.id))
+                    if field.name == "screening_basis":
+                        actual = (
+                            self._screening_input(repo, c.id)
+                            if old.get("screening_captured", False)
+                            else None
+                        )
                     if field.name == "closeness_criteria" and actual is not None:
                         actual = ClosenessCriteria(tuple(old[field.name]))
                     if actual != getattr(c, field.name):
@@ -1071,8 +1349,13 @@ class NoveltyService:
                 )
                 children = c.literature_evidence_ids
             else:
-                if c.assessment is NoveltyOutcome.NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE:
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "negative novelty unavailable")
+                if (
+                    c.assessment is NoveltyOutcome.NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE
+                    and c.screening_basis is None
+                ):
+                    fail(
+                        ErrorCode.INVALID_STATE_TRANSITION, "negative assessment requires screening"
+                    )
                 claim, valid = self._claim(uow, c.project_id, c.claim_version_id)
                 if not valid:
                     fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current Claim unusable")
@@ -1113,7 +1396,22 @@ class NoveltyService:
                         fail(ErrorCode.INVALID_STATE_TRANSITION, "predecessor already superseded")
                     self._view(uow, "novelty", prev)
                     previous = _ref("NoveltyAssessment", prev)
-                version = 2 if c.assessment is NoveltyOutcome.CLOSE_PRIOR_ART_FOUND else 1
+                screening = None
+                if c.screening_basis is not None:
+                    screening, _ = self._screening(
+                        uow,
+                        c.project_id,
+                        c.claim_version_id,
+                        checked_coverage,
+                        c.screening_basis,
+                        admission=True,
+                        negative=c.assessment is NoveltyOutcome.NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE,
+                    )
+                version = (
+                    2
+                    if c.assessment is NoveltyOutcome.CLOSE_PRIOR_ART_FOUND or screening is not None
+                    else 1
+                )
                 material = versioned_novelty_material(
                     version,
                     claim,
@@ -1122,6 +1420,7 @@ class NoveltyService:
                     c.limitations,
                     previous,
                     principal.actor_id,
+                    screening_basis=screening,
                     scope_statement=c.scope_statement,
                     closeness_criteria=c.closeness_criteria,
                     prior_art_basis=tuple(
@@ -1137,6 +1436,7 @@ class NoveltyService:
                     ),
                 )
                 values.update(
+                    screening_captured=screening is not None,
                     material_version=version,
                     scope_statement=c.scope_statement,
                     closeness_criteria=list(c.closeness_criteria.statements)
@@ -1168,6 +1468,26 @@ class NoveltyService:
                         child_col: identity,
                     },
                 )
+            if kind == "novelty" and c.screening_basis is not None:
+                for child_kind, items in (
+                    ("novelty_probe", c.screening_basis.probes),
+                    ("novelty_screen", c.screening_basis.results),
+                ):
+                    for item in items:
+                        child = {f.name: getattr(item, f.name) for f in fields(item)}
+                        child["disposition"] = item.disposition.value
+                        if "criteria_ordinals" in child:
+                            child["criteria_ordinals"] = list(child["criteria_ordinals"])
+                        repo.insert_child(
+                            child_kind,
+                            dict(
+                                child,
+                                id=uuid4(),
+                                novelty_assessment_id=c.id,
+                                created_at=at,
+                                created_by=principal.actor_id,
+                            ),
+                        )
             if kind == "novelty":
                 for item in c.prior_art_basis:
                     repo.insert_child(

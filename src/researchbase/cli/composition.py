@@ -18,6 +18,7 @@ from researchbase.application.commands import ApplicationService
 from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
+from researchbase.application.internal_review import InternalReviewService
 from researchbase.application.literature_evidence import LiteratureEvidenceService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
@@ -27,6 +28,7 @@ from researchbase.application.metadata_observation import MetadataObservationSer
 from researchbase.application.novelty import NoveltyService
 from researchbase.application.phase2_identity import Phase2IdentityService, VerifiedSubject
 from researchbase.application.provenance_queries import ProvenanceQueryService
+from researchbase.application.revision_action import RevisionActionService
 from researchbase.application.search_result_resolution import SearchResultResolutionService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
@@ -82,6 +84,8 @@ class ServiceBundle:
     novelty: NoveltyService | None = None
     search_result_resolutions: SearchResultResolutionService | None = None
     decisions: DecisionService | None = None
+    internal_reviews: InternalReviewService | None = None
+    revision_actions: RevisionActionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -154,6 +158,12 @@ def build_services() -> ServiceBundle:
         ),
         SearchResultResolutionService(
             search_result_resolution_uow_factory(settings.database_url), credentials, store
+        ),
+        internal_reviews=InternalReviewService(
+            uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
+        revision_actions=RevisionActionService(
+            uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
         ),
         decisions=DecisionService(
             uow_factory,

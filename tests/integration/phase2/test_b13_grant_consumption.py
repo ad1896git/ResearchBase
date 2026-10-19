@@ -24,8 +24,21 @@ from tests.integration.phase2.test_approval import (
 from tests.integration.phase2.test_approval import (
     phase2_database_url as phase2_database_url,
 )
+from tests.integration.phase2.test_b14r_ready_approval import (
+    b04_env,
+    b05_env,
+    revision_env,
+)
 
-_FIXTURES = (approval_env, conclusion_env, decision_env, phase2_database_url)
+_FIXTURES = (
+    approval_env,
+    conclusion_env,
+    decision_env,
+    phase2_database_url,
+    b04_env,
+    b05_env,
+    revision_env,
+)
 pytestmark = pytest.mark.integration
 pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 
@@ -139,3 +152,109 @@ def test_superseded_navigation_alone_does_not_deny_exact_release(approval_env):
         owner.record_internal_scientific_release(actor, cmd).result.scientific_conclusion_version_id
         == cmd.result_id
     )
+
+
+def test_b32_approval_alone_has_no_release_effect(approval_env):
+    service, actor, approver, request, decision = approval_env
+    engine = decision[-1][8]
+    with engine.connect() as conn:
+        before = conn.execute(
+            text("SELECT status, content_hash FROM scientific_conclusion_versions WHERE id=:id"),
+            {"id": request.scientific_conclusion_version_id},
+        ).one()
+    service.request_approval(actor, request)
+    assert counts(approval_env)[0:2] == (0, 0)
+    service.decide_approval(approver, _decide(request))
+    assert counts(approval_env)[0:2] == (0, 1)
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                text(
+                    "SELECT status, content_hash FROM scientific_conclusion_versions WHERE id=:id"
+                ),
+                {"id": request.scientific_conclusion_version_id},
+            ).one()
+            == before
+        )
+        assert (
+            conn.execute(text("SELECT count(*) FROM publication_lifecycle_events")).scalar_one()
+            == 0
+        )
+
+
+@pytest.mark.parametrize("purpose", ["READY_FOR_SUBMISSION", "PREPARE_SUBMISSION"])
+def test_b32_manuscript_grants_cannot_release_conclusion(b05_env, purpose):
+    from researchbase.application.scientific_conclusion import ClaimInputRequest
+    from tests.integration.phase2.b17_fixtures import build
+    from tests.integration.phase2.test_b14_publication_ready import issued as ready_issued
+    from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
+
+    env = b05_env
+    if purpose == "READY_FOR_SUBMISSION":
+        _, ready, approval, _ = ready_issued(env)
+        grant, reviews = ready.grant_id, ready.checked_review_ids
+    else:
+        package = build(env)
+        approval = package.approval
+        grant, reviews = package.command.grant_id, package.command.checked_review_ids
+    scientific, _, _, author, _, project, claim, _, _, _ = env[10]
+    target = scientific.create(
+        author,
+        project,
+        "Exact release target",
+        SCOPE,
+        "MODERATE",
+        None,
+        (ClaimInputRequest(claim, "SUPPORTS"),),
+        (),
+        uuid4(),
+    )
+    scientific.freeze(author, project, target.conclusion_id, target.version_id, uuid4())
+    assert approval.get_grant(env[2], project, grant).status == "ACTIVE"
+    command = RecordInternalScientificReleaseCommand(
+        uuid4(), project, grant, target.version_id, reviews
+    )
+    tables = (
+        "approval_grant_consumptions",
+        "approval_grant_events",
+        "publication_lifecycle_events",
+    )
+    with env[5].connect() as conn:
+        before = tuple(
+            conn.execute(text("SELECT count(*) FROM " + table)).scalar_one() for table in tables
+        )
+    with pytest.raises(ResearchBaseError) as caught:
+        scientific.record_internal_scientific_release(env[2], command)
+    assert caught.value.code == ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID
+    with env[5].connect() as conn:
+        assert (
+            tuple(
+                conn.execute(text("SELECT count(*) FROM " + table)).scalar_one() for table in tables
+            )
+            == before
+        )
+
+
+def test_b32_completed_release_replays_after_expiry(approval_env):
+    from time import monotonic, sleep
+
+    engine = approval_env[-1][-1][8]
+    with engine.connect() as conn:
+        expiry = conn.execute(text("SELECT clock_timestamp()+interval '5 seconds'")).scalar_one()
+    owner, actor, command, _ = issued(approval_env, expiry=expiry)
+    saved = owner.record_internal_scientific_release(actor, command)
+    before = counts(approval_env)
+    deadline = monotonic() + 10
+    while True:
+        with engine.connect() as conn:
+            at = conn.execute(text("SELECT clock_timestamp()")).scalar_one()
+        if at >= expiry:
+            break
+        assert monotonic() < deadline, "DB clock did not reach grant expiry"
+        sleep(0.02)
+    assert owner.record_internal_scientific_release(actor, command) == saved
+    assert (
+        approval_env[0].get_grant_consumption(actor, command.project_id, command.command_key)
+        == saved
+    )
+    assert counts(approval_env) == before

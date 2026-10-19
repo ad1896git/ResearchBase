@@ -54,6 +54,11 @@ from researchbase.domain.novelty import (
     NoveltyOutcome,
     PriorArtBasisInput,
     PriorArtKind,
+    ProbeDisposition,
+    ProbeInput,
+    ScreeningBasisInput,
+    ScreeningDisposition,
+    ScreeningResultInput,
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.source_identity import IdentifierType, SourceKind
@@ -1001,6 +1006,63 @@ def _novelty_record(ctx, project_id, material_json, json_mode, kind, predecessor
                 ):
                     raise ValueError("closed criteria object required")
                 values["closeness_criteria"] = ClosenessCriteria(tuple(criteria["statements"]))
+            if values.get("screening_basis") is not None:
+                basis = values["screening_basis"]
+                if (
+                    type(basis) is not dict
+                    or set(basis) != {"probes", "results"}
+                    or any(type(basis[k]) is not list for k in basis)
+                ):
+                    raise ValueError("closed screening object required")
+                probes = []
+                results = []
+                for item in basis["probes"]:
+                    if type(item) is not dict or set(item) != {
+                        "search_execution_id",
+                        "query_index",
+                        "disposition",
+                        "rationale",
+                    }:
+                        raise ValueError("closed probe required")
+                    probes.append(
+                        ProbeInput(
+                            _novelty_id(item["search_execution_id"]),
+                            item["query_index"],
+                            ProbeDisposition(item["disposition"]),
+                            item["rationale"],
+                        )
+                    )
+                for item in basis["results"]:
+                    required = {
+                        "search_result_record_id",
+                        "disposition",
+                        "criteria_ordinals",
+                        "rationale",
+                    }
+                    if (
+                        type(item) is not dict
+                        or not required <= set(item)
+                        or set(item)
+                        - required
+                        - {"prior_art_relation_id", "search_result_resolution_id"}
+                        or type(item["criteria_ordinals"]) is not list
+                    ):
+                        raise ValueError("closed screening result required")
+                    results.append(
+                        ScreeningResultInput(
+                            _novelty_id(item["search_result_record_id"]),
+                            ScreeningDisposition(item["disposition"]),
+                            tuple(item["criteria_ordinals"]),
+                            item["rationale"],
+                            _novelty_id(item["prior_art_relation_id"])
+                            if item.get("prior_art_relation_id") is not None
+                            else None,
+                            _novelty_id(item["search_result_resolution_id"])
+                            if item.get("search_result_resolution_id") is not None
+                            else None,
+                        )
+                    )
+                values["screening_basis"] = ScreeningBasisInput(tuple(probes), tuple(results))
             constructor = {
                 "coverage": RecordSearchCoverageCommand,
                 "prior_art": RecordPriorArtRelationCommand,

@@ -3,13 +3,20 @@
 from collections.abc import Callable
 from dataclasses import dataclass, fields
 from datetime import datetime
-from typing import NoReturn
+from typing import Literal, NoReturn
 from uuid import UUID
 
 from researchbase.application.decision import _READERS, DecisionService
 from researchbase.application.governance_queries import ValidityState
-from researchbase.application.internal_review import _fail
+from researchbase.application.internal_review import (
+    InternalReviewService,
+    NoveltyReviewReadback,
+    _fail,
+    _validate_issue_dto,
+)
+from researchbase.application.novelty import NoveltyReadback
 from researchbase.application.ports import UnitOfWork
+from researchbase.application.saved_provenance import saved_dependency
 from researchbase.application.source_version import _material_from_row
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.revision_action import (
@@ -19,6 +26,7 @@ from researchbase.domain.revision_action import (
     RevisionReference,
     RevisionResult,
     VersionLineage,
+    novelty_revision_material,
     revision_action_material,
     revision_predecessor_chain,
     validate_revision_relevance,
@@ -92,12 +100,413 @@ class RevisionActionReadback:
     has_superseding_action: bool
 
 
+@dataclass(frozen=True, slots=True)
+class RecordNoveltyRevisionCommand:
+    id: UUID
+    project_id: UUID
+    review_issue_id: UUID
+    result_novelty_assessment_id: UUID
+    supersedes_revision_action_id: UUID | None = None
+
+    def __post_init__(self):
+        if any(
+            type(getattr(self, f.name)) is not UUID
+            for f in fields(self)
+            if f.name != "supersedes_revision_action_id"
+        ) or (
+            self.supersedes_revision_action_id is not None
+            and type(self.supersedes_revision_action_id) is not UUID
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact novelty revision UUIDs required")
+
+
+@dataclass(frozen=True, slots=True)
+class NoveltyActionRef:
+    type: Literal["RevisionAction"]
+    id: UUID
+    content_hash: str
+
+    def __post_init__(self):
+        _validate_issue_dto(self)
+
+
+@dataclass(frozen=True, slots=True)
+class NoveltyRevisionReadback:
+    id: UUID
+    project_id: UUID
+    review_issue_id: UUID
+    result_novelty_assessment_id: UUID
+    supersedes_revision_action_id: UUID | None
+    created_by: UUID
+    created_at: datetime
+    action_type: Literal["NOVELTY_REASSESSMENT"]
+    material_version: Literal[2]
+    content_hash: str
+    hash_scheme: Literal["sha256-cjson-v1"]
+    original_review: NoveltyReviewReadback
+    result: NoveltyReadback
+    predecessor: NoveltyActionRef | None
+    has_superseding_action: bool
+
+    def __post_init__(self):
+        _validate_issue_dto(self)
+
+
+@dataclass(frozen=True, slots=True)
+class NoveltyReReviewReadback:
+    project_id: UUID
+    revision_action_id: UUID
+    internal_review_record_id: UUID
+    recorded_by: UUID
+    recorded_at: datetime
+    action: NoveltyRevisionReadback
+    review: NoveltyReviewReadback
+
+    def __post_init__(self):
+        _validate_issue_dto(self)
+
+
 class RevisionActionService:
     def __init__(self, factory: Callable[[], UnitOfWork], credentials, literature_evidence):
         self._factory = factory
         self._credentials = credentials
-        self._policy = DecisionService(factory, credentials, literature_evidence)
         self._literature = literature_evidence
+        self._policy = DecisionService(factory, credentials, literature_evidence)
+
+    def _novelty_reviews(self):
+        return InternalReviewService(self._factory, self._credentials, self._literature)
+
+    def _novelty_action(self, uow, row, project, *, admission=False, ancestry=()):
+        def verify():
+            chain = revision_predecessor_chain(
+                row, lambda identity: uow.revision_action.action(identity, project)
+            )
+            predecessor = None
+            for item in reversed(chain):
+                predecessor = self._novelty_action_inner(
+                    uow, item, project, verified_predecessor=predecessor
+                )
+            return self._novelty_action_inner(
+                uow, row, project, admission=admission, verified_predecessor=predecessor
+            )
+
+        try:
+            if admission:
+                return verify()
+            with saved_dependency(ownership=True):
+                return verify()
+        except (ValueError, TypeError, KeyError):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved revision closure")
+
+    def _novelty_action_inner(
+        self, uow, row, project, *, admission=False, ancestry=(), verified_predecessor=None
+    ):
+        reviews = self._novelty_reviews()
+        if row["id"] in ancestry:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "revision correction cycle")
+        if (
+            row.get("material_version") != 2
+            or type(row.get("material_version")) is not int
+            or row["action_type"] != "NOVELTY_REASSESSMENT"
+            or row["review_issue_id"] is None
+            or row["decision_record_id"] is not None
+            or any(row[k + "_id"] is not None for k in RESULT_KEYS)
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid novelty revision shape")
+        repo = uow.revision_action
+        issue = repo.issue(row["review_issue_id"], project)
+        if issue is None:
+            _fail(ErrorCode.NOT_FOUND, "revision Issue not found")
+        review = uow.internal_review.review(issue["review_record_id"], project)
+        if review is None or review.get("novelty_assessment_id") is None:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact novelty concern required")
+        original = reviews._novelty_view(uow, review)
+        result = reviews._novelty_service().verify_assessment_in_uow(
+            uow, project, row["result_novelty_assessment_id"]
+        )
+        if (
+            result.supersedes_assessment_id != original.target.id
+            or result.claim_version.id != original.target.claim_version.id
+        ):
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "direct exact Claim reassessment required"
+            )
+        if admission and (
+            issue["status"] != "OPEN"
+            or result.superseded_by_assessment_id is not None
+            or not result.current_validity.usable_for_current_judgment
+            or not uow.novelty.committed_assessment(result.id)
+        ):
+            _fail(
+                ErrorCode.INVALID_STATE_TRANSITION,
+                "committed usable terminal reassessment and OPEN Issue required",
+            )
+        if (
+            row["created_at"] < review["created_at"]
+            or row["created_at"] < result.created_at
+            or row["created_at"] > uow.novelty.at()
+            or not uow.novelty.historical_authority(
+                row["created_by"], project, row["created_at"], tuple(_WRITERS), False
+            )
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved action attribution")
+        predecessor = None
+        if row["supersedes_revision_action_id"] is not None:
+            prior = repo.action(row["supersedes_revision_action_id"], project)
+            if (
+                prior is None
+                or prior["review_issue_id"] != issue["id"]
+                or prior["decision_record_id"] is not None
+            ):
+                _fail(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "same exact concern correction required"
+                )
+            prior_view = verified_predecessor
+            if prior_view is None or prior_view.id != prior["id"]:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unverified correction predecessor")
+            predecessor = NoveltyActionRef("RevisionAction", prior_view.id, prior_view.content_hash)
+            if admission and repo.has_successor(prior_view.id):
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "predecessor already superseded")
+        material = novelty_revision_material(
+            RevisionReference("ReviewIssue", issue["id"]),
+            RevisionReference("NoveltyAssessment", result.id, result.content_hash),
+            RevisionReference("RevisionAction", predecessor.id, predecessor.content_hash)
+            if predecessor
+            else None,
+            RevisionReference("ActorIdentity", row["created_by"]),
+        )
+        digest = str(sha256_canonical_json(material))
+        if (
+            row.get("content_hash", digest) != digest
+            or row.get("hash_scheme", "sha256-cjson-v1") != "sha256-cjson-v1"
+        ):
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved novelty revision hash mismatch")
+        if admission:
+            reviews._novelty_cap(uow, (original.target_id, result.id))
+        return NoveltyRevisionReadback(
+            row["id"],
+            project,
+            issue["id"],
+            result.id,
+            row["supersedes_revision_action_id"],
+            row["created_by"],
+            to_utc(row["created_at"]),
+            "NOVELTY_REASSESSMENT",
+            2,
+            digest,
+            "sha256-cjson-v1",
+            original,
+            result,
+            predecessor,
+            repo.has_successor(row["id"]),
+        )
+
+    def record_novelty_revision(self, principal, command):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(command) is not RecordNoveltyRevisionCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed novelty revision command required")
+        for attempt in range(3):
+            try:
+                return self._record_novelty_once(principal, command)
+            except ResearchBaseError as error:
+                if (error.details or {}).get("retryable_b23") and attempt < 2:
+                    continue
+                raise
+        raise AssertionError("unreachable novelty revision retry")
+
+    def _record_novelty_once(self, principal, command):
+        with self._factory() as uow:
+            uow.enable_b23_error_normalization()
+            uow.internal_review.prepare_novelty_write("revision", f"pr215:revision:{command.id}")
+            uow.enable_revision_action_snapshot_reads()
+            reviews = self._novelty_reviews()
+            auth = reviews._novelty_authorize
+            auth(uow, principal, command.project_id, None)
+            repo = uow.revision_action
+            saved = repo.action(command.id, command.project_id)
+            if saved is not None:
+                if saved["created_by"] != principal.actor_id:
+                    _fail(ErrorCode.FORBIDDEN, "revision unavailable")
+                result = self._novelty_action(uow, saved, command.project_id)
+                if any(
+                    saved[f.name] != getattr(command, f.name)
+                    for f in fields(command)
+                    if f.name != "project_id"
+                ):
+                    _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "revision request material conflicts")
+                auth(uow, principal, command.project_id, None)
+                return result
+            if repo.exists(command.id):
+                _fail(ErrorCode.FORBIDDEN, "revision unavailable")
+            issue = repo.issue(command.review_issue_id, command.project_id)
+            if issue is None:
+                self._absent(uow, "ReviewIssue", command.review_issue_id)
+            original = uow.novelty.parent("novelty", issue.get("novelty_assessment_id"))
+            target = uow.novelty.parent("novelty", command.result_novelty_assessment_id)
+            if original is None:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "novelty Issue required")
+            if target is None:
+                _fail(ErrorCode.NOT_FOUND, "reassessment not found")
+            if target["project_id"] != command.project_id:
+                _fail(ErrorCode.FORBIDDEN, "reassessment unavailable")
+            uow.internal_review.lock_novelty_targets(
+                original["claim_version_id"], (original["id"], target["id"])
+            )
+            repo.lock_novelty_basis(
+                issue["id"],
+                (issue["review_record_id"],),
+                predecessor=command.supersedes_revision_action_id,
+            )
+            row: dict = {k + "_id": None for k in RESULT_KEYS}
+            row.update(
+                {
+                    f.name: getattr(command, f.name)
+                    for f in fields(command)
+                    if f.name != "project_id"
+                }
+            )
+            row.update(
+                material_version=2,
+                action_type="NOVELTY_REASSESSMENT",
+                decision_record_id=None,
+                created_by=principal.actor_id,
+                created_at=auth(uow, principal, command.project_id, _WRITERS),
+            )
+            view = self._novelty_action(uow, row, command.project_id, admission=True)
+            row.update(content_hash=view.content_hash, hash_scheme="sha256-cjson-v1")
+            repo.insert(row)
+            uow.internal_review.force_novelty_constraints()
+            result = self._novelty_action(
+                uow, repo.action(command.id, command.project_id), command.project_id
+            )
+            auth(uow, principal, command.project_id, _WRITERS)
+            uow.commit()
+            return result
+
+    def _novelty_link(self, uow, link, action, project, *, admission=False):
+        with saved_dependency(ownership=True):
+            return self._novelty_link_inner(uow, link, action, project, admission=admission)
+
+    def _novelty_link_inner(self, uow, link, action, project, *, admission=False):
+        reviews = self._novelty_reviews()
+        view = self._novelty_action(uow, action, project)
+        raw = uow.internal_review.review(link["internal_review_record_id"], project)
+        if raw is None:
+            self._absent(uow, "InternalReviewRecord", link["internal_review_record_id"])
+        if raw.get("novelty_assessment_id") is None:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact novelty re-review required")
+        review = reviews._novelty_view(uow, raw)
+        if (
+            review.id == view.original_review.id
+            or review.target_id != view.result.id
+            or review.target_content_hash != view.result.content_hash
+            or link["recorded_by"] != review.reviewer_actor_id
+        ):
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "exact result re-review correspondence required",
+            )
+        if review.reviewer_actor_id == view.created_by:
+            _fail(ErrorCode.CONFLICT_OF_INTEREST, "re-reviewer must differ from action creator")
+        if (
+            link["recorded_at"] < raw["created_at"]
+            or raw["created_at"] < view.created_at
+            or link["recorded_at"] > uow.novelty.at()
+            or not uow.internal_review.review_creation_authorized(
+                {**raw, "created_at": link["recorded_at"]}
+            )
+        ):
+            _fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved correspondence attribution"
+            )
+        if admission:
+            reviews._novelty_cap(uow, (view.original_review.target_id, view.result.id))
+        if admission and view.has_superseding_action:
+            _fail(ErrorCode.INVALID_STATE_TRANSITION, "action already superseded")
+        return NoveltyReReviewReadback(
+            project,
+            action["id"],
+            review.id,
+            link["recorded_by"],
+            to_utc(link["recorded_at"]),
+            view,
+            review,
+        )
+
+    def _record_novelty_link_once(self, principal, command):
+        with self._factory() as uow:
+            uow.enable_b23_error_normalization()
+            uow.internal_review.prepare_novelty_write(
+                "link",
+                f"b23:re-review:{command.revision_action_id}:{command.internal_review_record_id}",
+            )
+            uow.enable_revision_action_snapshot_reads()
+            reviews = self._novelty_reviews()
+            auth = reviews._novelty_authorize
+            project = command.project_id
+            auth(uow, principal, project, None)
+            repo = uow.revision_action
+            action = repo.action(command.revision_action_id, project)
+            if action is None:
+                self._absent(uow, "RevisionAction", command.revision_action_id)
+            if action.get("material_version") != 2:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "novelty action required")
+            saved = repo.link(action["id"], command.internal_review_record_id)
+            if saved is not None:
+                if saved["recorded_by"] != principal.actor_id:
+                    _fail(ErrorCode.FORBIDDEN, "correspondence unavailable")
+                result = self._novelty_link(uow, saved, action, project)
+                auth(uow, principal, project, None)
+                return result
+            view = self._novelty_action(uow, action, project)
+            uow.internal_review.lock_novelty_targets(
+                view.result.claim_version.id, (view.original_review.target_id, view.result.id)
+            )
+            repo.lock_novelty_basis(
+                view.review_issue_id,
+                (view.original_review.id, command.internal_review_record_id),
+                action=action["id"],
+            )
+            action = repo.action(action["id"], project)
+            at = auth(uow, principal, project, frozenset({"OWNER", "REVIEWER"}), human=True)
+            row = dict(
+                revision_action_id=action["id"],
+                internal_review_record_id=command.internal_review_record_id,
+                recorded_by=principal.actor_id,
+                recorded_at=at,
+            )
+            self._novelty_link(uow, row, action, project, admission=True)
+            repo.insert_link(row)
+            uow.internal_review.force_novelty_constraints()
+            result = self._novelty_link(
+                uow, repo.link(action["id"], command.internal_review_record_id), action, project
+            )
+            auth(uow, principal, project, frozenset({"OWNER", "REVIEWER"}), human=True)
+            uow.commit()
+            return result
+
+    def read_novelty_re_review(
+        self, principal, project_id, revision_action_id, internal_review_record_id
+    ):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if any(
+            type(x) is not UUID for x in (project_id, revision_action_id, internal_review_record_id)
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "exact correspondence UUIDs required")
+        with self._factory() as uow:
+            uow.enable_b23_error_normalization()
+            uow.begin_formal_read()
+            auth = self._novelty_reviews()._novelty_authorize
+            auth(uow, principal, project_id, None)
+            action = uow.revision_action.action(revision_action_id, project_id)
+            link = uow.revision_action.link(revision_action_id, internal_review_record_id)
+            if action is None or link is None:
+                _fail(ErrorCode.NOT_FOUND, "correspondence not found")
+            result = self._novelty_link(uow, link, action, project_id)
+            auth(uow, principal, project_id, None)
+            return result
 
     def _authorize(self, uow, principal, project, roles):
         # Mutable authority facts and project state are already table-protected;
@@ -164,6 +573,8 @@ class RevisionActionService:
             if not verify:
                 self._absent(uow, "ReviewIssue", identity)
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved exact issue basis invalid")
+        if issue.get("novelty_assessment_id") is not None:
+            _fail(ErrorCode.INVALID_STATE_TRANSITION, "legacy novelty revision paths deferred")
         return issue, decision
 
     @staticmethod
@@ -635,6 +1046,10 @@ class RevisionActionService:
             raise
 
     def _readback(self, uow, row, project):
+        if row.get("material_version", 1) == 2:
+            return self._novelty_action(uow, row, project)
+        if type(row.get("material_version", 1)) is not int or row.get("material_version", 1) != 1:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unsupported revision version")
         digest, provenance, old_validity, validity = self._verify(uow, row, project)
         return RevisionActionReadback(
             **{
@@ -695,6 +1110,15 @@ class RevisionActionService:
                 for field in fields(command)
                 if field.name != "project_id"
             }
+            if command.review_issue_id is not None:
+                concern = repo.issue(command.review_issue_id, command.project_id)
+                if concern is not None and concern.get("novelty_assessment_id") is not None:
+                    _fail(
+                        ErrorCode.DECISION_BASIS_INVALID
+                        if command.decision_record_id is not None
+                        else ErrorCode.INVALID_STATE_TRANSITION,
+                        "novelty Decision and legacy result paths deferred",
+                    )
             self._supported(row)
             issue, _ = self._effective_issue(uow, row, command.project_id, verify=False)
             repo.lock_basis(issue)
@@ -875,26 +1299,46 @@ class RevisionActionService:
             checked.has_superseding_action,
         )
 
-    def record_concern_re_review(self, principal, command):
+    def record_concern_re_review(self, principal, command, *, novelty: bool = False):
+        """Select the dedicated surface's protocol before opening its single UoW.
+
+        The novelty route/CLI supplies this invocation context; it is not a
+        command field or evidence of the stored action's material version.
+        Never probe the database or fall back to another protocol to dispatch.
+        """
+        if type(novelty) is not bool:
+            _fail(ErrorCode.VALIDATION_ERROR, "explicit correspondence protocol required")
         if not isinstance(principal, VerifiedPrincipal):
             _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
         if type(command) is not RecordConcernReReviewCommand:
             _fail(ErrorCode.VALIDATION_ERROR, "closed correspondence command required")
         for attempt in range(3):
             try:
-                return self._record_correspondence_once(principal, command)
+                return self._record_correspondence_once(principal, command, novelty=novelty)
             except ResearchBaseError as error:
                 if (
                     error.code is ErrorCode.IDEMPOTENCY_CONFLICT
                     and error.message == "reload concern correspondence"
                 ):
-                    return self._record_correspondence_once(principal, command)
-                if error.code is ErrorCode.CONCURRENT_MODIFICATION and attempt < 2:
+                    return self._record_correspondence_once(principal, command, novelty=novelty)
+                if (
+                    error.code is ErrorCode.CONCURRENT_MODIFICATION
+                    and attempt < 2
+                    and (
+                        not (error.details or {}).get("b23")
+                        or (error.details or {}).get("retryable_b23")
+                    )
+                ):
                     continue
                 raise ResearchBaseError(error.code, error.message) from None
         raise AssertionError("unreachable correspondence retry")
 
-    def _record_correspondence_once(self, principal, command):
+    def _record_correspondence_once(self, principal, command, *, novelty=False):
+        if novelty:
+            return self._record_novelty_link_once(principal, command)
+        return self._record_legacy_correspondence_once(principal, command)
+
+    def _record_legacy_correspondence_once(self, principal, command):
         with self._factory() as uow:
             uow.enable_decision_error_normalization()
             uow.configure_revision_transaction()
@@ -906,6 +1350,8 @@ class RevisionActionService:
             action = repo.action(command.revision_action_id, command.project_id)
             if action is None:
                 self._absent(uow, "RevisionAction", command.revision_action_id)
+            if action.get("material_version", 1) != 1:
+                _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "legacy action required")
             saved = repo.link(command.revision_action_id, command.internal_review_record_id)
             if saved is not None:
                 if saved["recorded_by"] != principal.actor_id:

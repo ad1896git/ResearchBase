@@ -428,3 +428,83 @@ def test_ready_source_validity_denial_p16t1_persists_stale(b05_env, kind):
             ),
             {"id": cmd.grant_id},
         ).all() == [(None, "ACTIVE"), ("ACTIVE", "STALE")]
+
+
+def test_b32_approval_is_not_ready_or_package_freeze(b05_env):
+    app, command, _, _ = issued(b05_env)
+    assert counts(b05_env) == (0, 2, 1)
+    with b05_env[5].connect() as conn:
+        assert (
+            conn.execute(
+                text("SELECT lifecycle_status FROM publications WHERE id=:id"),
+                {"id": command.result_id},
+            ).scalar_one()
+            == "INTERNAL_REVIEW"
+        )
+        assert (
+            conn.execute(text("SELECT count(*) FROM prepared_submission_versions")).scalar_one()
+            == 0
+        )
+    receipt = app.transition_publication_ready(b05_env[2], command)
+    with b05_env[5].connect() as conn:
+        event = conn.execute(
+            text(
+                "SELECT e.publication_id, c.grant_id, e.basis_grant_consumption_id "
+                "FROM publication_lifecycle_events e JOIN approval_grant_consumptions c "
+                "ON c.id=e.basis_grant_consumption_id "
+                "WHERE e.basis_grant_consumption_id=:id"
+            ),
+            {"id": receipt.id},
+        ).one()
+        assert tuple(event) == (command.result_id, command.grant_id, receipt.id)
+        assert (
+            conn.execute(text("SELECT count(*) FROM prepared_submission_versions")).scalar_one()
+            == 0
+        )
+
+
+def test_b32_prepare_grant_cannot_make_publication_ready(b05_env):
+    from tests.integration.phase2.b17_fixtures import build
+    from tests.integration.phase2.b17_fixtures import counts as package_counts
+
+    f = build(b05_env)
+    before = package_counts(f), counts(b05_env)
+    app = PublicationService(b05_env[4], b05_env[9], b05_env[7])
+    command = TransitionPublicationReadyCommand(
+        uuid4(),
+        f.command.project_id,
+        f.command.grant_id,
+        f.package_command.publication_id,
+        f.command.checked_review_ids,
+    )
+    with pytest.raises(ResearchBaseError) as caught:
+        app.transition_publication_ready(f.actor, command)
+    assert caught.value.code == ErrorCode.APPROVAL_PURPOSE_TARGET_COMMAND_INVALID
+    assert (package_counts(f), counts(b05_env)) == before
+    assert f.app.get_prepared_submission(f.actor, f.query).status == "PREPARED"
+
+
+def test_b32_completed_ready_replays_after_expiry(b05_env):
+    from time import monotonic, sleep
+
+    app, command, approval, _ = issued(b05_env, lifetime=5)
+    saved = app.transition_publication_ready(b05_env[2], command)
+    before = counts(b05_env)
+    with b05_env[5].connect() as conn:
+        expiry = conn.execute(
+            text("SELECT valid_until FROM approval_grants WHERE id=:id"),
+            {"id": command.grant_id},
+        ).scalar_one()
+    deadline = monotonic() + 10
+    while True:
+        with b05_env[5].connect() as conn:
+            at = conn.execute(text("SELECT clock_timestamp()")).scalar_one()
+        if at >= expiry:
+            break
+        assert monotonic() < deadline, "DB clock did not reach grant expiry"
+        sleep(0.02)
+    assert app.transition_publication_ready(b05_env[2], command) == saved
+    assert (
+        approval.get_grant_consumption(b05_env[2], command.project_id, command.command_key) == saved
+    )
+    assert counts(b05_env) == before

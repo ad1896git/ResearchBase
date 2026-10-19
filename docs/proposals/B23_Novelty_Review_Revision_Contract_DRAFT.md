@@ -1,6 +1,6 @@
 # B23 Novelty Review and Revision-result Integration Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-19 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -640,9 +640,13 @@ implicitly. Owner overrides require an updated draft/admission before code.
 | Independence | HUMAN OWNER/REVIEWER, independent of assessment authors and Claim author; re-review also independent of action creator. |
 | Approval scope | Approve this contract and [ADR-0019](../architecture/adr/ADR-0019-novelty-review-target.md)'s amendments to frozen contracts 13/15/17 explicitly, then separately authorize an execution pack; approval does not declare acceptance. |
 
-## 14. Documentation verification note
+## 14. Historical proposal-only verification note
 
-This task adds only this proposal. No migration, production code, tests,
+The following records the earlier proposal-only task, before implementation authorization.
+Current implementation evidence, review findings and recorded substitutions are in
+[the B23 implementation evidence](../verification/b23/implementation-evidence.md).
+
+That earlier task added only this proposal. No migration, production code, tests,
 governing contract or dependency file is changed. Verification commands and
 observed counts follow (2026-10-19); unavailable PostgreSQL execution is not a
 PASS. The loop owns the subsequent whole-suite run; it was not run here.

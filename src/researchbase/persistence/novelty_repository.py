@@ -115,6 +115,34 @@ class SqlAlchemyNoveltyRepository:
             },
         )
 
+    def dependency_count(self, identities):
+        row = self.one(
+            "SELECT count(*) AS n FROM (SELECT * FROM b23_dependencies(:ids) LIMIT 10001) d",
+            {"ids": list(identities)},
+        )
+        assert row is not None
+        return row["n"]
+
+    def historical_authority(self, actor, project, at, roles, human):
+        row = self.one(
+            "SELECT b23_authorized(:actor,:project,:at,:roles,:human) AS allowed",
+            {"actor": actor, "project": project, "at": at, "roles": list(roles), "human": human},
+        )
+        return bool(row and row["allowed"])
+
+    def human(self, identity):
+        return self.one("SELECT actor_type FROM actors WHERE id=:id", {"id": identity}) == {
+            "actor_type": "HUMAN"
+        }
+
+    def committed_assessment(self, identity):
+        row = self.one(
+            "SELECT xmin IS DISTINCT FROM pg_current_xact_id()::xid AS committed "
+            "FROM novelty_assessments WHERE id=:id",
+            {"id": identity},
+        )
+        return bool(row and row["committed"])
+
     def parent(self, kind, identity):
         table = _TABLES[kind]
         if kind == "coverage":
@@ -236,6 +264,8 @@ class SqlAlchemyNoveltyRepository:
             "coverage_resolution": "search_coverage_resolutions",
             "prior_art": "prior_art_evidence_inputs",
             "novelty": "novelty_assessment_prior_art_inputs",
+            "novelty_probe": "novelty_assessment_probes",
+            "novelty_screen": "novelty_assessment_screening_results",
         }[kind]
         columns = tuple(values)
         self._session.execute(
@@ -272,5 +302,27 @@ class SqlAlchemyNoveltyRepository:
         return self.one(
             """SELECT v.*,c.project_id FROM claim_versions v
             JOIN claims c ON c.id=v.claim_id WHERE v.id=:id""",
+            {"id": identity},
+        )
+
+    def plan_executions(self, identity):
+        rows = self.many(
+            "SELECT id FROM literature_search_executions "
+            "WHERE search_plan_version_id=:id ORDER BY id LIMIT 101",
+            {"id": identity},
+        )
+        return tuple(x["id"] for x in rows)
+
+    def probes(self, identity):
+        return self.many(
+            "SELECT * FROM novelty_assessment_probes "
+            "WHERE novelty_assessment_id=:id ORDER BY search_execution_id,query_index",
+            {"id": identity},
+        )
+
+    def screening_results(self, identity):
+        return self.many(
+            "SELECT * FROM novelty_assessment_screening_results "
+            "WHERE novelty_assessment_id=:id ORDER BY search_result_record_id",
             {"id": identity},
         )

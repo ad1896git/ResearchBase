@@ -193,11 +193,16 @@ def test_retry_inventory(novelty_env, monkeypatch, state, error_type, attempts):
         raise OperationalError("injected", {}, error_type("injected"))
 
     monkeypatch.setattr(SqlAlchemyNoveltyRepository, "insert", injected)
-    with pytest.raises(ResearchBaseError) as error:
-        record(e, request(e, supersedes_prior_art_relation_id=root.id))
-    assert error.value.code is ErrorCode.CONCURRENT_MODIFICATION
+    if state in {"55P03", "57014"}:
+        # Approved B20 §11.2 applies to all three existing novelty writes.
+        with pytest.raises(RuntimeError, match="novelty transaction timeout"):
+            record(e, request(e, supersedes_prior_art_relation_id=root.id))
+    else:
+        with pytest.raises(ResearchBaseError) as error:
+            record(e, request(e, supersedes_prior_art_relation_id=root.id))
+        assert error.value.code is ErrorCode.CONCURRENT_MODIFICATION
+        assert error.value.details is None
     assert len(calls) == attempts and len({id(r) for r in calls}) == attempts
-    assert error.value.details is None
 
 
 @pytest.mark.parametrize("stage", ["request", "claim", "predecessor", "deferred"])

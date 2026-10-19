@@ -59,7 +59,11 @@ def test_catalog_and_owned_downgrade(novelty_env, phase2_database_url):
         ).scalar_one()
     cfg = config(phase2_database_url)
     command.downgrade(cfg, "0067_b17_prepared_package_freeze")
-    assert tables - set(inspect(e["engine"]).get_table_names()) == {"search_coverage_resolutions"}
+    assert tables - set(inspect(e["engine"]).get_table_names()) == {
+        "search_coverage_resolutions",
+        "novelty_assessment_probes",
+        "novelty_assessment_screening_results",
+    }
     command.upgrade(cfg, "head")
     with e["engine"].connect() as conn:
         assert (

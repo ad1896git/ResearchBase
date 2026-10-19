@@ -15,12 +15,14 @@ from researchbase.application.commands import ApplicationService
 from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
+from researchbase.application.internal_review import InternalReviewService
 from researchbase.application.literature_evidence import LiteratureEvidenceService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
 from researchbase.application.novelty import NoveltyService
 from researchbase.application.provenance_queries import ProvenanceQueryService
+from researchbase.application.revision_action import RevisionActionService
 from researchbase.application.source_identity import SourceIdentityService
 from researchbase.application.source_merge import SourceMergeGovernanceService
 from researchbase.application.source_merge_execution import SourceMergeExecutionService
@@ -65,6 +67,8 @@ class ServiceBundle:
     literature_search_executions: LiteratureSearchExecutionService | None = None
     novelty: NoveltyService | None = None
     decisions: DecisionService | None = None
+    internal_reviews: InternalReviewService | None = None
+    revision_actions: RevisionActionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -101,6 +105,12 @@ def build_services() -> ServiceBundle:
             credential_verifier=credentials,
         ),
         NoveltyService(
+            uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
+        internal_reviews=InternalReviewService(
+            uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
+        revision_actions=RevisionActionService(
             uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
         ),
         decisions=DecisionService(

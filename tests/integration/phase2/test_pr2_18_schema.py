@@ -182,7 +182,7 @@ def test_normal_role_stronger_outcomes_denied(novelty_env, novelty_sql_role, out
             )
     assert (
         getattr(getattr(error.value.orig, "diag", None), "constraint_name", None)
-        == "ck_b19_novelty_material"
+        == "ck_b20_novelty_material"
     )
 
 
