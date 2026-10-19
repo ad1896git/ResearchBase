@@ -164,6 +164,28 @@ class SqlAlchemyNoveltyRepository:
         )
         return row["id"] if row else None
 
+    def prior_art_predecessor(self, identity):
+        return self.one(
+            "SELECT id FROM prior_art_relations WHERE id=:id FOR UPDATE", {"id": identity}
+        )
+
+    def prior_art_successor(self, identity):
+        row = self.one(
+            "SELECT id FROM prior_art_relations WHERE supersedes_prior_art_relation_id=:id",
+            {"id": identity},
+        )
+        return row["id"] if row else None
+
+    def prior_art_pair(self, claim, source):
+        return self.many(
+            """SELECT p.*,c.project_id FROM prior_art_relations p
+            LEFT JOIN claim_versions v ON v.id=p.claim_version_id
+            LEFT JOIN claims c ON c.id=v.claim_id
+            WHERE p.claim_version_id=:claim AND p.source_version_id=:source
+            ORDER BY p.id LIMIT 10001""",
+            {"claim": claim, "source": source},
+        )
+
     def insert(self, kind, values):
         table = _TABLES[kind]
         values = dict(values)

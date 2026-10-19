@@ -67,6 +67,7 @@ Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e
 | 0057_xid_wraparound_guards | 0056_b10_reconsideration | 0da197d0b8ca619925813d5b26cf43c4646eeb5bbe18b64a4f3b9bfaf3e34e3b |
 | 0058_b12_prepare_submission | 0057_xid_wraparound_guards | 0b3cbf0a62dd86253d6b4c313c2ca5f3ff68547013ddb1916f24317974aec043 |
 | 0059_b13_grant_consumption | 0058_b12_prepare_submission | f63eaf66f359761afd37a7299595cfa6de4972ca5cf53cd2bdc6c79b251d6350 |
+| 0065_b22_prior_art_correction | 0064_b14_publication_ready | 2f5bc6c2c37c3d148c6ac1c8530fec5ec4e170e6da68023d14ba280f17e94aae |
 
 Owner remediation decision, 2026-10-17: apply the proposed B10 compatibility fix
 and remove the unrequested 0054a/0057 workaround migrations. The final chain is

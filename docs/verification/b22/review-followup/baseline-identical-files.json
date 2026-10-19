@@ -1,0 +1,5 @@
+{
+  "tests/integration/phase2/test_pr2_02_source_version_migration.py": "fe7c37f91bb77ce732d0976c26ee4d5e947c730370e111cc02224e6765211c5f",
+  "src/researchbase/application/source_version.py": "7f7c4949132f6925a921ee456b7b1e293b625479d7d9d8f88c3d5490f445e5ac",
+  "src/researchbase/persistence/source_version_repository.py": "874a738e9b4af2197be609202080890b962b29f53b482b7d792dc80aa0b40bcc"
+}

@@ -20,6 +20,12 @@ class PriorArtKind(StrEnum):
     UNCLEAR = "UNCLEAR"
 
 
+class PriorArtSelectionState(StrEnum):
+    EMPTY = "EMPTY"
+    UNIQUE = "UNIQUE"
+    AMBIGUOUS = "AMBIGUOUS"
+
+
 class NoveltyOutcome(StrEnum):
     INCONCLUSIVE = "INCONCLUSIVE"
     CLOSE_PRIOR_ART_FOUND = "CLOSE_PRIOR_ART_FOUND"
@@ -89,6 +95,7 @@ class HashRef:
         "LiteratureEvidence",
         "SearchCoverage",
         "NoveltyAssessment",
+        "PriorArtRelation",
     ]
     id: UUID
     content_hash: str
@@ -101,6 +108,7 @@ class HashRef:
             "LiteratureEvidence",
             "SearchCoverage",
             "NoveltyAssessment",
+            "PriorArtRelation",
         }:
             raise ValueError("unsupported reference")
         if (
@@ -160,7 +168,16 @@ def prior_art_material(
     rationale: str,
     evidence: tuple[HashRef, ...],
     actor: UUID,
+    predecessor: HashRef | None = None,
+    *,
+    material_version: int = 1,
 ) -> dict[str, object]:
+    if type(material_version) is not int or material_version not in (1, 2):
+        raise ValueError("unknown prior-art material version")
+    if (material_version == 1) != (predecessor is None) or (
+        predecessor is not None and predecessor.type != "PriorArtRelation"
+    ):
+        raise ValueError("typed correction predecessor required")
     if (
         claim.type != "ClaimVersion"
         or source.type != "SourceVersion"
@@ -171,9 +188,9 @@ def prior_art_material(
     uuid_set(tuple(x.id for x in evidence))
     if any(x.type != "LiteratureEvidence" for x in evidence):
         raise ValueError("typed evidence required")
-    return {
+    material: dict[str, object] = {
         "type": "PriorArtRelation",
-        "material_version": 1,
+        "material_version": material_version,
         "claim_version": claim.material(),
         "source_version": source.material(),
         "relation": relation.value,
@@ -181,6 +198,10 @@ def prior_art_material(
         "literature_evidence": [x.material() for x in sorted(evidence, key=lambda x: x.id)],
         "assessed_by": {"type": "ActorIdentity", "id": str(actor)},
     }
+
+    if predecessor is not None:
+        material["supersedes_prior_art_relation"] = predecessor.material()
+    return material
 
 
 def novelty_material(
@@ -209,3 +230,35 @@ def novelty_material(
         "supersedes_assessment": predecessor.material() if predecessor else None,
         "assessed_by": {"type": "ActorIdentity", "id": str(actor)},
     }
+
+
+def prior_art_chains(
+    rows: tuple[tuple[UUID, UUID, UUID, UUID | None], ...],
+) -> tuple[tuple[UUID, UUID], ...]:
+    """Validate an entire exact-pair graph and return UUID-sorted root/terminal pairs."""
+    if len(rows) > 10000:
+        raise ValueError("prior-art selection limit exceeded")
+    nodes = {r[0]: r for r in rows}
+    if len(nodes) != len(rows) or len({(r[1], r[2]) for r in rows}) > 1:
+        raise ValueError("invalid exact-pair graph")
+    successors = {}
+    for identity, _, _, previous in rows:
+        if previous is not None:
+            if previous not in nodes or previous in successors:
+                raise ValueError("unresolved or forked correction")
+            successors[previous] = identity
+    visited = set()
+    result = []
+    for root in sorted(r[0] for r in rows if r[3] is None):
+        current = root
+        while True:
+            if current in visited:
+                raise ValueError("cyclic correction")
+            visited.add(current)
+            if current not in successors:
+                break
+            current = successors[current]
+        result.append((root, current))
+    if len(visited) != len(nodes):
+        raise ValueError("cyclic correction")
+    return tuple(result)

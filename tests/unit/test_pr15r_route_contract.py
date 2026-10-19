@@ -695,6 +695,15 @@ ROUTES = (
         "read_prior_art_relation",
     ),
     RouteContract(
+        "get",
+        "/v1/projects/{project_id}/prior-art-relations/selection",
+        "select_prior_art_relation",
+        "select_prior_art_relation",
+        None,
+        "PriorArtSelectionReadbackResponse",
+        "select_prior_art_relation",
+    ),
+    RouteContract(
         "post",
         "/v1/projects/{project_id}/novelty-assessments",
         "record_novelty_assessment",
@@ -726,7 +735,7 @@ def _ref_name(schema: dict[str, object]) -> str:
 
 
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 76
+    assert len(ROUTES) == 77
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -736,7 +745,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 76
+    assert len({item.operation_id for item in ROUTES}) == 77
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

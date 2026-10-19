@@ -105,6 +105,8 @@ from researchbase.application.novelty import (
     ExactReadQuery,
     NoveltyReadback,
     PriorArtReadback,
+    PriorArtSelectionQuery,
+    PriorArtSelectionReadback,
     RecordNoveltyAssessmentCommand,
     RecordPriorArtRelationCommand,
     RecordSearchCoverageCommand,
@@ -2147,6 +2149,12 @@ class PriorArtIn(BaseModel):
     relation: PriorArtKind
     rationale: str
     literature_evidence_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    supersedes_prior_art_relation_id: NoveltyUUID | None = None
+
+
+class PriorArtSelectionIn(InputModel):
+    claim_version_id: NoveltyUUID
+    source_version_id: NoveltyUUID
 
 
 class NoveltyAssessmentIn(BaseModel):
@@ -2196,6 +2204,24 @@ def record_prior_art_relation(project_id: NoveltyUUID, body: PriorArtIn, request
         _services(request).novelty.record_prior_art_relation(
             _verified_principal(request),
             RecordPriorArtRelationCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/prior-art-relations/selection",
+    operation_id="select_prior_art_relation",
+    response_model=_response_schema(PriorArtSelectionReadback),
+)
+def select_prior_art_relation(
+    project_id: NoveltyUUID,
+    query: Annotated[PriorArtSelectionIn, Query()],
+    request: Request,
+):
+    return _json(
+        _services(request).novelty.select_prior_art_relation(
+            _verified_principal(request),
+            PriorArtSelectionQuery(project_id, query.claim_version_id, query.source_version_id),
         )
     )
 

@@ -867,7 +867,19 @@ class SqlAlchemyUnitOfWork:
                     "novelty transaction conflict",
                     {"retryable_novelty": True},
                 )
-            if constraint == "uq_pr218_novelty_predecessor":
+            if constraint in {
+                "ck_b22_prior_art_material",
+                "ck_b22_prior_art_not_self",
+                "fk_b22_prior_art_predecessor",
+            }:
+                return ResearchBaseError(
+                    ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid correction ancestry"
+                )
+            if state in {"55P03", "57014"}:
+                return ResearchBaseError(
+                    ErrorCode.CONCURRENT_MODIFICATION, "novelty transaction timeout"
+                )
+            if constraint in {"uq_pr218_novelty_predecessor", "uq_b22_prior_art_predecessor"}:
                 return ResearchBaseError(
                     ErrorCode.CONCURRENT_MODIFICATION, "predecessor concurrently superseded"
                 )

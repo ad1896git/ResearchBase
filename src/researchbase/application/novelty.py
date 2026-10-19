@@ -15,11 +15,13 @@ from researchbase.domain.novelty import (
     HashRef,
     NoveltyOutcome,
     PriorArtKind,
+    PriorArtSelectionState,
     QualityWarning,
     TimeScope,
     coverage_material,
     narrative,
     novelty_material,
+    prior_art_chains,
     prior_art_material,
     uuid_set,
 )
@@ -44,7 +46,10 @@ def _normalize(command):
             elif field.name in {"coverage_limitations", "rationale", "limitations"}:
                 object.__setattr__(command, field.name, narrative(value))
             elif field.name.endswith("_id") or field.name == "id":
-                if value is None and field.name == "supersedes_assessment_id":
+                if value is None and field.name in {
+                    "supersedes_assessment_id",
+                    "supersedes_prior_art_relation_id",
+                }:
                     continue
                 if type(value) is not UUID:
                     raise ValueError("exact UUID required")
@@ -77,6 +82,7 @@ class RecordPriorArtRelationCommand:
     relation: PriorArtKind
     rationale: str
     literature_evidence_ids: tuple[UUID, ...]
+    supersedes_prior_art_relation_id: UUID | None = None
 
     def __post_init__(self):
         _normalize(self)
@@ -100,6 +106,16 @@ class RecordNoveltyAssessmentCommand:
 class ExactReadQuery:
     project_id: UUID
     id: UUID
+
+    def __post_init__(self):
+        _normalize(self)
+
+
+@dataclass(frozen=True, slots=True)
+class PriorArtSelectionQuery:
+    project_id: UUID
+    claim_version_id: UUID
+    source_version_id: UUID
 
     def __post_init__(self):
         _normalize(self)
@@ -170,6 +186,44 @@ class PriorArtReadback:
     content_hash: str
     hash_scheme: Literal["sha256-cjson-v1"]
     current_validity: CurrentValidity
+    material_version: Literal[1, 2] = 1
+    supersedes_prior_art_relation: HashRef | None = None
+    superseded_by_prior_art_relation_id: UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PriorArtChainHead:
+    root_id: UUID
+    terminal: HashRef
+    current_validity: CurrentValidity
+
+
+@dataclass(frozen=True, slots=True)
+class PriorArtSelectionReadback:
+    project_id: UUID
+    claim_version_id: UUID
+    source_version_id: UUID
+    observed_at: datetime
+    state: PriorArtSelectionState
+    chains: tuple[PriorArtChainHead, ...]
+    selected_prior_art_relation_id: UUID | None
+
+    def __post_init__(self):
+        count = len(self.chains)
+        expected = (
+            PriorArtSelectionState.EMPTY
+            if count == 0
+            else PriorArtSelectionState.UNIQUE
+            if count == 1
+            else PriorArtSelectionState.AMBIGUOUS
+        )
+        selected = self.chains[0].terminal.id if count == 1 else None
+        if (
+            count > 10000
+            or self.state is not expected
+            or self.selected_prior_art_relation_id != selected
+        ):
+            raise ValueError("invalid selection state")
 
 
 @dataclass(frozen=True, slots=True)
@@ -400,7 +454,7 @@ class NoveltyService:
         row = self._literature._target(uow, "ClaimVersion", identity, project)
         return _ref("ClaimVersion", row), row["current_validity"] == "VALID"
 
-    def _comparison(self, uow, project, claim_id, source_id, evidence_ids):
+    def _comparison(self, uow, project, claim_id, source_id, evidence_ids, *, admission=False):
         claim, valid = self._claim(uow, project, claim_id)
         raw = uow.source_version.version(source_id)
         if raw is None:
@@ -419,7 +473,11 @@ class NoveltyService:
                 fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "evidence exact source mismatch")
             verified = verified and row["review_status"] == "VERIFIED"
             valid = valid and row["source_validity"] == "VALID"
-            if verified and not uow.novelty.independent_verification(identity, row["created_by"]):
+            if (
+                admission
+                and verified
+                and not uow.novelty.independent_verification(identity, row["created_by"])
+            ):
                 fail(
                     ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
                     "independent verification history required",
@@ -468,36 +526,7 @@ class NoveltyService:
                 quality,
             )
         elif kind == "prior_art":
-            claim, source, evidence, valid, _ = self._comparison(
-                uow,
-                project,
-                row["claim_version_id"],
-                row["source_version_id"],
-                repo.evidence(row["id"]),
-            )
-            material = prior_art_material(
-                claim,
-                source,
-                PriorArtKind(row["relation"]),
-                row["rationale"],
-                evidence,
-                row["assessed_by"],
-            )
-            result = PriorArtReadback(
-                row["id"],
-                project,
-                claim,
-                source,
-                PriorArtKind(row["relation"]),
-                row["rationale"],
-                evidence,
-                row["assessed_by"],
-                row["created_at"],
-                row["created_by"],
-                row["content_hash"],
-                row["hash_scheme"],
-                self._validity(repo, valid),
-            )
+            return self._prior_art_history(uow, row)
         else:
             claim, valid = self._claim(uow, project, row["claim_version_id"])
             coverage_row = repo.parent("coverage", row["search_coverage_id"])
@@ -544,6 +573,82 @@ class NoveltyService:
             )
         if row["hash_scheme"] != "sha256-cjson-v1" or _digest(material) != row["content_hash"]:
             fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved novelty material mismatch")
+        return result
+
+    def _prior_art_history(self, uow, row, cache=None, known=None):
+        repo = uow.novelty
+        cache = {} if cache is None else cache
+        ancestry = []
+        seen = set()
+        current = row
+        pair = (row["claim_version_id"], row["source_version_id"])
+        while current is not None and current["id"] not in cache:
+            if (
+                current["id"] in seen
+                or (current["claim_version_id"], current["source_version_id"]) != pair
+            ):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid correction ancestry")
+            seen.add(current["id"])
+            ancestry.append(current)
+            previous_id = current["supersedes_prior_art_relation_id"]
+            if previous_id is None:
+                break
+            current = (
+                known.get(previous_id)
+                if known is not None
+                else repo.parent("prior_art", previous_id)
+            )
+            if current is None:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unresolved correction ancestry")
+        result = cache.get(current["id"]) if current is not None else None
+        previous = HashRef("PriorArtRelation", result.id, result.content_hash) if result else None
+        for saved in reversed(ancestry):
+            claim, source, evidence, valid, _ = self._comparison(
+                uow,
+                saved["project_id"],
+                saved["claim_version_id"],
+                saved["source_version_id"],
+                repo.evidence(saved["id"]),
+            )
+            try:
+                material = prior_art_material(
+                    claim,
+                    source,
+                    PriorArtKind(saved["relation"]),
+                    saved["rationale"],
+                    evidence,
+                    saved["assessed_by"],
+                    previous,
+                    material_version=saved["material_version"],
+                )
+            except (ValueError, TypeError):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved comparison material")
+            if (
+                saved["hash_scheme"] != "sha256-cjson-v1"
+                or _digest(material) != saved["content_hash"]
+            ):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved comparison material mismatch")
+            result = PriorArtReadback(
+                saved["id"],
+                saved["project_id"],
+                claim,
+                source,
+                PriorArtKind(saved["relation"]),
+                saved["rationale"],
+                evidence,
+                saved["assessed_by"],
+                saved["created_at"],
+                saved["created_by"],
+                saved["content_hash"],
+                saved["hash_scheme"],
+                self._validity(repo, valid),
+                saved["material_version"],
+                previous,
+                repo.prior_art_successor(saved["id"]),
+            )
+            cache[saved["id"]] = result
+            previous = _ref("PriorArtRelation", saved)
+        assert isinstance(result, PriorArtReadback)
         return result
 
     @staticmethod
@@ -623,12 +728,31 @@ class NoveltyService:
                 )
                 children = c.search_execution_ids
             elif kind == "prior_art":
+                previous = None
+                if c.supersedes_prior_art_relation_id is not None:
+                    repo.prior_art_predecessor(c.supersedes_prior_art_relation_id)
+                    self._authorize(uow, principal, c.project_id, _WRITERS)
+                    prev = repo.parent("prior_art", c.supersedes_prior_art_relation_id)
+                    if prev is None:
+                        fail(ErrorCode.NOT_FOUND, "predecessor not found")
+                    if prev["project_id"] != c.project_id:
+                        fail(ErrorCode.FORBIDDEN, "predecessor project access unavailable")
+                    if (prev["claim_version_id"], prev["source_version_id"]) != (
+                        c.claim_version_id,
+                        c.source_version_id,
+                    ) or prev["id"] == c.id:
+                        fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "same exact pair required")
+                    if repo.prior_art_successor(prev["id"]) is not None:
+                        fail(ErrorCode.INVALID_STATE_TRANSITION, "predecessor already superseded")
+                    self._view(uow, "prior_art", prev)
+                    previous = _ref("PriorArtRelation", prev)
                 claim, source, evidence, valid, verified = self._comparison(
                     uow,
                     c.project_id,
                     c.claim_version_id,
                     c.source_version_id,
                     c.literature_evidence_ids,
+                    admission=True,
                 )
                 if not verified:
                     fail(
@@ -640,11 +764,20 @@ class NoveltyService:
                         ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current comparison inputs unusable"
                     )
                 material = prior_art_material(
-                    claim, source, c.relation, c.rationale, evidence, principal.actor_id
+                    claim,
+                    source,
+                    c.relation,
+                    c.rationale,
+                    evidence,
+                    principal.actor_id,
+                    previous,
+                    material_version=2 if previous else 1,
                 )
                 values.update(
                     claim_version_id=c.claim_version_id,
                     source_version_id=c.source_version_id,
+                    material_version=2 if previous else 1,
+                    supersedes_prior_art_relation_id=c.supersedes_prior_art_relation_id,
                     relation=c.relation.value,
                     rationale=c.rationale,
                     assessed_by=principal.actor_id,
@@ -788,3 +921,70 @@ class NoveltyService:
         result = self._read(principal, query, "novelty")
         assert isinstance(result, NoveltyReadback)
         return result
+
+    def select_prior_art_relation(
+        self, principal: VerifiedPrincipal, query: PriorArtSelectionQuery
+    ) -> PriorArtSelectionReadback:
+        if not isinstance(principal, VerifiedPrincipal):
+            fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(query) is not PriorArtSelectionQuery:
+            fail(ErrorCode.VALIDATION_ERROR, "closed selection query required")
+        with self._factory() as uow:
+            uow.enable_novelty_error_normalization()
+            uow.begin_formal_read()
+            repo = uow.novelty
+            self._authorize(uow, principal, query.project_id, _READERS)
+            self._comparison(
+                uow, query.project_id, query.claim_version_id, query.source_version_id, ()
+            )
+            rows = repo.prior_art_pair(query.claim_version_id, query.source_version_id)
+            try:
+                graph = prior_art_chains(
+                    tuple(
+                        (
+                            r["id"],
+                            r["claim_version_id"],
+                            r["source_version_id"],
+                            r["supersedes_prior_art_relation_id"],
+                        )
+                        for r in rows
+                    )
+                )
+            except ValueError:
+                fail(
+                    ErrorCode.VALIDATION_ERROR
+                    if len(rows) > 10000
+                    else ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                    "invalid or excessive comparison history",
+                )
+            # Verify every record, including nonterminal history; never filter unusable chains.
+            views: dict[UUID, PriorArtReadback] = {}
+            known = {r["id"]: r for r in rows}
+            with saved_dependency(ownership=True):
+                for row in rows:
+                    self._prior_art_history(uow, row, views, known)
+            chains = tuple(
+                PriorArtChainHead(
+                    root,
+                    HashRef("PriorArtRelation", terminal, views[terminal].content_hash),
+                    views[terminal].current_validity,
+                )
+                for root, terminal in graph
+            )
+            at = self._authorize(uow, principal, query.project_id, _READERS)
+            state = (
+                PriorArtSelectionState.EMPTY
+                if not chains
+                else PriorArtSelectionState.UNIQUE
+                if len(chains) == 1
+                else PriorArtSelectionState.AMBIGUOUS
+            )
+            return PriorArtSelectionReadback(
+                query.project_id,
+                query.claim_version_id,
+                query.source_version_id,
+                at,
+                state,
+                chains,
+                chains[0].terminal.id if len(chains) == 1 else None,
+            )

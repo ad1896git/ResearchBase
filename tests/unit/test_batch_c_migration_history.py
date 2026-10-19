@@ -24,6 +24,7 @@ def test_batch_c_linear_history_and_frozen_lane_sql():
         "0062_b14a_publication_entry",
         "0063_b14r_ready_approval",
         "0064_b14_publication_ready",
+        "0065_b22_prior_art_correction",
     )
     assert scripts.get_heads() == [chain[-1]]
     for parent, child in zip(chain, chain[1:], strict=False):

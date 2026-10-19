@@ -21,6 +21,7 @@ from researchbase.application.literature_search_plan import (
 )
 from researchbase.application.novelty import (
     ExactReadQuery,
+    PriorArtSelectionQuery,
     RecordNoveltyAssessmentCommand,
     RecordPriorArtRelationCommand,
     RecordSearchCoverageCommand,
@@ -936,6 +937,7 @@ def register(app: typer.Typer) -> None:
         ("read-search-coverage", read_search_coverage),
         ("record-prior-art-relation", record_prior_art_relation),
         ("read-prior-art-relation", read_prior_art_relation),
+        ("select-prior-art-relation", select_prior_art_relation),
         ("record-novelty-assessment", record_novelty_assessment),
         ("read-novelty-assessment", read_novelty_assessment),
     ):
@@ -950,7 +952,7 @@ def _novelty(runtime):
     return service
 
 
-def _novelty_record(ctx, project_id, material_json, json_mode, kind):
+def _novelty_record(ctx, project_id, material_json, json_mode, kind, predecessor=None):
     runtime = _runtime(ctx)
 
     def operation():
@@ -958,6 +960,11 @@ def _novelty_record(ctx, project_id, material_json, json_mode, kind):
             values = json.loads(material_json)
             if type(values) is not dict:
                 raise ValueError("closed command object required")
+            if predecessor is not None:
+                key = "supersedes_prior_art_relation_id"
+                if key in values and values[key] != predecessor:
+                    raise ValueError("conflicting predecessor")
+                values[key] = predecessor
             for key in tuple(values):
                 if key.endswith("_ids"):
                     values[key] = tuple(_novelty_id(x) for x in values[key])
@@ -1006,9 +1013,14 @@ def record_prior_art_relation(
     ctx: typer.Context,
     project_id: str = typer.Option(..., "--project-id"),
     material_json: str = typer.Option(..., "--material-json"),
+    supersedes_prior_art_relation_id: str | None = typer.Option(
+        None, "--supersedes-prior-art-relation-id"
+    ),
     json_mode: bool = typer.Option(False, "--json"),
 ):
-    _novelty_record(ctx, project_id, material_json, json_mode, "prior_art")
+    _novelty_record(
+        ctx, project_id, material_json, json_mode, "prior_art", supersedes_prior_art_relation_id
+    )
 
 
 def record_novelty_assessment(
@@ -1058,3 +1070,26 @@ def read_novelty_assessment(
     json_mode: bool = typer.Option(False, "--json"),
 ):
     _novelty_read(ctx, project_id, id, json_mode, "read_novelty_assessment")
+
+
+def select_prior_art_relation(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    claim_version_id: str = typer.Option(..., "--claim-version-id"),
+    source_version_id: str = typer.Option(..., "--source-version-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    runtime = _runtime(ctx)
+
+    def operation():
+        try:
+            query = PriorArtSelectionQuery(
+                _novelty_id(project_id),
+                _novelty_id(claim_version_id),
+                _novelty_id(source_version_id),
+            )
+        except (TypeError, ValueError):
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "invalid selection query") from None
+        return _novelty(runtime).select_prior_art_relation(_principal(runtime), query)
+
+    invoke(runtime, json_mode, operation, internal_error_exit_code=INTERNAL_ERROR_EXIT_CODE)
