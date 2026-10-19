@@ -1,19 +1,19 @@
 # ADR-0018 — Screening and negative-probe basis
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+Status: ACCEPTED — APPROVED by owner 2026-10-19; first slice authorized for implementation.
 
 ## Context
 
-[B20](B20_Screening_Negative_Probe_Contract_DRAFT.md) needs exact retained probes,
+[B20](../../proposals/B20_Screening_Negative_Probe_Contract_DRAFT.md) needs exact retained probes,
 per-result dispositions/criteria and the basis for
 NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE. Accepted
-[ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md) admits positive
+[ADR-0017](ADR-0017-novelty-material-v2.md) admits positive
 assessment basis, coverage resolution membership and comparison corrections;
 it deliberately leaves negative admission disabled. Architecture
-[03](../architecture/03_Global_Schema_and_Contract_Registry_v1.0.md),
-[12](../architecture/12_Phase2_Architecture_and_Contract_Correction_v1.0.md),
-[13](../architecture/13_Phase2_Schema_Field_Contract_v1.0.md) and
-[15](../architecture/15_Phase2_Hash_Payload_Contract_R2_v1.0.md) do not yet register
+[03](../03_Global_Schema_and_Contract_Registry_v1.0.md),
+[12](../12_Phase2_Architecture_and_Contract_Correction_v1.0.md),
+[13](../13_Phase2_Schema_Field_Contract_v1.0.md) and
+[15](../15_Phase2_Hash_Payload_Contract_R2_v1.0.md) do not yet register
 B20 children or its hash shape. This is a requested additive amendment, not an
 assertion that frozen architecture already authorizes them.
 

@@ -1,18 +1,18 @@
 # ADR-0019 — Novelty review target and reassessment result
 
-Status: PROPOSED — awaiting owner approval
+Status: ACCEPTED — APPROVED by owner 2026-10-19; first slice authorized for implementation.
 
 ## Context
 
-[B23](B23_Novelty_Review_Revision_Contract_DRAFT.md) needs review of one exact
+[B23](../../proposals/B23_Novelty_Review_Revision_Contract_DRAFT.md) needs review of one exact
 NoveltyAssessment and a completed revision referring to its exact replacement.
 Reviewing a ClaimVersion does not bind its assessment, coverage or saved prior-art
-basis. Frozen [Field Contract 13](../architecture/13_Phase2_Schema_Field_Contract_v1.0.md)
-does not admit this review target/result; [Hash Contract 15](../architecture/15_Phase2_Hash_Payload_Contract_R2_v1.0.md)
-fixes both governance payloads at v1; [Governance Contract 17 §4](../architecture/17_Phase2_Governance_Publication_and_Revision_Contract_R2_v1.0.md#4-completed-revisionaction-results-p1-10)
+basis. Frozen [Field Contract 13](../13_Phase2_Schema_Field_Contract_v1.0.md)
+does not admit this review target/result; [Hash Contract 15](../15_Phase2_Hash_Payload_Contract_R2_v1.0.md)
+fixes both governance payloads at v1; [Governance Contract 17 §4](../17_Phase2_Governance_Publication_and_Revision_Contract_R2_v1.0.md#4-completed-revisionaction-results-p1-10)
 admits exactly seven action shapes. Existing generality cannot authorize an eighth.
 
-Following [ADR-0017](../architecture/adr/ADR-0017-novelty-material-v2.md), this
+Following [ADR-0017](ADR-0017-novelty-material-v2.md), this
 proposal requests explicit bounded amendments without editing frozen numbered
 contracts. It remains a draft in `docs/proposals/`; owner approval and separate
 implementation authorization are required. No Phase 2 gate result is implied.

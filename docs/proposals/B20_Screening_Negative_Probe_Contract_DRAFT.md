@@ -12,7 +12,7 @@ a negative assessment is a judgment within stated coverage, never universal prio
 
 After owner approval **and separate implementation authorization**:
 
-1. Approve [ADR-0018](ADR-0018_Screening_Negative_Probe_Basis_DRAFT.md), including
+1. Approve [ADR-0018](../architecture/adr/ADR-0018-screening-negative-probe-basis.md), including
    the two child relations and the outcome-specific v2 extension (§5, §12.1).
 2. Preserve B18/B01/B19/B21/B22 behavior and exact historical hashes (§1, §11).
 3. Build closed values and DTOs, then extend the existing NoveltyService and
@@ -472,10 +472,10 @@ automatic impact propagation; new Skill/Agent runtime, queues or dependencies.
 | Owner decision required | Proposed decision pinned above |
 | --- | --- |
 | Is retrospective bounded inventory sufficient? | Yes, explicitly disclose all exact-plan executions visible at admission; no prospective/external completeness claim. Otherwise contract a preregistration slice first. |
-| Admit `novelty_assessment_probes`? | Yes, subject to [ADR-0018 Decision 1](ADR-0018_Screening_Negative_Probe_Basis_DRAFT.md#1-owner-decision--admit-novelty_assessment_probes)'s separate schema admission; no new top-level entity. |
-| Admit `novelty_assessment_screening_results`? | Yes, subject to [ADR-0018 Decision 2](ADR-0018_Screening_Negative_Probe_Basis_DRAFT.md#2-owner-decision--admit-novelty_assessment_screening_results)'s separate schema admission; no new top-level entity. |
+| Admit `novelty_assessment_probes`? | Yes, subject to [ADR-0018 Decision 1](../architecture/adr/ADR-0018-screening-negative-probe-basis.md#1-owner-decision--admit-novelty_assessment_probes)'s separate schema admission; no new top-level entity. |
+| Admit `novelty_assessment_screening_results`? | Yes, subject to [ADR-0018 Decision 2](../architecture/adr/ADR-0018-screening-negative-probe-basis.md#2-owner-decision--admit-novelty_assessment_screening_results)'s separate schema admission; no new top-level entity. |
 | Conservative failures and comparisons? | Any failed/warning-bearing attempt blocks a negative; RELATED/CONTRASTING with UNIQUE verified basis only. Broader policy requires an approved contract change. |
-| Compatible v2 extension and B19 attachment amendment? | Subject to [ADR-0018 Decision 3](ADR-0018_Screening_Negative_Probe_Basis_DRAFT.md#3-owner-decision--compatible-outcome-specific-material-v2) and B20-AQ-02: preserve existing payloads/functions; add closed outcome-specific v2 shape and narrow the B19 parent trigger attachment explicitly. |
+| Compatible v2 extension and B19 attachment amendment? | Subject to [ADR-0018 Decision 3](../architecture/adr/ADR-0018-screening-negative-probe-basis.md#3-owner-decision--compatible-outcome-specific-material-v2) and B20-AQ-02: preserve existing payloads/functions; add closed outcome-specific v2 shape and narrow the B19 parent trigger attachment explicitly. |
 
 All answers are proposed, not owner-approved. An override requires corresponding
 body/ADR edits before implementation authorization.

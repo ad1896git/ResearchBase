@@ -195,7 +195,7 @@ and `revision_actions.result_novelty_assessment_id` RESTRICT FKs and indexes,
 adds `material_version SMALLINT NOT NULL DEFAULT 1` to both tables, replaces
 their target/action CHECKs with version-aware CHECKs admitting novelty-only v2,
 and extends review/revision/re-review and Issue/event guards as specified in §12.1.
-[ADR-0019](ADR-0019_Novelty_Review_Target_DRAFT.md) proposes the required
+[ADR-0019](../architecture/adr/ADR-0019-novelty-review-target.md) proposes the required
 amendments to frozen contracts 13/15/17. No new
 canonical table, JSON collection, receipt, queue, cache or event-sourcing layer.
 
@@ -329,7 +329,7 @@ current code or architecture already admits B23.
 5. Link attribution follows B07: the authenticated HUMAN OWNER/REVIEWER recording
    the link must be the new review's reviewer and satisfy its independence checks.
    Link recording alone never requires ACCEPT or closes any Issue.
-6. No new runtime dependency or top-level canonical schema is needed. [ADR-0019](ADR-0019_Novelty_Review_Target_DRAFT.md)
+6. No new runtime dependency or top-level canonical schema is needed. [ADR-0019](../architecture/adr/ADR-0019-novelty-review-target.md)
    must admit the bounded column/hash extensions; existing generality is not
    permission to bypass the finite result contract.
 
@@ -638,7 +638,7 @@ implicitly. Owner overrides require an updated draft/admission before code.
 | New result admission | Separately admit NOVELTY_REASSESSMENT/v2, issue-only, precommitted direct same-ClaimVersion replacement. Keep the seven legacy shapes unchanged. |
 | Decision/disposition reach | Defer novelty Decision/NO_CHANGE/disposition; completed result and correspondence leave all novelty Issues OPEN. |
 | Independence | HUMAN OWNER/REVIEWER, independent of assessment authors and Claim author; re-review also independent of action creator. |
-| Approval scope | Approve this contract and [ADR-0019](ADR-0019_Novelty_Review_Target_DRAFT.md)'s amendments to frozen contracts 13/15/17 explicitly, then separately authorize an execution pack; approval does not declare acceptance. |
+| Approval scope | Approve this contract and [ADR-0019](../architecture/adr/ADR-0019-novelty-review-target.md)'s amendments to frozen contracts 13/15/17 explicitly, then separately authorize an execution pack; approval does not declare acceptance. |
 
 ## 14. Documentation verification note
 
