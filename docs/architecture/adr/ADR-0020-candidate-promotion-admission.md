@@ -1,17 +1,17 @@
 # ADR-0020 — Candidate promotion admission and typed provenance
 
-Status: PROPOSED — awaiting owner approval
+Status: ACCEPTED — APPROVED by owner 2026-10-19 (all five tables: B02-AQ-01..04, B03-AQ-01); first slices authorized for implementation.
 
 ## Context
 
-[B02](B02_Strategy_Candidate_Promotion_Contract_DRAFT.md) and
-[B03](B03_Discussion_Candidate_Promotion_Contract_DRAFT.md) propose the missing
+[B02](../../proposals/B02_Strategy_Candidate_Promotion_Contract_DRAFT.md) and
+[B03](../../proposals/B03_Discussion_Candidate_Promotion_Contract_DRAFT.md) propose the missing
 strategy/discussion → research DRAFT admission links. Existing native candidates
 and closed discussion artifacts are not scientific truth; ordinary research
 creation alone does not prove that an exact candidate was explicitly admitted.
 
-[Registry 03](../architecture/03_Global_Schema_and_Contract_Registry_v1.0.md) and
-[Field Contract 13](../architecture/13_Phase2_Schema_Field_Contract_v1.0.md) do not
+[Registry 03](../03_Global_Schema_and_Contract_Registry_v1.0.md) and
+[Field Contract 13](../13_Phase2_Schema_Field_Contract_v1.0.md) do not
 register any of the five relations below. AGENTS.md §4 says **DO NOT ADD SCHEMA**
 unless existing Entity + Relation + Assessment + Snapshot + Event patterns cannot
 clearly express the fact and architecture review approves the change. Reusing a
@@ -186,7 +186,7 @@ a scientific support hash. Neither draft changes Phase 1 or Contract 15 scientif
 payloads: output DRAFT content_hash/hash_scheme/frozen_at remain null. Later legal
 draft edits/freezes never rewrite the admission or change replay's initial material.
 
-[Addendum 02 A1](../architecture/02_Final_Architecture_Correction_Addendum_v1.0.md)
+[Addendum 02 A1](../02_Final_Architecture_Correction_Addendum_v1.0.md)
 and Registry 03 assign AgentPromotionRecord to Phase 3 agent_runtime, with execution
 and validated target provenance. Neither proposal builds that runtime/execution
 subsystem now. B03 is human admission; B02's identifiable native strategy artifact

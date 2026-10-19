@@ -149,7 +149,7 @@ the constraints/indexes/guards on `discussion_command_receipts` to accept
 `PROMOTE_HYPOTHESIS` and enforce receipt/admission completeness (§12.1); it adds
 no column to an existing table.
 The relation is not registered in Registry 03 or Field Contract 13. Calling it a
-Relation pattern is not schema approval: [ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md)
+Relation pattern is not schema approval: [ADR-0020](../architecture/adr/ADR-0020-candidate-promotion-admission.md)
 asks B03-AQ-01 under AGENTS.md §4. No migration is implemented or authorized here.
 
 | Proposed addition | Existing representation tried; missing fact and disposition |
@@ -549,7 +549,7 @@ No repair of unrelated legacy discussion read transactions is bundled here.
 ## 13. Open questions for the owner — override register
 
 Resolve B03-AQ-01 in
-[ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md) before admitting the
+[ADR-0020](../architecture/adr/ADR-0020-candidate-promotion-admission.md) before admitting the
 unregistered relation and receipt constraint extension. The redundant receipt
 output column is withdrawn. B02/B03 convergence is pinned in §5.1, including the
 existing scoped receipt and explicit domain differences; approval must not add a

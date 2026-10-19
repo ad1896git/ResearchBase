@@ -167,7 +167,7 @@ The proposed migration adds `strategy_candidate_captures`,
 `strategy_hypothesis_admissions`, with the constraints, indexes and guards in §12.1;
 it adds no columns to existing tables.
 None is registered in Registry 03 or Field Contract 13. Reusing the Relation
-pattern does not authorize a new table: [ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md)
+pattern does not authorize a new table: [ADR-0020](../architecture/adr/ADR-0020-candidate-promotion-admission.md)
 asks four separate Architecture Questions under AGENTS.md §4. No migration is
 implemented or authorized here.
 
@@ -570,7 +570,7 @@ other backlog items, full G2/Phase 2 gate success.
 ## 13. Open questions for the owner — override register
 
 Resolve the four table-specific Architecture Questions in
-[ADR-0020](ADR-0020_Candidate_Promotion_Admission_DRAFT.md) before admitting any
+[ADR-0020](../architecture/adr/ADR-0020-candidate-promotion-admission.md) before admitting any
 unregistered relation. The shared admission convention is §5.1 and B03 §5.1;
 there is no pending parallel-draft reconciliation or generic promotion schema.
 Approve or override service-owned capture,
@@ -620,7 +620,7 @@ PostgreSQL admission/constraint/replay verification remains unverified here;
 planned B02/B03 tests do not exist yet and are not PASS.
 
 Documentation checks: `git diff --check` returned exit 0.
-`git diff --no-index --check /dev/null docs/proposals/ADR-0020_Candidate_Promotion_Admission_DRAFT.md`
+`git diff --no-index --check /dev/null docs/proposals/../architecture/adr/ADR-0020-candidate-promotion-admission.md`
 returned exit 1 for the new-file difference, with no whitespace diagnostics.
 A focused Python check verified all 53 relative file links across
 the three documents, two unchanged proposal status lines against HEAD, one AQ per
