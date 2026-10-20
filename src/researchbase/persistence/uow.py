@@ -135,6 +135,11 @@ def _normalize_database_error(
             ErrorCode.CONCURRENT_MODIFICATION,
             "resource was modified concurrently",
         )
+    if sqlstate == "23P01" and constraint == "ex_project_role_assignments_role_interval":
+        return ResearchBaseError(
+            ErrorCode.INVALID_STATE_TRANSITION,
+            "role interval overlaps an existing role assignment",
+        )
     if sqlstate == "23514":
         if constraint == "ck_project_owner_coverage":
             return ResearchBaseError(
@@ -150,6 +155,14 @@ def _normalize_database_error(
         )
     if sqlstate == "23505":
         duplicate_map = {
+            "uq_project_role_assignments_open": (
+                ErrorCode.INVALID_STATE_TRANSITION,
+                "open role assignment already exists for this membership and role",
+            ),
+            "uq_project_role_events_assignment_request": (
+                ErrorCode.IDEMPOTENCY_CONFLICT,
+                "role event request_id already used for this role assignment",
+            ),
             "uq_source_identifier_live_value": (
                 ErrorCode.IDENTIFIER_ALREADY_BOUND,
                 "identifier is already bound",

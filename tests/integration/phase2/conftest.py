@@ -8,6 +8,11 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
+from tests.integration.phase2.b02_support import b02_env as b02_env
+from tests.integration.phase2.b02_support import pr219_candidate_env as pr219_candidate_env
+from tests.integration.phase2.b02_support import pr219_evidence_env as pr219_evidence_env
+from tests.integration.phase2.r1_support import role_expiry_env as role_expiry_env
+
 # Expose the shared fixture throughout Phase 2 regardless of module/plugin collection order.
 from tests.integration.phase2.test_m3_evidence import m3 as m3
 

@@ -25,17 +25,14 @@ from researchbase.application.phase2_identity import (
 )
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.integration.phase2.r1_support import (
+    _BootstrapProofVerifier,
+    _expiry_role,
+    _schedule_expiry,
+)
 from tests.integration.phase2.test_pr2_00_challenges import (
     _service,
 )
-
-
-class _BootstrapProofVerifier:
-    def verify(self, authority: BootstrapAuthority) -> bool:
-        return True
-
-    def invalidate(self, authority: BootstrapAuthority) -> None:
-        return None
 
 
 def test_first_owner_bootstrap_is_atomic_and_permanently_closes(
@@ -1211,3 +1208,135 @@ def test_membership_reactivation_creates_new_rows_and_restores_prior_roles(
             )
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize("same_request", [True, False])
+def test_scheduled_role_cannot_be_closed_again(role_expiry_env, same_request):
+    e = role_expiry_env
+    role = _expiry_role(e)
+    request = uuid4()
+    expiry = _schedule_expiry(e, role, request_id=request)
+    with pytest.raises(ResearchBaseError) as caught:
+        e["service"].close_project_role(
+            CloseProjectRole(
+                e["principal"],
+                e["first"].project_id,
+                role,
+                "retry",
+                request if same_request else uuid4(),
+                effective_until=expiry,
+            )
+        )
+    assert caught.value.code is ErrorCode.FORBIDDEN
+    with e["engine"].connect() as connection:
+        assert connection.execute(
+            text("SELECT effective_until, row_version FROM project_role_assignments WHERE id=:id"),
+            {"id": role},
+        ).one() == (expiry, 2)
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM project_role_events WHERE role_assignment_id=:id"),
+                {"id": role},
+            ).scalar_one()
+            == 2
+        )
+
+
+def test_closure_cannot_reuse_assignment_request(role_expiry_env):
+    e = role_expiry_env
+    request = uuid4()
+    role = _expiry_role(e, request_id=request)
+    with pytest.raises(ResearchBaseError) as caught:
+        _schedule_expiry(e, role, request_id=request)
+    assert caught.value.code is ErrorCode.IDEMPOTENCY_CONFLICT
+    with e["engine"].connect() as connection:
+        assert connection.execute(
+            text("SELECT effective_until, row_version FROM project_role_assignments WHERE id=:id"),
+            {"id": role},
+        ).one() == (None, 1)
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM project_role_events WHERE role_assignment_id=:id"),
+                {"id": role},
+            ).scalar_one()
+            == 1
+        )
+
+
+@pytest.mark.parametrize("terminal", ["SUSPENDED", "ENDED"])
+def test_membership_termination_leaves_scheduled_role_sealed(role_expiry_env, terminal):
+    from researchbase.application.phase2_identity import EndProjectMembership
+
+    e = role_expiry_env
+    role = _expiry_role(e)
+    expiry = _schedule_expiry(e, role)
+    with e["engine"].connect() as connection:
+        membership = connection.execute(
+            text("SELECT membership_id FROM project_role_assignments WHERE id=:id"), {"id": role}
+        ).scalar_one()
+    kind = SuspendProjectMembership if terminal == "SUSPENDED" else EndProjectMembership
+    invoke = (
+        e["service"].suspend_project_membership
+        if terminal == "SUSPENDED"
+        else e["service"].end_project_membership
+    )
+    invoke(kind(e["principal"], e["first"].project_id, membership, "R1 termination", uuid4()))
+    with e["engine"].connect() as connection:
+        assert connection.execute(
+            text("SELECT effective_until, row_version FROM project_role_assignments WHERE id=:id"),
+            {"id": role},
+        ).one() == (expiry, 2)
+        assert (
+            connection.execute(
+                text("SELECT status FROM project_memberships WHERE id=:id"), {"id": membership}
+            ).scalar_one()
+            == terminal
+        )
+    reactivated = e["service"].reactivate_project_membership(
+        ReactivateProjectMembership(
+            e["principal"], e["first"].project_id, e["actor"], "R1 reactivate", uuid4()
+        )
+    )
+    assert reactivated != membership
+    with e["engine"].connect() as connection:
+        assert connection.execute(
+            text("SELECT actor_id, project_id, status FROM project_memberships WHERE id=:id"),
+            {"id": reactivated},
+        ).one() == (e["actor"], e["first"].project_id, "ACTIVE")
+        assert connection.execute(
+            text(
+                "SELECT membership_id, effective_until, row_version "
+                "FROM project_role_assignments WHERE id=:id"
+            ),
+            {"id": role},
+        ).one() == (membership, expiry, 2)
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM project_role_assignments WHERE membership_id=:id"),
+                {"id": reactivated},
+            ).scalar_one()
+            == 0
+        )
+
+
+def test_same_role_assignment_denied_until_scheduled_interval_ends(role_expiry_env):
+    e = role_expiry_env
+    role = _expiry_role(e)
+    expiry = _schedule_expiry(e, role, seconds=1)
+    with pytest.raises(ResearchBaseError) as caught:
+        _expiry_role(e)
+    assert caught.value.code is ErrorCode.INVALID_STATE_TRANSITION
+    deadline = monotonic() + 10
+    with e["engine"].connect() as connection:
+        while connection.execute(text("SELECT clock_timestamp()")).scalar_one() < expiry:
+            assert monotonic() < deadline
+            sleep(0.01)
+    successor = _expiry_role(e)
+    with e["engine"].connect() as connection:
+        start, end = connection.execute(
+            text(
+                "SELECT effective_from, effective_until FROM project_role_assignments WHERE id=:id"
+            ),
+            {"id": successor},
+        ).one()
+        assert start >= expiry and end is None

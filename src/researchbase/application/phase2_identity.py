@@ -8,7 +8,7 @@ import time
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -214,6 +214,7 @@ class CloseProjectRole:
     role_assignment_id: UUID
     reason: str
     request_id: UUID
+    effective_until: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -830,9 +831,16 @@ class Phase2IdentityService:
             uow.commit()
 
     def close_project_role(self, command: CloseProjectRole) -> None:
-        reason = command.reason.strip()
-        if not reason:
-            raise _error(ErrorCode.VALIDATION_ERROR, "reason must not be blank")
+        reason = _normalized_name(command.reason, "reason", 512)
+        requested_until = command.effective_until
+        if requested_until is not None:
+            if (
+                not isinstance(requested_until, datetime)
+                or requested_until.tzinfo is None
+                or requested_until.utcoffset() is None
+            ):
+                raise _error(ErrorCode.VALIDATION_ERROR, "effective_until must be timezone-aware")
+            requested_until = requested_until.astimezone(UTC)
 
         with self._uow_factory() as uow:
             uow.begin_serializable()
@@ -861,9 +869,12 @@ class Phase2IdentityService:
                     ErrorCode.OWNER_CREDENTIAL_UNAVAILABLE,
                     "effective OWNER authority is unavailable",
                 )
-            if closed_at <= _database_datetime(role, "effective_from"):
+            target_until = requested_until if requested_until is not None else closed_at
+            if target_until <= _database_datetime(role, "effective_from") or (
+                requested_until is not None and target_until < closed_at
+            ):
                 raise _error(ErrorCode.VALIDATION_ERROR, "role interval cannot be closed yet")
-            if not repo.close_role_assignment(command.role_assignment_id, closed_at):
+            if not repo.close_role_assignment(command.role_assignment_id, target_until):
                 raise _error(ErrorCode.CONCURRENT_MODIFICATION, "project role changed concurrently")
             repo.create_role_event(
                 {
@@ -871,7 +882,7 @@ class Phase2IdentityService:
                     "role_assignment_id": command.role_assignment_id,
                     "actor_id": role["actor_id"],
                     "event_kind": "CLOSED",
-                    "occurred_at": closed_at,
+                    "occurred_at": target_until,
                     "reason": reason,
                     "request_id": command.request_id,
                 }

@@ -4,10 +4,17 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
+
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.integration.phase2.r1_support import (
+    _expiry_role,
+    _schedule_expiry,
+)
 
 
 def _migrate(database_url: str) -> None:
@@ -296,3 +303,68 @@ def test_actor_retirement_cannot_remove_the_last_owner(
             )
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize("role_name", ["REVIEWER", "RESEARCHER", "APPROVER", "VIEWER"])
+def test_application_schedules_non_owner_role_expiry(role_expiry_env, role_name):
+    e = role_expiry_env
+    role = _expiry_role(e, role_name)
+    expiry = _schedule_expiry(e, role)
+    with e["engine"].connect() as connection:
+        assert connection.execute(
+            text("SELECT effective_until, row_version FROM project_role_assignments WHERE id=:id"),
+            {"id": role},
+        ).one() == (expiry, 2)
+        assert (
+            connection.execute(
+                text(
+                    "SELECT occurred_at FROM project_role_events "
+                    "WHERE role_assignment_id=:id AND event_kind='CLOSED'"
+                ),
+                {"id": role},
+            ).scalar_one()
+            == expiry
+        )
+
+
+def test_application_cannot_schedule_sole_owner_expiry(role_expiry_env):
+    e = role_expiry_env
+    role = e["first"].role_assignment_id
+    with pytest.raises(ResearchBaseError) as caught:
+        _schedule_expiry(e, role)
+    assert caught.value.code is ErrorCode.OWNER_COVERAGE_GAP
+    with e["engine"].connect() as connection:
+        assert connection.execute(
+            text("SELECT effective_until, row_version FROM project_role_assignments WHERE id=:id"),
+            {"id": role},
+        ).one() == (None, 1)
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM project_role_events WHERE role_assignment_id=:id"),
+                {"id": role},
+            ).scalar_one()
+            == 1
+        )
+
+
+def test_application_schedules_owner_expiry_with_open_successor(role_expiry_env):
+    e = role_expiry_env
+    successor = _expiry_role(e, "OWNER")
+    role = e["first"].role_assignment_id
+    expiry = _schedule_expiry(e, role)
+    with e["engine"].connect() as connection:
+        assert connection.execute(
+            text("SELECT effective_until, row_version FROM project_role_assignments WHERE id=:id"),
+            {"id": role},
+        ).one() == (expiry, 2)
+        assert (
+            connection.execute(
+                text("SELECT effective_until FROM project_role_assignments WHERE id=:id"),
+                {"id": successor},
+            ).scalar_one()
+            is None
+        )
+        assert connection.execute(
+            text("SELECT rb_phase2_owner_coverage(:project)"),
+            {"project": e["first"].project_id},
+        ).scalar_one()
