@@ -1,6 +1,6 @@
 # Remaining PR2-19 Rows, Third Slice (B30-S3) Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-20 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 

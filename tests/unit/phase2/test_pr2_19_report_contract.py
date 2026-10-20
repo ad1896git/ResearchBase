@@ -353,3 +353,47 @@ def test_s2_concrete_consumer_labels_are_bounded(row, command):
     assert command in SCENARIO_COMMANDS[row]
     assert "SubmissionService.send" not in COMMANDS
     assert "ImpactService.propagate" not in COMMANDS
+
+
+@pytest.mark.parametrize("row", ["G2", "G4"])
+def test_s3_labels_resolve_and_remain_scoped_to_their_scenario(row):
+    from researchbase.application.discussion_hypothesis import DiscussionHypothesisService
+    from researchbase.application.strategy_candidate_promotion import (
+        StrategyCandidatePromotionService,
+    )
+    from tests.integration.phase2.pr2_19_support import S3_COMMANDS
+
+    owners = {
+        c.__name__: c for c in (DiscussionHypothesisService, StrategyCandidatePromotionService)
+    }
+    expected = {"G2": 6, "G4": 2}
+    assert len(S3_COMMANDS[row]) == expected[row]
+    for label in S3_COMMANDS[row]:
+        owner, method = label.split(".")
+        assert callable(getattr(owners[owner], method))
+        assert label in COMMANDS and label in SCENARIO_COMMANDS[row]
+        assert replace(records()[0], scenario_id=row, command_steps=(label,))
+        assert replace(records()[4], scenario_id=row, command_identity=label)
+        other = "G4" if row == "G2" else "G2"
+        with pytest.raises(ValueError, match="scenario"):
+            replace(records()[4], scenario_id=other, command_identity=label)
+
+
+def test_s3_owner_availability_does_not_hide_unresolved_architecture_questions():
+    from tests.integration.phase2.test_pr2_19_dependencies import (
+        SUBCASES,
+        full_gate_report,
+        require_full_gate,
+    )
+
+    inventory = {(row, name): (available, blocker) for row, name, _, available, blocker in SUBCASES}
+    assert inventory["G2", "candidate-admission"] == (True, None)
+    assert inventory["G4", "discussion-admission"] == (True, None)
+    for row in ("G2", "G4"):
+        available, blocker = inventory[row, "s3-contract-reconciliation"]
+        assert not available and blocker and "AQ-S3-" in blocker
+    report = full_gate_report()
+    assert report["availability_is_acceptance"] is False
+    assert set(report["blocked_rows"]) == {"G2", "G4", "G6", "G7", "F1", "F5c", "F6", "F9"}
+    with pytest.raises(ValueError, match="BLOCKED"):
+        require_full_gate(report)

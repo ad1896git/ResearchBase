@@ -285,11 +285,43 @@ COMMANDS |= frozenset(name for names in B30_COMMANDS.values() for name in names)
 for _row, _names in B30_COMMANDS.items():
     SCENARIO_COMMANDS[_row] |= frozenset(_names)
 
+# S3 owner availability does not resolve the architecture questions or pass the gate.
+S3_COMMANDS = {
+    "G2": tuple(
+        "StrategyCandidatePromotionService." + name
+        for name in (
+            "capture_native_strategy",
+            "promote_strategy_question",
+            "promote_strategy_hypothesis",
+            "get_strategy_capture",
+            "get_strategy_question_promotion",
+            "get_strategy_hypothesis_promotion",
+        )
+    ),
+    "G4": (
+        "DiscussionHypothesisService.promote_discussion_to_hypothesis",
+        "DiscussionHypothesisService.get_discussion_hypothesis_admission",
+    ),
+}
+COMMANDS |= frozenset(name for names in S3_COMMANDS.values() for name in names)
+for _row, _names in S3_COMMANDS.items():
+    SCENARIO_COMMANDS[_row] |= frozenset(_names)
+
 CORPUS = (
     b"A measured effect improved recall.\n\nLimitations remain.",
     b"A separate control found no benefit.\n\nReplication is needed.",
 )
 TABLES = (
+    "research_questions",
+    "research_question_versions",
+    "artifacts",
+    "artifact_versions",
+    "strategy_candidate_captures",
+    "strategy_candidate_sources",
+    "strategy_question_admissions",
+    "strategy_hypothesis_admissions",
+    "discussion_hypothesis_admissions",
+    "discussion_command_receipts",
     "literature_sources",
     "source_versions",
     "literature_evidence",

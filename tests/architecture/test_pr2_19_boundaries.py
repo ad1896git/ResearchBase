@@ -268,3 +268,62 @@ def test_s2_saved_publication_and_package_readers_use_one_snapshot(b05_env):
 
 
 _FIXTURES = (b04_env, b05_env, revision_env)
+
+
+@pytest.mark.parametrize("owner", ["strategy", "discussion"])
+def test_s3_candidate_admission_retains_single_application_boundary(owner):
+    """Assert isolation/layering; behavioral lock checks live in G2/G4 E2E suffixes."""
+    import inspect
+
+    from researchbase.application.discussion_hypothesis import DiscussionHypothesisService
+    from researchbase.application.strategy_candidate_promotion import (
+        StrategyCandidatePromotionService,
+    )
+
+    service = (
+        StrategyCandidatePromotionService if owner == "strategy" else DiscussionHypothesisService
+    )
+    source = inspect.getsource(service)
+    tree = ast.parse(source)
+    calls = {ast.unparse(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+    assert not any(
+        name.endswith((".create_research_question", ".create_hypothesis")) for name in calls
+    )
+    assert not any(
+        name.startswith(("uow.claims.", "uow.governance.", "uow.literature_evidence."))
+        for name in calls
+    )
+    assert "AgentPromotionRecord" not in source and "AgentExecution" not in source
+    read = (
+        StrategyCandidatePromotionService._read
+        if owner == "strategy"
+        else DiscussionHypothesisService.get_discussion_hypothesis_admission
+    )
+    read_source = inspect.getsource(read)
+    assert "read_only=True" in read_source
+    assert not any(
+        token in read_source for token in ("LOCK TABLE", "advisory", "FOR UPDATE", "FOR SHARE")
+    )
+
+
+def test_s3_write_inventories_match_independent_e2e_protocol_expectations():
+    from tests.integration.phase2.test_pr2_19_candidates import G2_SHARE
+    from tests.integration.phase2.test_pr2_19_discussion import G4_SHARE
+
+    from researchbase.persistence.discussion_hypothesis_repository import B03_SNAPSHOT_TABLES
+    from researchbase.persistence.strategy_candidate_promotion_repository import S
+
+    for statement, inventory in ((G2_SHARE, S), (G4_SHARE, B03_SNAPSHOT_TABLES)):
+        actual = tuple(
+            item.strip()
+            for item in statement.removeprefix("LOCK TABLE ")
+            .removesuffix(" IN SHARE MODE")
+            .split(",")
+        )
+        assert actual == inventory == tuple(sorted(inventory))
+    assert not {
+        "hypotheses",
+        "hypothesis_versions",
+        "discussion_command_receipts",
+        "discussion_hypothesis_admissions",
+    } & set(B03_SNAPSHOT_TABLES)
