@@ -60,14 +60,7 @@ SUBCASES = (
         "s3-contract-reconciliation",
         "B30-S3/B02",
         False,
-        "AQ-S3-02/04/06/07/08: errors, hashes, locks, question basis and AGENT fixture",
-    ),
-    (
-        "G4",
-        "s3-contract-reconciliation",
-        "B30-S3/B03",
-        False,
-        "AQ-S3-01/02/03/04/05/06/07: authority, errors, hashes, receipts, locks and basis",
+        "AQ-S3-08: bound AGENT fixture requires owning Application admission path",
     ),
     ("G5", "initial-frozen-closure", "manuscript_freeze", True, None),
     ("G6", "claim-conclusion-cycle", "revision_action/internal_review/approval", True, None),
@@ -189,7 +182,7 @@ def test_current_subcases_reconcile_b30_without_claiming_full_rows_passed():
     for _, _, owner, owner_available, blocker in SUBCASES:
         assert owner and owner_available == (blocker is None)
     assert not {"G1", "G5", "F2b", "F5b", "F7"} & BLOCKED_ROWS.keys()
-    assert {"G2", "G4", "G6", "G7", "F1", "F5c", "F6", "F9"} == BLOCKED_ROWS.keys()
+    assert {"G2", "G6", "G7", "F1", "F5c", "F6", "F9"} == BLOCKED_ROWS.keys()
     assert full_gate_report()["status"] == "BLOCKED"
 
 

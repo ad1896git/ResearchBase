@@ -1,9 +1,18 @@
 # B30-S3 architecture questions — 2026-10-20
 
-Status: OPEN — owner reconciliation required for the cases identified below.
-The S3 approval status is preserved. Non-conflicting G2/G4 tests proceed; none
-of these questions is resolved by changing production, schema, expected errors,
-or marking a disputed case passed. Full PR2-19 acceptance remains BLOCKED.
+Status: AQ-S3-01..07 RESOLVED by director 2026-10-20; AQ-S3-08 OPEN.
+B02/B03 are the landed canonical contracts under S3 §13.1. The original
+questions below are retained as historical evidence; their disputed S3 wording
+is superseded by these decisions. Full PR2-19 acceptance remains BLOCKED.
+
+- AQ-S3-01: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): G4 HUMAN-only; AGENT admission is FORBIDDEN.
+- AQ-S3-02: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): distinct-ID duplicate/loser is DUPLICATE_CONTENT; B02 other-actor replay is FORBIDDEN.
+- AQ-S3-03: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): DRAFT content_hash, hash_scheme, frozen_at remain NULL.
+- AQ-S3-04: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): independent oracles use B02 §5.2 and B03 §5.2 literals exactly.
+- AQ-S3-05: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): use existing receipt/admission/session closure; discard nonexistent-field requirements.
+- AQ-S3-06: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): advisory protocol uses hashtextextended(:key,0).
+- AQ-S3-07: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): G2 DRAFT parent allowed, inaccessible source FORBIDDEN; G4 transcript mismatch FROZEN_REFERENCE_REQUIRED.
+- AQ-S3-08: OPEN — positive G2 AGENT fixture pending an owning Application path; never SQL-forge an AGENT binding.
 
 ## Authority and scope check
 

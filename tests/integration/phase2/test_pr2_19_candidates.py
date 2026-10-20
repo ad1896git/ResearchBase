@@ -149,7 +149,7 @@ def test_g2_saved_native_brief_question_and_researcher_adaptation_after_restart(
     linked_question,
     monkeypatch,
 ):
-    """Non-conflicting G2 suffix; unresolved literals/errors stay in AQ-S3-02/04."""
+    """B02 literals and DRAFT organizational parent, per director reconciliation."""
     from researchbase.application.strategy_candidate_promotion import ExactStrategyQuery
 
     e = b02_env
@@ -183,6 +183,17 @@ def test_g2_saved_native_brief_question_and_researcher_adaptation_after_restart(
         with sql_protocol(engine) as sql:
             saved = capture(e)
         assert_first_share(sql, G2_SHARE)
+        assert [
+            (statement, params)
+            for tx in sql.transactions
+            for (statement, _, _), params in zip(tx.statements, tx.parameters, strict=True)
+            if "advisory" in statement
+        ] == [
+            (
+                "SELECT pg_advisory_xact_lock(hashtextextended(%(key)s,0))",
+                {"key": f"b02:capture:{saved.id}"},
+            )
+        ]
         assert not active
     finally:
         for name, callback in (("begin", begin), ("commit", end), ("rollback", end)):
@@ -204,10 +215,42 @@ def test_g2_saved_native_brief_question_and_researcher_adaptation_after_restart(
     assert payload["request"]["source_version_ids"] == [
         str(v) for v in sorted(e["sources"], key=str)
     ]
+    # Exhaustive B02 §5.2 material; no production hash builder supplies the oracle.
+    from researchbase.foundation.time import format_utc
+    from tests.unit.phase2.test_b02_strategy_promotion_hashes import digest
+
+    assert saved.content_hash == digest(
+        dict(
+            type="StrategyCandidateCapture",
+            material_version=1,
+            id=str(saved.id),
+            project_id=str(project),
+            artifact_version_id=str(saved.artifact_version_id),
+            artifact_content_hash=saved.artifact_content_hash,
+            topic=saved.topic,
+            source_version_ids=[str(v) for v in sorted(e["sources"], key=str)],
+            max_evidence_candidates=saved.max_evidence_candidates,
+            strategy_id=saved.strategy_id,
+            strategy_version=saved.strategy_version,
+            captured_by=str(saved.captured_by),
+            captured_at=format_utc(saved.captured_at),
+        )
+    )
     before = after
     with sql_protocol(engine) as sql:
         question = service.promote_strategy_question(e["other"], qcommand(e, saved))
     assert_first_share(sql, G2_SHARE)
+    assert [
+        (statement, params)
+        for tx in sql.transactions
+        for (statement, _, _), params in zip(tx.statements, tx.parameters, strict=True)
+        if "advisory" in statement
+    ] == [
+        (
+            "SELECT pg_advisory_xact_lock(hashtextextended(%(key)s,0))",
+            {"key": f"b02:question:{question.id}"},
+        )
+    ]
     after = counts(e["engine"])
     changes = {
         "research_questions": 1,
@@ -224,12 +267,60 @@ def test_g2_saved_native_brief_question_and_researcher_adaptation_after_restart(
     with sql_protocol(engine) as sql:
         adapted = service.promote_strategy_hypothesis(principal, cmd)
     assert_first_share(sql, G2_SHARE)
+    assert [
+        (statement, params)
+        for tx in sql.transactions
+        for (statement, _, _), params in zip(tx.statements, tx.parameters, strict=True)
+        if "advisory" in statement
+    ] == [
+        (
+            "SELECT pg_advisory_xact_lock(hashtextextended(%(key)s,0))",
+            {"key": f"b02:hypothesis:{adapted.id}"},
+        )
+    ]
     after = counts(e["engine"])
     changes = {"hypotheses": 1, "hypothesis_versions": 1, "strategy_hypothesis_admissions": 1}
     assert tuple(StateDelta(t, before[t], after[t]) for t in before) == tuple(
         StateDelta(t, n, n + changes.get(t, 0)) for t, n in before.items()
     )
     assert question.admitted_by != saved.captured_by
+    assert question.content_hash == digest(
+        dict(
+            type="StrategyQuestionAdmission",
+            material_version=1,
+            id=str(question.id),
+            project_id=str(project),
+            capture_id=str(saved.id),
+            capture_content_hash=saved.content_hash,
+            candidate_index=question.candidate_index,
+            candidate_text=question.candidate_text,
+            question_text=question.question_text,
+            rationale=question.rationale,
+            research_question_id=str(question.research_question_id),
+            research_question_version_id=str(question.research_question_version_id),
+            admitted_by=str(question.admitted_by),
+            admitted_at=format_utc(question.admitted_at),
+        )
+    )
+    assert adapted.content_hash == digest(
+        dict(
+            type="StrategyHypothesisAdmission",
+            material_version=1,
+            id=str(adapted.id),
+            project_id=str(project),
+            capture_id=str(saved.id),
+            capture_content_hash=saved.content_hash,
+            candidate_index=adapted.candidate_index,
+            candidate_text=adapted.candidate_text,
+            statement=adapted.statement,
+            rationale=adapted.rationale,
+            research_question_id=str(cmd.research_question_id) if linked_question else None,
+            hypothesis_id=str(adapted.hypothesis_id),
+            hypothesis_version_id=str(adapted.hypothesis_version_id),
+            admitted_by=str(adapted.admitted_by),
+            admitted_at=format_utc(adapted.admitted_at),
+        )
+    )
     assert adapted.research_question_id == cmd.research_question_id
     assert (
         adapted.candidate_text
@@ -259,7 +350,18 @@ def test_g2_saved_native_brief_question_and_researcher_adaptation_after_restart(
                 .one()
             )
             assert row["status"] == "DRAFT" and row["version_number"] == 1
-            assert row["frozen_at"] is None
+            assert row["content_hash"] is row["frozen_at"] is None
+    with e["factory"]() as uow:
+        from researchbase.domain.research import HypothesisVersionId, ResearchQuestionVersionId
+
+        for version in (
+            uow.research_questions.get_version(
+                ResearchQuestionVersionId(question.research_question_version_id)
+            ),
+            uow.hypotheses.get_version(HypothesisVersionId(adapted.hypothesis_version_id)),
+        ):
+            assert version is not None
+            assert version.content_hash is version.hash_scheme is version.frozen_at is None
     assert counts(e["engine"]) == after
 
 
@@ -276,6 +378,13 @@ def test_g2_exact_replay_and_changed_payload_zero_delta(b02_env, kind):
     with pytest.raises(ResearchBaseError) as exc:
         getattr(fresh, name)(e["principal"], replace(cmd, rationale="Changed request"))
     assert exc.value.code is ErrorCode.IDEMPOTENCY_CONFLICT
+    for actor, changed, code in (
+        (e["principal"], replace(cmd, id=uuid4()), ErrorCode.DUPLICATE_CONTENT),
+        (e["other"], cmd, ErrorCode.FORBIDDEN),
+    ):
+        with pytest.raises(ResearchBaseError) as exc:
+            getattr(fresh, name)(actor, changed)
+        assert exc.value.code is code
     assert counts(e["engine"]) == before
 
 
@@ -495,5 +604,76 @@ def test_g2_historical_replay_after_application_closes_writer_roles(b02_env, kin
     assert getattr(restart(e), method)(e["principal"], cmd) == result
     with pytest.raises(ResearchBaseError) as exc:
         getattr(restart(e), method)(e["principal"], replace(cmd, id=uuid4()))
+    assert exc.value.code is ErrorCode.FORBIDDEN
+    assert counts(e["engine"]) == before
+
+
+@pytest.mark.parametrize("kind", ["question", "hypothesis"])
+def test_g2_duplicate_loser_with_backend_wait(b02_env, monkeypatch, kind):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from researchbase.persistence.strategy_candidate_promotion_repository import (
+        SqlAlchemyStrategyCandidatePromotionRepository as Repository,
+    )
+    from tests.integration.phase2.test_pr2_18_concurrency import _witness
+
+    e = b02_env
+    saved = capture(e)
+    cmd = (qcommand if kind == "question" else hcommand)(e, saved)
+    before = counts(e["engine"])
+    ready, release = Event(), Event()
+    pids = []
+    original = Repository.insert
+
+    def hold(repo, table, *args, **kwargs):
+        original(repo, table, *args, **kwargs)
+        if table == kind:
+            pids.append(repo._session.connection().connection.driver_connection.info.backend_pid)
+            ready.set()
+            assert release.wait(10)
+
+    monkeypatch.setattr(Repository, "insert", hold)
+    method = getattr(e["service"], "promote_strategy_" + kind)
+    with ThreadPoolExecutor(2) as pool:
+        winner = pool.submit(method, e["principal"], cmd)
+        try:
+            assert ready.wait(10)
+            loser = pool.submit(method, e["principal"], replace(cmd, id=uuid4()))
+            waiter = _witness(e["engine"], pids[0])
+            assert waiter != pids[0]
+            with e["engine"].connect() as observer:
+                wait = observer.execute(
+                    text("SELECT wait_event_type,wait_event FROM pg_stat_activity WHERE pid=:pid"),
+                    {"pid": waiter},
+                ).one()
+            assert wait.wait_event_type == "Lock"
+            print("G2_DUPLICATE_WAIT", kind, pids[0], waiter, tuple(wait))
+        finally:
+            release.set()
+        result = winner.result(timeout=15)
+        with pytest.raises(ResearchBaseError) as exc:
+            loser.result(timeout=15)
+    assert exc.value.code is ErrorCode.DUPLICATE_CONTENT
+    assert result.capture_id == saved.id
+    changes = {
+        "strategy_" + kind + "_admissions": 1,
+        "research_questions" if kind == "question" else "hypotheses": 1,
+        "research_question_versions" if kind == "question" else "hypothesis_versions": 1,
+    }
+    assert counts(e["engine"]) == {t: n + changes.get(t, 0) for t, n in before.items()}
+
+
+def test_g2_inaccessible_source_precedes_frozen_reference_gate(b02_env):
+    from researchbase.application.strategy_candidate_promotion import CaptureNativeStrategyCommand
+
+    e = b02_env
+    # Owning Application created this project; it has no links to the existing sources.
+    before = counts(e["engine"])
+    with pytest.raises(ResearchBaseError) as exc:
+        e["service"].capture_native_strategy(
+            e["principal"],
+            CaptureNativeStrategyCommand(uuid4(), e["other_project"], "Recall", e["sources"]),
+        )
     assert exc.value.code is ErrorCode.FORBIDDEN
     assert counts(e["engine"]) == before

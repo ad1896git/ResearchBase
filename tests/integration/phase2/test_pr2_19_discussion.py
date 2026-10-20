@@ -1,7 +1,6 @@
 """F4 durable candidate transcripts never promote instruction content."""
 
 from dataclasses import replace
-from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import uuid4
 
@@ -22,7 +21,6 @@ from tests.integration.phase2.pr2_19_support import (
 from tests.integration.phase2.pr2_19_support import discussion_env as _discussion_env
 from tests.integration.phase2.pr2_19_support import pr219_discussion_env as _pr219_discussion_env
 from tests.integration.phase2.test_m3_evidence import TechnicalCredentials
-from tests.integration.phase2.test_pr2_00_ownership import _add_owner
 from tests.integration.phase2.test_pr2_10_binding_contract import _artifact, _service
 from tests.integration.phase2.test_pr2_10_discussion_persistence import _create
 
@@ -46,17 +44,26 @@ def test_transcript_binding_restart_and_forbidden_promotion(
     service, factory, store = _service(env, tmp_path)
     principal = author
     if caller == "agent":
-        aid = uuid4()
-        with engine.begin() as conn:
-            _add_owner(
-                conn,
-                actor_id=aid,
-                project_id=project,
-                now=datetime.now(UTC),
-                event_kind="ACTIVATED",
-                request_id=uuid4(),
+        # Application-created AGENT, deliberately unbound: AQ-08 stays pending.
+        from researchbase.application.commands import ApplicationService, CreateActorCommand
+        from researchbase.domain.identity import ActorType
+        from researchbase.foundation.execution_context import ExecutionContext
+        from researchbase.foundation.time import SystemClock
+
+        aid = (
+            ApplicationService(factory, SystemClock())
+            .create_actor(
+                CreateActorCommand(
+                    ActorType.AGENT,
+                    "S3 denied agent",
+                    None,
+                    ExecutionContext(
+                        actor_id=author.actor_id, request_id=uuid4(), client_type="test"
+                    ),
+                )
             )
-            conn.execute(text("UPDATE actors SET actor_type='AGENT' WHERE id=:id"), {"id": aid})
+            .id
+        )
         principal = replace(
             author,
             actor_id=aid,
@@ -118,6 +125,30 @@ def test_transcript_binding_restart_and_forbidden_promotion(
     with pytest.raises(ResearchBaseError) as denied:
         fresh.request_promotion(principal, project, session)
     assert denied.value.code is ErrorCode.FORBIDDEN
+    if caller == "agent":
+        from researchbase.application.discussion_hypothesis import (
+            DiscussionHypothesisCandidate,
+            DiscussionHypothesisService,
+            PromoteDiscussionHypothesisCommand,
+        )
+
+        before_admission = counts(engine)
+        with pytest.raises(ResearchBaseError) as denied:
+            DiscussionHypothesisService(
+                factory, credentials, store
+            ).promote_discussion_to_hypothesis(
+                principal,
+                PromoteDiscussionHypothesisCommand(
+                    project,
+                    session,
+                    uuid4(),
+                    DiscussionHypothesisCandidate(
+                        view.turns[0].id, version, env[5], "Agent admission is forbidden"
+                    ),
+                ),
+            )
+        assert denied.value.code is ErrorCode.FORBIDDEN
+        assert counts(engine) == before_admission
     assert counts(engine, science_tables) == before
 
 
@@ -183,7 +214,7 @@ def s3_discussion(pr219_discussion_env, tmp_path):
 
 
 def test_g4_explicit_manual_admission_suffix(s3_discussion):
-    """Human G4 composition; disputed AGENT/hash/receipt cases stay BLOCKED in AQs."""
+    """B03 HUMAN admission with exact receipt/session closure and hash literals."""
     from researchbase.application.discussion_hypothesis import DiscussionHypothesisService
 
     service, cmd, env, factory, store, content = s3_discussion
@@ -198,6 +229,27 @@ def test_g4_explicit_manual_admission_suffix(s3_discussion):
     with sql_protocol(engine) as sql:
         result = service.promote_discussion_to_hypothesis(principal, cmd)
     assert_first_share(sql, G4_SHARE)
+    assert [
+        (statement, params)
+        for tx in sql.transactions
+        for (statement, _, _), params in zip(tx.statements, tx.parameters, strict=True)
+        if "advisory" in statement
+    ] == [
+        (
+            "SELECT pg_advisory_xact_lock(hashtextextended(%(key)s,0))",
+            {
+                "key": f"discussion-receipt:{principal.deployment_id}:{project}:"
+                f"{principal.actor_id}:PROMOTE_HYPOTHESIS:{cmd.request_id}"
+            },
+        ),
+        (
+            "SELECT pg_advisory_xact_lock(hashtextextended(%(key)s,0))",
+            {
+                "key": f"b03:discussion-hypothesis:{cmd.session_id}:{cmd.candidate.turn_id}:"
+                f"{result.candidate_hash}"
+            },
+        ),
+    ]
     after = counts(engine)
     changes = {
         "hypotheses": 1,
@@ -218,11 +270,85 @@ def test_g4_explicit_manual_admission_suffix(s3_discussion):
             .one()
         )
         assert version["status"] == "DRAFT" and version["version_number"] == 1
-        assert version["frozen_at"] is version["success_criteria"] is None
+        assert version["content_hash"] is version["frozen_at"] is None
+        assert version["success_criteria"] is None
+        from tests.unit.phase2.test_b02_strategy_promotion_hashes import digest
+
+        candidate_hash = digest(
+            dict(
+                schema="discussion_hypothesis_candidate_v1",
+                project_id=str(project),
+                session_id=str(cmd.session_id),
+                turn_id=str(cmd.candidate.turn_id),
+                transcript_artifact_version_id=str(cmd.candidate.transcript_artifact_version_id),
+                research_question_version_id=str(cmd.candidate.research_question_version_id),
+                statement=cmd.candidate.statement,
+                expected_direction=cmd.candidate.expected_direction,
+                success_criteria=None,
+                rationale=cmd.candidate.rationale,
+            )
+        )
+        assert result.candidate_hash == candidate_hash
+        receipt = (
+            conn.execute(
+                text("SELECT * FROM discussion_command_receipts WHERE id=:id"),
+                {"id": result.receipt_id},
+            )
+            .mappings()
+            .one()
+        )
+        assert receipt["command_name"] == "PROMOTE_HYPOTHESIS"
+        assert receipt["actor_id"] == principal.actor_id
+        assert receipt["request_id"] == cmd.request_id
+        assert receipt["result_session_id"] == cmd.session_id
+        assert receipt["result_turn_id"] is None
+        assert receipt["input_hash"] == digest(
+            dict(
+                command="PROMOTE_HYPOTHESIS",
+                project_id=str(project),
+                session_id=str(cmd.session_id),
+                candidate_hash=candidate_hash,
+            )
+        )
+        closure = (
+            conn.execute(
+                text("""SELECT a.hypothesis_version_id,a.turn_id,
+            a.transcript_artifact_version_id,s.transcript_artifact_version_id AS bound_transcript,
+            a.research_question_version_id,q.version_id AS input_question,
+            s.status AS session_status
+            FROM discussion_hypothesis_admissions a
+            JOIN discussion_sessions s ON s.id=a.session_id
+            JOIN discussion_turns t ON t.id=a.turn_id AND t.session_id=s.id
+            JOIN discussion_session_question_inputs q ON q.session_id=s.id
+            WHERE a.receipt_id=:id"""),
+                {"id": result.receipt_id},
+            )
+            .mappings()
+            .one()
+        )
+        assert closure["session_status"] == "CLOSED"
+        assert closure["hypothesis_version_id"] == result.hypothesis_version_id
+        assert closure["turn_id"] == cmd.candidate.turn_id
+        assert (
+            closure["transcript_artifact_version_id"]
+            == closure["bound_transcript"]
+            == (cmd.candidate.transcript_artifact_version_id)
+        )
+        assert (
+            closure["research_question_version_id"]
+            == closure["input_question"]
+            == (cmd.candidate.research_question_version_id)
+        )
         digest = conn.execute(
             text("SELECT content_hash FROM artifact_versions WHERE id=:id"),
             {"id": cmd.candidate.transcript_artifact_version_id},
         ).scalar_one()
+    with factory() as uow:
+        from researchbase.domain.research import HypothesisVersionId
+
+        draft = uow.hypotheses.get_version(HypothesisVersionId(result.hypothesis_version_id))
+        assert draft is not None
+        assert draft.content_hash is draft.hash_scheme is draft.frozen_at is None
     assert store.open("sha256:" + digest) == content
     assert sha256(content).hexdigest() == digest
     fresh = DiscussionHypothesisService(factory, credentials, store)
@@ -238,6 +364,9 @@ def test_g4_explicit_manual_admission_suffix(s3_discussion):
             principal, replace(cmd, candidate=replace(cmd.candidate, statement="Changed request"))
         )
     assert exc.value.code is ErrorCode.IDEMPOTENCY_CONFLICT
+    with pytest.raises(ResearchBaseError) as exc:
+        fresh.promote_discussion_to_hypothesis(principal, replace(cmd, request_id=uuid4()))
+    assert exc.value.code is ErrorCode.DUPLICATE_CONTENT
     assert counts(engine) == after
 
 
@@ -391,33 +520,58 @@ def test_g4_saved_admission_is_immutable(s3_discussion, table):
     )
 
 
-def test_g4_same_request_two_connection_barrier_returns_one_admission(s3_discussion, monkeypatch):
+@pytest.mark.parametrize("same_request", [True, False])
+def test_g4_same_request_two_connection_barrier_returns_one_admission(
+    s3_discussion, monkeypatch, same_request
+):
     from concurrent.futures import ThreadPoolExecutor
-    from threading import Barrier
+    from threading import Event
 
     from researchbase.persistence.discussion_hypothesis_repository import (
-        SqlAlchemyDiscussionHypothesisRepository,
+        SqlAlchemyDiscussionHypothesisRepository as Repository,
     )
+    from tests.integration.phase2.test_pr2_18_concurrency import _witness
 
     service, cmd, env, *_ = s3_discussion
     before = counts(env[1])
-    barrier = Barrier(2)
+    ready, release = Event(), Event()
     pids = []
-    original = SqlAlchemyDiscussionHypothesisRepository.prepare
+    original = Repository.save
 
-    def synchronized(self, *, read_only):
-        original(self, read_only=read_only)
-        pids.append(self._session.connection().connection.driver_connection.info.backend_pid)
-        barrier.wait(timeout=10)
+    def hold(repo, *args, **kwargs):
+        original(repo, *args, **kwargs)
+        pids.append(repo._session.connection().connection.driver_connection.info.backend_pid)
+        ready.set()
+        assert release.wait(10)
 
-    monkeypatch.setattr(SqlAlchemyDiscussionHypothesisRepository, "prepare", synchronized)
+    monkeypatch.setattr(Repository, "save", hold)
     with ThreadPoolExecutor(2) as pool:
-        futures = [
-            pool.submit(service.promote_discussion_to_hypothesis, env[3], cmd) for _ in range(2)
-        ]
-        results = [f.result(timeout=15) for f in futures]
-    assert len(set(pids)) == 2
-    assert results[0] == results[1]
+        first = pool.submit(service.promote_discussion_to_hypothesis, env[3], cmd)
+        try:
+            assert ready.wait(10)
+            second = pool.submit(
+                service.promote_discussion_to_hypothesis,
+                env[3],
+                cmd if same_request else replace(cmd, request_id=uuid4()),
+            )
+            waiter = _witness(env[1], pids[0])
+            assert waiter != pids[0]
+            with env[1].connect() as observer:
+                wait = observer.execute(
+                    text("SELECT wait_event_type,wait_event FROM pg_stat_activity WHERE pid=:pid"),
+                    {"pid": waiter},
+                ).one()
+            assert wait.wait_event_type == "Lock" and wait.wait_event == "advisory"
+            print("G4_RECEIPT_CANDIDATE_WAIT", same_request, pids[0], waiter, tuple(wait))
+        finally:
+            release.set()
+        result = first.result(timeout=15)
+        if same_request:
+            assert second.result(timeout=15) == result
+        else:
+            with pytest.raises(ResearchBaseError) as exc:
+                second.result(timeout=15)
+            assert exc.value.code is ErrorCode.DUPLICATE_CONTENT
     changes = {
         "hypotheses": 1,
         "hypothesis_versions": 1,
@@ -547,3 +701,21 @@ def test_g4_saved_replay_after_application_closes_writer_role(s3_discussion, dur
         )
     assert exc.value.code is ErrorCode.FORBIDDEN
     assert counts(engine) == before
+
+
+@pytest.mark.parametrize("transcript", ["missing", "other_frozen"])
+def test_g4_transcript_mismatch_precedes_artifact_lookup(s3_discussion, transcript):
+    service, cmd, env, factory, store, _ = s3_discussion
+    wrong = (
+        uuid4()
+        if transcript == "missing"
+        else _artifact(factory, store, env[3], cmd.project_id, b"Other frozen transcript")
+    )
+    before = counts(env[1])
+    with pytest.raises(ResearchBaseError) as exc:
+        service.promote_discussion_to_hypothesis(
+            env[3],
+            replace(cmd, candidate=replace(cmd.candidate, transcript_artifact_version_id=wrong)),
+        )
+    assert exc.value.code is ErrorCode.FROZEN_REFERENCE_REQUIRED
+    assert counts(env[1]) == before

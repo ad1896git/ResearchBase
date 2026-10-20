@@ -389,11 +389,11 @@ def test_s3_owner_availability_does_not_hide_unresolved_architecture_questions()
     inventory = {(row, name): (available, blocker) for row, name, _, available, blocker in SUBCASES}
     assert inventory["G2", "candidate-admission"] == (True, None)
     assert inventory["G4", "discussion-admission"] == (True, None)
-    for row in ("G2", "G4"):
-        available, blocker = inventory[row, "s3-contract-reconciliation"]
-        assert not available and blocker and "AQ-S3-" in blocker
+    available, blocker = inventory["G2", "s3-contract-reconciliation"]
+    assert not available and blocker and "AQ-S3-08" in blocker
+    assert ("G4", "s3-contract-reconciliation") not in inventory
     report = full_gate_report()
     assert report["availability_is_acceptance"] is False
-    assert set(report["blocked_rows"]) == {"G2", "G4", "G6", "G7", "F1", "F5c", "F6", "F9"}
+    assert set(report["blocked_rows"]) == {"G2", "G6", "G7", "F1", "F5c", "F6", "F9"}
     with pytest.raises(ValueError, match="BLOCKED"):
         require_full_gate(report)

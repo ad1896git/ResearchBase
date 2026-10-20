@@ -730,3 +730,12 @@ git diff --check
 The exact `test -z` scope check exited 0 with no stdout. `git diff --check`
 exited 0 with no stdout. The status-line comparison against HEAD also passed;
 only the originally requested draft is modified.
+
+
+## §14 Director reconciliation 2026-10-20
+
+The director resolved AQ-S3-01..07 using the landed B02/B03 contracts as the
+canonical source under S3 §13 item 1. Their conflicting S3 wording is superseded;
+see [the decision record](B30S3_Architecture_Questions_2026-10-20.md).
+AQ-S3-08 remains OPEN: G2 positive AGENT admission is pending an authorized
+Application fixture path. No SQL-forged AGENT binding is permitted.

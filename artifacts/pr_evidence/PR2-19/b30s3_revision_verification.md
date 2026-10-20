@@ -51,7 +51,7 @@ Final stdout retained in `b30s3_final_static.log`: exit 0; Pyright `0 errors,
 0 warnings, 0 informations`; `783 files already formatted`; Ruff `All checks
 passed!`; diff check no stdout. These checks were rerun after test fixes.
 
-## Requested full check — incomplete, not PASS
+## Earlier interrupted full-check attempt (superseded by loop evidence)
 
 ```sh
 uv run pyright && uv run ruff format --check . && uv run ruff check . && git diff --check HEAD && /Users/fengwang/Documents/ResearchBaseProject/.pipeline/bin/full_suite_sharded.sh 6
@@ -76,7 +76,7 @@ These shared runner paths are outside the writable workspace roots. The runner
 could not acquire its shared concurrency slot and was interrupted (reported
 exit 1); no shard results exist for this run. Full stdout is retained in
 `b30s3_requested_check.log`. No runner/mutex bypass or external file edit was used.
-The full command has NOT passed and requires the loop's runner environment.
+That local attempt did not pass; the loop subsequently completed the full check below.
 The final G4 saved-role replay case and subsequent observed role-wait variants
 were added after that pre-check collected tests and are verified separately.
 
@@ -137,8 +137,140 @@ Owner regression result: exit 0,
 `212 passed, 534 warnings in 527.92s (0:08:47)`.
 Full stdout: `b30s3_focused_postgres.log`. This count is not a full-suite count.
 
-Final disposition: implemented and verified the non-conflicting G2/G4 test
-composition, report contracts, and architecture checks. Disputed expectations
-remain explicit Architecture Questions. The requested full sharded command is
-still incomplete because its shared runner paths cannot be written in this
-sandbox. No full-gate success or resolution of those owner questions is claimed.
+## Corrected loop full-run evidence
+
+Source: `.pipeline/runs/t162_impl_b30s3/20261020-012123/r2_check.txt`.
+The loop's real full run completed with **exit 0: 12051 passed, 67 skipped**
+(`10257 warning` in the aggregate output). Quick pre-check: `166 passed,
+197 warnings in 196.70s (0:03:16)`. Shard pass counts: 1510, 1687, 3939,
+1490, 1629, 1796; skips: 0, 0, 0, 1, 0, 66. This supersedes the earlier
+interrupted local runner attempt above. This follow-up does not rerun the whole suite.
+
+## Write isolation evidence
+
+`tests/integration/phase2/b30_observations.py::sql_protocol` probes PostgreSQL
+`SHOW transaction_isolation` and `SHOW transaction_read_only` after every
+observed statement. `assert_first_share` defaults to `READ_COMMITTED`, asserts
+that the first write statement is the exact SHARE inventory in that isolation,
+and asserts every statement in each write transaction stays READ COMMITTED and
+read-write. Both G2 and G4 suffix tests invoke it. Read-only preflight transactions
+are separately asserted REPEATABLE READ. These are actual server settings.
+
+Final disposition of original revision: focused suffix evidence above plus the
+loop's full-run result; the full PR2-19 gate remains BLOCKED. Director follow-up
+resolves AQ-S3-01..07; AQ-S3-08 remains OPEN. Follow-up focused verification is
+recorded separately below.
+
+
+## Director follow-up 2026-10-20
+
+Tests and docs only. AQ-S3-01..07 follow the director's B02/B03 precedence;
+AQ-S3-08 remains OPEN and the informational full gate remains fail-closed.
+G2 now checks exact B02 §5.2 capture/question/hypothesis hashes, DRAFT question
+parent composition, NULL scientific hash state, advisory SQL/keys, distinct-ID
+duplicates, other-actor replay denial and inaccessible-source precedence. G4
+checks the B03 §5.2 candidate/input literals, existing receipt/admission/session
+closure, NULL scientific hash state, HUMAN admission, AGENT denial through
+`promote_discussion_to_hypothesis`, advisory SQL/keys and transcript mismatch
+precedence. AGENT denial uses an Application-created unbound AGENT, with no
+SQL-forged actor type, membership or subject binding; it is not a positive bound
+AGENT fixture or evidence resolving AQ-S3-08.
+
+Duplicate-loser races retain the winner's uncommitted Application write until a
+second backend is witnessed via `pg_blocking_pids`; `pg_stat_activity` must show
+`wait_event_type='Lock'`. G2 losers wait on relation locks and return
+DUPLICATE_CONTENT after the winner commits. G4 waits on the landed receipt or
+candidate advisory lock; same request returns the winner and distinct request
+returns DUPLICATE_CONTENT. Whole-command StateDelta proves exactly one output.
+
+All commands use `UV_CACHE_DIR=/private/tmp/rb-lane65-uv-cache`.
+
+Static checks (each exit 0):
+
+```sh
+uv run pyright
+uv run ruff format --check .
+uv run ruff check .
+git diff --check HEAD
+```
+
+Observed: `0 errors, 0 warnings, 0 informations`; `783 files already formatted`;
+`All checks passed!`; diff check emitted no output.
+
+Focused unit and architecture command (exit 0):
+
+```sh
+uv run pytest tests/unit/phase2/test_pr2_19_report_contract.py tests/unit/phase2/test_pr2_08_native_strategy.py tests/unit/phase2/test_pr2_10_discussion_artifacts.py tests/unit/phase2/test_b02_strategy_promotion_hashes.py tests/unit/phase2/test_b02_strategy_promotion_uow.py tests/unit/phase2/test_b02_strategy_promotion_contract.py tests/architecture/test_pr2_19_boundaries.py tests/architecture/test_b02_strategy_promotion_boundaries.py -x --tb=short
+```
+
+`235 passed, 45 warnings in 50.19s`.
+
+Isolated backend-wait command (exit 0):
+
+```sh
+uv run pytest tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_discussion.py -k 'duplicate_loser or two_connection_barrier' -s -x --tb=short
+```
+
+`4 passed, 53 deselected, 12 warnings in 14.82s`. Actual server witnesses:
+
+```text
+G2_DUPLICATE_WAIT question 1099 1103 ('Lock', 'relation')
+G2_DUPLICATE_WAIT hypothesis 1244 1248 ('Lock', 'relation')
+G4_RECEIPT_CANDIDATE_WAIT True 1321 1347 ('Lock', 'advisory')
+G4_RECEIPT_CANDIDATE_WAIT False 1420 1454 ('Lock', 'advisory')
+```
+
+The two numbers are winner and waiter backend PIDs; both are real PostgreSQL
+backends. The winner was released only after these observations.
+
+
+Development diagnostics, all corrected before final verification:
+
+- The complete focused suffix command shown below first stopped at `1 failed,
+  9 passed, 21 warnings in 19.33s` (exit 1): the test incorrectly queried
+  scientific `hash_scheme` as a physical column. It now checks persisted NULLs
+  plus repository-loaded `hash_scheme=None`.
+- Subsequent attempts of that same command stopped at `1 failed, 35 passed,
+  99 warnings in 92.47s` and `1 failed, 35 passed, 99 warnings in 100.75s`
+  (both exit 1). The new actor fixture supplied uppercase text instead of the
+  existing `ActorType.AGENT` enum. The latter attempt had already loaded the
+  old test while the correction was being prepared.
+- `uv run pytest tests/integration/phase2/test_pr2_19_discussion.py -x --tb=short`
+  diagnosed the same enum issue (`1 failed, 1 passed, 6 warnings in 4.46s`,
+  exit 1), then the closure query's incorrect question-input column spelling
+  (`1 failed, 4 passed, 15 warnings in 17.21s`, exit 1). The query now uses
+  the landed `discussion_session_question_inputs.version_id`.
+- `uv run pytest tests/integration/phase2/test_pr2_19_discussion.py -k 'explicit_manual or forbidden_promotion' -x --tb=short`
+  verified both corrections: exit 0, `5 passed, 21 deselected, 15 warnings in
+  11.68s`.
+
+These were test-authoring defects, not changes to production behavior; no failed
+or deselected case is reported as passing.
+
+
+Final focused PostgreSQL command, repeated on the final test code:
+
+```sh
+uv run pytest tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_discussion.py -x --tb=short
+```
+
+First completed final run: exit 0, `60 passed, 171 warnings in 145.67s (0:02:25)`.
+
+Second completed final run: exit 0, `60 passed, 171 warnings in 138.66s (0:02:18)`.
+Both complete runs include the G2 and G4 modules and dependency inventory, with
+zero skips. Their 171 warnings are the existing Alembic `path_separator`
+deprecation warnings. No production/migration edits were made between those runs.
+
+Final scope checks:
+
+```sh
+git diff --check HEAD
+git diff --name-only HEAD -- src migrations
+git status --short
+```
+
+The first two commands exited 0 with no output. Status lists exactly seven
+modified files: this evidence, the AQ record, the S3 draft, the G2/G4 integration
+modules, their dependency inventory and the unit report contract. No full-suite
+command, commit, push or branch creation was performed in this follow-up.
+AQ-S3-08 and the full PR2-19 gate remain OPEN/BLOCKED respectively.
