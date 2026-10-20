@@ -113,6 +113,14 @@ def migration_inventory(root: Path = ROOT) -> list[dict[str, Any]]:
     return result
 
 
+def migration_inventory_table(migrations: list[dict[str, Any]]) -> str:
+    """Render every discovered revision, including parallel successors of B31."""
+    return "| Revision | Predecessor | SHA256 |\n| --- | --- | --- |\n" + "".join(
+        f"| {item['revision']} | {item['down_revision']} | {item['sha256']} |\n"
+        for item in migrations
+    )
+
+
 def adapter_inventory(root: Path = ROOT) -> tuple[AdapterInventoryEntry, ...]:
     entries = (
         (
@@ -406,18 +414,15 @@ def write_reports(root: Path = ROOT) -> Path:
         + (
             f"[Complete revision/predecessor/script digests]({ref}migration_scripts.json). "
             "No existing migration was edited; first-slice DDL and index proposals are empty. "
-            "The live head is 0068_b21_unresolved_capture, "
+            f"The live head is {migrations[-1]['revision']}; "
+            "the B31 boundary is 0068_b21_unresolved_capture, "
             "superseding the plan observation of 0042. "
             "Owning legacy predicates and populated downgrade refusals remain authoritative. "
             "Empty/no-op, reconnect, accepted populated checkpoints, rollback and histo"
             "rical-manifest tests "
             "are separate evidence; absent checkpoint acceptance remains BLOCKED.\n\n"
-            "| Revision | Predecessor | SHA256 |\n| --- | --- | --- |\n"
         )
-        + "".join(
-            f"| {item['revision']} | {item['down_revision']} | {item['sha256']} |\n"
-            for item in migrations
-        )
+        + migration_inventory_table(migrations)
     )
     texts[REPORT_NAMES[3]] = intro + (
         "Source identity and search hits supply no Claim support. Exact froze"

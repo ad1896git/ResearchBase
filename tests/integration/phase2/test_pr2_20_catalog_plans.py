@@ -272,3 +272,260 @@ def test_b29_candidate_only_in_owned_clone_with_exact_catalog_and_snapshot(decis
             conn.execute(text(f"ALTER INDEX {b.INDEX} RENAME TO b29_equivalent"))
         with pytest.raises(ValueError, match="equivalent"):
             b.install_candidate(clone)
+
+
+def test_full_chain_0068_catalog_contract(monkeypatch):
+    from sqlalchemy import create_engine
+
+    # Later owning migrations legitimately replace some names. Check the frozen
+    # B31 boundary explicitly, then verify the rejected B29 index at actual head.
+    with s.database() as url:
+        monkeypatch.setenv("DATABASE_URL", url)
+        s.upgrade(url, "0068_b21_unresolved_capture")
+        engine = create_engine(url)
+        try:
+            observed = s.catalog(engine)
+            constraints = {row[1]: row[2] for row in observed["constraints"]}
+            expected = {
+                "ck_pr214_one_target",
+                "ck_b08_issue_status",
+                "ck_b08_event_shape",
+                "fk_b08_event_action",
+                "fk_b08_event_re_review",
+                "fk_b08_event_decision",
+                "fk_b08_event_mapping",
+                "ck_b07_claim_ordinal",
+                "ck_b11_manuscript_ordinal",
+                "ck_b11_text_bounds",
+                "ck_b10_text_bounds",
+                "ck_b10_finite_time",
+                "ck_b12_decision_policy",
+                "ck_b12_text_bounds",
+                "revision_action_shape",
+                "pk_b07_action_re_review",
+                "ck_b09_request_tuple",
+                "ck_b09_grant_tuple",
+                "ck_b09_consent_condition",
+                "uq_b13_consumption_grant",
+                "uq_b13_command_key",
+                "ck_b13_result_tuple",
+                "ck_b13_hash",
+                "ck_b13_dto",
+                "uq_b15_package_parent",
+                "uq_b15_package_number",
+                "ck_b15_package_status",
+                "ck_b15_package_hash_state",
+                "uq_b15_consent_package",
+                "ck_b15_consent_hash",
+                "ck_b16_consent_state",
+                "ck_b16_consent_scope",
+                "fk_b17_result_package",
+                "uq_pr218_coverage_execution_pair",
+                "uq_b21_resolutions_pair",
+                "ck_b21_capture_version",
+                "ck_b21_capture_count",
+                "ck_b21_resolution_hash",
+                "uq_b22_prior_art_pair",
+                "fk_b22_prior_art_predecessor",
+                "ck_b19_novelty_material",
+                "ck_b04_manuscript_seal",
+                "ck_b04_manuscript_status",
+                "fk_b14_ready_decision",
+                "ck_b14a_event_tuple",
+                "fk_b14_ready_consumption",
+            }
+            assert expected <= constraints.keys()
+            assert (
+                not {"ck_b07_decision_tuple", "ck_b11_decision_policy", "ck_b10_decision_pair"}
+                & constraints.keys()
+            )
+            for name in ("fk_b17_result_package", "fk_b14_ready_consumption"):
+                assert "DEFERRABLE INITIALLY DEFERRED" in constraints[name]
+                assert "ON DELETE RESTRICT" in constraints[name]
+            indexes = {row[1] for row in observed["indexes"]}
+            assert {
+                "ix_pr214_issue_review_severity",
+                "uq_revision_action_predecessor",
+                "uq_b22_prior_art_predecessor",
+            } <= indexes
+            assert "ix_pr220_issue_open_blocking_review" not in indexes
+            deferred = {
+                "b08_complete_issue",
+                "b08_complete_event",
+                "pr215_complete_decision",
+                "pr215_complete_conclusion",
+                "pr215_complete_review",
+                "b07_complete_decision",
+                "b11_complete_manuscript",
+                "b10_complete_decision",
+                "b06_revision_complete",
+                "b07_complete_re_review",
+                "pr216_complete_request",
+                "pr216_complete_reviews",
+                "pr216_complete_decision",
+                "pr216_complete_grant",
+                "b13_complete_consumption",
+                "b17_complete_package",
+                "b17_complete_item",
+                "b17_complete_event",
+                "b17_complete_consumption",
+                "trg_b19_novelty_complete",
+                "trg_b19_basis_complete",
+                "b22_complete_correction",
+                "b04_complete_manuscript",
+                "b05_complete_review",
+                "b14_complete_publication",
+                "b14_complete_ready_event",
+                "b14_complete_ready_consumption",
+            }
+            with s.capture(engine) as reads, s.read_snapshot(engine) as conn:
+                triggers = {
+                    row[0]: tuple(row[1:])
+                    for row in conn.execute(
+                        text(
+                            "SELECT t.tgname,t.tgdeferrable,t.tginitdeferred,t.tgenabled "
+                            "FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid "
+                            "WHERE c.relnamespace='public'::regnamespace AND NOT t.tgisinternal"
+                        )
+                    )
+                }
+                assert all(triggers[name] == (True, True, "O") for name in deferred)
+                assert triggers["b07_decision_concern_immutable"] == (False, False, "O")
+                columns = {
+                    (row[0], row[1]): row[2]
+                    for row in conn.execute(
+                        text(
+                            "SELECT c.relname,a.attname,format_type(a.atttypid,a.atttypmod) "
+                            "FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid "
+                            "WHERE c.relnamespace='public'::regnamespace "
+                            "AND a.attnum>0 AND NOT a.attisdropped"
+                        )
+                    )
+                }
+                expected_columns = {
+                    ("review_issues", "status"): "character varying(16)",
+                    ("review_issues", "ordinal"): "integer",
+                    ("decision_records", "content_hash"): "character(64)",
+                    ("decision_records", "decided_at"): "timestamp with time zone",
+                    ("revision_actions", "content_hash"): "character(64)",
+                    ("revision_action_re_reviews", "revision_action_id"): "uuid",
+                    ("approval_grant_consumptions", "request_hash"): "character(64)",
+                    ("approval_grant_consumptions", "result_dto"): "jsonb",
+                    ("search_coverage", "material_version"): "smallint",
+                    ("search_coverage", "captured_unresolved_result_count"): "integer",
+                    ("search_coverage_resolutions", "resolution_content_hash"): "character(64)",
+                    ("prior_art_relations", "supersedes_prior_art_relation_id"): "uuid",
+                    ("novelty_assessments", "scope_statement"): "text",
+                    ("novelty_assessments", "closeness_criteria"): "text[]",
+                    ("publications", "lifecycle_status"): "character varying(24)",
+                    ("manuscript_versions", "status"): "character varying(16)",
+                    ("manuscript_versions", "content_hash"): "character(64)",
+                    ("manuscript_versions", "placement_set_hash"): "character(64)",
+                }
+                for table, names in {
+                    "review_issues": ("id", "review_record_id"),
+                    "review_issue_events": (
+                        "id",
+                        "issue_id",
+                        "revision_action_id",
+                        "decision_id",
+                        "re_review_record_id",
+                    ),
+                    "decision_records": (
+                        "id",
+                        "project_id",
+                        "decided_by",
+                        "supersedes_decision_id",
+                    ),
+                    "decision_revision_concerns": ("decision_id", "review_issue_id"),
+                    "revision_actions": (
+                        "id",
+                        "review_issue_id",
+                        "decision_record_id",
+                        "supersedes_revision_action_id",
+                    ),
+                    "revision_action_re_reviews": ("internal_review_record_id", "recorded_by"),
+                    "approval_grant_consumptions": (
+                        "id",
+                        "grant_id",
+                        "command_key",
+                        "project_id",
+                        "actor_id",
+                    ),
+                    "search_coverage_resolutions": (
+                        "search_coverage_id",
+                        "search_result_resolution_id",
+                    ),
+                    "publications": ("current_manuscript_version_id",),
+                }.items():
+                    expected_columns.update({(table, name): "uuid" for name in names})
+                expected_columns.update(
+                    {
+                        ("review_issues", "severity"): "character varying(16)",
+                        ("decision_records", "decision_type"): "character varying(40)",
+                        ("decision_records", "decision"): "character varying(16)",
+                        ("decision_records", "question"): "text",
+                        ("decision_records", "rationale"): "text",
+                        ("decision_records", "basis_set_hash"): "character(64)",
+                        ("decision_records", "hash_scheme"): "character varying(32)",
+                        ("revision_actions", "action_type"): "character varying(32)",
+                        ("revision_action_re_reviews", "recorded_at"): "timestamp with time zone",
+                        ("approval_grant_consumptions", "command"): "character varying(40)",
+                    }
+                )
+                assert {key: columns[key] for key in expected_columns} == expected_columns
+                functions = set(
+                    conn.execute(
+                        text(
+                            "SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace"
+                        )
+                    ).scalars()
+                )
+                assert {"b11_complete", "b19_complete_basis"} <= functions
+                assert not {"b11_complete", "b19_complete_basis"} & triggers.keys()
+                assert (
+                    conn.execute(text("SHOW transaction_isolation")).scalar_one()
+                    == "repeatable read"
+                )
+                assert conn.execute(text("SHOW transaction_read_only")).scalar_one() == "on"
+            assert all(
+                not any(
+                    term in sql.lower()
+                    for term in ("lock table", "pg_advisory", "for update", "for share")
+                )
+                for sql, _ in reads.statements
+            )
+            s.upgrade(url)
+            assert "ix_pr220_issue_open_blocking_review" not in {
+                row[1] for row in s.catalog(engine)["indexes"]
+            }
+            s.save_observation(
+                "catalog-0068", {"catalog": observed, "ddl": [], "proposed_indexes": []}
+            )
+        finally:
+            engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "checkpoint,present,absent",
+    [
+        ("0052_b07_revision_decisions", "ck_b07_decision_tuple", "ck_b11_decision_policy"),
+        ("0054_b11_ready_for_submission", "ck_b11_decision_policy", "ck_b07_decision_tuple"),
+        ("0056_b10_reconsideration", "ck_b10_decision_pair", "ck_b11_decision_policy"),
+    ],
+)
+def test_historical_decision_constraints_at_owning_checkpoint(
+    monkeypatch, checkpoint, present, absent
+):
+    from sqlalchemy import create_engine
+
+    with s.database() as url:
+        monkeypatch.setenv("DATABASE_URL", url)
+        s.upgrade(url, checkpoint)
+        engine = create_engine(url)
+        try:
+            names = {row[1] for row in s.catalog(engine)["constraints"]}
+            assert present in names
+            assert absent not in names
+        finally:
+            engine.dispose()

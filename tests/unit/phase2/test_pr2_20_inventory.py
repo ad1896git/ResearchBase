@@ -95,3 +95,21 @@ def test_b17_benchmark_cases_are_bounded_and_do_not_expand_large_acceptance():
         "package-consent-denied",
         "package-frozen-read",
     )
+
+
+def test_complete_migration_chain_inventory_and_rendered_rows():
+    items = r.migration_inventory()
+    boundary = next(
+        i for i, item in enumerate(items) if item["revision"] == "0068_b21_unresolved_capture"
+    )
+    assert boundary + 1 == 70
+    assert items[0]["revision"] == "0001_empty"
+    assert items[0]["down_revision"] is None
+    assert len({item["revision"] for item in items}) == len(items)
+    for previous, current in zip(items, items[1:], strict=False):
+        assert current["down_revision"] == previous["revision"]
+    table = r.migration_inventory_table(items)
+    assert len(table.splitlines()) == len(items) + 2
+    for item in items:
+        assert sum(line.startswith(f"| {item['revision']} |") for line in table.splitlines()) == 1
+        assert item["sha256"] == digest_bytes(Path(item["path"]).read_bytes())
