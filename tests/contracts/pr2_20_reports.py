@@ -475,7 +475,12 @@ def write_reports(root: Path = ROOT) -> Path:
         " and uv.lock SHA256 values are in the typed adapter records. Repository lice"
         "nse selection, upstream revision/license texts, notices, provider terms, cop"
         "yright/cache redistribution and dated advisory scan remain unresolved. No li"
-        "cense permission or security clearance is inferred.\n"
+        "cense permission or security clearance is inferred.\n\n"
+        "Direct runtime dependency `idna>=3.10,<4` (BSD-3-Clause) provides IDNA/UTS-46 "
+        "host normalization in `src/researchbase/domain/source_identity.py`. Declaring "
+        "the direct import makes source-identity normalization reproducible without relying "
+        "on an incidental transitive dependency. It was already transitive through "
+        "`anyio` in `uv.lock`; the locked version is 3.19. No dependency change.\n"
     )
     texts[REPORT_NAMES[1]] = intro + (
         "Offline compatibility uses typed candidate contracts and disposable canonical-"
@@ -582,7 +587,9 @@ def write_reports(root: Path = ROOT) -> Path:
             f"| {name} | `{node}` | See owning Row 18 evidence |\n"
             for name, node in ARCHITECTURE_NODES.items()
         )
-        + "\nOwner-accepted known gaps and scope dispositions:\n\n"
+        + "\nDelivered B20/B23 first slices:\n\n"
+        + NOVELTY_DELIVERY
+        + "\n\nOwner-accepted known gaps and scope dispositions:\n\n"
         + "\n".join(f"- {gap}" for gap in KNOWN_GAPS)
         + "\n\nFocused commands, exact counts and actual host details are in "
         "[verification](pr2_20_verification.md). Unrun, skipped, failed and blocked "
@@ -590,15 +597,13 @@ def write_reports(root: Path = ROOT) -> Path:
         "DEFERRED for the benchmark-host part of Row 17 only; local macOS results remain "
         "informational and are not a substitute. "
         "Reference/provider revision, license/notice/terms and dated advisory review "
-        "remain unresolved in the adapter inventory. No independent review or loop "
-        "full-suite acceptance is inferred from these focused runs.\n\n"
+        "remain unresolved in the adapter inventory.\n\n" + EXIT_REVIEW_EVIDENCE + "\n\n"
         "**STOP; wait for explicit Phase 3 GO.**\n\n"
         "Owner decisions needed\n\n"
         + "".join(f"- {row.criterion}: {row.reason}\n" for row in rows if row.status == "BLOCKED")
         + "".join(f"- {finding}\n" for finding in findings)
         + "- Reference/provider intake: resolve revision, license/notice/terms and dated "
         "advisory review before enabling providers (adapter inventory).\n"
-        + "- Attach independent review and loop full-suite evidence before owner exit decision.\n"
     )
     output = root / "docs/phase2"
     output.mkdir(parents=True, exist_ok=True)
@@ -694,6 +699,42 @@ EXIT_OWNERS = dict(
     )
 )
 B31_CONTRACT = "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md"
+NOVELTY_DELIVERY = (
+    "Owner-approved 2026-10-19 first slices delivered: "
+    "B20 `NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE` with a typed `ScreeningBasis`, sealed "
+    "probe/result children and exact historical readback "
+    "([B20 contract](../proposals/B20_Screening_Negative_Probe_Contract_DRAFT.md), "
+    "migration `0070_b20_screening_basis`); "
+    "B23 exact NoveltyAssessment reviews, issue-only `NOVELTY_REASSESSMENT` actions "
+    "referencing precommitted direct replacements, and independent re-review links "
+    "that leave Issues OPEN "
+    "([B23 contract](../proposals/B23_Novelty_Review_Revision_Contract_DRAFT.md), "
+    "migration `0071_b23_novelty_review`). "
+    "Implementation: `src/researchbase/domain/novelty.py`, "
+    "`src/researchbase/application/internal_review.py`, "
+    "`src/researchbase/application/revision_action.py`; migrations are under "
+    "`migrations/versions/`."
+)
+NOVELTY_NON_GOALS = (
+    "B20/B23 remaining scope exclusions (contracts §2 and §12.5): prospective "
+    "preregistration/external search exhaustiveness, automatic query planning/provider "
+    "execution, programmable criteria, failed/adverse-branch replacement, universal "
+    "priority claims, source-merge deduplication, automatic selection across independent "
+    "comparison roots and automatic impact propagation; novelty-target Decisions, "
+    "NO_CHANGE, Issue disposition/blocking-concern resolution, direct PriorArtRelation/"
+    "SearchCoverage review targets, and assessment creation inside review/revision commands. "
+    "MANUSCRIPT_CHANGE RevisionAction as a novelty result remains a non-goal; M1 already "
+    "supports MANUSCRIPT_CHANGE for manuscript concerns. No novelty-driven approval, "
+    "READY/package gate or generic Agent runtime."
+)
+EXIT_REVIEW_EVIDENCE = (
+    "[Independent director review and integration full check]"
+    "(phase2_exit_review_2026-10-20.md): lane72 head `64b5f1e`, 2026-10-20, "
+    "**12,523 passed, 66 skipped, 0 failed (exit 0)**; pyright 0 errors, ruff clean, "
+    "git diff --check clean, one Alembic head 0075. These are the director's recorded "
+    "integration results, separate from the focused runs below. The review identifies "
+    "R1–R3 for correction; owner exit acceptance and Phase 3 GO remain separate."
+)
 KNOWN_GAPS = (
     f"Dedicated Linux benchmark host not tested for now, owner 2026-10-20: "
     f"Row 17 benchmark-host part only DEFERRED; revisit before Phase 3 performance claims. "
@@ -701,9 +742,7 @@ KNOWN_GAPS = (
     f"B28 real PaperQA2 DEFERRED, owner 2026-10-19: {B28_DISPOSITION}.",
     f"AQ-S3-08, owner 2026-10-20: positive G2 AGENT admission test pending; "
     f"no Application path creates a bound AGENT. Never forge the binding: {AQ_S3}.",
-    f"D-B31-03: B20 NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE (NO_CLOSE_PRIOR_ART), B23 "
-    "novelty review/revision, and MANUSCRIPT_CHANGE remain Phase 2 exit non-goals: "
-    f"{B31_CONTRACT}.",
+    NOVELTY_NON_GOALS,
 )
 # Each file is an owning acceptance suite, not a code-presence availability probe.
 # All tests in each selected file are required, including every parametrized case.

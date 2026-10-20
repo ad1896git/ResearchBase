@@ -29,7 +29,10 @@ from tests.contracts.pr2_20_reports import (  # noqa: E402
     B31_CONTRACT,
     EXIT_CRITERIA,
     EXIT_FILES,
+    EXIT_REVIEW_EVIDENCE,
     LINUX_DISPOSITION,
+    NOVELTY_DELIVERY,
+    NOVELTY_NON_GOALS,
     ROOT,
     context,
     exit_rows,
@@ -392,9 +395,8 @@ def write_verification(ctx, directory: Path, results, verdict: str) -> None:
         f"AQ-S3-08 defers only positive G2 AGENT admission ({AQ_S3}); dedicated Linux "
         f"benchmark host defers only the Row 17 host requirement ({LINUX_DISPOSITION}). "
         "Both are owner-accepted 2026-10-20; every other owning assertion must pass. "
-        f"B20 NO_CLOSE_PRIOR_ART, B23 and MANUSCRIPT_CHANGE are Phase 2 exit non-goals "
-        f"under D-B31-03 ({B31_CONTRACT}). "
-        "No independent reviewer or loop full-suite result is inferred. "
+        f"{NOVELTY_DELIVERY} {NOVELTY_NON_GOALS} "
+        f"{EXIT_REVIEW_EVIDENCE} "
         "See phase2_exit_report.md for every remaining owner decision. "
         "STOP; wait for explicit Phase 3 GO.\n"
     )

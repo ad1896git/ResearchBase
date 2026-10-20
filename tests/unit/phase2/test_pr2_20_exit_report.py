@@ -40,7 +40,12 @@ def test_all_six_reports_nineteen_literal_rows_thirteen_architecture_mappings(
             link = link.split("#")[0]
             if link == "pr2_20_verification.md":
                 continue  # Filled by the separate verifier, not fabricated by the renderer.
-            assert (path.parent / link).resolve().is_file() if link else path.is_file()
+            if link:
+                assert (path.parent / link).resolve().is_file() or (
+                    r.ROOT / "docs/phase2" / link
+                ).resolve().is_file()
+            else:
+                assert path.is_file()
     rows = r.exit_rows()
     assert len(rows) == 19
     assert all(
@@ -430,12 +435,28 @@ def test_s4_generated_narratives_known_gaps_and_owner_decisions(tmp_path, monkey
         "AQ-S3-08",
         r.AQ_S3,
         r.LINUX_DISPOSITION,
-        "D-B31-03",
-        "NO_CLOSE_PRIOR_ART",
+        "first slices delivered",
+        "NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE",
         "B23",
         "MANUSCRIPT_CHANGE",
     ):
         assert token in report
+    assert "remain Phase 2 exit non-goals" not in report
+    assert r.NOVELTY_DELIVERY in report
+    assert r.NOVELTY_NON_GOALS in report
+    for token in (
+        "0070_b20_screening_basis",
+        "0071_b23_novelty_review",
+        "B20_Screening_Negative_Probe_Contract_DRAFT.md",
+        "B23_Novelty_Review_Revision_Contract_DRAFT.md",
+        "phase2_exit_review_2026-10-20.md",
+        "12,523 passed, 66 skipped, 0 failed",
+    ):
+        assert token in report
+    assert "Attach independent review and loop full-suite evidence" not in report
+    inventory_text = (docs / "reference_system_inventory.md").read_text()
+    for token in ("idna>=3.10,<4", "BSD-3-Clause", "IDNA/UTS-46", "transitive", "anyio"):
+        assert token in inventory_text
     final = report.split("Owner decisions needed")[-1]
     for row in r.exit_rows(tmp_path):
         if row.status == "BLOCKED":
@@ -468,3 +489,22 @@ def test_each_deferral_requires_its_own_cited_file(baseline_exit_rows, criterion
     item = baseline_exit_rows[r.EXIT_CRITERIA.index(criterion)]
     with pytest.raises(ValueError):
         replace(item, status="DEFERRED", disposition_refs=(wrong,))
+
+
+def test_exit_verification_records_delivered_novelty_slices_and_director_evidence(
+    tmp_path, monkeypatch
+):
+    from scripts import pr2_20_verify as verifier
+
+    monkeypatch.setattr(verifier, "ROOT", tmp_path)
+    monkeypatch.setattr(verifier, "exit_rows", lambda **kwargs: ())
+    docs = tmp_path / "docs/phase2"
+    docs.mkdir(parents=True)
+    verifier.write_verification(r.context(), tmp_path, [], "BLOCKED")
+    report = (docs / "pr2_20_verification.md").read_text()
+    assert (
+        "B20 NO_CLOSE_PRIOR_ART, B23 and MANUSCRIPT_CHANGE are Phase 2 exit non-goals" not in report
+    )
+    assert r.NOVELTY_DELIVERY in report
+    assert r.NOVELTY_NON_GOALS in report
+    assert r.EXIT_REVIEW_EVIDENCE in report

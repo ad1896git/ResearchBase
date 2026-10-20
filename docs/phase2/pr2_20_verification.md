@@ -1,15 +1,15 @@
 # PR2-20 focused verification
 
-Subject `5a78b9f7b96750de2b26a081551bb0bd88bfa91e`; authored dirty diff `2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2`. Generated reports/evidence are excluded from their own digest.
+Subject `1278a5eecbe5357d9d440a2d0da05541c67ca028`; authored dirty diff `8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61`. Generated reports/evidence are excluded from their own digest.
 
-[Recorded commands, host and counts](#focused-commands). Counts below are exact command totals. Each OWNING_ACCEPTANCE record partitions those cases by the row's owning files and retains every parametrized outcome. ENABLED describes the required acceptance check, not a live provider. The verifier never runs the whole suite. Static checks have no pytest counts. Test observations remain in tmp_path; sanitized raw JSON/logs remain local under `pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db`. Report links target tracked Markdown because the sandbox prohibits writing Git's index. No evidence directory was staged.
+[Recorded commands, host and counts](#focused-commands). Counts below are exact command totals. Each OWNING_ACCEPTANCE record partitions those cases by the row's owning files and retains every parametrized outcome. ENABLED describes the required acceptance check, not a live provider. The verifier never runs the whole suite. Static checks have no pytest counts. Test observations remain in tmp_path; sanitized raw JSON/logs remain local under `pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05`. Report links target tracked Markdown because the sandbox prohibits writing Git's index. No evidence directory was staged.
 
 ## Subject
 
 ```json
 {
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e"
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028"
 }
 ```
 
@@ -24,12 +24,12 @@ Actual local host: `{"architecture": "arm64", "benchmark_disposition": "DEFERRED
 | `uv run ruff format --check .` | 0 | — | — | — | — | PASS |
 | `uv run pyright` | 0 | — | — | — | — | PASS |
 | `uv run alembic heads` | 0 | — | — | — | — | PASS |
-| `uv run pytest tests/unit/phase2/test_pr2_20_evidence.py tests/unit/phase2/test_pr2_20_exit_report.py tests/unit/phase2/test_pr2_20_inventory.py tests/architecture/test_pr2_20_boundaries.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/unit-architecture.xml` | 0 | 157 | 0 | 0 | 0 | PASS |
-| `uv run pytest tests/integration/phase2/test_pr2_20_security.py tests/integration/phase2/test_pr2_20_catalog_plans.py tests/integration/phase2/test_pr2_20_migrations.py tests/integration/phase2/test_pr2_20_governance_races.py tests/integration/phase2/test_pr2_20_novelty.py tests/e2e/test_pr2_20_benchmark.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/changed-postgres.xml` | 0 | 302 | 0 | 0 | 65 | BLOCKED |
-| `uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml` | 0 | 782 | 0 | 0 | 0 | PASS |
-| `RB_PR220_BENCHMARK=1 uv run pytest tests/e2e/test_pr2_20_benchmark.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/large-benchmark.xml` | 0 | 102 | 0 | 0 | 63 | BLOCKED |
+| `uv run pytest tests/unit/phase2/test_pr2_20_evidence.py tests/unit/phase2/test_pr2_20_exit_report.py tests/unit/phase2/test_pr2_20_inventory.py tests/architecture/test_pr2_20_boundaries.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/unit-architecture.xml` | 0 | 158 | 0 | 0 | 0 | PASS |
+| `uv run pytest tests/integration/phase2/test_pr2_20_security.py tests/integration/phase2/test_pr2_20_catalog_plans.py tests/integration/phase2/test_pr2_20_migrations.py tests/integration/phase2/test_pr2_20_governance_races.py tests/integration/phase2/test_pr2_20_novelty.py tests/e2e/test_pr2_20_benchmark.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/changed-postgres.xml` | 0 | 302 | 0 | 0 | 65 | BLOCKED |
+| `uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml` | 0 | 782 | 0 | 0 | 0 | PASS |
+| `RB_PR220_BENCHMARK=1 uv run pytest tests/e2e/test_pr2_20_benchmark.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/large-benchmark.xml` | 0 | 102 | 0 | 0 | 63 | BLOCKED |
 
-Computed validate_exit verdict: **PASS**. Owner acceptance is separate. B28 real PaperQA2 is DEFERRED under the owner 2026-10-19 disposition. AQ-S3-08 defers only positive G2 AGENT admission (docs/proposals/B30S3_Architecture_Questions_2026-10-20.md); dedicated Linux benchmark host defers only the Row 17 host requirement (docs/proposals/Owner_Decision_Linux_Benchmark_Host_2026-10-20.md). Both are owner-accepted 2026-10-20; every other owning assertion must pass. B20 NO_CLOSE_PRIOR_ART, B23 and MANUSCRIPT_CHANGE are Phase 2 exit non-goals under D-B31-03 (docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md). No independent reviewer or loop full-suite result is inferred. See phase2_exit_report.md for every remaining owner decision. STOP; wait for explicit Phase 3 GO.
+Computed validate_exit verdict: **PASS**. Owner acceptance is separate. B28 real PaperQA2 is DEFERRED under the owner 2026-10-19 disposition. AQ-S3-08 defers only positive G2 AGENT admission (docs/proposals/B30S3_Architecture_Questions_2026-10-20.md); dedicated Linux benchmark host defers only the Row 17 host requirement (docs/proposals/Owner_Decision_Linux_Benchmark_Host_2026-10-20.md). Both are owner-accepted 2026-10-20; every other owning assertion must pass. Owner-approved 2026-10-19 first slices delivered: B20 `NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE` with a typed `ScreeningBasis`, sealed probe/result children and exact historical readback ([B20 contract](../proposals/B20_Screening_Negative_Probe_Contract_DRAFT.md), migration `0070_b20_screening_basis`); B23 exact NoveltyAssessment reviews, issue-only `NOVELTY_REASSESSMENT` actions referencing precommitted direct replacements, and independent re-review links that leave Issues OPEN ([B23 contract](../proposals/B23_Novelty_Review_Revision_Contract_DRAFT.md), migration `0071_b23_novelty_review`). Implementation: `src/researchbase/domain/novelty.py`, `src/researchbase/application/internal_review.py`, `src/researchbase/application/revision_action.py`; migrations are under `migrations/versions/`. B20/B23 remaining scope exclusions (contracts §2 and §12.5): prospective preregistration/external search exhaustiveness, automatic query planning/provider execution, programmable criteria, failed/adverse-branch replacement, universal priority claims, source-merge deduplication, automatic selection across independent comparison roots and automatic impact propagation; novelty-target Decisions, NO_CHANGE, Issue disposition/blocking-concern resolution, direct PriorArtRelation/SearchCoverage review targets, and assessment creation inside review/revision commands. MANUSCRIPT_CHANGE RevisionAction as a novelty result remains a non-goal; M1 already supports MANUSCRIPT_CHANGE for manuscript concerns. No novelty-driven approval, READY/package gate or generic Agent runtime. [Independent director review and integration full check](phase2_exit_review_2026-10-20.md): lane72 head `64b5f1e`, 2026-10-20, **12,523 passed, 66 skipped, 0 failed (exit 0)**; pyright 0 errors, ruff clean, git diff --check clean, one Alembic head 0075. These are the director's recorded integration results, separate from the focused runs below. The review identifies R1–R3 for correction; owner exit acceptance and Phase 3 GO remain separate. See phase2_exit_report.md for every remaining owner decision. STOP; wait for explicit Phase 3 GO.
 
 ## Row evidence
 
@@ -39,9 +39,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -49,15 +49,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "LiteratureSource identity resolution",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-01.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-01.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -72,7 +72,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_01_source_identity.py::test_register_verify_reject_rebind_and_replay_are_durable",
     "tests/integration/phase2/test_pr2_01_source_identity.py::test_register_without_identifier_replay_and_changed_input_conflict",
@@ -94,9 +94,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -104,15 +104,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "SourceVersion lineage/freeze",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-02.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-02.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -127,7 +127,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_02_source_version_migration.py::test_source_version_authority_rechecks_after_confirmed_lock_wait",
     "tests/integration/phase2/test_pr2_02_source_version_migration.py::test_pr2_02_fresh_migration_adds_version_merge_and_command_receipt_schema",
@@ -153,9 +153,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -163,15 +163,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": "LiteratureSearchExecution",
   "criterion": "LiteratureSearchPlan/Run provenance",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-03.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-03.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -187,7 +187,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_03_literature_search_plan_application.py::test_plan_draft_cardinality_language_freeze_and_immutability",
     "tests/integration/phase2/test_pr2_04_execution_provenance.py::test_pr2_04_draft_plan_version_cannot_be_bound_to_execution",
@@ -208,9 +208,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -218,15 +218,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "LiteratureEvidence source+locator trace",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-04.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-04.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -241,7 +241,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_m3_evidence.py::test_pg_manual_evidence_replay_and_restart",
     "tests/integration/phase2/test_m3_evidence.py::test_pg_missing_content_version_mismatch_and_wrong_location",
@@ -269,9 +269,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -279,16 +279,16 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "STORM-like Native ResearchStrategy",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json",
     "docs/proposals/B30S3_Architecture_Questions_2026-10-20.md"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-05.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-05.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -303,7 +303,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "DEFERRED",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_b02_strategy_capture.py::test_capture_exact_bytes_after_restart_no_scientific_delta",
     "tests/integration/phase2/test_b02_strategy_capture.py::test_external_execution_is_outside_database_transaction",
@@ -357,7 +357,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "PaperQA2 Adapter",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
     "docs/proposals/B28_PaperQA2_Intake_Assessment_DRAFT.md"
   ],
@@ -374,7 +374,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "DEFERRED",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": []
 }
 ```
@@ -385,9 +385,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -395,15 +395,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "Academic Discussion explicit promotion",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-07.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-07.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -418,7 +418,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_b03_discussion_hypothesis.py::test_draft_restart_initial_material_and_lock_free_read",
     "tests/integration/phase2/test_b03_discussion_hypothesis.py::test_request_conflict_duplicate_and_missing_store",
@@ -462,9 +462,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -472,15 +472,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "ScientificConclusion support-set freeze",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-08.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-08.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -495,7 +495,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_claim_only_freeze_exact_hash_restart_and_supersession",
     "tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_snapshot_exact_claim_and_project_binding",
@@ -521,9 +521,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -531,15 +531,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "ScientificConclusion Frozen Provenance Closure",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-09.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-09.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -554,7 +554,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_claim_only_freeze_exact_hash_restart_and_supersession",
     "tests/integration/phase2/test_pr2_11_r2_persistence.py::test_pg_snapshot_exact_claim_and_project_binding",
@@ -584,9 +584,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -594,15 +594,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "ManuscriptVersion scientific placement",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-10.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-10.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -618,7 +618,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_b04_manuscript_freeze.py::test_empty_seal_restart_and_replay",
     "tests/integration/phase2/test_b04_manuscript_freeze.py::test_all_placements_and_frozen_readback",
@@ -646,9 +646,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -656,15 +656,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "Citation \u2260 ClaimSupport",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-11.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-11.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -680,7 +680,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_19_citation_trace.py::test_citation_only_preserves_claim_hashes_and_numeric_facts",
     "tests/integration/phase2/test_pr2_19_citation_trace.py::test_experiment_and_literature_trace_paths_remain_separate",
@@ -695,9 +695,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -705,15 +705,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "Internal Review \u2192 Issue \u2192 Decision \u2192 Revision",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-12.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-12.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -729,7 +729,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_19_revision_cycle.py::test_completed_result_does_not_dispose_until_independent_command",
     "tests/integration/phase2/test_pr2_19_revision_cycle.py::test_wrong_result_cannot_resolve_original_concern",
@@ -779,9 +779,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -789,15 +789,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "Basic Approval frozen target / blocking gate",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-13.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-13.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -812,7 +812,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_approval.py::test_approval_atomic_history_and_replay",
     "tests/integration/phase2/test_approval.py::test_rejection_scope_and_pending_bypass",
@@ -867,9 +867,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -877,15 +877,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": "PreparedSubmissionVersion",
   "criterion": "SubmissionVersion package freeze",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-14.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-14.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -900,7 +900,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_19_package_freeze.py::test_g7_ready_preparation_consent_freeze_then_withdrawal_is_derived_stale",
     "tests/integration/phase2/test_pr2_19_package_freeze.py::test_g7_denied_freeze_has_no_partial_suffix",
@@ -942,9 +942,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -952,15 +952,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "Retracted-source impact propagation",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-15.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-15.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -975,7 +975,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_19_lineage.py::test_lineage_rejection_has_zero_delta",
     "tests/integration/phase2/test_pr2_19_lineage.py::test_lineage_preserves_exact_bytes_and_blocks_new_support",
@@ -1019,9 +1019,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -1029,15 +1029,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "Hallucinated citation rejection",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-16.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-16.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -1052,7 +1052,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_19_candidates.py::test_native_strategy_is_candidate_only",
     "tests/integration/phase2/test_pr2_19_candidates.py::test_candidate_exact_corpus_and_zero_scientific_delta",
@@ -1094,10 +1094,10 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/integration/phase2/test_pr2_20_security.py tests/integration/phase2/test_pr2_20_catalog_plans.py tests/integration/phase2/test_pr2_20_migrations.py tests/integration/phase2/test_pr2_20_governance_races.py tests/integration/phase2/test_pr2_20_novelty.py tests/e2e/test_pr2_20_benchmark.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/changed-postgres.xml",
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/integration/phase2/test_pr2_20_security.py tests/integration/phase2/test_pr2_20_catalog_plans.py tests/integration/phase2/test_pr2_20_migrations.py tests/integration/phase2/test_pr2_20_governance_races.py tests/integration/phase2/test_pr2_20_novelty.py tests/e2e/test_pr2_20_benchmark.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/changed-postgres.xml",
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -1105,18 +1105,18 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "PostgreSQL migrations/integration",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json",
     "docs/proposals/Owner_Decision_Linux_Benchmark_Host_2026-10-20.md"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-17.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/changed-postgres-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/changed-postgres-junit.xml",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-17.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/changed-postgres-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/changed-postgres-junit.xml",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0,
@@ -1132,7 +1132,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "DEFERRED",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/integration/phase2/test_pr2_19_approval_atomicity.py::test_protected_command_rolls_back_but_committed_predecessors_survive",
     "tests/integration/phase2/test_pr2_19_atomicity.py::test_discussion_parent_relation_receipt_rollback",
@@ -1317,9 +1317,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -1327,15 +1327,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "No STORM/PaperQA vendor-specific Core schema",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-18.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-18.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -1350,7 +1350,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/architecture/test_pr2_19_boundaries.py::test_literature_source_not_evidence",
     "tests/architecture/test_pr2_19_boundaries.py::test_search_result_not_evidence",
@@ -1380,9 +1380,9 @@ Recorded after verification of the owning assertions and local log digests. Raw 
 
 ```json
 {
-  "acceptance_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "acceptance_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "commands": [
-    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-o7pb395x/owning-acceptance.xml"
+    "uv run pytest tests/architecture/test_pr2_19_boundaries.py tests/e2e/test_phase1_concurrency_acceptance.py tests/e2e/test_phase1_cross_adapter_equivalence.py tests/e2e/test_phase1_failure_recovery.py tests/e2e/test_phase1_golden_scientific_workflow.py tests/e2e/test_phase1_historical_exactness.py tests/e2e/test_phase1_performance_shape.py tests/integration/phase2/test_approval.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b26_finding_impact.py tests/integration/phase2/test_b27_defensive_closure_read.py tests/integration/phase2/test_m1_manuscript_reconsideration.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m3_evidence.py tests/integration/phase2/test_pr2_01_source_identity.py tests/integration/phase2/test_pr2_02_source_version_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_application.py tests/integration/phase2/test_pr2_04_execution_provenance.py tests/integration/phase2/test_pr2_11_r2_persistence.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_pr2_19_approval_atomicity.py tests/integration/phase2/test_pr2_19_atomicity.py tests/integration/phase2/test_pr2_19_candidates.py tests/integration/phase2/test_pr2_19_citation_trace.py tests/integration/phase2/test_pr2_19_dependencies.py tests/integration/phase2/test_pr2_19_discussion.py tests/integration/phase2/test_pr2_19_governance.py tests/integration/phase2/test_pr2_19_grant_consumption_publication.py tests/integration/phase2/test_pr2_19_grant_consumption_release.py tests/integration/phase2/test_pr2_19_integrity.py tests/integration/phase2/test_pr2_19_lineage.py tests/integration/phase2/test_pr2_19_novelty.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_races.py tests/integration/phase2/test_pr2_19_rag_evidence.py tests/integration/phase2/test_pr2_19_rejection.py tests/integration/phase2/test_pr2_19_replay.py tests/integration/phase2/test_pr2_19_revision_cycle.py tests/integration/phase2/test_pr2_19_search_evidence.py tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py tests/unit/phase2/test_pr2_08_native_strategy.py --tb=short --junitxml /var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/b31-s4-5tqufo_e/owning-acceptance.xml"
   ],
   "contract_refs": [
     "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md",
@@ -1390,15 +1390,15 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   ],
   "corrected_term": null,
   "criterion": "Phase 1 Exit tests continue",
-  "dirty_diff_sha256": "2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2",
+  "dirty_diff_sha256": "8be7d685d474c9cb373d627bebe6e204e1a09e9a756145a9ed06b549edb1bb61",
   "disposition_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/scope-dispositions.json"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/scope-dispositions.json"
   ],
   "errors": 0,
   "evidence_refs": [
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-19.json",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-000.txt",
-    "pr_evidence/pr2-20/96cd4aed0dd9f596873d898e20266f20e9625a36f77d3483dc574812f7f009db/owning-acceptance-junit.xml"
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-19.json",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-000.txt",
+    "pr_evidence/pr2-20/10ea37ab50af126f0ce02dcf7f48b957f5035f0bde88869f9cbb73c94deccc05/owning-acceptance-junit.xml"
   ],
   "exit_codes": [
     0
@@ -1413,7 +1413,7 @@ Recorded after verification of the owning assertions and local log digests. Raw 
   "schema_version": 1,
   "skipped": 0,
   "status": "PASS",
-  "subject_revision": "5a78b9f7b96750de2b26a081551bb0bd88bfa91e",
+  "subject_revision": "1278a5eecbe5357d9d440a2d0da05541c67ca028",
   "test_nodes": [
     "tests/e2e/test_phase1_concurrency_acceptance.py::test_representative_commands_rollback_and_retry_without_partial_rows",
     "tests/e2e/test_phase1_concurrency_acceptance.py::test_concurrent_version_revise_has_one_winner_and_no_partial_history",
