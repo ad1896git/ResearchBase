@@ -127,7 +127,7 @@ def save_profile(value: BenchmarkProfile):
 
 
 def large_host_blockers(value: BenchmarkProfile) -> tuple[str, ...]:
-    failures = ["Superseded manuscript history BLOCKED: owning lifecycle unavailable"]
+    failures = ["Superseded manuscript history BLOCKED: pending M1-S1 (manuscript v1->v2)"]
     if not (
         platform.system() == "Linux"
         and platform.machine() in {"x86_64", "AMD64"}
@@ -772,3 +772,385 @@ def test_h2_same_target_writer_contention_observes_wait_and_no_partial_effect(
         event.remove(engine, "after_cursor_execute", pause)
         event.remove(engine, "handle_error", sql_error)
         observer.dispose()
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("kind", ["decision", "action", "link", "disposition"])
+@pytest.mark.parametrize("operation", ["first", "replay", "read"])
+def test_s3_revision_concern_disposition_profile(revision_env, workers, kind, operation):
+    from tests.integration.phase2.pr2_20_scaled import revision_profile
+
+    engine = revision_env[2][-1][8]
+    value = replace(profile(engine, False), warmups=1, calls_per_worker=1, repetitions=1)
+    for repeat in range(value.repetitions):
+        operations = revision_profile(
+            revision_env, kind, workers * (value.warmups + value.calls_per_worker)
+        )
+        if operation != "first":
+            for write, _ in operations:
+                write()
+        invoke = lambda index, operations=operations: operations[index][operation == "read"]()  # noqa: E731
+        _s3_samples(
+            engine,
+            value,
+            f"revision-{kind}-{operation}",
+            workers,
+            repeat,
+            invoke,
+            read=operation == "read",
+        )
+        for write, read in operations:
+            if kind == "link":
+                assert read().actions
+            else:
+                assert read() == write()
+
+
+def _s3_samples(engine, value, case, workers, repeat, invoke, *, read=False):
+    """Small informational timings; every future must complete without unexpected failures."""
+    from tests.integration.phase2.b30_observations import (
+        assert_first_share,
+        assert_snapshot_read,
+        sql_protocol,
+    )
+
+    from researchbase.persistence.approval_repository import B13_SHARE_SQL
+    from researchbase.persistence.novelty_repository import N
+    from researchbase.persistence.prepared_submission_repository import (
+        B15_SHARE_SQL,
+        B16_SHARE_SQL,
+        B17_SHARE_SQL,
+    )
+    from researchbase.persistence.revision_action_repository import REVISION_SNAPSHOT_TABLES
+
+    inventory = {
+        "projects": "projects",
+        "sources": "literature_sources",
+        "source_versions": "source_versions",
+        "identifiers": "source_identifiers",
+        "project_links": "literature_source_project_links",
+        "claims": "claims",
+        "manuscripts": "manuscript_versions",
+        "conclusion_targets": "scientific_conclusion_versions",
+        "reviews": "internal_review_records",
+        "issues": "review_issues",
+    }
+    with s.read_snapshot(engine) as conn:
+        counts = {
+            field: conn.execute(text("SELECT count(*) FROM " + table)).scalar_one()
+            for field, table in inventory.items()
+        }
+        counts["shared_sources"] = conn.execute(
+            text(
+                "SELECT count(*) FROM (SELECT literature_source_id "
+                "FROM literature_source_project_links "
+                "GROUP BY literature_source_id HAVING count(DISTINCT project_id)>1) shared"
+            )
+        ).scalar_one()
+        counts["busy_project_sources"] = conn.execute(
+            text(
+                "SELECT coalesce(max(n),0) FROM (SELECT count(*) n "
+                "FROM literature_source_project_links "
+                "GROUP BY project_id) busy"
+            )
+        ).scalar_one()
+        counts["evidence_per_claim"] = conn.execute(
+            text(
+                "SELECT coalesce(max(n),0) FROM (SELECT count(*) n FROM evidence_relations "
+                "GROUP BY claim_version_id) evidence"
+            )
+        ).scalar_one()
+    value = replace(value, **counts, seed=0, typical_placements=0, high_placements=0)
+    with sql_protocol(engine) as observed:
+
+        def worker(position):
+            width = value.warmups + value.calls_per_worker
+            indexes = iter(range(position * width, (position + 1) * width))
+            return s.sample(lambda: invoke(next(indexes)), value.warmups, value.calls_per_worker)
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(worker, range(workers)))
+    if read:
+        assert_snapshot_read(observed)
+    elif case == "authorship-first":
+        writers = [
+            t.statements for t in observed.transactions if t.statements and not t.statements[0][2]
+        ]
+        assert writers
+        for group in writers:
+            assert "SET LOCAL lock_timeout" in group[0][0]
+            assert all(mode == "READ_COMMITTED" and not readonly for _, mode, readonly in group)
+            assert any("LOCK TABLE" in sql for sql, _, _ in group)
+    elif case.startswith("revision"):
+        assert_first_share(
+            observed, "LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE"
+        )
+    elif case.startswith("novelty"):
+        assert_first_share(observed, "LOCK TABLE " + ",".join(N) + " IN SHARE MODE")
+    else:
+        sql = (
+            B13_SHARE_SQL
+            if case.startswith(("consume", "ready"))
+            else (
+                B16_SHARE_SQL
+                if case.startswith("consent")
+                else B15_SHARE_SQL
+                if case in {"package-withdraw", "prepare-first"}
+                else B17_SHARE_SQL
+            )
+        )
+        assert_first_share(
+            observed,
+            sql,
+            "SERIALIZABLE"
+            if case.startswith(("consume", "ready", "package-first"))
+            else "READ_COMMITTED",
+        )
+    samples = [sample for times, _ in results for sample in times]
+    assert len(samples) == workers * value.calls_per_worker
+    s.save_observation(
+        f"s3-{case}-{workers}-{repeat}",
+        dict(
+            status="PASS",
+            scope="bounded correctness and informational timing only",
+            large_profile_acceptance="NOT ESTABLISHED",
+            case=case,
+            workers=workers,
+            repeat=repeat,
+            warmups=value.warmups,
+            calls_per_worker=value.calls_per_worker,
+            failures=0,
+            samples_ms=samples,
+            p50_ms=s.percentile(samples, 0.5),
+            p95_ms=s.percentile(samples, 0.95),
+            max_ms=max(samples),
+            postgres_version=value.postgres_version,
+            scientific_cardinalities=counts,
+            seed_semantics="0: Application fixture structure; UUID identities are unseeded",
+            external_latency_ms=None,
+        ),
+    )
+    save_profile(replace(value, concurrency_profiles=(1, 4)))
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("case", ["consume-first", "consume-replay", "consume-read"])
+def test_s3_internal_release_consumption_profile(approval_env, workers, case):
+    engine = approval_env[-1][-1][8]
+    value = replace(profile(engine, False), warmups=1, calls_per_worker=1, repetitions=1)
+    for repeat in range(value.repetitions):
+        invoke = approval_profile(
+            approval_env, case, workers * (value.warmups + value.calls_per_worker)
+        )
+        _s3_samples(engine, value, case, workers, repeat, invoke, read=case != "consume-first")
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "ready-first",
+        "ready-replay",
+        "ready-read",
+        "package-first",
+        "package-replay",
+        "package-read",
+        "consent-withdraw",
+        "package-withdraw",
+        "prepare-first",
+        "consent-first",
+        "authorship-first",
+    ],
+)
+def test_s3_publication_authorship_package_profile(b05_env, workers, case):
+    from tests.integration.phase2.b17_fixtures import build, withdraw_consent
+    from tests.integration.phase2.pr2_20_scaled import publication_profile_env
+    from tests.integration.phase2.test_b14_publication_ready import issued
+
+    from researchbase.application.prepared_submission import WithdrawPreparedSubmissionCommand
+    from researchbase.application.publication import GetPublicationReadyTransitionQuery
+
+    engine = b05_env[5]
+    value = replace(profile(engine, False), warmups=1, calls_per_worker=1, repetitions=1)
+    for repeat in range(value.repetitions):
+        operations = []
+        write_result = {}
+        for _ in range(workers * (value.warmups + value.calls_per_worker)):
+            env = publication_profile_env(b05_env)
+            if case.startswith("ready"):
+                app, command, _, _ = issued(env)
+
+                def write(app=app, command=command, env=env):
+                    return app.transition_publication_ready(env[2], command)
+
+                def read(app=app, command=command, env=env, write_result=write_result):
+                    return app.get_publication_ready_transition(
+                        env[2],
+                        GetPublicationReadyTransitionQuery(
+                            command.project_id, write_result[command.command_key].id
+                        ),
+                    )
+
+                if case != "ready-first":
+                    write_result[command.command_key] = write()
+                operations.append(read if case == "ready-read" else write)
+            else:
+                f = build(env, consent=case != "consent-first")
+                if case in {"package-replay", "package-read"}:
+                    f.app.freeze_prepared_submission(f.actor, f.command)
+
+                if case == "consent-first":
+                    from tests.integration.phase2.test_pr2_10_binding_contract import _artifact
+
+                    consent_evidence = _artifact(
+                        env[4], env[7], env[2], env[1].project_id, b"S3 author attestation"
+                    )
+                else:
+                    consent_evidence = None
+
+                def invoke(f=f, consent_evidence=consent_evidence):
+                    if case == "authorship-first":
+                        from uuid import uuid4
+
+                        from researchbase.application.authorship import (
+                            AuthorshipService,
+                            CreateAuthorshipSnapshotCommand,
+                            RecordContributionCommand,
+                        )
+
+                        authorship = AuthorshipService(f.env[4], f.env[9])
+                        contribution = authorship.record_contribution(
+                            f.actor,
+                            RecordContributionCommand(
+                                uuid4(),
+                                f.command.project_id,
+                                f.package_command.publication_id,
+                                f.actor.actor_id,
+                                "WRITING",
+                                "Direct contribution",
+                            ),
+                        )
+                        return authorship.create_authorship_snapshot(
+                            f.actor,
+                            CreateAuthorshipSnapshotCommand(
+                                uuid4(),
+                                f.command.project_id,
+                                f.package_command.publication_id,
+                                (f.actor.actor_id,),
+                                (f.actor.actor_id,),
+                                (),
+                                (contribution.id,),
+                            ),
+                        )
+                    if case == "prepare-first":
+                        from uuid import uuid4
+
+                        return f.app.prepare_submission(
+                            f.actor, replace(f.package_command, id=uuid4())
+                        )
+                    if case == "consent-first":
+                        assert consent_evidence is not None
+                        from uuid import uuid4
+
+                        from researchbase.application.prepared_submission import (
+                            RecordAuthorConsentCommand,
+                        )
+
+                        return f.app.record_author_consent(
+                            f.actor,
+                            RecordAuthorConsentCommand(
+                                uuid4(),
+                                f.command.project_id,
+                                f.command.result_id,
+                                "GRANTED",
+                                "PREPARED_PACKAGE",
+                                consent_evidence,
+                                None,
+                            ),
+                        )
+                    if case == "package-read":
+                        return f.app.get_prepared_submission(f.actor, f.query)
+                    if case == "consent-withdraw":
+                        return withdraw_consent(f)
+                    if case == "package-withdraw":
+                        return f.app.withdraw_prepared_submission(
+                            f.env[3],
+                            WithdrawPreparedSubmissionCommand(
+                                f.command.project_id, f.command.result_id, "Owner stop"
+                            ),
+                        )
+                    return f.app.freeze_prepared_submission(f.actor, f.command)
+
+                operations.append(invoke)
+        _s3_samples(
+            engine,
+            value,
+            case,
+            workers,
+            repeat,
+            lambda index, operations=operations: operations[index](),
+            read=case.endswith(("read", "replay")),
+        )
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("case", ["close", "correction", "selection"])
+@pytest.mark.parametrize("operation", ["first", "replay", "read"])
+def test_s3_extended_novelty_profile(b18_env, workers, case, operation):
+    from tests.integration.phase2.pr2_20_scaled import novelty_profile
+
+    e = b18_env
+    value = replace(profile(e["engine"], False), warmups=1, calls_per_worker=1, repetitions=1)
+    for repeat in range(value.repetitions):
+        operations = novelty_profile(e, case, workers * (value.warmups + value.calls_per_worker))
+        if operation != "first":
+            for write, _ in operations:
+                write()
+        before = s.manifest(e["engine"], novelty.NOVELTY_TABLES)
+        _s3_samples(
+            e["engine"],
+            value,
+            f"novelty-{case}-{operation}",
+            workers,
+            repeat,
+            lambda index, operations=operations: operations[index][operation == "read"](),
+            read=operation == "read" or case == "selection",
+        )
+        if operation != "first" or case == "selection":
+            assert s.manifest(e["engine"], novelty.NOVELTY_TABLES) == before
+        for write, read in operations:
+            assert novelty.stable(write()) == novelty.stable(read())
+
+
+@pytest.mark.skip(reason="pending M1-S1 (manuscript v1->v2)")
+@pytest.mark.parametrize("workers", [1, 4])
+def test_s3_superseded_manuscript_trace_profile(workers):
+    pass
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("state", ["EMPTY", "UNIQUE", "AMBIGUOUS"])
+def test_s3_prior_art_selection_profile(novelty_env, workers, state):
+    from tests.integration.phase2.test_b22_prior_art_correction import record, request
+    from tests.integration.phase2.test_b22_prior_art_selection import select
+
+    e = novelty_env
+    if state != "EMPTY":
+        root = record(e, request(e))
+        terminal = record(e, request(e, supersedes_prior_art_relation_id=root.id))
+    if state == "AMBIGUOUS":
+        record(e, request(e), e["researcher"])
+    expected = select(e)
+    assert expected.state.value == state
+    if state == "UNIQUE":
+        assert expected.selected_prior_art_relation_id == terminal.id
+    before = s.manifest(e["engine"], ("prior_art_relations", "prior_art_evidence_inputs"))
+    value = replace(profile(e["engine"], False), warmups=1, calls_per_worker=1, repetitions=1)
+
+    def invoke(_):
+        result = select(e)
+        assert novelty.stable(result) == novelty.stable(expected)
+        return result
+
+    _s3_samples(e["engine"], value, f"selection-{state}", workers, 0, invoke, read=True)
+    assert s.manifest(e["engine"], tuple(before)) == before

@@ -599,17 +599,33 @@ def approval_profile(env, case, count):
         saved = None
         if case not in {"request-first", "request-denied"}:
             saved = approval.request_approval(requester, request)
-        if case == "decision-replay":
+        if case == "decision-replay" or case.startswith("consume"):
             saved = approval.decide_approval(approver, command)
         commands.append(request)
         decisions.append(command)
         expected.append(saved)
+        if case.startswith("consume"):
+            from researchbase.application.approval import RecordInternalScientificReleaseCommand
+
+            assert saved is not None and saved.grant is not None
+            consumption = RecordInternalScientificReleaseCommand(
+                uuid4(), project, saved.grant.id, target.version_id, request.review_ids
+            )
+            decisions[-1] = consumption
+            if case != "consume-first":
+                expected[-1] = scientific.record_internal_scientific_release(requester, consumption)
 
     def call(index):
         slot = 0 if case == "same-target-replay" else index
         request = commands[slot]
         try:
-            if case == "request-denied":
+            if case == "consume-read":
+                result = approval.get_grant_consumption(
+                    requester, request.project_id, decisions[slot].command_key
+                )
+            elif case.startswith("consume"):
+                result = scientific.record_internal_scientific_release(requester, decisions[slot])
+            elif case == "request-denied":
                 result = approval.request_approval(decision_env[2], request)
             elif case == "decision-denied":
                 result = approval.decide_approval(requester, decisions[slot])
@@ -624,8 +640,130 @@ def approval_profile(env, case, count):
             )
             return error.code.value
         assert not case.endswith("denied")
-        if case.endswith("replay"):
+        if case.endswith("replay") or case == "consume-read":
             assert result == expected[slot]
         return result
 
     return call
+
+
+def revision_profile(env, kind, count):
+    """Independent concerns; every scientific result comes from the owning fixture."""
+    from tests.integration.phase2.b08_support import disposition_case
+    from tests.integration.phase2.test_b07_concurrency import prepared
+
+    revisions, template, decisions, _, revised = env
+    base = decisions[-1]
+    operations = []
+    for _ in range(count):
+        review = decisions[1].create(
+            decisions[2],
+            base[5],
+            "SCIENTIFIC_CONCLUSION_VERSION",
+            decisions[3].version_id,
+            "SCIENTIFIC",
+            "MAJOR_REVISION",
+            "Independent benchmark concern",
+            (ReviewIssueRequest("BLOCKING", "OTHER", "Exact response required"),),
+            uuid4(),
+        )
+        action = replace(template, id=uuid4(), review_issue_id=review.issues[0].id)
+        local = revisions, action, decisions, review, revised
+        if kind == "disposition":
+            app, actor, command, _, _ = disposition_case(local)
+
+            def write(app=app, actor=actor, command=command):
+                return app.record_issue_disposition(actor, command)
+
+            def read(app=app, actor=actor, command=command):
+                return app.get_issue_disposition(actor, command.project_id, command.id)
+        else:
+            operations.append(prepared(local, kind))
+            continue
+        operations.append((write, read))
+    return operations
+
+
+def publication_profile_env(env):
+    """Independent project/purpose scope, initial manuscript only (no M1 history)."""
+    from researchbase.application.manuscript_freeze import GetManuscriptVersionQuery
+    from researchbase.application.phase2_identity import AssignProjectRole
+    from tests.integration.phase2.test_approval import _actor
+
+    # The owning reviewer fixture is in test-deployment; the source author is in
+    # another deployment. Reuse its existing bound-actor helper, never relabel a binding.
+    reviewer = env[3]
+    actor = _actor((None, None, reviewer, env[10]))
+    identity, _, _ = identity_service(env[5].url.render_as_string(hide_password=False))
+    project = identity.create_project_with_owner(
+        actor, name="S3 independent publication scope", request_id=uuid4()
+    )
+    identity.assign_project_role(
+        AssignProjectRole(actor, project, reviewer.actor_id, "OWNER", "Independent review", uuid4())
+    )
+    app = PublicationService(env[4], env[9], env[7])
+    document = _artifact(env[4], env[7], actor, project, b"S3 initial manuscript", "manuscript")
+    publication = app.create_publication(actor, project, "PAPER", "S3 study", uuid4())
+    draft = app.create_draft(
+        actor, project, publication.id, document, "S3 study", None, "INITIAL", uuid4()
+    )
+    query = GetManuscriptVersionQuery(project, publication.id, draft.id)
+    return (env[0], query, actor, *env[3:])
+
+
+def novelty_profile(e, case, count):
+    """B19 exact positive basis and B22 append-only chains, never a novelty gate."""
+    from researchbase.application.novelty import ExactReadQuery, PriorArtSelectionQuery
+    from researchbase.domain.novelty import (
+        ClosenessCriteria,
+        NoveltyOutcome,
+        PriorArtBasisInput,
+        PriorArtKind,
+    )
+
+    operations = []
+    for _ in range(count):
+        root_command = replace(
+            e["commands"]["prior_art"], id=uuid4(), relation=PriorArtKind.IDENTICAL
+        )
+        root = e["service"].record_prior_art_relation(e["author"], root_command)
+        if case == "close":
+            command = replace(
+                e["commands"]["novelty"],
+                id=uuid4(),
+                assessment=NoveltyOutcome.CLOSE_PRIOR_ART_FOUND,
+                prior_art_basis=(PriorArtBasisInput(root.id, e["resolution"]["command"].id),),
+                scope_statement="Inspected selected executions",
+                closeness_criteria=ClosenessCriteria(("Same method", "Same result")),
+            )
+
+            def write_close(command=command):
+                return e["service"].record_novelty_assessment(e["author"], command)
+
+            def read_close(command=command):
+                return e["service"].read_novelty_assessment(
+                    e["author"], ExactReadQuery(e["project"], command.id)
+                )
+
+            operations.append((write_close, read_close))
+        elif case == "correction":
+            command = replace(root_command, id=uuid4(), supersedes_prior_art_relation_id=root.id)
+
+            def write_correction(command=command):
+                return e["service"].record_prior_art_relation(e["author"], command)
+
+            def read_correction(command=command):
+                return e["service"].read_prior_art_relation(
+                    e["author"], ExactReadQuery(e["project"], command.id)
+                )
+
+            operations.append((write_correction, read_correction))
+        else:
+
+            def read_selection():
+                return e["service"].select_prior_art_relation(
+                    e["author"], PriorArtSelectionQuery(e["project"], e["claim"], e["source"])
+                )
+
+            operations.append((read_selection, read_selection))
+    return operations

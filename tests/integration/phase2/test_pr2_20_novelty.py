@@ -384,3 +384,127 @@ def test_novelty_outcomes_never_gate_approval_ready_or_package_freeze(b05_env, o
             )
     assert s.manifest(e["engine"], b.NOVELTY_TABLES) == novelty
     assert s.manifest(e["engine"], tuple(science)) == science
+
+
+@pytest.mark.parametrize("first", [False, True])
+@pytest.mark.parametrize("scenario", ["capture", "positive-basis"])
+def test_s3_novelty_both_commit_orders(request, monkeypatch, first, scenario):
+    from tests.integration.phase2 import (
+        test_b19_close_prior_art_concurrency as b19,
+    )
+    from tests.integration.phase2 import (
+        test_b21_capture_concurrency as b21,
+    )
+
+    if scenario == "capture":
+        b21.test_resolution_membership_both_lock_orders(
+            request.getfixturevalue("b18_env"), monkeypatch, first
+        )
+    else:
+        b19.test_b22_b19_both_claim_lock_orders(
+            request.getfixturevalue("novelty_env"), monkeypatch, first
+        )
+
+
+def test_s3_prior_art_selection_empty_unique_ambiguous(novelty_env):
+    from tests.integration.phase2.test_b22_prior_art_selection import (
+        test_empty_unique_ambiguous_agreeing_roots,
+    )
+
+    test_empty_unique_ambiguous_agreeing_roots(novelty_env)
+
+
+@pytest.mark.parametrize("stage", ["insert_child", "force_constraints"])
+def test_s3_prior_art_correction_atomic_rollback(novelty_env, monkeypatch, stage):
+    from tests.integration.phase2.test_b22_prior_art_correction import test_atomic_failure
+
+    before = b.protected_manifest(novelty_env)
+    test_atomic_failure(novelty_env, monkeypatch, stage)
+    assert b.protected_manifest(novelty_env) == before
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+def test_s3_prior_art_correction_workers_observed_wait_and_saved_history(novelty_env, workers):
+    from uuid import uuid4
+
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+    from tests.integration.phase2.test_b22_prior_art_correction import read, record, request
+    from tests.integration.phase2.test_b22_prior_art_selection import select
+    from tests.integration.phase2.test_pr2_20_governance_races import _s3_contend
+
+    e = novelty_env
+    root = record(e, request(e))
+    commands = [request(e, supersedes_prior_art_relation_id=root.id) for _ in range(workers)]
+
+    def invoke(command):
+        try:
+            return record(e, command)
+        except ResearchBaseError as exc:
+            return exc.code
+
+    before = s.manifest(e["engine"], ("claim_versions", "source_versions"))
+    saved, results = _s3_contend(
+        e["engine"],
+        lambda: invoke(commands[0]),
+        [lambda command=command: invoke(command) for command in commands[1:]],
+        "INSERT INTO prior_art_relations",
+    )
+    assert not isinstance(saved, ErrorCode)
+    assert results == [ErrorCode.INVALID_STATE_TRANSITION] * (workers - 1)
+    assert select(e).selected_prior_art_relation_id == saved.id
+    assert read(e, root.id).content_hash == root.content_hash
+    assert read(e, root.id).superseded_by_prior_art_relation_id == saved.id
+    assert record(e, commands[0]).content_hash == saved.content_hash
+    with pytest.raises(ResearchBaseError) as denied:
+        record(e, replace(commands[0], id=uuid4()))
+    assert denied.value.code == ErrorCode.INVALID_STATE_TRANSITION
+    assert s.manifest(e["engine"], tuple(before)) == before
+
+
+@pytest.mark.parametrize("workers", [1, 4])
+@pytest.mark.parametrize("outcome", ["INCONCLUSIVE", "CLOSE_PRIOR_ART_FOUND"])
+def test_s3_novelty_non_gating_workers(b05_env, workers, outcome):
+    from concurrent.futures import ThreadPoolExecutor
+    from uuid import uuid4
+
+    from researchbase.domain.novelty import (
+        ClosenessCriteria,
+        NoveltyOutcome,
+        PriorArtBasisInput,
+        PriorArtKind,
+    )
+    from tests.integration.phase2.b17_fixtures import build
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+    from tests.integration.phase2.test_b11_readiness_decision import place_claim
+
+    place_claim(b05_env)
+    e = _h2_novelty(b05_env)
+    command = replace(e["commands"]["novelty"], id=uuid4())
+    if outcome == "CLOSE_PRIOR_ART_FOUND":
+        relation = e["service"].record_prior_art_relation(
+            e["author"],
+            replace(e["commands"]["prior_art"], id=uuid4(), relation=PriorArtKind.IDENTICAL),
+        )
+        command = replace(
+            command,
+            assessment=NoveltyOutcome(outcome),
+            prior_art_basis=(PriorArtBasisInput(relation.id, e["resolution"]["command"].id),),
+            scope_statement="Inspected selected executions",
+            closeness_criteria=ClosenessCriteria(("Same method", "Same result")),
+        )
+    e["service"].record_novelty_assessment(e["author"], command)
+    tables = (*b.NOVELTY_TABLES, "novelty_assessment_prior_art_inputs")
+    before = s.manifest(e["engine"], tables)
+    # Includes both READY and PREPARE_SUBMISSION approvals and READY consumption.
+    f = build(b05_env)
+    saved = f.app.freeze_prepared_submission(f.actor, f.command)
+    effects = s.manifest(f.engine, ("approval_grant_consumptions", "prepared_submission_events"))
+    with sql_protocol(f.engine) as observed, ThreadPoolExecutor(max_workers=workers) as pool:
+        replay = list(
+            pool.map(lambda _: f.app.freeze_prepared_submission(f.actor, f.command), range(workers))
+        )
+    assert_snapshot_read(observed, snapshots=workers)
+    assert replay == [saved] * workers
+    assert s.manifest(e["engine"], tables) == before
+    assert s.manifest(f.engine, tuple(effects)) == effects
+    assert effects["approval_grant_consumptions"]["count"] == 2
