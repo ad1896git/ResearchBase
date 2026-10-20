@@ -797,7 +797,8 @@ def test_s3_revision_concern_disposition_profile(revision_env, workers, kind, op
             workers,
             repeat,
             invoke,
-            read=operation == "read",
+            # M1 §7: completed exact replays use the lock-free read snapshot too.
+            read=operation in {"read", "replay"},
         )
         for write, read in operations:
             if kind == "link":
@@ -817,7 +818,7 @@ def _s3_samples(engine, value, case, workers, repeat, invoke, *, read=False):
         sql_protocol,
     )
 
-    from researchbase.persistence.approval_repository import B13_SHARE_SQL
+    from researchbase.persistence.approval_repository import B09_SHARE_SQL, B13_SHARE_SQL
     from researchbase.persistence.novelty_repository import N
     from researchbase.persistence.prepared_submission_repository import (
         B15_SHARE_SQL,
@@ -874,7 +875,12 @@ def _s3_samples(engine, value, case, workers, repeat, invoke, *, read=False):
         with ThreadPoolExecutor(max_workers=workers) as pool:
             results = list(pool.map(worker, range(workers)))
     if read:
-        assert_snapshot_read(observed)
+        assert_snapshot_read(
+            observed,
+            snapshots=workers * (value.warmups + value.calls_per_worker)
+            if case.startswith("revision")
+            else None,
+        )
     elif case == "authorship-first":
         writers = [
             t.statements for t in observed.transactions if t.statements and not t.statements[0][2]
@@ -885,8 +891,14 @@ def _s3_samples(engine, value, case, workers, repeat, invoke, *, read=False):
             assert all(mode == "READ_COMMITTED" and not readonly for _, mode, readonly in group)
             assert any("LOCK TABLE" in sql for sql, _, _ in group)
     elif case.startswith("revision"):
+        # M1 §12.2: disposition excludes the two written issue tables from B09;
+        # prepare_disposition uses REVISION_SNAPSHOT_TABLES for that inventory.
+        # Decision/action/re-review writers take the full B09_SHARE_SQL first.
         assert_first_share(
-            observed, "LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE"
+            observed,
+            "LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE"
+            if case == "revision-disposition-first"
+            else B09_SHARE_SQL,
         )
     elif case.startswith("novelty"):
         assert_first_share(observed, "LOCK TABLE " + ",".join(N) + " IN SHARE MODE")
