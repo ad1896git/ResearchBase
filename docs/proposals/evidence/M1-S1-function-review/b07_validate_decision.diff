@@ -1,0 +1,70 @@
+--- 0073/b07_validate_decision.sql
++++ 0074/b07_validate_decision.sql
+@@ -1,53 +1,58 @@
+ CREATE OR REPLACE FUNCTION public.b07_validate_decision(did uuid, complete_snapshot boolean)
+  RETURNS void
+  LANGUAGE plpgsql
+ AS $function$
+-DECLARE d decision_records; i review_issues; r internal_review_records; ref internal_review_records; tid UUID; digest TEXT; kind TEXT; basis JSONB; n INT;
++DECLARE d decision_records; i review_issues; r internal_review_records; ref internal_review_records; tid UUID; digest TEXT; kind TEXT; basis JSONB; n INT; ordinals_valid BOOLEAN;
+ BEGIN
+   SELECT * INTO d FROM decision_records WHERE id=did;
+   SELECT x.* INTO i FROM decision_revision_concerns b JOIN review_issues x ON x.id=b.review_issue_id WHERE b.decision_id=did;
+   SELECT * INTO r FROM internal_review_records WHERE id=i.review_record_id;
+   IF d.id IS NULL OR d.decision_type<>'REVISION_RESPONSE' OR i.id IS NULL OR r.id IS NULL OR d.project_id<>r.project_id
+     OR d.decided_at>clock_timestamp() OR d.supersedes_decision_id IS NOT NULL OR NOT pr216_decision_authorized(d) THEN
+     RAISE EXCEPTION 'exact revision concern and authority required' USING ERRCODE='P17F2';
+   END IF;
+   IF complete_snapshot THEN PERFORM b07_lock_concern(i.id); END IF;
+-  tid:=coalesce(r.claim_version_id,r.scientific_conclusion_version_id);
+-  kind:=CASE WHEN r.claim_version_id IS NOT NULL THEN 'ClaimVersion' ELSE 'ScientificConclusionVersion' END;
++  tid:=coalesce(r.claim_version_id,r.scientific_conclusion_version_id,r.manuscript_version_id);
++  kind:=CASE WHEN r.claim_version_id IS NOT NULL THEN 'ClaimVersion' WHEN r.manuscript_version_id IS NOT NULL THEN 'ManuscriptVersion' ELSE 'ScientificConclusionVersion' END;
+   IF r.claim_version_id IS NOT NULL THEN SELECT content_hash INTO digest FROM claim_versions WHERE id=tid;
++  ELSIF r.manuscript_version_id IS NOT NULL THEN SELECT content_hash INTO digest FROM manuscript_versions WHERE id=tid;
+   ELSE SELECT content_hash INTO digest FROM scientific_conclusion_versions WHERE id=tid; END IF;
+-  PERFORM b07_target(tid,d.project_id,CASE WHEN kind='ClaimVersion' THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END);
+-  IF d.decided_by IN (SELECT b07_authors(tid,CASE WHEN kind='ClaimVersion' THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END)) OR length(d.question)>16000 OR length(d.rationale)>16000
++  PERFORM b07_target(tid,d.project_id,CASE WHEN kind='ClaimVersion' THEN 'claim_versions' WHEN kind='ManuscriptVersion' THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END);
++  IF d.decided_by IN (SELECT b07_authors(tid,CASE WHEN kind='ClaimVersion' THEN 'claim_versions' WHEN kind='ManuscriptVersion' THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END)) OR length(d.question)>16000 OR length(d.rationale)>16000
+     OR d.question<>normalize(d.question,NFC) OR d.rationale<>normalize(d.rationale,NFC)
+     OR (SELECT count(*) FROM decision_basis_claims WHERE decision_id=did)+
+-       (SELECT count(*) FROM decision_basis_conclusions WHERE decision_id=did)<>1
++       (SELECT count(*) FROM decision_basis_conclusions WHERE decision_id=did)+(SELECT count(*) FROM decision_basis_manuscripts WHERE decision_id=did)<>1
+     OR (kind='ClaimVersion' AND NOT EXISTS(SELECT 1 FROM decision_basis_claims WHERE decision_id=did AND claim_version_id=tid))
+     OR (kind='ScientificConclusionVersion' AND NOT EXISTS(SELECT 1 FROM decision_basis_conclusions WHERE decision_id=did AND scientific_conclusion_version_id=tid))
++    OR (kind='ManuscriptVersion' AND NOT EXISTS(SELECT 1 FROM decision_basis_manuscripts WHERE decision_id=did AND manuscript_version_id=tid))
+     OR NOT EXISTS(SELECT 1 FROM decision_basis_reviews WHERE decision_id=did AND internal_review_record_id=r.id) THEN
+     RAISE EXCEPTION 'exact revision target basis required' USING ERRCODE='P17F2';
+   END IF;
+   IF complete_snapshot AND EXISTS(SELECT 1 FROM internal_review_records x WHERE x.project_id=d.project_id
+     AND x.claim_version_id IS NOT DISTINCT FROM r.claim_version_id
+     AND x.scientific_conclusion_version_id IS NOT DISTINCT FROM r.scientific_conclusion_version_id
++    AND x.manuscript_version_id IS NOT DISTINCT FROM r.manuscript_version_id
+     AND NOT EXISTS(SELECT 1 FROM decision_basis_reviews b WHERE b.decision_id=did AND b.internal_review_record_id=x.id)) THEN
+     RAISE EXCEPTION 'complete matching review snapshot required' USING ERRCODE='P17F2';
+   END IF;
+   FOR ref IN SELECT x.* FROM decision_basis_reviews b JOIN internal_review_records x ON x.id=b.internal_review_record_id WHERE b.decision_id=did ORDER BY x.id LOOP
+     IF (complete_snapshot AND EXISTS(SELECT 1 FROM internal_review_records WHERE id=ref.id AND xmin=pg_current_xact_id()::xid))
+       OR ref.created_at>d.decided_at OR ref.project_id<>d.project_id OR ref.claim_version_id IS DISTINCT FROM r.claim_version_id
+       OR ref.scientific_conclusion_version_id IS DISTINCT FROM r.scientific_conclusion_version_id
++      OR ref.manuscript_version_id IS DISTINCT FROM r.manuscript_version_id
+       OR ref.target_content_hash IS DISTINCT FROM digest THEN
+       RAISE EXCEPTION 'exact review binding required' USING ERRCODE='P17F2';
+     END IF;
+     PERFORM b07_review(ref);
+   END LOOP;
+-  SELECT jsonb_agg(jsonb_build_object('target',pr216_ref(k,id,h),'ordinal',ordinal) ORDER BY k,id,h),count(*) INTO basis,n FROM (
++  SELECT jsonb_agg(jsonb_build_object('target',pr216_ref(k,id,h),'ordinal',expected) ORDER BY k,id,h),count(*),bool_and(ordinal=expected) INTO basis,n,ordinals_valid FROM (SELECT refs.*,row_number() OVER(ORDER BY k,id,h)-1 AS expected FROM (
+     SELECT 'ClaimVersion' AS k,b.claim_version_id AS id,v.content_hash AS h,b.ordinal FROM decision_basis_claims b JOIN claim_versions v ON v.id=b.claim_version_id WHERE b.decision_id=did
+     UNION ALL SELECT 'ScientificConclusionVersion',b.scientific_conclusion_version_id,v.content_hash,b.ordinal FROM decision_basis_conclusions b JOIN scientific_conclusion_versions v ON v.id=b.scientific_conclusion_version_id WHERE b.decision_id=did
+-    UNION ALL SELECT 'InternalReviewRecord',b.internal_review_record_id,v.content_hash,b.ordinal FROM decision_basis_reviews b JOIN internal_review_records v ON v.id=b.internal_review_record_id WHERE b.decision_id=did) refs;
+-  IF EXISTS(SELECT 1 FROM jsonb_array_elements(basis) WITH ORDINALITY x(value,pos) WHERE (value->>'ordinal')::int<>pos-1)
++    UNION ALL SELECT 'ManuscriptVersion',b.manuscript_version_id,v.content_hash,b.ordinal FROM decision_basis_manuscripts b JOIN manuscript_versions v ON v.id=b.manuscript_version_id WHERE b.decision_id=did
++    UNION ALL SELECT 'InternalReviewRecord',b.internal_review_record_id,v.content_hash,b.ordinal FROM decision_basis_reviews b JOIN internal_review_records v ON v.id=b.internal_review_record_id WHERE b.decision_id=did) refs) canonical_refs;
++  IF (complete_snapshot AND ordinals_valid IS DISTINCT FROM true)
+     OR d.basis_set_hash IS DISTINCT FROM pr216_hash(jsonb_build_object('type','DecisionRecordBasisSet','material_version',1,'basis',basis))
+     OR d.content_hash IS DISTINCT FROM pr216_hash(jsonb_build_object('type','DecisionRecord','material_version',1,
+       'project_id',d.project_id,'decision_type',d.decision_type,'question',d.question,'decision',d.decision,'rationale',d.rationale,
+       'decided_by',jsonb_build_object('type','ActorIdentity','id',d.decided_by),'supersedes_decision_id',NULL,'basis_set_hash',d.basis_set_hash)) THEN
+     RAISE EXCEPTION 'decision basis ordinals or hashes invalid' USING ERRCODE='P17F2';

@@ -1,0 +1,22 @@
+--- 0073/pr212_draft_guard.sql
++++ 0074/pr212_draft_guard.sql
+@@ -1,10 +1,19 @@
+ CREATE OR REPLACE FUNCTION public.pr212_draft_guard()
+  RETURNS trigger
+  LANGUAGE plpgsql
+ AS $function$
+     BEGIN
++      IF TG_OP='DELETE' THEN RAISE EXCEPTION 'manuscript history retained' USING ERRCODE='P04M1'; END IF;
++      PERFORM id FROM publications WHERE id=NEW.publication_id FOR UPDATE;
++      IF NOT EXISTS(SELECT 1 FROM publications WHERE id=NEW.publication_id AND lifecycle_status IN ('DRAFTING','INTERNAL_REVIEW')) THEN
++        RAISE EXCEPTION 'manuscript stage ineligible' USING ERRCODE='P04M2'; END IF;
++      IF TG_OP='INSERT' AND (NEW.version_number IS DISTINCT FROM
++        (SELECT coalesce(max(version_number)::bigint,0)+1 FROM manuscript_versions WHERE publication_id=NEW.publication_id)
++        OR (NEW.version_number>1 AND NOT EXISTS(SELECT 1 FROM manuscript_versions m JOIN publications p ON p.id=m.publication_id
++          WHERE p.id=NEW.publication_id AND m.id=p.current_manuscript_version_id AND m.status='FROZEN' AND m.version_number=NEW.version_number-1))) THEN
++        RAISE EXCEPTION 'contiguous current frozen predecessor required' USING ERRCODE='P04M2'; END IF;
+       IF TG_OP='DELETE' THEN
+         RAISE EXCEPTION 'manuscript history retained' USING ERRCODE='P04M1';
+       END IF;
+       IF TG_OP='UPDATE' THEN
+         IF OLD.status='FROZEN' THEN RAISE EXCEPTION 'sealed manuscript immutable' USING ERRCODE='P04M1'; END IF;

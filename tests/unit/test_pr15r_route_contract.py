@@ -792,8 +792,93 @@ def _ref_name(schema: dict[str, object]) -> str:
     raise AssertionError(f"schema has no reference or title: {schema}")
 
 
+ROUTES += (
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/revision-decisions",
+        "record_revision_decision",
+        "record_revision_decision",
+        "RevisionDecisionIn",
+        "RevisionDecisionReadbackResponse",
+        "record_revision_decision",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/revision-decisions/{id}",
+        "get_revision_decision",
+        "get_revision_decision",
+        None,
+        "RevisionDecisionReadbackResponse",
+        "get_revision_decision",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/revision-actions",
+        "record_revision_action",
+        "record_revision_action",
+        "RevisionActionIn",
+        "RevisionActionReadbackResponse",
+        "record_revision_action",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/revision-actions/{id}",
+        "get_revision_action",
+        "read_revision_action",
+        None,
+        "RevisionActionReadbackResponse",
+        "get_revision_action",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}",
+        "record_revision_re_review",
+        "record_concern_re_review",
+        None,
+        "ConcernReReviewReadbackResponse",
+        "record_revision_re_review",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}",
+        "get_revision_re_review",
+        "get_concern_re_review",
+        None,
+        "ConcernReReviewReadbackResponse",
+        "get_revision_re_review",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/issue-dispositions",
+        "record_issue_disposition",
+        "record_issue_disposition",
+        "IssueDispositionIn",
+        "IssueDispositionReadbackResponse",
+        "record_issue_disposition",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/issue-dispositions/{id}",
+        "get_issue_disposition",
+        "get_issue_disposition",
+        None,
+        "IssueDispositionReadbackResponse",
+        "get_issue_disposition",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/review-issues/{id}/history",
+        "get_issue_history",
+        "get_issue_history",
+        None,
+        "IssueHistoryReadbackResponse",
+        "get_issue_history",
+    ),
+)
+
+
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 83
+    assert len(ROUTES) == 92
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -803,7 +888,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 83
+    assert len({item.operation_id for item in ROUTES}) == 92
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

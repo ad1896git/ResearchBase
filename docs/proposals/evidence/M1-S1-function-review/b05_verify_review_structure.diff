@@ -1,0 +1,30 @@
+--- 0073/b05_verify_review_structure.sql
++++ 0074/b05_verify_review_structure.sql
+@@ -4,12 +4,11 @@
+ AS $function$
+ DECLARE target UUID; r internal_review_records; n BIGINT;
+ BEGIN
+   SELECT manuscript_version_id INTO target FROM internal_review_records WHERE id=identity;
+   IF target IS NULL THEN RETURN; END IF;
+-  PERFORM 1 FROM manuscript_versions WHERE id=target FOR UPDATE;
+-  SELECT * INTO r FROM internal_review_records WHERE id=identity FOR SHARE;
++  SELECT * INTO r FROM internal_review_records WHERE id=identity;
+   IF r.manuscript_version_id IS DISTINCT FROM target OR NOT EXISTS (
+     SELECT 1 FROM manuscript_versions m JOIN publications p ON p.id=m.publication_id
+     WHERE m.id=target AND p.project_id=r.project_id AND m.status IN ('FROZEN','SUPERSEDED')
+       AND m.frozen_at IS NOT NULL AND m.placement_set_hash IS NOT NULL
+       AND m.content_hash=r.target_content_hash) THEN
+@@ -20,11 +19,12 @@
+       GROUP BY review_record_id HAVING min(ordinal)<>0 OR max(ordinal)<>n-1
+         OR count(DISTINCT ordinal)<>n) THEN
+     RAISE EXCEPTION 'B05 issue ordinal gap for review %',identity USING ERRCODE='P05R1';
+   END IF;
+   IF EXISTS (SELECT 1 FROM review_issues i WHERE i.review_record_id=identity AND
+-    (i.status<>'OPEN' OR (SELECT count(*) FROM review_issue_events e WHERE e.issue_id=i.id)<>1
++    ((SELECT count(*) FROM review_issue_events e WHERE e.issue_id=i.id)<>CASE WHEN i.status='OPEN' THEN 1 ELSE 2 END
++      OR (i.status<>'OPEN' AND NOT EXISTS(SELECT 1 FROM review_issue_events e WHERE e.issue_id=i.id AND e.prior_status='OPEN' AND e.new_status=i.status))
+       OR NOT EXISTS (SELECT 1 FROM review_issue_events e WHERE e.issue_id=i.id
+         AND e.prior_status IS NULL AND e.new_status='OPEN'
+         AND e.actor_id=r.reviewer_actor_id AND e.occurred_at=i.created_at))) THEN
+     RAISE EXCEPTION 'B05 malformed OPEN history for review %',identity USING ERRCODE='P05R1';
+   END IF;

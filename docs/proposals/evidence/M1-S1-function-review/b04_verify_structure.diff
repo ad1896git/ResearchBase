@@ -1,0 +1,18 @@
+--- 0073/b04_verify_structure.sql
++++ 0074/b04_verify_structure.sql
+@@ -10,11 +10,14 @@
+         IF m.content_hash IS NOT NULL OR m.placement_set_hash IS NOT NULL OR m.frozen_at IS NOT NULL THEN
+           RAISE EXCEPTION 'malformed draft seal' USING ERRCODE='P04M3'; END IF;
+         RETURN;
+       END IF;
+       SELECT project_id,current_manuscript_version_id INTO project,pointer FROM publications WHERE id=m.publication_id;
+-      IF pointer IS DISTINCT FROM m.id OR m.content_hash IS NULL OR m.placement_set_hash IS NULL OR m.frozen_at IS NULL THEN
++      IF EXISTS(SELECT 1 FROM manuscript_versions WHERE id=m.id AND xmin=pg_current_xact_id()::xid)
++        AND pointer IS DISTINCT FROM m.id THEN
++        RAISE EXCEPTION 'new seal must advance current pointer atomically' USING ERRCODE='P04M3'; END IF;
++      IF m.content_hash IS NULL OR m.placement_set_hash IS NULL OR m.frozen_at IS NULL THEN
+         RAISE EXCEPTION 'incomplete manuscript seal' USING ERRCODE='P04M3'; END IF;
+       IF NOT EXISTS (SELECT 1 FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id
+         WHERE v.id=m.document_artifact_version_id AND a.project_id=project AND a.artifact_type='manuscript'
+           AND v.status IN ('FROZEN','SUPERSEDED') AND v.frozen_at IS NOT NULL AND v.byte_size IS NOT NULL
+           AND v.content_hash ~ '^[0-9a-f]{64}$') THEN

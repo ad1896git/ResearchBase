@@ -155,6 +155,7 @@ def test_each_downgrade_restores_exact_predecessor_catalog(phase2_database_url):
         "0071_b23_novelty_review",
         "0072_b03_discussion_hypothesis",
         "0073_b02_strategy_admission",
+        "0074_m1_manuscript_revision",
     )
     try:
         snapshots = {}

@@ -1,0 +1,15 @@
+--- 0073/b07_action_hash.sql
++++ 0074/b07_action_hash.sql
+@@ -10,11 +10,11 @@
+     'result_experiment_spec_version',pr216_ref('ExperimentSpecVersion',a.result_experiment_spec_version_id,(SELECT content_hash FROM experiment_spec_versions WHERE id=a.result_experiment_spec_version_id)),
+     'result_run',CASE WHEN a.result_run_id IS NULL THEN NULL ELSE jsonb_build_object('type','Run','id',a.result_run_id) END,
+     'result_statistical_result',pr216_ref('StatisticalResult',a.result_statistical_result_id,(SELECT content_hash FROM statistical_results WHERE id=a.result_statistical_result_id)),
+     'result_claim_version',pr216_ref('ClaimVersion',a.result_claim_version_id,(SELECT content_hash FROM claim_versions WHERE id=a.result_claim_version_id)),
+     'result_scientific_conclusion_version',pr216_ref('ScientificConclusionVersion',a.result_scientific_conclusion_version_id,(SELECT content_hash FROM scientific_conclusion_versions WHERE id=a.result_scientific_conclusion_version_id)),
+-    'result_manuscript_version',NULL,
++    'result_manuscript_version',pr216_ref('ManuscriptVersion',a.result_manuscript_version_id,(SELECT content_hash FROM manuscript_versions WHERE id=a.result_manuscript_version_id)),
+     'result_source_version',pr216_ref('SourceVersion',a.result_source_version_id,(SELECT content_hash FROM source_versions WHERE id=a.result_source_version_id)));
+   RETURN pr216_hash(jsonb_build_object('type','RevisionAction','material_version',1,
+     'review_issue',CASE WHEN a.review_issue_id IS NULL THEN NULL ELSE jsonb_build_object('type','ReviewIssue','id',a.review_issue_id) END,
+     'decision',pr216_ref('DecisionRecord',d.id,d.content_hash),'action_type',a.action_type,'results',results,
+     'supersedes_revision_action',pr216_ref('RevisionAction',prior.id,prior.content_hash),

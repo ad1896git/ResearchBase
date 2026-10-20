@@ -1,0 +1,12 @@
+--- 0073/b04_check_manuscript_closure.sql
++++ 0074/b04_check_manuscript_closure.sql
+@@ -1,5 +1,8 @@
+ CREATE OR REPLACE FUNCTION public.b04_check_manuscript_closure()
+  RETURNS trigger
+  LANGUAGE plpgsql
+ AS $function$
+-    BEGIN PERFORM b04_verify_structure(NEW.id); RETURN NULL; END $function$
++    BEGIN PERFORM b04_verify_structure(NEW.id);
++      IF (SELECT status FROM manuscript_versions WHERE id=NEW.id)='FROZEN' THEN
++        PERFORM m1_manuscript(NEW.id,(SELECT p.project_id FROM publications p JOIN manuscript_versions m ON m.publication_id=p.id WHERE m.id=NEW.id));
++      END IF; RETURN NULL; END $function$

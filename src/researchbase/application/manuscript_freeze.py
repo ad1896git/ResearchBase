@@ -614,7 +614,8 @@ class ManuscriptFreezeService:
             )
             if row is None:
                 return _fail(ErrorCode.NOT_FOUND, "manuscript version not found")
-            result = self.verify_in_uow(uow, query.project_id, parent, row)
+            uow.enable_revision_action_snapshot_reads()
+            result = self.verify_in_uow(uow, query.project_id, parent, row, require_current=False)
             self.authorize(uow, principal, query.project_id, _READERS)
             return result
 
@@ -624,22 +625,40 @@ class ManuscriptFreezeService:
         self._principal(principal)
         if type(command) is not FreezeManuscriptCommand:
             return _fail(ErrorCode.VALIDATION_ERROR, "closed freeze command required")
+        saved = self.get_manuscript_version(
+            principal,
+            GetManuscriptVersionQuery(
+                command.project_id, command.publication_id, command.manuscript_version_id
+            ),
+        )
+        if saved.status == "FROZEN" and saved.version_number > 1:
+            if (saved.placement_set_hash, saved.content_hash) != (
+                command.expected_placement_set_hash,
+                command.expected_content_hash,
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "manuscript expectations differ")
+            return saved
         for attempt in range(3):
             try:
-                return self._freeze_once(principal, command)
+                return self._freeze_once(principal, command, successor=saved.version_number > 1)
             except ResearchBaseError as exc:
                 if attempt == 2 or not (exc.details or {}).get("retryable_b04"):
                     raise
         raise AssertionError("unreachable")
 
     def _freeze_once(
-        self, principal: VerifiedPrincipal, command: FreezeManuscriptCommand
+        self, principal: VerifiedPrincipal, command: FreezeManuscriptCommand, *, successor: bool
     ) -> ManuscriptVersionReadback:
         with self._factory() as uow:
             uow.enable_manuscript_freeze_error_normalization()
             repo = uow.manuscript_freeze
-            repo.prepare_write()
-            uow.literature_search_plan.lock_project(command.project_id)
+            uow.configure_revision_transaction()
+            if successor:
+                repo.prepare_revision_write()
+            else:
+                repo.prepare_write()
+                uow.literature_search_plan.lock_project(command.project_id)
+            uow.enable_revision_action_snapshot_reads()
             parent = uow.publication.publication(
                 command.publication_id, command.project_id, lock=True
             )
@@ -657,12 +676,21 @@ class ManuscriptFreezeService:
             self.authorize(uow, principal, command.project_id, roles)
             if not replay and (
                 row["status"] != "DRAFT"
-                or parent["lifecycle_status"] != "DRAFTING"
-                or parent["current_manuscript_version_id"] is not None
-                or row["version_number"] != 1
+                or parent["lifecycle_status"] not in {"DRAFTING", "INTERNAL_REVIEW"}
             ):
                 _fail(ErrorCode.INVALID_STATE_TRANSITION, "initial draft seal required")
-            result = self.verify_in_uow(uow, command.project_id, parent, row, admission=not replay)
+            predecessor = parent["current_manuscript_version_id"]
+            if not replay and predecessor is not None:
+                old = uow.publication.version(predecessor, parent["id"], share=True)
+                if (
+                    old is None
+                    or old["status"] != "FROZEN"
+                    or old["version_number"] + 1 != row["version_number"]
+                ):
+                    _fail(ErrorCode.INVALID_STATE_TRANSITION, "contiguous predecessor required")
+            result = self.verify_in_uow(
+                uow, command.project_id, parent, row, admission=not replay, require_current=False
+            )
             expected = (command.expected_placement_set_hash, command.expected_content_hash)
             actual = (
                 (result.placement_set_hash, result.content_hash)
@@ -676,6 +704,8 @@ class ManuscriptFreezeService:
                 )
             at = self.authorize(uow, principal, command.project_id, roles)
             if not replay:
+                if parent["row_version"] >= 2147483647:
+                    _fail(ErrorCode.CONCURRENT_MODIFICATION, "publication version exhausted")
                 repo.seal(row, parent, expected[0], expected[1], at)
                 repo.force_constraints()
                 row = {

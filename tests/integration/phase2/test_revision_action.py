@@ -383,10 +383,14 @@ def test_claim_change_exact_successor(revision_env, tmp_path):
     )
     from threading import Event
 
+    from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
+
     entered, release = Event(), Event()
+    recorder_pid = []
 
     def pause_snapshot(conn, cursor, statement, parameters, context, many):
         if statement.startswith("LOCK TABLE "):
+            recorder_pid.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
             entered.set()
             assert release.wait(10)
 
@@ -401,17 +405,30 @@ def test_claim_change_exact_successor(revision_env, tmp_path):
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
             recording = pool.submit(service.record_revision_action, base[3], cmd)
-            assert entered.wait(10)
-            writer = pool.submit(invalid_writer)
-            # Frozen Claim material is excluded from B and remains SQL immutable.
-            with pytest.raises(DBAPIError):
-                writer.result(timeout=10)
-            release.set()
+            try:
+                assert entered.wait(10)
+                writer = pool.submit(invalid_writer)
+                # B09 protects claim_versions too. Observe its table wait before
+                # releasing the recorder, then verify the immutable-row guard.
+                witness = _wait_for_pg_blocker(base[8], recorder_pid[0], "relation")
+                assert witness["relation"] == "claim_versions"
+                assert witness["mode"] == "RowExclusiveLock"
+                assert not writer.done()
+            finally:
+                release.set()
             result = recording.result(timeout=10)
+            with pytest.raises(DBAPIError) as caught:
+                writer.result(timeout=10)
+            assert getattr(caught.value.orig, "sqlstate", None) == "23514"
     finally:
         release.set()
         event.remove(base[8], "after_cursor_execute", pause_snapshot)
     assert result.result_claim_version_id == frozen.id
+    with base[8].connect() as conn:
+        conn.execute(
+            text("SELECT b07_validate_revision(a) FROM revision_actions a WHERE id=:id"),
+            {"id": result.id},
+        ).one()
     assert result.provenance[1].id == base[6]
     assert service.read_revision_action(base[3], base[5], result.id) == result
 
@@ -490,7 +507,7 @@ def test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog(phase2_d
         with engine.connect() as conn:
             assert _tables(conn) - tables == {"revision_actions"}
             assert _catalog(conn, tables) == catalog
-        assert ScriptDirectory.from_config(config).get_heads() == ["0073_b02_strategy_admission"]
+        assert ScriptDirectory.from_config(config).get_heads() == ["0074_m1_manuscript_revision"]
         alembic_command.downgrade(config, "0043_pr2_04_schema_contract")
         with engine.connect() as conn:
             assert _tables(conn) == tables and _catalog(conn, tables) == catalog
@@ -1355,7 +1372,8 @@ def test_frozen_claim_writer_overlap_does_not_invert_snapshot(revision_env, tmp_
                 release.set()
                 witness = _wait_for_pg_blocker(base[8], action_pid[0], "relation")
                 assert witness["pid"] == writer_pid[0]
-                assert witness["query"].lstrip().upper().startswith("UPDATE CLAIMS SET")
+                assert witness["relation"] == "claim_versions"
+                assert witness["query"].lstrip().upper().startswith("UPDATE CLAIM_VERSIONS SET")
                 assert not writer.done()
                 action_release.set()
             saved = action.result(timeout=10)

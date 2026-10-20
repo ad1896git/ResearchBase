@@ -298,7 +298,7 @@ class ManuscriptScientificTraceService:
                 ):
                     _unresolved()
                 if version["status"] == "FROZEN":
-                    self._freeze.verify_in_uow(uow, project, parent, version)
+                    self._freeze.verify_in_uow(uow, project, parent, version, require_current=False)
                 result = self.build_in_uow(uow, project, publication, manuscript, version)
             self._freeze.authorize(uow, principal, project, _READERS)
             return result

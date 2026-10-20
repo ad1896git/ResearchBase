@@ -1,6 +1,6 @@
 # M1 Manuscript Revision and Reconsideration Contract — DRAFT
 
-**Status:** DRAFT — awaiting owner approval; not authorized for implementation
+**Status:** APPROVED by owner 2026-10-20 — first slice authorized for implementation
 
 ## Start here (for the implementer)
 
@@ -509,3 +509,269 @@ second EXCLUSIVE lock, and S2's corrected-review-first protected READ COMMITTED 
 Changing §1's mandatory determination requires an explicit architecture amendment.
 
 Owner approval of this document does not authorize either implementation slice.
+
+## 14. M1-S1 implementation record (2026-10-20)
+
+Only S1 is implemented by this change. S2 remains separately authorized work.
+The forward migration is `0074_m1_manuscript_revision`, following the actual
+`0073_b02_strategy_admission` head. Accepted migrations are unchanged; no tables
+or columns are added.
+
+Recorded substitutions and transaction interpretation:
+
+- The active revision shape constraint is `ck_b23_revision_shape`, the successor
+  of `revision_action_shape`; the guide's `ck_b06_revision_action_shape` does not
+  exist. Its complete seven-result XOR and B23 novelty arm are preserved under
+  `ck_m1_revision_action_shape`.
+- The existing manuscript-basis completion trigger is `b11_complete_manuscript`.
+  S1 forces this trigger alongside the existing B07 completion inventory.
+- “One UoW per command” means one **write** UoW per attempt: all command writes
+  commit or roll back together. Replay discovery is a separate lock-free
+  REPEATABLE READ, READ ONLY query, followed on a miss by the prescribed
+  lock-first READ COMMITTED writer. This follows the existing B14a/B14 query and
+  command pattern and §7's explicit replay-read requirement. A successful replay
+  opens no writer. No writes are split across transactions; consumption retains
+  its existing SERIALIZABLE protocol. SQL-capture tests distinguish query and
+  writer transactions and assert the first writer statement separately.
+
+Successor sealing retains the original Publication entry event and manuscript;
+that event proves entry into INTERNAL_REVIEW, while later admission independently
+verifies the selected current frozen manuscript. Earlier same-Publication
+OPEN/BLOCKING manuscript issues participate in admission without becoming
+current-target affirmative review evidence. Historical seal verification does
+not require the current pointer; newly sealed rows must complete the pointer
+advance atomically.
+
+Read-only source review identified two database bypasses during implementation:
+seal without pointer advancement and BLOCKING manuscript change without a
+REQUIRE_CHANGE decision. Both guards were corrected and normal-role PostgreSQL
+regression tests were added. This record makes no Phase 2 exit or S2 acceptance claim.
+
+
+### 14.1 Focused verification evidence
+
+Commands use the existing repository virtual environment and PostgreSQL 18.6
+through the supplied `DATABASE_URL` / `RB_TEST_ADMIN_URL`. Integration fixtures
+create and drop disposable databases. No whole-suite run was performed.
+
+```sh
+VENV=/Users/fengwang/Documents/ResearchBaseProject/.venv/bin
+"$VENV/ruff" format --check .
+"$VENV/ruff" check .
+"$VENV/pyright"
+PYTHONPATH=src "$VENV/python" -m pytest tests/unit tests/architecture --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_m1_schema.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m1_concurrency.py --tb=short
+PYTHONPATH=src "$VENV/alembic" heads
+git diff --check
+```
+
+| Check | Observed result |
+|---|---|
+| Ruff format | 789 files already formatted |
+| Ruff lint | All checks passed |
+| Pyright | 0 errors, 0 warnings, 0 informations |
+| Unit and architecture | 6,204 passed; 55 warnings; 158.87 seconds |
+| New M1 PostgreSQL suites | 19 passed; 68 warnings; 84.96 seconds |
+| Alembic head | `0074_m1_manuscript_revision (head)` |
+| Diff whitespace | exit 0; no output |
+
+The final new suites include direct-SQL sealing/decision bypass rejection,
+canonical saved basis re-derivation, v1/v2 revision and NO_CHANGE workflows,
+readiness/approval/consumption, historical lock-free reads, disjoint lock waits,
+fresh post-wait credentials, same/different-request competing successor drafts,
+and all three placement insert/freeze/replay races. The 55/68 warnings above
+are the existing Alembic `path_separator` deprecation and established connection
+execution-option warning; they are retained as warnings, not reported as absent.
+
+An intermediate unit run had 6,203 passes and one static-gate failure from the
+new parametrized race test's callable union typing. Explicit test annotations
+fixed it; the final complete unit/architecture run above passed all 6,204.
+
+### 14.2 Neighboring PostgreSQL regression evidence
+
+The commands below use `VENV` from §14.1. Counts overlap between runs and must
+not be added into a unique-test total. All invocations set `PYTHONPATH=src`.
+
+```sh
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_m1_schema.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m1_concurrency.py tests/integration/phase2/test_b14a_publication_entry.py tests/integration/phase2/test_b14a_entry_schema.py tests/integration/phase2/test_b14r_ready_approval.py tests/integration/phase2/test_b14_publication_ready.py tests/integration/phase2/test_b23_novelty_revision.py --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_b23_schema.py tests/integration/phase2/test_b25_manuscript_audit.py --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b04_manuscript_migration.py tests/integration/phase2/test_b04_manuscript_races.py tests/integration/phase2/test_b05_manuscript_review.py tests/integration/phase2/test_b06_revision_action.py tests/integration/phase2/test_b06_revision_concurrency.py tests/integration/phase2/test_b07_schema.py tests/integration/phase2/test_b07_revision_decisions.py tests/integration/phase2/test_b07_concern_carry_forward.py tests/integration/phase2/test_b07_concurrency.py tests/integration/phase2/test_b08_schema.py tests/integration/phase2/test_b08_issue_disposition.py tests/integration/phase2/test_b08_issue_history.py tests/integration/phase2/test_b08_concurrency.py tests/integration/phase2/test_b10_reconsideration.py tests/integration/phase2/test_b10_reconsideration_schema.py tests/integration/phase2/test_b10_reconsideration_concurrency.py tests/integration/phase2/test_b11_readiness_decision.py tests/integration/phase2/test_b12_prepare_decision.py tests/integration/phase2/test_b25_manuscript_validity.py tests/integration/phase2/test_b25_manuscript_read_races.py --tb=short -q
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_b06_revision_concurrency.py tests/integration/phase2/test_b07_concurrency.py tests/integration/phase2/test_b08_concurrency.py tests/integration/phase2/test_b04_manuscript_races.py --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_b04_manuscript_races.py --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_b04_manuscript_races.py -k mixed_existing_repository_lock_protocols --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_b08_concurrency.py::test_correction_and_disposition_both_commit_orders_without_action_lock_cycle --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_b08_concurrency.py::test_new_mapping_and_disposition_never_invert_action_and_issue_locks --tb=short
+PYTHONPATH=src "$VENV/python" -m pytest tests/integration/phase2/test_b04_manuscript_migration.py::test_deferred_seal_requires_pointer_and_frozen_insert_is_denied tests/integration/phase2/test_b04_manuscript_races.py::test_concurrent_freezes_first_sql_and_stable_replay tests/integration/phase2/test_b06_revision_action.py::test_incomplete_result_shapes_stay_closed tests/integration/phase2/test_b06_revision_concurrency.py::test_write_and_uuid_replay_first_statement_exact_inventory_and_no_scientific_row_lock tests/integration/phase2/test_b06_revision_concurrency.py::test_claim_source_witness_commits_during_inventory tests/integration/phase2/test_b07_concurrency.py::test_all_writes_and_replays_begin_with_inventory tests/integration/phase2/test_b08_concurrency.py::test_creation_and_uuid_replay_begin_with_exact_share_inventory 'tests/integration/phase2/test_b07_concern_carry_forward.py::test_explicit_attestation_never_inherits_other_action_links[REJECT-True]' --tb=short
+```
+
+| Invocation above | Exact observed result |
+|---|---|
+| Entry/readiness/approval/novelty selection | 160 passed; 575 warnings; 741.30 seconds |
+| B23 schema and B25 audit | 61 passed; 165 warnings; 243.91 seconds |
+| Required neighboring regression selection, started before fixes | 519 progress marks: 503 passed, 14 failed, 1 skipped, 1 setup error; double-quiet output did not print a numeric summary |
+| Intermediate lock regression selection | 125 passed, 14 failed; 420 warnings; 862.85 seconds |
+| B04 races after writer-pause correction | 23 passed, 3 failed; 79 warnings; 119.64 seconds |
+| B04 compatible-owner focused rerun | 3 passed, 23 deselected; 10 warnings; 9.98 seconds |
+| B08 correction/disposition focused rerun | 2 passed; 6 warnings; 20.47 seconds |
+| B08 mapping/disposition focused rerun | 2 passed; 6 warnings; 19.26 seconds |
+| Final exact-node repair/error rerun | 11 passed; 33 warnings; 43.62 seconds |
+
+Every failed/error node in the two earlier selections passed a subsequent
+focused run. The exact-node rerun includes the formerly failing normal-role
+seal-without-pointer test and the predicate-lock-memory setup error. The latter
+was an inherited SERIALIZABLE fixture exhausting PostgreSQL shared predicate-lock
+memory while several selected suites overlapped; the final isolated rerun
+passed without database configuration changes.
+
+Updated old expectations reflect the mandated protocols: query replay discovery
+is lock-free; writers begin with their expanded exact inventory; disposition
+waits first on relation locks; B04 pause hooks wait until the writer has acquired
+its inventory rather than pausing its replay query. Legacy owner probes whose
+SHARE inventories are compatible with S1 freeze now prove they finish while the
+freezer is paused, instead of demanding the removed project advisory/row lock.
+The former unavailable-MANUSCRIPT_CHANGE test now checks an unresolved result
+UUID as NOT_FOUND; scientific-target/manuscript-action incompatibility remains
+covered by domain and M1 acceptance cases. B23 active function/constraint
+inventories append the 0074 overrides and preserve the B23 novelty branch.
+
+Final post-edit static acceptance recheck:
+
+```sh
+PYTHONPATH=src "$VENV/python" -m pytest tests/unit/phase2/test_pr2_04_static_acceptance.py --tb=short
+```
+
+Observed: **1 passed, 1 warning in 10.33 seconds**. Ruff format and lint were
+also rerun after the last test-expectation edit: **789 files already formatted**
+and **All checks passed**. `git diff --check` remained clean.
+
+### 14.3 Review correction and R2 verification
+
+The owner's review rejected the R1 check: the changed-file pre-check stopped at
+`test_revision_action.py::test_claim_change_exact_successor` with **1 failed,
+467 passed**, so R1 did not establish a passing gate. The earlier selected-suite
+reruns did not cover this legacy file's complete current lock behavior.
+
+The reproduced cause was test synchronization, not malformed PL/pgSQL. B09's
+required inventory includes `claim_versions`. The old test paused the recorder
+after SHARE acquisition, then waited for an UPDATE to finish before releasing
+the recorder. That UPDATE now correctly waits for a RowExclusiveLock. The test
+now proves the PostgreSQL wait on `claim_versions`, releases the recorder in
+`finally`, and verifies the immutable-row guard rejects the UPDATE with 23514.
+A second legacy overlap test now observes the earlier `claim_versions` UPDATE
+wait rather than expecting the later `claims` UPDATE. The required lock
+inventory was preserved.
+
+The new outer manuscript/scientific branch in `b07_validate_revision` closes
+before correction-chain traversal. The existing scientific result-validation
+block is unchanged. The [full installed function](evidence/M1-S1-function-review/b07_validate_revision.sql)
+and [32 individual function diffs against the actual 0073 catalog](evidence/M1-S1-function-review/README.md)
+are provided without truncation. Regenerate them with
+`uv run python -m scripts.m1_sql_review`; this uses a disposable database.
+The upgrade smoke test executes the installed validator and checks its specific
+empty-basis rejection. The valid legacy claim-successor test additionally calls
+the function directly on its saved RevisionAction.
+
+Repository snapshot preparation now requests READ COMMITTED options only for a
+fresh Session. Configured UoWs retain their existing isolation without a
+redundant, ignored `connection(execution_options=...)` call. Runtime PostgreSQL
+probes run after first SQL and assert READ COMMITTED for repository writers,
+REPEATABLE READ / READ ONLY for historical Application reads, and SERIALIZABLE
+for the READY consumption writer. Tests promote SAWarning to an error for both
+repository entry points with fresh and already-configured Sessions. The B05
+architecture Session stub implements `in_transaction()` as the real API does;
+its exact-first-SQL assertions are unchanged.
+
+Focused R2 commands (with `UV_CACHE_DIR=/tmp/researchbase-m1-uv-cache` because the
+sandbox cannot write the user's default uv cache):
+
+```sh
+uv run pytest tests/integration/phase2/test_revision_action.py -x
+uv run pytest tests/integration/phase2/test_revision_action.py::test_claim_change_exact_successor --tb=short
+uv run pytest tests/architecture/test_m1_boundaries.py
+uv run pytest tests/architecture/test_m1_boundaries.py tests/integration/phase2/test_m1_schema.py tests/integration/phase2/test_m1_manuscript_revision.py tests/integration/phase2/test_m1_concurrency.py --tb=short
+```
+
+Observed: **55 passed, 173 warnings in 194.25 seconds** for the complete legacy
+revision-action file; **1 passed, 3 warnings in 3.19 seconds** for the explicit
+valid-function call; **2 passed in 0.44 seconds** for M1 architecture; **26 passed,
+79 warnings in 83.41 seconds** for architecture plus the new M1 PostgreSQL suites.
+The latter comprises 2 architecture + 7 schema + 4 revision + 13 concurrency
+cases: **24 new M1 PostgreSQL cases**. Its warnings are Alembic deprecations;
+no ignored-isolation SAWarnings remain in that run.
+
+Lock evidence exists in `test_m1_disjoint_final_mode_edit_inventory`,
+`test_s1_two_writer_table_lock_order`, the post-wait credential and competing
+successor tests, and the updated legacy revision races. Read-lock rejection is
+asserted in `test_manuscript_revision_decision_action_re_review_disposition` and
+`test_historical_placement_trace_and_replay_after_successor_are_lock_free`.
+
+The complete R2 unit/architecture run also passed: **6,204 passed, 54 warnings
+in 173.10 seconds** (`uv run pytest tests/unit tests/architecture --tb=short`).
+The read-only SQL review of all 32 actual-catalog diffs found no P0/P1 and
+confirmed retained scientific/B23 dispatch and no S2 behavior. The first R2
+checker attempt stopped at the outdated B05 Session stub (**1 failed, 8 passed**);
+that stub was corrected, and the full unit/architecture run above passed.
+
+The requested R2 check was rerun exactly, with only the uv cache redirected to
+an allowed temporary path:
+
+```sh
+export UV_CACHE_DIR=/tmp/researchbase-m1-uv-cache
+uv run pyright && uv run ruff format --check . && uv run ruff check . && git diff --check HEAD && /Users/fengwang/Documents/ResearchBaseProject/.pipeline/bin/full_suite_sharded.sh 6
+```
+
+| Stage | R2 observed result |
+|---|---|
+| Pyright | 0 errors, 0 warnings, 0 informations |
+| Ruff format | 790 files already formatted |
+| Ruff lint | All checks passed |
+| `git diff --check HEAD` | exit 0, no output |
+| Runner's 42-file changed-test pre-check | **2,898 passed, 1,366 warnings in 1,868.72 seconds (31:08)** |
+| Six full-suite shards | **NOT RUN: sandbox filesystem blocker** |
+| Overall requested check | **NOT PASS / BLOCKED**; stopped the runner's retry loop, command exit 1 |
+
+After its successful pre-check the unmodified runner could not acquire its
+shared mutex. It emitted `Operation not permitted` for both
+`/Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock`
+and `full_suite.lock2` (including their `pid` files). These shared runner paths,
+and its `test_durations.json`, are outside the session's writable repository and
+temporary-directory roots. Read-only `os.access(..., os.W_OK)` checks also
+returned false. No runner or governing Harness file was modified to bypass this
+restriction. The waiting retry loop was interrupted only after the pre-check
+finished and the filesystem errors were observed.
+
+The user was asked asynchronously to enable those runner paths or supply the
+outer pipeline's check output. Full-suite acceptance remains pending that
+external execution/access change. The successful focused and pre-check results
+above do not constitute a full-suite PASS.
+
+
+### 14.4 Director regression repair
+
+The director reproduced 18 deterministic regressions in the R2 tree. The
+[repair record](evidence/M1-S1-regression-repair.md) lists one cause per test,
+exact verification commands/results, the installed validator's IF/END IF pairing,
+and 0074 upgrade/downgrade evidence.
+
+The director's compatibility instruction limits the new M1 editing inventory to
+successor paths. INITIAL creation and initial-version placement/freeze preserve
+their PR2-12/B04 protocols, including B04's project coordination on freeze replay.
+The dedicated successor preparation still takes §12.2's M1-A then disjoint M1-B.
+This supersedes earlier implementation notes describing initial freezes as M1
+writers or asserting that compatible owner probes no longer wait on the project.
+
+Revision decision/action/re-review still use full B09; disposition uses precisely
+§12.2's B09 minus the two written issue tables. Admission retains the existing
+applicable-review query and adds earlier same-Publication blockers using relations
+available at predecessor schemas. Retained blocker review verification checks saved
+seals without readmitting bytes. Exact-target affirmative basis and final trusted-time
+authorization are preserved. S2 and the director's full-suite gate remain separate.
+
+Final focused repair evidence: exact regressions **18 passed**; complete M1
+PostgreSQL suites **31 passed**; unit/architecture **6216 passed**; **275 existing**
+selected PostgreSQL neighbors passed. The neighbor run's sole new-test observer
+failure was corrected and is included in the passing final 31-case M1 run.
+Ruff reports **790 files formatted** and clean lint; Pyright reports **0 errors,
+0 warnings, 0 informations**; `git diff --check HEAD` passes. The linked repair
+record retains intermediate failures and exact commands/counts. The whole suite
+was not run; that check remains with the director's loop.

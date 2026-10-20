@@ -29,10 +29,9 @@ def test_closed_owner_and_import_boundary():
 
 def test_one_forward_migration_owns_only_screening_guards():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0073_b02_strategy_admission"]
+    assert scripts.get_heads() == ["0074_m1_manuscript_revision"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision
-        == "0072_b03_discussion_hypothesis"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0073_b02_strategy_admission"
     )
     source = (ROOT / "migrations/versions/0070_b20_screening_basis.py").read_text()
     assert "CREATE OR REPLACE" not in source

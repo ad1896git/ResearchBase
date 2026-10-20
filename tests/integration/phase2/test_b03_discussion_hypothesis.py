@@ -450,7 +450,7 @@ def test_empty_upgrade_to_head(discussion_database_url):
         with engine.connect() as c:
             assert (
                 c.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                == "0073_b02_strategy_admission"
+                == "0074_m1_manuscript_revision"
             )
             assert (
                 c.execute(

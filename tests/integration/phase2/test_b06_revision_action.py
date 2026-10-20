@@ -311,7 +311,7 @@ def test_source_lineage_optional_fulltext_and_retraction_history(revision_env, t
 
 
 @pytest.mark.parametrize("shape", ["NO_CHANGE", "MANUSCRIPT_CHANGE"])
-def test_unavailable_shapes_stay_closed(revision_env, shape):
+def test_incomplete_result_shapes_stay_closed(revision_env, shape):
     service, cmd, env, _, _ = revision_env
     base = env[-1]
     request = RecordRevisionActionCommand(
@@ -324,9 +324,7 @@ def test_unavailable_shapes_stay_closed(revision_env, shape):
     with pytest.raises(ResearchBaseError) as caught:
         service.record_revision_action(base[3], request)
     assert caught.value.code == (
-        ErrorCode.DECISION_BASIS_INVALID
-        if shape == "NO_CHANGE"
-        else ErrorCode.INVALID_STATE_TRANSITION
+        ErrorCode.DECISION_BASIS_INVALID if shape == "NO_CHANGE" else ErrorCode.NOT_FOUND
     )
 
 

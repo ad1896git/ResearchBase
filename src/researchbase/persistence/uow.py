@@ -948,6 +948,14 @@ class SqlAlchemyUnitOfWork:
                     {"retryable_b05": state in {"40001", "40P01"}},
                 )
             raise RuntimeError("review transaction failed; recover by exact request ID") from None
+        if (
+            getattr(exc.orig, "sqlstate", None) == "23505"
+            and getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            == "uq_m1_one_draft_manuscript"
+        ):
+            return ResearchBaseError(
+                ErrorCode.IDEMPOTENCY_CONFLICT, "publication already has a draft"
+            )
         if self._manuscript_freeze_error_normalization:
             return _manuscript_freeze_database_error(exc)
         if self._b02_error_normalization:

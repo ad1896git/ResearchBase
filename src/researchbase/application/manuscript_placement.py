@@ -7,6 +7,7 @@ import re
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import wraps
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -52,6 +53,79 @@ def _text(value: object) -> str:
     return normalized
 
 
+class _PlacementReplayRace(Exception):
+    """Close a raced writer before returning to the dedicated replay snapshot."""
+
+
+def _placement_command(operation):
+    @wraps(operation)
+    def execute(self, *args, **kwargs):
+        for attempt in range(3):
+            try:
+                return operation(self, *args, **kwargs)
+            except _PlacementReplayRace:
+                continue
+            except ResearchBaseError as error:
+                if attempt == 2 or not (error.details or {}).get("retryable_b04"):
+                    raise
+        raise ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION, "placement outcome unresolved; replay same request"
+        )
+
+    return execute
+
+
+def _placement_replay(
+    service, kind, principal, project, publication, manuscript, identity, expected
+):
+    """Replay is a dedicated lock-free query; mutations use their own single writer."""
+    service._freeze._principal(principal)
+    with service._factory() as uow:
+        uow.configure_revision_transaction(readonly=True)
+        uow.enable_revision_action_snapshot_reads()
+        service._freeze.authorize(uow, principal, project, _READERS)
+        repo = uow.publication
+        parent = repo.publication(publication, project)
+        version = repo.version(manuscript, publication) if parent else None
+        lookup = {
+            "citation": repo.citation,
+            "claim-placement": repo.claim_placement,
+            "artifact-placement": repo.artifact_placement,
+        }[kind]
+        row = lookup(identity, manuscript) if version else None
+        if row is None or version is None:
+            service._freeze.authorize(uow, principal, project, _READERS)
+            return None, version is not None and version["version_number"] > 1
+        if row["created_by"] != principal.actor_id:
+            raise ResearchBaseError(ErrorCode.FORBIDDEN, "placement unavailable")
+        if any(row[k] != v for k, v in expected.items()):
+            raise ResearchBaseError(
+                ErrorCode.IDEMPOTENCY_CONFLICT, "placement request replay differs"
+            )
+        if version["status"] == "FROZEN":
+            service._freeze.verify_saved_seal_in_uow(uow, project, parent, version)
+        elif version["status"] != "DRAFT" or any(
+            version[k] is not None for k in ("frozen_at", "placement_set_hash", "content_hash")
+        ):
+            raise ResearchBaseError(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "invalid saved draft seal"
+            )
+        if kind == "citation":
+            digest = service._source(repo, row["source_version_id"], project)
+        elif kind == "claim-placement":
+            digest = service._target(
+                repo,
+                row["scientific_conclusion_version_id"] or row["claim_version_id"],
+                project,
+                conclusion=row["scientific_conclusion_version_id"] is not None,
+            )
+        else:
+            digest = service._target(repo, row["artifact_version_id"], project)
+        result = service._result(row, digest)
+        service._freeze.authorize(uow, principal, project, _READERS)
+        return result, version["version_number"] > 1
+
+
 class CitationPlacementService:
     def __init__(
         self, factory: Callable[[], UnitOfWork], credentials: Any, store: Any = None
@@ -88,6 +162,7 @@ class CitationPlacementService:
             source_hash,
         )
 
+    @_placement_command
     def add(
         self,
         principal: VerifiedPrincipal,
@@ -108,7 +183,7 @@ class CitationPlacementService:
             or type(source) is not UUID
             or type(request_id) is not UUID
             or type(ordinal) is not int
-            or ordinal < 0
+            or not 0 <= ordinal <= 2147483647
             or purpose not in _PURPOSES
             or not isinstance(locator, dict)
             or set(locator) != {"kind", "value"}
@@ -117,11 +192,50 @@ class CitationPlacementService:
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "typed citation required")
         section = _text(section)
         location = {"kind": locator["kind"], "value": _text(locator["value"])}
+        self._freeze._principal(principal)
+        identity = uuid5(
+            NAMESPACE_URL,
+            f"pr213:citation:{principal.deployment_id}:"
+            f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+        )
+        prior, successor = _placement_replay(
+            self,
+            "citation",
+            principal,
+            project,
+            publication,
+            manuscript,
+            identity,
+            dict(
+                source_version_id=source,
+                section_id=section,
+                locator=location,
+                citation_purpose=purpose,
+                ordinal=ordinal,
+            ),
+        )
+        if prior is not None:
+            return prior
         with self._factory() as uow:
-            at = self._auth._authorize(uow, principal, project, _WRITERS)
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.configure_revision_transaction()
+            if successor:
+                uow.manuscript_freeze.prepare_revision_write()
+            else:
+                uow.literature_search_plan.lock_project(project)
             repo = uow.publication
+            identity = uuid5(
+                NAMESPACE_URL,
+                f"pr213:citation:{principal.deployment_id}:"
+                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+            )
+            repo.lock_request(f"pr213:citation:{identity}")
+            repo.lock_project(project)
+            self._auth._authorize(uow, principal, project, _READERS)
             parent = repo.publication(publication, project, lock=True)
-            version = repo.version(manuscript, publication) if parent else None
+            version = repo.version(manuscript, publication, lock=True) if parent else None
+            if version is not None and repo.citation(identity, manuscript) is not None:
+                raise _PlacementReplayRace()
             if (
                 parent is None
                 or version is None
@@ -132,12 +246,7 @@ class CitationPlacementService:
                     ErrorCode.INVALID_STATE_TRANSITION, "draft manuscript unavailable"
                 )
             source_hash = self._source(repo, source, project)
-            identity = uuid5(
-                NAMESPACE_URL,
-                f"pr213:citation:{principal.deployment_id}:"
-                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
-            )
-            repo.lock_request(f"pr213:citation:{identity}")
+            at = self._auth._authorize(uow, principal, project, _WRITERS)
             prior = repo.citation(identity, manuscript)
             if prior is None:
                 row: dict[str, Any] = {
@@ -187,7 +296,7 @@ class CitationPlacementService:
             if version is None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "manuscript version not found")
             if version["status"] == "FROZEN":
-                self._freeze.verify_in_uow(uow, project, parent, version)
+                self._freeze.verify_in_uow(uow, project, parent, version, require_current=False)
             elif version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.citations(manuscript)
@@ -266,6 +375,7 @@ class ClaimPlacementService:
             target_hash,
         )
 
+    @_placement_command
     def add(
         self,
         principal: VerifiedPrincipal,
@@ -289,7 +399,7 @@ class ClaimPlacementService:
             or (conclusion is not None and type(conclusion) is not UUID)
             or type(request_id) is not UUID
             or type(ordinal) is not int
-            or ordinal < 0
+            or not 0 <= ordinal <= 2147483647
             or strength not in _STRENGTHS
             or not isinstance(locator, dict)
             or set(locator) != {"kind", "value"}
@@ -300,11 +410,51 @@ class ClaimPlacementService:
         location = {"kind": locator["kind"], "value": _text(locator["value"])}
         target = conclusion if conclusion is not None else claim
         assert target is not None
+        self._freeze._principal(principal)
+        identity = uuid5(
+            NAMESPACE_URL,
+            f"pr213:claim-placement:{principal.deployment_id}:"
+            f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+        )
+        prior, successor = _placement_replay(
+            self,
+            "claim-placement",
+            principal,
+            project,
+            publication,
+            manuscript,
+            identity,
+            dict(
+                claim_version_id=claim,
+                scientific_conclusion_version_id=conclusion,
+                section_id=section,
+                locator=location,
+                rhetorical_strength=strength,
+                ordinal=ordinal,
+            ),
+        )
+        if prior is not None:
+            return prior
         with self._factory() as uow:
-            at = self._auth._authorize(uow, principal, project, _WRITERS)
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.configure_revision_transaction()
+            if successor:
+                uow.manuscript_freeze.prepare_revision_write()
+            else:
+                uow.literature_search_plan.lock_project(project)
             repo = uow.publication
+            identity = uuid5(
+                NAMESPACE_URL,
+                f"pr213:claim-placement:{principal.deployment_id}:"
+                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+            )
+            repo.lock_request(f"pr213:claim-placement:{identity}")
+            repo.lock_project(project)
+            self._auth._authorize(uow, principal, project, _READERS)
             parent = repo.publication(publication, project, lock=True)
-            version = repo.version(manuscript, publication) if parent else None
+            version = repo.version(manuscript, publication, lock=True) if parent else None
+            if version is not None and repo.claim_placement(identity, manuscript) is not None:
+                raise _PlacementReplayRace()
             if (
                 parent is None
                 or version is None
@@ -315,12 +465,7 @@ class ClaimPlacementService:
                     ErrorCode.INVALID_STATE_TRANSITION, "draft manuscript unavailable"
                 )
             target_hash = self._target(repo, target, project, conclusion=conclusion is not None)
-            identity = uuid5(
-                NAMESPACE_URL,
-                f"pr213:claim-placement:{principal.deployment_id}:"
-                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
-            )
-            repo.lock_request(f"pr213:claim-placement:{identity}")
+            at = self._auth._authorize(uow, principal, project, _WRITERS)
             prior = repo.claim_placement(identity, manuscript)
             if prior is None:
                 row: dict[str, Any] = {
@@ -377,7 +522,7 @@ class ClaimPlacementService:
             if version is None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "manuscript version not found")
             if version["status"] == "FROZEN":
-                self._freeze.verify_in_uow(uow, project, parent, version)
+                self._freeze.verify_in_uow(uow, project, parent, version, require_current=False)
             elif version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.claim_placements(manuscript)
@@ -451,6 +596,7 @@ class ArtifactPlacementService:
             artifact_hash,
         )
 
+    @_placement_command
     def add(
         self,
         principal: VerifiedPrincipal,
@@ -470,7 +616,7 @@ class ArtifactPlacementService:
             or type(artifact) is not UUID
             or type(request_id) is not UUID
             or type(ordinal) is not int
-            or ordinal < 0
+            or not 0 <= ordinal <= 2147483647
             or role not in _ARTIFACT_ROLES
             or not isinstance(locator, dict)
             or set(locator) != {"kind", "value"}
@@ -479,11 +625,50 @@ class ArtifactPlacementService:
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "typed artifact placement required")
         section = _text(section)
         location = {"kind": locator["kind"], "value": _text(locator["value"])}
+        self._freeze._principal(principal)
+        identity = uuid5(
+            NAMESPACE_URL,
+            f"pr213:artifact-placement:{principal.deployment_id}:"
+            f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+        )
+        prior, successor = _placement_replay(
+            self,
+            "artifact-placement",
+            principal,
+            project,
+            publication,
+            manuscript,
+            identity,
+            dict(
+                artifact_version_id=artifact,
+                section_id=section,
+                locator=location,
+                artifact_role=role,
+                ordinal=ordinal,
+            ),
+        )
+        if prior is not None:
+            return prior
         with self._factory() as uow:
-            at = self._auth._authorize(uow, principal, project, _WRITERS)
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.configure_revision_transaction()
+            if successor:
+                uow.manuscript_freeze.prepare_revision_write()
+            else:
+                uow.literature_search_plan.lock_project(project)
             repo = uow.publication
+            identity = uuid5(
+                NAMESPACE_URL,
+                f"pr213:artifact-placement:{principal.deployment_id}:"
+                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
+            )
+            repo.lock_request(f"pr213:artifact-placement:{identity}")
+            repo.lock_project(project)
+            self._auth._authorize(uow, principal, project, _READERS)
             parent = repo.publication(publication, project, lock=True)
-            version = repo.version(manuscript, publication) if parent else None
+            version = repo.version(manuscript, publication, lock=True) if parent else None
+            if version is not None and repo.artifact_placement(identity, manuscript) is not None:
+                raise _PlacementReplayRace()
             if (
                 parent is None
                 or version is None
@@ -494,12 +679,7 @@ class ArtifactPlacementService:
                     ErrorCode.INVALID_STATE_TRANSITION, "draft manuscript unavailable"
                 )
             artifact_hash = self._target(repo, artifact, project)
-            identity = uuid5(
-                NAMESPACE_URL,
-                f"pr213:artifact-placement:{principal.deployment_id}:"
-                f"{project}:{principal.actor_id}:{manuscript}:{request_id}",
-            )
-            repo.lock_request(f"pr213:artifact-placement:{identity}")
+            at = self._auth._authorize(uow, principal, project, _WRITERS)
             prior = repo.artifact_placement(identity, manuscript)
             if prior is None:
                 row: dict[str, Any] = {
@@ -554,7 +734,7 @@ class ArtifactPlacementService:
             if version is None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "manuscript version not found")
             if version["status"] == "FROZEN":
-                self._freeze.verify_in_uow(uow, project, parent, version)
+                self._freeze.verify_in_uow(uow, project, parent, version, require_current=False)
             elif version["status"] != "DRAFT" or version["frozen_at"] is not None:
                 raise ResearchBaseError(ErrorCode.NOT_FOUND, "draft manuscript not found")
             rows = repo.artifact_placements(manuscript)

@@ -1,0 +1,14 @@
+--- 0073/b06_validate_revision.sql
++++ 0074/b06_validate_revision.sql
+@@ -6,10 +6,11 @@
+   cs UUID[]; ms UUID[]; stats UUID[]; sources UUID[];
+   cv claim_versions; sc scientific_conclusion_versions; spec experiment_spec_versions;
+   execution runs; result statistical_results; source source_versions; previous source_versions;
+   prior revision_actions; cursor_id UUID; visited UUID[] := ARRAY[a.id];
+ BEGIN
++  IF a.action_type='MANUSCRIPT_CHANGE' THEN PERFORM b07_validate_revision(a); RETURN; END IF;
+   IF a.decision_record_id IS NOT NULL OR a.review_issue_id IS NULL
+     OR a.action_type NOT IN ('NEW_EXPERIMENT','ANALYSIS_CHANGE','CLAIM_CHANGE',
+                             'CONCLUSION_CHANGE','SOURCE_CHANGE') THEN
+     RAISE EXCEPTION 'revision path not contracted' USING ERRCODE='P17R1';
+   END IF;

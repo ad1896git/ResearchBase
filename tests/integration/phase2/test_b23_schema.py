@@ -24,7 +24,7 @@ def test_catalog_and_empty_roundtrip(novelty_env):
         constraints = dict(
             conn.execute(
                 text(
-                    "SELECT conname,pg_get_constraintdef(oid) FROM pg_constraint WHERE conname LIKE '%b23%' AND contype IN ('c','f')"
+                    "SELECT conname,pg_get_constraintdef(oid) FROM pg_constraint WHERE (conname LIKE '%b23%' OR conname='ck_m1_revision_action_shape') AND contype IN ('c','f')"
                 )
             ).all()
         )
@@ -33,7 +33,7 @@ def test_catalog_and_empty_roundtrip(novelty_env):
             "ck_b23_review_target",
             "ck_b23_review_version",
             "fk_b23_result_novelty",
-            "ck_b23_revision_shape",
+            "ck_m1_revision_action_shape",
         }
         assert all(
             "ON DELETE RESTRICT" in constraints[n]
@@ -53,7 +53,7 @@ def test_catalog_and_empty_roundtrip(novelty_env):
     with e["engine"].connect() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0073_b02_strategy_admission"
+            == "0074_m1_manuscript_revision"
         )
 
 
@@ -61,7 +61,7 @@ def test_v1_shape_cross_product_equivalent(novelty_env):
     with novelty_env["engine"].connect() as conn:
         expression = conn.execute(
             text(
-                "SELECT pg_get_expr(conbin,conrelid) FROM pg_constraint WHERE conname='ck_b23_revision_shape'"
+                "SELECT pg_get_expr(conbin,conrelid) FROM pg_constraint WHERE conname='ck_m1_revision_action_shape'"
             )
         ).scalar_one()
         names = (
@@ -494,6 +494,16 @@ def test_pinned_guard_definitions_restore_byte_for_byte(novelty_env):
     migration = runpy.run_path("migrations/versions/0071_b23_novelty_review.py")
     legacy: dict[str, str] = migration["LEGACY"]
     dispatch: dict[str, str] = migration["DISPATCH"]
+    # Append the active forward-migration values; the accepted B23 inventory stays pinned.
+    import re
+
+    m1 = runpy.run_path("migrations/versions/0074_m1_manuscript_revision.py")
+    for definition in re.findall(
+        r"CREATE OR REPLACE FUNCTION public\.[\s\S]*?\$function\$;", m1["_UPGRADE"]
+    ):
+        name = definition.split("public.", 1)[1].split("(", 1)[0]
+        if name in dispatch:
+            dispatch[name] = definition.removesuffix(";") + "\n"
     expected_triggers: dict[str, str] = migration["TRIGGERS"]
     engine = novelty_env["engine"]
     config = Config("alembic.ini")

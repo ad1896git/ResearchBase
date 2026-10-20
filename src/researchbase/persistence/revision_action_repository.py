@@ -2,12 +2,16 @@
 
 from sqlalchemy import text
 
-from researchbase.persistence.decision_repository import _SNAPSHOT_TABLES
+from researchbase.persistence.manuscript_freeze_repository import B04_SNAPSHOT_TABLES
 
 REVISION_SNAPSHOT_TABLES = tuple(
     sorted(
-        {table for table in _SNAPSHOT_TABLES if table != "claim_versions"}
-        | {"internal_review_records"}
+        set(B04_SNAPSHOT_TABLES)
+        | {
+            "internal_review_records",
+            "manuscript_versions",
+            "publications",
+        }
     )
 )
 
@@ -29,12 +33,9 @@ class SqlAlchemyRevisionActionRepository:
         )
 
     def lock_snapshot(self):
-        # Frozen version/input material already has immutable SQL guards. Do not
-        # table-lock those rows: an INSERT/UPDATE takes ROW EXCLUSIVE before its
-        # trigger waits for the old target, which would invert this protocol.
-        self._session.execute(
-            text("LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE")
-        )
+        from researchbase.persistence.approval_repository import B09_SHARE_SQL
+
+        self._session.execute(text(B09_SHARE_SQL))
 
     def authorize(self, principal, project):
         return [
@@ -79,7 +80,7 @@ class SqlAlchemyRevisionActionRepository:
     def issue(self, identity, project):
         return self._one(
             """SELECT i.*,r.claim_version_id,r.scientific_conclusion_version_id,
-            r.novelty_assessment_id
+            r.novelty_assessment_id,r.manuscript_version_id
             FROM review_issues i JOIN internal_review_records r ON r.id=i.review_record_id
             WHERE i.id=:id AND r.project_id=:project""",
             {"id": identity, "project": project},
@@ -92,6 +93,13 @@ class SqlAlchemyRevisionActionRepository:
                 "claims",
                 "claim_id",
                 issue["claim_version_id"],
+            )
+        elif issue.get("manuscript_version_id") is not None:
+            table, parent, fk, identity = (
+                "manuscript_versions",
+                "publications",
+                "publication_id",
+                issue["manuscript_version_id"],
             )
         else:
             table, parent, fk, identity = (
@@ -199,6 +207,7 @@ class SqlAlchemyRevisionActionRepository:
             "ExperimentSpecVersion": "experiment_spec_versions",
             "Run": "runs",
             "StatisticalResult": "statistical_results",
+            "ManuscriptVersion": "manuscript_versions",
             "ReviewIssue": "review_issues",
             "RevisionAction": "revision_actions",
             "DecisionRecord": "decision_records",

@@ -468,7 +468,9 @@ class ManuscriptValidityService:
         collector: _Collector,
     ) -> ManuscriptValidityReadback:
         """Verify exact closure on the caller's prepared snapshot; caller authorizes return."""
-        checked = collector.verify_in_uow(uow, query.project_id, parent, row, admission=False)
+        checked = collector.verify_in_uow(
+            uow, query.project_id, parent, row, admission=False, require_current=False
+        )
         state = collector._merge(checked.current_validity, collector.active_state)
         collector._observe("ManuscriptVersion", row["id"], state)
         return ManuscriptValidityReadback(

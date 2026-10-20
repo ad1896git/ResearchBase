@@ -10,7 +10,7 @@ from uuid import UUID
 
 from researchbase.application.internal_review import InternalReviewService
 from researchbase.application.ports import UnitOfWork
-from researchbase.application.saved_provenance import saved_dependency
+from researchbase.application.saved_provenance import saved_dependency, saved_seal
 from researchbase.application.scientific_conclusion import ScientificConclusionService
 from researchbase.domain.decision import (
     DecisionBasisReference,
@@ -420,9 +420,19 @@ class DecisionService:
             kind = (
                 "ClaimVersion"
                 if issue["claim_version_id"] is not None
+                else "ManuscriptVersion"
+                if issue.get("manuscript_version_id") is not None
                 else "ScientificConclusionVersion"
             )
-            basis = self._basis(uow.decision.revision_basis(row["id"]))
+            basis = tuple(
+                DecisionBasisReference(r["type"], r["id"], r["content_hash"], n)
+                for n, r in enumerate(
+                    sorted(
+                        uow.decision.revision_basis(row["id"]),
+                        key=lambda r: (r["type"], str(r["id"]), r["content_hash"]),
+                    )
+                )
+            )
             targets = [r for r in basis if r.type != "InternalReviewRecord"]
             reviews = [r for r in basis if r.type == "InternalReviewRecord"]
             if (
@@ -434,7 +444,9 @@ class DecisionService:
                 or issue["review_record_id"] not in {r.id for r in reviews}
             ):
                 raise ValueError("exact saved basis invalid")
-            authors = uow.decision.material_authors(old["id"], claim=kind == "ClaimVersion")
+            authors = uow.decision.material_authors(
+                old["id"], claim=kind == "ClaimVersion", manuscript=kind == "ManuscriptVersion"
+            )
             if row["decided_by"] in authors or not uow.decision.revision_creation_authorized(row):
                 raise ValueError("saved decider independence invalid")
             for ref in reviews:
@@ -444,6 +456,7 @@ class DecisionService:
                     or review["claim_version_id"] != issue["claim_version_id"]
                     or review["scientific_conclusion_version_id"]
                     != issue["scientific_conclusion_version_id"]
+                    or review.get("manuscript_version_id") != issue.get("manuscript_version_id")
                     or review["target_content_hash"] != old["content_hash"]
                     or review["content_hash"] != ref.content_hash
                     or review["hash_scheme"] != "sha256-cjson-v1"
@@ -486,6 +499,7 @@ class DecisionService:
                 row["hash_scheme"],
                 basis,
                 validity,
+                issue.get("manuscript_version_id"),
             )
         except (ValueError, TypeError, KeyError):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved revision Decision invalid")
@@ -505,6 +519,20 @@ class DecisionService:
         raise AssertionError("unreachable revision Decision retry")
 
     def _record_revision_once(self, principal, command):
+        try:
+            saved = self.get_revision_decision(principal, command.project_id, command.id)
+        except ResearchBaseError as error:
+            if error.code != ErrorCode.NOT_FOUND:
+                raise
+        else:
+            if saved.decided_by != principal.actor_id:
+                _fail(ErrorCode.FORBIDDEN, "Decision unavailable")
+            if any(
+                getattr(saved, k) != getattr(command, k)
+                for k in ("review_issue_id", "question", "rationale", "decision", "decision_type")
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "Decision request material conflicts")
+            return saved
         with self._factory() as uow:
             uow.enable_decision_error_normalization()
             uow.configure_revision_transaction()
@@ -549,9 +577,13 @@ class DecisionService:
             kind = (
                 "ClaimVersion"
                 if issue["claim_version_id"] is not None
+                else "ManuscriptVersion"
+                if issue.get("manuscript_version_id") is not None
                 else "ScientificConclusionVersion"
             )
-            authors = repo.material_authors(old["id"], claim=kind == "ClaimVersion")
+            authors = repo.material_authors(
+                old["id"], claim=kind == "ClaimVersion", manuscript=kind == "ManuscriptVersion"
+            )
             if principal.actor_id in authors:
                 _fail(
                     ErrorCode.CONFLICT_OF_INTEREST,
@@ -617,6 +649,14 @@ class DecisionService:
                         dict(
                             decision_id=command.id,
                             scientific_conclusion_version_id=ref.id,
+                            ordinal=ref.ordinal,
+                        )
+                    )
+                elif ref.type == "ManuscriptVersion":
+                    repo.insert_manuscript_basis(
+                        dict(
+                            decision_id=command.id,
+                            manuscript_version_id=ref.id,
                             ordinal=ref.ordinal,
                         )
                     )
@@ -693,14 +733,23 @@ class DecisionService:
         parent = uow.publication.publication(target["publication_id"], project)
         if parent is None:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "manuscript parent missing")
+        if admission and parent["current_manuscript_version_id"] != identity:
+            _fail(ErrorCode.APPROVAL_TARGET_STALE, "manuscript is no longer current")
         if admission and parent["lifecycle_status"] not in {"DRAFTING", "INTERNAL_REVIEW"}:
             _fail(ErrorCode.INVALID_STATE_TRANSITION, "publication stage ineligible")
-        checked = self._manuscripts.verify_in_uow(uow, project, parent, target, admission=admission)
+        checked = self._manuscripts.verify_in_uow(
+            uow, project, parent, target, admission=admission, require_current=admission
+        )
         return target, parent, checked
 
     def _readiness_blockers(self, uow, project, target):
         blockers = []
-        for review in uow.decision.applicable_manuscript_reviews(target, project):
+        for review in uow.decision.manuscript_admission_reviews(target, project):
+            if review.get("manuscript_version_id") is not None:
+                # These are retained blocker inputs. The selected manuscript is
+                # admitted separately; history must not readmit document bytes.
+                with saved_seal():
+                    self._reviews._verify(uow, review)
             # Exact upstream versions are blocker inputs, not Decision basis rows.
             # B08 history verifies terminal disposition in this same snapshot.
             issues = self._reviews._issues(uow, review)
@@ -1817,6 +1866,7 @@ class RevisionDecisionReadback:
     hash_scheme: Literal["sha256-cjson-v1"]
     basis: tuple[DecisionBasisReference, ...]
     target_validity: str
+    manuscript_version_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)

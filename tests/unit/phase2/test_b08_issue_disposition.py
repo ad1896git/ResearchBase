@@ -88,7 +88,7 @@ def test_all_finite_transition_authority_and_basis_tuples(
     else:
         expected = (
             (role == "OWNER" or role == "REVIEWER" and opener)
-            and action not in {"NO_CHANGE", "MANUSCRIPT_CHANGE"}
+            and action != "NO_CHANGE"
             and (decision == "REQUIRE_CHANGE" or decision is None and severity != "BLOCKING")
         )
     assert (

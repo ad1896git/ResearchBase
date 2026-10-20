@@ -1,0 +1,26 @@
+--- 0073/pr212_publication_guard.sql
++++ 0074/pr212_publication_guard.sql
+@@ -13,18 +13,20 @@
+            OR NEW.current_manuscript_version_id IS NOT NULL THEN
+           RAISE EXCEPTION 'publication starts drafting' USING ERRCODE='P17D2';
+         END IF;
+         RETURN NEW;
+       END IF;
+-      IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='DRAFTING'
+-        AND OLD.current_manuscript_version_id IS NULL AND NEW.current_manuscript_version_id IS NOT NULL
++      IF OLD.lifecycle_status IN ('DRAFTING','INTERNAL_REVIEW') AND NEW.lifecycle_status=OLD.lifecycle_status
++        AND NEW.current_manuscript_version_id IS DISTINCT FROM OLD.current_manuscript_version_id
++        AND NEW.current_manuscript_version_id IS NOT NULL
+         AND NEW.row_version=OLD.row_version+1
+         AND (to_jsonb(NEW)-ARRAY['current_manuscript_version_id','row_version'])
+           IS NOT DISTINCT FROM (to_jsonb(OLD)-ARRAY['current_manuscript_version_id','row_version'])
+         AND EXISTS (SELECT 1 FROM manuscript_versions m WHERE m.id=NEW.current_manuscript_version_id
+           AND m.publication_id=NEW.id AND m.status='FROZEN' AND m.content_hash IS NOT NULL
+-          AND m.placement_set_hash IS NOT NULL AND m.frozen_at IS NOT NULL) THEN RETURN NEW; END IF;
++          AND m.placement_set_hash IS NOT NULL AND m.frozen_at IS NOT NULL
++          AND m.version_number=coalesce((SELECT version_number FROM manuscript_versions WHERE id=OLD.current_manuscript_version_id),0)+1) THEN RETURN NEW; END IF;
+       IF OLD.lifecycle_status='DRAFTING' AND NEW.lifecycle_status='INTERNAL_REVIEW'
+         AND OLD.current_manuscript_version_id IS NOT NULL
+         AND NEW.row_version::bigint=OLD.row_version::bigint+1
+         AND (to_jsonb(NEW)-ARRAY['lifecycle_status','row_version']) IS NOT DISTINCT FROM
+             (to_jsonb(OLD)-ARRAY['lifecycle_status','row_version']) THEN

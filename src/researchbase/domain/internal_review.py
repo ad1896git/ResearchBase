@@ -84,7 +84,14 @@ def review_material(
 
 _DISPOSITIONS = frozenset({"ADDRESSED", "DISMISSED"})
 _CHANGED_ACTIONS = frozenset(
-    {"NEW_EXPERIMENT", "ANALYSIS_CHANGE", "CLAIM_CHANGE", "CONCLUSION_CHANGE", "SOURCE_CHANGE"}
+    {
+        "NEW_EXPERIMENT",
+        "ANALYSIS_CHANGE",
+        "CLAIM_CHANGE",
+        "CONCLUSION_CHANGE",
+        "SOURCE_CHANGE",
+        "MANUSCRIPT_CHANGE",
+    }
 )
 
 

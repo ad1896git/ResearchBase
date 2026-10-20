@@ -267,6 +267,19 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
             ("get", "/v1/projects/{project_id}/novelty-assessments/{id}"),
         }
     )
+    expected.update(
+        {
+            ("get", "/v1/projects/{project_id}/revision-actions/{id}"),
+            ("get", "/v1/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}"),
+            ("post", "/v1/projects/{project_id}/revision-decisions"),
+            ("get", "/v1/projects/{project_id}/review-issues/{id}/history"),
+            ("post", "/v1/projects/{project_id}/revision-actions"),
+            ("get", "/v1/projects/{project_id}/revision-decisions/{id}"),
+            ("post", "/v1/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}"),
+            ("get", "/v1/projects/{project_id}/issue-dispositions/{id}"),
+            ("post", "/v1/projects/{project_id}/issue-dispositions"),
+        }
+    )
     actual = {
         (method, path)
         for path, methods in first["paths"].items()

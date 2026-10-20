@@ -31,6 +31,17 @@ scientific_conclusion_literature_inputs scientific_conclusion_versions
 scientific_conclusions source_versions statistical_result_inputs statistical_results""".split()
     )
 )
+M1_EDIT_TABLES = (
+    "manuscript_artifact_placements",
+    "manuscript_citation_placements",
+    "manuscript_claim_placements",
+    "manuscript_versions",
+    "publications",
+)
+M1_SNAPSHOT_TABLES = tuple(t for t in B04_SNAPSHOT_TABLES if t not in M1_EDIT_TABLES)
+M1_SHARE_SQL = "LOCK TABLE " + ",".join(M1_SNAPSHOT_TABLES) + " IN SHARE MODE"
+M1_EDIT_SQL = "LOCK TABLE " + ",".join(M1_EDIT_TABLES) + " IN EXCLUSIVE MODE"
+
 B04_SHARE_SQL = "LOCK TABLE " + ",".join(B04_SNAPSHOT_TABLES) + " IN SHARE MODE"
 
 
@@ -58,8 +69,16 @@ class SqlAlchemyManuscriptFreezeRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    def prepare_revision_write(self) -> None:
+        self._session.execute(text(M1_SHARE_SQL))
+        self._session.execute(text(M1_EDIT_SQL))
+        self._session.execute(text("SET LOCAL lock_timeout='10s'"))
+        self._session.execute(text("SET LOCAL statement_timeout='30s'"))
+
     def prepare_write(self) -> None:
-        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+        """B04's original inventory; successor editing uses prepare_revision_write."""
+        if not self._session.in_transaction():
+            self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
         self._session.execute(text(B04_SHARE_SQL))
         self._session.execute(text("SET LOCAL lock_timeout='10s'"))
         self._session.execute(text("SET LOCAL statement_timeout='30s'"))
@@ -151,9 +170,14 @@ class SqlAlchemyManuscriptFreezeRepository:
             raise ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "manuscript changed")
         result = self._session.execute(
             text(
-                """UPDATE publications SET current_manuscript_version_id=:manuscript,row_version=row_version+1 WHERE id=:id AND row_version=:version AND lifecycle_status='DRAFTING' AND current_manuscript_version_id IS NULL"""
+                """UPDATE publications SET current_manuscript_version_id=:manuscript,row_version=row_version+1 WHERE id=:id AND row_version=:version AND lifecycle_status IN ('DRAFTING','INTERNAL_REVIEW') AND current_manuscript_version_id IS NOT DISTINCT FROM :predecessor"""
             ),
-            {"id": parent["id"], "version": parent["row_version"], "manuscript": row["id"]},
+            {
+                "id": parent["id"],
+                "version": parent["row_version"],
+                "manuscript": row["id"],
+                "predecessor": parent["current_manuscript_version_id"],
+            },
         )
         if result.rowcount != 1:  # type: ignore[attr-defined]
             raise ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "publication changed")

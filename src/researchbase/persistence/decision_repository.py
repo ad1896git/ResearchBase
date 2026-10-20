@@ -138,7 +138,10 @@ class SqlAlchemyDecisionRepository:
         return row
 
     def lock_snapshot(self) -> None:
-        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+        # Application UoWs configure isolation before their first statement.
+        # Preserve the legacy direct-repository entry point on a fresh Session.
+        if not self._session.in_transaction():
+            self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
         self._session.execute(text("LOCK TABLE " + ",".join(_SNAPSHOT_TABLES) + " IN SHARE MODE"))
 
     def decision(self, identity: UUID, project: UUID):
@@ -183,6 +186,14 @@ class SqlAlchemyDecisionRepository:
         rows += self._many(
             """SELECT 'ClaimVersion' AS type,b.claim_version_id AS id,v.content_hash,b.ordinal
             FROM decision_basis_claims b JOIN claim_versions v ON v.id=b.claim_version_id
+            WHERE b.decision_id=:id""",
+            {"id": identity},
+        )
+        rows += self._many(
+            """SELECT 'ManuscriptVersion' AS type,b.manuscript_version_id AS id,
+                v.content_hash,b.ordinal
+            FROM decision_basis_manuscripts b
+            JOIN manuscript_versions v ON v.id=b.manuscript_version_id
             WHERE b.decision_id=:id""",
             {"id": identity},
         )
@@ -464,10 +475,30 @@ class SqlAlchemyDecisionRepository:
             {"id": issue},
         )
 
+    def manuscript_admission_reviews(self, target, project):
+        # Compose the established closure query so predecessor schemas and
+        # final-authorization hooks retain their behavior. Only earlier same-
+        # Publication blocking concerns are added; they are not affirmative basis.
+        rows = self.applicable_manuscript_reviews(target, project)
+        earlier = self._many(
+            """SELECT r.* FROM internal_review_records r
+            JOIN manuscript_versions old ON old.id=r.manuscript_version_id
+            JOIN manuscript_versions selected ON selected.publication_id=old.publication_id
+            WHERE selected.id=:target AND old.version_number<selected.version_number
+              AND r.project_id=:project AND EXISTS (
+                SELECT 1 FROM review_issues i WHERE i.review_record_id=r.id
+                  AND i.status='OPEN' AND i.severity='BLOCKING')
+            ORDER BY r.id""",
+            {"target": target, "project": project},
+        )
+        return sorted({row["id"]: row for row in (*rows, *earlier)}.values(), key=lambda r: r["id"])
+
     def revision_reviews(self, issue, project, *, lock=False):
         column = (
             "claim_version_id"
             if issue["claim_version_id"] is not None
+            else "manuscript_version_id"
+            if issue.get("manuscript_version_id") is not None
             else "scientific_conclusion_version_id"
         )
         return self._many(
@@ -501,7 +532,8 @@ class SqlAlchemyDecisionRepository:
         self._session.execute(
             text(
                 "SET CONSTRAINTS pr215_complete_decision,b07_complete_decision,b07_complete_claim,"
-                "b07_complete_concern,pr215_complete_conclusion,pr215_complete_review IMMEDIATE"
+                "b07_complete_concern,pr215_complete_conclusion,pr215_complete_review,"
+                "b11_complete_manuscript IMMEDIATE"
             )
         )
 

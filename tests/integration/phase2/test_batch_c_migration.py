@@ -16,7 +16,7 @@ def test_batch_c_empty_database_roundtrip(phase2_database_url):
         command.upgrade(config, "head")
         with engine.connect() as conn:
             assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-                "0073_b02_strategy_admission"
+                "0074_m1_manuscript_revision"
             )
         command.downgrade(config, "base")
         with engine.connect() as conn:

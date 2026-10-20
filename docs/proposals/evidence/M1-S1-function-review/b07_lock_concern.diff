@@ -1,0 +1,18 @@
+--- 0073/b07_lock_concern.sql
++++ 0074/b07_lock_concern.sql
+@@ -2,13 +2,14 @@
+  RETURNS void
+  LANGUAGE plpgsql
+ AS $function$
+ DECLARE old internal_review_records;
+ BEGIN
+-  LOCK TABLE actor_subject_bindings, actors, artifact_versions, artifacts, audit_findings, claims, correction_records, datasets, experiment_spec_versions, experiment_specs, impact_assessments, impact_targets, internal_review_records, literature_evidence, literature_evidence_review_events, literature_source_project_links, literature_sources, metric_definition_versions, metric_definitions, project_membership_events, project_memberships, project_role_assignments, projects, runs, scientific_conclusions, source_versions IN SHARE MODE;
++  LOCK TABLE actor_subject_bindings, actors, artifact_versions, artifacts, audit_findings, claim_versions, claims, correction_records, dataset_snapshots, datasets, evidence_relations, experiment_spec_versions, experiment_specs, impact_assessments, impact_targets, internal_review_records, literature_evidence, literature_evidence_relations, literature_evidence_review_events, literature_source_project_links, literature_sources, literature_support_snapshots, manuscript_artifact_placements, manuscript_citation_placements, manuscript_claim_placements, manuscript_versions, measurements, metric_definition_versions, metric_definitions, project_membership_events, project_memberships, project_role_assignments, projects, publications, review_issue_events, review_issues, run_artifact_inputs, run_dataset_inputs, runs, scientific_conclusion_claim_inputs, scientific_conclusion_literature_inputs, scientific_conclusion_versions, scientific_conclusions, source_versions, statistical_result_inputs, statistical_results IN SHARE MODE;
+   SELECT r.* INTO old FROM review_issues i JOIN internal_review_records r ON r.id=i.review_record_id WHERE i.id=iid;
+   PERFORM r.id FROM internal_review_records r WHERE r.project_id=old.project_id
+     AND r.claim_version_id IS NOT DISTINCT FROM old.claim_version_id
+     AND r.scientific_conclusion_version_id IS NOT DISTINCT FROM old.scientific_conclusion_version_id
++    AND r.manuscript_version_id IS NOT DISTINCT FROM old.manuscript_version_id
+     ORDER BY r.id FOR SHARE;
+   PERFORM id FROM review_issues WHERE id=iid FOR UPDATE;
+ END $function$

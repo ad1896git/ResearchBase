@@ -1,0 +1,14 @@
+--- 0073/b14a_admission.sql
++++ 0074/b14a_admission.sql
+@@ -29,9 +29,9 @@
+     AND (SELECT e.new_status FROM project_membership_events e WHERE e.membership_id=m.id AND e.occurred_at<=r.created_at ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1)='ACTIVE'
+     AND role.role IN ('OWNER','REVIEWER') AND role.effective_from<=r.created_at AND (role.effective_until IS NULL OR r.created_at<role.effective_until)
+     AND EXISTS(SELECT 1 FROM actor_subject_bindings b WHERE b.actor_id=a.id AND b.bound_at<=r.created_at AND (b.revoked_at IS NULL OR r.created_at<b.revoked_at))) THEN
+    RAISE EXCEPTION 'corrupt applicable review' USING ERRCODE='P14P1'; END IF;
+  END LOOP;
+- FOR iid IN SELECT i.id FROM review_issues i JOIN b11_applicable_reviews(mid,pid) applicable ON applicable.id=i.review_record_id LOOP PERFORM b08_check_history(iid); END LOOP;
+- IF EXISTS(SELECT 1 FROM review_issues i JOIN b11_applicable_reviews(mid,pid) applicable ON applicable.id=i.review_record_id WHERE i.status='OPEN' AND i.severity='BLOCKING') THEN
++ FOR iid IN SELECT i.id FROM review_issues i JOIN m1_admission_reviews(mid,pid) applicable ON applicable.id=i.review_record_id LOOP PERFORM b08_check_history(iid); END LOOP;
++ IF EXISTS(SELECT 1 FROM review_issues i JOIN m1_admission_reviews(mid,pid) applicable ON applicable.id=i.review_record_id WHERE i.status='OPEN' AND i.severity='BLOCKING') THEN
+  RAISE EXCEPTION 'applicable open blocker' USING ERRCODE='P14B1'; END IF;
+ END $function$

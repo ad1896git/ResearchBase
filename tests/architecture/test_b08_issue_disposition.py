@@ -34,7 +34,8 @@ def test_one_forward_event_refinement_and_no_parallel_state():
         assert forbidden not in source
     assert "fk_b08_event_mapping" in source
     assert "DEFERRABLE INITIALLY DEFERRED" in source
-    assert len(REVISION_SNAPSHOT_TABLES) == 26
+    # M1 §12.2: disposition excludes the two written issue tables from B09.
+    assert len(REVISION_SNAPSHOT_TABLES) == 44
 
 
 def test_application_reads_configure_snapshot_before_authentication_and_never_lock():

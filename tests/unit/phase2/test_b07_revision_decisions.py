@@ -67,7 +67,7 @@ def test_text_nfc_boundaries_and_unknown_actor():
 )
 def test_finite_choice_matrix(choice, action):
     allowed = (choice == "ACCEPT_NO_CHANGE" and action == "NO_CHANGE") or (
-        choice == "REQUIRE_CHANGE" and action not in {"NO_CHANGE", "MANUSCRIPT_CHANGE"}
+        choice == "REQUIRE_CHANGE" and action != "NO_CHANGE"
     )
     if allowed:
         validate_revision_choice("REVISION_RESPONSE", choice, action)

@@ -113,6 +113,7 @@ def validate_revision_choice(purpose: str, choice: str, action: str | None = Non
                 "CLAIM_CHANGE",
                 "CONCLUSION_CHANGE",
                 "SOURCE_CHANGE",
+                "MANUSCRIPT_CHANGE",
             }
         )
     ):

@@ -1043,7 +1043,9 @@ class InternalReviewService:
             else {**parent, "current_manuscript_version_id": identity}
         )
         try:
-            result = self._manuscripts.verify_in_uow(uow, project, checked_parent, checked_row)
+            result = self._manuscripts.verify_in_uow(
+                uow, project, checked_parent, checked_row, require_current=False
+            )
         except ResearchBaseError as exc:
             if exc.code == ErrorCode.FROZEN_REFERENCE_REQUIRED:
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "manuscript frozen closure invalid")
@@ -1417,6 +1419,29 @@ class InternalReviewService:
     def _record_disposition_once(
         self, principal, command, *, reload_only=False
     ) -> IssueDispositionReadback:
+        try:
+            saved = self.get_issue_disposition(principal, command.project_id, command.id)
+        except ResearchBaseError as error:
+            if error.code != ErrorCode.NOT_FOUND:
+                raise
+        else:
+            if saved.actor_id != principal.actor_id:
+                _fail(ErrorCode.FORBIDDEN, "event unavailable")
+            if (
+                any(
+                    getattr(saved, k) != getattr(command, k)
+                    for k in (
+                        "review_issue_id",
+                        "revision_action_id",
+                        "re_review_record_id",
+                        "decision_id",
+                        "rationale",
+                    )
+                )
+                or saved.new_status != command.disposition
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "event UUID reused with changed material")
+            return saved
         with self._factory() as uow:
             uow.enable_issue_disposition_error_normalization()
             uow.configure_revision_transaction()
@@ -1459,6 +1484,7 @@ class InternalReviewService:
             if (
                 issue["claim_version_id"] is None
                 and issue["scientific_conclusion_version_id"] is None
+                and issue.get("manuscript_version_id") is None
             ):
                 _fail(ErrorCode.INVALID_STATE_TRANSITION, "target disposition deferred")
             writer = dict(
@@ -1523,7 +1549,7 @@ class InternalReviewService:
             target = self._manuscript_target(uow, project, issue["manuscript_version_id"])
             parent = uow.publication.publication(target["publication_id"], project)
             validity = self._manuscripts.verify_in_uow(
-                uow, project, parent, target
+                uow, project, parent, target, require_current=False
             ).current_validity
         else:
             validity = self._revision_service()._basis(uow, issue, project)[1]

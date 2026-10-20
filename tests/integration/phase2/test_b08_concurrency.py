@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import create_engine, event, text
 
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.revision_action_repository import REVISION_SNAPSHOT_TABLES
+from researchbase.persistence.approval_repository import B09_SNAPSHOT_TABLES
 from tests.integration.phase2.b08_support import (
     approval_env,
     conclusion_env,
@@ -31,25 +31,25 @@ _FIXTURES = (conclusion_env, decision_env, phase2_database_url, revision_env, ap
 
 def test_creation_and_uuid_replay_begin_with_exact_share_inventory(revision_env):
     service, actor, cmd, base, _ = disposition_case(revision_env)
-    statements = []
+    from tests.integration.phase2.pr2_20_support import capture
 
-    def capture(conn, cursor, statement, parameters, context, many):
-        statements.append(statement)
-
-    event.listen(base[8], "before_cursor_execute", capture)
-    try:
-        for _ in range(2):
-            statements.clear()
-            service.record_issue_disposition(actor, cmd)
-            assert (
-                statements[0]
-                == "LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE"
-            )
-            assert "b08:disposition" not in statements[0]
-            assert "SET LOCAL lock_timeout='10s'" in statements
-            assert "SET LOCAL statement_timeout='30s'" in statements
-    finally:
-        event.remove(base[8], "before_cursor_execute", capture)
+    tables = tuple(
+        t for t in B09_SNAPSHOT_TABLES if t not in {"review_issues", "review_issue_events"}
+    )
+    inventory = "LOCK TABLE " + ",".join(tables) + " IN SHARE MODE"
+    with capture(base[8]) as observed:
+        service.record_issue_disposition(actor, cmd)
+    writers = [tx for tx in observed.transactions if inventory in tx]
+    assert len(writers) == 1 and writers[0][0] == inventory
+    assert "SET LOCAL lock_timeout='10s'" in writers[0]
+    assert "SET LOCAL statement_timeout='30s'" in writers[0]
+    with capture(base[8]) as observed:
+        service.record_issue_disposition(actor, cmd)
+    assert len(observed.transactions) == 1
+    assert not any(
+        "LOCK TABLE" in q or "pg_advisory" in q or "FOR UPDATE" in q or "FOR SHARE" in q
+        for q, _ in observed.statements
+    )
     with base[8].connect() as conn:
         assert conn.execute(text("SHOW lock_timeout")).scalar_one() == "0"
         assert conn.execute(text("SHOW statement_timeout")).scalar_one() == "0"
@@ -128,7 +128,11 @@ def test_correction_and_disposition_both_commit_orders_without_action_lock_cycle
             first = pool.submit(dispose if first_writer == "disposition" else correct)
             assert entered.wait(10)
             second = pool.submit(correct if first_writer == "disposition" else dispose)
-            _wait_for_pg_blocker(base[8], holder["pid"], "transactionid")
+            _wait_for_pg_blocker(
+                base[8],
+                holder["pid"],
+                "relation" if first_writer == "disposition" else "transactionid",
+            )
             release.set()
             assert first.result(timeout=15)
             if first_writer == "disposition":
@@ -647,7 +651,11 @@ def test_new_mapping_and_disposition_never_invert_action_and_issue_locks(revisio
             first = pool.submit(first_write)
             assert entered.wait(10)
             second = pool.submit(map_review if order == "disposition_first" else dispose)
-            _wait_for_pg_blocker(base[8], holder["pid"], "transactionid")
+            _wait_for_pg_blocker(
+                base[8],
+                holder["pid"],
+                "relation" if order == "disposition_first" else "transactionid",
+            )
             release.set()
             assert first.result(timeout=15)
             assert second.result(timeout=15)

@@ -11,7 +11,7 @@ from sqlalchemy import event, text
 
 from researchbase.application.revision_action import RecordConcernReReviewCommand
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.revision_action_repository import REVISION_SNAPSHOT_TABLES
+from researchbase.persistence.approval_repository import B09_SHARE_SQL
 from tests.integration.phase2.test_b07_revision_decisions import decision_command
 from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 from tests.integration.phase2.test_revision_action import (
@@ -373,26 +373,26 @@ def prepared(env, kind):
 def test_all_writes_and_replays_begin_with_inventory(revision_env, kind):
     write, _ = prepared(revision_env, kind)
     engine = revision_env[2][-1][8]
-    sql = []
+    from tests.integration.phase2.pr2_20_support import capture
 
-    def capture(conn, cursor, statement, parameters, context, many):
-        sql.append(statement)
-
-    event.listen(engine, "before_cursor_execute", capture)
-    try:
+    # M1 §12.2: decision/action/re-review use full B09, unlike disposition.
+    inventory = B09_SHARE_SQL
+    with capture(engine) as observed:
         first = write()
-        assert sql[0] == "LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE"
-        assert all(
-            not ("FOR UPDATE" in q or "FOR SHARE" in q)
-            or any(t in q for t in ("review_issues", "internal_review_records", "revision_actions"))
-            for q in sql
-        )
-        sql.clear()
+    writers = [tx for tx in observed.transactions if inventory in tx]
+    assert len(writers) == 1 and writers[0][0] == inventory
+    assert all(
+        not ("FOR UPDATE" in q or "FOR SHARE" in q)
+        or any(t in q for t in ("review_issues", "internal_review_records", "revision_actions"))
+        for q in writers[0]
+    )
+    with capture(engine) as observed:
         assert write() == first
-        assert sql[0] == "LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE"
-        assert not any("FOR UPDATE" in q or "FOR SHARE" in q for q in sql)
-    finally:
-        event.remove(engine, "before_cursor_execute", capture)
+    assert len(observed.transactions) == 1
+    assert not any(
+        "LOCK TABLE" in q or "pg_advisory" in q or "FOR UPDATE" in q or "FOR SHARE" in q
+        for q, _ in observed.statements
+    )
 
 
 @pytest.mark.parametrize("kind", ["decision", "action", "link"])

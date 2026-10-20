@@ -35,7 +35,7 @@ def _title(value: str) -> str:
         result.encode("utf-8", "strict")
     except UnicodeError:
         _fail(ErrorCode.VALIDATION_ERROR, "publication title contains invalid Unicode")
-    if not result.strip() or len(result) > 2000:
+    if not result.strip() or len(result) > 2000 or "\x00" in result:
         _fail(ErrorCode.VALIDATION_ERROR, "publication title must be nonblank and bounded")
     return result
 
@@ -241,8 +241,7 @@ class PublicationService:
     ):
         if not isinstance(principal, VerifiedPrincipal) or type(project) is not UUID:
             _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified project principal required")
-        uow.literature_search_plan.lock_project(project)
-        rows = uow.literature_search_plan.authorize(principal, project)
+        rows = uow.manuscript_freeze.authority(principal, project)
         at = uow.source_version.at()
         try:
             live = principal.verified_at <= at and self._credentials.is_valid(principal, at)
@@ -272,6 +271,10 @@ class PublicationService:
         command: str,
         parent: UUID | None = None,
     ) -> UUID:
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(project) is not UUID:
+            _fail(ErrorCode.VALIDATION_ERROR, "exact project UUID required")
         if type(request) is not UUID:
             _fail(ErrorCode.VALIDATION_ERROR, "request UUID required")
         return uuid5(
@@ -315,6 +318,7 @@ class PublicationService:
         title = _title(title)
         identity = self._identity(principal, project, request_id, "publication")
         with self._factory() as uow:
+            uow.literature_search_plan.lock_project(project)
             at = self._authorize(uow, principal, project, _WRITERS)
             repo = uow.publication
             repo.lock_request(f"pr212:publication:{identity}")
@@ -360,6 +364,7 @@ class PublicationService:
         if (
             type(publication_id) is not UUID
             or type(document_id) is not UUID
+            or type(change_class) is not str
             or change_class not in _CHANGES
             or (abstract is not None and (not isinstance(abstract, str) or not abstract.strip()))
         ):
@@ -367,72 +372,92 @@ class PublicationService:
         title = _title(title)
         if abstract is not None:
             abstract = unicodedata.normalize("NFC", abstract)
+            try:
+                abstract.encode("utf-8", "strict")
+            except UnicodeError:
+                _fail(ErrorCode.VALIDATION_ERROR, "invalid manuscript abstract Unicode")
+            if len(abstract) > 100000 or "\x00" in abstract:
+                _fail(ErrorCode.VALIDATION_ERROR, "bounded manuscript abstract required")
         identity = self._identity(principal, project, request_id, "draft", publication_id)
         with self._factory() as uow:
-            at = self._authorize(uow, principal, project, _WRITERS)
-            repo = uow.publication
-            repo.lock_request(f"pr212:draft:{identity}")
-            parent = repo.publication(publication_id, project, lock=True)
-            if parent is None or parent["lifecycle_status"] != "DRAFTING":
-                _fail(ErrorCode.INVALID_STATE_TRANSITION, "draft parent unavailable")
-            prior = repo.version(identity, publication_id)
-            if prior is None:
-                self._document(repo, document_id, project)
-                # This slice permits one initial draft; revision needs a later command.
-                if parent["current_manuscript_version_id"] is not None:
-                    _fail(ErrorCode.INVALID_STATE_TRANSITION, "published version cannot draft here")
-                if repo.initial_version(publication_id) is not None:
-                    _fail(
-                        ErrorCode.INVALID_STATE_TRANSITION,
-                        "initial manuscript draft already exists",
-                    )
-                repo.insert_version(
-                    {
-                        "id": identity,
-                        "publication_id": publication_id,
-                        "version_number": 1,
-                        "status": "DRAFT",
+            uow.configure_revision_transaction(readonly=True)
+            uow.enable_revision_action_snapshot_reads()
+            self._authorize(uow, principal, project, _READERS)
+            parent = uow.publication.publication(publication_id, project)
+            saved = uow.publication.version(identity, publication_id) if parent else None
+            if saved is not None:
+                if any(
+                    saved[k] != v
+                    for k, v in {
                         "document_artifact_version_id": document_id,
                         "title": title,
                         "abstract": abstract,
                         "semantic_change_class": change_class,
-                        "placement_set_hash": None,
-                        "content_hash": None,
-                        "hash_scheme": "sha256-cjson-v1",
                         "created_by": principal.actor_id,
-                        "created_at": at,
-                        "frozen_at": None,
-                        "row_version": 1,
-                    }
-                )
-                result = DraftReadback(
+                    }.items()
+                ):
+                    _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "draft request replay differs")
+                if saved["status"] == "FROZEN":
+                    self._entry_policy()._manuscripts.verify_saved_seal_in_uow(
+                        uow, project, parent, saved
+                    )
+                else:
+                    if saved["status"] != "DRAFT" or any(
+                        saved[k] is not None
+                        for k in ("frozen_at", "placement_set_hash", "content_hash")
+                    ):
+                        _fail(
+                            ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "draft replay material invalid"
+                        )
+                    self._document(uow.publication, document_id, project)
+                self._authorize(uow, principal, project, _READERS)
+                return DraftReadback(
                     identity,
                     publication_id,
-                    1,
-                    "DRAFT",
+                    saved["version_number"],
+                    saved["status"],
                     document_id,
                     title,
                     abstract,
                     change_class,
-                    None,
-                    None,
+                    saved["placement_set_hash"],
+                    saved["content_hash"],
                 )
-            elif (
-                prior["document_artifact_version_id"] != document_id
-                or prior["title"] != title
-                or prior["abstract"] != abstract
-                or prior["semantic_change_class"] != change_class
-            ):
-                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "draft request replay differs")
+        with self._factory() as uow:
+            uow.enable_manuscript_freeze_error_normalization()
+            uow.configure_revision_transaction()
+            # INITIAL remains the PR2-12 command, including at revision 0035.
+            # Only successor creation needs the M1 editing inventory (§12.2).
+            if change_class != "INITIAL":
+                uow.manuscript_freeze.prepare_revision_write()
             else:
-                self._document(repo, document_id, project)
-                if (
-                    prior["status"] != "DRAFT"
-                    or prior["placement_set_hash"] is not None
-                    or prior["content_hash"] is not None
-                    or prior["frozen_at"] is not None
+                uow.literature_search_plan.lock_project(project)
+            repo = uow.publication
+            repo.lock_request(f"pr212:draft:{identity}")
+            repo.lock_project(project)
+            parent = repo.publication(publication_id, project, lock=True)
+            self._authorize(uow, principal, project, _READERS)
+            if parent is None:
+                _fail(ErrorCode.NOT_FOUND, "draft parent unavailable")
+            prior = repo.version(identity, publication_id)
+            if prior is not None:
+                if any(
+                    prior[k] != v
+                    for k, v in {
+                        "document_artifact_version_id": document_id,
+                        "title": title,
+                        "abstract": abstract,
+                        "semantic_change_class": change_class,
+                        "created_by": principal.actor_id,
+                    }.items()
                 ):
-                    _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "draft replay material invalid")
+                    _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "draft request replay differs")
+                if prior["status"] == "FROZEN":
+                    self._entry_policy()._manuscripts.verify_saved_seal_in_uow(
+                        uow, project, parent, prior
+                    )
+                else:
+                    self._document(repo, document_id, project)
                 result = DraftReadback(
                     identity,
                     publication_id,
@@ -442,9 +467,63 @@ class PublicationService:
                     title,
                     abstract,
                     change_class,
+                    prior["placement_set_hash"],
+                    prior["content_hash"],
+                )
+            else:
+                if parent["lifecycle_status"] not in {"DRAFTING", "INTERNAL_REVIEW"}:
+                    _fail(ErrorCode.INVALID_STATE_TRANSITION, "publication stage ineligible")
+                predecessor = parent["current_manuscript_version_id"]
+                old = repo.version(predecessor, publication_id, share=True) if predecessor else None
+                number = repo.next_version(publication_id)
+                if repo.has_draft(publication_id):
+                    _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "publication already has a draft")
+                if number > 2147483647 or (number == 1) != (change_class == "INITIAL"):
+                    _fail(
+                        ErrorCode.INVALID_STATE_TRANSITION,
+                        "manuscript version/change class mismatch",
+                    )
+                if number > 1 and (
+                    old is None or old["status"] != "FROZEN" or old["version_number"] != number - 1
+                ):
+                    _fail(
+                        ErrorCode.INVALID_STATE_TRANSITION, "contiguous frozen predecessor required"
+                    )
+                self._document(repo, document_id, project)
+                at = self._authorize(uow, principal, project, _WRITERS)
+                repo.insert_version(
+                    dict(
+                        id=identity,
+                        publication_id=publication_id,
+                        version_number=number,
+                        status="DRAFT",
+                        document_artifact_version_id=document_id,
+                        title=title,
+                        abstract=abstract,
+                        semantic_change_class=change_class,
+                        placement_set_hash=None,
+                        content_hash=None,
+                        hash_scheme="sha256-cjson-v1",
+                        created_by=principal.actor_id,
+                        created_at=at,
+                        frozen_at=None,
+                        row_version=1,
+                    )
+                )
+                uow.manuscript_freeze.force_constraints()
+                result = DraftReadback(
+                    identity,
+                    publication_id,
+                    number,
+                    "DRAFT",
+                    document_id,
+                    title,
+                    abstract,
+                    change_class,
                     None,
                     None,
                 )
+            self._authorize(uow, principal, project, _READERS)
             uow.commit()
         return result
 
@@ -456,6 +535,8 @@ class PublicationService:
         version_id: UUID,
     ) -> DraftReadback:
         with self._factory() as uow:
+            uow.configure_revision_transaction(readonly=True)
+            uow.enable_revision_action_snapshot_reads()
             self._authorize(uow, principal, project, _READERS)
             repo = uow.publication
             parent = repo.publication(publication_id, project)

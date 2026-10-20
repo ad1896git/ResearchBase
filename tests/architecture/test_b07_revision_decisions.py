@@ -67,7 +67,8 @@ def test_pure_policy_and_exact_snapshot_read_entrypoints():
             "_authorize"
         )
         assert "lock_" not in source and source.count("self._factory()") == 1
-    assert len(REVISION_SNAPSHOT_TABLES) == 26
+    # M1 §12.2: disposition excludes the two written issue tables from B09.
+    assert len(REVISION_SNAPSHOT_TABLES) == 44
     assert REVISION_SNAPSHOT_TABLES == tuple(sorted(REVISION_SNAPSHOT_TABLES))
     assert "internal_review_records" in REVISION_SNAPSHOT_TABLES
-    assert "claim_versions" not in REVISION_SNAPSHOT_TABLES
+    assert "claim_versions" in REVISION_SNAPSHOT_TABLES

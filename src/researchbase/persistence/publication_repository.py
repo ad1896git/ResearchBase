@@ -62,6 +62,11 @@ class SqlAlchemyPublicationRepository:
         self._session = session
         self._protected_reads = protected_reads
 
+    def lock_project(self, project: UUID) -> None:
+        self._session.execute(
+            text("SELECT id FROM projects WHERE id=:id FOR SHARE"), {"id": project}
+        )
+
     def lock_request(self, key: str) -> None:
         self._session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"), {"key": key}
@@ -83,17 +88,40 @@ class SqlAlchemyPublicationRepository:
         )
         return dict(row) if row else None
 
-    def version(self, identity: UUID, publication: UUID):
+    def version(
+        self, identity: UUID, publication: UUID, *, lock: bool = False, share: bool = False
+    ):
         row = (
             self._session.execute(
-                text("""SELECT * FROM manuscript_versions
-          WHERE id=:id AND publication_id=:publication"""),
+                text(
+                    """SELECT * FROM manuscript_versions
+          WHERE id=:id AND publication_id=:publication"""
+                    + (" FOR UPDATE" if lock else " FOR SHARE" if share else "")
+                ),
                 {"id": identity, "publication": publication},
             )
             .mappings()
             .first()
         )
         return dict(row) if row else None
+
+    def next_version(self, publication: UUID) -> int:
+        return self._session.execute(
+            text(
+                "SELECT coalesce(max(version_number)::bigint,0)+1 FROM manuscript_versions "
+                "WHERE publication_id=:id"
+            ),
+            {"id": publication},
+        ).scalar_one()
+
+    def has_draft(self, publication: UUID) -> bool:
+        return self._session.execute(
+            text(
+                "SELECT EXISTS(SELECT 1 FROM manuscript_versions WHERE publication_id=:id "
+                "AND status='DRAFT')"
+            ),
+            {"id": publication},
+        ).scalar_one()
 
     def initial_version(self, publication: UUID):
         return self._session.execute(

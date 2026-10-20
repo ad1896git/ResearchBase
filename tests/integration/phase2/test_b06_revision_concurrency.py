@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import event, text
 
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
-from researchbase.persistence.revision_action_repository import REVISION_SNAPSHOT_TABLES
+from researchbase.persistence.approval_repository import B09_SNAPSHOT_TABLES
 from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 from tests.integration.phase2.test_revision_action import (
     conclusion_env,
@@ -51,6 +51,26 @@ INVENTORY = tuple(
             "experiment_spec_versions",
             "runs",
             "internal_review_records",
+            "claim_versions",
+            "dataset_snapshots",
+            "evidence_relations",
+            "literature_evidence_relations",
+            "literature_support_snapshots",
+            "manuscript_artifact_placements",
+            "manuscript_citation_placements",
+            "manuscript_claim_placements",
+            "manuscript_versions",
+            "measurements",
+            "publications",
+            "review_issue_events",
+            "review_issues",
+            "run_artifact_inputs",
+            "run_dataset_inputs",
+            "scientific_conclusion_claim_inputs",
+            "scientific_conclusion_literature_inputs",
+            "scientific_conclusion_versions",
+            "statistical_result_inputs",
+            "statistical_results",
         }
     )
 )
@@ -61,25 +81,24 @@ def test_write_and_uuid_replay_first_statement_exact_inventory_and_no_scientific
 ):
     service, cmd, env, _, _ = revision_env
     base = env[-1]
-    statements = []
+    from tests.integration.phase2.pr2_20_support import capture
 
-    def capture(conn, cursor, statement, parameters, context, many):
-        statements.append(statement)
-
-    assert REVISION_SNAPSHOT_TABLES == INVENTORY
-    event.listen(base[8], "before_cursor_execute", capture)
-    try:
+    # M1 §12.2: revision actions use the full B09 inventory.
+    assert B09_SNAPSHOT_TABLES == INVENTORY
+    first = "LOCK TABLE " + ",".join(INVENTORY) + " IN SHARE MODE"
+    with capture(base[8]) as observed:
         saved = service.record_revision_action(base[3], cmd)
-        first = "LOCK TABLE " + ",".join(INVENTORY) + " IN SHARE MODE"
-        assert statements[0] == first
-        assert all("FOR UPDATE" not in sql for sql in statements)
-        assert any("review_issues" in sql and "FOR SHARE" in sql for sql in statements)
-        statements.clear()
+    writers = [tx for tx in observed.transactions if first in tx]
+    assert len(writers) == 1 and writers[0][0] == first
+    assert all("FOR UPDATE" not in sql for sql in writers[0])
+    assert any("review_issues" in sql and "FOR SHARE" in sql for sql in writers[0])
+    with capture(base[8]) as observed:
         assert service.record_revision_action(base[3], cmd) == saved
-        assert statements[0] == first
-        assert all("FOR UPDATE" not in sql or "revision_actions" in sql for sql in statements)
-    finally:
-        event.remove(base[8], "before_cursor_execute", capture)
+    assert len(observed.transactions) == 1
+    assert not any(
+        "LOCK TABLE" in sql or "pg_advisory" in sql or "FOR UPDATE" in sql or "FOR SHARE" in sql
+        for sql, _ in observed.statements
+    )
 
 
 def test_exact_read_does_not_block_unrelated_insert_and_keeps_one_readonly_snapshot(revision_env):
@@ -169,7 +188,7 @@ def test_first_inventory_wait_rechecks_expired_credentials_and_uses_bounded_prof
 def test_claim_source_witness_commits_during_inventory(
     revision_env,
 ):
-    """A positive immutable witness linearizes after append; B needs no extra table."""
+    """B09 serializes a new sidecar; retry sees the committed exact witness."""
     from dataclasses import replace
     from uuid import UUID
 
@@ -197,35 +216,47 @@ def test_claim_source_witness_commits_during_inventory(
             text("SELECT id FROM literature_evidence WHERE source_version_id=:id"), {"id": base[7]}
         ).scalar_one()
     entered, release = Event(), Event()
+    holder_pid = []
+    inventory = "LOCK TABLE " + ",".join(INVENTORY) + " IN SHARE MODE"
 
     def pause(conn, cursor, statement, parameters, context, many):
-        if statement.startswith("LOCK TABLE "):
+        if statement == inventory:
+            holder_pid.append(conn.execute(text("SELECT pg_backend_pid()")).scalar_one())
             entered.set()
             assert release.wait(10)
 
+    def append_witness():
+        return base[2].snapshot(
+            base[3],
+            base[5],
+            "ClaimVersion",
+            claim,
+            [
+                {
+                    "evidence_id": str(evidence),
+                    "relation_type": "QUALIFIES",
+                    "qualification": "TEST ONLY exact source",
+                }
+            ],
+            uuid4(),
+        )
+
     event.listen(base[8], "after_cursor_execute", pause)
     try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
+        with ThreadPoolExecutor(max_workers=2) as pool:
             pending = pool.submit(service.record_revision_action, base[3], request)
             assert entered.wait(10)
-            snapshot = base[2].snapshot(
-                base[3],
-                base[5],
-                "ClaimVersion",
-                claim,
-                [
-                    {
-                        "evidence_id": str(evidence),
-                        "relation_type": "QUALIFIES",
-                        "qualification": "TEST ONLY exact source",
-                    }
-                ],
-                uuid4(),
-            )
-            assert UUID(snapshot["id"])
-            assert not pending.done()
-            release.set()
-            saved = pending.result(timeout=10)
+            writing = pool.submit(append_witness)
+            try:
+                witness = _wait_for_pg_blocker(base[8], holder_pid[0], "relation")
+                assert witness["relation"] == "literature_support_snapshots"
+            finally:
+                release.set()
+            with pytest.raises(ResearchBaseError) as denied:
+                pending.result(timeout=10)
+            assert denied.value.code == ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+            assert UUID(writing.result(timeout=10)["id"])
+        saved = service.record_revision_action(base[3], request)
         assert saved.result_source_version_id == request.result_source_version_id
         assert service.read_revision_action(base[3], base[5], saved.id) == saved
     finally:

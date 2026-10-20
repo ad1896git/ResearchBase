@@ -229,6 +229,18 @@ def optional_uuid(values: dict[str, object], name: str, runtime: CliRuntime):
 
 
 def register(app: typer.Typer) -> None:
+    manuscript = command_group("Exact manuscript revision evidence.")
+    for name, callback in (
+        ("record-decision", manuscript_revision_decision),
+        ("record-action", manuscript_revision_action),
+        ("link-review", manuscript_revision_link),
+        ("dispose-issue", manuscript_issue_disposition),
+        ("show-decision", manuscript_revision_decision_show),
+        ("show-action", manuscript_revision_action_show),
+        ("show-history", manuscript_issue_history),
+    ):
+        add_command(manuscript, name, "Exact manuscript revision operation.", callback)
+    app.add_typer(manuscript, name="manuscript-revision")
     reviews = command_group("Exact novelty reviews.")
     add_command(reviews, "record", "Record an independent novelty review.", novelty_review_record)
     add_command(reviews, "show", "Show exact novelty review history.", novelty_review_show)
@@ -446,5 +458,151 @@ def novelty_revision_show_link(
             _b23_uuid(project_id),
             _b23_uuid(revision_action_id),
             _b23_uuid(internal_review_record_id),
+        ),
+    )
+
+
+def _m1_payload(payload, cls, project):
+    import json
+    from dataclasses import fields
+
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    try:
+        values = json.loads(payload)
+        allowed = {f.name for f in fields(cls)} - {"project_id"}
+        if type(values) is not dict or set(values) - allowed:
+            raise ValueError("closed command required")
+        text_fields = {
+            "action_type",
+            "question",
+            "rationale",
+            "decision",
+            "decision_type",
+            "disposition",
+        }
+        values = {
+            k: v if k in text_fields or v is None else _b23_uuid(v) for k, v in values.items()
+        }
+        return cls(project_id=_b23_uuid(project), **values)
+    except (ValueError, TypeError, KeyError):
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "closed revision command required"
+        ) from None
+
+
+def manuscript_revision_decision(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    payload: str = typer.Option(..., "--payload"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.decision import RecordRevisionDecisionCommand
+
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.decisions.record_revision_decision(
+            p, _m1_payload(payload, RecordRevisionDecisionCommand, project_id)
+        ),
+    )
+
+
+def manuscript_revision_action(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    payload: str = typer.Option(..., "--payload"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.revision_action import RecordRevisionActionCommand
+
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.revision_actions.record_revision_action(
+            p, _m1_payload(payload, RecordRevisionActionCommand, project_id)
+        ),
+    )
+
+
+def manuscript_issue_disposition(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    payload: str = typer.Option(..., "--payload"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.internal_review import RecordIssueDispositionCommand
+
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.internal_reviews.record_issue_disposition(
+            p, _m1_payload(payload, RecordIssueDispositionCommand, project_id)
+        ),
+    )
+
+
+def manuscript_revision_link(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    action_id: str = typer.Option(..., "--action-id"),
+    review_id: str = typer.Option(..., "--review-id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    from researchbase.application.revision_action import RecordConcernReReviewCommand
+
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.revision_actions.record_concern_re_review(
+            p,
+            RecordConcernReReviewCommand(
+                _b23_uuid(project_id), _b23_uuid(action_id), _b23_uuid(review_id)
+            ),
+        ),
+    )
+
+
+def manuscript_revision_decision_show(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.decisions.get_revision_decision(
+            p, _b23_uuid(project_id), _b23_uuid(id)
+        ),
+    )
+
+
+def manuscript_revision_action_show(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.revision_actions.read_revision_action(
+            p, _b23_uuid(project_id), _b23_uuid(id)
+        ),
+    )
+
+
+def manuscript_issue_history(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.internal_reviews.get_issue_history(
+            p, _b23_uuid(project_id), _b23_uuid(id)
         ),
     )

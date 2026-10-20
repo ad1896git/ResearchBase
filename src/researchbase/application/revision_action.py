@@ -534,8 +534,6 @@ class RevisionActionService:
 
     @staticmethod
     def _supported(row):
-        if row["action_type"] == "MANUSCRIPT_CHANGE":
-            _fail(ErrorCode.INVALID_STATE_TRANSITION, "manuscript revision path deferred")
         if row["review_issue_id"] is None and row["decision_record_id"] is None:
             _fail(ErrorCode.DECISION_BASIS_INVALID, "exact concern basis required")
         if row["action_type"] == "NO_CHANGE" and row["decision_record_id"] is None:
@@ -818,7 +816,21 @@ class RevisionActionService:
             identity = snapshot["previous_snapshot_id"]
         return states
 
+    def _manuscript(self, uow, identity, project):
+        target = uow.internal_review.manuscript_target(identity, project)
+        if target is None:
+            self._absent(uow, "ManuscriptVersion", identity)
+        self._frozen(target)
+        parent = uow.publication.publication(target["publication_id"], project)
+        checked = self._policy._manuscripts.verify_in_uow(
+            uow, project, parent, target, require_current=False
+        )
+        return target, checked.current_validity
+
     def _basis(self, uow, issue, project, *, source_ancestors=None):
+        if issue.get("manuscript_version_id") is not None:
+            old, validity = self._manuscript(uow, issue["manuscript_version_id"], project)
+            return old, validity, RevisionBasis((), manuscript=self._lineage(old, "publication_id"))
         repo = uow.revision_action
         old = repo.target(issue, project)
         if old is None:
@@ -899,7 +911,11 @@ class RevisionActionService:
         action = row["action_type"]
         if action == "NO_CHANGE":
             return tuple(refs), RevisionResult(), None
-        if action == "CLAIM_CHANGE":
+        if action == "MANUSCRIPT_CHANGE":
+            new, validity = self._manuscript(uow, row["result_manuscript_version_id"], project)
+            result = RevisionResult(version=self._lineage(new, "publication_id"))
+            refs[5] = RevisionReference("ManuscriptVersion", new["id"], new["content_hash"])
+        elif action == "CLAIM_CHANGE":
             new, validity = self._claim(uow, row["result_claim_version_id"], project)
             result = RevisionResult(version=self._lineage(new, "claim_id"))
             refs[3] = RevisionReference("ClaimVersion", new["id"], new["content_hash"])
@@ -982,8 +998,31 @@ class RevisionActionService:
             if row["action_type"] == "SOURCE_CHANGE"
             else None,
         )
+        if current and basis.manuscript is not None:
+            if issue["status"] != "OPEN":
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "manuscript concern already disposed")
+            if (
+                row["action_type"] == "MANUSCRIPT_CHANGE"
+                and issue["severity"] == "BLOCKING"
+                and (decision is None or decision.decision != "REQUIRE_CHANGE")
+            ):
+                _fail(
+                    ErrorCode.DECISION_BASIS_INVALID,
+                    "blocking manuscript change requires REQUIRE_CHANGE",
+                )
+            if row["action_type"] not in {"MANUSCRIPT_CHANGE", "NO_CHANGE"}:
+                _fail(ErrorCode.INVALID_STATE_TRANSITION, "manuscript response shape required")
         if row["action_type"] != "NO_CHANGE":
-            validate_revision_relevance(row["action_type"], basis, result)
+            try:
+                validate_revision_relevance(row["action_type"], basis, result)
+            except ValueError:
+                if current and (
+                    basis.manuscript is not None or row["action_type"] == "MANUSCRIPT_CHANGE"
+                ):
+                    _fail(
+                        ErrorCode.INVALID_STATE_TRANSITION, "later same-Publication result required"
+                    )
+                raise
         decision_ref = (
             RevisionReference("DecisionRecord", decision.id, decision.content_hash)
             if decision
@@ -1007,6 +1046,8 @@ class RevisionActionService:
         kind = (
             "ClaimVersion"
             if issue["claim_version_id"] is not None
+            else "ManuscriptVersion"
+            if issue.get("manuscript_version_id") is not None
             else "ScientificConclusionVersion"
         )
         provenance = (
@@ -1081,6 +1122,19 @@ class RevisionActionService:
         raise AssertionError("unreachable revision retry")
 
     def _record_once(self, principal, command):
+        try:
+            saved = self.read_revision_action(principal, command.project_id, command.id)
+        except ResearchBaseError as error:
+            if error.code != ErrorCode.NOT_FOUND:
+                raise
+        else:
+            if saved.created_by != principal.actor_id:
+                _fail(ErrorCode.FORBIDDEN, "revision unavailable")
+            if type(saved) is not RevisionActionReadback or any(
+                getattr(saved, f.name) != getattr(command, f.name) for f in fields(command)
+            ):
+                _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "revision request material conflicts")
+            return saved
         with self._factory() as uow:
             uow.enable_decision_error_normalization()
             repo = uow.revision_action
@@ -1196,6 +1250,7 @@ class RevisionActionService:
         if (
             review["claim_version_id"] is None
             and review["scientific_conclusion_version_id"] is None
+            and review.get("manuscript_version_id") is None
         ):
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "scientific re-review target required")
         old, _, basis = self._basis(uow, issue, project)
@@ -1212,11 +1267,17 @@ class RevisionActionService:
         except ValueError:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "unrelated re-review target or witness")
         authors = set(
-            uow.decision.material_authors(old["id"], claim=issue["claim_version_id"] is not None)
+            uow.decision.material_authors(
+                old["id"],
+                claim=issue["claim_version_id"] is not None,
+                manuscript=issue.get("manuscript_version_id") is not None,
+            )
         )
         authors.update(
             uow.decision.material_authors(
-                target["id"], claim=review["claim_version_id"] is not None
+                target["id"],
+                claim=review["claim_version_id"] is not None,
+                manuscript=review.get("manuscript_version_id") is not None,
             )
         )
         if action["action_type"] == "SOURCE_CHANGE" and review["claim_version_id"] is not None:
@@ -1297,7 +1358,36 @@ class RevisionActionService:
             review["scientific_conclusion_version_id"],
             validity,
             checked.has_superseding_action,
+            review.get("manuscript_version_id"),
         )
+
+    def _read_concern_re_review(self, principal, query):
+        with self._factory() as uow:
+            uow.configure_revision_transaction(readonly=True)
+            uow.enable_revision_action_snapshot_reads()
+            self._authorize(uow, principal, query.project_id, _READERS)
+            link = uow.revision_action.link(
+                query.revision_action_id, query.internal_review_record_id
+            )
+            if link is None:
+                self._authorize(uow, principal, query.project_id, _READERS)
+                return None
+            action = uow.revision_action.action(query.revision_action_id, query.project_id)
+            if action is None:
+                self._absent(uow, "RevisionAction", query.revision_action_id)
+            result = self._correspondence(uow, link, action, query.project_id)
+            self._authorize(uow, principal, query.project_id, _READERS)
+            return result
+
+    def get_concern_re_review(self, principal, query: "RecordConcernReReviewCommand"):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
+        if type(query) is not RecordConcernReReviewCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "exact correspondence query required")
+        result = self._read_concern_re_review(principal, query)
+        if result is None:
+            _fail(ErrorCode.NOT_FOUND, "exact correspondence not found")
+        return result
 
     def record_concern_re_review(self, principal, command, *, novelty: bool = False):
         """Select the dedicated surface's protocol before opening its single UoW.
@@ -1339,6 +1429,11 @@ class RevisionActionService:
         return self._record_legacy_correspondence_once(principal, command)
 
     def _record_legacy_correspondence_once(self, principal, command):
+        prior = self._read_concern_re_review(principal, command)
+        if prior is not None:
+            if prior.recorded_by != principal.actor_id:
+                _fail(ErrorCode.FORBIDDEN, "correspondence unavailable")
+            return prior
         with self._factory() as uow:
             uow.enable_decision_error_normalization()
             uow.configure_revision_transaction()
@@ -1469,6 +1564,7 @@ class ConcernReReviewReadback:
     scientific_conclusion_version_id: UUID | None
     target_validity: str
     has_superseding_action: bool
+    manuscript_version_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)

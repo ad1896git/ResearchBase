@@ -1,0 +1,17 @@
+--- 0073/b11_manuscript_basis_guard.sql
++++ 0074/b11_manuscript_basis_guard.sql
+@@ -2,8 +2,14 @@
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ AS $function$
+ BEGIN
++ IF (SELECT decision_type FROM decision_records WHERE id=NEW.decision_id)='REVISION_RESPONSE' THEN
++   IF NOT EXISTS(SELECT 1 FROM decision_records WHERE id=NEW.decision_id AND xmin=pg_current_xact_id()::xid) THEN
++     RAISE EXCEPTION 'basis sealed to creation' USING ERRCODE='P17F1'; END IF;
++   PERFORM b07_lock_concern(review_issue_id) FROM decision_revision_concerns WHERE decision_id=NEW.decision_id;
++   RETURN NEW;
++ END IF;
+  PERFORM b11_check_basis(NEW.decision_id,NEW.manuscript_version_id);
+  RETURN NEW;
+ END $function$

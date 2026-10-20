@@ -357,7 +357,12 @@ class ApprovalService:
         if target is None:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved entry target missing")
         entries = uow.publication.entry_events(target["publication_id"])
-        if len(entries) != 1 or entries[0]["manuscript_version_id"] != identity:
+        entry_target = (
+            uow.publication.version(entries[0]["manuscript_version_id"], target["publication_id"])
+            if len(entries) == 1
+            else None
+        )
+        if entry_target is None or entry_target["version_number"] > target["version_number"]:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "exact saved manuscript entry required")
         service = PublicationService(
             self._factory, self._policy._credentials, self._decisions._manuscripts._store

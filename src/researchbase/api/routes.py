@@ -54,6 +54,10 @@ from researchbase.application.commands import (
     StatisticalResultInputCommand,
     WriteProjectionTarget,
 )
+from researchbase.application.decision import (
+    RecordRevisionDecisionCommand,
+    RevisionDecisionReadback,
+)
 from researchbase.application.dto import (
     ArtifactReadModel,
     ArtifactVersionReadModel,
@@ -83,7 +87,13 @@ from researchbase.application.governance import (
     ProposedImpactTarget,
 )
 from researchbase.application.governance_queries import DownstreamImpactTarget
-from researchbase.application.internal_review import NoveltyReviewReadback, ReviewIssueRequest
+from researchbase.application.internal_review import (
+    IssueDispositionReadback,
+    IssueHistoryReadback,
+    NoveltyReviewReadback,
+    RecordIssueDispositionCommand,
+    ReviewIssueRequest,
+)
 from researchbase.application.literature_search_execution import (
     CancelLiteratureSearchExecution,
     CreateLiteratureSearchExecution,
@@ -115,10 +125,13 @@ from researchbase.application.novelty import (
 )
 from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
 from researchbase.application.revision_action import (
+    ConcernReReviewReadback,
     NoveltyReReviewReadback,
     NoveltyRevisionReadback,
     RecordConcernReReviewCommand,
     RecordNoveltyRevisionCommand,
+    RecordRevisionActionCommand,
+    RevisionActionReadback,
 )
 from researchbase.application.source_identity import (
     AddSourceIdentifier,
@@ -2474,5 +2487,180 @@ def read_novelty_re_review(
     return _json(
         _services(request).revision_actions.read_novelty_re_review(
             _verified_principal(request), project_id, id, review_id
+        )
+    )
+
+
+class RevisionDecisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    review_issue_id: NoveltyUUID
+    question: StrictStr
+    rationale: StrictStr
+    decision: Literal["REQUIRE_CHANGE", "ACCEPT_NO_CHANGE"]
+    decision_type: Literal["REVISION_RESPONSE"] = "REVISION_RESPONSE"
+
+
+class RevisionActionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    action_type: Literal[
+        "NEW_EXPERIMENT",
+        "ANALYSIS_CHANGE",
+        "CLAIM_CHANGE",
+        "CONCLUSION_CHANGE",
+        "MANUSCRIPT_CHANGE",
+        "SOURCE_CHANGE",
+        "NO_CHANGE",
+    ]
+    review_issue_id: NoveltyUUID | None = None
+    decision_record_id: NoveltyUUID | None = None
+    result_experiment_spec_version_id: NoveltyUUID | None = None
+    result_run_id: NoveltyUUID | None = None
+    result_statistical_result_id: NoveltyUUID | None = None
+    result_claim_version_id: NoveltyUUID | None = None
+    result_scientific_conclusion_version_id: NoveltyUUID | None = None
+    result_manuscript_version_id: NoveltyUUID | None = None
+    result_source_version_id: NoveltyUUID | None = None
+    supersedes_revision_action_id: NoveltyUUID | None = None
+
+
+class IssueDispositionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    review_issue_id: NoveltyUUID
+    disposition: Literal["ADDRESSED", "DISMISSED"]
+    revision_action_id: NoveltyUUID
+    re_review_record_id: NoveltyUUID
+    rationale: StrictStr
+    decision_id: NoveltyUUID | None = None
+
+
+@router.post(
+    "/projects/{project_id}/revision-decisions",
+    status_code=201,
+    operation_id="record_revision_decision",
+    response_model=_response_schema(RevisionDecisionReadback),
+)
+def record_revision_decision(project_id: NoveltyUUID, body: RevisionDecisionIn, request: Request):
+    return _json(
+        _services(request).decisions.record_revision_decision(
+            _verified_principal(request),
+            RecordRevisionDecisionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/revision-decisions/{id}",
+    operation_id="get_revision_decision",
+    response_model=_response_schema(RevisionDecisionReadback),
+)
+def get_revision_decision(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).decisions.get_revision_decision(
+            _verified_principal(request), project_id, id
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/revision-actions",
+    status_code=201,
+    operation_id="record_revision_action",
+    response_model=_response_schema(RevisionActionReadback),
+)
+def record_revision_action(project_id: NoveltyUUID, body: RevisionActionIn, request: Request):
+    return _json(
+        _services(request).revision_actions.record_revision_action(
+            _verified_principal(request),
+            RecordRevisionActionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/revision-actions/{id}",
+    operation_id="get_revision_action",
+    response_model=_response_schema(RevisionActionReadback),
+)
+def get_revision_action(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    value = _services(request).revision_actions.read_revision_action(
+        _verified_principal(request), project_id, id
+    )
+    if type(value) is not RevisionActionReadback:
+        raise ResearchBaseError(ErrorCode.NOT_FOUND, "revision action not found")
+    return _json(value)
+
+
+@router.post(
+    "/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}",
+    status_code=201,
+    operation_id="record_revision_re_review",
+    response_model=_response_schema(ConcernReReviewReadback),
+)
+def record_revision_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.record_concern_re_review(
+            _verified_principal(request), RecordConcernReReviewCommand(project_id, id, review_id)
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/issue-dispositions",
+    status_code=201,
+    operation_id="record_issue_disposition",
+    response_model=_response_schema(IssueDispositionReadback),
+)
+def record_issue_disposition(project_id: NoveltyUUID, body: IssueDispositionIn, request: Request):
+    return _json(
+        _services(request).internal_reviews.record_issue_disposition(
+            _verified_principal(request),
+            RecordIssueDispositionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/issue-dispositions/{id}",
+    operation_id="get_issue_disposition",
+    response_model=_response_schema(IssueDispositionReadback),
+)
+def get_issue_disposition(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).internal_reviews.get_issue_disposition(
+            _verified_principal(request), project_id, id
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/review-issues/{id}/history",
+    operation_id="get_issue_history",
+    response_model=_response_schema(IssueHistoryReadback),
+)
+def get_issue_history(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).internal_reviews.get_issue_history(
+            _verified_principal(request), project_id, id
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}",
+    operation_id="get_revision_re_review",
+    response_model=_response_schema(ConcernReReviewReadback),
+)
+def get_revision_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.get_concern_re_review(
+            _verified_principal(request),
+            RecordConcernReReviewCommand(project_id, id, review_id),
         )
     )

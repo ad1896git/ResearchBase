@@ -171,7 +171,10 @@ class SqlAlchemyInternalReviewRepository:
         )
 
     def prepare_write(self) -> None:
-        self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+        # Application UoWs configure isolation before their first statement.
+        # Preserve the legacy direct-repository entry point on a fresh Session.
+        if not self._session.in_transaction():
+            self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
         self._session.execute(text(B05_SHARE_SQL))
         self._session.execute(text("SET LOCAL lock_timeout='10s'"))
         self._session.execute(text("SET LOCAL statement_timeout='30s'"))
@@ -342,6 +345,7 @@ class SqlAlchemyInternalReviewRepository:
     def prepare_disposition(self, identity: UUID) -> None:
         from researchbase.persistence.revision_action_repository import REVISION_SNAPSHOT_TABLES
 
+        # M1 §12.2: B09 minus the two issue tables written by disposition.
         self._session.execute(
             text("LOCK TABLE " + ",".join(REVISION_SNAPSHOT_TABLES) + " IN SHARE MODE")
         )

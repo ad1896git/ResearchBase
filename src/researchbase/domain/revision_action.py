@@ -115,6 +115,7 @@ class RevisionBasis:
     statistics: frozenset[UUID] = frozenset()
     experiments: tuple[tuple[UUID, VersionLineage], ...] = ()
     sources: frozenset[UUID] = frozenset()
+    manuscript: VersionLineage | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +141,9 @@ def validate_revision_relevance(action_type: str, basis: RevisionBasis, result: 
         )
 
     relevant = False
-    if action_type == "CLAIM_CHANGE":
+    if basis.manuscript is not None:
+        relevant = action_type == "MANUSCRIPT_CHANGE" and later(basis.manuscript)
+    elif action_type == "CLAIM_CHANGE":
         relevant = any(later(old) for old in basis.claims)
     elif action_type == "CONCLUSION_CHANGE":
         if basis.conclusion is not None:
@@ -197,7 +200,19 @@ def validate_concern_correspondence(
 ):
     """Exact finite witnesses; authorship, hashes and validity are separate checks."""
     kind = action["action_type"]
-    if kind == "NO_CHANGE":
+    if old.manuscript is not None:
+        valid = target.manuscript is not None and (
+            (kind == "NO_CHANGE" and target_id == old_id)
+            or (
+                kind == "MANUSCRIPT_CHANGE"
+                and target_id == action["result_manuscript_version_id"]
+                and target.manuscript.owner_id == old.manuscript.owner_id
+                and target.manuscript.version_number > old.manuscript.version_number
+            )
+        )
+    elif target.manuscript is not None:
+        valid = False
+    elif kind == "NO_CHANGE":
         valid = target_id == old_id and (target.conclusion is None) == (old.conclusion is None)
     elif kind == "CLAIM_CHANGE":
         valid = target.conclusion is None and target_id == action["result_claim_version_id"]

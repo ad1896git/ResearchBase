@@ -4,7 +4,7 @@
 # ruff: noqa: E501
 
 from concurrent.futures import ThreadPoolExecutor
-from threading import Event, current_thread
+from threading import Event, current_thread, local
 from uuid import uuid4
 
 import pytest
@@ -35,6 +35,30 @@ b04_env = _b04_env
 
 pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
+
+
+def _pause_locked_writer(monkeypatch, store, prefix, entered, release):
+    """Pause after the writer locks, never during lock-free replay discovery."""
+    phase = local()
+    original_prepare = SqlAlchemyManuscriptFreezeRepository.prepare_write
+    original_verify = store.verify
+
+    def prepare(repo):
+        original_prepare(repo)
+        phase.locked = True
+
+    def verify(identity):
+        if (
+            current_thread().name.startswith(prefix)
+            and getattr(phase, "locked", False)
+            and not entered.is_set()
+        ):
+            entered.set()
+            assert release.wait(10)
+        return original_verify(identity)
+
+    monkeypatch.setattr(SqlAlchemyManuscriptFreezeRepository, "prepare_write", prepare)
+    monkeypatch.setattr(store, "verify", verify)
 
 
 @pytest.mark.parametrize("state", ["DRAFT", "FROZEN"])
@@ -163,10 +187,17 @@ def test_concurrent_freezes_first_sql_and_stable_replay(b04_env):
         preview.preview_content_hash,
     )
     emitted = {}
+    write_transactions = []
+    seen_transactions = set()
 
     def before(conn, cursor, statement, parameters, context, executemany):
         if current_thread().name.startswith("b04-freeze"):
             emitted.setdefault(current_thread().name, []).append(statement)
+            transaction = (id(conn), id(conn.get_transaction()))
+            if statement == B04_SHARE_SQL:
+                assert transaction not in seen_transactions
+                write_transactions.append(statement)
+            seen_transactions.add(transaction)
 
     event.listen(engine, "before_cursor_execute", before)
     try:
@@ -177,7 +208,7 @@ def test_concurrent_freezes_first_sql_and_stable_replay(b04_env):
         event.remove(engine, "before_cursor_execute", before)
     assert results[0] == results[1]
     assert len(emitted) == 2
-    assert all(statements[0] == B04_SHARE_SQL for statements in emitted.values())
+    assert write_transactions and all(s == B04_SHARE_SQL for s in write_transactions)
 
 
 def test_freeze_blocks_placement_writer_then_rechecks_frozen(b04_env, monkeypatch):
@@ -191,16 +222,8 @@ def test_freeze_blocks_placement_writer_then_rechecks_frozen(b04_env, monkeypatc
         preview.preview_content_hash,
     )
     entered, release = Event(), Event()
-    original = store.verify
     freezer_pid = []
-
-    def verify(identity):
-        if current_thread().name.startswith("b04-seal") and not entered.is_set():
-            entered.set()
-            assert release.wait(10)
-        return original(identity)
-
-    monkeypatch.setattr(store, "verify", verify)
+    _pause_locked_writer(monkeypatch, store, "b04-seal", entered, release)
 
     def add():
         return ClaimPlacementService(factory, credentials).add(
@@ -358,15 +381,7 @@ def test_freeze_serializes_owner_changes_and_insert_phantoms(b04_env, owner, mon
         preview.preview_content_hash,
     )
     entered, release = Event(), Event()
-    original = store.verify
-
-    def verify(identity):
-        if current_thread().name.startswith("b04-owner-freeze") and not entered.is_set():
-            entered.set()
-            assert release.wait(10)
-        return original(identity)
-
-    monkeypatch.setattr(store, "verify", verify)
+    _pause_locked_writer(monkeypatch, store, "b04-owner-freeze", entered, release)
 
     def writer():
         context = ExecutionContext(actor_id=actor.actor_id, request_id=uuid4(), client_type="test")
@@ -575,15 +590,7 @@ def test_mixed_existing_repository_lock_protocols(b04_env, protocol, monkeypatch
         preview.preview_content_hash,
     )
     entered, release = Event(), Event()
-    original = store.verify
-
-    def verify(identity):
-        if current_thread().name.startswith("b04-mixed") and not entered.is_set():
-            entered.set()
-            assert release.wait(10)
-        return original(identity)
-
-    monkeypatch.setattr(store, "verify", verify)
+    _pause_locked_writer(monkeypatch, store, "b04-mixed", entered, release)
 
     def owner_lock_probe():
         # Exercise the existing owner coordination helpers without changing their protocol.
@@ -663,15 +670,7 @@ def test_freeze_vs_direct_placement_mutation(b04_env, operation, monkeypatch):
         preview.preview_content_hash,
     )
     entered, release = Event(), Event()
-    original = store.verify
-
-    def verify(identity):
-        if current_thread().name.startswith("b04-placement") and not entered.is_set():
-            entered.set()
-            assert release.wait(10)
-        return original(identity)
-
-    monkeypatch.setattr(store, "verify", verify)
+    _pause_locked_writer(monkeypatch, store, "b04-placement", entered, release)
 
     def mutate():
         sql = {
