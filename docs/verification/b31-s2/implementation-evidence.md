@@ -27,7 +27,7 @@ and current head. Inventory rendering uses the complete discovered linear chain,
 with a unit assertion for the 70-revision prefix through `0068`. The documentation
 inventory appends a complete current table, preserving historical entries. The
 `migration_inventory_phase2.md` hashes for `0069`–`0073` are a snapshot pinned at
-that time (lines 185–189), not a live computation.
+that time (the table as of commit 0a55315), not a live computation.
 
 ## Existing-equivalent substitutions and guide corrections
 
