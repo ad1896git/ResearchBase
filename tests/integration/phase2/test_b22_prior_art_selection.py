@@ -10,8 +10,6 @@ from researchbase.domain.novelty import PriorArtSelectionState
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.test_b22_prior_art_correction import read, record, request
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def select(e, **changes):
     query = PriorArtSelectionQuery(e["project"], e["claim"], e["source"])

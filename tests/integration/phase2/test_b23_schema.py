@@ -15,8 +15,6 @@ from researchbase.domain.revision_action import ACTION_SHAPES
 from researchbase.persistence.novelty_repository import N
 from tests.integration.phase2.test_b23_novelty_review import _review, _root
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def test_catalog_and_empty_roundtrip(novelty_env):
     e = novelty_env

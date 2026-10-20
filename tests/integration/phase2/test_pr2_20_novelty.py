@@ -15,10 +15,6 @@ from tests.integration.phase2.b17_fixtures import (
     revision_env,
 )
 
-pytest_plugins = (
-    "tests.integration.phase2.pr2_18_fixtures",
-    "tests.integration.phase2.test_m3_evidence",
-)
 b18_env = b.b18_env
 
 

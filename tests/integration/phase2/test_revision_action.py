@@ -27,7 +27,6 @@ from tests.integration.phase2.test_pr2_15_decision import phase2_database_url as
 from tests.integration.phase2.test_pr2_15_decision_schema import _config
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 conclusion_env = _conclusion_env
 phase2_database_url = _database_url
 decision_env = _decision_env

@@ -20,7 +20,6 @@ from tests.integration.phase2.test_m1_manuscript_revision import (
 from tests.integration.phase2.test_revision_action import decision_env, revision_env
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 _FIXTURES = (b04_env, b05_env, conclusion_env, phase2_database_url, decision_env, revision_env)
 
 

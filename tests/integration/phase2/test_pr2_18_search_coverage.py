@@ -6,8 +6,6 @@ import pytest
 
 from researchbase.application.novelty import ExactReadQuery, RecordSearchCoverageCommand
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def test_capture_and_restart(novelty_env):
     e = novelty_env

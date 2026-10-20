@@ -34,7 +34,6 @@ from tests.integration.phase2.test_pr2_11_r2_persistence import SCOPE
 from tests.integration.phase2.test_pr2_13_scientific_trace import _draft
 from tests.integration.phase2.test_pr2_15_decision import _command, _review
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 pytestmark = pytest.mark.integration
 conclusion_env = _conclusion_env
 decision_env = _decision_env

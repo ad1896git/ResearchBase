@@ -31,7 +31,6 @@ from tests.integration.phase2.test_b26_finding_impact import (
 )
 
 __all__ = ["b04_env", "b05_env", "conclusion_env", "phase2_database_url"]
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

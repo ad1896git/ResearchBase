@@ -68,9 +68,6 @@ def test_persisted_search_result_is_not_verified_evidence(phase2_database_url):
 
 
 # B01 uses its existing-command fixture; head upgrade is explicit in setup_m2.
-pytest_plugins = ("tests.integration.phase2.b01_support",)
-
-
 def test_persisted_resolution_exact_source_verified_evidence_conclusion_path(b01_env):
     from dataclasses import replace
     from datetime import UTC, datetime

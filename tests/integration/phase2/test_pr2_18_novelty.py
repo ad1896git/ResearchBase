@@ -14,8 +14,6 @@ from researchbase.application.novelty import (
 from researchbase.domain.novelty import NoveltyOutcome
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def test_inconclusive_chain_and_roots(novelty_env):
     e = novelty_env

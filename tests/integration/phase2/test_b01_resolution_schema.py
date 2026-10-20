@@ -12,8 +12,6 @@ from sqlalchemy.exc import DBAPIError
 from researchbase.domain.search_result_resolution import resolution_hash
 from tests.integration.phase2.b01_support import count, record
 
-pytest_plugins = ("tests.integration.phase2.b01_support",)
-
 
 def test_catalog_preserves_m2_contract_and_adds_deferred_guard(b01_env):
     e = b01_env

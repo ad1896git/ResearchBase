@@ -21,7 +21,6 @@ from tests.integration.phase2.revision_support import normal_role
 from tests.integration.phase2.test_pr2_15_decision_schema import _config
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 _FIXTURES = (conclusion_env, decision_env, phase2_database_url, revision_env)
 
 EVENT_SQL = """INSERT INTO review_issue_events

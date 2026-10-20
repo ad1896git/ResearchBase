@@ -11,7 +11,6 @@ from sqlalchemy.exc import DBAPIError
 from researchbase.persistence.novelty_repository import N
 from tests.integration.phase2.test_b22_prior_art_correction import record, request
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 PARENT = "0064_b14_publication_ready"
 
 

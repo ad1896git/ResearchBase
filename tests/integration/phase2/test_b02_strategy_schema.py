@@ -16,7 +16,6 @@ from researchbase.persistence.strategy_candidate_promotion_repository import (
 )
 from tests.integration.phase2.b02_support import capture, count, hcommand, qcommand
 
-pytest_plugins = ("tests.integration.phase2.b02_support",)
 TABLES = (
     "strategy_candidate_captures",
     "strategy_candidate_sources",

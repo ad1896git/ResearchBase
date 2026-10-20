@@ -41,7 +41,6 @@ b04_env = _b04_env
 b05_env = _b05_env
 conclusion_env = _conclusion_env
 phase2_database_url = _phase2_database_url
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

@@ -42,7 +42,6 @@ from tests.integration.phase2.test_b05_manuscript_review import (
 from tests.integration.phase2.test_pr2_10_binding_contract import _artifact
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 _FIXTURES = (b04_env, b05_env, conclusion_env, phase2_database_url)
 
 

@@ -26,7 +26,6 @@ decision_env = fixtures.decision_env
 phase2_database_url = fixtures.phase2_database_url
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 
 
 def config_for(env):

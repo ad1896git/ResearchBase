@@ -18,8 +18,6 @@ from tests.integration.phase2.b19_basis_support import record, setup
 from tests.integration.phase2.pr2_18_fixtures import add_resolution
 from tests.integration.phase2.test_pr2_18_concurrency import _witness
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def outcome(call):
     try:

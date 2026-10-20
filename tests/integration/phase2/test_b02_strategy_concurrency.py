@@ -23,8 +23,6 @@ from researchbase.persistence.strategy_candidate_promotion_repository import (
 from tests.integration.phase2.b02_support import capture, count, hcommand, qcommand
 from tests.integration.phase2.test_pr2_18_concurrency import _witness
 
-pytest_plugins = ("tests.integration.phase2.b02_support",)
-
 
 def test_first_sql_and_lock_free_read_snapshot(b02_env, monkeypatch):
     e = b02_env

@@ -21,8 +21,6 @@ from researchbase.application.revision_action import (
 )
 from researchbase.domain.novelty import NoveltyOutcome
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def _root(e):
     cov = e["service"].record_search_coverage(

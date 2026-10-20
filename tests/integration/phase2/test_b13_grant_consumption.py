@@ -40,7 +40,6 @@ _FIXTURES = (
     revision_env,
 )
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 
 
 def issued(env, *, expiry=None):

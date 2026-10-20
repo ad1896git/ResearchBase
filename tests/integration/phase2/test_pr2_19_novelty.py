@@ -12,7 +12,6 @@ from tests.integration.phase2 import b18_novelty_support as b
 from tests.integration.phase2 import pr2_19_support as g
 from tests.integration.phase2 import pr2_20_support as s
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 b18_env = b.b18_env
 
 

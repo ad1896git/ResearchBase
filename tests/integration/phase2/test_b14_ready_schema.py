@@ -37,7 +37,6 @@ _FIXTURES = (
     revision_env,
     normal_sql_role,
 )
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

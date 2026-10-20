@@ -10,8 +10,6 @@ from researchbase.application.novelty import ExactReadQuery, RecordPriorArtRelat
 from researchbase.domain.novelty import PriorArtKind
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize("kind", list(PriorArtKind))
 def test_six_comparisons(novelty_env, kind):

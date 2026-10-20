@@ -26,8 +26,6 @@ from researchbase.persistence.search_result_resolution_repository import (
 from tests.integration.phase2.b01_support import count, record
 from tests.integration.phase2.test_pr2_18_concurrency import _witness
 
-pytest_plugins = ("tests.integration.phase2.b01_support",)
-
 
 def test_first_statement_and_read_only_snapshot_without_explicit_locks(b01_env):
     e = b01_env

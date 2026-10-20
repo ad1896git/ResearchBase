@@ -13,8 +13,6 @@ from researchbase.application.novelty import RecordSearchCoverageCommand
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.novelty_repository import N
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def _witness(engine, writer_pid, before=None):
     deadline = monotonic() + 10

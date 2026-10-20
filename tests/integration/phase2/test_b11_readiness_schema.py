@@ -25,7 +25,6 @@ from tests.integration.phase2.test_b11_readiness_decision import (
 from tests.integration.phase2.test_pr2_15_decision import decision_env
 
 _FIXTURES = (b04_env, b05_env, conclusion_env, phase2_database_url, normal_sql_role, decision_env)
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

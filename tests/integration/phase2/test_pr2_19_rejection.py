@@ -20,7 +20,6 @@ from tests.integration.phase2.test_approval import (
 from tests.integration.phase2.test_b10_reconsideration import approver_actor, reconsideration_env
 
 _FIXTURES = (approval_env, conclusion_env, decision_env, phase2_database_url, reconsideration_env)
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

@@ -22,8 +22,6 @@ from tests.integration.phase2.b02_support import (
     restart,
 )
 
-pytest_plugins = ("tests.integration.phase2.b02_support", "tests.integration.phase2.b01_support")
-
 
 @pytest.mark.parametrize("ending", ["freeze", "abandon", "supersede"])
 @pytest.mark.parametrize("kind", ["question", "hypothesis"])

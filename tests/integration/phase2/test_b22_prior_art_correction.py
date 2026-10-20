@@ -14,8 +14,6 @@ from researchbase.application.novelty import (
 from researchbase.domain.novelty import PriorArtKind
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def request(e, **changes):
     c = RecordPriorArtRelationCommand(

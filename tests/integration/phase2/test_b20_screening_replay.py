@@ -9,8 +9,6 @@ from researchbase.application.novelty import ExactReadQuery, NoveltyService
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.b20_screening_support import record, request, successful_plan
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def test_restart_replay_order_and_conflict(novelty_env):
     e = novelty_env

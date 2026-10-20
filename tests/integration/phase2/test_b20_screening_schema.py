@@ -11,8 +11,6 @@ from researchbase.persistence.novelty_repository import N
 from tests.integration.phase2.b20_screening_support import record, request
 from tests.integration.phase2.test_b22_prior_art_schema import config
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize(
     "value",

@@ -33,7 +33,6 @@ _FIXTURES = (
     decision_env,
     revision_env,
 )
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

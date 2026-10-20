@@ -11,8 +11,6 @@ from sqlalchemy.exc import DBAPIError
 from researchbase.application.novelty import RecordSearchCoverageCommand
 from researchbase.persistence.novelty_repository import N
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize("value", [{}, ["x", "x"], ["z", "a"], [""], [1], ["e\u0301"]])
 def test_provider_helper_rejects(novelty_env, value):

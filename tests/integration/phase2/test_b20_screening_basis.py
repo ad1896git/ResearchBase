@@ -9,8 +9,6 @@ from researchbase.domain.novelty import NoveltyOutcome, ScreeningBasisInput
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.b20_screening_support import record, request, successful_plan
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def test_retains_failed_cancelled_unknown_and_duplicate_results(novelty_env):
     e = novelty_env

@@ -14,8 +14,6 @@ from researchbase.application.revision_action import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.test_b23_novelty_review import _review, _root
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize("case", ["self", "independent", "descendant", "superseded", "missing"])
 def test_invalid_results_atomic(novelty_env, case):

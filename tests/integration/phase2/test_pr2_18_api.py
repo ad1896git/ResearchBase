@@ -9,8 +9,6 @@ from sqlalchemy import text
 from researchbase.api.app import create_app
 from researchbase.application.novelty import RecordSearchCoverageCommand
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize("credential_state", ["missing", "valid", "revoked"])
 def test_novelty_endpoint_with_composed_services(

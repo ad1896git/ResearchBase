@@ -13,8 +13,6 @@ from researchbase.persistence.novelty_repository import N, SqlAlchemyNoveltyRepo
 from tests.integration.phase2.b20_screening_support import record, request
 from tests.integration.phase2.test_pr2_18_concurrency import _witness
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize("replay", [False, True])
 def test_first_statement_and_lock_free_exact_reads(novelty_env, replay):

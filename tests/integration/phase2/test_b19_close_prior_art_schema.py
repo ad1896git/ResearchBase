@@ -13,7 +13,6 @@ from researchbase.persistence.novelty_repository import N
 from tests.integration.phase2.b19_basis_support import legacy_coverage, record, setup
 from tests.integration.phase2.test_b22_prior_art_schema import config
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 PARENT = "0065_b22_prior_art_correction"
 
 

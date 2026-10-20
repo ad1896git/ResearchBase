@@ -13,8 +13,6 @@ from researchbase.domain.source_version import FrozenSourceReference, SourceVers
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.b01_support import count, create_version, record
 
-pytest_plugins = ("tests.integration.phase2.b01_support",)
-
 
 def test_explicit_admission_and_durable_restart(b01_env):
     e = b01_env

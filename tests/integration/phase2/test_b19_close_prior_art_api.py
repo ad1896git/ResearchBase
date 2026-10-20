@@ -14,8 +14,6 @@ from researchbase.api.app import create_app
 from researchbase.cli.app import create_app as create_cli
 from tests.integration.phase2.b19_basis_support import setup
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def wire(value):
     return json.loads(

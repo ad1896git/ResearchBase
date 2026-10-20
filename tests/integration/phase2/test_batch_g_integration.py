@@ -25,7 +25,6 @@ from tests.integration.phase2.b20_screening_support import (
 from tests.integration.phase2.test_b22_prior_art_schema import config
 from tests.integration.phase2.test_b23_novelty_review import _review
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 pytestmark = pytest.mark.integration
 
 

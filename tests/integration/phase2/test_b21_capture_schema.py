@@ -11,11 +11,6 @@ from sqlalchemy.exc import DBAPIError
 from researchbase.application.novelty import ExactReadQuery, RecordSearchCoverageCommand
 from researchbase.persistence.novelty_repository import N
 
-pytest_plugins = (
-    "tests.integration.phase2.pr2_18_fixtures",
-    "tests.integration.phase2.b18_novelty_support",
-)
-
 
 def config(url):
     cfg = Config("alembic.ini")

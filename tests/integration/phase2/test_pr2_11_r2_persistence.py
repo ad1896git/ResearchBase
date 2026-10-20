@@ -31,7 +31,6 @@ from tests.disposable_postgres import disposable_database
 from tests.integration.test_pr12_application import seed_claim, seed_measurement
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 
 
 @pytest.fixture

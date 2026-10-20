@@ -19,7 +19,6 @@ decision_env = fixtures.decision_env
 phase2_database_url = fixtures.phase2_database_url
 reconsideration_env = fixtures.reconsideration_env
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 
 
 def test_first_statement_isolation_and_lock_free_read_replay(reconsideration_env):

@@ -18,7 +18,6 @@ from tests.integration.phase2.test_revision_action import (
 )
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 _FIXTURES = (conclusion_env, decision_env, phase2_database_url, revision_env)
 TABLES = {"decision_basis_claims", "decision_revision_concerns", "revision_action_re_reviews"}
 

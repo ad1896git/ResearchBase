@@ -15,8 +15,6 @@ from researchbase.application.strategy_candidate_promotion import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.b02_support import capture, count, restart
 
-pytest_plugins = ("tests.integration.phase2.b02_support",)
-
 
 def test_capture_exact_bytes_after_restart_no_scientific_delta(b02_env):
     e = b02_env

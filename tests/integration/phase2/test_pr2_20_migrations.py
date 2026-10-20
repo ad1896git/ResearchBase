@@ -589,7 +589,6 @@ _FIXTURES = (
     authorship_url,
     revision_env,
 )
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 
 
 def _historical_material(value):

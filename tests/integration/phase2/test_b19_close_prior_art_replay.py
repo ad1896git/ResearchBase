@@ -12,8 +12,6 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.b19_basis_support import record, setup
 from tests.integration.phase2.pr2_18_fixtures import add_resolution
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize("later", ["succession", "ambiguous", "unrelated"])
 def test_historical_replay_and_current_projection(novelty_env, later):

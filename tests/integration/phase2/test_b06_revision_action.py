@@ -48,7 +48,6 @@ from tests.integration.phase2.test_revision_action import (
 )
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 # Imported fixtures must be explicitly exposed for pytest's local discovery.
 _FIXTURES = (conclusion_env, decision_env, phase2_database_url, revision_env)
 

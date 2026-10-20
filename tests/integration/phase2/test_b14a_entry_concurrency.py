@@ -33,7 +33,6 @@ from tests.integration.phase2.test_b14a_publication_entry import (
 from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 
 _FIXTURES = (b04_env, b05_env, conclusion_env, phase2_database_url, approval_env, decision_env)
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

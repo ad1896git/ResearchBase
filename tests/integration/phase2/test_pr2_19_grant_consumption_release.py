@@ -36,7 +36,6 @@ from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_bl
 from tests.integration.phase2.test_pr2_15_decision import _review, _stale
 
 _FIXTURES = (approval_env, conclusion_env, decision_env, phase2_database_url)
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

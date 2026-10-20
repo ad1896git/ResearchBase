@@ -24,7 +24,6 @@ from tests.integration.phase2.pr2_19_support import (
 )
 
 _FIXTURES = (conclusion_env, decision_env, phase2_database_url, revision_env)
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

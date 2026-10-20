@@ -20,7 +20,6 @@ from tests.integration.phase2.test_pr2_14_conclusion_review import (
 from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 # Imported fixture aliases deliberately use the accepted identity-checking fixture.
 assert conclusion_env and phase2_database_url
 REVISION = "0041_pr2_15_review_coordination"

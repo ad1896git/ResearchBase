@@ -17,8 +17,6 @@ from tests.integration.phase2.test_b22_prior_art_correction import record, reque
 from tests.integration.phase2.test_b22_prior_art_selection import select
 from tests.integration.phase2.test_pr2_18_concurrency import _witness
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 @pytest.mark.parametrize("replay", [False, True])
 def test_first_sql_lock_inventory_and_order(novelty_env, replay):

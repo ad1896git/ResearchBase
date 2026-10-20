@@ -26,11 +26,6 @@ from tests.integration.phase2.b30_observations import (
 )
 from tests.integration.phase2.test_pr2_18_concurrency import _witness
 
-pytest_plugins = (
-    "tests.integration.phase2.pr2_18_fixtures",
-    "tests.integration.phase2.b18_novelty_support",
-)
-
 
 def race_resolution(e):
     sf = sessionmaker(e["race_engine"], expire_on_commit=False, autoflush=False)

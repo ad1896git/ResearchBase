@@ -17,8 +17,6 @@ from tests.integration.phase2.b02_support import (
     restart,
 )
 
-pytest_plugins = ("tests.integration.phase2.b02_support",)
-
 
 def test_saved_question_and_researcher_adaptation_drafts(b02_env):
     e = b02_env

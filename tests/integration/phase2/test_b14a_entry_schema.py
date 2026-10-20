@@ -28,7 +28,6 @@ from tests.integration.phase2.test_b14a_publication_entry import (
 )
 
 _FIXTURES = (b04_env, b05_env, conclusion_env, phase2_database_url, normal_sql_role)
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

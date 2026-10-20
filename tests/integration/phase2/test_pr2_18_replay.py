@@ -15,8 +15,6 @@ from researchbase.application.novelty import (
 from researchbase.domain.novelty import NoveltyOutcome, PriorArtKind
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def test_replay_restart_and_conflict_all_commands(novelty_env):
     e = novelty_env

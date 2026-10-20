@@ -39,7 +39,6 @@ from tests.integration.phase2.test_pr2_13_claim_placement import _draft
 conclusion_env = _conclusion_env
 phase2_database_url = _phase2_database_url
 
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

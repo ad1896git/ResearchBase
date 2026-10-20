@@ -36,7 +36,6 @@ from tests.integration.phase2.test_pr2_11_r2_persistence import phase2_database_
 from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 conclusion_env = _conclusion_env
 phase2_database_url = _database_url
 

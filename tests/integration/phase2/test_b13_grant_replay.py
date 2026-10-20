@@ -26,7 +26,6 @@ from tests.integration.phase2.test_b13_grant_consumption import (
 
 _FIXTURES = (approval_env, conclusion_env, decision_env, phase2_database_url)
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 
 
 def test_saved_replay_after_invalidity_and_service_restart(approval_env):

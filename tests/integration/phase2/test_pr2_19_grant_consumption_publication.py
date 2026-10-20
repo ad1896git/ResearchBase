@@ -36,7 +36,6 @@ from tests.integration.phase2.test_b14_publication_ready import issued
 from tests.integration.phase2.test_b17_freeze_concurrency import FREEZE_PAUSE, observed_order
 
 _FIXTURES = (b04_env, b05_env, conclusion_env, decision_env, phase2_database_url, revision_env)
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 pytestmark = pytest.mark.integration
 
 

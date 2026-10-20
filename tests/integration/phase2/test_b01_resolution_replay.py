@@ -12,8 +12,6 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from tests.integration.phase2.b01_support import count, create_version, record
 
-pytest_plugins = ("tests.integration.phase2.b01_support",)
-
 
 def test_same_id_replay_preserves_actor_time_hash_and_normalized_basis(b01_env):
     e = b01_env

@@ -266,7 +266,6 @@ def test_declared_large_service_profile(m3, phase2_database_url, tmp_path, case,
 # Novelty cardinalities are bounded independently of the scaled source/trace fixture.
 
 b18_env = novelty.b18_env
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
 NOVELTY_CASES = novelty.NOVELTY_CASES
 
 

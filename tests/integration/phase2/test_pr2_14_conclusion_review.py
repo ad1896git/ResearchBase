@@ -41,7 +41,6 @@ from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_bl
 from tests.integration.test_pr12_application import seed_claim
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.phase2.test_m3_evidence",)
 conclusion_env = _conclusion_env
 phase2_database_url = _phase2_database_url
 

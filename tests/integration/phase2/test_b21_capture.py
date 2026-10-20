@@ -16,11 +16,6 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from tests.integration.phase2.b18_novelty_support import invoke, resolve_remaining
 
-pytest_plugins = (
-    "tests.integration.phase2.pr2_18_fixtures",
-    "tests.integration.phase2.b18_novelty_support",
-)
-
 
 def fresh(e):
     engine = create_engine(e["engine"].url)

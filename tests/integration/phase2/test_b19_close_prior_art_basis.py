@@ -11,8 +11,6 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from tests.integration.phase2.b19_basis_support import record, setup
 from tests.integration.phase2.pr2_18_fixtures import add_resolution
 
-pytest_plugins = ("tests.integration.phase2.pr2_18_fixtures",)
-
 
 def test_positive_restart_and_full_evidence_membership(novelty_env):
     e = novelty_env
