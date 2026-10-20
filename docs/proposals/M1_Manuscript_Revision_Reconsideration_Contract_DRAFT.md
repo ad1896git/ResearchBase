@@ -532,7 +532,19 @@ Recorded substitutions and transaction interpretation:
   command pattern and §7's explicit replay-read requirement. A successful replay
   opens no writer. No writes are split across transactions; consumption retains
   its existing SERIALIZABLE protocol. SQL-capture tests distinguish query and
-  writer transactions and assert the first writer statement separately.
+  writer transactions and assert the first writer statement separately. The
+  writer's READ COMMITTED isolation is asserted at
+  `tests/integration/phase2/test_m1_manuscript_reconsideration.py` line 99
+  (`("READ_COMMITTED", False)` on the first writer statement) and at
+  `tests/integration/phase2/test_m1_concurrency.py` lines 344–347
+  (`SHOW transaction_isolation == "read committed"`).
+- `pr215_basis_guard` and `b07_lock_concern` still take legacy `LOCK TABLE ... IN
+  SHARE MODE` locks that include `manuscript_artifact_placements`,
+  `manuscript_citation_placements`, `manuscript_claim_placements`,
+  `manuscript_versions` and `publications`
+  ([`0074_m1_manuscript_revision.py`](../../migrations/versions/0074_m1_manuscript_revision.py)
+  lines 850 and 886, in the `b07_lock_concern` and `pr215_basis_guard`
+  definitions); `0075_m1_reconsideration.py` does not redefine either function.
 
 Successor sealing retains the original Publication entry event and manuscript;
 that event proves entry into INTERNAL_REVIEW, while later admission independently

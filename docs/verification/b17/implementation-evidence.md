@@ -101,7 +101,11 @@ in the clean 99-case run ([log](logs/reviewer-b17-99.txt)):
   `test_replay_and_all_package_reads_have_no_transitive_locks` captures completed
   replay, package/history/preview and receipt SQL, rejects explicit table,
   advisory and row locks and writes, and asserts unchanged state.
-- Ordinary package/consent writes retain READ COMMITTED. The dedicated real wait
+- Ordinary package/consent writes retain READ COMMITTED; the assertion is
+  `tests/integration/phase2/test_b15_package_concurrency.py` lines 128–131
+  (`SHOW transaction_isolation == "read committed"`) in
+  `test_write_first_sql_inventory_and_read_committed` for `prepare`, `consent` and
+  `withdraw`. The dedicated real wait
   tests still prove fresh authorization after table/grant/deferred waits and
   expiry denial without partial scientific history. The [refreshed post-fix
   expiry witnesses](expiry-witnesses.txt) and [three-case log](logs/reviewer-expiry-witnesses.txt)

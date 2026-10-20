@@ -40,7 +40,15 @@ not changed.
 
 Server: **PostgreSQL 18.6 (Homebrew)**. Integration fixtures use disposable real
 PostgreSQL databases and normal SQL roles. Concurrency cases use independent
-backends, observed blocking and database-clock expiry. The initial authoring pass
+backends, observed blocking and database-clock expiry. Race coverage is provided by
+these `tests/integration/phase2/test_b22_prior_art_concurrency.py` node IDs (all
+parametrizations): `::test_first_sql_lock_inventory_and_order`,
+`::test_two_corrections_one_winner_with_observed_claim_wait`,
+`::test_read_snapshot_unrelated_actor_and_concurrent_correction`,
+`::test_database_clock_expiry_across_correction_waits` and
+`::test_revocation_during_initial_share_wait`; and, for the shared B19 Claim lock,
+`tests/integration/phase2/test_b19_close_prior_art_concurrency.py::test_b22_b19_both_claim_lock_orders`.
+The initial authoring pass
 ran focused checks only; the subsequent owner-requested full check and review
 follow-up are recorded below.
 
