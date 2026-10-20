@@ -162,7 +162,7 @@ def test_empty_roundtrip_and_populated_downgrade_refusal(reconsideration_env):
            WHERE tgname IN ('b10_complete_decision','b10_complete_rejections',
            'b10_complete_revisions','b10_no_basis_cycle')""")
         ).all()
-        assert len(triggers) == 10 and all(row[1] and row[2] for row in triggers)
+        assert len(triggers) == 11 and all(row[1] and row[2] for row in triggers)
 
 
 @pytest.mark.parametrize("graph", ["self", "transitive", "10001", "10000"])

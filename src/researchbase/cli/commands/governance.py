@@ -229,6 +229,18 @@ def optional_uuid(values: dict[str, object], name: str, runtime: CliRuntime):
 
 
 def register(app: typer.Typer) -> None:
+    add_command(
+        app,
+        "record-manuscript-rejection-reconsideration",
+        "Record corrected manuscript review reconsideration.",
+        manuscript_reconsideration_record,
+    )
+    add_command(
+        app,
+        "get-manuscript-rejection-reconsideration",
+        "Read exact manuscript reconsideration.",
+        manuscript_reconsideration_show,
+    )
     manuscript = command_group("Exact manuscript revision evidence.")
     for name, callback in (
         ("record-decision", manuscript_revision_decision),
@@ -604,5 +616,68 @@ def manuscript_issue_history(
         json_mode,
         lambda r, p: r.services.internal_reviews.get_issue_history(
             p, _b23_uuid(project_id), _b23_uuid(id)
+        ),
+    )
+
+
+def manuscript_reconsideration_command(payload: str, project_id: str):
+    import json
+    from dataclasses import fields
+
+    from researchbase.application.decision import RecordManuscriptRejectionReconsiderationCommand
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    try:
+        values = json.loads(payload)
+        cls = RecordManuscriptRejectionReconsiderationCommand
+        if type(values) is not dict or set(values) - (
+            {f.name for f in fields(cls)} - {"project_id"}
+        ):
+            raise ValueError("closed command required")
+        for name in ("id", "manuscript_version_id"):
+            values[name] = _b23_uuid(values[name])
+        for name in (
+            "rejected_approval_decision_ids",
+            "fresh_review_ids",
+            "corrected_review_ids",
+            "revision_action_ids",
+        ):
+            if name in values:
+                if type(values[name]) is not list:
+                    raise ValueError("UUID array required")
+                values[name] = tuple(_b23_uuid(x) for x in values[name])
+        return cls(project_id=_b23_uuid(project_id), **values)
+    except (ValueError, TypeError, KeyError):
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "closed manuscript reconsideration required"
+        ) from None
+
+
+def manuscript_reconsideration_record(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    payload: str = typer.Option(..., "--payload"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.decisions.record_manuscript_rejection_reconsideration(
+            manuscript_reconsideration_command(payload, project_id), p
+        ),
+    )
+
+
+def manuscript_reconsideration_show(
+    ctx: typer.Context,
+    project_id: str = typer.Option(..., "--project-id"),
+    id: str = typer.Option(..., "--id"),
+    json_mode: bool = typer.Option(False, "--json"),
+):
+    _b23_invoke(
+        ctx,
+        json_mode,
+        lambda r, p: r.services.decisions.get_manuscript_rejection_reconsideration(
+            _b23_uuid(project_id), _b23_uuid(id), p
         ),
     )

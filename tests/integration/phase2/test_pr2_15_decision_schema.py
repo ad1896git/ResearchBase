@@ -58,7 +58,7 @@ def _catalog(conn, names):
 
 def test_0042_exact_minimal_schema_fks_indexes_and_no_extra_tables(phase2_database_url):
     config = _config(phase2_database_url)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0074_m1_manuscript_revision"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0075_m1_reconsideration"]
     command.upgrade(config, PREVIOUS)
     engine = create_engine(phase2_database_url)
     try:

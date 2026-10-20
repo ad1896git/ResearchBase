@@ -433,19 +433,25 @@ class ApprovalService:
             _fail(ErrorCode.CONFLICT_OF_INTEREST, "independent HUMAN approver required")
         if self._decisions._readiness_blockers(uow, project, identity):
             _fail(ErrorCode.APPROVAL_GATE_FAILED, "applicable OPEN blocker remains")
-        if ready and any(
-            request.get(key) is not None
-            for key in ("prior_rejected_request_id", "reconsideration_decision_id")
-        ):
-            _fail(ErrorCode.DECISION_BASIS_INVALID, "READY reconsideration unavailable")
-        if uow.approval.rejected(
-            project, request["approval_purpose"], exclude_decision=exclude_rejection
-        ):
-            _fail(
-                ErrorCode.REJECTION_RECONSIDERATION_REQUIRED, "manuscript purpose rejection fence"
-            )
-        if request.get("reconsideration_decision_id") is not None:
-            _fail(ErrorCode.DECISION_BASIS_INVALID, "manuscript reconsideration unavailable")
+        if ready and request.get("reconsideration_decision_id") is not None:
+            reconsideration = uow.decision.decision(request["reconsideration_decision_id"], project)
+            if (
+                reconsideration is None
+                or reconsideration["question"] != "Reconsider rejection for READY_FOR_SUBMISSION"
+            ):
+                _fail(
+                    ErrorCode.DECISION_BASIS_INVALID, "exact READY reconsideration basis required"
+                )
+        if exclude_rejection is not None and not request.get("reconsideration_decision_id"):
+            if uow.approval.rejected(
+                project, request["approval_purpose"], exclude_decision=exclude_rejection
+            ):
+                _fail(
+                    ErrorCode.REJECTION_RECONSIDERATION_REQUIRED,
+                    "manuscript purpose rejection fence",
+                )
+        else:
+            self._successor_gate(uow, request, approver, exclude_rejection=exclude_rejection)
         if approver is not None and uow.approval.newer_target_selected(request):
             _fail(ErrorCode.APPROVAL_TARGET_STALE, "newer manuscript target selected")
         return decision, required
@@ -554,6 +560,8 @@ class ApprovalService:
             if (
                 reconsideration.scientific_conclusion_version_id
                 != row["scientific_conclusion_version_id"]
+                or reconsideration.manuscript_version_id != row.get("manuscript_version_id")
+                or reconsideration.approval_purpose != row["approval_purpose"]
                 or reconsideration.target_content_hash != row["target_content_hash"]
                 or reconsideration.decided_at >= row["requested_at"]
                 or reconsideration.successor_request_id != row["id"]
@@ -580,8 +588,9 @@ class ApprovalService:
             reconsideration,
         )
 
-    def _successor_gate(self, uow, request, approver=None):
+    def _successor_gate(self, uow, request, approver=None, *, exclude_rejection=None):
         rejections = uow.approval.rejections(request["project_id"], request["approval_purpose"])
+        rejections = [r for r in rejections if r["id"] != exclude_rejection]
         prior = request.get("prior_rejected_request_id")
         identity = request.get("reconsideration_decision_id")
         if not rejections:
@@ -598,8 +607,9 @@ class ApprovalService:
         at = uow.source_version.at()
         if (
             prior != anchor["request_id"]
-            or not saved.current_coverage_complete
+            or {r.approval_decision_id for r in saved.rejections} != {r["id"] for r in rejections}
             or saved.scientific_conclusion_version_id != request["scientific_conclusion_version_id"]
+            or saved.manuscript_version_id != request.get("manuscript_version_id")
             or saved.target_content_hash != request["target_content_hash"]
             or saved.approval_purpose != request["approval_purpose"]
             or saved.decided_at >= request.get("requested_at", at)

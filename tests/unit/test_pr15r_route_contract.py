@@ -877,8 +877,30 @@ ROUTES += (
 )
 
 
+ROUTES += (
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/manuscript-rejection-reconsiderations",
+        "record_manuscript_rejection_reconsideration",
+        "record_manuscript_rejection_reconsideration",
+        "ManuscriptReconsiderationIn",
+        "RejectionReconsiderationReadbackResponse",
+        "record_manuscript_rejection_reconsideration",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/manuscript-rejection-reconsiderations/{id}",
+        "get_manuscript_rejection_reconsideration",
+        "get_manuscript_rejection_reconsideration",
+        None,
+        "RejectionReconsiderationReadbackResponse",
+        "get_manuscript_rejection_reconsideration",
+    ),
+)
+
+
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 92
+    assert len(ROUTES) == 94
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -888,7 +910,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 92
+    assert len({item.operation_id for item in ROUTES}) == 94
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

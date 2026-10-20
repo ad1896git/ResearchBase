@@ -183,7 +183,7 @@ def test_populated_creation_and_b04_seal_survive_forward_roundtrip(b05_env):
         assert catalog_inventory(conn) == inventory
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0074_m1_manuscript_revision"
+            == "0075_m1_reconsideration"
         )
 
 

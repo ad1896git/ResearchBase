@@ -162,7 +162,7 @@ def test_m1_downgrade_refuses_successor_history(b05_env):
         assert conn.execute(text("SELECT count(*) FROM manuscript_versions")).scalar_one() == 2
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0074_m1_manuscript_revision"
+            == "0075_m1_reconsideration"
         )
 
 

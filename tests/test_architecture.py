@@ -151,6 +151,11 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
         "scientific_conclusions",
         "manuscripts",
     }
+    authorized_tables["migrations/versions/0075_m1_reconsideration.py"] = {
+        "literature_evidence",
+        "scientific_conclusions",
+        "manuscripts",
+    }
     authorized_tables["migrations/versions/0074_m1_manuscript_revision.py"] = {
         "literature_evidence",
         "scientific_conclusions",

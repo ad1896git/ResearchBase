@@ -44,3 +44,26 @@ def test_m1_forward_migration_admits_no_tables_columns_or_reconsideration():
     assert "UQ_M1_ONE_DRAFT_MANUSCRIPT" in sql
     assert "CREATE FUNCTION M1_MANUSCRIPT" in sql
     assert "RECONSIDER REJECTION FOR READY_FOR_SUBMISSION" not in sql
+
+
+def test_s2_only_one_forward_guard_migration_and_existing_typed_relations():
+    path = ROOT / "migrations/versions/0075_m1_reconsideration.py"
+    tree = ast.parse(path.read_text())
+    values = {
+        n.targets[0].id: ast.literal_eval(n.value)
+        for n in tree.body
+        if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)
+    }
+    assert values["down_revision"] == "0074_m1_manuscript_revision"
+    sql = values["_UPGRADE"].upper()
+    assert "CREATE TABLE" not in sql and "ADD COLUMN" not in sql
+    assert "M1_COMPLETE_MANUSCRIPT" in sql and "B10_NO_BASIS_CYCLE" in sql
+    assert "DEFERRABLE INITIALLY DEFERRED" in sql
+    assert "P17F1" in values["_DOWNGRADE"]
+    for name in ("decision", "approval"):
+        source = (ROOT / f"src/researchbase/application/{name}.py").read_text()
+        imports = [n.module for n in ast.walk(ast.parse(source)) if isinstance(n, ast.ImportFrom)]
+        assert not any(
+            x and x.startswith(("sqlalchemy", "researchbase.persistence", "fastapi", "typer"))
+            for x in imports
+        )

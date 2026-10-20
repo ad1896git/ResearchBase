@@ -53,7 +53,7 @@ def test_catalog_and_empty_roundtrip(novelty_env):
     with e["engine"].connect() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0074_m1_manuscript_revision"
+            == "0075_m1_reconsideration"
         )
 
 

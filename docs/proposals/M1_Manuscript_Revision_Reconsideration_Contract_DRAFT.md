@@ -1,6 +1,6 @@
 # M1 Manuscript Revision and Reconsideration Contract — DRAFT
 
-**Status:** APPROVED by owner 2026-10-20 — first slice authorized for implementation
+**Status:** APPROVED by owner 2026-10-20 — first slice authorized for implementation; S2 authorized 2026-10-20
 
 ## Start here (for the implementer)
 

@@ -665,7 +665,11 @@ class SqlAlchemyDecisionRepository:
               ON r.id=b.approval_decision_id WHERE b.decision_id=:id UNION ALL
             SELECT 'RevisionAction',b.revision_action_id,r.content_hash,b.ordinal
             FROM decision_basis_revision_actions b JOIN revision_actions r
-              ON r.id=b.revision_action_id WHERE b.decision_id=:id ORDER BY ordinal""",
+              ON r.id=b.revision_action_id WHERE b.decision_id=:id UNION ALL
+            SELECT 'ManuscriptVersion',b.manuscript_version_id,v.content_hash,b.ordinal
+            FROM decision_basis_manuscripts b
+            JOIN manuscript_versions v ON v.id=b.manuscript_version_id
+            WHERE b.decision_id=:id ORDER BY ordinal""",
             {"id": identity},
         )
 

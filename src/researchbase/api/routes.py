@@ -55,7 +55,9 @@ from researchbase.application.commands import (
     WriteProjectionTarget,
 )
 from researchbase.application.decision import (
+    RecordManuscriptRejectionReconsiderationCommand,
     RecordRevisionDecisionCommand,
+    RejectionReconsiderationReadback,
     RevisionDecisionReadback,
 )
 from researchbase.application.dto import (
@@ -2662,5 +2664,52 @@ def get_revision_re_review(
         _services(request).revision_actions.get_concern_re_review(
             _verified_principal(request),
             RecordConcernReReviewCommand(project_id, id, review_id),
+        )
+    )
+
+
+class ManuscriptReconsiderationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    manuscript_version_id: NoveltyUUID
+    approval_purpose: Literal["READY_FOR_SUBMISSION", "PREPARE_SUBMISSION"]
+    decision: Literal["CORRECTED_REVIEW"]
+    rationale: StrictStr
+    rejected_approval_decision_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    fresh_review_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    corrected_review_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    revision_action_ids: tuple[NoveltyUUID, ...] = Field(default=(), max_length=0)
+
+
+@router.post(
+    "/projects/{project_id}/manuscript-rejection-reconsiderations",
+    status_code=201,
+    operation_id="record_manuscript_rejection_reconsideration",
+    response_model=_response_schema(RejectionReconsiderationReadback),
+)
+def record_manuscript_rejection_reconsideration(
+    project_id: NoveltyUUID, body: ManuscriptReconsiderationIn, request: Request
+):
+    return _json(
+        _services(request).decisions.record_manuscript_rejection_reconsideration(
+            RecordManuscriptRejectionReconsiderationCommand(
+                project_id=project_id, **body.model_dump()
+            ),
+            _verified_principal(request),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/manuscript-rejection-reconsiderations/{id}",
+    operation_id="get_manuscript_rejection_reconsideration",
+    response_model=_response_schema(RejectionReconsiderationReadback),
+)
+def get_manuscript_rejection_reconsideration(
+    project_id: NoveltyUUID, id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).decisions.get_manuscript_rejection_reconsideration(
+            project_id, id, _verified_principal(request)
         )
     )

@@ -1340,14 +1340,37 @@ class DecisionService:
         from researchbase.domain.approval import approval_decision_material
         from researchbase.domain.decision import reconsideration_question, reconsideration_text
 
-        basis = self._basis(uow.decision.reconsideration_basis(row["id"]))
-        targets = [r for r in basis if r.type == "ScientificConclusionVersion"]
+        rows = uow.decision.reconsideration_basis(row["id"])
+        if row["question"] in {
+            "Reconsider rejection for READY_FOR_SUBMISSION",
+            "Reconsider rejection for PREPARE_SUBMISSION",
+        }:
+            basis = tuple(
+                DecisionBasisReference(r["type"], r["id"], r["content_hash"], ordinal)
+                for ordinal, r in enumerate(
+                    sorted(rows, key=lambda r: (r["type"], str(r["id"]), r["content_hash"]))
+                )
+            )
+        else:
+            basis = self._basis(rows)
+        targets = [
+            r for r in basis if r.type in {"ScientificConclusionVersion", "ManuscriptVersion"}
+        ]
+        manuscript = len(targets) == 1 and targets[0].type == "ManuscriptVersion"
         rejected = [r for r in basis if r.type == "ApprovalDecision"]
         reviews = [r for r in basis if r.type == "InternalReviewRecord"]
         actions = [r for r in basis if r.type == "RevisionAction"]
-        purpose = "INTERNAL_SCIENTIFIC_RELEASE"
+        purpose = row["question"].removeprefix("Reconsider rejection for ")
+        if purpose not in {
+            "INTERNAL_SCIENTIFIC_RELEASE",
+            "READY_FOR_SUBMISSION",
+            "PREPARE_SUBMISSION",
+        }:
+            _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved purpose invalid")
         if (
-            len(targets) != 1
+            manuscript != (purpose != "INTERNAL_SCIENTIFIC_RELEASE")
+            or (manuscript and (actions or row["decision"] != "CORRECTED_REVIEW"))
+            or len(targets) != 1
             or not rejected
             or not reviews
             or row["decision_type"] != "RECONSIDER_REJECTION"
@@ -1379,16 +1402,24 @@ class DecisionService:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved reconsideration material invalid")
         if basis_hash != row["basis_set_hash"] or digest != row["content_hash"]:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved reconsideration hash mismatch")
-        target = uow.approval.target(targets[0].id, row["project_id"])
+        target = (
+            uow.internal_review.manuscript_target(targets[0].id, row["project_id"])
+            if manuscript
+            else uow.approval.target(targets[0].id, row["project_id"])
+        )
         if target is None or target["content_hash"] != targets[0].content_hash:
             _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved reconsideration target corrupt")
-        self._conclusions._view(
-            uow,
-            row["project_id"],
-            target["scientific_conclusion_id"],
-            target["id"],
-            require_current=False,
-        )
+        if manuscript:
+            with saved_seal():
+                self._readiness_target(uow, row["project_id"], target["id"])
+        else:
+            self._conclusions._view(
+                uow,
+                row["project_id"],
+                target["scientific_conclusion_id"],
+                target["id"],
+                require_current=False,
+            )
         all_rejections = uow.approval.rejections(row["project_id"], purpose)
         indexed = {r["id"]: r for r in all_rejections}
         audit = []
@@ -1400,28 +1431,46 @@ class DecisionService:
                 sha256_canonical_json(
                     approval_decision_material(
                         r["request_id"],
-                        r["scientific_conclusion_version_id"],
+                        (
+                            r["manuscript_version_id"]
+                            if manuscript
+                            else r["scientific_conclusion_version_id"]
+                        ),
                         r["target_content_hash"],
                         r["decision"],
                         r["valid_until"],
                         r["requires_current_author_consent"],
                         r["rationale"],
                         r["decided_by"],
+                        target_type="ManuscriptVersion"
+                        if manuscript
+                        else "ScientificConclusionVersion",
                     )
                 )
             )
             if digest != r["content_hash"]:
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved rejection hash mismatch")
-            old = uow.approval.target(r["scientific_conclusion_version_id"], row["project_id"])
+            old_id = (
+                r["manuscript_version_id"] if manuscript else r["scientific_conclusion_version_id"]
+            )
+            old = (
+                uow.internal_review.manuscript_target(old_id, row["project_id"])
+                if manuscript
+                else uow.approval.target(old_id, row["project_id"])
+            )
             if old is None or old["content_hash"] != r["target_content_hash"]:
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved old target corrupt")
-            self._conclusions._view(
-                uow,
-                row["project_id"],
-                old["scientific_conclusion_id"],
-                old["id"],
-                require_current=False,
-            )
+            if manuscript:
+                with saved_seal():
+                    self._readiness_target(uow, row["project_id"], old_id)
+            else:
+                self._conclusions._view(
+                    uow,
+                    row["project_id"],
+                    old["scientific_conclusion_id"],
+                    old["id"],
+                    require_current=False,
+                )
             audit.append(
                 RejectedApprovalReference(
                     r["request_id"],
@@ -1464,7 +1513,7 @@ class DecisionService:
             row["rationale"],
             row["decided_by"],
             row["decided_at"],
-            target["id"],
+            None if manuscript else target["id"],
             target["content_hash"],
             basis,
             basis_hash,
@@ -1476,6 +1525,7 @@ class DecisionService:
             tuple(sorted((r.request_id for r in audit), key=str)),
             set(indexed) == {r.id for r in rejected},
             tuple(audit),
+            target["id"] if manuscript else None,
         )
 
     def _reconsideration_read(self, principal, project, identity, command=None):
@@ -1516,8 +1566,17 @@ class DecisionService:
                     )
                 )
                 if (
-                    result.scientific_conclusion_version_id
-                    != command.scientific_conclusion_version_id
+                    (
+                        result.manuscript_version_id
+                        if isinstance(command, RecordManuscriptRejectionReconsiderationCommand)
+                        else result.scientific_conclusion_version_id
+                    )
+                    != (
+                        command.manuscript_version_id
+                        if isinstance(command, RecordManuscriptRejectionReconsiderationCommand)
+                        else command.scientific_conclusion_version_id
+                    )
+                    or result.approval_purpose != command.approval_purpose
                     or result.decision != command.decision
                     or result.rationale != command.rationale
                     or tuple(r.approval_decision_id for r in result.rejections)
@@ -1553,6 +1612,11 @@ class DecisionService:
             _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
         if type(command) is not RecordRejectionReconsiderationCommand:
             _fail(ErrorCode.VALIDATION_ERROR, "closed reconsideration command required")
+        return self._record_reconsideration(command, principal)
+
+    def _record_reconsideration(self, command, principal):
+        if not isinstance(principal, VerifiedPrincipal):
+            _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
         for attempt in range(3):
             try:
                 replay = self._reconsideration_read(
@@ -1577,11 +1641,27 @@ class DecisionService:
                 raise ResearchBaseError(exc.code, exc.message) from None
         raise AssertionError("unreachable")
 
+    def record_manuscript_rejection_reconsideration(
+        self, command: RecordManuscriptRejectionReconsiderationCommand, principal: VerifiedPrincipal
+    ) -> RejectionReconsiderationReadback:
+        if type(command) is not RecordManuscriptRejectionReconsiderationCommand:
+            _fail(ErrorCode.VALIDATION_ERROR, "closed manuscript correction command required")
+        return self._record_reconsideration(command, principal)
+
+    def get_manuscript_rejection_reconsideration(
+        self, project_id: UUID, decision_id: UUID, principal: VerifiedPrincipal
+    ) -> RejectionReconsiderationReadback:
+        result = self.get_rejection_reconsideration(project_id, decision_id, principal)
+        if result.manuscript_version_id is None:
+            _fail(ErrorCode.NOT_FOUND, "exact manuscript reconsideration absent")
+        return result
+
     def _validate_reconsideration_evidence(self, uow, command, principal, target, rejections, at):
         from researchbase.application.revision_action import RevisionActionService
         from researchbase.domain.decision import conclusion_material_changed, correction_explanation
 
-        authors = uow.decision.material_authors(target["id"])
+        manuscript = isinstance(command, RecordManuscriptRejectionReconsiderationCommand)
+        authors = uow.decision.material_authors(target["id"], manuscript=manuscript)
         rejectors = {r["decided_by"] for r in rejections}
         corrected = []
         for identity in command.corrected_review_ids:
@@ -1604,7 +1684,11 @@ class DecisionService:
             _fail(ErrorCode.DECISION_BASIS_INVALID, "explicit narrative correction required")
         latest = max(r["decided_at"] for r in rejections)
         eligible = []
-        for review in uow.approval.target_reviews(target["id"], command.project_id):
+        for review in (
+            uow.approval.manuscript_reviews(target["id"], command.project_id)
+            if manuscript
+            else uow.approval.target_reviews(target["id"], command.project_id)
+        ):
             self._reviews._verify(uow, review)
             if review["target_content_hash"] != target[
                 "content_hash"
@@ -1644,8 +1728,14 @@ class DecisionService:
         for rejection in rejections:
             if str(rejection["id"]) not in command.rationale.casefold():
                 _fail(ErrorCode.DECISION_BASIS_INVALID, "rationale must address each rejection")
-            old = uow.approval.target(
-                rejection["scientific_conclusion_version_id"], command.project_id
+            old = (
+                uow.internal_review.manuscript_target(
+                    rejection["manuscript_version_id"], command.project_id
+                )
+                if manuscript
+                else uow.approval.target(
+                    rejection["scientific_conclusion_version_id"], command.project_id
+                )
             )
             if old is None or old["content_hash"] != rejection["target_content_hash"]:
                 _fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "old target binding corrupt")
@@ -1697,10 +1787,19 @@ class DecisionService:
             uow.approval.lock_snapshot()
             uow.decision.lock_reconsideration(command.id)
             uow.approval.lock_scope(command.project_id, command.approval_purpose)
-            uow.approval.lock_target(
-                command.scientific_conclusion_version_id, None, command.project_id
+            manuscript = isinstance(command, RecordManuscriptRejectionReconsiderationCommand)
+            identity = (
+                command.manuscript_version_id
+                if manuscript
+                else command.scientific_conclusion_version_id
             )
-            uow.decision.lock_conclusion_parent(command.scientific_conclusion_version_id)
+            uow.approval.lock_target(
+                None if manuscript else identity,
+                identity if manuscript else None,
+                command.project_id,
+            )
+            if not manuscript:
+                uow.decision.lock_conclusion_parent(identity)
             policy._authorize(uow, principal, command.project_id, _READERS)
             if uow.decision.decision(command.id, command.project_id) is not None:
                 return None
@@ -1714,31 +1813,59 @@ class DecisionService:
                 _fail(
                     ErrorCode.DECISION_BASIS_INVALID, "complete same-scope rejection set required"
                 )
-            target = uow.approval.target(
-                command.scientific_conclusion_version_id, command.project_id
-            )
-            if target is None or target["status"] != "FROZEN" or target["frozen_at"] is None:
-                _fail(ErrorCode.APPROVAL_TARGET_STALE, "exact frozen target required")
-            view = self._conclusions._view(
-                uow,
-                command.project_id,
-                target["scientific_conclusion_id"],
-                target["id"],
-                require_current=False,
-            )
-            if view.validity != "VALID":
-                _fail(ErrorCode.APPROVAL_TARGET_STALE, "currently valid target required")
-            self._conclusions._view(
-                uow,
-                command.project_id,
-                target["scientific_conclusion_id"],
-                target["id"],
-                require_current=True,
-            )
-            if uow.decision.has_blockers(target["id"], command.project_id):
-                _fail(ErrorCode.APPROVAL_GATE_FAILED, "applicable blocking issue remains open")
+            if manuscript:
+                target, parent, view = self._readiness_target(uow, command.project_id, identity)
+                stage = (
+                    "INTERNAL_REVIEW"
+                    if command.approval_purpose == "READY_FOR_SUBMISSION"
+                    else "READY"
+                )
+                if (
+                    parent["lifecycle_status"] != stage
+                    or parent["current_manuscript_version_id"] != identity
+                    or view.current_validity != "VALID"
+                ):
+                    _fail(
+                        ErrorCode.APPROVAL_TARGET_STALE,
+                        "current valid manuscript in required lifecycle required",
+                    )
+                self._manuscripts.verify_in_uow(
+                    uow, command.project_id, parent, target, admission=True
+                )
+                if self._readiness_blockers(uow, command.project_id, identity):
+                    _fail(ErrorCode.APPROVAL_GATE_FAILED, "applicable blocking issue remains open")
+            else:
+                target = uow.approval.target(
+                    command.scientific_conclusion_version_id, command.project_id
+                )
+                if target is None or target["status"] != "FROZEN" or target["frozen_at"] is None:
+                    _fail(ErrorCode.APPROVAL_TARGET_STALE, "exact frozen target required")
+                view = self._conclusions._view(
+                    uow,
+                    command.project_id,
+                    target["scientific_conclusion_id"],
+                    target["id"],
+                    require_current=False,
+                )
+                if view.validity != "VALID":
+                    _fail(ErrorCode.APPROVAL_TARGET_STALE, "currently valid target required")
+                self._conclusions._view(
+                    uow,
+                    command.project_id,
+                    target["scientific_conclusion_id"],
+                    target["id"],
+                    require_current=True,
+                )
+                if uow.decision.has_blockers(target["id"], command.project_id):
+                    _fail(ErrorCode.APPROVAL_GATE_FAILED, "applicable blocking issue remains open")
             self._validate_reconsideration_evidence(uow, command, principal, target, rejections, at)
-            refs = [("ScientificConclusionVersion", target["id"], target["content_hash"])]
+            refs = [
+                (
+                    "ManuscriptVersion" if manuscript else "ScientificConclusionVersion",
+                    target["id"],
+                    target["content_hash"],
+                )
+            ]
             refs += [("ApprovalDecision", r["id"], r["content_hash"]) for r in rejections]
             for identity in command.fresh_review_ids + command.corrected_review_ids:
                 review = uow.internal_review.review(identity, command.project_id)
@@ -1797,6 +1924,14 @@ class DecisionService:
                 elif ref.type == "RevisionAction":
                     uow.decision.insert_revision_basis(
                         dict(decision_id=command.id, revision_action_id=ref.id, ordinal=ref.ordinal)
+                    )
+                elif ref.type == "ManuscriptVersion":
+                    uow.decision.insert_manuscript_basis(
+                        dict(
+                            decision_id=command.id,
+                            manuscript_version_id=ref.id,
+                            ordinal=ref.ordinal,
+                        )
                     )
                 elif ref.type == "ScientificConclusionVersion":
                     uow.decision.insert_conclusion_basis(
@@ -2129,6 +2264,49 @@ class RecordRejectionReconsiderationCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class RecordManuscriptRejectionReconsiderationCommand:
+    id: UUID
+    project_id: UUID
+    manuscript_version_id: UUID
+    approval_purpose: Literal["READY_FOR_SUBMISSION", "PREPARE_SUBMISSION"]
+    decision: Literal["CORRECTED_REVIEW"]
+    rejected_approval_decision_ids: tuple[UUID, ...]
+    fresh_review_ids: tuple[UUID, ...]
+    rationale: str
+    corrected_review_ids: tuple[UUID, ...]
+    revision_action_ids: tuple[UUID, ...] = ()
+
+    def __post_init__(self):
+        if (
+            type(self.approval_purpose) is not str
+            or self.approval_purpose not in {"READY_FOR_SUBMISSION", "PREPARE_SUBMISSION"}
+            or type(self.decision) is not str
+            or self.decision != "CORRECTED_REVIEW"
+        ):
+            _fail(ErrorCode.VALIDATION_ERROR, "manuscript correction purpose required")
+        checked = RecordRejectionReconsiderationCommand(
+            self.id,
+            self.project_id,
+            self.manuscript_version_id,
+            "INTERNAL_SCIENTIFIC_RELEASE",
+            self.decision,
+            self.rejected_approval_decision_ids,
+            self.fresh_review_ids,
+            self.rationale,
+            self.corrected_review_ids,
+            self.revision_action_ids,
+        )
+        for name in (
+            "rejected_approval_decision_ids",
+            "fresh_review_ids",
+            "corrected_review_ids",
+            "revision_action_ids",
+            "rationale",
+        ):
+            object.__setattr__(self, name, getattr(checked, name))
+
+
+@dataclass(frozen=True, slots=True)
 class RejectedApprovalReference:
     request_id: UUID
     approval_decision_id: UUID
@@ -2150,7 +2328,7 @@ class RejectionReconsiderationReadback:
     rationale: str
     decided_by: UUID
     decided_at: datetime
-    scientific_conclusion_version_id: UUID
+    scientific_conclusion_version_id: UUID | None
     target_content_hash: str
     basis: tuple[DecisionBasisReference, ...]
     basis_set_hash: str
@@ -2162,3 +2340,9 @@ class RejectionReconsiderationReadback:
     cited_rejected_request_ids: tuple[UUID, ...]
     current_coverage_complete: bool
     rejections: tuple[RejectedApprovalReference, ...]
+
+    manuscript_version_id: UUID | None = None
+
+    def __post_init__(self):
+        if (self.scientific_conclusion_version_id is None) == (self.manuscript_version_id is None):
+            raise ValueError("exactly one reconsideration target required")

@@ -271,6 +271,8 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
         {
             ("get", "/v1/projects/{project_id}/revision-actions/{id}"),
             ("get", "/v1/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}"),
+            ("post", "/v1/projects/{project_id}/manuscript-rejection-reconsiderations"),
+            ("get", "/v1/projects/{project_id}/manuscript-rejection-reconsiderations/{id}"),
             ("post", "/v1/projects/{project_id}/revision-decisions"),
             ("get", "/v1/projects/{project_id}/review-issues/{id}/history"),
             ("post", "/v1/projects/{project_id}/revision-actions"),

@@ -35,9 +35,9 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
             hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
         )
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0074_m1_manuscript_revision"]
+    assert scripts.get_heads() == ["0075_m1_reconsideration"]
     assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0073_b02_strategy_admission"
+        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0074_m1_manuscript_revision"
     )
 
 

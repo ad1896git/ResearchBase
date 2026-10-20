@@ -190,6 +190,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0072_b03_discussion_hypothesis.py",
         "0073_b02_strategy_admission.py",
         "0074_m1_manuscript_revision.py",
+        "0075_m1_reconsideration.py",
     ]
 
 

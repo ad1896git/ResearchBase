@@ -165,8 +165,8 @@ def reconsideration_text(value: str) -> str:
 
 
 def reconsideration_question(purpose: str) -> str:
-    if purpose != "INTERNAL_SCIENTIFIC_RELEASE":
-        raise ValueError("conclusion release purpose required")
+    if purpose not in {"INTERNAL_SCIENTIFIC_RELEASE", "READY_FOR_SUBMISSION", "PREPARE_SUBMISSION"}:
+        raise ValueError("finite approval reconsideration purpose required")
     return f"Reconsider rejection for {purpose}"
 
 
