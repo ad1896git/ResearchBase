@@ -346,15 +346,9 @@ def test_s3_package_freeze_workers_wait_and_single_effect(b17_env, workers, same
     )
     assert not isinstance(saved, ErrorCode)
     for result in results:
-        assert (
-            result == saved
-            if same_key
-            else result
-            in {
-                ErrorCode.GRANT_INVALID,
-                ErrorCode.INVALID_STATE_TRANSITION,
-            }
-        )
+        # Owning contract: test_b17_package_freeze.py::
+        # test_consumed_grant_cannot_freeze_a_fresh_package.
+        assert result == saved if same_key else result == ErrorCode.GRANT_INVALID
     after = counts(f)
     assert after[3] == before[3] + 1
     assert after[2] == before[2] + 1

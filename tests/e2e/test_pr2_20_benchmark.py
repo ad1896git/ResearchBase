@@ -8,7 +8,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from sqlalchemy import text
@@ -806,6 +806,9 @@ def test_s3_revision_concern_disposition_profile(revision_env, workers, kind, op
                 assert read() == write()
 
 
+_S3_WORKERS: set[Literal[1, 4]] = set()
+
+
 def _s3_samples(engine, value, case, workers, repeat, invoke, *, read=False):
     """Small informational timings; every future must complete without unexpected failures."""
     from tests.integration.phase2.b30_observations import (
@@ -930,7 +933,9 @@ def _s3_samples(engine, value, case, workers, repeat, invoke, *, read=False):
             external_latency_ms=None,
         ),
     )
-    save_profile(replace(value, concurrency_profiles=(1, 4)))
+    # Accumulate completed S3 worker profiles in this pytest session only.
+    _S3_WORKERS.add(workers)
+    save_profile(replace(value, concurrency_profiles=tuple(sorted(_S3_WORKERS))))
 
 
 @pytest.mark.parametrize("workers", [1, 4])

@@ -386,6 +386,11 @@ def test_novelty_outcomes_never_gate_approval_ready_or_package_freeze(b05_env, o
     assert s.manifest(e["engine"], tuple(science)) == science
 
 
+# Owning post-wait authority denial (pg_locks witness, FORBIDDEN, zero inserted rows):
+# tests/integration/phase2/test_pr2_18_concurrency.py::test_expiry_across_required_database_wait[credential-request-coverage]  # noqa: E501
+# tests/integration/phase2/test_pr2_18_concurrency.py::test_expiry_across_required_database_wait[role-foreign_key-prior_art]  # noqa: E501
+# tests/integration/phase2/test_b19_close_prior_art_concurrency.py::test_post_claim_wait_credential_expiry  # noqa: E501
+# These cover the shared B18/B19/B21/B22 novelty write authorization protocol.
 @pytest.mark.parametrize("first", [False, True])
 @pytest.mark.parametrize("scenario", ["capture", "positive-basis"])
 def test_s3_novelty_both_commit_orders(request, monkeypatch, first, scenario):
