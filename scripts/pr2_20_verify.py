@@ -29,6 +29,7 @@ from tests.contracts.pr2_20_reports import (  # noqa: E402
     B31_CONTRACT,
     EXIT_CRITERIA,
     EXIT_FILES,
+    LINUX_DISPOSITION,
     ROOT,
     context,
     exit_rows,
@@ -111,8 +112,13 @@ def collect_acceptance(results: list[dict[str, Any]], directory: Path, root: Pat
         canonical_bytes(
             dict(
                 scope="OWNER_SCOPE_DISPOSITIONS",
-                source_refs=[B31_CONTRACT, AQ_S3],
-                decision_ids=["D-B31-01", "D-B31-03", "AQ-S3-08"],
+                source_refs=[B31_CONTRACT, AQ_S3, LINUX_DISPOSITION],
+                decision_ids=[
+                    "D-B31-01",
+                    "D-B31-03",
+                    "AQ-S3-08",
+                    "Linux benchmark host 2026-10-20",
+                ],
                 phase2_owner_acceptance=False,
             )
         )
@@ -159,28 +165,33 @@ def collect_acceptance(results: list[dict[str, Any]], directory: Path, root: Pat
             blockers.append(
                 "Owning command failed: " + ", ".join(r["label"] for r in sources if r["exit_code"])
             )
-        if row.criterion == EXIT_CRITERIA[4]:
-            blockers.append(
-                "AQ-S3-08: positive G2 AGENT admission pending; no Application path "
-                f"creates a bound AGENT ({AQ_S3}; owner 2026-10-20 known gap)"
-            )
-        if row.criterion == EXIT_CRITERIA[16]:
-            blockers.append(
-                "Dedicated Linux benchmark host, reserved CPU/RAM/storage/no-competing-job "
-                "attestation and declared PostgreSQL settings unavailable; local macOS "
-                "results only, owner disposition pending"
-            )
+        deferral = {
+            EXIT_CRITERIA[4]: (
+                AQ_S3,
+                "AQ-S3-08: positive G2 AGENT admission pending; owner-accepted known gap "
+                "2026-10-20; all other owning assertions verified",
+            ),
+            EXIT_CRITERIA[16]: (
+                LINUX_DISPOSITION,
+                "Dedicated Linux benchmark host not tested for now; owner-accepted deferral "
+                "2026-10-20 for benchmark-host part only; local macOS timings informational, "
+                "not a substitute; all other owning assertions verified",
+            ),
+        }.get(row.criterion)
         logs = tuple(dict.fromkeys(ref for result in sources for ref in result["logs"]))
         ref = prefix + f"owning-{number:02d}.json"
         candidate = replace(
             row,
             acceptance_revision=ctx["subject_revision"],
-            status="BLOCKED" if blockers else "PASS",
-            reason="; ".join(blockers) if blockers else None,
+            status="BLOCKED" if blockers else "DEFERRED" if deferral else "PASS",
+            reason="; ".join(blockers) if blockers else deferral[1] if deferral else None,
             commands=tuple(result["command"] for result in sources),
             exit_codes=tuple(result["exit_code"] for result in sources),
             evidence_refs=(ref, *logs),
-            disposition_refs=(prefix + disposition.name,),
+            disposition_refs=(
+                prefix + disposition.name,
+                *((deferral[0],) if deferral and not blockers else ()),
+            ),
             **counts,
         )
         payload = dict(
@@ -205,7 +216,7 @@ def collect_acceptance(results: list[dict[str, Any]], directory: Path, root: Pat
             row=asdict(candidate),
         )
         (root / ref).write_bytes(canonical_bytes(payload))
-        if candidate.status == "PASS" and not verified_acceptance(candidate, root):
+        if candidate.status in {"PASS", "DEFERRED"} and not verified_acceptance(candidate, root):
             raise RuntimeError(f"Generated owning evidence rejected: {row.criterion}")
 
 
@@ -335,27 +346,37 @@ def host_details() -> dict[str, Any]:
         python=platform.python_version(),
         dedicated_linux_attested=False,
         benchmark_disposition=(
-            "BLOCKED: dedicated Linux host unavailable; owner disposition pending"
+            "DEFERRED: owner 2026-10-20; dedicated Linux host not tested for now"
         ),
     )
 
 
 def write_verification(ctx, directory: Path, results, verdict: str) -> None:
-    ref = f"../../pr_evidence/pr2-20/{directory.name}/"
     postgres = next((r["postgres"] for r in results if "postgres" in r), {})
     body = (
         "# PR2-20 focused verification\n\n"
         f"Subject `{ctx['subject_revision']}`; authored dirty diff `{ctx['dirty_diff_sha256']}`. "
         "Generated reports/evidence are excluded from their own digest.\n\n"
-        f"[Machine commands, host, counts and logs]({ref}verification.json). "
+        "[Recorded commands, host and counts](#focused-commands). "
         "Counts below are exact command totals. Each OWNING_ACCEPTANCE record partitions "
         "those cases by the row's owning files and retains every parametrized outcome. "
         "ENABLED describes the required acceptance check, not a live provider. "
         "The verifier never runs the whole suite. Static checks have no pytest counts. "
-        "Test observations remain in tmp_path; the script publishes sanitized logs and records.\n\n"
+        "Test observations remain in tmp_path; sanitized raw JSON/logs remain local under "
+        f"`{directory.relative_to(ROOT).as_posix()}`. Report links target tracked Markdown "
+        "because the sandbox prohibits writing Git's index. No evidence directory was staged.\n\n"
+        "## Subject\n\n"
+        "```json\n"
+        + json.dumps(
+            {key: ctx[key] for key in ("subject_revision", "dirty_diff_sha256")},
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n```\n\n"
         f"Actual local host: `{json.dumps(host_details(), sort_keys=True)}`. "
         f"Actual PostgreSQL: `{json.dumps(postgres, sort_keys=True)}`. "
         "Local timing is informational; it cannot satisfy the dedicated Linux host requirement.\n\n"
+        "## Focused commands\n\n"
         "| Command | Exit | Passed | Failed | Errors | Skipped | Status |\n"
         "| --- | --- | --- | --- | --- | --- | --- |\n"
     )
@@ -368,13 +389,23 @@ def write_verification(ctx, directory: Path, results, verdict: str) -> None:
     body += (
         f"\nComputed validate_exit verdict: **{verdict}**. Owner acceptance is separate. "
         "B28 real PaperQA2 is DEFERRED under the owner 2026-10-19 disposition. "
-        f"AQ-S3-08 is the owner 2026-10-20 known gap ({AQ_S3}). "
+        f"AQ-S3-08 defers only positive G2 AGENT admission ({AQ_S3}); dedicated Linux "
+        f"benchmark host defers only the Row 17 host requirement ({LINUX_DISPOSITION}). "
+        "Both are owner-accepted 2026-10-20; every other owning assertion must pass. "
         f"B20 NO_CLOSE_PRIOR_ART, B23 and MANUSCRIPT_CHANGE are Phase 2 exit non-goals "
         f"under D-B31-03 ({B31_CONTRACT}). "
         "No independent reviewer or loop full-suite result is inferred. "
         "See phase2_exit_report.md for every remaining owner decision. "
         "STOP; wait for explicit Phase 3 GO.\n"
     )
+    body += "\n## Row evidence\n\n"
+    for number, row in enumerate(exit_rows(acceptance_directory=directory), 1):
+        body += (
+            f"### Exit row {number}\n\n"
+            "Recorded after verification of the owning assertions and local log digests. "
+            "Raw evidence paths below identify local artifacts; they are not file links.\n\n"
+            f"```json\n{json.dumps(asdict(row), sort_keys=True, indent=2)}\n```\n\n"
+        )
     (ROOT / "docs/phase2/pr2_20_verification.md").write_text(body)
 
 

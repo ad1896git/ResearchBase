@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any, cast
 
 from tests.contracts.pr2_20_evidence import (
+    AQ_S3,
     B28_DISPOSITION,
+    EXIT_DEFERRALS,
+    LINUX_DISPOSITION,
     SUBJECT_PREFIX,
     AdapterInventoryEntry,
     ExitCriterionEvidence,
@@ -263,7 +266,9 @@ def exit_rows(
                 or candidate.contract_refs != row.contract_refs
             ):
                 raise ValueError("owning record does not match the row and subject")
-            if candidate.status == "PASS" and not verified_acceptance(candidate, root):
+            if candidate.status in {"PASS", "DEFERRED"} and not verified_acceptance(
+                candidate, root
+            ):
                 raise ValueError("owning acceptance could not be verified")
             loaded.append(candidate)
         except (OSError, ValueError, KeyError, TypeError):
@@ -290,26 +295,37 @@ def validate_exit(
 
 
 def verified_acceptance(row: ExitCriterionEvidence, root: Path) -> bool:
-    """Require owning acceptance, except the explicit inactive B28 disposition."""
+    """Verify owning assertions; deferrals cover only each cited owner-accepted gap."""
     if row.status == "DEFERRED":
-        if row.criterion != "PaperQA2 Adapter" or B28_DISPOSITION not in row.disposition_refs:
+        ref = EXIT_DEFERRALS.get(row.criterion)
+        if ref is None or ref not in row.disposition_refs:
             return False
-        try:
-            disposition = (root / B28_DISPOSITION).resolve()
-            if not disposition.is_relative_to(root.resolve()) or not disposition.is_file():
-                return False
-            packages = tomllib.loads((root / "uv.lock").read_text())["package"]
-            if any(item["name"] in {"paper-qa", "paperqa"} for item in packages):
-                return False
-            item = next(item for item in adapter_inventory(root) if item.adapter_id == "paperqa2")
-            return (
-                item.status == "DEFERRED"
-                and item.mode == "DEFERRED"
-                and item.package_version is None
-            )
-        except (OSError, ValueError, KeyError, StopIteration):
+        disposition = (root / ref).resolve()
+        if not disposition.is_relative_to(root.resolve()) or not disposition.is_file():
             return False
-    if row.status != "PASS":
+        if row.criterion != "PaperQA2 Adapter":
+            # The named gap alone is deferred. All other owning assertions must pass.
+            if row.failed or row.errors or row.skipped or not row.passed or not row.test_nodes:
+                return False
+        else:
+            try:
+                disposition = (root / B28_DISPOSITION).resolve()
+                if not disposition.is_relative_to(root.resolve()) or not disposition.is_file():
+                    return False
+                packages = tomllib.loads((root / "uv.lock").read_text())["package"]
+                if any(item["name"] in {"paper-qa", "paperqa"} for item in packages):
+                    return False
+                item = next(
+                    item for item in adapter_inventory(root) if item.adapter_id == "paperqa2"
+                )
+                return (
+                    item.status == "DEFERRED"
+                    and item.mode == "DEFERRED"
+                    and item.package_version is None
+                )
+            except (OSError, ValueError, KeyError, StopIteration):
+                return False
+    if row.status not in {"PASS", "DEFERRED"}:
         return False
     import re
 
@@ -439,10 +455,10 @@ def write_reports(root: Path = ROOT) -> Path:
     )
     findings = verification_findings(directory)
     verdict = validate_exit(rows, findings, root)
-    ref = f"../../{SUBJECT_PREFIX}{sha}/"
+    ref = "pr2_20_verification.md"
     intro = (
         f"Subject `{ctx['subject_revision']}`; dirty diff `{ctx['dirty_diff_sha256']}`.\n\n"
-        f"Machine evidence: [subject]({ref}subject.json). This is engineering evidence. "
+        f"Recorded evidence: [subject]({ref}#subject). This is engineering evidence. "
         f"Phase 2 exit is **{verdict}**; owner acceptance is separate.\n\n"
     )
     texts = {}
@@ -476,7 +492,7 @@ def write_reports(root: Path = ROOT) -> Path:
     texts[REPORT_NAMES[2]] = (
         intro
         + (
-            f"[Complete revision/predecessor/script digests]({ref}migration_scripts.json). "
+            "[Complete revision/predecessor/script digests](#revision-inventory). "
             "B31 adds no migration or index; B29 remains closed with zero B31 DDL. "
             f"The live head is {migrations[-1]['revision']}; "
             "the B31 boundary is 0068_b21_unresolved_capture, "
@@ -486,13 +502,14 @@ def write_reports(root: Path = ROOT) -> Path:
             "rical-manifest tests "
             "are separate evidence; absent checkpoint acceptance remains BLOCKED.\n\n"
         )
+        + "## Revision inventory\n\n"
         + migration_inventory_table(migrations)
     )
 
     def row_links(numbers: tuple[int, ...]) -> str:
         return (
             "\n".join(
-                f"- [{rows[n - 1].criterion}]({ref}exit-{n - 1:02d}.json): "
+                f"- [{rows[n - 1].criterion}]({ref}#exit-row-{n}): "
                 f"{rows[n - 1].status}; {rows[n - 1].reason or 'owning assertions verified'}"
                 for n in numbers
             )
@@ -557,7 +574,7 @@ def write_reports(root: Path = ROOT) -> Path:
         "| Literal exit criterion | Status | Reason | Evidence |\n| --- | --- | --- | --- |\n"
         + "".join(
             f"| {row.criterion} | {row.status} | {row.reason or 'Owning assertions verified'} | "
-            f"[record]({ref}exit-{number:02d}.json) |\n"
+            f"[record]({ref}#exit-row-{number + 1}) |\n"
             for number, row in enumerate(rows)
         )
         + "\n| Architecture requirement | Concrete node | Disposition |\n| --- | --- | --- |\n"
@@ -569,8 +586,9 @@ def write_reports(root: Path = ROOT) -> Path:
         + "\n".join(f"- {gap}" for gap in KNOWN_GAPS)
         + "\n\nFocused commands, exact counts and actual host details are in "
         "[verification](pr2_20_verification.md). Unrun, skipped, failed and blocked "
-        "results stay distinct. Dedicated Linux host timing/attestation remains BLOCKED "
-        "pending owner disposition; local macOS results are informational. "
+        "results stay distinct. Dedicated Linux host timing/attestation is owner-accepted "
+        "DEFERRED for the benchmark-host part of Row 17 only; local macOS results remain "
+        "informational and are not a substitute. "
         "Reference/provider revision, license/notice/terms and dated advisory review "
         "remain unresolved in the adapter inventory. No independent review or loop "
         "full-suite acceptance is inferred from these focused runs.\n\n"
@@ -676,8 +694,10 @@ EXIT_OWNERS = dict(
     )
 )
 B31_CONTRACT = "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md"
-AQ_S3 = "docs/proposals/B30S3_Architecture_Questions_2026-10-20.md"
 KNOWN_GAPS = (
+    f"Dedicated Linux benchmark host not tested for now, owner 2026-10-20: "
+    f"Row 17 benchmark-host part only DEFERRED; revisit before Phase 3 performance claims. "
+    f"Local macOS timings are informational, not a substitute: {LINUX_DISPOSITION}.",
     f"B28 real PaperQA2 DEFERRED, owner 2026-10-19: {B28_DISPOSITION}.",
     f"AQ-S3-08, owner 2026-10-20: positive G2 AGENT admission test pending; "
     f"no Application path creates a bound AGENT. Never forge the binding: {AQ_S3}.",

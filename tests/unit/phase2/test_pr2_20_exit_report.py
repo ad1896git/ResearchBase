@@ -37,9 +37,10 @@ def test_all_six_reports_nineteen_literal_rows_thirteen_architecture_mappings(
     # Links to generated machine records must resolve locally.
     for path in docs.iterdir():
         for link in re.findall(r"\]\(([^)]+)\)", path.read_text()):
+            link = link.split("#")[0]
             if link == "pr2_20_verification.md":
                 continue  # Filled by the separate verifier, not fabricated by the renderer.
-            assert (path.parent / link).resolve().is_file(), (path, link)
+            assert (path.parent / link).resolve().is_file() if link else path.is_file()
     rows = r.exit_rows()
     assert len(rows) == 19
     assert all(
@@ -329,6 +330,7 @@ def test_s4_collector_loader_real_files_subject_and_log_integrity(tmp_path, monk
         *[path for paths in r.EXIT_FILES.values() for path in paths],
         r.B31_CONTRACT,
         r.AQ_S3,
+        r.LINUX_DISPOSITION,
         "docs/proposals/PR2-20_Hardening_Plan_DRAFT.md",
     }
     for source in sources:
@@ -363,11 +365,44 @@ def test_s4_collector_loader_real_files_subject_and_log_integrity(tmp_path, monk
     assert len(list(directory.glob("owning-*.json"))) == 18
     rows = r.exit_rows(tmp_path, acceptance_directory=directory)
     assert rows[0].status == ("PASS" if outcome == "PASS" else "BLOCKED")
-    assert rows[4].status == "BLOCKED" and "AQ-S3-08" in (rows[4].reason or "")
-    assert rows[16].status == "BLOCKED" and "Linux" in (rows[16].reason or "")
+    for index, gap in ((4, "AQ-S3-08"), (16, "Linux")):
+        expected = "BLOCKED" if outcome in {"FAIL", "ERROR"} else "DEFERRED"
+        assert rows[index].status == expected
+        if expected == "DEFERRED":
+            assert gap in (rows[index].reason or "")
+            assert r.verified_acceptance(rows[index], tmp_path)
     assert r.validate_exit(rows, (), tmp_path) == "BLOCKED"
     if outcome == "PASS":
         assert r.verified_acceptance(rows[0], tmp_path)
+        for index in (4, 16):
+            item = rows[index]
+            disposition = tmp_path / r.EXIT_DEFERRALS[item.criterion]
+            body = disposition.read_bytes()
+            disposition.unlink()
+            assert not r.verified_acceptance(item, tmp_path)
+            assert r.exit_rows(tmp_path, acceptance_directory=directory)[index].status == "BLOCKED"
+            disposition.write_bytes(body)
+            wrong = r.B28_DISPOSITION
+            with pytest.raises(ValueError):
+                replace(item, disposition_refs=(wrong,))
+            for changes in (
+                {"failed": 1},
+                {"errors": 1},
+                {"skipped": 1},
+                {"passed": 0},
+                {"test_nodes": ()},
+                {"exit_codes": (1,)},
+                {"evidence_refs": ()},
+            ):
+                assert not r.verified_acceptance(replace(item, **changes), tmp_path)
+        # Even a correctly signed owner gap cannot mask a failed owning case.
+        for index in (4, 16):
+            own = directory / f"owning-{index + 1:02d}.json"
+            payload = json.loads(own.read_bytes())
+            payload["cases"][0]["status"] = "FAIL"
+            own.write_bytes(canonical_bytes(payload))
+            assert not r.verified_acceptance(rows[index], tmp_path)
+            assert r.exit_rows(tmp_path, acceptance_directory=directory)[index].status == "BLOCKED"
         # Missing/tampered logs invalidate a previously passing record.
         log.write_text("changed")
         assert not r.verified_acceptance(rows[0], tmp_path)
@@ -394,6 +429,7 @@ def test_s4_generated_narratives_known_gaps_and_owner_decisions(tmp_path, monkey
     for token in (
         "AQ-S3-08",
         r.AQ_S3,
+        r.LINUX_DISPOSITION,
         "D-B31-03",
         "NO_CLOSE_PRIOR_ART",
         "B23",
@@ -405,3 +441,30 @@ def test_s4_generated_narratives_known_gaps_and_owner_decisions(tmp_path, monkey
         if row.status == "BLOCKED":
             assert row.criterion in final
     assert "Phase 2 is accepted" not in report
+
+
+@pytest.fixture(scope="module")
+def baseline_exit_rows():
+    return r.exit_rows()
+
+
+@pytest.mark.parametrize("index", [n for n in range(19) if n not in {4, 5, 16}])
+@pytest.mark.parametrize("disposition", list(r.EXIT_DEFERRALS.values()))
+def test_no_other_row_can_use_an_owner_gap_deferral(baseline_exit_rows, index, disposition):
+    with pytest.raises(ValueError):
+        replace(baseline_exit_rows[index], status="DEFERRED", disposition_refs=(disposition,))
+
+
+@pytest.mark.parametrize(
+    "criterion,wrong",
+    [
+        (criterion, wrong)
+        for criterion, disposition in r.EXIT_DEFERRALS.items()
+        for wrong in r.EXIT_DEFERRALS.values()
+        if wrong != disposition
+    ],
+)
+def test_each_deferral_requires_its_own_cited_file(baseline_exit_rows, criterion, wrong):
+    item = baseline_exit_rows[r.EXIT_CRITERIA.index(criterion)]
+    with pytest.raises(ValueError):
+        replace(item, status="DEFERRED", disposition_refs=(wrong,))

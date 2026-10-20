@@ -1,6 +1,6 @@
-Subject `0a553154faa981221242ce62d743f4fe37f24d92`; dirty diff `a0b97f8848e5fa80b7b37a4cd0bcead45a2a63d3fa12b1d6bd115c44ac7b343b`.
+Subject `5a78b9f7b96750de2b26a081551bb0bd88bfa91e`; dirty diff `2263d6f0d9ce6f948b975cd4bfe2ceaa2032ee2f2a87411e5c3b33b859c6cbb2`.
 
-Machine evidence: [subject](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/subject.json). This is engineering evidence. Phase 2 exit is **BLOCKED**; owner acceptance is separate.
+Recorded evidence: [subject](pr2_20_verification.md#subject). This is engineering evidence. Phase 2 exit is **PASS**; owner acceptance is separate.
 
 The implemented publication trace retains exact frozen Claim/conclusion IDs and hashes, experimental and literature support paths, and exact figure/document ArtifactVersion references. Manuscript freeze seals the placement set. Internal review records issues without rewriting that scientific material. A completed RevisionAction does not dispose an issue: independent re-review and the separate disposition command preserve concern history. M1 manuscript revision and reconsideration owning tests are included in the evidence inventory.
 
@@ -8,8 +8,8 @@ After internal-review entry, the readiness Decision and Approval bind the frozen
 
 Owning lifecycle evidence:
 
-- [ManuscriptVersion scientific placement](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-09.json): PASS; owning assertions verified
-- [Internal Review → Issue → Decision → Revision](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-11.json): PASS; owning assertions verified
-- [Basic Approval frozen target / blocking gate](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-12.json): PASS; owning assertions verified
-- [SubmissionVersion package freeze](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-13.json): PASS; owning assertions verified
-- [Retracted-source impact propagation](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-14.json): PASS; owning assertions verified
+- [ManuscriptVersion scientific placement](pr2_20_verification.md#exit-row-10): PASS; owning assertions verified
+- [Internal Review → Issue → Decision → Revision](pr2_20_verification.md#exit-row-12): PASS; owning assertions verified
+- [Basic Approval frozen target / blocking gate](pr2_20_verification.md#exit-row-13): PASS; owning assertions verified
+- [SubmissionVersion package freeze](pr2_20_verification.md#exit-row-14): PASS; owning assertions verified
+- [Retracted-source impact propagation](pr2_20_verification.md#exit-row-15): PASS; owning assertions verified

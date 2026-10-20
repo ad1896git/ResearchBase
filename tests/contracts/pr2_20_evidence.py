@@ -28,6 +28,13 @@ _SECRET = re.compile(
 
 
 B28_DISPOSITION = "docs/proposals/B28_PaperQA2_Intake_Assessment_DRAFT.md"
+AQ_S3 = "docs/proposals/B30S3_Architecture_Questions_2026-10-20.md"
+LINUX_DISPOSITION = "docs/proposals/Owner_Decision_Linux_Benchmark_Host_2026-10-20.md"
+EXIT_DEFERRALS = {
+    "PaperQA2 Adapter": B28_DISPOSITION,
+    "STORM-like Native ResearchStrategy": AQ_S3,
+    "PostgreSQL migrations/integration": LINUX_DISPOSITION,
+}
 
 
 def redact(value: str) -> str:
@@ -138,8 +145,7 @@ class EvidenceRecord:
                         if not (
                             isinstance(self, ExitCriterionEvidence)
                             and field.name == "disposition_refs"
-                            and part == B28_DISPOSITION
-                            and self.criterion == "PaperQA2 Adapter"
+                            and part == EXIT_DEFERRALS.get(self.criterion)
                             and self.status == "DEFERRED"
                         ):
                             _path(
@@ -180,8 +186,8 @@ class EvidenceRecord:
             ):
                 raise ValueError("adapter deferral requires inactive unresolved intake")
         if isinstance(self, ExitCriterionEvidence) and self.status == "DEFERRED":
-            if self.criterion != "PaperQA2 Adapter" or B28_DISPOSITION not in self.disposition_refs:
-                raise ValueError("only owner-disposed B28 may be deferred")
+            if EXIT_DEFERRALS.get(self.criterion) not in self.disposition_refs:
+                raise ValueError("only row-specific owner dispositions may be deferred")
         if len(to_bytes(self)) > MAX_BYTES:
             raise ValueError("file limit")
 
