@@ -5,10 +5,12 @@ from __future__ import annotations
 import ast
 import json
 import subprocess
+import tomllib
 from pathlib import Path
 from typing import Any, cast
 
 from tests.contracts.pr2_20_evidence import (
+    B28_DISPOSITION,
     SUBJECT_PREFIX,
     AdapterInventoryEntry,
     ExitCriterionEvidence,
@@ -74,6 +76,13 @@ def context(root: Path = ROOT) -> dict[str, Any]:
         reason="Owning acceptance and owner dispositions not attached",
         evidence_refs=(),
     )
+
+
+def b28_context(root: Path, deferred: bool) -> dict[str, Any]:
+    values = context(root)
+    if deferred:
+        values.update(status="DEFERRED", reason="Owner-approved B28 deferral: " + B28_DISPOSITION)
+    return values
 
 
 def migration_inventory(root: Path = ROOT) -> list[dict[str, Any]]:
@@ -164,7 +173,7 @@ def adapter_inventory(root: Path = ROOT) -> tuple[AdapterInventoryEntry, ...]:
     lock = digest_bytes((root / "uv.lock").read_bytes())
     return tuple(
         AdapterInventoryEntry(
-            **context(root),
+            **b28_context(root, adapter == "paperqa2"),
             capability_id=capability,
             adapter_id=adapter,
             mapping_version=mapping,
@@ -196,7 +205,7 @@ def adapter_inventory(root: Path = ROOT) -> tuple[AdapterInventoryEntry, ...]:
 def exit_rows(root: Path = ROOT) -> tuple[ExitCriterionEvidence, ...]:
     return tuple(
         ExitCriterionEvidence(
-            **context(root),
+            **b28_context(root, criterion == "PaperQA2 Adapter"),
             criterion=criterion,
             corrected_term={
                 "LiteratureSearchPlan/Run provenance": "LiteratureSearchExecution",
@@ -213,7 +222,7 @@ def exit_rows(root: Path = ROOT) -> tuple[ExitCriterionEvidence, ...]:
             errors=0,
             skipped=0,
             finding_refs=(),
-            disposition_refs=(),
+            disposition_refs=(B28_DISPOSITION,) if criterion == "PaperQA2 Adapter" else (),
         )
         for criterion in EXIT_CRITERIA
     )
@@ -230,7 +239,7 @@ def validate_exit(
     if any(item.startswith(("P0", "P1")) for item in findings):
         return "BLOCKED"
     for row in rows:
-        if row.status != "PASS":
+        if row.status not in {"PASS", "DEFERRED"}:
             return "BLOCKED"
         if not verified_acceptance(row, root):
             return "BLOCKED"
@@ -238,7 +247,27 @@ def validate_exit(
 
 
 def verified_acceptance(row: ExitCriterionEvidence, root: Path) -> bool:
-    """Focused, fake, deferred, skipped or missing evidence cannot close a gate."""
+    """Require owning acceptance, except the explicit inactive B28 disposition."""
+    if row.status == "DEFERRED":
+        if row.criterion != "PaperQA2 Adapter" or B28_DISPOSITION not in row.disposition_refs:
+            return False
+        try:
+            disposition = (root / B28_DISPOSITION).resolve()
+            if not disposition.is_relative_to(root.resolve()) or not disposition.is_file():
+                return False
+            packages = tomllib.loads((root / "uv.lock").read_text())["package"]
+            if any(item["name"] in {"paper-qa", "paperqa"} for item in packages):
+                return False
+            item = next(item for item in adapter_inventory(root) if item.adapter_id == "paperqa2")
+            return (
+                item.status == "DEFERRED"
+                and item.mode == "DEFERRED"
+                and item.package_version is None
+            )
+        except (OSError, ValueError, KeyError, StopIteration):
+            return False
+    if row.status != "PASS":
+        return False
     import re
 
     if (
@@ -363,15 +392,14 @@ def write_reports(root: Path = ROOT) -> Path:
     texts[REPORT_NAMES[1]] = intro + (
         "Offline compatibility uses typed candidate contracts and disposable canonical-"
         "state manifests. "
-        "Live provider and real PaperQA2 compatibility/security remain BLOCKED. "
+        "Live provider acceptance remains BLOCKED; real PaperQA2 is owner-approved DEFERRED (B28). "
+        "FakeScientificRAGCapability remains the deterministic gate. "
         "No STORM/PaperQA schema or executable pin is inferred from a reference.\n\n"
-        "P1 MAJOR: `src/researchbase/adapters/literature_http.py::get_json` has redirect, byte, "
-        "time and JSON bounds but no private-network/DNS destination denial. "
-        "Impact: transport destination protection is unproven. Action: separately autho"
-        "rize owning transport remediation/intake. "
-        "No arbitrary endpoint or provider was enabled by this slice. Unsafe PaperQA in"
-        "dex deserialization and corpus isolation remain BLOCKED pending the real adapt"
-        "er.\n"
+        "Transport destination validation rejects non-public literals and DNS answers before "
+        "dispatch, pins the validated peer, disables proxies and redirects, and preserves "
+        "HTTPS hostname verification. Offline security regressions verify this boundary. "
+        "PaperQA index deserialization and corpus isolation remain deferred "
+        "with the real adapter.\n"
     )
     texts[REPORT_NAMES[2]] = (
         intro
@@ -450,8 +478,8 @@ def write_reports(root: Path = ROOT) -> Path:
         "hed separately. "
         "Benchmark on the specified dedicated Linux host remains BLOCKED if unavailable"
         "; local small timing is informational. "
-        "Open P1 transport finding, missing real PaperQA2, missing acceptance subjects "
-        "and owner dispositions prevent gate success. "
+        "B28 real PaperQA2 is owner-approved DEFERRED. Missing owning acceptance subjects "
+        "or dispositions and unresolved P0/P1 findings still prevent gate success. "
         "Independent review is recorded in the verification document.\n\n"
         "Substitution: the existing disposable PR212 database prefix is reused by the P"
         "R220 helper. "

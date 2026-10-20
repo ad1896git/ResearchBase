@@ -20,6 +20,17 @@ from tests.unit.test_m2_openalex import context, request
 SECRET = "synthetic-token-never-log"
 
 
+@pytest.fixture(autouse=True)
+def public_dns(monkeypatch):
+    monkeypatch.setattr(
+        literature_http.socket,
+        "getaddrinfo",
+        lambda *_a, **_kw: [
+            (2, 1, 6, "", ("8.8.8.8", 443)),
+        ],
+    )
+
+
 def _raising(error):
     def get(*_):
         raise error

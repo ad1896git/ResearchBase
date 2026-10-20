@@ -40,7 +40,11 @@ def test_all_six_reports_nineteen_literal_rows_thirteen_architecture_mappings(
                 continue  # Filled by the separate verifier, not fabricated by the renderer.
             assert (path.parent / link).resolve().is_file(), (path, link)
     rows = r.exit_rows()
-    assert len(rows) == 19 and all(row.status == "BLOCKED" for row in rows)
+    assert len(rows) == 19
+    assert all(
+        row.status == ("DEFERRED" if row.criterion == "PaperQA2 Adapter" else "BLOCKED")
+        for row in rows
+    )
     assert r.validate_exit(rows, ()) == "BLOCKED"
     assert r.validate_exit(rows, ("P1 MAJOR: destination protection",)) == "BLOCKED"
     with pytest.raises(ValueError):
@@ -212,3 +216,59 @@ def test_h2_compaction_success_does_not_close_source_or_exit(source, monkeypatch
     )
     assert r.compaction_status(item, source) == source
     assert r.validate_exit(r.exit_rows(), ()) == "BLOCKED"
+
+
+def test_b28_deferral_is_owner_disposition_and_never_fake_acceptance(tmp_path, monkeypatch):
+    item = r.exit_rows()[5]
+    assert item.criterion == "PaperQA2 Adapter" and item.status == "DEFERRED"
+    assert item.disposition_refs == (r.B28_DISPOSITION,)
+    assert r.verified_acceptance(item, r.ROOT)
+    assert not r.verified_acceptance(item, tmp_path)
+    inventory = r.adapter_inventory()
+    record = tmp_path / r.B28_DISPOSITION
+    record.parent.mkdir(parents=True)
+    record.write_bytes((r.ROOT / r.B28_DISPOSITION).read_bytes())
+    monkeypatch.setattr(r, "adapter_inventory", lambda root: inventory)
+    lock = tmp_path / "uv.lock"
+    lock.write_text("package = []")
+    assert r.verified_acceptance(item, tmp_path)
+    for package in ("paper-qa", "paperqa"):
+        lock.write_text(f'[[package]]\nname = "{package}"\nversion = "test"\n')
+        assert not r.verified_acceptance(item, tmp_path)
+    lock.write_text("package = []")
+    for changes in (
+        {"mode": "TEST_ONLY", "status": "BLOCKED"},
+        {"package_version": "1", "status": "BLOCKED"},
+    ):
+        altered = tuple(
+            replace(entry, **changes) if entry.adapter_id == "paperqa2" else entry
+            for entry in inventory
+        )
+        monkeypatch.setattr(r, "adapter_inventory", lambda root, altered=altered: altered)
+        assert not r.verified_acceptance(item, tmp_path)
+
+
+def test_b28_deferral_does_not_block_verified_other_rows_or_hide_major_findings(monkeypatch):
+    rows = r.exit_rows()
+    # Other rows' existing owning-acceptance verifier is independently covered above.
+    real = r.verified_acceptance
+    accepted = tuple(
+        row
+        if row.criterion == "PaperQA2 Adapter"
+        else replace(
+            row,
+            status="PASS",
+            reason=None,
+            passed=1,
+            test_nodes=("test::node",),
+        )
+        for row in rows
+    )
+    monkeypatch.setattr(
+        r,
+        "verified_acceptance",
+        lambda row, root: real(row, root) if row.status == "DEFERRED" else True,
+    )
+    assert r.validate_exit(accepted, ()) == "PASS"
+    assert r.validate_exit(accepted, ("P1 MAJOR: unresolved",)) == "BLOCKED"
+    assert r.validate_exit(rows, ()) == "BLOCKED"

@@ -34,10 +34,13 @@ def test_inventory_resolves_actual_source_lock_modes_and_unversioned_api():
         )
         assert item.lock_sha256 == digest_bytes(Path("uv.lock").read_bytes())
         assert item.license_sha256 is None and item.reviewed_at is None
-        assert item.status == "BLOCKED" and item.unresolved_items
+        assert item.status == ("DEFERRED" if item.adapter_id == "paperqa2" else "BLOCKED")
+        assert item.unresolved_items
         if item.adapter_id in {"openalex", "crossref"}:
             assert item.api_profile == "REST-unversioned"
             assert item.upstream_revision is None
+        if item.adapter_id == "paperqa2":
+            assert item.reason and r.B28_DISPOSITION in item.reason
         if item.mode in {"METHOD_REFERENCE", "DEFERRED"}:
             assert item.package_version is None
             with pytest.raises(ValueError):
@@ -72,7 +75,7 @@ def test_offline_replacement_candidates_preserve_contract_and_do_not_enable_pape
     assert first_result == replace(second_result, retrieved_at=first_result.retrieved_at)
     assert (
         next(item for item in r.adapter_inventory() if item.adapter_id == "paperqa2").status
-        == "BLOCKED"
+        == "DEFERRED"
     )
 
 

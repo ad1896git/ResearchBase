@@ -27,6 +27,9 @@ _SECRET = re.compile(
 )
 
 
+B28_DISPOSITION = "docs/proposals/B28_PaperQA2_Intake_Assessment_DRAFT.md"
+
+
 def redact(value: str) -> str:
     """Do not retain credentials, restricted query text or authenticated URLs."""
     return _SECRET.sub("[REDACTED]", value)
@@ -132,7 +135,16 @@ class EvidenceRecord:
                         "disposition_refs",
                         "owner_override_ref",
                     }:
-                        _path(part, subject_digest(self.subject_revision, self.dirty_diff_sha256))
+                        if not (
+                            isinstance(self, ExitCriterionEvidence)
+                            and field.name == "disposition_refs"
+                            and part == B28_DISPOSITION
+                            and self.criterion == "PaperQA2 Adapter"
+                            and self.status == "DEFERRED"
+                        ):
+                            _path(
+                                part, subject_digest(self.subject_revision, self.dirty_diff_sha256)
+                            )
                 if type(part) is int and part < 0 and field.name != "exit_codes":
                     raise ValueError("negative count")
                 if isinstance(part, datetime) and (
@@ -160,6 +172,16 @@ class EvidenceRecord:
         if isinstance(self, AdapterInventoryEntry) and self.status == "PASS":
             if self.unresolved_items or not self.compatibility_nodes or self.mode != "ENABLED":
                 raise ValueError("adapter acceptance unavailable")
+        if isinstance(self, AdapterInventoryEntry) and self.status == "DEFERRED":
+            if (
+                self.mode != "DEFERRED"
+                or self.package_version is not None
+                or not self.unresolved_items
+            ):
+                raise ValueError("adapter deferral requires inactive unresolved intake")
+        if isinstance(self, ExitCriterionEvidence) and self.status == "DEFERRED":
+            if self.criterion != "PaperQA2 Adapter" or B28_DISPOSITION not in self.disposition_refs:
+                raise ValueError("only owner-disposed B28 may be deferred")
         if len(to_bytes(self)) > MAX_BYTES:
             raise ValueError("file limit")
 

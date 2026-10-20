@@ -17,8 +17,6 @@ from researchbase.application.novelty import (
 from researchbase.domain.novelty import HashRef, PriorArtSelectionState
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-pytest_plugins = ("tests.unit.phase2.test_pr2_18_transports",)
-
 
 def path(e):
     return f"/v1/projects/{e.project}/prior-art-relations/selection"

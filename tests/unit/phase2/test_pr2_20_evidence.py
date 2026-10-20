@@ -364,3 +364,72 @@ def test_corrupt_compressed_locator_is_refused_with_matching_retained_hash(tmp_p
     )
     with pytest.raises(ValueError, match="compressed"):
         e.recover_compaction(tmp_path, item)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {},
+        {"reason": " "},
+        {"mode": "TEST_ONLY"},
+        {"package_version": "1"},
+        {"unresolved_items": ()},
+    ],
+)
+def test_adapter_deferred_predicates(changes):
+    values = dict(
+        status="DEFERRED",
+        mode="DEFERRED",
+        package_version=None,
+        reason="Owner defers intake",
+        unresolved_items=("Real adapter deferred",),
+    )
+    values.update(changes)
+    if changes:
+        with pytest.raises(ValueError):
+            record(e.AdapterInventoryEntry, **values)
+    else:
+        item = record(e.AdapterInventoryEntry, **values)
+        assert e.from_bytes(e.AdapterInventoryEntry, e.to_bytes(item)) == item
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {},
+        {"reason": " "},
+        {"criterion": "Scientific RAG Boundary"},
+        {"disposition_refs": ()},
+        {"disposition_refs": ("docs/proposals/other.md",)},
+    ],
+)
+def test_exit_deferred_only_for_b28_disposition(changes):
+    values = dict(
+        status="DEFERRED",
+        criterion="PaperQA2 Adapter",
+        reason="Owner defers B28",
+        disposition_refs=(e.B28_DISPOSITION,),
+    )
+    values.update(changes)
+    if changes:
+        with pytest.raises(ValueError):
+            record(e.ExitCriterionEvidence, **values)
+    else:
+        item = record(e.ExitCriterionEvidence, **values)
+        assert e.from_bytes(e.ExitCriterionEvidence, e.to_bytes(item)) == item
+
+
+def test_b31_all_57_error_mappings_match_both_adapters():
+    import re
+
+    contract = Path("docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md").read_text()
+    rows = re.findall(r"\| `([A-Z_]+)` \| (\d+) \| (\d+) \|", contract)
+    assert len(rows) == 57
+    assert (
+        {ErrorCode(code) for code, _, _ in rows}
+        == set(ErrorCode)
+        == set(_STATUS)
+        == set(CLI_EXIT_CODES)
+    )
+    for code, http, cli in rows:
+        assert (_STATUS[ErrorCode(code)], CLI_EXIT_CODES[ErrorCode(code)]) == (int(http), int(cli))

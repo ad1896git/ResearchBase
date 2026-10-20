@@ -90,6 +90,13 @@ def test_partial_http_timeout_retains_received_response(monkeypatch):
         def open(self, *args, **kwargs):
             return Response()
 
+    monkeypatch.setattr(
+        literature_http.socket,
+        "getaddrinfo",
+        lambda *_a, **_kw: [
+            (2, 1, 6, "", ("8.8.8.8", 443)),
+        ],
+    )
     monkeypatch.setattr(literature_http, "build_opener", lambda *args: Opener())
     value = CrossrefVerifier().observe("10.1234/abc", "Title")
     assert value["outcome"] == "AMBIGUOUS"

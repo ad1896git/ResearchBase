@@ -11,8 +11,6 @@ from typer.testing import CliRunner
 from researchbase.api.routes import NoveltyAssessmentIn
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
-pytest_plugins = ("tests.unit.phase2.test_pr2_18_transports",)
-
 
 def body(e) -> dict[str, Any]:
     return dict(

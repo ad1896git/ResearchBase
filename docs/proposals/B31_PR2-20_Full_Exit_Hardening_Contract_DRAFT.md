@@ -1,6 +1,6 @@
 # PR2-20 Full Exit Hardening (B31) Contract — DRAFT
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-20 — first slice authorized for implementation**
 
 ## Start here (for the implementer)
 
@@ -754,3 +754,59 @@ and retried with `-c shared_memory_type=mmap`; both exited `1` because macOS
 started and no existing cluster was changed. PostgreSQL verification remains
 blocked by the local environment. Only this draft is changed; its status line is
 preserved. No commit, push, or branch was created.
+
+## 15. B31-S1 implementation evidence — 2026-10-20
+
+Only S1 is implemented: destination validation and numeric peer pinning in the real
+HTTP adapter, offline security regressions, and the owner-approved B28 deferral in
+the typed adapter/exit inventories. HTTPS retains default certificate verification
+and the original hostname for SNI; environment proxies and redirects are disabled.
+The shared transport phase tests now stub DNS so their opener doubles remain fully
+offline. No naming/location substitutions were needed. No migration, schema,
+dependency, or transaction/lock protocol changes were made. S2–S4 and regeneration
+of the six exit artifacts remain outside this slice.
+
+Read-only sub-agent reviews found no P0/P1 issues. Their minor findings (two
+explicit IPv6 cases and stale renderer wording) were corrected before final focused
+verification. Real PaperQA2 remains absent; the fake remains the deterministic gate.
+
+The default uv cache was inaccessible under the workspace sandbox. Commands used
+the repository-local cache instead. All commands below exited 0:
+
+| Exact command | Observed result |
+| --- | --- |
+| `UV_CACHE_DIR=.uv-cache uv run ruff check .` | `All checks passed!` |
+| `UV_CACHE_DIR=.uv-cache uv run ruff format --check .` | `783 files already formatted` |
+| `UV_CACHE_DIR=.uv-cache uv run pyright` | `0 errors, 0 warnings, 0 informations` |
+| `UV_CACHE_DIR=.uv-cache uv run pytest tests/unit tests/architecture --tb=short` | `6195 passed, 55 warnings in 112.42s` |
+| `UV_CACHE_DIR=.uv-cache uv run pytest tests/unit/phase2/test_pr2_20_evidence.py tests/unit/phase2/test_pr2_20_exit_report.py tests/unit/phase2/test_pr2_20_inventory.py tests/architecture/test_pr2_20_boundaries.py tests/unit/phase2/test_pr2_06_transport_boundary.py tests/unit/test_m2_crossref.py --tb=short` | `116 passed in 10.35s` |
+| `UV_CACHE_DIR=.uv-cache uv run pytest tests/integration/phase2/test_pr2_20_security.py --tb=short` | `48 passed, 20 warnings in 12.44s` |
+
+The final focused unit run includes the explicit 57-row B31 error-mapping test added
+after the broader run collected its tests. The PostgreSQL/security run used the
+inherited `RB_TEST_ADMIN_URL` with local PostgreSQL 18.6 and disposable test databases.
+Warnings were Alembic's existing `path_separator` deprecation and, in the broader
+run, an existing SQLAlchemy isolation-option warning. No full test suite was run;
+no commit, push, or branch was created.
+
+### 15.1 Full-suite findings and director fix
+
+Round 1's sharded full run had one temporal-wait failure and one B08 fixture error;
+both node IDs passed when rerun together on this tree, so they are recorded as
+load-dependent flakiness, not S1 regressions. Round 2's sharded full run completed
+all six shards: 12026 passed, 67 skipped, 16 errors. All 16 errors were
+`fixture 'novelty_transports' not found` in
+`tests/unit/phase2/test_b22_prior_art_transports.py`. Cause (pre-existing, not S1):
+B20 and B22 loaded the fixture through `pytest_plugins` naming the test module
+`test_pr2_18_transports.py`; when that module is collected first in the same run,
+the later modules lose the fixture. It reproduced with
+`pytest tests/unit/phase2/test_pr2_18_transports.py tests/unit/phase2/test_b22_prior_art_transports.py`
+(41 passed, 16 errors). Fix: `tests/unit/phase2/conftest.py` re-exports the fixture
+and the two `pytest_plugins` lines are removed. Afterwards the three files pass in
+both collection orders (129 passed each) and `pytest tests/unit/phase2` reports
+4936 passed. Other test modules still use the same `pytest_plugins` pattern; they
+are a separate follow-up.
+
+Open P2 review items, accepted for this slice and tracked as follow-ups:
+`_resolve_public_peer` pins the first validated DNS answer with no fallback across
+the other validated answers, and each timed-out DNS lookup leaves one daemon thread.

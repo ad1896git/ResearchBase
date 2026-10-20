@@ -1,4 +1,4 @@
-"""Offline bounded security observations; absent protections remain report findings."""
+"""Offline transport security regressions and PostgreSQL scientific-boundary checks."""
 
 import pytest
 
@@ -51,30 +51,185 @@ def test_credential_and_query_redaction_preserves_safe_provider_failures():
     assert not any(secret in redact(text) for secret in ("private", "synthetic", "restricted"))
 
 
-def test_private_destination_protection_is_an_unresolved_finding(monkeypatch):
-    """Witness the missing protection without any network or secret disclosure."""
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/private",
+        "http://[::1]/",
+        "http://10.0.0.1/",
+        "http://172.16.0.1/",
+        "http://192.168.1.1/",
+        "http://100.64.0.1/",
+        "http://169.254.169.254/",
+        "http://[fe80::1]/",
+        "http://[fc00::1]/",
+        "http://[fd00::1]/",
+        "http://[::ffff:169.254.169.254]/",
+        "http://[::ffff:127.0.0.1]/",
+        "http://0.0.0.0/",
+        "http://224.0.0.1/",
+        "http://240.0.0.1/",
+        "http://[::]/",
+        "http://[ff02::1]/",
+        "ftp://example.org/",
+        "https://user:private@example.org/",
+        "https:///missing",
+        "http://example.org:0/",
+        "http://example.org:65536/",
+        "http://example.org:bad/",
+        "http://example.org:/",
+        "http://[fe80::1%25en0]/",
+        "https://example.org/\nprivate",
+        "http://2130706433/",
+        "http://0177.0.0.1/",
+    ],
+)
+def test_private_loopback_link_local_metadata_and_rebinding_destinations_denied(monkeypatch, url):
+    from researchbase.domain.literature_search_execution import DeliveryCertainty
+
     seen = []
-
-    class Opener:
-        def open(self, request, timeout):
-            seen.append(request.full_url)
-            raise OSError("TEST ONLY no network")
-
-    monkeypatch.setattr(literature_http, "build_opener", lambda *_: Opener())
-    with pytest.raises(literature_http.HttpTransportFailure):
-        literature_http.get_json("http://127.0.0.1/private", {}, 1)
-    assert seen == ["http://127.0.0.1/private"]
+    monkeypatch.setattr(
+        literature_http.socket,
+        "getaddrinfo",
+        lambda *_a, **_kw: [
+            (2, 1, 6, "", ("127.0.0.1", 80)),
+        ],
+    )
+    monkeypatch.setattr(literature_http.socket, "socket", lambda *_: seen.append("connect"))
+    with pytest.raises(literature_http.HttpTransportFailure) as caught:
+        literature_http.get_json(url, {}, 1)
+    assert caught.value.delivery_certainty is DeliveryCertainty.NOT_SENT
+    assert caught.value.__cause__ is None and caught.value.__context__ is None
+    assert not seen
     s.save_observation(
         "security-findings",
         {
-            "status": "BLOCKED",
-            "severity": "P1 MAJOR",
+            "status": "PASS",
             "location": "src/researchbase/adapters/literature_http.py::get_json",
-            "finding": "No private-network destination denial before dispatch",
-            "action": "Owning transport remediation requires separate authorization",
-            "paperqa_index_deserialization": "BLOCKED: real adapter not selected",
+            "finding": "Non-public destinations denied before connect; peer pinning tested offline",
+            "paperqa_index_deserialization": "DEFERRED: owner-approved B28",
         },
     )
+
+
+@pytest.mark.parametrize(
+    "answers",
+    [
+        ("8.8.8.8", "10.0.0.1"),
+        ("10.0.0.1", "8.8.8.8"),
+        ("2606:4700:4700::1111", "::ffff:127.0.0.1"),
+    ],
+)
+def test_mixed_dns_answers_are_denied_before_any_connect(monkeypatch, answers):
+    from researchbase.domain.literature_search_execution import DeliveryCertainty
+
+    def forbidden(*_):
+        pytest.fail("socket created before whole DNS answer set validated")
+
+    monkeypatch.setattr(
+        literature_http.socket,
+        "getaddrinfo",
+        lambda *_a, **_kw: [(2, 1, 6, "", (peer, 443)) for peer in answers],
+    )
+    monkeypatch.setattr(literature_http.socket, "socket", forbidden)
+    with pytest.raises(literature_http.HttpTransportFailure) as caught:
+        literature_http.get_json("https://example.org/", {}, 1)
+    assert caught.value.delivery_certainty is DeliveryCertainty.NOT_SENT
+
+
+@pytest.mark.parametrize("failure", ["empty", "error", "timeout"])
+def test_dns_failure_is_sanitized_not_sent(monkeypatch, failure):
+    from researchbase.domain.literature_search_execution import DeliveryCertainty
+
+    def resolve(*_a, **_kw):
+        if failure == "error":
+            raise OSError("private-query")
+        return []
+
+    monkeypatch.setattr(literature_http.socket, "getaddrinfo", resolve)
+    if failure == "timeout":
+
+        def expired(*_a, **_kw):
+            raise literature_http.Empty
+
+        monkeypatch.setattr(literature_http.Queue, "get", expired)
+    with pytest.raises(literature_http.HttpTransportFailure) as caught:
+        literature_http.get_json("https://example.org/", {}, 1)
+    assert caught.value.delivery_certainty is DeliveryCertainty.NOT_SENT
+    assert caught.value.__context__ is None and "private-query" not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "scheme,peer",
+    [
+        ("http", "8.8.8.8"),
+        ("https", "8.8.8.8"),
+        ("https", "2606:4700:4700::1111"),
+    ],
+)
+@pytest.mark.parametrize("redirect", [False, True])
+def test_rebinding_pins_socket_preserves_host_tls_and_disables_proxy_redirects(
+    monkeypatch,
+    scheme,
+    peer,
+    redirect,
+):
+    from io import BytesIO
+
+    lookups, connected, sent, tls = [], [], [], []
+    closed = []
+    raw = (
+        b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1/private\r\nContent-Length: 2\r\n\r\n{}"
+        if redirect
+        else b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}"
+    )
+
+    class Socket:
+        def settimeout(self, timeout):
+            assert 0 < timeout <= 1
+
+        def connect(self, address):
+            connected.append(address)
+
+        def sendall(self, data):
+            sent.append(data)
+
+        def makefile(self, *_):
+            return BytesIO(raw)
+
+        def close(self):
+            closed.append(True)
+
+    class TLSContext:
+        def wrap_socket(self, sock, *, server_hostname):
+            tls.append(server_hostname)
+            return sock
+
+    original_context = literature_http.ssl.create_default_context
+
+    def context():
+        actual = original_context()
+        assert actual.check_hostname
+        assert actual.verify_mode == literature_http.ssl.CERT_REQUIRED
+        return TLSContext()
+
+    def resolve(*_a, **_kw):
+        lookups.append(True)
+        return [(2, 1, 6, "", ((peer if len(lookups) == 1 else "127.0.0.1"), 8443))]
+
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9999")
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:9999")
+    monkeypatch.setattr(literature_http.socket, "getaddrinfo", resolve)
+    monkeypatch.setattr(literature_http.socket, "socket", lambda *_: Socket())
+    monkeypatch.setattr(literature_http.ssl, "create_default_context", context)
+    result = literature_http.get_json(
+        f"{scheme}://example.org:8443/path?q=safe", {"Host": "evil"}, 1
+    )
+    assert result.status == (302 if redirect else 200) and result.body == {}
+    assert len(lookups) == 1 and connected == [(peer, 8443)] and closed
+    assert b"Host: example.org:8443\r\n" in b"".join(sent)
+    assert b"GET /path?q=safe HTTP/1.1" in b"".join(sent)
+    assert tls == (["example.org"] if scheme == "https" else [])
 
 
 def test_untrusted_tool_text_is_not_scientific_promotion(pr219_candidate_env):
