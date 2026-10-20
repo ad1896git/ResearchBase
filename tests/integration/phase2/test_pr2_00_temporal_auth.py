@@ -11,6 +11,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
 
 from researchbase.application.phase2_identity import BootstrapAuthority, CloseProjectRole
 from researchbase.application.strategy_candidate_promotion import ExactStrategyQuery
@@ -20,6 +21,7 @@ from researchbase.persistence.strategy_candidate_promotion_repository import S
 from researchbase.persistence.strategy_candidate_promotion_repository import (
     SqlAlchemyStrategyCandidatePromotionRepository as Repository,
 )
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 from tests.integration.phase2.b02_support import capture, count, qcommand
 from tests.integration.phase2.r1_support import (
     _BootstrapProofVerifier,
@@ -172,10 +174,20 @@ def _schedule_capture_owner_expiry(e, seconds=3):
     return expiry
 
 
-def test_scheduled_expiry_denies_writer_after_observed_share_lock_wait(b02_env, monkeypatch):
+def test_scheduled_expiry_denies_writer_after_observed_share_lock_wait(
+    b02_env, monkeypatch, request
+):
     e = b02_env
     saved = capture(e)
-    expiry = _schedule_capture_owner_expiry(e)
+    # The intentional cross-expiry wait exceeds the production 10-second lock timeout.
+    writer_engine = create_engine(
+        e["engine"].url,
+        connect_args={"options": "-c lock_timeout=30s -c statement_timeout=60s"},
+    )
+    request.addfinalizer(writer_engine.dispose)
+    sessions = sessionmaker(bind=writer_engine, expire_on_commit=False, autoflush=False)
+    monkeypatch.setattr(e["service"], "_factory", lambda: SqlAlchemyUnitOfWork(sessions))
+    expiry = _schedule_capture_owner_expiry(e, seconds=15)
     samples, acquired, statements = [], [], []
     original_at, original_prepare = Repository.at, Repository.prepare_write
 
@@ -219,7 +231,7 @@ def test_scheduled_expiry_denies_writer_after_observed_share_lock_wait(b02_env, 
                     ),
                     {"pid": waiter},
                 ).one()
-            deadline = monotonic() + 10
+            deadline = monotonic() + 30
             while blocker.execute(text("SELECT clock_timestamp()")).scalar_one() < expiry:
                 assert monotonic() < deadline
                 Event().wait(0.01)

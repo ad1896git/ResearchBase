@@ -92,8 +92,8 @@ default user cache is outside the sandbox's writable roots.
 | `uv run ruff format --check .` in exact requested chain | 785 files already formatted |
 | `uv run ruff check .` in exact requested chain | All checks passed |
 | `git diff --check HEAD` in exact requested chain | Exit 0 |
-| Six-shard runner's own quick pre-check | 48 passed, 33 warnings in 30.52s |
-| Six-shard run | Blocked before shards by sandbox permissions; interrupted with exit 130 |
+| Loop-run six-shard runner's own quick pre-check | 48 passed, 33 warnings in 32.98s |
+| Loop-run six-shard run | Exit 0; 12037 passed, 67 skipped, 10156 warnings across six shards |
 | Separate single-process full-corpus run on an isolated PostgreSQL DB | Interrupted (130); incomplete, no full-suite PASS claimed |
 
 The repaired pre-check includes the sole-OWNER scheduled-expiry test. Its existing
@@ -105,37 +105,25 @@ No production semantics, schema, migration, dependency, governing harness, commi
 branch, or push was added during this remediation. No broader Phase 2 gate is
 asserted.
 
-The exact requested chain was invoked:
+The loop ran the exact requested chain outside the authoring sandbox:
 
 ```sh
 uv run pyright && uv run ruff format --check . && uv run ruff check . && git diff --check HEAD && /Users/fengwang/Documents/ResearchBaseProject/.pipeline/bin/full_suite_sharded.sh 6
 ```
 
-After its successful static checks and pre-check, the runner could not create its
-shared mutex under the parent project's `.pipeline/logs`, which is outside the
-sandbox's writable roots. It printed:
+The recorded result in
+`.pipeline/runs/t163_impl_r1/20261020-012123/r2_check.txt` is `exit 0`.
+The six-shard check completed successfully; the earlier sandbox-blocked attempt
+and interrupted single-process fallback do not describe this completed loop run.
 
-```text
-rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
-rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
-rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
-rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted
-```
+| Shard | Recorded result |
+| --- | --- |
+| 0 | 1756 passed, 1020 warnings in 3307.57s (0:55:07) |
+| 1 | 1555 passed, 1711 warnings in 3304.80s (0:55:04) |
+| 2 | 3844 passed, 1354 warnings in 3154.41s (0:52:34) |
+| 3 | 1814 passed, 66 skipped, 1791 warnings in 3373.83s (0:56:13) |
+| 4 | 1720 passed, 1 skipped, 2219 warnings in 3074.52s (0:51:14) |
+| 5 | 1348 passed, 2061 warnings in 3268.28s (0:54:28) |
 
-The blocked runner was interrupted (130). Its script, queue, locks and duration
-registry were not modified. This is not a passing six-shard check. The separate
-single-process full-corpus run uses the same pytest options and every sorted
-`tests/**/test_*.py` file against a fresh PostgreSQL database upgraded to head;
-it does not claim the sharded runner succeeded. Its pytest invocation is:
-
-```sh
-uv run pytest -o addopts= -q -rfE -p no:cacheprovider <all sorted test files>
-```
-
-The optional single-process fallback was stopped before completion. The external
-runner's timing registry totals 10,334 seconds across 517 timed files; this
-fallback would not establish that the exact shared sharded command passed. No
-full-suite counts or gate success are claimed from that interrupted attempt.
-Completing the exact check requires a session allowed to write the shared
-`.pipeline/logs` mutex directory and `.pipeline/test_durations.json` registry.
-The full runner must be retried there after this fixture repair.
+Aggregate recorded result: **12037 passed, 67 skipped, 10156 warnings** across
+six shards. This evidence comes from the loop's check, not an author-run full suite.
