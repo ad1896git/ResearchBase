@@ -127,7 +127,7 @@ def save_profile(value: BenchmarkProfile):
 
 
 def large_host_blockers(value: BenchmarkProfile) -> tuple[str, ...]:
-    failures = ["Superseded manuscript history BLOCKED: pending M1-S1 (manuscript v1->v2)"]
+    failures: list[str] = []
     if not (
         platform.system() == "Linux"
         and platform.machine() in {"x86_64", "AMD64"}
@@ -1139,10 +1139,53 @@ def test_s3_extended_novelty_profile(b18_env, workers, case, operation):
             assert novelty.stable(write()) == novelty.stable(read())
 
 
-@pytest.mark.skip(reason="pending M1-S1 (manuscript v1->v2)")
 @pytest.mark.parametrize("workers", [1, 4])
-def test_s3_superseded_manuscript_trace_profile(workers):
-    pass
+def test_s3_superseded_manuscript_trace_profile(b05_env, workers):
+    from tests.integration.phase2.pr2_20_scaled import HISTORY_TABLES, superseded_manuscript_history
+
+    f = superseded_manuscript_history(b05_env)
+    engine = f["engine"]
+    # Match the bounded S3 revision/approval/publication/novelty sibling profiles.
+    # _s3_samples records large_profile_acceptance="NOT ESTABLISHED".
+    value = replace(profile(engine, False), warmups=1, calls_per_worker=1, repetitions=1)
+    before = s.manifest(engine, HISTORY_TABLES)
+    assert f["v2"].version_number == 2
+    assert set(f["placement_ids"]).isdisjoint(f["next_placement_ids"])
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                text("SELECT current_manuscript_version_id FROM publications WHERE id=:id"),
+                {"id": f["query"].publication_id},
+            ).scalar_one()
+            == f["next_query"].manuscript_version_id
+        )
+
+    def call():
+        result = f["trace"].trace(*f["common"])
+        assert result == f["expected"]
+        assert {p.placement_id for p in result.placements} == set(f["placement_ids"])
+        assert f["manuscripts"].get_manuscript_version(f["author"], f["query"]) == f["v1"]
+        return result
+
+    with s.capture(engine) as baseline:
+        call()
+    _s3_samples(
+        engine, value, "superseded-manuscript-trace", workers, 0, lambda _: call(), read=True
+    )
+    with s.capture(engine) as after:
+        call()
+    assert baseline.query_count == after.query_count
+    assert s.manifest(engine, HISTORY_TABLES) == before
+    s.save_observation(
+        f"s3-superseded-manuscript-parity-{workers}",
+        dict(
+            status="PASS",
+            workers=workers,
+            query_counts=[baseline.query_count, after.query_count],
+            historical_placements=len(f["placement_ids"]),
+            current_placements=len(f["next_placement_ids"]),
+        ),
+    )
 
 
 @pytest.mark.parametrize("workers", [1, 4])

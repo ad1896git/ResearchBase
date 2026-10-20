@@ -355,10 +355,233 @@ def test_s3_package_freeze_workers_wait_and_single_effect(b17_env, workers, same
     assert f.app.freeze_prepared_submission(f.actor, f.command) == saved
 
 
-@pytest.mark.skip(reason="pending M1-S1 (manuscript v1->v2)")
 @pytest.mark.parametrize("first", [False, True])
-def test_s3_superseded_manuscript_freeze_trace_race(first):
-    pass
+def test_s3_superseded_manuscript_freeze_trace_race(b05_env, first):
+    from uuid import uuid4
+
+    from researchbase.application.manuscript_placement import ClaimPlacementService
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+    from researchbase.persistence.manuscript_freeze_repository import M1_EDIT_SQL
+    from tests.integration.phase2.b30_observations import assert_snapshot_read, sql_protocol
+    from tests.integration.phase2.pr2_20_scaled import HISTORY_TABLES, superseded_manuscript_history
+
+    env = b05_env
+    f = superseded_manuscript_history(env, freeze_successor=False, placements=2)
+    before = s.manifest(env[5], HISTORY_TABLES)
+    app = ClaimPlacementService(env[4], env[9], env[7])
+    query = f["next_query"]
+    placement_args = (
+        env[2],
+        query.project_id,
+        query.publication_id,
+        query.manuscript_version_id,
+        env[8],
+        None,
+        "RESULTS",
+        {"kind": "PARAGRAPH", "value": "race"},
+        "DESCRIPTIVE",
+        1,
+        uuid4(),
+    )
+
+    def trace():
+        assert f["trace"].trace(*f["common"]) == f["expected"]
+        assert f["manuscripts"].get_manuscript_version(env[2], env[1]) == f["v1"]
+
+    def freeze():
+        return f["manuscripts"].freeze_manuscript_version(env[2], f["freeze_command"])
+
+    def place():
+        return app.add(*placement_args)
+
+    # The leader holds M1's editing inventory while the exact historical read completes.
+    # _s3_contend requires pg_stat_activity/pg_locks evidence for the losing writer.
+    def leader():
+        return (freeze if first else place)()
+
+    def follower():
+        trace()
+        try:
+            return (place if first else freeze)()
+        except ResearchBaseError as exc:
+            return exc.code
+
+    saved, denied = _s3_contend(env[5], leader, [follower], M1_EDIT_SQL)
+    assert denied == [
+        ErrorCode.INVALID_STATE_TRANSITION if first else ErrorCode.CONCURRENT_MODIFICATION
+    ]
+    with sql_protocol(env[5]) as observed:
+        trace()
+    assert_snapshot_read(observed, snapshots=2)
+    # Account for the winning placement while comparing every other complete row/edge.
+    after = s.manifest(env[5], HISTORY_TABLES)
+    if not first:
+        expected = {**before, "manuscript_claim_placements": after["manuscript_claim_placements"]}
+        assert after == expected
+        placement_rows = "manuscript_claim_placements"
+        assert after[placement_rows]["count"] == before[placement_rows]["count"] + 1
+        old_ids = {row["id"] for row in before[placement_rows]["ids_hashes_edges"]}
+        new_ids = {row["id"] for row in after[placement_rows]["ids_hashes_edges"]}
+        assert new_ids - old_ids == {str(saved.id)}
+    # No losing placement, partial seal, or pointer movement survives the wait/denial.
+    current = f["manuscripts"].get_manuscript_version(env[2], query)
+    assert current.status == ("FROZEN" if first else "DRAFT")
+    assert len(
+        app.trace(env[2], query.project_id, query.publication_id, query.manuscript_version_id)
+    ) == (1 if first else 2)
+    from sqlalchemy import text
+
+    with env[5].connect() as conn:
+        assert conn.execute(
+            text("SELECT current_manuscript_version_id FROM publications WHERE id=:id"),
+            {"id": query.publication_id},
+        ).scalar_one() == (query.manuscript_version_id if first else env[1].manuscript_version_id)
+    # A fresh preview can seal after the committed placement; a saved seal replays exactly.
+    from dataclasses import replace
+
+    from tests.integration.phase2.test_b04_manuscript_freeze import freeze as seal
+
+    completed = (
+        f["manuscripts"].get_manuscript_version(env[2], query)
+        if first
+        else seal(f["manuscripts"], env[2], query)
+    )
+    if first:
+        assert completed == saved
+    assert completed.version_number == 2
+    replay = replace(
+        f["freeze_command"],
+        expected_placement_set_hash=completed.placement_set_hash,
+        expected_content_hash=completed.content_hash,
+    )
+    assert f["manuscripts"].freeze_manuscript_version(env[2], replay) == completed
+
+
+def test_s3_superseded_manuscript_post_wait_denial_is_atomic(b05_env, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, current_thread
+    from uuid import uuid4
+
+    from sqlalchemy import event
+
+    from researchbase.application.manuscript_placement import ClaimPlacementService
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+    from tests.integration.phase2.pr2_20_scaled import HISTORY_TABLES, superseded_manuscript_history
+    from tests.integration.phase2.test_pr2_14_internal_review import _wait_for_pg_blocker
+
+    env = b05_env
+    f = superseded_manuscript_history(env, freeze_successor=False, placements=2)
+    before = s.manifest(env[5], HISTORY_TABLES)
+    credentials = env[9]
+    original = credentials.is_valid
+    revoked = Event()
+    entered, release = Event(), Event()
+    holder_pids = []
+    monkeypatch.setattr(
+        credentials, "is_valid", lambda p, at: not revoked.is_set() and original(p, at)
+    )
+
+    def before_commit(conn):
+        # The competing Application placement has passed its final authorization.
+        # Pause before DB commit, retaining its real M1 inventory and row writes.
+        if current_thread().name.startswith("s3-placement-holder"):
+            holder_pids.append(conn.connection.driver_connection.info.backend_pid)
+            entered.set()
+            assert release.wait(20)
+
+    query = f["next_query"]
+    app = ClaimPlacementService(env[4], credentials, env[7])
+    event.listen(env[5], "commit", before_commit)
+    try:
+        with (
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix="s3-placement-holder") as leader,
+            ThreadPoolExecutor(max_workers=1) as follower,
+        ):
+            winner = leader.submit(
+                app.add,
+                env[2],
+                query.project_id,
+                query.publication_id,
+                query.manuscript_version_id,
+                env[8],
+                None,
+                "RESULTS",
+                {"kind": "PARAGRAPH", "value": "credential-race"},
+                "DESCRIPTIVE",
+                1,
+                uuid4(),
+            )
+            try:
+                assert entered.wait(15)
+                pending = follower.submit(
+                    f["manuscripts"].freeze_manuscript_version, env[2], f["freeze_command"]
+                )
+                witness = _wait_for_pg_blocker(env[5], holder_pids[0], "relation")
+                assert witness["mode"] == "ExclusiveLock"
+                revoked.set()
+                s.save_observation(
+                    "s3-history-post-wait-denial",
+                    {
+                        key: witness[key]
+                        for key in (
+                            "pid",
+                            "state",
+                            "wait_event_type",
+                            "locktype",
+                            "mode",
+                            "relation",
+                            "blocking_pids",
+                        )
+                    },
+                )
+            finally:
+                release.set()
+            saved = winner.result(timeout=15)
+            with pytest.raises(ResearchBaseError) as caught:
+                pending.result(timeout=15)
+            assert caught.value.code == ErrorCode.FORBIDDEN
+    finally:
+        release.set()
+        event.remove(env[5], "commit", before_commit)
+    # Only the successful placement is allowed to change; denied freeze is wholly atomic.
+    after = s.manifest(env[5], HISTORY_TABLES)
+    assert after == {**before, "manuscript_claim_placements": after["manuscript_claim_placements"]}
+    placement_rows = "manuscript_claim_placements"
+    assert after[placement_rows]["count"] == before[placement_rows]["count"] + 1
+    old_ids = {row["id"] for row in before[placement_rows]["ids_hashes_edges"]}
+    new_ids = {row["id"] for row in after[placement_rows]["ids_hashes_edges"]}
+    assert new_ids - old_ids == {str(saved.id)}
+    revoked.clear()
+    assert f["trace"].trace(*f["common"]) == f["expected"]
+    from tests.integration.phase2.test_b04_manuscript_freeze import freeze
+
+    assert freeze(f["manuscripts"], env[2], query).version_number == 2
+
+
+def test_s3_superseded_manuscript_mid_seal_failure_is_atomic(b05_env):
+    from sqlalchemy import event
+
+    from tests.integration.phase2.pr2_20_scaled import HISTORY_TABLES, superseded_manuscript_history
+
+    env = b05_env
+    f = superseded_manuscript_history(env, freeze_successor=False, placements=2)
+    before = s.manifest(env[5], HISTORY_TABLES)
+
+    def fail(conn, cursor, sql, parameters, context, many):
+        if sql.startswith("UPDATE publications SET current_manuscript_version_id"):
+            raise RuntimeError("S3 injected after successor pointer update")
+
+    event.listen(env[5], "after_cursor_execute", fail)
+    try:
+        with pytest.raises(RuntimeError, match="S3 injected"):
+            f["manuscripts"].freeze_manuscript_version(env[2], f["freeze_command"])
+    finally:
+        event.remove(env[5], "after_cursor_execute", fail)
+    assert s.manifest(env[5], HISTORY_TABLES) == before
+    assert f["trace"].trace(*f["common"]) == f["expected"]
+    assert (
+        f["manuscripts"].freeze_manuscript_version(env[2], f["freeze_command"]).version_number == 2
+    )
 
 
 @pytest.mark.parametrize("workers", [1, 4])

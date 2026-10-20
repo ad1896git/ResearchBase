@@ -767,3 +767,103 @@ def novelty_profile(e, case, count):
 
             operations.append((read_selection, read_selection))
     return operations
+
+
+HISTORY_TABLES = (
+    "publications",
+    "manuscript_versions",
+    "manuscript_claim_placements",
+    "manuscript_citation_placements",
+    "manuscript_artifact_placements",
+)
+
+
+def superseded_manuscript_history(env, *, freeze_successor=True, placements=25) -> dict[str, Any]:
+    """Build legal M1 history with distinct exact placement sets, using only commands."""
+    from researchbase.application.manuscript_freeze import (
+        FreezeManuscriptCommand,
+        ManuscriptFreezeService,
+    )
+
+    _, query, author, _, factory, engine, _, store, claim, credentials, _ = env
+    manuscripts = ManuscriptFreezeService(factory, credentials, store)
+    trace = ManuscriptScientificTraceService(factory, credentials, store)
+    placement_service = ClaimPlacementService(factory, credentials, store)
+
+    def populate(target, count):
+        return tuple(
+            placement_service.add(
+                author,
+                query.project_id,
+                query.publication_id,
+                target,
+                claim,
+                None,
+                "RESULTS",
+                {"kind": "PARAGRAPH", "value": f"p{i}"},
+                "DESCRIPTIVE",
+                i,
+                uuid4(),
+            ).id
+            for i in range(count)
+        )
+
+    def seal(target):
+        preview = manuscripts.get_manuscript_version(author, target)
+        assert preview.preview_placement_set_hash is not None
+        assert preview.preview_content_hash is not None
+        command = FreezeManuscriptCommand(
+            target.project_id,
+            target.publication_id,
+            target.manuscript_version_id,
+            preview.preview_placement_set_hash,
+            preview.preview_content_hash,
+        )
+        return command, manuscripts.freeze_manuscript_version(author, command)
+
+    ids = populate(query.manuscript_version_id, placements)
+    _, v1 = seal(query)
+    common = (author, query.project_id, query.publication_id, query.manuscript_version_id)
+    expected = trace.trace(*common)
+    document = _artifact(
+        factory, store, author, query.project_id, b"Immutable revised manuscript", "manuscript"
+    )
+    # M1-S1's owning command creates the successor; no canonical SQL writes.
+    draft = PublicationService(factory, credentials, store).create_draft(
+        author,
+        query.project_id,
+        query.publication_id,
+        document,
+        "Revised manuscript",
+        None,
+        "EDITORIAL",
+        uuid4(),
+    )
+    next_query = replace(query, manuscript_version_id=draft.id)
+    next_ids = populate(draft.id, 1)
+    preview = manuscripts.get_manuscript_version(author, next_query)
+    assert preview.preview_placement_set_hash is not None
+    assert preview.preview_content_hash is not None
+    command = FreezeManuscriptCommand(
+        query.project_id,
+        query.publication_id,
+        draft.id,
+        preview.preview_placement_set_hash,
+        preview.preview_content_hash,
+    )
+    v2 = manuscripts.freeze_manuscript_version(author, command) if freeze_successor else None
+    return dict(
+        engine=engine,
+        manuscripts=manuscripts,
+        trace=trace,
+        author=author,
+        query=query,
+        common=common,
+        expected=expected,
+        placement_ids=ids,
+        next_placement_ids=next_ids,
+        v1=v1,
+        v2=v2,
+        next_query=next_query,
+        freeze_command=command,
+    )

@@ -269,11 +269,27 @@ def test_insert_reservation_precedes_share_and_reads_have_no_explicit_locks(b05_
         event.remove(env[5], "before_cursor_execute", capture)
 
 
-@pytest.mark.skip(
-    reason="B04 only creates DRAFT/FROZEN; exact SUPERSEDED history awaits the later supersession contract"
-)
-def test_superseded_manuscript_review():
-    pass
+def test_superseded_manuscript_review(b05_env):
+    from tests.integration.phase2.pr2_20_scaled import superseded_manuscript_history
+
+    env = b05_env
+    f = superseded_manuscript_history(env, placements=1)
+    # M1 preserves the predecessor's FROZEN seal; only navigation advances to v2.
+    assert f["v1"].status == "FROZEN"
+    historical = create(env, summary="Independent exact historical manuscript review")
+    current = create(env, target=f["next_query"].manuscript_version_id)
+    assert historical.target_id == env[1].manuscript_version_id
+    assert current.target_id == f["next_query"].manuscript_version_id
+    assert env[0].read(env[3], env[1].project_id, historical.id) == historical
+    with env[4]() as uow:
+        uow.configure_revision_transaction(readonly=True)
+        uow.enable_revision_action_snapshot_reads()
+        applicable = uow.decision.applicable_manuscript_reviews(
+            f["next_query"].manuscript_version_id, env[1].project_id
+        )
+        assert historical.id not in {row["id"] for row in applicable}
+        assert current.id in {row["id"] for row in applicable}
+    assert f["manuscripts"].get_manuscript_version(f["author"], f["query"]) == f["v1"]
 
 
 def test_hash_and_cas_tampering_fail_closed(b05_env, monkeypatch):
