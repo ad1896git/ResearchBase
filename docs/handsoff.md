@@ -1,7 +1,7 @@
 # ResearchBase handoff notes
 
-Written 2026-10-18 for whoever takes over Phase 2 development. It records the setup,
-the working method, and the pitfalls we hit, so you don't hit them again.
+Written 2026-10-18; refreshed 2026-10-20 from `.pipeline/RULES.md` for Phase 2 development.
+It records the setup, the working method, and the pitfalls we hit, so you don't hit them again.
 
 ## 1. Where things are
 
@@ -16,31 +16,42 @@ the working method, and the pitfalls we hit, so you don't hit them again.
 | Evidence | `docs/phase2/`, `pr_evidence/` |
 | Automation (not in git) | `.pipeline/` (excluded via `.git/info/exclude`): `bin/` scripts, `tasks/` task specs, `logs/`, `runs/`, `work/<lane>` clones, `RULES.md` |
 
-Local environment: PostgreSQL 18 (Homebrew service `postgresql@18`), superuser
-`researchbase/researchbase`, `DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase`,
-`RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres`.
+Local environment: PostgreSQL 18 (Homebrew service `postgresql@18`). Set
+`DATABASE_URL` and `RB_TEST_ADMIN_URL` locally; keep credentials out of handoff notes.
 Dependencies only through `uv` (`uv sync`, `uv run ...`). Since 2026-10-18 the server runs
 with `max_locks_per_transaction=256` (set with `ALTER SYSTEM`, see pitfall 3.1).
 
 ## 2. How the work is run
 
 - **Roles.** Codex CLI writes code, tests and evidence. Claude plans, reviews and accepts.
-  The owner (eshine) approves contracts, schema changes, new features and pushes.
+  The owner approves contracts, schema changes and new features. Claude personally
+  performs independent reviews, including the Phase 2 exit review. The owner now
+  authorizes push and Phase 2 acceptance after director PASS, with no open P0/P1,
+  failing full check or unsupported PASS row.
 - **Per backlog item.** Codex drafts a contract → Claude reviews it twice (checking key
   technical claims against the real code) → owner approves → Codex implements →
   full check → Claude checks key code → merge onto the PR branch → push.
 - **The loop.** `.pipeline/bin/codex_loop.py --repo <clone> --task <spec> --check "<cmd>" --commit`
-  runs Codex, runs the check, gets a reviewer verdict and commits on PASS. Two Codex
-  accounts (`~/.codex`, `~/.codex-b`) are tried in order when one hits its usage limit.
+  runs Codex, runs the check, gets a reviewer verdict and commits on PASS. Account B
+  comes first, then A on quota exhaustion; reserve A before allowing fallback.
+- **Accounts.** A: light work, one task at a time. B: heavy work, parallel tasks.
+  C (agy): parallel mechanical work, light model first; escalate only after failure.
+  Review C more strictly: verify every code reference and schema/lock claim, search
+  backticked identifiers in the code, and read its full diff. A reviewer PASS once
+  missed invented identifiers. Track B/C results in `logs/worker_scoreboard.md`.
 - **Round cap.** At most 2 Codex rounds per task. After that the director may take over
   once; if that fails too, stop and report. No endless retry loops.
 - **Lanes.** Independent tasks run in parallel, each in its own clone
   (`.pipeline/work/laneNN`) and its own database (`researchbase_laneNN`), started with
-  `bin/lane_run2.sh` (fresh clone) or `bin/lane_continue.sh` (reuse clone). Docs-only
-  drafting uses `bin/queue_contracts.sh`.
+  `bin/lane_run3.sh` (fresh clone) or `bin/lane_continue.sh` (reuse clone). After the
+  SIGKILL incident, the owner launched lanes by hand in herdr panes. Later on
+  2026-10-20, she also allowed director launches in detached tmux sessions; current
+  wrappers are `bin/lane_run4.sh` and `bin/agy_lane4.sh`. Docs-only drafting uses
+  `bin/queue_contracts.sh`.
 - **Full check** = `pyright` + `ruff format --check` + `ruff check` + `git diff --check HEAD`
-  + `bin/full_suite_sharded.sh 6` (about 9,750 tests in 6 shards, each with its own DB,
-  about 30–37 minutes).
+  + `bin/full_suite_sharded.sh 6` (over 12,000 tests in 6 shards, each with its own DB).
+  Codex runs focused checks; the loop runs the full check and supplies the evidence.
+  A sandbox failure to take a suite lock does not mean the loop check failed.
 - **Merging lanes.** Cherry-pick the first lane, `git apply --3way` the others, then a
   Codex merge task whose check also requires no conflict markers and exactly one
   Alembic head.
@@ -72,6 +83,14 @@ with `max_locks_per_transaction=256` (set with `ALTER SYSTEM`, see pitfall 3.1).
    current Alembic head. Every new migration must update those values (values only).
 8. **Migration numbers collide across lanes** (for example, B14a and B15 both created
    `0060`). The merge step must renumber and re-chain so there is exactly one head.
+9. **`pytest_plugins` must not name another test module.** Collection order can make
+   shared fixtures disappear. B20/B22 were fixed through `tests/unit/phase2/conftest.py`;
+   the wider cleanup is underway. Use shared fixture modules/conftest and check both
+   collection orders.
+10. **Don't ask Codex to re-run huge touched sets.** On 2026-10-20, t177 ran about 125
+    integration modules twice alongside sharded checks for over 85 minutes. For wide
+    mechanical changes, use a small sample plus `pytest --collect-only`; leave full
+    coverage to the loop.
 
 ### 3.2 Database and locking design
 
@@ -123,14 +142,25 @@ with `max_locks_per_transaction=256` (set with `ALTER SYSTEM`, see pitfall 3.1).
    `bin/status.sh` every 20 minutes using a session cron; recreate it in a new session.
 6. **Fast mode** for Codex roughly doubled quota use for little speed gain; it is off by default.
 7. **Keep the Mac awake** for long runs (`caffeinate -ims -w <pid>`).
+8. **2026-10-20 SIGKILL incident.** Two lanes hung at Codex startup with empty output
+   and no session, then both exited -9 in the same second. The kill source was not
+   proven; quota, watchdog and task content were not supported causes. A foreground
+   probe and the owner's herdr relaunch worked. Use the approved pane/tmux launch path,
+   inspect startup evidence, and confirm the old process tree is dead before relaunch.
+9. **Kill exact PIDs.** `pkill -f` with a test filename also kills other lanes' shards.
+10. **`status.sh` suites count was fixed.** It counted `codex_loop` because its `--check`
+    argument ended in `full_suite_sharded.sh 6`; that was not a running suite.
 
-## 4. State on 2026-10-18
+## 4. State on 2026-10-20
 
-- On the PR branch and pushed: batches B–D, hardening, the B12/B13/B25/B27 work, the
-  authorship read fix and approved drafts. Migration head on the branch: `0059`.
-- Done in lanes, not yet merged: B14a (lane19), B15 (lane25), B18 (lane26), B26 (lane27),
-  B29 measurement (lane28, no index built; the owner decides on DDL separately).
-- In progress: B16 (lane25), B30 (lane26, director takeover rerun), B14r then B14 (lane19).
-- Next: merge all lanes (renumber migrations, one head, full suite), push to PR #1. Then the
-  rest of the backlog (B17, B19–B24, B28, B31, B32), and re-review the parked Phase 3
-  drafts after Phase 2 is accepted.
+- Batch I, M1-S1/S2 and B31-S1/S2/S3 are merged and pushed to PR #1. Migration head:
+  `0075` (`0075_m1_reconsideration`). The integrated check passed: 12,461 passed,
+  66 skipped.
+- B31-S4 exit work is in progress: its first loop check passed (12,469 passed,
+  66 skipped); follow-ups must commit cited evidence and record owner-accepted gaps
+  without turning them into PASS. The repo-wide fixture cleanup is also underway.
+- Known gaps: B28 real PaperQA2, positive G2 AGENT admission (AQ-S3-08), and the
+  owner-deferred Linux benchmark host. Local macOS timings remain informational.
+- Next: finish follow-ups, then the director's independent Phase 2 exit review.
+  After clean gates, push, accept Phase 2 and merge PR #1 under the owner's standing
+  authorization. Revisit parked Phase 3 drafts after Phase 2 acceptance.
