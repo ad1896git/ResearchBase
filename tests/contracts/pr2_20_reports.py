@@ -6,6 +6,7 @@ import ast
 import json
 import subprocess
 import tomllib
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -210,8 +211,10 @@ def adapter_inventory(root: Path = ROOT) -> tuple[AdapterInventoryEntry, ...]:
     )
 
 
-def exit_rows(root: Path = ROOT) -> tuple[ExitCriterionEvidence, ...]:
-    return tuple(
+def exit_rows(
+    root: Path = ROOT, *, acceptance_directory: Path | None = None
+) -> tuple[ExitCriterionEvidence, ...]:
+    rows = tuple(
         ExitCriterionEvidence(
             **b28_context(root, criterion == "PaperQA2 Adapter"),
             criterion=criterion,
@@ -221,7 +224,7 @@ def exit_rows(root: Path = ROOT) -> tuple[ExitCriterionEvidence, ...]:
             }.get(criterion),
             acceptance_revision=None,
             owning_prs=EXIT_OWNERS[criterion],
-            contract_refs=("docs/proposals/PR2-20_Hardening_Plan_DRAFT.md",),
+            contract_refs=(B31_CONTRACT, "docs/proposals/PR2-20_Hardening_Plan_DRAFT.md"),
             test_nodes=EXIT_NODES.get(criterion, ()),
             commands=(),
             exit_codes=(),
@@ -234,6 +237,38 @@ def exit_rows(root: Path = ROOT) -> tuple[ExitCriterionEvidence, ...]:
         )
         for criterion in EXIT_CRITERIA
     )
+
+    if acceptance_directory is None:
+        return rows
+    loaded = []
+    for number, row in enumerate(rows):
+        if row.status == "DEFERRED":
+            loaded.append(row)
+            continue
+        path = acceptance_directory / f"owning-{number + 1:02d}.json"
+        try:
+            data = json.loads(path.read_bytes())
+            values = data["row"]
+            # JSON arrays must regain the closed tuple fields before validation.
+            for field in fields(ExitCriterionEvidence):
+                if isinstance(getattr(row, field.name), tuple):
+                    values[field.name] = tuple(values[field.name])
+            candidate = ExitCriterionEvidence(**values)
+            if (
+                candidate.criterion != row.criterion
+                or candidate.subject_revision != row.subject_revision
+                or candidate.dirty_diff_sha256 != row.dirty_diff_sha256
+                or candidate.test_nodes != row.test_nodes
+                or candidate.owning_prs != row.owning_prs
+                or candidate.contract_refs != row.contract_refs
+            ):
+                raise ValueError("owning record does not match the row and subject")
+            if candidate.status == "PASS" and not verified_acceptance(candidate, root):
+                raise ValueError("owning acceptance could not be verified")
+            loaded.append(candidate)
+        except (OSError, ValueError, KeyError, TypeError):
+            loaded.append(replace(row, reason=f"Missing or invalid OWNING_ACCEPTANCE: {path.name}"))
+    return tuple(loaded)
 
 
 def validate_exit(
@@ -343,8 +378,35 @@ def verified_acceptance(row: ExitCriterionEvidence, root: Path) -> bool:
         logs = evidence.get("logs", [])
         if not logs or not set(logs) <= set(row.evidence_refs):
             continue
+        if "row" in evidence:
+            if evidence.get("criterion") != row.criterion:
+                continue
+            digests = evidence.get("log_sha256", {})
+            if any(digests.get(ref) != digest_bytes((root / ref).read_bytes()) for ref in logs):
+                continue
+            cases = evidence.get("cases", [])
+            if not cases or any(case.get("status") != "PASS" for case in cases):
+                continue
+            observed = {case.get("node", "").split("[")[0] for case in cases}
+            if observed != set(row.test_nodes) or len(cases) != row.passed:
+                continue
         return True
     return False
+
+
+def verification_findings(directory: Path) -> tuple[str, ...]:
+    path = directory / "verification.json"
+    if not path.exists():
+        return ()
+    try:
+        data = json.loads(path.read_bytes())
+        return tuple(
+            f"P1 MAJOR: verification command {item['label']} exited {item['exit_code']}"
+            for item in data["results"]
+            if item["exit_code"] != 0
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return ("P1 MAJOR: invalid focused verification record",)
 
 
 def write_reports(root: Path = ROOT) -> Path:
@@ -355,7 +417,7 @@ def write_reports(root: Path = ROOT) -> Path:
     inventory, migrations, rows = (
         adapter_inventory(root),
         migration_inventory(root),
-        exit_rows(root),
+        exit_rows(root, acceptance_directory=directory),
     )
     for number, item in enumerate(inventory):
         (directory / f"adapter-{number}.json").write_bytes(to_bytes(item))
@@ -375,11 +437,13 @@ def write_reports(root: Path = ROOT) -> Path:
             }
         )
     )
+    findings = verification_findings(directory)
+    verdict = validate_exit(rows, findings, root)
     ref = f"../../{SUBJECT_PREFIX}{sha}/"
     intro = (
         f"Subject `{ctx['subject_revision']}`; dirty diff `{ctx['dirty_diff_sha256']}`.\n\n"
         f"Machine evidence: [subject]({ref}subject.json). This is engineering evidence. "
-        "Phase 2 exit is **BLOCKED**; owner acceptance is separate.\n\n"
+        f"Phase 2 exit is **{verdict}**; owner acceptance is separate.\n\n"
     )
     texts = {}
     texts[REPORT_NAMES[0]] = (
@@ -413,7 +477,7 @@ def write_reports(root: Path = ROOT) -> Path:
         intro
         + (
             f"[Complete revision/predecessor/script digests]({ref}migration_scripts.json). "
-            "No existing migration was edited; first-slice DDL and index proposals are empty. "
+            "B31 adds no migration or index; B29 remains closed with zero B31 DDL. "
             f"The live head is {migrations[-1]['revision']}; "
             "the B31 boundary is 0068_b21_unresolved_capture, "
             "superseding the plan observation of 0042. "
@@ -424,75 +488,99 @@ def write_reports(root: Path = ROOT) -> Path:
         )
         + migration_inventory_table(migrations)
     )
-    texts[REPORT_NAMES[3]] = intro + (
-        "Source identity and search hits supply no Claim support. Exact froze"
-        "n SourceVersion "
-        "+ document artifact hash + typed locator are validated through LiteratureEvidenceService; "
-        "review events and sealed support snapshots retain owning hashes and ordinals. "
-        "A citation-only placement supplies no support. Retraction/impact denial and fa"
-        "bricated-source "
-        "rejection require their owning end-to-end evidence; no full Phase 2 claim foll"
-        "ows from a lookup test.\n\n"
-        "Demo nodes: `tests/integration/phase2/test_pr2_13_scientific_trace.py`, "
-        "`tests/integration/phase2/test_pr2_19_citation_trace.py`. See verification rec"
-        "ord for actual execution.\n"
-    )
-    texts[REPORT_NAMES[4]] = intro + (
-        "Exact manuscript placements retain Claim/conclusion IDs and hashes; trace trav"
-        "erses the saved "
-        "experimental/literature paths without treating wording as facts. The 25/250-pl"
-        "acement case "
-        "compares DTOs and query counts with read instrumentation. Review/Issue and min"
-        "imal PROCEED "
-        "Decision retain full blockers and saved basis. Replay uses current read author"
-        "ity and does not "
-        "rewrite history. Completed revision, disposition/re-review, manuscript freeze/"
-        "READY, Approval "
-        "grant consumption and prepared-package freeze are outside this benchmark admission. "
-        "No external send or Phase 3 operation is performed.\n"
-    )
-    texts[REPORT_NAMES[5]] = (
+
+    def row_links(numbers: tuple[int, ...]) -> str:
+        return (
+            "\n".join(
+                f"- [{rows[n - 1].criterion}]({ref}exit-{n - 1:02d}.json): "
+                f"{rows[n - 1].status}; {rows[n - 1].reason or 'owning assertions verified'}"
+                for n in numbers
+            )
+            + "\n"
+        )
+
+    texts[REPORT_NAMES[3]] = (
         intro
         + (
-            "**Exit BLOCKED.** First slice authorization: owner user instruction, 2026-"
-            "10-14 approval. "
-            "Inherited PR2-15/16 exact approval subjects/dispositions have not been attached. "
-            "Code presence of later prerequisites is inventoried, not their admission t"
-            "o this slice.\n\n"
-            "| Literal exit criterion | Status | Reason |\n| --- | --- | --- |\n"
+            "The implemented literature trace starts with a frozen search plan and "
+            "LiteratureSearchExecution query/result provenance. A persisted hit is resolved "
+            "through the owning Application command to an exact frozen SourceVersion. "
+            "Document ArtifactVersion bytes, hash and typed locator are checked before "
+            "LiteratureEvidence admission; independent human review and sealed support "
+            "snapshots preserve exact hashes and ordinals. Search hits and RAG candidates "
+            "supply no scientific support by themselves. FakeScientificRAGCapability is "
+            "the offline candidate boundary; B28 real PaperQA2 is DEFERRED.\n\n"
+            "ScientificConclusion freeze closes its typed Claim and literature inputs. "
+            "A manuscript places exact frozen Claim/conclusion versions, then freezes its "
+            "placement set. Citation-only placement creates no Claim support. The downstream "
+            "publication path enters internal review, records readiness Decision and Approval, "
+            "consumes its grant at READY, prepares the authorship-bound package, records "
+            "required consents, and consumes a separate preparation grant to create the "
+            "FROZEN PreparedSubmissionVersion. Retraction/correction and finding/impact "
+            "projections can make downstream material stale while preserving saved hashes, "
+            "consumptions and frozen history. Fabricated or unresolved citations fail closed. "
+            "These are composed owning scenarios; a lookup alone does not prove "
+            "the full exit.\n\n"
+            "Owning trace evidence (commands, nodes and counts are in each record):\n\n"
         )
-        + "".join(f"| {row.criterion} | {row.status} | {row.reason} |\n" for row in rows)
+        + row_links((2, 3, 4, 8, 9, 10, 11, 14, 15, 16))
     )
-    texts[REPORT_NAMES[5]] += (
-        "\n| Architecture requirement | Concrete node | Disposition |\n| --- | --- | --- |\n"
+    texts[REPORT_NAMES[4]] = (
+        intro
+        + (
+            "The implemented publication trace retains exact frozen Claim/conclusion IDs "
+            "and hashes, experimental and literature support paths, and exact figure/document "
+            "ArtifactVersion references. Manuscript freeze seals the placement set. Internal "
+            "review records issues without rewriting that scientific material. A completed "
+            "RevisionAction does not dispose an issue: independent re-review and the separate "
+            "disposition command preserve concern history. M1 manuscript revision and "
+            "reconsideration owning tests are included in the evidence inventory.\n\n"
+            "After internal-review entry, the readiness Decision and Approval bind the frozen "
+            "manuscript and complete review basis. transition_publication_ready consumes the "
+            "readiness grant exactly once and records READY. Preparation binds the exact "
+            "manuscript and AuthorshipSnapshot; AuthorConsent records bind the package. "
+            "A separate PREPARE_SUBMISSION Decision/Approval grant and checked review set "
+            "authorize freeze_prepared_submission, which validates the manifest and consents "
+            "and creates the FROZEN PreparedSubmissionVersion atomically. Restart/replay "
+            "returns the saved receipt through read authority; withdrawal and later invalidity "
+            "remain new history or derived projections. B24 novelty outcomes never gate "
+            "Approval, READY or package freeze. No external submission/send is asserted.\n\n"
+            "Owning lifecycle evidence:\n\n"
+        )
+        + row_links((10, 12, 13, 14, 15))
+    )
+    texts[REPORT_NAMES[5]] = (
+        intro + f"**Exit {verdict}.** Computed by validate_exit; this is not owner "
+        "acceptance of Phase 2. The 19 literal criteria retain their frozen order. "
+        "The Scientific RAG boundary is tested with the fake in the candidate/rejection "
+        "records; it does not replace Row 6.\n\n"
+        "| Literal exit criterion | Status | Reason | Evidence |\n| --- | --- | --- | --- |\n"
         + "".join(
-            f"| {name} | `{node}` | "
-            + (
-                "BLOCKED: runtime Approval admission absent"
-                if "approval_does" in name
-                else "See exact run evidence; mapping is not acceptance"
-            )
-            + " |\n"
+            f"| {row.criterion} | {row.status} | {row.reason or 'Owning assertions verified'} | "
+            f"[record]({ref}exit-{number:02d}.json) |\n"
+            for number, row in enumerate(rows)
+        )
+        + "\n| Architecture requirement | Concrete node | Disposition |\n| --- | --- | --- |\n"
+        + "".join(
+            f"| {name} | `{node}` | See owning Row 18 evidence |\n"
             for name, node in ARCHITECTURE_NODES.items()
         )
-    )
-    texts[REPORT_NAMES[5]] += (
-        "\nFocused command/count evidence is in [verification](pr2_20_verification.md). "
-        "Unrun, skipped, failed and blocked results remain distinct. "
-        "No full suite was run by the implementation agent; loop evidence must be attac"
-        "hed separately. "
-        "Benchmark on the specified dedicated Linux host remains BLOCKED if unavailable"
-        "; local small timing is informational. "
-        "B28 real PaperQA2 is owner-approved DEFERRED. Missing owning acceptance subjects "
-        "or dispositions and unresolved P0/P1 findings still prevent gate success. "
-        "Independent review is recorded in the verification document.\n\n"
-        "Substitution: the existing disposable PR212 database prefix is reused by the P"
-        "R220 helper. "
-        "All named fixtures resolve as written. Approval inventory uses the existing `t"
-        "est_approval.py` name. "
-        "The 50 pinned error rows are retained; seven existing Approval mappings are ap"
-        "pended in source-inventory tests.\n\n"
-        "**STOP; wait for explicit Phase 3 GO.**\n"
+        + "\nOwner-accepted known gaps and scope dispositions:\n\n"
+        + "\n".join(f"- {gap}" for gap in KNOWN_GAPS)
+        + "\n\nFocused commands, exact counts and actual host details are in "
+        "[verification](pr2_20_verification.md). Unrun, skipped, failed and blocked "
+        "results stay distinct. Dedicated Linux host timing/attestation remains BLOCKED "
+        "pending owner disposition; local macOS results are informational. "
+        "Reference/provider revision, license/notice/terms and dated advisory review "
+        "remain unresolved in the adapter inventory. No independent review or loop "
+        "full-suite acceptance is inferred from these focused runs.\n\n"
+        "**STOP; wait for explicit Phase 3 GO.**\n\n"
+        "Owner decisions needed\n\n"
+        + "".join(f"- {row.criterion}: {row.reason}\n" for row in rows if row.status == "BLOCKED")
+        + "".join(f"- {finding}\n" for finding in findings)
+        + "- Reference/provider intake: resolve revision, license/notice/terms and dated "
+        "advisory review before enabling providers (adapter inventory).\n"
+        + "- Attach independent review and loop full-suite evidence before owner exit decision.\n"
     )
     output = root / "docs/phase2"
     output.mkdir(parents=True, exist_ok=True)
@@ -587,22 +675,96 @@ EXIT_OWNERS = dict(
         strict=True,
     )
 )
+B31_CONTRACT = "docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md"
+AQ_S3 = "docs/proposals/B30S3_Architecture_Questions_2026-10-20.md"
+KNOWN_GAPS = (
+    f"B28 real PaperQA2 DEFERRED, owner 2026-10-19: {B28_DISPOSITION}.",
+    f"AQ-S3-08, owner 2026-10-20: positive G2 AGENT admission test pending; "
+    f"no Application path creates a bound AGENT. Never forge the binding: {AQ_S3}.",
+    f"D-B31-03: B20 NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE (NO_CLOSE_PRIOR_ART), B23 "
+    "novelty review/revision, and MANUSCRIPT_CHANGE remain Phase 2 exit non-goals: "
+    f"{B31_CONTRACT}.",
+)
+# Each file is an owning acceptance suite, not a code-presence availability probe.
+# All tests in each selected file are required, including every parametrized case.
+_INTEGRATION = "tests/integration/phase2/"
+_ROW_FILES = (
+    ("test_pr2_01_source_identity.py",),
+    ("test_pr2_02_source_version_migration.py", "test_pr2_19_lineage.py"),
+    ("test_pr2_03_literature_search_plan_application.py", "test_pr2_04_execution_provenance.py"),
+    ("test_m3_evidence.py", "test_pr2_19_search_evidence.py", "test_pr2_19_rag_evidence.py"),
+    ("test_b02_strategy_capture.py", "test_b02_strategy_admission.py", "test_pr2_19_candidates.py"),
+    (),
+    (
+        "test_b03_discussion_hypothesis.py",
+        "test_b03_discussion_hypothesis_guards.py",
+        "test_pr2_19_discussion.py",
+    ),
+    ("test_pr2_11_r2_persistence.py",),
+    ("test_pr2_11_r2_persistence.py", "test_pr2_13_scientific_trace.py"),
+    (
+        "test_b04_manuscript_freeze.py",
+        "test_pr2_13_scientific_trace.py",
+        "test_pr2_19_citation_trace.py",
+    ),
+    ("test_pr2_19_citation_trace.py",),
+    (
+        "test_pr2_19_revision_cycle.py",
+        "test_b07_revision_decisions.py",
+        "test_b08_issue_disposition.py",
+        "test_m1_manuscript_revision.py",
+        "test_m1_manuscript_reconsideration.py",
+    ),
+    ("test_approval.py", "test_pr2_19_governance.py", "test_pr2_19_approval_atomicity.py"),
+    (
+        "test_pr2_19_package_freeze.py",
+        "test_pr2_19_grant_consumption_publication.py",
+        "test_b17_package_freeze.py",
+    ),
+    ("test_pr2_19_lineage.py", "test_b26_finding_impact.py", "test_b27_defensive_closure_read.py"),
+    ("test_pr2_19_candidates.py", "test_pr2_19_integrity.py"),
+    (
+        "test_pr2_20_migrations.py",
+        "test_pr2_20_catalog_plans.py",
+        "test_pr2_20_security.py",
+        "test_pr2_20_governance_races.py",
+        "test_pr2_20_novelty.py",
+    ),
+    (),
+    (),
+)
+EXIT_FILES = {
+    criterion: tuple(_INTEGRATION + name for name in files)
+    for criterion, files in zip(EXIT_CRITERIA, _ROW_FILES, strict=True)
+}
+EXIT_FILES[EXIT_CRITERIA[4]] += ("tests/unit/phase2/test_pr2_08_native_strategy.py",)
+EXIT_FILES[EXIT_CRITERIA[15]] += ("tests/unit/phase2/test_pr2_07_scientific_rag_boundary.py",)
+# Attach the entire PR2-19 E2E inventory and bounded hardening observations;
+# passing inventory assertions cannot override that inventory's BLOCKED full gate.
+EXIT_FILES[EXIT_CRITERIA[16]] = tuple(
+    sorted(
+        {
+            *EXIT_FILES[EXIT_CRITERIA[16]],
+            *(
+                path.relative_to(ROOT).as_posix()
+                for path in (ROOT / _INTEGRATION).glob("test_pr2_19_*.py")
+            ),
+        }
+    )
+)
+EXIT_FILES[EXIT_CRITERIA[17]] = ("tests/architecture/test_pr2_19_boundaries.py",)
+EXIT_FILES[EXIT_CRITERIA[18]] = tuple(
+    path.relative_to(ROOT).as_posix()
+    for path in sorted((ROOT / "tests/e2e").glob("test_phase1_*.py"))
+)
 EXIT_NODES = {
-    "LiteratureSource identity resolution": (
-        "tests/integration/phase2/test_pr2_20_catalog_plans.py::test_source_lookup_hit_miss_denied_instrumentation_parity",
-    ),
-    "ManuscriptVersion scientific placement": (
-        "tests/integration/phase2/test_pr2_20_catalog_plans.py::test_trace_25_250_count_scaling_exact_parity_and_denials",
-    ),
-    "Citation ≠ ClaimSupport": (
-        "tests/integration/phase2/test_pr2_13_scientific_trace.py::test_unified_trace_exact_placements_and_experiment_path",
-    ),
-    "PostgreSQL migrations/integration": (
-        "tests/integration/phase2/test_pr2_20_migrations.py::test_populated_conclusion_placement_review_and_0042_checkpoints",
-    ),
-    "Phase 1 Exit tests continue": (
-        "tests/e2e/test_phase1_golden_scientific_workflow.py::test_gsas_01_direct_application_is_complete_and_non_trivial",
-    ),
+    criterion: tuple(
+        f"{path}::{node.name}"
+        for path in paths
+        for node in ast.parse((ROOT / path).read_bytes()).body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    )
+    for criterion, paths in EXIT_FILES.items()
 }
 
 

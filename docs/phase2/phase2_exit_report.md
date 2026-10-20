@@ -1,49 +1,60 @@
-Subject `1ae0036344c26057b1e70c7bbd3daf4e5d3b2d51`; dirty diff `f01f97fc03bf5cff9f3bfccfce2d46e7d2ef6121b0e820b363c8f6f8d336e47e`.
+Subject `0a553154faa981221242ce62d743f4fe37f24d92`; dirty diff `a0b97f8848e5fa80b7b37a4cd0bcead45a2a63d3fa12b1d6bd115c44ac7b343b`.
 
-Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e344b24661a6cfc466be11e02dee1f3725836d/subject.json). This is engineering evidence. Phase 2 exit is **BLOCKED**; owner acceptance is separate.
+Machine evidence: [subject](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/subject.json). This is engineering evidence. Phase 2 exit is **BLOCKED**; owner acceptance is separate.
 
-**Exit BLOCKED.** First slice authorization: owner user instruction, 2026-10-14 approval. Inherited PR2-15/16 exact approval subjects/dispositions have not been attached. Code presence of later prerequisites is inventoried, not their admission to this slice.
+**Exit BLOCKED.** Computed by validate_exit; this is not owner acceptance of Phase 2. The 19 literal criteria retain their frozen order. The Scientific RAG boundary is tested with the fake in the candidate/rejection records; it does not replace Row 6.
 
-| Literal exit criterion | Status | Reason |
-| --- | --- | --- |
-| LiteratureSource identity resolution | BLOCKED | Owning acceptance and owner dispositions not attached |
-| SourceVersion lineage/freeze | BLOCKED | Owning acceptance and owner dispositions not attached |
-| LiteratureSearchPlan/Run provenance | BLOCKED | Owning acceptance and owner dispositions not attached |
-| LiteratureEvidence source+locator trace | BLOCKED | Owning acceptance and owner dispositions not attached |
-| STORM-like Native ResearchStrategy | BLOCKED | Owning acceptance and owner dispositions not attached |
-| PaperQA2 Adapter | BLOCKED | Owning acceptance and owner dispositions not attached |
-| Academic Discussion explicit promotion | BLOCKED | Owning acceptance and owner dispositions not attached |
-| ScientificConclusion support-set freeze | BLOCKED | Owning acceptance and owner dispositions not attached |
-| ScientificConclusion Frozen Provenance Closure | BLOCKED | Owning acceptance and owner dispositions not attached |
-| ManuscriptVersion scientific placement | BLOCKED | Owning acceptance and owner dispositions not attached |
-| Citation ≠ ClaimSupport | BLOCKED | Owning acceptance and owner dispositions not attached |
-| Internal Review → Issue → Decision → Revision | BLOCKED | Owning acceptance and owner dispositions not attached |
-| Basic Approval frozen target / blocking gate | BLOCKED | Owning acceptance and owner dispositions not attached |
-| SubmissionVersion package freeze | BLOCKED | Owning acceptance and owner dispositions not attached |
-| Retracted-source impact propagation | BLOCKED | Owning acceptance and owner dispositions not attached |
-| Hallucinated citation rejection | BLOCKED | Owning acceptance and owner dispositions not attached |
-| PostgreSQL migrations/integration | BLOCKED | Owning acceptance and owner dispositions not attached |
-| No STORM/PaperQA vendor-specific Core schema | BLOCKED | Owning acceptance and owner dispositions not attached |
-| Phase 1 Exit tests continue | BLOCKED | Owning acceptance and owner dispositions not attached |
+| Literal exit criterion | Status | Reason | Evidence |
+| --- | --- | --- | --- |
+| LiteratureSource identity resolution | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-00.json) |
+| SourceVersion lineage/freeze | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-01.json) |
+| LiteratureSearchPlan/Run provenance | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-02.json) |
+| LiteratureEvidence source+locator trace | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-03.json) |
+| STORM-like Native ResearchStrategy | BLOCKED | AQ-S3-08: positive G2 AGENT admission pending; no Application path creates a bound AGENT (docs/proposals/B30S3_Architecture_Questions_2026-10-20.md; owner 2026-10-20 known gap) | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-04.json) |
+| PaperQA2 Adapter | DEFERRED | Owner-approved B28 deferral: docs/proposals/B28_PaperQA2_Intake_Assessment_DRAFT.md | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-05.json) |
+| Academic Discussion explicit promotion | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-06.json) |
+| ScientificConclusion support-set freeze | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-07.json) |
+| ScientificConclusion Frozen Provenance Closure | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-08.json) |
+| ManuscriptVersion scientific placement | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-09.json) |
+| Citation ≠ ClaimSupport | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-10.json) |
+| Internal Review → Issue → Decision → Revision | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-11.json) |
+| Basic Approval frozen target / blocking gate | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-12.json) |
+| SubmissionVersion package freeze | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-13.json) |
+| Retracted-source impact propagation | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-14.json) |
+| Hallucinated citation rejection | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-15.json) |
+| PostgreSQL migrations/integration | BLOCKED | Dedicated Linux benchmark host, reserved CPU/RAM/storage/no-competing-job attestation and declared PostgreSQL settings unavailable; local macOS results only, owner disposition pending | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-16.json) |
+| No STORM/PaperQA vendor-specific Core schema | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-17.json) |
+| Phase 1 Exit tests continue | PASS | Owning assertions verified | [record](../../pr_evidence/pr2-20/c408be640b3408ff0b989dd672c5d6d6c225081b6a9a601b57a4c54b5cf17e2c/exit-18.json) |
 
 | Architecture requirement | Concrete node | Disposition |
 | --- | --- | --- |
-| test_literature_source_not_evidence | `tests/architecture/test_pr2_19_boundaries.py::test_literature_source_not_evidence` | See exact run evidence; mapping is not acceptance |
-| test_search_result_not_evidence | `tests/architecture/test_pr2_19_boundaries.py::test_search_result_not_evidence` | See exact run evidence; mapping is not acceptance |
-| test_citation_not_claim_support | `tests/architecture/test_pr2_19_boundaries.py::test_citation_not_claim_support` | See exact run evidence; mapping is not acceptance |
-| test_strategy_does_not_import_persistence | `tests/architecture/test_pr2_19_boundaries.py::test_strategy_does_not_import_persistence` | See exact run evidence; mapping is not acceptance |
-| test_adapter_does_not_write_db | `tests/architecture/test_pr2_19_boundaries.py::test_adapter_does_not_write_db` | See exact run evidence; mapping is not acceptance |
-| test_no_storm_specific_core_schema | `tests/architecture/test_pr2_19_boundaries.py::test_no_storm_specific_core_schema` | See exact run evidence; mapping is not acceptance |
-| test_no_paperqa_specific_core_schema | `tests/architecture/test_pr2_19_boundaries.py::test_no_paperqa_specific_core_schema` | See exact run evidence; mapping is not acceptance |
-| test_discussion_not_canonical_science | `tests/architecture/test_pr2_19_boundaries.py::test_discussion_not_canonical_science` | See exact run evidence; mapping is not acceptance |
-| test_manuscript_not_scientific_source_of_truth | `tests/architecture/test_pr2_19_boundaries.py::test_manuscript_not_scientific_source_of_truth` | See exact run evidence; mapping is not acceptance |
-| test_review_does_not_mutate_target | `tests/architecture/test_pr2_19_boundaries.py::test_review_does_not_mutate_target` | See exact run evidence; mapping is not acceptance |
-| test_decision_does_not_mutate_history | `tests/architecture/test_pr2_19_boundaries.py::test_decision_does_not_mutate_history` | See exact run evidence; mapping is not acceptance |
-| test_approval_does_not_override_invalid_fact | `tests/architecture/test_pr2_19_boundaries.py::test_approval_does_not_override_invalid_fact` | BLOCKED: runtime Approval admission absent |
-| test_external_call_not_inside_long_db_transaction | `tests/architecture/test_pr2_19_boundaries.py::test_external_call_not_inside_long_db_transaction` | See exact run evidence; mapping is not acceptance |
+| test_literature_source_not_evidence | `tests/architecture/test_pr2_19_boundaries.py::test_literature_source_not_evidence` | See owning Row 18 evidence |
+| test_search_result_not_evidence | `tests/architecture/test_pr2_19_boundaries.py::test_search_result_not_evidence` | See owning Row 18 evidence |
+| test_citation_not_claim_support | `tests/architecture/test_pr2_19_boundaries.py::test_citation_not_claim_support` | See owning Row 18 evidence |
+| test_strategy_does_not_import_persistence | `tests/architecture/test_pr2_19_boundaries.py::test_strategy_does_not_import_persistence` | See owning Row 18 evidence |
+| test_adapter_does_not_write_db | `tests/architecture/test_pr2_19_boundaries.py::test_adapter_does_not_write_db` | See owning Row 18 evidence |
+| test_no_storm_specific_core_schema | `tests/architecture/test_pr2_19_boundaries.py::test_no_storm_specific_core_schema` | See owning Row 18 evidence |
+| test_no_paperqa_specific_core_schema | `tests/architecture/test_pr2_19_boundaries.py::test_no_paperqa_specific_core_schema` | See owning Row 18 evidence |
+| test_discussion_not_canonical_science | `tests/architecture/test_pr2_19_boundaries.py::test_discussion_not_canonical_science` | See owning Row 18 evidence |
+| test_manuscript_not_scientific_source_of_truth | `tests/architecture/test_pr2_19_boundaries.py::test_manuscript_not_scientific_source_of_truth` | See owning Row 18 evidence |
+| test_review_does_not_mutate_target | `tests/architecture/test_pr2_19_boundaries.py::test_review_does_not_mutate_target` | See owning Row 18 evidence |
+| test_decision_does_not_mutate_history | `tests/architecture/test_pr2_19_boundaries.py::test_decision_does_not_mutate_history` | See owning Row 18 evidence |
+| test_approval_does_not_override_invalid_fact | `tests/architecture/test_pr2_19_boundaries.py::test_approval_does_not_override_invalid_fact` | See owning Row 18 evidence |
+| test_external_call_not_inside_long_db_transaction | `tests/architecture/test_pr2_19_boundaries.py::test_external_call_not_inside_long_db_transaction` | See owning Row 18 evidence |
 
-Focused command/count evidence is in [verification](pr2_20_verification.md). Unrun, skipped, failed and blocked results remain distinct. No full suite was run by the implementation agent; loop evidence must be attached separately. Benchmark on the specified dedicated Linux host remains BLOCKED if unavailable; local small timing is informational. Open P1 transport finding, missing real PaperQA2, missing acceptance subjects and owner dispositions prevent gate success. Independent review is recorded in the verification document.
+Owner-accepted known gaps and scope dispositions:
 
-Substitution: the existing disposable PR212 database prefix is reused by the PR220 helper. All named fixtures resolve as written. Approval inventory uses the existing `test_approval.py` name. The 50 pinned error rows are retained; seven existing Approval mappings are appended in source-inventory tests.
+- B28 real PaperQA2 DEFERRED, owner 2026-10-19: docs/proposals/B28_PaperQA2_Intake_Assessment_DRAFT.md.
+- AQ-S3-08, owner 2026-10-20: positive G2 AGENT admission test pending; no Application path creates a bound AGENT. Never forge the binding: docs/proposals/B30S3_Architecture_Questions_2026-10-20.md.
+- D-B31-03: B20 NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE (NO_CLOSE_PRIOR_ART), B23 novelty review/revision, and MANUSCRIPT_CHANGE remain Phase 2 exit non-goals: docs/proposals/B31_PR2-20_Full_Exit_Hardening_Contract_DRAFT.md.
+
+Focused commands, exact counts and actual host details are in [verification](pr2_20_verification.md). Unrun, skipped, failed and blocked results stay distinct. Dedicated Linux host timing/attestation remains BLOCKED pending owner disposition; local macOS results are informational. Reference/provider revision, license/notice/terms and dated advisory review remain unresolved in the adapter inventory. No independent review or loop full-suite acceptance is inferred from these focused runs.
 
 **STOP; wait for explicit Phase 3 GO.**
+
+Owner decisions needed
+
+- STORM-like Native ResearchStrategy: AQ-S3-08: positive G2 AGENT admission pending; no Application path creates a bound AGENT (docs/proposals/B30S3_Architecture_Questions_2026-10-20.md; owner 2026-10-20 known gap)
+- PostgreSQL migrations/integration: Dedicated Linux benchmark host, reserved CPU/RAM/storage/no-competing-job attestation and declared PostgreSQL settings unavailable; local macOS results only, owner disposition pending
+- Reference/provider intake: resolve revision, license/notice/terms and dated advisory review before enabling providers (adapter inventory).
+- Attach independent review and loop full-suite evidence before owner exit decision.

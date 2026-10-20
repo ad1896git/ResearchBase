@@ -1,5 +1,6 @@
 """Reports cannot launder unavailable, fake, skipped or failed checks into exit PASS."""
 
+import ast
 import re
 from dataclasses import replace
 from pathlib import Path
@@ -272,3 +273,135 @@ def test_b28_deferral_does_not_block_verified_other_rows_or_hide_major_findings(
     assert r.validate_exit(accepted, ()) == "PASS"
     assert r.validate_exit(accepted, ("P1 MAJOR: unresolved",)) == "BLOCKED"
     assert r.validate_exit(rows, ()) == "BLOCKED"
+
+
+def test_s4_inventory_covers_eighteen_active_rows_and_landed_inputs():
+    from scripts.pr2_20_verify import OWNING, POSTGRES
+
+    assert len(r.EXIT_FILES) == 19
+    for criterion, paths in r.EXIT_FILES.items():
+        assert bool(paths) == (criterion != "PaperQA2 Adapter")
+        assert bool(r.EXIT_NODES[criterion]) == bool(paths)
+        assert set(paths) <= set(OWNING + POSTGRES)
+        for node in r.EXIT_NODES[criterion]:
+            path, method = node.split("::")
+            assert any(
+                isinstance(n, ast.FunctionDef) and n.name == method
+                for n in ast.parse(Path(path).read_text()).body
+            )
+    selected = " ".join(OWNING + POSTGRES)
+    for owner in ("test_b02_", "test_b03_", "test_m1_", "test_pr2_20_novelty.py"):
+        assert owner in selected
+    assert set(r.ARCHITECTURE_NODES.values()) <= set(r.EXIT_NODES[r.EXIT_CRITERIA[17]])
+
+
+def test_s4_junit_retains_parameter_cases_and_setup_teardown_errors(tmp_path):
+    from scripts.pr2_20_verify import cases_from_xml, counts_from_xml
+
+    xml = tmp_path / "junit.xml"
+    xml.write_text(
+        '<testsuites><testsuite tests="5" failures="1" errors="1" skipped="1">'
+        '<testcase classname="tests.example" name="test_case[pass]"/>'
+        '<testcase classname="tests.example" name="test_case[fail]"><failure/></testcase>'
+        '<testcase classname="tests.example" name="test_case[skip]"><skipped/></testcase>'
+        '<testcase classname="tests.example" name="test_case[error]"><error/></testcase>'
+        '<testcase classname="tests.example" name="test_other"/>'
+        "</testsuite></testsuites>"
+    )
+    assert counts_from_xml(xml) == dict(passed=2, failed=1, errors=1, skipped=1)
+    cases = cases_from_xml(xml)
+    assert [case["status"] for case in cases] == ["PASS", "FAIL", "SKIPPED", "ERROR", "PASS"]
+    assert cases[0]["node"] == "tests/example.py::test_case[pass]"
+
+
+@pytest.mark.parametrize("outcome", ["PASS", "SKIPPED", "FAIL", "ERROR", "MISSING"])
+def test_s4_collector_loader_real_files_subject_and_log_integrity(tmp_path, monkeypatch, outcome):
+    """Synthetic run fixtures stay temporary and never become repository acceptance."""
+    import json
+    import shutil
+
+    from scripts.pr2_20_verify import collect_acceptance
+
+    identity = r.subject()
+    monkeypatch.setattr(r, "subject", lambda root=r.ROOT: identity)
+    # Copy sources into the test root: path validation must not escape via symlinks.
+    sources = {
+        *[path for paths in r.EXIT_FILES.values() for path in paths],
+        r.B31_CONTRACT,
+        r.AQ_S3,
+        "docs/proposals/PR2-20_Hardening_Plan_DRAFT.md",
+    }
+    for source in sources:
+        target = tmp_path / source
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(r.ROOT / source, target)
+    directory = tmp_path / "pr_evidence/pr2-20" / identity[2]
+    directory.mkdir(parents=True)
+    log = directory / "test-only-run.txt"
+    log.write_text("TEST FIXTURE ONLY: synthetic assertions")
+    cases = [
+        dict(node=node + "[fixture]", status="PASS")
+        for paths in r.EXIT_NODES.values()
+        for node in paths
+    ]
+    # Each shared node appears once in the actual deduplicated command.
+    cases = list({case["node"]: case for case in cases}.values())
+    first = r.EXIT_NODES[r.EXIT_CRITERIA[0]][0]
+    if outcome == "MISSING":
+        cases = [case for case in cases if case["node"].split("[")[0] != first]
+    elif outcome != "PASS":
+        cases.append(dict(node=first + "[other-parameter]", status=outcome))
+    result = dict(
+        label="owning-acceptance",
+        command="TEST FIXTURE ONLY",
+        exit_code=1 if outcome in {"FAIL", "ERROR"} else 0,
+        files=list({path for paths in r.EXIT_FILES.values() for path in paths}),
+        cases=cases,
+        logs=[log.relative_to(tmp_path).as_posix()],
+    )
+    collect_acceptance([result], directory, tmp_path)
+    assert len(list(directory.glob("owning-*.json"))) == 18
+    rows = r.exit_rows(tmp_path, acceptance_directory=directory)
+    assert rows[0].status == ("PASS" if outcome == "PASS" else "BLOCKED")
+    assert rows[4].status == "BLOCKED" and "AQ-S3-08" in (rows[4].reason or "")
+    assert rows[16].status == "BLOCKED" and "Linux" in (rows[16].reason or "")
+    assert r.validate_exit(rows, (), tmp_path) == "BLOCKED"
+    if outcome == "PASS":
+        assert r.verified_acceptance(rows[0], tmp_path)
+        # Missing/tampered logs invalidate a previously passing record.
+        log.write_text("changed")
+        assert not r.verified_acceptance(rows[0], tmp_path)
+        assert r.exit_rows(tmp_path, acceptance_directory=directory)[0].status == "BLOCKED"
+        payload = json.loads((directory / "owning-01.json").read_bytes())
+        payload["row"]["dirty_diff_sha256"] = "b" * 64
+        (directory / "owning-01.json").write_bytes(canonical_bytes(payload))
+        assert r.exit_rows(tmp_path, acceptance_directory=directory)[0].status == "BLOCKED"
+    (directory / "owning-01.json").unlink()
+    assert r.exit_rows(tmp_path, acceptance_directory=directory)[0].status == "BLOCKED"
+
+
+def test_s4_generated_narratives_known_gaps_and_owner_decisions(tmp_path, monkeypatch):
+    identity, inventory, migrations = r.subject(), r.adapter_inventory(), r.migration_inventory()
+    monkeypatch.setattr(r, "subject", lambda root=r.ROOT: identity)
+    monkeypatch.setattr(r, "adapter_inventory", lambda root=r.ROOT: inventory)
+    monkeypatch.setattr(r, "migration_inventory", lambda root=r.ROOT: migrations)
+    r.write_reports(tmp_path)
+    docs = tmp_path / "docs/phase2"
+    for name in ("literature_trace_demo.md", "publication_trace_demo.md"):
+        text = (docs / name).read_text()
+        assert "READY" in text and "FROZEN PreparedSubmissionVersion" in text
+    report = (docs / "phase2_exit_report.md").read_text()
+    for token in (
+        "AQ-S3-08",
+        r.AQ_S3,
+        "D-B31-03",
+        "NO_CLOSE_PRIOR_ART",
+        "B23",
+        "MANUSCRIPT_CHANGE",
+    ):
+        assert token in report
+    final = report.split("Owner decisions needed")[-1]
+    for row in r.exit_rows(tmp_path):
+        if row.status == "BLOCKED":
+            assert row.criterion in final
+    assert "Phase 2 is accepted" not in report
