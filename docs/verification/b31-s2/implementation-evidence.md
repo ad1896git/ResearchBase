@@ -75,4 +75,3 @@ The pre-fix complete unit/architecture run reported 1 failed / 6183 passed; its
 corrected inventory file then passed all 5 tests. The pre-fix complete PostgreSQL
 run reported 2 failed / 35 passed; both observer engine issues are fixed in the
 final 37-pass run above. No failed check is reported as PASS.
-
