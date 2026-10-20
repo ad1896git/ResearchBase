@@ -1,6 +1,6 @@
 # B30-S3 architecture questions — 2026-10-20
 
-Status: AQ-S3-01..07 RESOLVED by director 2026-10-20; AQ-S3-08 OPEN.
+Status: AQ-S3-01..07 RESOLVED by director 2026-10-20; AQ-S3-08 RESOLVED by owner 2026-10-20 as a known gap.
 B02/B03 are the landed canonical contracts under S3 §13.1. The original
 questions below are retained as historical evidence; their disputed S3 wording
 is superseded by these decisions. Full PR2-19 acceptance remains BLOCKED.
@@ -12,7 +12,7 @@ is superseded by these decisions. Full PR2-19 acceptance remains BLOCKED.
 - AQ-S3-05: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): use existing receipt/admission/session closure; discard nonexistent-field requirements.
 - AQ-S3-06: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): advisory protocol uses hashtextextended(:key,0).
 - AQ-S3-07: RESOLVED by director 2026-10-20 (B02/B03 win, S3 §13.1): G2 DRAFT parent allowed, inaccessible source FORBIDDEN; G4 transcript mismatch FROZEN_REFERENCE_REQUIRED.
-- AQ-S3-08: OPEN — positive G2 AGENT fixture pending an owning Application path; never SQL-forge an AGENT binding.
+- AQ-S3-08: RESOLVED by owner 2026-10-20 — KNOWN GAP: no Application path creates a bound AGENT, so the positive G2 AGENT admission test stays pending (never SQL-forge an AGENT binding). Record in the Phase 2 exit report (B31-S4) as an owner-accepted known gap.
 
 ## Authority and scope check
 
