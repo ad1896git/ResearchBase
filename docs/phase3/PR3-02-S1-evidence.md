@@ -534,3 +534,8 @@ UV_CACHE_DIR=/tmp/rb-lane103-uv-cache uv run pytest -o addopts='' -q tests/unit/
 These checks cover the exhaustive 121-route union, both PR boundary contracts,
 single head/parent/chain and preserved migration-history assertions. Final
 `git diff --check HEAD` returned exit 0 after this documentation update.
+
+Integration record (director, 2026-10-21): on branch codex/phase3-wave2-impl the
+revision is re-parented to `0078_task_safety_policies` (single head
+`0079_agent_identity_versions`). Integrated full check with PR3-04 and the Phase 3
+fixture isolation fix (42c1d82): 13,350 passed, 0 failed, 66 skipped (six shards).
