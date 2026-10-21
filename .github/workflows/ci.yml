@@ -20,7 +20,10 @@ jobs:
           POSTGRES_USER: researchbase
           POSTGRES_PASSWORD: researchbase
           # SERIALIZABLE fixture writers retain predicate locks across overlapping work.
-          POSTGRES_INITDB_ARGS: "--set=max_locks_per_transaction=256"
+          # UNVERIFIED mitigation, pending Linux CI: avoid possible LLVM JIT
+          # overhead in trigger-heavy tests. The 57014 timeout is confirmed;
+          # JIT attribution has not been measured on the local non-JIT server.
+          POSTGRES_INITDB_ARGS: "--set=max_locks_per_transaction=256 --set=jit=off"
         ports:
           - 5432:5432
         options: >-

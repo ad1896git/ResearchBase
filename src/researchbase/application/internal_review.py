@@ -838,9 +838,7 @@ class InternalReviewService:
             uow.enable_internal_review_error_normalization()
             uow.configure_revision_transaction()
             uow.internal_review.prepare_insert()
-            if is_claim:
-                at = self._auth._authorize(uow, principal, project, _REVIEWERS)
-            elif not isinstance(principal, VerifiedPrincipal) or type(project) is not UUID:
+            if not isinstance(principal, VerifiedPrincipal) or type(project) is not UUID:
                 _fail(ErrorCode.AUTHENTICATION_REQUIRED, "verified principal required")
             identity = uuid5(
                 NAMESPACE_URL,
@@ -849,9 +847,14 @@ class InternalReviewService:
             repo = uow.internal_review
             repo.lock_request(identity)
             if is_claim:
-                # Preserve the accepted Claim review coordination and authorization.
-                at = self._auth._authorize(uow, principal, project, _REVIEWERS)
+                # Exact version before parent AND authority/FK rows. Otherwise
+                # a novelty writer holding the version can wait on our actor or
+                # project while we wait on its version.
+                repo.lock_claim_target(target_id)
                 target = uow.literature_evidence.target("ClaimVersion", target_id, project)
+                # Authorize even when target is None, before inspecting its state
+                # or returning any target-specific error (covered by integration).
+                at = self._auth._authorize(uow, principal, project, _REVIEWERS)
             else:
                 # Request -> exact target -> parent -> project/authority -> reviews.
                 # No target information is disclosed until current authorization.

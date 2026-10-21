@@ -257,32 +257,70 @@ def test_s3_post_wait_denial_is_atomic(request, monkeypatch, scenario):
 
 
 def _s3_contend(engine, first, followers, prefix):
-    """Hold a real writer; require each contender to be observed waiting in PostgreSQL."""
+    """Gate follower setup, then witness each exact backend waiting on the leader."""
     from concurrent.futures import ThreadPoolExecutor
-    from threading import Event
+    from threading import Barrier, Event, local
     from time import monotonic
 
     from sqlalchemy import event, text
 
     entered, release = Event(), Event()
+    start_waits = Barrier(1 + len(followers))
+    state = local()
     holder = []
+    follower_pids = {}
+
+    def before(conn, cursor, sql, parameters, context, many):
+        index = getattr(state, "index", None)
+        if (
+            index is not None
+            and not getattr(state, "gated", False)
+            and sql.startswith("LOCK TABLE ")
+        ):
+            # Let every follower finish its historical preflight before any
+            # follower starts its unchanged 10s PostgreSQL lock-timeout clock.
+            state.gated = True
+            follower_pids[index] = conn.connection.driver_connection.info.backend_pid
+            start_waits.wait(timeout=15)
 
     def pause(conn, cursor, sql, parameters, context, many):
         if sql.startswith(prefix) and not entered.is_set():
             holder.append(conn.connection.driver_connection.info.backend_pid)
             entered.set()
-            assert release.wait(20)
+            assert release.wait(30)
 
+    def database_error(context):
+        print(
+            "S3_DATABASE_ERROR",
+            dict(
+                operation=prefix,
+                follower=getattr(state, "index", None),
+                backend_pid=follower_pids.get(getattr(state, "index", None)),
+                sqlstate=getattr(context.original_exception, "sqlstate", None),
+                error_type=type(context.original_exception).__name__,
+            ),
+            flush=True,
+        )
+
+    def follow(index, call):
+        state.index = index
+        return call()
+
+    event.listen(engine, "before_cursor_execute", before)
     event.listen(engine, "after_cursor_execute", pause)
+    event.listen(engine, "handle_error", database_error)
     try:
         with ThreadPoolExecutor(max_workers=1 + len(followers)) as pool:
             leader = pool.submit(first)
-            assert entered.wait(15)
-            pending = [pool.submit(call) for call in followers]
             try:
-                deadline = monotonic() + 15
+                assert entered.wait(15)
+                pending = [pool.submit(follow, index, call) for index, call in enumerate(followers)]
+                start_waits.wait(timeout=15)
+                expected = set(follower_pids.values())
+                assert len(expected) == len(followers)
+                deadline = monotonic() + 5
                 seen = set()
-                while len(seen) < len(followers):
+                while seen != expected:
                     with s.read_snapshot(engine) as conn:
                         rows = (
                             conn.execute(
@@ -292,17 +330,18 @@ def _s3_contend(engine, first, followers, prefix):
                                     ":holder=ANY(pg_blocking_pids(pid)) UNION "
                                     "SELECT a.pid FROM pg_stat_activity a JOIN blocked b "
                                     "ON b.pid=ANY(pg_blocking_pids(a.pid))) "
-                                    "SELECT b.pid FROM blocked b WHERE EXISTS "
-                                    "(SELECT 1 FROM pg_locks l WHERE l.pid=b.pid AND NOT l.granted)"
+                                    "SELECT b.pid FROM blocked b WHERE b.pid=ANY(:expected) "
+                                    "AND EXISTS (SELECT 1 FROM pg_locks l "
+                                    "WHERE l.pid=b.pid AND NOT l.granted)"
                                 ),
-                                {"holder": holder[0]},
+                                {"holder": holder[0], "expected": list(expected)},
                             )
                             .scalars()
                             .all()
                         )
-                    seen.update(rows)
-                    assert monotonic() < deadline, (seen, len(followers))
-                    if len(seen) < len(followers):
+                    seen = set(rows)
+                    assert monotonic() < deadline, (seen, expected)
+                    if seen != expected:
                         Event().wait(0.01)
                 assert holder[0] not in seen
                 s.save_observation(
@@ -311,11 +350,15 @@ def _s3_contend(engine, first, followers, prefix):
                 )
             finally:
                 release.set()
+                start_waits.abort()
             saved = leader.result(timeout=20)
             return saved, [future.result(timeout=20) for future in pending]
     finally:
         release.set()
+        start_waits.abort()
+        event.remove(engine, "before_cursor_execute", before)
         event.remove(engine, "after_cursor_execute", pause)
+        event.remove(engine, "handle_error", database_error)
 
 
 @pytest.mark.parametrize("workers", [1, 4])
@@ -658,7 +701,10 @@ def test_s3_disposition_workers_wait_and_one_terminal_event(revision_env, worker
         "INSERT INTO review_issue_events",
     )
     for result in results:
-        assert result == saved if same_key else result == ErrorCode.INVALID_STATE_TRANSITION
+        assert result == saved if same_key else result == ErrorCode.INVALID_STATE_TRANSITION, (
+            saved,
+            result,
+        )
     history = app.get_issue_history(actor, base[5], command.review_issue_id)
     assert len(history.events) == 2 and history.disposition == saved
     assert s.manifest(base[8], tuple(before)) == before

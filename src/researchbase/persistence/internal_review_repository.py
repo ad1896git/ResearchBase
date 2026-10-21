@@ -45,10 +45,15 @@ class SqlAlchemyInternalReviewRepository:
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"), {"key": key}
         )
 
-    def lock_novelty_targets(self, claim: UUID, assessments: tuple[UUID, ...]) -> None:
+    def lock_claim_target(self, claim: UUID) -> None:
+        # Exact version before parent/authority rows, matching novelty writers.
+        # Those rows can also be needed by novelty review's INSERT/FK checks.
         self._session.execute(
             text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"), {"id": claim}
         )
+
+    def lock_novelty_targets(self, claim: UUID, assessments: tuple[UUID, ...]) -> None:
+        self.lock_claim_target(claim)
         self._session.execute(
             text("SELECT id FROM novelty_assessments WHERE id=ANY(:ids) ORDER BY id FOR SHARE"),
             {"ids": list(assessments)},

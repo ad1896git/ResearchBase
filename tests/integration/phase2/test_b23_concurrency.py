@@ -389,17 +389,95 @@ def test_legacy_review_writer_and_novelty_review_share_target_order(novelty_env,
     def novelty():
         return _review(e, root)[1]
 
+    statements = []
+
+    def trace(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+        if (
+            "FOR UPDATE OF p,v" in statement
+            or ("FROM projects WHERE id=" in statement and "FOR UPDATE" in statement)
+            or "FOR UPDATE OF a,m,r,b" in statement
+        ):
+            # The version must precede both parent and authority/FK locks.
+            # Otherwise INSERT can wait on this transaction's Project or Actor
+            # while this transaction waits on the novelty writer's version.
+            assert any(
+                sql.startswith("SELECT id FROM claim_versions WHERE id=")
+                and sql.endswith(" FOR UPDATE")
+                and connection is conn
+                for connection, sql in locked
+            )
+        locked.append((conn, statement))
+
+    locked = []
+    event.listen(e["engine"], "before_cursor_execute", trace)
     operations = (legacy, novelty) if order == "legacy_first" else (novelty, legacy)
-    with e["race_engine"].connect() as holder, ThreadPoolExecutor(max_workers=2) as pool:
-        holder.execute(
-            text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"), {"id": e["claim"]}
+    try:
+        with e["race_engine"].connect() as holder, ThreadPoolExecutor(max_workers=2) as pool:
+            holder.execute(
+                text("SELECT id FROM claim_versions WHERE id=:id FOR UPDATE"), {"id": e["claim"]}
+            )
+            pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
+            first = pool.submit(operations[0])
+            _witness(e["race_engine"], pid)
+            second = pool.submit(operations[1])
+            holder.commit()
+            assert first.result(timeout=15).id != second.result(timeout=15).id
+    finally:
+        event.remove(e["engine"], "before_cursor_execute", trace)
+    assert any("FOR UPDATE OF p,v" in sql for sql in statements)
+
+
+def test_unauthorized_claim_review_target_errors_are_indistinguishable(novelty_env):
+    from researchbase.application.internal_review import InternalReviewService
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    e = novelty_env
+    reviews = InternalReviewService(e["factory"], e["credentials"], e["literature"])
+    foreign_project = uuid4()
+    failures = []
+    # The researcher lacks reviewer authority. The reviewer
+    # has no entitlement to foreign_project; its exact target lookup returns None.
+    for principal, project, target in (
+        (e["researcher"], e["project"], e["claim"]),
+        (e["researcher"], e["project"], uuid4()),
+        (e["reviewer"], foreign_project, e["claim"]),
+        (e["reviewer"], foreign_project, uuid4()),
+    ):
+        with pytest.raises(ResearchBaseError) as caught:
+            reviews.create(
+                principal,
+                project,
+                "CLAIM_VERSION",
+                target,
+                "SCIENTIFIC",
+                "UNCERTAIN",
+                "Denied review",
+                (),
+                uuid4(),
+            )
+        error = caught.value
+        failures.append((error.code, error.message, error.details))
+    assert failures == [failures[0]] * 4
+    assert failures[0][0] is ErrorCode.FORBIDDEN
+    # A missing target produces the target-specific error only for an entitled
+    # reviewer, proving the authorization check fences that distinction.
+    with pytest.raises(ResearchBaseError) as caught:
+        reviews.create(
+            e["reviewer"],
+            e["project"],
+            "CLAIM_VERSION",
+            uuid4(),
+            "SCIENTIFIC",
+            "UNCERTAIN",
+            "Missing target",
+            (),
+            uuid4(),
         )
-        pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
-        first = pool.submit(operations[0])
-        _witness(e["race_engine"], pid)
-        second = pool.submit(operations[1])
-        holder.commit()
-        assert first.result(timeout=15).id != second.result(timeout=15).id
+    assert caught.value.code is ErrorCode.REVIEW_TARGET_NOT_FROZEN
+    with e["engine"].connect() as conn:
+        for table in ("internal_review_records", "review_issues", "review_issue_events"):
+            assert conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one() == 0
 
 
 @pytest.mark.parametrize("race", ["predecessors", "correction_first", "link_first"])
