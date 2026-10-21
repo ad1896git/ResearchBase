@@ -1,8 +1,8 @@
 # PR3-04 contract freeze and execution pack
 
-Status: REVIEW CANDIDATE. The contract and ADR-0024 are approved; this execution
-pack has not passed its two director reviews. Implementation remains unauthorized
-until both reviews pass. This document grants no Phase 3 GO or runtime activation.
+Status: FROZEN execution pack; passed two director reviews 2026-10-21 (identifier
+check: 333 identifiers, 1 mismatch fixed). Implementation AUTHORIZED by the owner
+(ADR-0024). This document grants no Phase 3 GO or runtime activation.
 
 Authority: [approved contract](../proposals/PR3-04_Budget_Termination_Checkpoint_Contract_DRAFT.md)
 and [ADR-0024](../architecture/adr/ADR-0024-pr3-04-budget-termination-checkpoint.md),
@@ -453,7 +453,7 @@ only all-NULL to all-set on CREATED/PLANNING. Bound IDs cannot change again.
 Permit CREATED→CREATED and sealed PLANNING→PLANNING for safety bookkeeping only;
 permit CANCELLED→CANCELLED only for settlement or termination evaluation. These
 exceptions change only row_version and, for binding, the three policy columns;
-sealed_at, scientific inputs and plan graph remain untouched. Existing cancellation
+plan_sealed_at, scientific inputs and plan graph remain untouched. Existing cancellation
 still works after binding/seal. The deferred receipt guard MUST prove the exact
 safety command for each exception; writing a self-transition alone is insufficient.
 CANCELLED creation/binding/reservation/request/response remains forbidden.
