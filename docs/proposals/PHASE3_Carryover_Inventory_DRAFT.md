@@ -41,7 +41,7 @@ The pytest skip scan found only `tests/integration/phase2/test_hg1_runner_live.p
 | C-28 | F1 automatic-finding-impact-propagation | tests/integration/phase2/test_pr2_19_dependencies.py:98 | deferred scope | "No automatic finding/impact propagation owner"; overlaps C-11 | Phase 3 governance lead |
 | C-29 | F5c manuscript-reconsideration | tests/integration/phase2/test_pr2_19_dependencies.py:105 | deferred scope | "B10 release-only scope"; manuscript reconsideration remains outside this gate slice | Phase 3 governance/publication lead |
 | C-30 | F6 manuscript-result | tests/integration/phase2/test_pr2_19_dependencies.py:107 | deferred scope | "Seventh action type deferred"; unavailable manuscript-result subcase requires reconciliation with M1 support | Phase 3 governance/publication lead |
-| C-31 | F9 scheduled-role-expiry | tests/integration/phase2/test_pr2_19_dependencies.py:117 | deferred scope | "BLOCKED: no owning Application command to schedule role expiry (AQ-S2-02)"; credential/grant expiry and role revocation do not cover scheduled role expiry | Identity/Application owner |
+| C-31 | F9 scheduled-role-expiry | tests/integration/phase2/test_pr2_19_dependencies.py:117 | deferred scope | "BLOCKED: no owning Application command to schedule role expiry (AQ-S2-02)"; director review: stale after R1 (commit 02ba3ea added `effective_until` to the role-revocation Application command in src/researchbase/application/phase2_identity.py), so the matrix reason needs reconciliation | Identity/Application owner |
 
 G7 strong-novelty reconciliation: **(b) stale after B20**, because B20 §§3–4 delivered the bounded negative assessment's exact screening/resolution/comparison basis (`0070_b20_screening_basis`, `src/researchbase/domain/novelty.py:662`), using B22 §3 terminal-comparison rules, whereas `tests/integration/phase2/test_pr2_19_novelty.py:65` tests denial without that basis and does not establish positive G7 acceptance (universal priority and publication gates remain excluded by B20 §12.5).
 
@@ -56,3 +56,8 @@ G7 strong-novelty reconciliation: **(b) stale after B20**, because B20 §§3–4
 | **Total** | 31 |
 
 Note: no row has kind "accepted P2": no source item is an accepted P2 finding (R2/R3 are P2 but were not in the requested list; R3 concerns exit-report evidence, not provider intake). The provider-intake item is an open owner decision, classed as deferred scope.
+
+Director second review (2026-10-20): the PR2-19 dependency matrix carries at least two stale
+reasons (C-27 G7 strong-novelty after B20; C-31 F9 scheduled-role-expiry after R1). They do not
+change any exit row (each row is judged on its own owning evidence), but the matrix should be
+reconciled in a small tests-only follow-up PR after PR #1 merges.
