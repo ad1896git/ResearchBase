@@ -11,6 +11,7 @@ from typing import Protocol
 from fastapi import FastAPI
 
 from researchbase import __version__
+from researchbase.agent_runtime.application.research_task import ResearchTaskService
 from researchbase.application.commands import ApplicationService
 from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
@@ -36,7 +37,7 @@ from researchbase.persistence.database import create_database_engine, create_ses
 from researchbase.persistence.literature_search_execution_uow import (
     literature_search_execution_uow_factory,
 )
-from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from researchbase.persistence.uow import SqlAlchemyUnitOfWork, research_task_uow_factory
 
 
 class HttpServices(Protocol):
@@ -69,6 +70,7 @@ class ServiceBundle:
     decisions: DecisionService | None = None
     internal_reviews: InternalReviewService | None = None
     revision_actions: RevisionActionService | None = None
+    research_tasks: ResearchTaskService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -112,6 +114,9 @@ def build_services() -> ServiceBundle:
         ),
         revision_actions=RevisionActionService(
             uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
+        ),
+        research_tasks=ResearchTaskService(
+            research_task_uow_factory(settings.database_url), credentials, store
         ),
         decisions=DecisionService(
             uow_factory,

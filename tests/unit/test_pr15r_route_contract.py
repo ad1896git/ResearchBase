@@ -899,8 +899,147 @@ ROUTES += (
 )
 
 
+ROUTES += (
+    RouteContract(
+        "post",
+        "/v1/research-tasks",
+        "create_research_task",
+        "create_research_task",
+        "ResearchTaskCreateIn",
+        "CommandResultResponse",
+        "create_research_task",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/plan",
+        "create_task_plan",
+        "create_task_plan",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "create_task_plan",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/steps",
+        "add_task_step",
+        "add_task_step",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "add_task_step",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/dependencies",
+        "add_task_step_dependency",
+        "add_task_step_dependency",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "add_task_step_dependency",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:seal-plan",
+        "seal_task_plan",
+        "seal_task_plan",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "seal_task_plan",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:cancel",
+        "cancel_research_task",
+        "cancel_research_task",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "cancel_research_task",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:start",
+        "start_research_task",
+        "start_research_task",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "start_research_task",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:pause",
+        "pause_research_task",
+        "pause_research_task",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "pause_research_task",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:resume",
+        "resume_research_task",
+        "resume_research_task",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "resume_research_task",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/steps:start",
+        "start_task_step",
+        "start_task_step",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "start_task_step",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/steps:finish",
+        "finish_task_step",
+        "finish_task_step",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "finish_task_step",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/steps:fail",
+        "fail_task_step",
+        "fail_task_step",
+        "ResearchTaskMutationIn",
+        "CommandResultResponse",
+        "fail_task_step",
+    ),
+    RouteContract(
+        "get",
+        "/v1/research-tasks/{id}",
+        "get_research_task",
+        "get_research_task",
+        None,
+        "TaskReadResponse",
+        "get_research_task",
+    ),
+    RouteContract(
+        "get",
+        "/v1/research-tasks/{id}/graph",
+        "get_task_graph",
+        "get_task_graph",
+        None,
+        "TaskGraphReadResponse",
+        "get_task_graph",
+    ),
+    RouteContract(
+        "get",
+        "/v1/research-tasks/{id}/progress",
+        "get_task_progress",
+        "get_task_progress",
+        None,
+        "TaskProgressReadResponse",
+        "get_task_progress",
+    ),
+)
+
+
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 94
+    assert len(ROUTES) == 109
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -910,7 +1049,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 94
+    assert len({item.operation_id for item in ROUTES}) == 109
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

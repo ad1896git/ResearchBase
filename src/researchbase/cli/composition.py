@@ -14,6 +14,7 @@ from sqlalchemy.engine import make_url
 from researchbase.adapters.crossref import CrossrefVerifier
 from researchbase.adapters.metadata_journal import MetadataDispatchJournal
 from researchbase.adapters.openalex import OpenAlexSearchCapability
+from researchbase.agent_runtime.application.research_task import ResearchTaskService
 from researchbase.application.commands import ApplicationService
 from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
@@ -49,6 +50,7 @@ from researchbase.persistence.literature_search_execution_uow import (
 )
 from researchbase.persistence.uow import (
     SqlAlchemyUnitOfWork,
+    research_task_uow_factory,
     search_result_resolution_uow_factory,
     strategy_candidate_promotion_uow_factory,
 )
@@ -93,6 +95,7 @@ class ServiceBundle:
     internal_reviews: InternalReviewService | None = None
     revision_actions: RevisionActionService | None = None
     strategy_candidates: StrategyCandidatePromotionService | None = None
+    research_tasks: ResearchTaskService | None = None
 
 
 def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> ServiceBundle:
@@ -177,6 +180,9 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
             credentials,
             store,
             scientific_rag,
+        ),
+        research_tasks=ResearchTaskService(
+            research_task_uow_factory(settings.database_url), credentials, store
         ),
         decisions=DecisionService(
             uow_factory,

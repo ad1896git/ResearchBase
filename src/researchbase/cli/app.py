@@ -17,6 +17,7 @@ from .commands.literature_search_execution import register as register_search_ex
 from .commands.local import register as register_local
 from .commands.metadata_observation import register as register_metadata
 from .commands.research import register as register_research
+from .commands.research_tasks import register as register_research_tasks
 from .composition import build_services
 from .context import CliServices, create_runtime
 from .errors import CliTransportError
@@ -47,6 +48,7 @@ def _root_callback(
                 "literature-search-execution",
                 "literature-metadata",
                 "literature-evidence",
+                "research-tasks",
             }
         ):
             raise ResearchBaseError(
@@ -91,6 +93,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
     register_governance(app)
     register_literature(app)
     register_search_execution(app)
+    register_research_tasks(app)
 
     @app.callback()
     def callback(

@@ -16,9 +16,28 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictStr, create_model
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StrictInt,
+    StrictStr,
+    create_model,
+)
 from starlette.concurrency import run_in_threadpool
 
+from researchbase.agent_runtime.application.contracts import (
+    CommandResult as ResearchTaskCommandResult,
+)
+from researchbase.agent_runtime.application.contracts import (
+    TaskGraphRead,
+    TaskProgressRead,
+    TaskRead,
+)
+from researchbase.agent_runtime.application.contracts import (
+    parse_command as parse_task_command,
+)
 from researchbase.api.context import execution_context
 from researchbase.api.errors import ErrorEnvelope
 from researchbase.application.commands import (
@@ -2713,3 +2732,187 @@ def get_manuscript_rejection_reconsideration(
             project_id, id, _verified_principal(request)
         )
     )
+
+
+# PR3-01 closed planning transport. The shared decoder closes nested arguments too.
+class ResearchTaskMutationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    project_id: UUID
+    command_id: UUID
+    expected_row_version: StrictInt = Field(gt=0)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResearchTaskCreateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    project_id: UUID
+    command_id: UUID
+    task_id: UUID
+    expected_row_version: None = None
+    arguments: dict[str, Any]
+
+
+@router.post(
+    "/research-tasks",
+    status_code=201,
+    operation_id="create_research_task",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def create_research_task(body: ResearchTaskCreateIn, request: Request):
+    principal = _verified_principal(request)
+    return _json(
+        _services(request).research_tasks.create_research_task(
+            principal, parse_task_command("create_research_task", body.model_dump())
+        )
+    )
+
+
+@router.post(
+    "/research-tasks/{id}/plan",
+    operation_id="create_task_plan",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def create_task_plan(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("create_task_plan", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.create_task_plan(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}/steps",
+    operation_id="add_task_step",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def add_task_step(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("add_task_step", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.add_task_step(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}/dependencies",
+    operation_id="add_task_step_dependency",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def add_task_step_dependency(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("add_task_step_dependency", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.add_task_step_dependency(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:seal-plan",
+    operation_id="seal_task_plan",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def seal_task_plan(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("seal_task_plan", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.seal_task_plan(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:cancel",
+    operation_id="cancel_research_task",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def cancel_research_task(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("cancel_research_task", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.cancel_research_task(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:start",
+    operation_id="start_research_task",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def start_research_task(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("start_research_task", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.start_research_task(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:pause",
+    operation_id="pause_research_task",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def pause_research_task(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("pause_research_task", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.pause_research_task(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:resume",
+    operation_id="resume_research_task",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def resume_research_task(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("resume_research_task", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.resume_research_task(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}/steps:start",
+    operation_id="start_task_step",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def start_task_step(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("start_task_step", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.start_task_step(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}/steps:finish",
+    operation_id="finish_task_step",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def finish_task_step(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("finish_task_step", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.finish_task_step(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}/steps:fail",
+    operation_id="fail_task_step",
+    response_model=_response_schema(ResearchTaskCommandResult),
+)
+def fail_task_step(id: UUID, body: ResearchTaskMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = parse_task_command("fail_task_step", {**body.model_dump(), "task_id": id})
+    return _json(_services(request).research_tasks.fail_task_step(principal, command))
+
+
+@router.get(
+    "/research-tasks/{id}",
+    operation_id="get_research_task",
+    response_model=_response_schema(TaskRead),
+)
+def get_research_task(id: UUID, project_id: UUID, request: Request):
+    principal = _verified_principal(request)
+    return _json(_services(request).research_tasks.get_research_task(principal, project_id, id))
+
+
+@router.get(
+    "/research-tasks/{id}/graph",
+    operation_id="get_task_graph",
+    response_model=_response_schema(TaskGraphRead),
+)
+def get_task_graph(id: UUID, project_id: UUID, request: Request):
+    principal = _verified_principal(request)
+    return _json(_services(request).research_tasks.get_task_graph(principal, project_id, id))
+
+
+@router.get(
+    "/research-tasks/{id}/progress",
+    operation_id="get_task_progress",
+    response_model=_response_schema(TaskProgressRead),
+)
+def get_task_progress(id: UUID, project_id: UUID, request: Request):
+    principal = _verified_principal(request)
+    return _json(_services(request).research_tasks.get_task_progress(principal, project_id, id))
