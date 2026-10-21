@@ -1,0 +1,24 @@
+Original implementation: f0bff71; source module origin verified under /tmp/rb-governance-original.
+Command: PYTHONPATH=/tmp/rb-governance-original UV_CACHE_DIR=/tmp/rb-uv-cache uv run pytest tests/integration/phase2/test_governance_failed_wait_recovery.py
+
+=========================== short test summary info ============================
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_decision_failed_wait_receipt[replay]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_decision_failed_wait_receipt[changed]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_decision_failed_wait_receipt[revoked]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_decision_failed_wait_receipt[absent]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_decision_failed_wait_receipt[uncommitted]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_action_failed_wait_receipt[replay]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_action_failed_wait_receipt[changed]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_action_failed_wait_receipt[revoked]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_action_failed_wait_receipt[absent]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_revision_action_failed_wait_receipt[uncommitted]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_concern_re_review_failed_wait_receipt[replay]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_concern_re_review_failed_wait_receipt[revoked]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_concern_re_review_failed_wait_receipt[absent]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_concern_re_review_failed_wait_receipt[uncommitted]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_readiness_decision_failed_wait_receipt[replay]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_readiness_decision_failed_wait_receipt[changed]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_readiness_decision_failed_wait_receipt[revoked]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_readiness_decision_failed_wait_receipt[absent]
+FAILED tests/integration/phase2/test_governance_failed_wait_recovery.py::test_readiness_decision_failed_wait_receipt[uncommitted]
+19 failed, 57 warnings in 117.43s (0:01:57)
