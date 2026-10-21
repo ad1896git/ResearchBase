@@ -348,7 +348,10 @@ parameterized input helper below returns void. Every trigger is FOR EACH ROW.
 Immediate triggers are NOT DEFERRABLE. Constraint triggers explicitly say
 DEFERRABLE INITIALLY DEFERRED. No caller-writable setting or checked marker skips
 validation; no advisory locks are acquired from triggers after implicit row locks.
-Normal-role SQL writers participate in §4's lock protocol.
+Normal-role SQL writers participate in §4's lock protocol. The inventory has
+14 functions (13 trigger functions and one input helper) and 19 triggers:
+15 immediate guards and four deferred constraint triggers (two cycle checks,
+one task final-state check and one receipt-completeness check).
 
 Guard exceptions use SQLSTATE 23514 with fixed diagnostic constraint names:
 pr301_validation, pr301_state, pr301_immutable, pr301_not_frozen, pr301_scope,
@@ -424,13 +427,13 @@ These are guard specifications, not permission to add public edit commands.
 | Function | Trigger, table and timing | Required behavior |
 | --- | --- | --- |
 | pr301_task_guard() | pr301_task_guard; research_tasks; BEFORE INSERT OR UPDATE OR DELETE | INSERT only CREATED/revision 1, no seal/start/finish/current-step. DELETE rejects immutable. UPDATE preserves id/project/requester/created_at and intent/type/strategy/autonomy (no edit command); revision exactly old+1. OLD CANCELLED rejects every UPDATE. Allow only CREATED→PLANNING, CREATED/PLANNING→CANCELLED, PLANNING→PLANNING for graph/seal. Existing seal cannot change/clear; setting seal requires PLANNING→PLANNING. Sealed cancellation changes only status/finish/revision. |
-| pr301_step_guard() | pr301_step_guard; research_task_steps; BEFORE INSERT OR UPDATE OR DELETE | DELETE rejects. INSERT only unsealed PLANNING, PENDING/revision 1. UPDATE preserves id/task; terminal child cannot change. Type/ordinal/parent/role/capability updates are allowed only while constructing a newly inserted unsealed child in the same command transaction, retaining initial revision 1; committed child material has no edit command and is immutable. After seal it is always immutable. Only state change is PENDING→CANCELLED/revision+1 when task is CANCELLED and finished_at matches task. Cancellation is allowed after seal, without material changes. Start/retry/failure remain inactive. |
-| pr301_dependency_guard() | pr301_dependency_guard; research_task_step_dependencies; BEFORE INSERT OR UPDATE OR DELETE | DELETE rejects. INSERT/UPDATE only unsealed PLANNING; UPDATE may change endpoints only on an edge inserted in this same command transaction, never task identity. Check OLD and NEW task scope; committed edges are append-only. No sealed/terminal edits. FKs/checks enforce same-task/nonself/unique. |
-| pr301_task_input_guard() | pr301_task_input_guard; research_task_inputs; BEFORE INSERT OR UPDATE OR DELETE | DELETE/UPDATE reject immutable; correction requires a new task. INSERT only unsealed CREATED or PLANNING; call pr301_validate_input. |
-| pr301_step_input_guard() | pr301_step_input_guard; research_task_step_inputs; BEFORE INSERT OR UPDATE OR DELETE | DELETE/UPDATE reject. INSERT only unsealed PLANNING into same-task PENDING child; call pr301_validate_input. |
-| pr301_event_insert_guard() | pr301_task_event_insert on research_task_events and pr301_step_event_insert on research_task_step_events; BEFORE INSERT | Check task revision equals task_row_version and actual status equals new_status; step events also match actual child revision/status. CREATED revision is 1 and actor=requested_by. Command attribution/revision is protected by the deferred receipt FK and final guard. |
-| pr301_receipt_insert_guard() | pr301_receipt_insert; research_task_command_receipts; BEFORE INSERT | Saved project/task/resulting revision equal actual task/project/revision. Only six admitted command names. No receipt on denial or replay. |
-| pr301_receipt_link_guard() | pr301_receipt_event_insert on research_task_receipt_events and pr301_receipt_step_event_insert on research_task_receipt_step_events; BEFORE INSERT | Linked receipt/event must agree on task, actor, command and saved task revision. Compare all four; same-task FKs alone are insufficient. |
+| pr301_step_guard() | pr301_step_guard; research_task_steps; BEFORE INSERT OR UPDATE OR DELETE | DELETE rejects. INSERT/UPDATE require the owning task row written in this transaction (§3.4). INSERT only unsealed PLANNING, PENDING/revision 1. UPDATE preserves id/task; terminal child cannot change. Type/ordinal/parent/role/capability updates are allowed only while constructing a newly inserted unsealed child in the same command transaction, retaining initial revision 1; committed child material has no edit command and is immutable. After seal it is always immutable. Only state change is PENDING→CANCELLED/revision+1 when task is CANCELLED and finished_at matches task. Cancellation is allowed after seal, without material changes. Start/retry/failure remain inactive. |
+| pr301_dependency_guard() | pr301_dependency_guard; research_task_step_dependencies; BEFORE INSERT OR UPDATE OR DELETE | DELETE rejects. INSERT/UPDATE require the owning task row written in this transaction (§3.4) and unsealed PLANNING; UPDATE may change endpoints only on an edge inserted in this same command transaction, never task identity. Check OLD and NEW task scope; committed edges are append-only. No sealed/terminal edits. FKs/checks enforce same-task/nonself/unique. |
+| pr301_task_input_guard() | pr301_task_input_guard; research_task_inputs; BEFORE INSERT OR UPDATE OR DELETE | DELETE/UPDATE reject immutable; correction requires a new task. INSERT requires the owning task row written in this transaction (§3.4). INSERT only unsealed CREATED or PLANNING; call pr301_validate_input. |
+| pr301_step_input_guard() | pr301_step_input_guard; research_task_step_inputs; BEFORE INSERT OR UPDATE OR DELETE | DELETE/UPDATE reject. INSERT requires the owning task row written in this transaction (§3.4). INSERT only unsealed PLANNING into same-task PENDING child; call pr301_validate_input. |
+| pr301_event_insert_guard() | pr301_task_event_insert on research_task_events and pr301_step_event_insert on research_task_step_events; BEFORE INSERT | Require the linked receipt inserted in this transaction (§3.4). Check task revision equals task_row_version and actual status equals new_status; step events also match actual child revision/status. CREATED revision is 1 and actor=requested_by. Command attribution/revision is protected by the deferred receipt FK and final guard. |
+| pr301_receipt_insert_guard() | pr301_receipt_insert; research_task_command_receipts; BEFORE INSERT | Require the owning task row written in this transaction (§3.4). Saved project/task/resulting revision equal actual task/project/revision. Only six admitted command names. No receipt on denial or replay. |
+| pr301_receipt_link_guard() | pr301_receipt_event_insert on research_task_receipt_events and pr301_receipt_step_event_insert on research_task_receipt_step_events; BEFORE INSERT | Require the linked receipt and event inserted in this transaction (§3.4). Linked receipt/event must agree on task, actor, command and saved task revision. Compare all four; same-task FKs alone are insufficient. |
 | pr301_history_immutable() | Five BEFORE UPDATE OR DELETE triggers below | Unconditionally reject, including no-op UPDATE. |
 
 The five triggers calling pr301_history_immutable() are:
@@ -482,16 +485,14 @@ reverify stored exact references/hashes with owning-domain validity warnings.
 
 ### 3.4 Deferred final-state and receipt guards
 
-NEW pr301_graph_final_guard() has these constraint triggers, each AFTER INSERT
-OR UPDATE, DEFERRABLE INITIALLY DEFERRED:
+Every successful command inserts (create) or updates the research_tasks row
+EXACTLY ONCE and inserts EXACTLY ONE receipt; denial and replay write neither.
+NEW pr301_graph_final_guard() has ONE constraint trigger: pr301_task_final on
+research_tasks, AFTER INSERT OR UPDATE, DEFERRABLE INITIALLY DEFERRED. Resolve
+the final task from NEW.id. This queues one whole-task final-state check per
+command, regardless of the number of child/history rows. No child table has a
+deferred final-state trigger.
 
-- pr301_task_final on research_tasks.
-- pr301_step_final on research_task_steps.
-- pr301_dependency_final on research_task_step_dependencies.
-- pr301_task_input_final on research_task_inputs.
-- pr301_step_input_final on research_task_step_inputs.
-
-Resolve the final task from NEW.id (task table) or NEW.research_task_id (children).
 Require counts ≤256/1024/256. CREATED has no steps; PLANNING has ≥1 PENDING step
 and no CANCELLED child; CANCELLED has only CANCELLED children with the task's
 finished_at. Sealed inputs revalidate through pr301_validate_input. Require one
@@ -515,25 +516,41 @@ sequence n-1. Creation event has no prior state; cancelled events retain actual 
 reason and shared cancellation timestamp. Saved revision/events are not current
 projection pointers.
 
-NEW pr301_history_complete() runs the same final receipt check for history/link
-inserts, via four constraint triggers AFTER INSERT, DEFERRABLE INITIALLY DEFERRED:
-pr301_task_event_complete on research_task_events,
-pr301_step_event_complete on research_task_step_events,
-pr301_receipt_event_complete on research_task_receipt_events,
-pr301_receipt_step_event_complete on research_task_receipt_step_events.
-No later transaction may add events/links to a committed receipt. Check that the
-linked receipt and task event were inserted by the current transaction using
-PostgreSQL tuple xmin/current transaction identity, not a caller-writable GUC.
-For this one-transaction/no-savepoint protocol the concrete test is
-`row.xmin::text::bigint = mod(pg_current_xact_id()::text::numeric, 4294967296)::bigint`.
-The low 32 bits compare a currently visible tuple's inserting transaction with
-this active transaction; PostgreSQL's visibility/freeze rules prevent an ancient
-unfrozen tuple from surviving a full transaction-ID wrap as the same live xid.
-Apply the same check to OLD.xmin for the candidate-construction UPDATE exception
-in the step/dependency guards. No caller setting, stored transaction-ID column
-or success marker participates. Final-state checks run before
-commit and see the whole command. This supplements immutable UPDATE/DELETE
-triggers so a saved replay result cannot grow through later INSERTs.
+No pr301_history_complete() function or per-row deferred history/link
+completeness triggers are created. The existing §3.2 immediate guards instead
+perform cheap indexed owning-row lookups before permitting each write:
+
+| Guard coverage | Required same-transaction write |
+| --- | --- |
+| Steps and dependencies, BEFORE INSERT OR UPDATE | Owning research_tasks row has `xmin = pg_current_xact_id()::xid`. |
+| Task and step inputs, BEFORE INSERT | Owning research_tasks row has `xmin = pg_current_xact_id()::xid`; UPDATE remains unconditionally immutable. |
+| Receipts, BEFORE INSERT | Owning research_tasks row has `xmin = pg_current_xact_id()::xid`. |
+| Task and step events, BEFORE INSERT | Linked receipt, resolved by the concrete task/actor/command/revision tuple, has `xmin = pg_current_xact_id()::xid`. |
+| Both receipt/event link tables, BEFORE INSERT | Linked receipt and event have `xmin = pg_current_xact_id()::xid`; the receipt's linked task event must also have been inserted in this transaction. |
+
+A missing owning row or failed transaction-identity check rejects with
+pr301_immutable. History/link UPDATE and DELETE remain unconditionally rejected
+by pr301_history_immutable(); child UPDATE retains every §3.2 restriction. These
+immediate guards do not count rows, scan history or revalidate sealed inputs.
+The receipt must precede events, and events must precede links, as in §4's flush
+order. No later transaction may add events/links to a committed receipt.
+
+Use PostgreSQL tuple xmin/current transaction identity, not a caller-writable
+GUC. For this one-transaction/no-savepoint protocol the concrete test is
+`xmin = pg_current_xact_id()::xid`, following migration 0057's established pattern.
+The xid cast handles transaction-ID epochs. Apply the same test to OLD.xmin for
+the candidate-construction UPDATE exception in the step/dependency guards. No
+caller setting, stored transaction-ID column or success marker participates.
+
+This is complete because any permitted child change forces a task-row write in
+the same transaction, which queues the single task final-state check. Every
+history/link insert requires a receipt inserted in this transaction, queuing the
+single receipt-completeness check; the receipt in turn requires the task-row
+write. The final guards therefore see the whole command before commit, and saved
+replay results cannot grow through later INSERTs. Only pr301_task_final and
+pr301_receipt_complete_commit perform these final/complete checks, once each per
+command. The per-edge reachability and per-step ancestor-walk triggers in §3.1
+remain unchanged, with O(V+E) work per changed row by design.
 
 ## 4. First SHARE, advisory keys and transaction recipes
 
@@ -821,7 +838,7 @@ DDL/receipt assertions must exercise this pack without widening runtime scope.
 | --- | --- |
 | tests/unit/phase3/test_research_task_graph.py | Full admitted transition matrix; terminal rejection; all declared types; parent forest; self/duplicate/cross-task/cycle rejection; diamonds/disconnected DAGs; ordinal != dependency; failed/skipped predecessor not readiness; graph limits. |
 | tests/unit/phase3/test_research_task_contracts.py | Closed DTOs/NFC/UUID/enums; requested autonomy != authority; immutable intent/seal; fixed request-hash vectors and order independence; duplicate rejection; empty progress; disabled execution. |
-| tests/integration/phase3/test_pr3_01_schema.py | PostgreSQL 18 clean/upgrade/sole head; same-task parent/current-step/dependency composite FKs; all six task/step inputs; frozen/hash/scope guards; no cascade; ordinary normal-role graph DML accepted when valid; self/duplicate/cross-task edges rejected; deferred cycles and parent cycles rejected at commit; 1,024-edge plan checked at commit within a recorded time bound; a cycle closed by the last edge of a batch is rejected; a cycle formed across an early flush and a later edit is rejected; seal/terminal/event/receipt tamper denied; index inventory. |
+| tests/integration/phase3/test_pr3_01_schema.py | PostgreSQL 18 clean/upgrade/sole head; same-task parent/current-step/dependency composite FKs; all six task/step inputs; frozen/hash/scope guards; no cascade; ordinary normal-role graph DML accepted when valid; self/duplicate/cross-task edges rejected; child insert without a same-transaction task-row revision rejected immediately; history/link insert without a same-transaction receipt rejected immediately; exactly one task-row write and one receipt per successful command queue one task final check and one receipt-completeness check; deferred cycles and parent cycles rejected at commit; 256-node/1,024-edge plan commits within a recorded time bound; a cycle closed by the last edge of a batch is rejected; a cycle formed across an early flush and a later edit is rejected; seal/terminal/event/receipt tamper denied; index inventory. |
 | tests/integration/phase3/test_pr3_01_application.py | Task/plan/add/edge/seal/cancel/query persisted atomically; failures leave zero protected effects; no scientific table/hash mutation; project/source-link isolation; attributable Human and eligible Agent use one boundary; denied Agent has no fabricated history. |
 | tests/integration/phase3/test_pr3_01_concurrency.py | Two-session opposite-edge SQLAlchemy commands under project/task locks cannot both commit; deferred SQL trigger rejects a cyclic batch; plan versus seal; add versus cancel; same expected version yields one winner; normal-role SQL under the same graph lock protocol; valid direct DML and constraint/immutability violations; membership/link revoke versus write; first SHARE before all other SQL; lock-free repeatable-read queries concurrent with writers; actual lock-wait expiry with DB timestamps; timeout/retry exhaustion sanitized. |
 | tests/integration/phase3/test_pr3_01_replay.py | Same command converges; changed hash conflicts; committed response lost then receipt replay; current read entitlement required; no re-execution on stale expected version; whole-transaction rollback; uncertain commit lookup. |
@@ -840,7 +857,10 @@ UPDATE/DELETE, and later INSERT attempts changing committed receipt results.
 Current-step FK is tested as schema structure/same-task constraint even though
 this slice's CHECK correctly prohibits any non-NULL current_step_id.
 
-Record actual maximum-plan commit timing and environment in future evidence; no
+Record the maximum-plan commit time, asserted time bound and environment in
+future evidence, including deferred-check time forced by SET CONSTRAINTS ALL
+IMMEDIATE; verify one task final-state and one receipt-completeness firing for
+the 256-node/1,024-edge command. Per-row cycle checks remain expected. No
 unmeasured claim of bounded performance. Record exact counts, skips, failures and
 blocked setup. Positive Agent integration depends on accepted identity enrollment;
 denial is not evidence of positive Agent provenance. No planning test proves
@@ -875,6 +895,7 @@ Existing identifiers were checked with focused rg against these repository files
 | literature_sources, literature_source_project_links, literature_source_id, project_id | migrations/versions/0020_literature_source_identity.py |
 | source_versions, literature_source_id, frozen_at, content_hash, hash_scheme | migrations/versions/0022_source_version_and_merge_lineage.py |
 | publications, manuscript_versions, publication_id, project_id, frozen_at, content_hash, hash_scheme | migrations/versions/0035_pr2_12_publication_draft.py; 0048_b04_manuscript_freeze.py; src/researchbase/persistence/publication_repository.py |
+| xmin/current transaction xid comparison | migrations/versions/0057_xid_wraparound_guards.py:28,44 |
 | 0075_m1_reconsideration | migrations/versions/0075_m1_reconsideration.py |
 | SqlAlchemyUnitOfWork, begin_formal_read, connection timeout configuration | src/researchbase/persistence/uow.py |
 | canonical_json_bytes, sha256_canonical_json, sha256-cjson-v1 | src/researchbase/foundation/canonical_json.py; src/researchbase/foundation/hashing.py |
@@ -906,7 +927,7 @@ Static checks observed during authoring (no test suites):
 | .venv/bin/ruff check . | Exit 0; All checks passed! |
 | .venv/bin/ruff format --check . | Exit 0; 798 files already formatted. |
 | .venv/bin/pyright | Exit 0; 0 errors, 0 warnings, 0 informations. |
-| rg counts over this document | 10 CREATE TABLE statements, 34 explicit CREATE INDEX/CREATE UNIQUE INDEX statements, 3 computed hash outputs. Backing PK/UNIQUE indexes are additional as declared in §2. |
+| rg counts over this document | 10 CREATE TABLE statements, 34 explicit CREATE INDEX/CREATE UNIQUE INDEX statements, 14 proposed functions, 19 proposed triggers (15 immediate, four deferred), 3 computed hash outputs. Backing PK/UNIQUE indexes are additional as declared in §2. |
 
 The corresponding `uv run --no-sync` static-check attempts each exited 2 before
 running a checker because the default uv cache was not writable in this sandbox.
