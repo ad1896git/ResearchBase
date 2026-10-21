@@ -1,12 +1,13 @@
 # PR3-00 Agent Runtime Bootstrap Contract — DRAFT
 
-> **Revision 2026-10-20:** Rebased entry on Phase 2 director GO and head 0075; corrected Application/UoW references, first-SHARE writes, snapshot reads and forward-only migrations; retained empty bootstrap and owner TDG-3 gates. This aligns the parked draft with actual exit evidence; implementation remains unauthorized.
+> **Revision 2026-10-20:** Rebased entry on Phase 2 director GO and head 0075; corrected Application/UoW references, first-SHARE writes, snapshot reads and forward-only migrations; retained empty bootstrap and owner TDG-3 gates. This aligns the parked draft with actual exit evidence; implementation remains unauthorized. Director review: cited the committed Phase 2 acceptance record and final verification counts.
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
 
 **Scope:** documentation only. This proposal is neither a Phase 3 GO, an ADR,
 a frozen execution pack nor authorization to add code, migrations or dependencies.
-Phase 2 director GO is recorded on 2026-10-20 with explicit deferrals. Separate
+Phase 2 director GO is recorded in the [Phase 2 acceptance record](../phase2/phase2_acceptance_2026-10-20.md)
+(2026-10-20) with explicit deferrals. Separate
 owner authorization is required after contract approval and TDG-3; Phase 3
 implementation remains unauthorized.
 
@@ -23,8 +24,10 @@ implementation guide. The guide describes future authorized work, not work
 performed by this documentation task. Tests in §6 are future acceptance obligations.
 
 The [Phase 2 exit report](../phase2/phase2_exit_report.md) records validate_exit
-PASS (16 PASS + 3 DEFERRED); director GO was recorded on 2026-10-20 following the
-[independent review](../phase2/phase2_exit_review_2026-10-20.md) and R1–R3 corrections.
+PASS (16 PASS + 3 DEFERRED); director GO is recorded in the
+[Phase 2 acceptance record](../phase2/phase2_acceptance_2026-10-20.md) on 2026-10-20 after the independent review
+and R1–R3 corrections. Its final baseline is `286cd9a`: **12,524 passed,
+66 skipped, 0 failed** (historical evidence, not checks rerun for this draft).
 B20 screening and B23 novelty review/revision first slices are delivered, alongside
 prepared-package freeze, manuscript revision and reconsideration. The
 [roadmap carry-over inventory](PHASE3_Roadmap_DRAFT.md#phase-2-completion-backlog)

@@ -1,6 +1,6 @@
 # Phase 3 roadmap
 
-> **Revision 2026-10-20:** Replaced the pre-exit backlog with accepted Phase 2 results, three owner-accepted gaps, B20/B23 exclusions and R4–R7 consequences; marked future schema/runtime work and retained owner TDG-3 decisions. This aligns the parked draft with actual exit evidence; implementation remains unauthorized.
+> **Revision 2026-10-20:** Replaced the pre-exit backlog with accepted Phase 2 results, three owner-accepted gaps, B20/B23 exclusions and R4–R7 consequences; marked future schema/runtime work and retained owner TDG-3 decisions. This aligns the parked draft with actual exit evidence; implementation remains unauthorized. Director review: cited the committed Phase 2 acceptance record and final verification counts. Made policy-column staging an explicit three-option owner choice.
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
 
@@ -42,7 +42,8 @@ runtimes merely to follow their workflow ideas.
 alternate, data/model permissions, budgets, autonomy, schema allocation, and
 acceptance thresholds. Recommended answers appear in section 4.
 
-This remains a planning proposal. Phase 2 director GO on 2026-10-20 does not
+This remains a planning proposal. Phase 2 director GO in the [Phase 2 acceptance record](../phase2/phase2_acceptance_2026-10-20.md)
+on 2026-10-20 does not
 authorize Phase 3 implementation.
 
 ## 1. Entry conditions and actual Phase 2 exit
@@ -61,12 +62,13 @@ send and remains deferred. Retrieval uses `LiteratureSearchExecution`.
 
 The [Phase 2 exit report](../phase2/phase2_exit_report.md) records validate_exit
 PASS: **16 PASS + 3 DEFERRED across 19 literal criteria**. The director's
-[2026-10-20 review](../phase2/phase2_exit_review_2026-10-20.md) records integration
-results of **12,523 passed, 66 skipped, 0 failed**, pyright 0 errors, ruff and
-`git diff --check` clean, and one migration head. These are historical evidence,
-not checks rerun for this proposal. R1–R3 corrections are reflected in the current
-exit report and dependency inventory; read the review's conditional verdict
-together with the subsequent director GO supplied for this task.
+[Phase 2 acceptance record](../phase2/phase2_acceptance_2026-10-20.md) records Phase 2 GO after the
+[2026-10-20 review](../phase2/phase2_exit_review_2026-10-20.md) and R1–R3 corrections.
+The final evidence at **`286cd9a`: 12,524 passed, 66 skipped, 0 failed** includes
+pyright 0 errors, ruff and `git diff --check` clean, and one migration head.
+These are historical evidence, not checks rerun for this proposal. The acceptance
+record is the GO authority; current exit report and dependency inventory retain
+the corrections and accepted deferrals.
 
 The inspected branch head is `0075_m1_reconsideration`, defined in
 [migration 0075](../../migrations/versions/0075_m1_reconsideration.py).
@@ -244,7 +246,7 @@ These are recommendations for approval, not selections already made.
 
 | Decision | Recommended conservative answer |
 |---|---|
-| Phase entry and carry-overs | Phase 2 director GO is recorded; retain the three DEFERRED dispositions and B20/B23 exclusions. Phase 3 GO and TDG-3 remain owner actions. |
+| Phase entry and carry-overs | Phase 2 director GO is recorded in the [Phase 2 acceptance record](../phase2/phase2_acceptance_2026-10-20.md); retain the three DEFERRED dispositions and B20/B23 exclusions. Phase 3 GO and TDG-3 remain owner actions. |
 | Deployment and compute | Start with DEV_LOCAL, isolated CPU-only jobs and a dedicated worker; no cloud/HPC credentials or GPU scheduling until separately reviewed. |
 | Sandbox | Use a constrained container backend on a dedicated execution host/VM; deny host home/socket mounts, privileged mode, network and secrets by default; enforce CPU/memory/disk/process/time limits. Choose Docker versus Apptainer in TDG-3 after host and license/security review. |
 | Runtime framework | Own a small native state machine and native EvoScientist-like strategy; defer LangGraph/DeepAgents/DeerFlow/EvoScientist service dependencies. Persist recoverable ResearchBase task state regardless of framework. |
@@ -254,6 +256,7 @@ These are recommendations for approval, not selections already made.
 | Autonomy and formal gates | Default A1/A2; human ExperimentSpec/Claim freeze and formal release. Test A3 in bounded approved tasks; automatic spec freeze requires explicit A3 authority policy. No A4, self-approval or external venue send. |
 | Budget values | Start pilots at 30 minutes/task, 50 agent steps, 50 model calls, 20 search calls, 3 code iterations, 5 Runs, 10 nodes, depth 3, 1 parallel branch, 0 GPU hours and a USD 5 equivalent token-cost cap. These proposed caps require owner/provider feasibility approval; no unlimited or agent-raised limit. |
 | Termination and extensions | Hard-stop on the first exhausted bound; stop after 2 repeated failures or 2 no-improvement iterations. Human may explicitly approve a new budget; retain original usage and termination history. Cancel/reconcile active jobs on stop and demonstrate bounded overshoot. |
+| Policy-column staging — explicit owner choice | **(a) Recommended:** omit `budget_policy_id`, `termination_policy_id` and `checkpoint_policy_id` in PR3-01 and add enforced bindings in PR3-04; keeps the planning slice small but requires an ADR because 06 §4 lists these fields as mandatory. **(b)** Move the three policy tables into PR3-01; enables concrete required FKs immediately but expands scope and changes the PR3-04 allocation. **(c)** Add nullable columns now; preserves field names but leaves incomplete bindings and needs reviewed nullability/staging plus execution guards until PR3-04 enforces them. Owner must select and freeze the contract before implementation; planning rows cannot execute without exact enforced bindings. |
 | Schema and promotion allocation | Accept only registry/pattern-based increments listed above, including immutable AgentPromotionRecord in the same transaction as canonical create/revise. Require typed promoted target FKs and availability separate from AgentVersion. No new HarnessFingerprint/Skill/memory scientific entity. |
 | Skill/tool intake and versioning | Use the existing bounded Skill registry; approve each executable revision, license, scripts and capabilities, then pin it. Keep reference-only libraries marked as references. Block unreviewed install and same-execution harness weakening. |
 | Evaluation and release thresholds | Require zero direct-write, self-approval, closure, isolation, history-deletion and hard-budget violations; all required deterministic safety/golden tests pass. Set quality/cost/recovery targets on fixed fixtures before PR3-20; do not invent a paper-quality success threshold after seeing results. |

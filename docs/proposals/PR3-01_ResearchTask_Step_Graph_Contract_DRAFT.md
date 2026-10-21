@@ -1,13 +1,14 @@
 # PR3-01 ResearchTask / Step Graph Contract — DRAFT
 
-> **Revision 2026-10-20:** Rebased on delivered Phase 2 and head 0075; corrected first-SHARE writes and lock-free snapshot reads, forward-only migrations and AGENT-binding limits; identified proposed schema and required per-table rationale. This aligns the parked draft with actual exit evidence; implementation remains unauthorized.
+> **Revision 2026-10-20:** Rebased on delivered Phase 2 and head 0075; corrected first-SHARE writes and lock-free snapshot reads, forward-only migrations and AGENT-binding limits; identified proposed schema and required per-table rationale. This aligns the parked draft with actual exit evidence; implementation remains unauthorized. Director review: cited the committed Phase 2 acceptance record and final verification counts. Corrected per-family hash columns, batched cycle checks, input-layout options, SHARE rationale and the source-link table name; made policy staging an explicit owner choice.
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
 
 **Scope:** documentation proposal only. No code, migration, runtime dependency,
 worker, provider or production policy is authorized. Proposed decisions require
 owner approval, consistency review and a separately authorized execution pack.
-Phase 2 director GO is recorded; TDG-3 and explicit Phase 3 GO remain required.
+Phase 2 director GO is recorded in the [Phase 2 acceptance record](../phase2/phase2_acceptance_2026-10-20.md);
+TDG-3 and explicit Phase 3 GO remain required.
 
 ## Start here
 
@@ -29,8 +30,10 @@ instructions describe future work. [PR3-00](PR3-00_Agent_Runtime_Bootstrap_Contr
 is a prerequisite, and contains the common authority/entry summary.
 
 The [Phase 2 exit report](../phase2/phase2_exit_report.md) records validate_exit
-PASS (16 PASS + 3 DEFERRED); director GO was recorded on 2026-10-20 following the
-[independent review](../phase2/phase2_exit_review_2026-10-20.md) and R1–R3 corrections.
+PASS (16 PASS + 3 DEFERRED); director GO is recorded in the
+[Phase 2 acceptance record](../phase2/phase2_acceptance_2026-10-20.md) on 2026-10-20 after the independent review
+and R1–R3 corrections. Its final baseline is `286cd9a`: **12,524 passed,
+66 skipped, 0 failed** (historical evidence, not checks rerun for this draft).
 B20 screening and B23 novelty review/revision first slices are delivered, alongside
 prepared-package freeze, manuscript revision and reconsideration. The
 [roadmap carry-over inventory](PHASE3_Roadmap_DRAFT.md#phase-2-completion-backlog)
@@ -91,7 +94,7 @@ manager, venue send, full authority engine or Phase 4 functionality in PR3-01.
 
 **Proposed staging deviation requiring owner/architecture disposition:** 06 §4
 shows mandatory `budget_policy_id`, `termination_policy_id` and
-`checkpoint_policy_id`, before their PR3-04 schemas. PR3-01 omits these columns
+`checkpoint_policy_id`, before their PR3-04 schemas. The recommended owner option (a) in §9 omits these columns
 entirely while only CREATED/PLANNING/CANCELLED tasks can be persisted. It creates
 no unresolved policy UUID, dummy policy or weak FK. PR3-04 adds concrete policy
 bindings and constraints in its own migration after a reviewed field contract;
@@ -102,8 +105,10 @@ authorized Application command. No silent default/autonomy/budget backfill.
 
 The final accepted layout must enforce non-null exact required policy bindings
 for every executable task. Do not implement this staged omission without a
-recorded Architecture Question disposition/ADR before any implementation; it changes a specified mandatory-field contract. An alternative requiring policy tables now returns for
-scope correction; implementers cannot move PR3-04 into PR3-01 by convenience.
+recorded ADR before any implementation; 06 §4 lists these fields as mandatory.
+Section 9 also presents moving the three policy tables into PR3-01 or adding
+nullable columns now. Those alternatives require explicit owner scope/contract
+approval; implementers cannot select or expand the allocation by convenience.
 
 ## 3. Invariants and proposed defaults
 
@@ -112,7 +117,7 @@ scope correction; implementers cannot move PR3-04 into PR3-01 by convenience.
 2. Every task/step/edge/input/event/receipt has a concrete task/project/actor
    relationship. Cross-task parent/dependency/current-step refs fail. Cross-project
    inputs deny by default; global SourceVersion access requires an existing
-   same-project LiteratureSourceProjectLink and current entitlement.
+   same-project row in `literature_source_project_links` and current entitlement.
 3. Task/step input bindings use six concrete relation families from 06 §4:
    ResearchQuestionVersion, HypothesisVersion, ClaimVersion, SourceVersion,
    ArtifactVersion and ManuscriptVersion. No polymorphic JSON semantic core.
@@ -236,13 +241,17 @@ entities/assessments/snapshots/events cannot represent workflow identity, graph
 constraints and replay without changing their owning semantics. Every table
 below needs explicit owner/architecture admission before migration; pattern reuse
 does not itself authorize DDL. No generic JSON graph or reference table is admitted.
+The two input layouts below are mutually exclusive owner options; all twelve
+per-family rows belong to the alternative layout.
 
 | Proposed new table | Material / reason existing rows are insufficient |
 | --- | --- |
 | `research_tasks` | Project/actor FKs, intent/strategy/requested autonomy, status/times, row_version/seal/current-step; scientific entities have no workflow identity or planning lifecycle. |
 | `research_task_steps` | Task FK, same-task parent, ordinal/type/status/role/capability/times/revision; a Run cannot stand for an unexecuted workflow operation. |
 | `research_task_step_dependencies` | Same-task endpoint FKs, unique non-self edge, reverse index, cycle guards; parent links/ordinals cannot represent DAG precedence. |
-| `research_task_input_questions` | Concrete research_question_versions FK plus exact saved hash; no existing task→question binding exists. |
+| `research_task_inputs` (recommended layout) | Task FK and six nullable concrete version FKs with exactly-one CHECK, per-family uniqueness and hash/scope guards; no existing task input relation owns these bindings. |
+| `research_task_step_inputs` (recommended layout) | Same-task step FK with the same six concrete version FKs/guards; task-wide bindings cannot express step-specific inputs. |
+| `research_task_input_questions` (alternative layout) | Concrete research_question_versions FK plus exact saved hash; no existing task→question binding exists. |
 | `research_task_input_hypotheses` | Concrete hypothesis_versions FK plus exact saved hash; no existing task→hypothesis binding exists. |
 | `research_task_input_claims` | Concrete claim_versions FK plus exact saved hash; no existing task→claim binding exists. |
 | `research_task_input_sources` | Concrete source_versions FK plus exact saved hash/project-link access; no existing task→source binding exists. |
@@ -260,13 +269,54 @@ does not itself authorize DDL. No generic JSON graph or reference table is admit
 | `research_task_receipt_events` | Concrete receipt/task-event FKs with same-task enforcement; a receipt must retain exact saved task event IDs without a JSON ID array. |
 | `research_task_receipt_step_events` | Concrete receipt/step-event FKs with same-task enforcement; task-event links cannot represent cancellation's exact child-event results. |
 
-All twelve input tables use owner/version uniqueness, `content_hash` / `hash_scheme`
-where the owning version contract supplies them, concrete RESTRICT FKs and frozen/
-project guards. No invented default hash for an unhashable object. Events use no
-fictional prior state on creation. Receipts are replay records, not scientific
-truth or an outbox. SQL enforces immutable events/receipts and sealed inputs.
-The DDL sketch below shows only the artifact task-input example; the other eleven
-names above are mandatory explicit pack allocations, not pre-existing tables.
+**Input layout is an explicit owner choice (§9).** Recommend two typed tables,
+`research_task_inputs` and `research_task_step_inputs`, each with six nullable
+concrete FKs (`research_question_version_id`, `hypothesis_version_id`,
+`claim_version_id`, `source_version_id`, `artifact_version_id`,
+`manuscript_version_id`) and `CHECK (num_nonnulls(research_question_version_id,
+hypothesis_version_id, claim_version_id, source_version_id, artifact_version_id,
+manuscript_version_id) = 1)`. Each has one partial unique index per family on
+(owner, concrete version ID) WHERE that FK IS NOT NULL; owner is task ID or
+(task ID, step ID), respectively. Step inputs also have the composite same-task FK.
+Use `content_hash NOT NULL` and nullable `hash_scheme`, with a CHECK requiring
+`hash_scheme = 'sha256-cjson-v1' AND hash_scheme IS NOT NULL` for source/manuscript
+rows and `hash_scheme IS NULL` for the other four families. A NULL here means no
+owning scheme column, never an invented scheme or an unhashable input.
+
+The twelve per-family input tables listed above are the alternative layout, not
+an additional allocation alongside the two tables. They separate family guards but
+increase the DDL/trigger/test surface from about 2 tables to 12; the two-table
+layout puts per-family guards into CASE logic. Recommend separate tables only
+when a concrete per-family guard needs them. Both retain typed FKs, owner/version
+uniqueness, RESTRICT deletes and frozen/project guards, with no
+`target_type + target_id` soft reference. Freeze exactly one layout in the pack.
+The artifact DDL example in §10 illustrates the twelve-table alternative only.
+
+Saved hash columns are copied from the exact owning row as follows, identically
+for task and step inputs in either layout; never synthesize an owning column:
+
+| Family / owning version table | Copied hash columns | Per-family alternative task / step tables |
+| --- | --- | --- |
+| ResearchQuestion / `research_question_versions` | `content_hash` only; no `hash_scheme` column | `research_task_input_questions` / `research_task_step_input_questions` |
+| Hypothesis / `hypothesis_versions` | `content_hash` only; no `hash_scheme` column | `research_task_input_hypotheses` / `research_task_step_input_hypotheses` |
+| Claim / `claim_versions` | `content_hash` only; no `hash_scheme` column | `research_task_input_claims` / `research_task_step_input_claims` |
+| Artifact / `artifact_versions` | `content_hash` only; no `hash_scheme` column | `research_task_input_artifacts` / `research_task_step_input_artifacts` |
+| Source / `source_versions` | `content_hash`, `hash_scheme` (exactly `sha256-cjson-v1`) | `research_task_input_sources` / `research_task_step_input_sources` |
+| Manuscript / `manuscript_versions` | `content_hash`, `hash_scheme` (exactly `sha256-cjson-v1`) | `research_task_input_manuscripts` / `research_task_step_input_manuscripts` |
+
+Verified with focused grep (`rg`) of the four complete mapped class blocks in
+[models.py](../../src/researchbase/persistence/models.py) and their creating
+migrations [0003](../../migrations/versions/0003_research_question_hypothesis.py),
+[0006](../../migrations/versions/0006_artifact_version.py) and
+[0014](../../migrations/versions/0014_claim_evidence.py). Source/manuscript tables
+are defined by migration DDL rather than mapped classes in that file: grep of
+[0022](../../migrations/versions/0022_source_version_and_merge_lineage.py) and
+[0035](../../migrations/versions/0035_pr2_12_publication_draft.py) confirms both
+columns and the scheme CHECK. Frozen admission requires non-null saved hashes;
+reverify under each owning contract, without relabeling Phase 1 hashes as Phase 2
+canonical JSON. Events use no fictional prior state on creation. Receipts are
+replay records, not scientific truth or an outbox. SQL enforces immutable
+events/receipts and sealed inputs.
 
 Step `output_refs` from 06 §5 are empty in this planning slice; no scientific
 output-ingestion command or placeholder locator is admitted. Later execution/
@@ -330,17 +380,38 @@ subject to the approved pack. Connection setup must restore pooled defaults.
    before effects. All failures roll back the entire UoW.
 
 Existing tables in the proposed first SHARE inventory, verified in migrations/
-persistence, are:
-`actor_subject_bindings`, `actors`, `artifact_versions`, `artifacts`,
-`claim_versions`, `claims`, `hypothesis_versions`, `hypotheses`,
-`literature_source_project_links`, `literature_sources`, `manuscript_versions`,
-`project_memberships`, `project_role_assignments`, `projects`, `publications`,
-`research_question_versions`, `research_questions`, `source_versions`.
-All names and required parent/child writer interference must be frozen in the pack;
-this is not a claim that an execution/promotion closure uses only these tables.
-Current validity is a read warning, not a scientific execution gate in this slice.
-Do not SHARE-lock the task tables being mutated and then introduce cross-session
-lock upgrades. Existing input/authority writers retain their accepted protocols.
+persistence, are sorted below. Each protects a planning admission fact until commit:
+
+| Table | Why a task mutation must block its writers |
+| --- | --- |
+| `actor_subject_bindings` | Keep the authenticated subject→actor binding stable through attribution/authorization. |
+| `actors` | Keep actor identity/type stable for requester attribution and caller checks. |
+| `artifact_versions` | Keep the exact artifact input hash/frozen state and parent FK stable. |
+| `artifacts` | Keep artifact input project ownership stable. |
+| `claim_versions` | Keep the exact claim input hash/frozen state and parent FK stable. |
+| `claims` | Keep claim input project ownership stable. |
+| `hypothesis_versions` | Keep the exact hypothesis input hash/frozen state and parent FK stable. |
+| `hypotheses` | Keep hypothesis input project ownership stable. |
+| `literature_source_project_links` | Keep the required project access link for global source inputs stable (real table name, migration 0020). |
+| `literature_sources` | Keep the source identity referenced by a SourceVersion/project link stable. |
+| `manuscript_versions` | Keep the exact manuscript input hash/frozen state and publication FK stable. |
+| `project_memberships` | Prevent membership revocation/changes racing post-lock authorization. |
+| `project_role_assignments` | Prevent role revocation/changes racing post-lock authorization. |
+| `projects` | Keep project scope/archive state stable for new planning writes. |
+| `publications` | Keep manuscript input project ownership stable through manuscript_versions.publication_id → publications.project_id; this is a scope check, not a publication lifecycle gate. |
+| `research_question_versions` | Keep the exact question input hash/frozen state and parent FK stable. |
+| `research_questions` | Keep question input project ownership stable. |
+| `source_versions` | Keep the exact source input hash/scheme/frozen state and source FK stable. |
+
+No table is retained solely for a later execution, promotion or publication gate;
+all listed tables support this planning slice. Do not add placements, publications'
+review/approval children or other scientific closure tables: current validity is a
+read warning here. Freeze required parent/child writer interference in the pack.
+SHARE locks are table-wide: **all writers of these tables wait**, including writers
+for unrelated projects/versions. PR3-23 measures that contention cost before any
+separately scoped narrowing. Do not SHARE-lock task tables being mutated and then
+introduce cross-session lock upgrades. Existing input/authority writers retain
+their accepted protocols.
 
 Application graph validation uses Kahn's algorithm on the entire task DAG
 (O(V+E), including isolated nodes); visited count != node count rejects
@@ -354,7 +425,20 @@ The new adapter uses ordinary SQLAlchemy DML behind the repository port. SQL
 backstops include composite same-task FKs, no-self-edge CHECK, duplicate-edge PK,
 seal/terminal/history UPDATE/DELETE guards and deferred reachability constraints.
 Use `UNION` in recursive reachability to terminate cycles; reject any node reachable
-from itself in dependency or parent graphs. Existing `pr215_complete_decision` /
+from itself in dependency or parent graphs. Perform the full dependency and parent
+closure checks **once per task per transaction**, not once per inserted edge:
+a deferred row trigger skips tasks already successfully checked in transaction-local
+state keyed by task ID. The first deferred event sees the final graph and checks
+both closures; the remaining queued events skip. Every later graph DML must
+invalidate that task's checked marker, so an explicit early constraint flush cannot
+hide subsequent edits (the next flush/commit rechecks). Transaction-local markers
+roll back with savepoints/abort and cannot be supplied by callers; no canonical
+cache table is introduced. Reject task-ID reassignment. In the ordinary single
+final flush, up to 1,024 edge events cause one full check, avoiding roughly
+O(E * V^2) repeated closure work on a 256-node plan. The project/task advisory
+locks above remain held through check and commit: a concurrent writer waits,
+then checks the committed graph plus its own edits. Deduplication alone provides
+no concurrent-writer safety. Existing `pr215_complete_decision` /
 `pr215_complete_basis()` in [0042](../../migrations/versions/0042_pr2_15_minimal_decision.py)
 illustrate deferred constraint triggers, not current full writer ordering.
 Normal-role SQL constraint tests and two-session tests must participate in the
@@ -461,14 +545,14 @@ and unknown external outcomes are deferred; no tool is dispatched by PR3-01.
 | Decision | Proposed default / freeze requirement |
 | --- | --- |
 | Planning before execution | Admit graph commands; execution disabled until accepted 02/03/04/19 contracts. Owner approves this narrowed slice explicitly. |
-| Mandatory policy staging | Omit nonexistent policy columns now; add concrete enforced bindings in PR3-04; Architecture Question/ADR disposition required before coding. |
+| Mandatory policy staging — explicit owner choice | **(a) Recommended:** omit the three policy columns in PR3-01 and add enforced bindings in PR3-04; keeps planning scope small but needs an ADR because 06 §4 lists them as mandatory. **(b)** Move the three policy tables into PR3-01; supplies concrete required FKs now but expands this PR and reallocates PR3-04 scope. **(c)** Nullable columns now; preserves field names but permits incomplete bindings and requires reviewed staging/nullability plus guards until enforcement. All choices leave planning rows execution-ineligible without exact enforced bindings; checkpoint policy representation still needs agreement. |
 | Plan history | Seal graph before later start; no sealed amendment/row deletion/retry here. Later dynamic planning needs append-only extension contract. |
-| Inputs | Six exact frozen relation families; global source needs project link; no draft/current shortcut. |
+| Inputs — explicit owner choice | **Recommended:** two typed tables (task/step), each with six nullable concrete FKs, `CHECK num_nonnulls(...) = 1` and one partial unique index per family (§5); reduces DDL/trigger/test surface from ~12 tables to 2, with per-family guards in CASE logic. **Alternative:** twelve per-family tables as listed in §5, when a concrete per-family guard needs separation; simpler local guards cost more DDL/triggers/tests. Both satisfy typed FKs, no `target_type + target_id`; six exact frozen families, global-source project link, no draft/current shortcut. |
 | Authority | Existing authenticated OWNER/RESEARCHER for writes, any effective project role entitled to these reads (OWNER/RESEARCHER/REVIEWER/APPROVER/VIEWER); positive AGENT admission awaits PR3-02 identity disposition (AQ-S3-08); no binding fabrication. Confirm policy with owner. |
 | Autonomy / strategy | Store requested level/exact identifier only; no routing or activation; A0 default. |
 | New fields/patterns | plan_sealed_at, child row_version, workflow event and operational receipt relations need bounded field/schema review, no new top-level canonical concept. |
 | Error strategy | Current generic codes now; resolve TASK_INVALID_STATE compatibility before freeze. |
-| Cycle guard | Application Kahn / three-color DFS under project/task exclusion; ordinary SQLAlchemy writes and deferred SQL recursive reachability constraint triggers (§6). |
+| Cycle guard | Application Kahn / three-color DFS under project/task exclusion; ordinary SQLAlchemy writes and once-per-task-per-transaction deferred SQL closure checks with marker invalidation (§6). |
 | Locking / limits | One-project advisory exclusion, fixed SHARE inventory and three-attempt retry; graph limits 256/1024/256; verify writer matrix at the future accepted baseline. |
 
 All unresolved dispositions block implementation, not drafting. No requirement is
@@ -529,15 +613,23 @@ CREATE TABLE research_task_step_dependencies (
 );
 CREATE INDEX task_dependency_reverse ON research_task_step_dependencies
   (research_task_id, dependent_id, predecessor_id);
+-- Twelve-table alternative only; §5 recommends the two-table layout.
 CREATE TABLE research_task_input_artifacts (
   research_task_id uuid NOT NULL REFERENCES research_tasks(id) ON DELETE RESTRICT,
   artifact_version_id uuid NOT NULL REFERENCES artifact_versions(id) ON DELETE RESTRICT,
-  content_hash text NOT NULL, hash_scheme text NOT NULL,
+  content_hash text NOT NULL, -- artifact_versions has no hash_scheme column
   PRIMARY KEY (research_task_id, artifact_version_id)
 );
--- Ordinary validation trigger, modeled on migration 0042's deferred guards.
+-- Illustrative deferred validation; helper/state DDL must be frozen in the pack.
+-- BEFORE every edge/step graph DML: invalidate the affected task's transaction-local
+-- checked marker; reject task-ID reassignment. State must roll back with savepoints.
+-- pr301_task_already_checked / pr301_mark_task_checked below are proposed helpers,
+-- not existing functions or caller-set flags; normal callers cannot forge state.
 CREATE FUNCTION pr301_dependency_acyclic() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  IF pr301_task_already_checked(NEW.research_task_id) THEN
+    RETURN NULL;
+  END IF;
   IF EXISTS (
     WITH RECURSIVE reach(predecessor_id, dependent_id) AS (
       SELECT predecessor_id, dependent_id
@@ -553,22 +645,29 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'task dependency cycle' USING ERRCODE = '23514';
   END IF;
+  -- Also validate the parent forest for this task before marking either graph checked.
+  PERFORM pr301_check_parent_forest(NEW.research_task_id);
+  PERFORM pr301_mark_task_checked(NEW.research_task_id);
   RETURN NULL;
 END $$;
 CREATE CONSTRAINT TRIGGER pr301_dependency_acyclic_commit
   AFTER INSERT OR UPDATE ON research_task_step_dependencies
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
   EXECUTE FUNCTION pr301_dependency_acyclic();
--- Add an analogous deferred step INSERT/UPDATE trigger over (id,parent_step_id)
--- reachability scoped by research_task_id, rejecting self-reachable ancestors.
+-- Step INSERT/UPDATE queues the same combined check (including parent reachability).
+-- Both triggers share task markers, invalidated by any subsequent graph change.
+-- Acquire §6 project/task advisory locks before DML; hold through flush/commit.
+-- Never acquire them inside these triggers after implicit row locks.
 -- BEFORE triggers reject sealed material changes and forbidden history mutation.
--- Repeat for the other eleven explicitly named typed input tables in §5.
+-- If the twelve-table alternative is selected, repeat for the other eleven §5 tables;
+-- copy hash_scheme only for source/manuscript inputs, never for artifact inputs.
 -- Step-input tables add composite (research_task_id,step_id) FK.
 -- Event/receipt and the two receipt/event relation tables follow §5; no canonical IDs in JSON.
 ```
 
 The sketch intentionally omits full enum/text/hash checks, receipt/event DDL,
-the full parent-cycle trigger and seal/terminal immutability triggers in §6,
+the full parent-cycle check, transaction-local marker/invalidation helpers and
+seal/terminal immutability triggers in §6,
 plus frozen/scope input guards. They are mandatory implementation work, not
 optional omissions.
 The pack must enumerate every table/constraint/function/trigger/index before
@@ -614,7 +713,8 @@ subdirectories are new. No separate API module is proposed.
    `decision_repository.py` as the model; keep §6 lock order and Application
    Kahn / three-color DFS checks. Add same-task FKs, self-edge CHECK, duplicate-edge
    PK, seal/history immutability triggers and deferred recursive cycle constraint
-   triggers following migration 0042. Add
+   triggers with once-per-task deduplication/invalidation as specified in §6
+   (0042 illustrates deferred timing only). Add
    `migrations/versions/<approved_revision>_research_task_graph.py` with guards
    and forward-only downgrade refusal. Preserve earlier revision inventory.
 5. Extend the existing `src/researchbase/api/routes.py`; wire services in
@@ -638,7 +738,7 @@ subdirectories are new. No separate API module is proposed.
 | --- | --- |
 | `tests/unit/phase3/test_research_task_graph.py` | Full admitted transition matrix; terminal rejection; all declared types; parent forest; self/duplicate/cross-task/cycle rejection; diamonds/disconnected DAGs; ordinal != dependency; failed/skipped predecessor not readiness; graph limits. |
 | `tests/unit/phase3/test_research_task_contracts.py` | Closed DTOs/NFC/UUID/enums; requested autonomy != authority; immutable intent/seal; fixed request-hash vectors and order independence; duplicate rejection; empty progress; disabled execution. |
-| `tests/integration/phase3/test_pr3_01_schema.py` | PostgreSQL 18 clean/upgrade/sole head; same-task parent/current-step/dependency composite FKs; all six task/step inputs; frozen/hash/scope guards; no cascade; ordinary normal-role graph DML accepted when valid; self/duplicate/cross-task edges rejected; deferred cycles and parent cycles rejected at commit; seal/terminal/event/receipt tamper denied; index inventory. |
+| `tests/integration/phase3/test_pr3_01_schema.py` | PostgreSQL 18 clean/upgrade/sole head; same-task parent/current-step/dependency composite FKs; all six task/step inputs; frozen/hash/scope guards; no cascade; ordinary normal-role graph DML accepted when valid; self/duplicate/cross-task edges rejected; deferred cycles and parent cycles rejected at commit; once-per-task combined check on a 1,024-edge batch and recheck after early flush plus later edit; seal/terminal/event/receipt tamper denied; index inventory. |
 | `tests/integration/phase3/test_pr3_01_application.py` | Task/plan/add/edge/seal/cancel/query persisted atomically; failures leave zero protected effects; no scientific table/hash mutation; project/source-link isolation; attributable Human and eligible Agent use one boundary; denied Agent has no fabricated history. |
 | `tests/integration/phase3/test_pr3_01_concurrency.py` | Two-session opposite-edge SQLAlchemy commands under project/task locks cannot both commit; deferred SQL trigger rejects a cyclic batch; plan versus seal; add versus cancel; same expected version yields one winner; normal-role SQL under the same graph lock protocol; valid direct DML and constraint/immutability violations; membership/link revoke versus write; first SHARE before all other SQL; lock-free repeatable-read queries concurrent with writers; actual lock-wait expiry with DB timestamps; timeout/retry exhaustion sanitized. |
 | `tests/integration/phase3/test_pr3_01_replay.py` | Same command converges; changed hash conflicts; committed response lost then receipt replay; current read entitlement required; no re-execution on stale expected version; whole-transaction rollback; uncertain commit lookup. |
