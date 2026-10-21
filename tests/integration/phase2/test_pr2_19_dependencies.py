@@ -80,7 +80,9 @@ SUBCASES = (
         True,
         None,
     ),
-    ("G7", "strong-novelty", "novelty", False, "Exact screening/comparison basis absent"),
+    # B20 owning Application evidence: test_b20_screening_basis.py::test_zero_hit_negative
+    # and ::test_exact_captured_verified_comparisons (including allowed comparisons).
+    ("G7", "strong-novelty", "novelty", True, None),
     ("G7", "authorship-lock-free-read", "authorship", True, None),
     ("F1", "current-lineage-and-audit", "source_version/manuscript_validity", True, None),
     (
@@ -114,7 +116,8 @@ SUBCASES = (
         "scheduled-role-expiry",
         "identity",
         False,
-        "BLOCKED: no owning Application command to schedule role expiry (AQ-S2-02)",
+        "R1 Application scheduling exists; F9 lacks an Application-scheduled "
+        "role-expiry consumption/wait test (AQ-S2-02)",
     ),
 )
 BLOCKED_ROWS = {

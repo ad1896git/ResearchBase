@@ -292,4 +292,5 @@ open finding; no security clearance or provider activation is implied. Repositor
 selection remains with the owner; fixture text is TEST ONLY and unrestricted, and no
 restricted query/fulltext or public cache export is added here. Restore checks reconnect to
 disposable databases; test failures must be resolved under the owning predicate, without
-repairing immutable history. STOP before Phase 3.
+repairing immutable history. Phase 2 is accepted; Phase 3 proceeds one explicitly
+authorized PR at a time.

@@ -1,4 +1,13 @@
-"""PR2-19 operational evidence only; never a scientific persistence owner."""
+"""PR2-19 operational evidence only; never a scientific persistence owner.
+
+G7 strong-novelty owner evidence lives in test_b20_screening_basis.py:
+test_zero_hit_negative and test_exact_captured_verified_comparisons use
+NoveltyService.record_novelty_assessment with B20's typed ScreeningBasis.
+F9 scheduled-role-expiry remains unavailable: R1's Application scheduling is
+tested in test_pr2_00_ownership.py, but the F9 release role-expiry wait test
+uses SQL scheduling, and READY/package wait tests cover credentials/grants.
+Neither proves consumption across Application-scheduled role expiry.
+"""
 
 from __future__ import annotations
 
