@@ -38,6 +38,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # pull_request runs check out a detached merge commit; branch-bound scripts
+      # (scripts/researchbase_host_pr2_04_verification.sh --dry-run) need a named branch.
+      - name: Name the checked-out commit for branch-bound scripts
+        if: github.event_name == 'pull_request'
+        run: git switch -c "ci-pr-${{ github.run_id }}"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
