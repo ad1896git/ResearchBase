@@ -1,5 +1,7 @@
 # PR3-01 ResearchTask / Step Graph Contract — DRAFT
 
+> **Revision 2026-10-20 (director fix):** cycle backstop changed to per-edge targeted reachability + per-step ancestor walk; the earlier "already checked" marker was forgeable by normal SQL callers.
+>
 > **Revision 2026-10-20:** Rebased on delivered Phase 2 and head 0075; corrected first-SHARE writes and lock-free snapshot reads, forward-only migrations and AGENT-binding limits; identified proposed schema and required per-table rationale. This aligns the parked draft with actual exit evidence; implementation remains unauthorized. Director review: cited the committed Phase 2 acceptance record and final verification counts. Corrected per-family hash columns, batched cycle checks, input-layout options, SHARE rationale and the source-link table name; made policy staging an explicit owner choice.
 
 **Status: DRAFT — awaiting owner approval; not authorized for implementation**
@@ -425,20 +427,20 @@ The new adapter uses ordinary SQLAlchemy DML behind the repository port. SQL
 backstops include composite same-task FKs, no-self-edge CHECK, duplicate-edge PK,
 seal/terminal/history UPDATE/DELETE guards and deferred reachability constraints.
 Use `UNION` in recursive reachability to terminate cycles; reject any node reachable
-from itself in dependency or parent graphs. Perform the full dependency and parent
-closure checks **once per task per transaction**, not once per inserted edge:
-a deferred row trigger skips tasks already successfully checked in transaction-local
-state keyed by task ID. The first deferred event sees the final graph and checks
-both closures; the remaining queued events skip. Every later graph DML must
-invalidate that task's checked marker, so an explicit early constraint flush cannot
-hide subsequent edits (the next flush/commit rechecks). Transaction-local markers
-roll back with savepoints/abort and cannot be supplied by callers; no canonical
-cache table is introduced. Reject task-ID reassignment. In the ordinary single
-final flush, up to 1,024 edge events cause one full check, avoiding roughly
-O(E * V^2) repeated closure work on a 256-node plan. The project/task advisory
-locks above remain held through check and commit: a concurrent writer waits,
-then checks the committed graph plus its own edits. Deduplication alone provides
-no concurrent-writer safety. Existing `pr215_complete_decision` /
+from itself in dependency or parent graphs. Check each new or changed edge with a
+**targeted reachability search**, not a whole-task closure: for edge
+`predecessor → dependent`, search forward from `dependent` along this task's edges
+and reject if `predecessor` is reachable. Any cycle in the final graph contains at
+least one inserted/updated edge, so the deferred per-edge checks at commit, which
+all see the final graph, reject every cycle. Each search is O(V+E) for this task
+(at most 256 + 1,024 rows), so a 1,024-edge plan costs about 1.3 million row
+visits at commit instead of O(E * V^2). For the parent forest, each new/changed
+step walks its ancestors up to the root (at most 256 hops) and rejects if it
+reaches itself. No transaction-local "already checked" marker is used: custom
+settings and session state are writable by normal SQL callers, so a marker could
+be forged to skip the check. The project/task advisory locks above remain held
+through check and commit: a concurrent writer waits, then its own deferred
+checks run against the committed graph plus its edits. Existing `pr215_complete_decision` /
 `pr215_complete_basis()` in [0042](../../migrations/versions/0042_pr2_15_minimal_decision.py)
 illustrate deferred constraint triggers, not current full writer ordering.
 Normal-role SQL constraint tests and two-session tests must participate in the
@@ -552,7 +554,7 @@ and unknown external outcomes are deferred; no tool is dispatched by PR3-01.
 | Autonomy / strategy | Store requested level/exact identifier only; no routing or activation; A0 default. |
 | New fields/patterns | plan_sealed_at, child row_version, workflow event and operational receipt relations need bounded field/schema review, no new top-level canonical concept. |
 | Error strategy | Current generic codes now; resolve TASK_INVALID_STATE compatibility before freeze. |
-| Cycle guard | Application Kahn / three-color DFS under project/task exclusion; ordinary SQLAlchemy writes and once-per-task-per-transaction deferred SQL closure checks with marker invalidation (§6). |
+| Cycle guard | Application Kahn / three-color DFS under project/task exclusion; ordinary SQLAlchemy writes and deferred per-edge targeted reachability plus per-step ancestor-walk SQL checks, no forgeable marker (§6). |
 | Locking / limits | One-project advisory exclusion, fixed SHARE inventory and three-attempt retry; graph limits 256/1024/256; verify writer matrix at the future accepted baseline. |
 
 All unresolved dispositions block implementation, not drafting. No requirement is
@@ -620,42 +622,31 @@ CREATE TABLE research_task_input_artifacts (
   content_hash text NOT NULL, -- artifact_versions has no hash_scheme column
   PRIMARY KEY (research_task_id, artifact_version_id)
 );
--- Illustrative deferred validation; helper/state DDL must be frozen in the pack.
--- BEFORE every edge/step graph DML: invalidate the affected task's transaction-local
--- checked marker; reject task-ID reassignment. State must roll back with savepoints.
--- pr301_task_already_checked / pr301_mark_task_checked below are proposed helpers,
--- not existing functions or caller-set flags; normal callers cannot forge state.
+-- Illustrative deferred validation: one targeted search per new/changed edge.
 CREATE FUNCTION pr301_dependency_acyclic() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF pr301_task_already_checked(NEW.research_task_id) THEN
-    RETURN NULL;
-  END IF;
   IF EXISTS (
-    WITH RECURSIVE reach(predecessor_id, dependent_id) AS (
-      SELECT predecessor_id, dependent_id
-      FROM research_task_step_dependencies
-      WHERE research_task_id = NEW.research_task_id
+    WITH RECURSIVE reach(step_id) AS (
+      SELECT NEW.dependent_id
       UNION
-      SELECT r.predecessor_id, d.dependent_id
+      SELECT d.dependent_id
       FROM reach r JOIN research_task_step_dependencies d
-        ON d.predecessor_id = r.dependent_id
-      WHERE d.research_task_id = NEW.research_task_id
+        ON d.research_task_id = NEW.research_task_id
+       AND d.predecessor_id = r.step_id
     )
-    SELECT 1 FROM reach WHERE predecessor_id = dependent_id
+    SELECT 1 FROM reach WHERE step_id = NEW.predecessor_id
   ) THEN
     RAISE EXCEPTION 'task dependency cycle' USING ERRCODE = '23514';
   END IF;
-  -- Also validate the parent forest for this task before marking either graph checked.
-  PERFORM pr301_check_parent_forest(NEW.research_task_id);
-  PERFORM pr301_mark_task_checked(NEW.research_task_id);
   RETURN NULL;
 END $$;
 CREATE CONSTRAINT TRIGGER pr301_dependency_acyclic_commit
   AFTER INSERT OR UPDATE ON research_task_step_dependencies
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
   EXECUTE FUNCTION pr301_dependency_acyclic();
--- Step INSERT/UPDATE queues the same combined check (including parent reachability).
--- Both triggers share task markers, invalidated by any subsequent graph change.
+-- Step INSERT/UPDATE of parent_step_id queues an analogous deferred ancestor walk
+-- (same task, at most 256 hops) that rejects a step reaching itself.
+-- No session/transaction marker: such state is forgeable by normal SQL callers.
 -- Acquire §6 project/task advisory locks before DML; hold through flush/commit.
 -- Never acquire them inside these triggers after implicit row locks.
 -- BEFORE triggers reject sealed material changes and forbidden history mutation.
@@ -666,7 +657,7 @@ CREATE CONSTRAINT TRIGGER pr301_dependency_acyclic_commit
 ```
 
 The sketch intentionally omits full enum/text/hash checks, receipt/event DDL,
-the full parent-cycle check, transaction-local marker/invalidation helpers and
+the parent ancestor-walk trigger and
 seal/terminal immutability triggers in §6,
 plus frozen/scope input guards. They are mandatory implementation work, not
 optional omissions.
@@ -713,7 +704,7 @@ subdirectories are new. No separate API module is proposed.
    `decision_repository.py` as the model; keep §6 lock order and Application
    Kahn / three-color DFS checks. Add same-task FKs, self-edge CHECK, duplicate-edge
    PK, seal/history immutability triggers and deferred recursive cycle constraint
-   triggers with once-per-task deduplication/invalidation as specified in §6
+   triggers with per-edge targeted reachability and per-step ancestor walks as specified in §6
    (0042 illustrates deferred timing only). Add
    `migrations/versions/<approved_revision>_research_task_graph.py` with guards
    and forward-only downgrade refusal. Preserve earlier revision inventory.
@@ -738,7 +729,7 @@ subdirectories are new. No separate API module is proposed.
 | --- | --- |
 | `tests/unit/phase3/test_research_task_graph.py` | Full admitted transition matrix; terminal rejection; all declared types; parent forest; self/duplicate/cross-task/cycle rejection; diamonds/disconnected DAGs; ordinal != dependency; failed/skipped predecessor not readiness; graph limits. |
 | `tests/unit/phase3/test_research_task_contracts.py` | Closed DTOs/NFC/UUID/enums; requested autonomy != authority; immutable intent/seal; fixed request-hash vectors and order independence; duplicate rejection; empty progress; disabled execution. |
-| `tests/integration/phase3/test_pr3_01_schema.py` | PostgreSQL 18 clean/upgrade/sole head; same-task parent/current-step/dependency composite FKs; all six task/step inputs; frozen/hash/scope guards; no cascade; ordinary normal-role graph DML accepted when valid; self/duplicate/cross-task edges rejected; deferred cycles and parent cycles rejected at commit; once-per-task combined check on a 1,024-edge batch and recheck after early flush plus later edit; seal/terminal/event/receipt tamper denied; index inventory. |
+| `tests/integration/phase3/test_pr3_01_schema.py` | PostgreSQL 18 clean/upgrade/sole head; same-task parent/current-step/dependency composite FKs; all six task/step inputs; frozen/hash/scope guards; no cascade; ordinary normal-role graph DML accepted when valid; self/duplicate/cross-task edges rejected; deferred cycles and parent cycles rejected at commit; 1,024-edge plan checked at commit within a recorded time bound; a cycle closed by the last edge of a batch is rejected; a cycle formed across an early flush and a later edit is rejected; seal/terminal/event/receipt tamper denied; index inventory. |
 | `tests/integration/phase3/test_pr3_01_application.py` | Task/plan/add/edge/seal/cancel/query persisted atomically; failures leave zero protected effects; no scientific table/hash mutation; project/source-link isolation; attributable Human and eligible Agent use one boundary; denied Agent has no fabricated history. |
 | `tests/integration/phase3/test_pr3_01_concurrency.py` | Two-session opposite-edge SQLAlchemy commands under project/task locks cannot both commit; deferred SQL trigger rejects a cyclic batch; plan versus seal; add versus cancel; same expected version yields one winner; normal-role SQL under the same graph lock protocol; valid direct DML and constraint/immutability violations; membership/link revoke versus write; first SHARE before all other SQL; lock-free repeatable-read queries concurrent with writers; actual lock-wait expiry with DB timestamps; timeout/retry exhaustion sanitized. |
 | `tests/integration/phase3/test_pr3_01_replay.py` | Same command converges; changed hash conflicts; committed response lost then receipt replay; current read entitlement required; no re-execution on stale expected version; whole-transaction rollback; uncertain commit lookup. |
