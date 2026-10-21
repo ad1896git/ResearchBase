@@ -411,7 +411,7 @@ def test_composite_replay_survives_write_role_loss_but_not_read_loss(revision_en
     )
     cmd = RecordConcernReReviewCommand(base[5], saved.id, review.id)
     link = service.record_concern_re_review(actor, cmd)
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(actor, base[5], actor.actor_id, "VIEWER", "Read history", uuid4())
     )

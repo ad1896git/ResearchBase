@@ -9,6 +9,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
 from researchbase.persistence.prepared_submission_repository import B17_SHARE_SQL
@@ -37,7 +38,9 @@ pytestmark = pytest.mark.integration
 
 def config(url):
     cfg = Config("alembic.ini")
-    cfg.set_main_option("sqlalchemy.url", str(url).replace("%", "%%"))
+    cfg.set_main_option(
+        "sqlalchemy.url", make_url(url).render_as_string(hide_password=False).replace("%", "%%")
+    )
     return cfg
 
 

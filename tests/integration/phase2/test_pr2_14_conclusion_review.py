@@ -264,7 +264,7 @@ def test_conclusion_review_role_revocation_and_issue_reference_are_atomic(
           WHERE actor_id=:actor AND project_id=:project AND effective_until IS NULL"""),
             {"actor": reviewer.actor_id, "project": project},
         ).scalar_one()
-    identity, _, _ = identity_service(str(engine.url))
+    identity, _, _ = identity_service(engine.url.render_as_string(hide_password=False))
     identity.close_project_role(
         CloseProjectRole(
             author,

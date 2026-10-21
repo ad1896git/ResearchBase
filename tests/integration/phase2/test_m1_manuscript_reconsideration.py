@@ -336,7 +336,7 @@ def test_exact_replay_after_write_role_loss_and_changed_scope_denials(b05_env, p
             ),
             {"actor": actor.actor_id},
         ).scalar_one()
-    identity, _, _ = _service(str(env[5].url))
+    identity, _, _ = _service(env[5].url.render_as_string(hide_password=False))
     identity.close_project_role(
         CloseProjectRole(env[3], cmd.project_id, role, "Close write role", uuid4())
     )

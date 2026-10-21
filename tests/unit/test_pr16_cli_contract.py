@@ -49,7 +49,9 @@ class FakeServices:
 
 
 def test_root_help_lists_frozen_command_groups() -> None:
-    result = CliRunner().invoke(create_app(FakeServices(FakeApplication())))
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
+        create_app(FakeServices(FakeApplication()))
+    )
 
     assert result.exit_code == 0
     for group in (
@@ -72,7 +74,7 @@ def test_root_help_lists_frozen_command_groups() -> None:
 
 
 def test_literature_merge_proposal_help_lists_frozen_governance_commands() -> None:
-    result = CliRunner().invoke(
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
         create_app(FakeServices(FakeApplication())),
         ["literature", "merge-proposal", "--help"],
     )
@@ -83,7 +85,7 @@ def test_literature_merge_proposal_help_lists_frozen_governance_commands() -> No
 
 
 def test_literature_source_version_cli_commands_are_registered_and_json_capable() -> None:
-    runner = CliRunner()
+    runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
     group = runner.invoke(
         create_app(FakeServices(FakeApplication())), ["literature", "version", "--help"]
     )
@@ -135,7 +137,7 @@ def test_literature_merge_proposal_commands_forward_typed_operations() -> None:
         "literature",
         "merge-proposal",
     ]
-    runner = CliRunner()
+    runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
     for operation, extra in (
         (
             "create",
@@ -226,7 +228,7 @@ def test_project_create_forwards_exact_execution_context_and_json_serializes_res
             row_version=1,
         )
     )
-    result = CliRunner().invoke(
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
         create_app(FakeServices(fake)),
         [
             "--actor-id",
@@ -274,7 +276,7 @@ def test_project_create_forwards_exact_execution_context_and_json_serializes_res
 
 
 def test_project_help_identifies_required_options_and_json_mode() -> None:
-    result = CliRunner().invoke(
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
         create_app(FakeServices(FakeApplication())), ["project", "create", "--help"]
     )
 
@@ -298,7 +300,7 @@ def test_request_id_isolation_across_successive_invocations() -> None:
         )
     )
     app = create_app(FakeServices(fake))
-    runner = CliRunner()
+    runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
 
     first = runner.invoke(
         app,

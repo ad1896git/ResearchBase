@@ -370,7 +370,7 @@ def test_reviewer_role_expiry_and_revocation_deny_review(conclusion_env, phase2_
     from researchbase.application.phase2_identity import CloseProjectRole
     from tests.integration.phase2.test_pr2_00_challenges import _service
 
-    identity, _, _ = _service(str(engine.url))
+    identity, _, _ = _service(engine.url.render_as_string(hide_password=False))
     identity.close_project_role(
         CloseProjectRole(author, project, role, "Test-only role revocation", uuid4())
     )

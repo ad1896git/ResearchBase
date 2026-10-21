@@ -21,7 +21,7 @@ pytestmark = pytest.mark.integration
 
 def config(env):
     c = Config("alembic.ini")
-    c.set_main_option("sqlalchemy.url", str(env[-1][8].url))
+    c.set_main_option("sqlalchemy.url", env[-1][8].url.render_as_string(hide_password=False))
     return c
 
 

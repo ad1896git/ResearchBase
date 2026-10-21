@@ -313,4 +313,4 @@ def test_real_source_cli_restart_and_no_self_approval(phase2_database_url, tmp_p
         "cli_process_restart_readback": "PASS",
         "transcript": transcript,
     }
-    Path("/private/tmp/rb-m3-real-cli.json").write_text(json.dumps(output, indent=2))
+    (tmp_path / "rb-m3-real-cli.json").write_text(json.dumps(output, indent=2))

@@ -376,7 +376,7 @@ def test_replay_current_read_authority_survives_write_role_loss(decision_env):
     _review(decision_env)
     request = _command(decision_env)
     result = service.record_decision(actor, request)
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(
             actor, base[5], actor.actor_id, "VIEWER", "TEST ONLY historical read", uuid4()

@@ -23,7 +23,7 @@ pytestmark = pytest.mark.integration
 def approver_actor(env):
     actor = _actor(env)
     base = env[-1]
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(env[2], base[5], actor.actor_id, "APPROVER", "TEST ONLY B10", uuid4())
     )
@@ -299,7 +299,7 @@ def test_historical_read_and_replay_after_write_role_loss(reconsideration_env):
             ),
             {"actor": actor.actor_id},
         ).scalar_one()
-    identity, _, _ = identity_service(str(env[-1][8].url))
+    identity, _, _ = identity_service(env[-1][8].url.render_as_string(hide_password=False))
     identity.close_project_role(
         CloseProjectRole(env[2], command.project_id, role, "TEST ONLY close writer", uuid4())
     )
@@ -444,7 +444,7 @@ def test_successor_approver_independence(reconsideration_env, kind):
                 {"id": command.fresh_review_ids[0]},
             ).scalar_one()
         approver = env[-1][9].principals[reviewer]
-        identity, _, _ = identity_service(str(env[-1][8].url))
+        identity, _, _ = identity_service(env[-1][8].url.render_as_string(hide_password=False))
         identity.assign_project_role(
             AssignProjectRole(
                 env[2],

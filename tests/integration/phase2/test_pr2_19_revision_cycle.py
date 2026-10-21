@@ -199,7 +199,7 @@ def test_conclusion_cycle_new_target_proceed_request_decision_grant(revision_env
     updated_env = (env[0], env[1], env[2], target, base)
     basis = env[0].record_decision(actor, _command(updated_env))
     requester, approver = _actor(env), _actor(env)
-    identity, _, _ = _service(str(base[8].url))
+    identity, _, _ = _service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(
             actor, base[5], approver.actor_id, "APPROVER", "Independent cycle approver", uuid4()

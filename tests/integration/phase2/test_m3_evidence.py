@@ -425,7 +425,7 @@ def test_pg_credential_expiry_and_non_reviewer_cannot_verify(m3):
     from researchbase.application.phase2_identity import CloseProjectRole
     from tests.integration.phase2.test_pr2_00_challenges import _service
 
-    identity, _, _ = _service(str(engine.url))
+    identity, _, _ = _service(engine.url.render_as_string(hide_password=False))
     with engine.connect() as conn:
         role = conn.execute(
             text(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -93,7 +94,7 @@ def test_overridden_profiles_and_socket_parent(configured):
             with pytest.raises(ValueError):
                 resolve_runner_profile(bad.render_as_string(hide_password=False), local, cas)
         with pytest.raises(ValueError):
-            resolve_runner_profile(url.render_as_string(), local + "-other", cas)
+            resolve_runner_profile(url.render_as_string(hide_password=False), local + "-other", cas)
     assert RunnerServer(object()).parent == host.runner_socket_dir
     assert RunnerServer(object(), parent=Path("/explicit")).parent == Path("/explicit")
 
@@ -107,6 +108,10 @@ def test_overridden_policy_path_still_uses_protected_reader(configured, monkeypa
     assert seen == [configured.trust_root / "hg1-02-m3-retained.json"]
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="HG1-01 runner.main checks macOS before the configured trusted host owner.",
+)
 def test_configured_owner_is_checked_before_composition(configured, monkeypatch):
     import researchbase.runner as runner
 
@@ -164,7 +169,9 @@ def test_overridden_server_facts_and_hba_still_fail_closed(configured, monkeypat
         "create_database_engine",
         lambda _: SimpleNamespace(connect=Connection, dispose=lambda: disposed.append(True)),
     )
-    settings = SimpleNamespace(database_url=db_url(host, host.m3_database).render_as_string())
+    settings = SimpleNamespace(
+        database_url=db_url(host, host.m3_database).render_as_string(hide_password=False)
+    )
     runtime.verify_m3_server(settings)
     for index in range(len(facts)):
         original = facts[index]

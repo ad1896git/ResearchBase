@@ -65,7 +65,7 @@ def test_exact_receipt_replay_is_snapshot_only_after_write_authority_loss(approv
         saved.grant_id == grant.id
         and saved.result.scientific_conclusion_version_id == cmd.result_id
     )
-    identity, _, _ = _service(str(base[8].url))
+    identity, _, _ = _service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(
             approval_env[-1][2],

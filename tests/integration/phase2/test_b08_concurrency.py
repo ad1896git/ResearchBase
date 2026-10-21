@@ -160,7 +160,7 @@ def test_lock_free_repeatable_read_allows_disposition_and_unrelated_insert_commi
     entered, release = Event(), Event()
     state: dict[str, Any] = {"sql": []}
     new_actor = uuid4()
-    writer_engine = create_engine(str(base[8].url))
+    writer_engine = create_engine(base[8].url.render_as_string(hide_password=False))
 
     def capture(conn, cursor, statement, parameters, context, many):
         if get_ident() == state.get("thread"):
@@ -461,7 +461,7 @@ def test_actual_mutable_writers_both_commit_orders(revision_env, mutation, order
     expected_source_current = None
     source_reservations = []
     if mutation == "role":
-        identity, _, _ = identity_service(str(base[8].url))
+        identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
         identity._uow_factory = base[1]
         with base[8].connect() as conn:
             role = conn.execute(

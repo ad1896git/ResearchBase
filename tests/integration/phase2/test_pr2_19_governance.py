@@ -177,7 +177,7 @@ def test_approval_independence_and_authority_matrix(approval_env, case, code):
         if actor is None:
             actor = _actor(env)
         if case != "owner_only":
-            identity, _, _ = _service(str(base[8].url))
+            identity, _, _ = _service(base[8].url.render_as_string(hide_password=False))
             identity.assign_project_role(
                 AssignProjectRole(
                     actor if case == "author" else env[2],
@@ -302,7 +302,7 @@ def test_agent_with_existing_role_and_verified_binding_cannot_approve(approval_e
 
     service, requester, _, request, env = approval_env
     actor = _actor(env)
-    identity, _, _ = _service(str(env[-1][8].url))
+    identity, _, _ = _service(env[-1][8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(
             env[2], request.project_id, actor.actor_id, "APPROVER", "Test HUMAN-only gate", uuid4()

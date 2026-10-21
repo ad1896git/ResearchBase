@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -136,6 +137,10 @@ def test_bound_peer_authenticates_and_rechecks(tmp_path, now: datetime):
         policy.authenticate_subject(999)
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="HG1 signature verification uses the trusted macOS host /opt/homebrew/bin/openssl.",
+)
 def test_independent_c_signed_proof(tmp_path, now: datetime):
     policy, key, audit, operator, _a, b, _c = _fixture(tmp_path, now)
     attestation, path = _attestation(policy, key, audit, operator, b, now)

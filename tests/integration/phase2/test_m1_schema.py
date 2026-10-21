@@ -25,7 +25,9 @@ _FIXTURES = (b04_env, b05_env, conclusion_env, phase2_database_url, decision_env
 
 def config(engine):
     c = Config("alembic.ini")
-    c.set_main_option("sqlalchemy.url", str(engine.url).replace("%", "%%"))
+    c.set_main_option(
+        "sqlalchemy.url", engine.url.render_as_string(hide_password=False).replace("%", "%%")
+    )
     return c
 
 

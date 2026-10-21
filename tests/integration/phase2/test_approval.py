@@ -72,7 +72,7 @@ def approval_env(decision_env):
     requester = _actor(env)
     approver = _actor(env)
     base = env[-1]
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(
             env[2], base[5], approver.actor_id, "APPROVER", "TEST ONLY approval authority", uuid4()
@@ -240,7 +240,7 @@ def test_live_authority_loss_stales_grant_atomically(approval_env):
     service.request_approval(requester, command)
     decision_command = _decide(command)
     result = service.decide_approval(approver, decision_command)
-    identity, _, _ = identity_service(str(env[-1][8].url))
+    identity, _, _ = identity_service(env[-1][8].url.render_as_string(hide_password=False))
     with env[-1][8].connect() as conn:
         role = conn.execute(
             text(
@@ -349,7 +349,7 @@ def test_downgrade_preserves_history(approval_env):
     service, requester, _, request, env = approval_env
     saved = service.request_approval(requester, request)
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", str(env[-1][8].url))
+    config.set_main_option("sqlalchemy.url", env[-1][8].url.render_as_string(hide_password=False))
     with pytest.raises(DBAPIError):
         alembic_command.downgrade(config, "0044_pr2_15_revision_action")
     assert service.get_request(requester, request.project_id, request.id) == saved
@@ -485,7 +485,7 @@ def test_empty_downgrade_upgrade_and_catalog(approval_env):
 
     service, requester, _, request, env = approval_env
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", str(env[-1][8].url))
+    config.set_main_option("sqlalchemy.url", env[-1][8].url.render_as_string(hide_password=False))
     alembic_command.downgrade(config, "0044_pr2_15_revision_action")
     alembic_command.upgrade(config, "head")
     with env[-1][8].connect() as conn:
@@ -581,7 +581,7 @@ def test_normal_sql_cannot_bypass_approval_gate(approval_env, invalid):
             conn.execute(text("ALTER TABLE decision_records ENABLE TRIGGER USER"))
     candidate = requester if invalid in {"owner_only", "same_actor"} else approver
     if invalid == "same_actor":
-        identity, _, _ = identity_service(str(engine.url))
+        identity, _, _ = identity_service(engine.url.render_as_string(hide_password=False))
         identity.assign_project_role(
             AssignProjectRole(
                 env[2],

@@ -67,7 +67,7 @@ def test_catalog_exact_names_types_restrict_and_deferred_guards(revision_env):
 
 def test_populated_b07_upgrade_open_downgrade_and_terminal_refusal(revision_env):
     service, actor, cmd, base, _ = disposition_case(revision_env)
-    config = _config(str(base[8].url))
+    config = _config(base[8].url.render_as_string(hide_password=False))
     with base[8].connect() as conn:
         before = conn.execute(
             text(
@@ -186,7 +186,7 @@ def test_later_backdated_concern_does_not_rewrite_committed_disposition(revision
 
 def test_upgrade_preflight_refuses_corrupt_legacy_root_without_partial_ddl(revision_env):
     service, actor, cmd, base, _ = disposition_case(revision_env)
-    config = _config(str(base[8].url))
+    config = _config(base[8].url.render_as_string(hide_password=False))
     command.downgrade(config, "0052_b07_revision_decisions")
     with base[8].begin() as conn:
         conn.execute(text("ALTER TABLE review_issue_events DISABLE TRIGGER USER"))

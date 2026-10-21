@@ -266,7 +266,7 @@ def test_0031_upgrade_accepts_valid_0030_empty_snapshot_and_formal_read(m3):
     from alembic import command
 
     service, author, _reviewer, project, _source, hypothesis, _document, engine, _ = m3
-    config = _alembic(str(engine.url))
+    config = _alembic(engine.url.render_as_string(hide_password=False))
     command.downgrade(config, "0030_literature_evidence")
     snapshot = service.snapshot(author, project, "HypothesisVersion", hypothesis, [], uuid4())
     command.upgrade(config, "head")
@@ -279,7 +279,7 @@ def test_0031_upgrade_refuses_preexisting_gap(m3):
     from alembic import command
 
     service, author, _reviewer, project, _source, hypothesis, _document, engine, _ = m3
-    config = _alembic(str(engine.url))
+    config = _alembic(engine.url.render_as_string(hide_password=False))
     command.downgrade(config, "0030_literature_evidence")
     evidence = create(m3)
     at = datetime.now(UTC)

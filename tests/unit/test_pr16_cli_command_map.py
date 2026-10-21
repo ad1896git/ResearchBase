@@ -36,7 +36,7 @@ COMMANDS = {
 
 def test_every_frozen_command_is_registered_and_supports_json() -> None:
     app = create_app(Services())
-    runner = CliRunner()
+    runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
     total = 0
     for group, commands in COMMANDS.items():
         group_help = runner.invoke(app, [group, "--help"])
@@ -51,6 +51,8 @@ def test_every_frozen_command_is_registered_and_supports_json() -> None:
 
 
 def test_decision_and_later_phase_commands_are_not_registered() -> None:
-    result = CliRunner().invoke(create_app(Services()))
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
+        create_app(Services())
+    )
     for forbidden in ("decision", "approval", "orchestrate", "phase2", "phase3"):
         assert forbidden not in result.stdout.lower()

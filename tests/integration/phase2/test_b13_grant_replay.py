@@ -168,7 +168,7 @@ def test_write_role_loss_preserves_reader_replay(approval_env):
     owner, actor, cmd, _ = issued(approval_env)
     saved = owner.record_internal_scientific_release(actor, cmd)
     base = approval_env[-1][-1]
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(
             approval_env[-1][2],

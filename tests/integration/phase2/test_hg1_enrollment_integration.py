@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -32,6 +34,10 @@ def _canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="HG1 signature verification uses the trusted macOS host /opt/homebrew/bin/openssl.",
+)
 def test_live_peer_proof_c_signature_provision_and_reviewer_role(
     phase2_database_url: str, tmp_path: Path
 ):
@@ -200,7 +206,8 @@ def test_admin_policy_composes_live_runner_services_on_disposable_db(
     audit.mkdir(parents=True, mode=0o700)
     public = tmp_path / "operator-public.pem"
     public.write_text("test public key is not used until attestation")
-    host_owner = replace(owner, subject_value="502")
+    owner_uid = os.geteuid()
+    host_owner = replace(owner, subject_value=str(owner_uid))
     policy = {
         "version": 1,
         "deployment_id": owner.deployment_id,
@@ -217,13 +224,15 @@ def test_admin_policy_composes_live_runner_services_on_disposable_db(
                 "not_after": None,
             }
             for uid, actor, credential in (
-                (502, owner.actor_id, owner.credential_id),
+                (owner_uid, owner.actor_id, owner.credential_id),
                 (60002, uuid4(), "credential-b"),
                 (60003, uuid4(), "credential-c"),
             )
         ],
     }
     monkeypatch.setenv("RB_HOST_DURABLE_ROOT", str(durable))
+    # Model a configured trusted host on either OS while checking the real process UID.
+    monkeypatch.setenv("RB_HOST_OWNER_UID", str(owner_uid))
     monkeypatch.setattr(hg1_runtime, "read_trusted_config", lambda _path: policy)
     services = SimpleNamespace(
         local_identity=SimpleNamespace(authenticate=lambda: host_owner),
@@ -232,9 +241,17 @@ def test_admin_policy_composes_live_runner_services_on_disposable_db(
     settings = SimpleNamespace(
         database_url=phase2_database_url, artifact_store_root=str(tmp_path / "cas")
     )
+    monkeypatch.setenv("RB_HOST_OWNER_UID", str(owner_uid + 1))
+    with pytest.raises(ValueError, match="trusted owner/operator boundary changed"):
+        build_hg1_coordinator("final", services, settings)
+    monkeypatch.setenv("RB_HOST_OWNER_UID", str(owner_uid))
+    policy["operator_uid"] = owner_uid
+    with pytest.raises(ValueError, match="trusted owner/operator boundary changed"):
+        build_hg1_coordinator("final", services, settings)
+    policy["operator_uid"] = 60003
     coordinator = build_hg1_coordinator("final", services, settings)
     assert coordinator is not None
-    assert coordinator.allowed_uid(502)
+    assert coordinator.allowed_uid(owner_uid)
     assert coordinator.allowed_uid(60002)
     assert coordinator.allowed_uid(60003)
     engine.dispose()

@@ -627,7 +627,7 @@ def test_replay_after_write_loss_and_read_loss(revision_env):
     base = env[-1]
     actor = env[2]
     saved = service.record_revision_action(actor, cmd)
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(actor, base[5], actor.actor_id, "VIEWER", "TEST ONLY read", uuid4())
     )
@@ -664,7 +664,7 @@ def test_attributable_researcher_uses_same_boundary(revision_env):
     service, cmd, env, _, _ = revision_env
     base = env[-1]
     actor = env[2]
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(
             actor, base[5], actor.actor_id, "RESEARCHER", "TEST ONLY researcher", uuid4()
@@ -972,7 +972,7 @@ def test_role_writer_after_recording_waits_then_revokes(revision_env):
     service, cmd, env, _, _ = revision_env
     base = env[-1]
     actor = env[2]
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     with base[8].connect() as conn:
         role = conn.execute(
             text("""SELECT id FROM project_role_assignments WHERE actor_id=:actor
@@ -1186,7 +1186,7 @@ def test_foreign_predecessor_state_is_nondisclosing(revision_env, tmp_path):
 
     service, cmd, env, _, _ = revision_env
     base = env[-1]
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     project = identity.create_project_with_owner(
         base[3], name="TEST ONLY foreign", request_id=uuid4()
     )

@@ -74,7 +74,7 @@ def _cardinality_trigger_count(connection) -> int:
 
 def test_downgrade_observes_insert_committed_while_waiting_for_table_lock(m3):
     service, author, _reviewer, project, _source, _hypothesis, _document, engine, _ = m3
-    config = _alembic(str(engine.url))
+    config = _alembic(engine.url.render_as_string(hide_password=False))
     writer = engine.connect()
     try:
         snapshot_id = _insert_empty_snapshot(writer, m3)
@@ -118,7 +118,7 @@ def test_downgrade_holds_both_table_locks_until_commit(m3):
     from sqlalchemy.exc import DBAPIError
 
     service, _author, _reviewer, _project, _source, _hypothesis, _document, engine, _ = m3
-    config = _alembic(str(engine.url))
+    config = _alembic(engine.url.render_as_string(hide_password=False))
     lock_acquired = Event()
     release_downgrade = Event()
     real_execute = op.execute
@@ -184,7 +184,7 @@ def test_populated_downgrade_rolls_back_and_keeps_cardinality_guard(m3):
     from sqlalchemy.exc import DBAPIError
 
     service, author, _reviewer, project, _source, hypothesis, _document, engine, _ = m3
-    config = _alembic(str(engine.url))
+    config = _alembic(engine.url.render_as_string(hide_password=False))
     snapshot = service.snapshot(author, project, "HypothesisVersion", hypothesis, [], uuid4())
     with pytest.raises(DBAPIError, match="preserves nonempty scientific history") as failure:
         command.downgrade(config, "0030_literature_evidence")
@@ -244,7 +244,7 @@ def test_populated_downgrade_rolls_back_and_keeps_cardinality_guard(m3):
 
 def test_empty_downgrade_removes_only_0031_guards(m3):
     _service, _author, _reviewer, _project, _source, _hypothesis, _document, engine, _ = m3
-    config = _alembic(str(engine.url))
+    config = _alembic(engine.url.render_as_string(hide_password=False))
     trigger_query = text("""SELECT tgrelid::regclass::text,tgname FROM pg_trigger
         WHERE tgrelid IN ('literature_support_snapshots'::regclass,
                           'literature_evidence_relations'::regclass)""")

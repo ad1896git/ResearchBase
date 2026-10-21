@@ -62,7 +62,7 @@ def test_replay_after_writer_role_loss_requires_current_read_entitlement(revisio
 
     service, actor, cmd, base, _ = disposition_case(revision_env)
     saved = service.record_issue_disposition(actor, cmd)
-    identity, _, _ = identity_service(str(base[8].url))
+    identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
     identity.assign_project_role(
         AssignProjectRole(actor, base[5], actor.actor_id, "VIEWER", "History", uuid4())
     )

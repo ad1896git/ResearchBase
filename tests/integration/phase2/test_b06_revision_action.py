@@ -304,7 +304,10 @@ def test_source_lineage_optional_fulltext_and_retraction_history(revision_env, t
     clone = _normal_sql_clone(base, request.id)
     assert service.read_revision_action(base[3], base[5], clone).content_hash == saved.content_hash
     with pytest.raises(DBAPIError) as caught:
-        alembic_command.downgrade(_config(str(base[8].url)), "0050_b01_resolution_admission")
+        alembic_command.downgrade(
+            _config(base[8].url.render_as_string(hide_password=False)),
+            "0050_b01_resolution_admission",
+        )
     assert getattr(caught.value.orig, "sqlstate", None) == "P17F2"
     assert service.read_revision_action(base[3], base[5], request.id) == saved
 
@@ -570,7 +573,7 @@ def test_source_correction_complete_closure_and_relevance(revision_env, mutation
 def test_forward_migration_retains_shipped_history_and_preserved_catalog(revision_env):
     service, cmd, env, _, _ = revision_env
     base = env[-1]
-    config = _config(str(base[8].url))
+    config = _config(base[8].url.render_as_string(hide_password=False))
     # Start from 0044-compatible retained history, downgrade guard only, then preflight upgrade.
     saved = service.record_revision_action(base[3], cmd)
     with base[8].connect() as conn:
@@ -715,8 +718,10 @@ def test_global_artifact_metric_inputs_keep_phase1_owner_semantics(revision_env)
         retained = conn.execute(
             text("SELECT id,content_hash FROM revision_actions ORDER BY id")
         ).all()
-    alembic_command.downgrade(_config(str(base[8].url)), "0051_b06_revision_action")
-    alembic_command.upgrade(_config(str(base[8].url)), "head")
+    alembic_command.downgrade(
+        _config(base[8].url.render_as_string(hide_password=False)), "0051_b06_revision_action"
+    )
+    alembic_command.upgrade(_config(base[8].url.render_as_string(hide_password=False)), "head")
     with base[8].connect() as conn:
         assert (
             conn.execute(text("SELECT id,content_hash FROM revision_actions ORDER BY id")).all()

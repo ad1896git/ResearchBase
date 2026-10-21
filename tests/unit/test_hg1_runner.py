@@ -6,6 +6,8 @@ import json
 import os
 import socket
 import struct
+import sys
+import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,6 +65,10 @@ def frame(payload: bytes) -> bytes:
     return struct.pack("!I", len(payload)) + payload
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="HG1-01 native peer credentials require the trusted macOS host (getpeereid).",
+)
 def test_kernel_peer_credentials_are_real_for_socketpair():
     left, right = socket.socketpair()
     try:
@@ -176,6 +182,10 @@ def test_v2_dispatch_uses_server_coordinator_and_never_owner_fallback():
         dispatch(payload, os.geteuid(), services(), os.geteuid())
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="HG1-01 native peer credentials require the trusted macOS host (getpeereid).",
+)
 def test_v2_denial_keeps_versioned_fail_closed_response():
     class Coordinator:
         def allowed_uid(self, uid):
@@ -221,6 +231,10 @@ def test_authenticated_owner_uses_existing_application_services():
     assert bundle.application.calls == 1
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="HG1-01 native peer credentials require the trusted macOS host (getpeereid).",
+)
 def test_socket_lifecycle_one_request_and_cleanup():
     server = RunnerServer(
         services(), parent=Path("/private/tmp"), max_requests=1, lifetime_seconds=5
@@ -246,7 +260,7 @@ def test_foreign_peer_policy_denies_before_frame_without_using_request_slot(monk
     peers = iter(((os.geteuid() + 1, os.getegid()), (os.geteuid(), os.getegid())))
     monkeypatch.setattr(runner, "peer_credentials", lambda _connection: next(peers))
     server = RunnerServer(
-        services(), parent=Path("/private/tmp"), max_requests=1, lifetime_seconds=5
+        services(), parent=Path(tempfile.gettempdir()).resolve(), max_requests=1, lifetime_seconds=5
     )
     path = server.start()
     thread = threading.Thread(target=server.serve)
@@ -267,6 +281,10 @@ def test_foreign_peer_policy_denies_before_frame_without_using_request_slot(monk
         thread.join(timeout=4)
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="HG1-01 native peer credentials require the trusted macOS host (getpeereid).",
+)
 def test_incomplete_owner_frame_cannot_extend_runner_past_deadline():
     server = RunnerServer(
         services(), parent=Path("/private/tmp"), max_requests=1, lifetime_seconds=1

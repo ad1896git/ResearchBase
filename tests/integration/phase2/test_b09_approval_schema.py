@@ -30,7 +30,7 @@ pytestmark = pytest.mark.integration
 
 def config_for(env):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", str(env[-1][8].url))
+    config.set_main_option("sqlalchemy.url", env[-1][8].url.render_as_string(hide_password=False))
     return config
 
 

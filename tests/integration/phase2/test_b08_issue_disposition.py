@@ -148,7 +148,7 @@ def test_disposer_authority_and_independence(revision_env, disposer):
     if disposer == "independent_owner":
         actor = _actor(revision_env[2])
     elif disposer == "opener_reviewer":
-        identity, _, _ = identity_service(str(base[8].url))
+        identity, _, _ = identity_service(base[8].url.render_as_string(hide_password=False))
         identity.assign_project_role(
             AssignProjectRole(
                 actor, base[5], actor.actor_id, "REVIEWER", "Original reviewer", uuid4()
