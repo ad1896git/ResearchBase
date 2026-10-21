@@ -1,6 +1,6 @@
 # ResearchBase TDG-3 — Phase 3 Technology Decision Gate DRAFT
 
-**Status:** DRAFT
+**Status:** APPROVED by owner 2026-10-20 — all recommended options; recorded in ADR-0021
 **Authority:** AGENTS.md; Final Architecture Correction Addendum A13; System Architecture; Global Registry; Cross-Phase Contracts; Phase 3 specification and Harness Integration Specification.
 **Scope:** Exactly the fourteen owner decisions in Phase 3 roadmap §4. Recommendations only; no implementation, migration, dependency installation, provider activation or Phase 3 GO is authorized.
 

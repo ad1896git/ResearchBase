@@ -2,7 +2,7 @@
 
 > **Revision 2026-10-20:** Rebased entry on Phase 2 director GO and head 0075; corrected Application/UoW references, first-SHARE writes, snapshot reads and forward-only migrations; retained empty bootstrap and owner TDG-3 gates. This aligns the parked draft with actual exit evidence; implementation remains unauthorized. Director review: cited the committed Phase 2 acceptance record and final verification counts.
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-20 (ADR-0021) — authorized for implementation (first Phase 3 PR)**
 
 **Scope:** documentation only. This proposal is neither a Phase 3 GO, an ADR,
 a frozen execution pack nor authorization to add code, migrations or dependencies.

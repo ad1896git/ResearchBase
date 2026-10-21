@@ -2,7 +2,7 @@
 
 > **Revision 2026-10-20:** Replaced the pre-exit backlog with accepted Phase 2 results, three owner-accepted gaps, B20/B23 exclusions and R4–R7 consequences; marked future schema/runtime work and retained owner TDG-3 decisions. This aligns the parked draft with actual exit evidence; implementation remains unauthorized. Director review: cited the committed Phase 2 acceptance record and final verification counts. Made policy-column staging an explicit three-option owner choice.
 
-**Status: DRAFT — awaiting owner approval; not authorized for implementation**
+**Status: APPROVED by owner 2026-10-20 (ADR-0021); planning document, not an implementation authorization**
 
 ## Start here
 
