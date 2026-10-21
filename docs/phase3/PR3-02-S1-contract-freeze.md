@@ -1,9 +1,9 @@
 # PR3-02-S1 contract freeze and execution pack
 
-Status: proposed execution pack, documentation only; two director reviews are
-PENDING. Implementation is authorized only after both reviews pass with no open
-P0/P1, under the owner's conditional approval in ADR-0023. This document does not
-claim either review, AQ-S3-08 closure, implementation acceptance or Phase 3 GO.
+Status: FROZEN execution pack; passed two director reviews 2026-10-21 (identifier
+check: 239 identifiers, 0 mismatches; lock-refinement attribution corrected, ADR-0023
+amendment). Implementation AUTHORIZED by the owner (ADR-0023, S1 only). This document
+does not claim AQ-S3-08 closure, implementation acceptance or Phase 3 GO.
 
 Authority: [approved contract](../proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md),
 **S1 only**, [ADR-0023](../architecture/adr/ADR-0023-pr3-02-agent-identity-versions-executions.md),
