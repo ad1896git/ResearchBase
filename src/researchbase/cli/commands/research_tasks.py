@@ -9,6 +9,7 @@ from typing import Any, cast
 import typer
 
 from researchbase.agent_runtime.application.contracts import parse_command
+from researchbase.agent_runtime.application.safety_contracts import ARGUMENTS, parse_safety_command
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 from ..errors import cli_exit_code
@@ -45,8 +46,14 @@ def _mutation(name):
                 raise ResearchBaseError(
                     ErrorCode.VALIDATION_ERROR, "invalid request JSON"
                 ) from None
-            command = parse_command(name, data)
-            return cast(Any, runtime.services).research_tasks.execute(_principal(runtime), command)
+            safety = name in ARGUMENTS
+            command = parse_safety_command(name, data) if safety else parse_command(name, data)
+            service = (
+                cast(Any, runtime.services).task_safety
+                if safety
+                else cast(Any, runtime.services).research_tasks
+            )
+            return service.execute(_principal(runtime), command)
 
         _run(runtime, json_mode, operation)
 
@@ -64,9 +71,12 @@ def _query(name):
         _run(
             runtime,
             json_mode,
-            lambda: getattr(cast(Any, runtime.services).research_tasks, name)(
-                _principal(runtime), _uuid(project_id, "project-id"), _uuid(task_id, "task-id")
-            ),
+            lambda: getattr(
+                cast(Any, runtime.services).task_safety
+                if name in {"get_task_safety", "get_task_checkpoint_history"}
+                else cast(Any, runtime.services).research_tasks,
+                name,
+            )(_principal(runtime), _uuid(project_id, "project-id"), _uuid(task_id, "task-id")),
         )
 
     return query
@@ -75,6 +85,12 @@ def _query(name):
 def register(app: typer.Typer):
     group = command_group("ResearchTask planning; execution remains disabled.")
     for label, name in (
+        ("bind-policies", "bind_task_policies"),
+        ("reserve-budget", "reserve_task_budget"),
+        ("settle-budget", "settle_task_budget"),
+        ("evaluate-termination", "evaluate_task_termination"),
+        ("request-checkpoint", "request_human_checkpoint"),
+        ("respond-checkpoint", "respond_human_checkpoint"),
         ("create", "create_research_task"),
         ("plan", "create_task_plan"),
         ("add-step", "add_task_step"),
@@ -90,6 +106,8 @@ def register(app: typer.Typer):
     ):
         add_command(group, label, name, _mutation(name))
     for label, name in (
+        ("safety", "get_task_safety"),
+        ("checkpoint-history", "get_task_checkpoint_history"),
         ("show", "get_research_task"),
         ("graph", "get_task_graph"),
         ("progress", "get_task_progress"),

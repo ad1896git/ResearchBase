@@ -67,10 +67,11 @@ class ResearchTaskService:
         if not isinstance(principal, VerifiedPrincipal):
             fail(ErrorCode.AUTHENTICATION_REQUIRED, "trusted verified principal required")
 
-    def _authorize(self, repo, principal, project, *, write=False):
+    def _authorize(self, repo, principal, project, *, write=False, at=None):
         rows = repo.authority(principal, project)
         active = repo.project_active(project)
-        at = repo.at()  # Advancing database time after the final blocking wait.
+        if at is None:
+            at = repo.at()  # Advancing database time after the final blocking wait.
         try:
             live = principal.verified_at <= at and self._credentials.is_valid(principal, at)
         except Exception:

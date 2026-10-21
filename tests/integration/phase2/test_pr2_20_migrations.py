@@ -184,7 +184,7 @@ def test_populated_source_evidence_conclusion_placement_review_decision_head_noo
         "decision_basis_conclusions",
         "decision_basis_reviews",
     )
-    s.upgrade(phase2_database_url, "0077_research_task_graph")
+    s.upgrade(phase2_database_url, "0078_task_safety_policies")
     before = s.manifest(engine, tables)
     catalog = s.catalog(engine)
     s.upgrade(phase2_database_url)

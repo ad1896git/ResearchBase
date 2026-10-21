@@ -15,6 +15,7 @@ from researchbase.adapters.crossref import CrossrefVerifier
 from researchbase.adapters.metadata_journal import MetadataDispatchJournal
 from researchbase.adapters.openalex import OpenAlexSearchCapability
 from researchbase.agent_runtime.application.research_task import ResearchTaskService
+from researchbase.agent_runtime.application.task_safety import TaskSafetyService
 from researchbase.application.commands import ApplicationService
 from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
@@ -96,6 +97,7 @@ class ServiceBundle:
     revision_actions: RevisionActionService | None = None
     strategy_candidates: StrategyCandidatePromotionService | None = None
     research_tasks: ResearchTaskService | None = None
+    task_safety: TaskSafetyService | None = None
 
 
 def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> ServiceBundle:
@@ -180,6 +182,9 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
             credentials,
             store,
             scientific_rag,
+        ),
+        task_safety=TaskSafetyService(
+            research_task_uow_factory(settings.database_url), credentials, store
         ),
         research_tasks=ResearchTaskService(
             research_task_uow_factory(settings.database_url), credentials, store

@@ -99,6 +99,7 @@ from researchbase.persistence.source_version_repository import SqlAlchemySourceV
 from researchbase.persistence.strategy_candidate_promotion_repository import (
     SqlAlchemyStrategyCandidatePromotionRepository,
 )
+from researchbase.persistence.task_safety_repository import SqlAlchemyTaskSafetyRepository
 
 
 def _normalize_database_error(
@@ -505,6 +506,7 @@ class SqlAlchemyUnitOfWork:
     revision_action: SqlAlchemyRevisionActionRepository
     approval: SqlAlchemyApprovalRepository
     decision: SqlAlchemyDecisionRepository
+    task_safety: SqlAlchemyTaskSafetyRepository
     research_tasks: SqlAlchemyResearchTaskRepository
 
     def __init__(
@@ -591,6 +593,7 @@ class SqlAlchemyUnitOfWork:
         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
         self.research_tasks = SqlAlchemyResearchTaskRepository(self._session)
+        self.task_safety = SqlAlchemyTaskSafetyRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)
         self.prepared_submission = SqlAlchemyPreparedSubmissionRepository(self._session)

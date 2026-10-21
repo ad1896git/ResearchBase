@@ -74,7 +74,7 @@ def test_exact_b02_child_and_only_four_approved_relations():
     from alembic.script import ScriptDirectory
 
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0077_research_task_graph"]
+    assert scripts.get_heads() == ["0078_task_safety_policies"]
     assert (
         scripts.get_revision("0073_b02_strategy_admission").down_revision
         == "0072_b03_discussion_hypothesis"

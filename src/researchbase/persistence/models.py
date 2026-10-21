@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import (
     CHAR,
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -21,7 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, DOUBLE_PRECISION, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -1324,6 +1325,34 @@ class ResearchTasksModel(Base):
     __tablename__ = "research_tasks"
     __table_args__ = (
         CheckConstraint(
+            "num_nonnulls(budget_policy_id, termination_policy_id, checkpoint_policy_id) IN (0,3)",
+            name="pr304_policy_bundle",
+        ),  # noqa: E501
+        ForeignKeyConstraint(
+            ["id", "budget_policy_id"],
+            ["execution_budgets.research_task_id", "execution_budgets.id"],
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),  # noqa: E501
+        ForeignKeyConstraint(
+            ["id", "termination_policy_id"],
+            ["termination_policies.research_task_id", "termination_policies.id"],
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),  # noqa: E501
+        ForeignKeyConstraint(
+            ["id", "checkpoint_policy_id"],
+            ["checkpoint_policies.research_task_id", "checkpoint_policies.id"],
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),  # noqa: E501
+        Index("pr304_tasks_checkpoint", "id", "checkpoint_policy_id"),
+        Index("pr304_tasks_termination", "id", "termination_policy_id"),
+        Index("pr304_tasks_budget", "id", "budget_policy_id"),
+        CheckConstraint(
             "task_type IN ( 'LITERATURE_RESEARCH','HYPOTHESIS_GENERATION','EXPERIMENT_DESIGN', 'EXPERIMENT_EXECUTION','ANALYSIS','CLAIM_REVISION','MANUSCRIPT_DRAFTING', 'INTERNAL_REVIEW','END_TO_END_RESEARCH','REPLICATION','OTHER')"  # noqa: E501
         ),
         CheckConstraint(
@@ -1373,6 +1402,12 @@ class ResearchTasksModel(Base):
     plan_sealed_at = mapped_column(DateTime(timezone=True), nullable=True)
     current_step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
     row_version = mapped_column(Integer, nullable=False)
+
+    budget_policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+
+    termination_policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+
+    checkpoint_policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
 
 
 class ResearchTaskStepsModel(Base):
@@ -1712,8 +1747,9 @@ class ResearchTaskCommandReceiptsModel(Base):
     __tablename__ = "research_task_command_receipts"
     __table_args__ = (
         CheckConstraint(
-            "command_name IN ( 'create_research_task','create_task_plan','add_task_step', 'add_task_step_dependency','seal_task_plan','cancel_research_task')"  # noqa: E501
-        ),
+            "command_name IN (\n  'create_research_task','create_task_plan','add_task_step','add_task_step_dependency','seal_task_plan','cancel_research_task',\n  'bind_task_policies','reserve_task_budget','settle_task_budget','evaluate_task_termination','request_human_checkpoint','respond_human_checkpoint')",  # noqa: E501
+            name="pr304_command_names",
+        ),  # noqa: E501
         CheckConstraint("request_hash ~ '^[0-9a-f]{64}$'"),
         CheckConstraint("hash_scheme = 'sha256-cjson-v1'"),
         CheckConstraint("material_version = 1"),
@@ -1750,9 +1786,17 @@ class ResearchTaskCommandReceiptsModel(Base):
 class ResearchTaskEventsModel(Base):
     __tablename__ = "research_task_events"
     __table_args__ = (
+        Index(
+            "pr304_events_receipt_tuple",
+            "research_task_id",
+            "actor_id",
+            "command_id",
+            "task_row_version",
+        ),  # noqa: E501
         CheckConstraint(
-            "event_type IN ( 'CREATED','PLAN_CREATED','STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED','CANCELLED')"  # noqa: E501
-        ),
+            "event_type IN (\n    'CREATED','PLAN_CREATED','STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED','CANCELLED',\n    'POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED')",  # noqa: E501
+            name="pr304_event_names",
+        ),  # noqa: E501
         CheckConstraint("sequence >= 1"),
         CheckConstraint("task_row_version >= 1"),
         UniqueConstraint("research_task_id", "id"),
@@ -1760,12 +1804,21 @@ class ResearchTaskEventsModel(Base):
         UniqueConstraint("research_task_id", "task_row_version"),
         CheckConstraint("(sequence = task_row_version"),
         CheckConstraint(
-            "( (event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED') OR (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = 'PLANNING') OR (event_type IN ('STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED') AND prior_status = 'PLANNING' AND new_status = 'PLANNING') OR (event_type = 'CANCELLED' AND prior_status IN ('CREATED','PLANNING') AND new_status = 'CANCELLED')"  # noqa: E501
-        ),
-        CheckConstraint("(event_type = 'CREATED' OR prior_status IS NOT NULL"),
+            "\n    (event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED') OR\n    (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = 'PLANNING') OR\n    (event_type IN ('STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED') AND prior_status = 'PLANNING' AND new_status = 'PLANNING') OR\n    (event_type = 'CANCELLED' AND prior_status IN ('CREATED','PLANNING') AND new_status = 'CANCELLED') OR\n    (event_type IN ('POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED')\n      AND prior_status IN ('CREATED','PLANNING','CANCELLED') AND new_status = prior_status)",  # noqa: E501
+            name="pr304_event_states",
+        ),  # noqa: E501
         CheckConstraint(
-            "(CASE WHEN event_type = 'CANCELLED' THEN reason IS NOT NULL AND length(btrim(reason)) > 0 AND reason IS NFC NORMALIZED ELSE reason IS NULL END"  # noqa: E501
-        ),
+            "event_type = 'CREATED' OR prior_status IS NOT NULL", name="pr304_event_prior"
+        ),  # noqa: E501
+        CheckConstraint(
+            "\n    CASE WHEN event_type IN ('CANCELLED','POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED')\n    THEN reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED\n    ELSE reason IS NULL END",  # noqa: E501
+            name="pr304_event_reason",
+        ),  # noqa: E501
+        CheckConstraint("NOT stop_success", name="pr304_event_stop_slice"),
+        CheckConstraint(
+            "\n    event_type IN ('BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED') OR\n    NOT (stop_human OR stop_policy OR stop_budget OR stop_repeated_failure OR stop_no_improvement OR stop_success)",  # noqa: E501
+            name="pr304_event_stop_kind",
+        ),  # noqa: E501
         ForeignKeyConstraint(
             ["research_task_id", "actor_id", "command_id", "task_row_version"],
             [
@@ -1797,6 +1850,18 @@ class ResearchTaskEventsModel(Base):
     new_status = mapped_column(Text, nullable=False)
     reason = mapped_column(Text, nullable=True)
     occurred_at = mapped_column(DateTime(timezone=True), nullable=False)
+
+    stop_human = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+    stop_policy = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+    stop_budget = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+    stop_repeated_failure = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+    stop_no_improvement = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+    stop_success = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
 
 class ResearchTaskStepEventsModel(Base):
@@ -1908,3 +1973,509 @@ class ResearchTaskReceiptStepEventsModel(Base):
         nullable=False,
     )
     step_event_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+
+
+class ExecutionBudgetsModel(Base):
+    __tablename__ = "execution_budgets"
+    __table_args__ = (
+        Index("pr304_budgets_time", "research_task_id", "created_at", "id"),
+        Index("pr304_budgets_receipt", "research_task_id", "receipt_id"),
+        CheckConstraint("max_wall_time_seconds > 0"),
+        CheckConstraint("max_agent_steps > 0"),
+        CheckConstraint("max_llm_calls > 0"),
+        CheckConstraint("max_search_calls > 0"),
+        CheckConstraint("max_code_iterations > 0"),
+        CheckConstraint("max_experiment_runs > 0"),
+        CheckConstraint("max_tree_nodes > 0"),
+        CheckConstraint("max_tree_depth > 0"),
+        CheckConstraint("max_parallel_branches > 0"),
+        CheckConstraint("max_gpu_hours >= 0 AND max_gpu_hours < 'Infinity'::numeric"),
+        CheckConstraint("max_token_cost > 0 AND max_token_cost < 'Infinity'::numeric"),
+        CheckConstraint("currency = 'USD'"),
+        CheckConstraint(
+            "length(btrim(pricing_basis)) BETWEEN 1 AND 512 AND pricing_basis IS NFC NORMALIZED AND lower(btrim(pricing_basis)) NOT IN ('latest','main','master')"  # noqa: E501
+        ),
+        CheckConstraint("hard_stop"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("hash_scheme = 'sha256-cjson-v1'"),
+        UniqueConstraint("research_task_id", "id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    max_wall_time_seconds = mapped_column(Integer, nullable=False)
+    max_agent_steps = mapped_column(BigInteger, nullable=False)
+    max_llm_calls = mapped_column(BigInteger, nullable=False)
+    max_search_calls = mapped_column(BigInteger, nullable=False)
+    max_code_iterations = mapped_column(BigInteger, nullable=False)
+    max_experiment_runs = mapped_column(BigInteger, nullable=False)
+    max_tree_nodes = mapped_column(BigInteger, nullable=False)
+    max_tree_depth = mapped_column(Integer, nullable=False)
+    max_parallel_branches = mapped_column(Integer, nullable=False)
+    max_gpu_hours = mapped_column(Numeric(20, 6), nullable=False)
+    max_token_cost = mapped_column(Numeric(20, 6), nullable=False)
+    currency = mapped_column(Text, nullable=False)
+    pricing_basis = mapped_column(Text, nullable=False)
+    hard_stop = mapped_column(Boolean, nullable=False)
+    content_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=False)
+
+
+class TerminationPoliciesModel(Base):
+    __tablename__ = "termination_policies"
+    __table_args__ = (
+        Index(
+            "pr304_termination_metric",
+            "score_metric_version_id",
+            postgresql_where=text("score_metric_version_id IS NOT NULL"),
+        ),  # noqa: E501
+        Index("pr304_termination_time", "research_task_id", "created_at", "id"),
+        Index("pr304_termination_receipt", "research_task_id", "receipt_id"),
+        CheckConstraint("repeated_failure_threshold > 0"),
+        CheckConstraint("max_no_improvement_iterations > 0"),
+        CheckConstraint("budget_stop"),
+        CheckConstraint("human_stop"),
+        CheckConstraint("policy_stop"),
+        CheckConstraint("score_direction IN ('MAXIMIZE','MINIMIZE')"),
+        CheckConstraint(
+            "length(btrim(evaluator_version)) BETWEEN 1 AND 128 AND evaluator_version IS NFC NORMALIZED AND lower(btrim(evaluator_version)) NOT IN ('latest','main','master')"  # noqa: E501
+        ),
+        CheckConstraint("NOT min_progress_enabled"),
+        CheckConstraint("min_progress_score IS NULL"),
+        CheckConstraint("NOT duplicate_hypothesis_enabled"),
+        CheckConstraint("duplicate_hypothesis_threshold IS NULL"),
+        CheckConstraint("NOT confidence_stop_enabled"),
+        CheckConstraint("confidence_stop_threshold IS NULL"),
+        CheckConstraint("NOT success_condition_enabled"),
+        CheckConstraint("success_condition IS NULL"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("hash_scheme = 'sha256-cjson-v1'"),
+        CheckConstraint(
+            "num_nonnulls(score_metric_version_id, score_direction, evaluator_version) IN (0,3)"
+        ),
+        UniqueConstraint("research_task_id", "id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    repeated_failure_threshold = mapped_column(Integer, nullable=False)
+    max_no_improvement_iterations = mapped_column(Integer, nullable=False)
+    budget_stop = mapped_column(Boolean, nullable=False)
+    human_stop = mapped_column(Boolean, nullable=False)
+    policy_stop = mapped_column(Boolean, nullable=False)
+    score_metric_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("metric_definition_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    score_direction = mapped_column(Text, nullable=True)
+    evaluator_version = mapped_column(Text, nullable=True)
+    min_progress_enabled = mapped_column(Boolean, nullable=False)
+    min_progress_score = mapped_column(Numeric(20, 6), nullable=True)
+    duplicate_hypothesis_enabled = mapped_column(Boolean, nullable=False)
+    duplicate_hypothesis_threshold = mapped_column(Numeric(20, 6), nullable=True)
+    confidence_stop_enabled = mapped_column(Boolean, nullable=False)
+    confidence_stop_threshold = mapped_column(Numeric(20, 6), nullable=True)
+    success_condition_enabled = mapped_column(Boolean, nullable=False)
+    success_condition = mapped_column(Text, nullable=True)
+    content_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=False)
+
+
+class CheckpointPoliciesModel(Base):
+    __tablename__ = "checkpoint_policies"
+    __table_args__ = (
+        Index("pr304_checkpoint_policy_time", "research_task_id", "created_at", "id"),
+        Index("pr304_checkpoint_policy_receipt", "research_task_id", "receipt_id"),
+        CheckConstraint(
+            "required_types <@ ARRAY['plan_review','hypothesis_selection','experiment_approval','budget_extension','code_risk','claim_freeze','manuscript_release','exception']::text[] AND array_position(required_types,NULL) IS NULL"  # noqa: E501
+        ),
+        CheckConstraint("timeout_seconds > 0"),
+        CheckConstraint("maximum_autonomy IN ('A0','A1','A2','A3')"),
+        CheckConstraint("array_position(allowed_code_paths,NULL) IS NULL"),
+        CheckConstraint("network_mode IN ('DENY','ALLOWLIST')"),
+        CheckConstraint("array_position(allowed_network_hosts,NULL) IS NULL"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("hash_scheme = 'sha256-cjson-v1'"),
+        CheckConstraint("a3_authorized = (maximum_autonomy = 'A3')"),
+        CheckConstraint("network_mode <> 'DENY' OR cardinality(allowed_network_hosts) = 0"),
+        CheckConstraint("network_mode <> 'ALLOWLIST' OR cardinality(allowed_network_hosts) > 0"),
+        CheckConstraint(
+            "a3_authorized OR (cardinality(allowed_code_paths) = 0 AND network_mode = 'DENY')"
+        ),
+        UniqueConstraint("research_task_id", "id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    required_types = mapped_column(ARRAY(Text), nullable=False)
+    timeout_seconds = mapped_column(Integer, nullable=False)
+    maximum_autonomy = mapped_column(Text, nullable=False)
+    a3_authorized = mapped_column(Boolean, nullable=False)
+    allowed_code_paths = mapped_column(ARRAY(Text), nullable=False)
+    network_mode = mapped_column(Text, nullable=False)
+    allowed_network_hosts = mapped_column(ARRAY(Text), nullable=False)
+    content_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=False)
+
+
+class CheckpointPolicyDatasetScopesModel(Base):
+    __tablename__ = "checkpoint_policy_dataset_scopes"
+    __table_args__ = (
+        Index("pr304_dataset_scope_time", "research_task_id", "created_at", "id"),
+        Index("pr304_dataset_scope_ref", "dataset_snapshot_id"),
+        Index("pr304_dataset_scope_receipt", "research_task_id", "receipt_id"),
+        Index("pr304_dataset_scope_policy", "research_task_id", "checkpoint_policy_id"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        UniqueConstraint("checkpoint_policy_id", "dataset_snapshot_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "checkpoint_policy_id"],
+            ["checkpoint_policies.research_task_id", "checkpoint_policies.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    checkpoint_policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    dataset_snapshot_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("dataset_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    content_hash = mapped_column(Text, nullable=False)
+
+
+class CheckpointPolicyMetricScopesModel(Base):
+    __tablename__ = "checkpoint_policy_metric_scopes"
+    __table_args__ = (
+        Index("pr304_metric_scope_time", "research_task_id", "created_at", "id"),
+        Index("pr304_metric_scope_ref", "metric_definition_version_id"),
+        Index("pr304_metric_scope_receipt", "research_task_id", "receipt_id"),
+        Index("pr304_metric_scope_policy", "research_task_id", "checkpoint_policy_id"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        UniqueConstraint("checkpoint_policy_id", "metric_definition_version_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "checkpoint_policy_id"],
+            ["checkpoint_policies.research_task_id", "checkpoint_policies.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    checkpoint_policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    metric_definition_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("metric_definition_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    content_hash = mapped_column(Text, nullable=False)
+
+
+class BudgetReservationsModel(Base):
+    __tablename__ = "budget_reservations"
+    __table_args__ = (
+        Index("pr304_reservations_deadline", "deadline", "research_task_id", "id"),
+        Index("pr304_reservations_time", "research_task_id", "created_at", "id"),
+        Index("pr304_reservations_step", "research_task_id", "step_id"),
+        Index("pr304_reservations_budget", "research_task_id", "budget_id"),
+        Index("pr304_reservations_receipt", "research_task_id", "receipt_id"),
+        CheckConstraint("wall_time_seconds > 0"),
+        CheckConstraint("agent_steps >= 0"),
+        CheckConstraint("llm_calls >= 0"),
+        CheckConstraint("search_calls >= 0"),
+        CheckConstraint("code_iterations >= 0"),
+        CheckConstraint("experiment_runs >= 0"),
+        CheckConstraint("tree_nodes >= 0"),
+        CheckConstraint("gpu_hours >= 0 AND gpu_hours < 'Infinity'::numeric"),
+        CheckConstraint("token_cost >= 0 AND token_cost < 'Infinity'::numeric"),
+        CheckConstraint("observed_depth >= 0"),
+        CheckConstraint("observed_parallel_branches > 0"),
+        CheckConstraint("deadline > created_at"),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "operation_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "budget_id"],
+            ["execution_budgets.research_task_id", "execution_budgets.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    budget_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    operation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    wall_time_seconds = mapped_column(Integer, nullable=False)
+    agent_steps = mapped_column(BigInteger, nullable=False)
+    llm_calls = mapped_column(BigInteger, nullable=False)
+    search_calls = mapped_column(BigInteger, nullable=False)
+    code_iterations = mapped_column(BigInteger, nullable=False)
+    experiment_runs = mapped_column(BigInteger, nullable=False)
+    tree_nodes = mapped_column(BigInteger, nullable=False)
+    gpu_hours = mapped_column(Numeric(20, 6), nullable=False)
+    token_cost = mapped_column(Numeric(20, 6), nullable=False)
+    observed_depth = mapped_column(Integer, nullable=False)
+    observed_parallel_branches = mapped_column(Integer, nullable=False)
+    deadline = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BudgetUsageRecordsModel(Base):
+    __tablename__ = "budget_usage_records"
+    __table_args__ = (
+        Index("pr304_usage_time", "research_task_id", "created_at", "id"),
+        Index("pr304_usage_receipt", "research_task_id", "receipt_id"),
+        Index(
+            "pr304_usage_one_final",
+            "research_task_id",
+            "reservation_id",
+            unique=True,
+            postgresql_where=text("is_final"),
+        ),  # noqa: E501
+        CheckConstraint("outcome IN ('SUCCEEDED','FAILED','CANCELLED','PRUNED','UNKNOWN')"),
+        CheckConstraint("wall_time_seconds >= 0"),
+        CheckConstraint("agent_steps >= 0"),
+        CheckConstraint("llm_calls >= 0"),
+        CheckConstraint("search_calls >= 0"),
+        CheckConstraint("code_iterations >= 0"),
+        CheckConstraint("experiment_runs >= 0"),
+        CheckConstraint("tree_nodes >= 0"),
+        CheckConstraint("gpu_hours >= 0 AND gpu_hours < 'Infinity'::numeric"),
+        CheckConstraint("token_cost >= 0 AND token_cost < 'Infinity'::numeric"),
+        CheckConstraint("failure_streak >= 0"),
+        CheckConstraint("no_improvement_streak >= 0"),
+        CheckConstraint("score > '-Infinity'::numeric AND score < 'Infinity'::numeric"),
+        CheckConstraint(
+            "length(btrim(evaluator_version)) BETWEEN 1 AND 128 AND evaluator_version IS NFC NORMALIZED AND lower(btrim(evaluator_version)) NOT IN ('latest','main','master')"  # noqa: E501
+        ),
+        CheckConstraint("settled_at = created_at"),
+        CheckConstraint("is_final = (outcome <> 'UNKNOWN')"),
+        CheckConstraint("(score IS NULL) = (evaluator_version IS NULL)"),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "reservation_id", "receipt_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "reservation_id"],
+            ["budget_reservations.research_task_id", "budget_reservations.id"],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    reservation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    outcome = mapped_column(Text, nullable=False)
+    is_final = mapped_column(Boolean, nullable=False)
+    wall_time_seconds = mapped_column(Integer, nullable=False)
+    agent_steps = mapped_column(BigInteger, nullable=False)
+    llm_calls = mapped_column(BigInteger, nullable=False)
+    search_calls = mapped_column(BigInteger, nullable=False)
+    code_iterations = mapped_column(BigInteger, nullable=False)
+    experiment_runs = mapped_column(BigInteger, nullable=False)
+    tree_nodes = mapped_column(BigInteger, nullable=False)
+    gpu_hours = mapped_column(Numeric(20, 6), nullable=False)
+    token_cost = mapped_column(Numeric(20, 6), nullable=False)
+    failure_streak = mapped_column(Integer, nullable=False)
+    no_improvement_streak = mapped_column(Integer, nullable=False)
+    score = mapped_column(Numeric(20, 6), nullable=True)
+    evaluator_version = mapped_column(Text, nullable=True)
+    settled_at = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class HumanCheckpointsModel(Base):
+    __tablename__ = "human_checkpoints"
+    __table_args__ = (
+        Index(
+            "pr304_checkpoint_expiry",
+            "expires_at",
+            "research_task_id",
+            "id",
+            postgresql_where=text("status = 'PENDING'"),
+        ),  # noqa: E501
+        Index("pr304_checkpoint_time", "research_task_id", "created_at", "id"),
+        Index(
+            "pr304_checkpoint_responder",
+            "responded_by",
+            postgresql_where=text("responded_by IS NOT NULL"),
+        ),  # noqa: E501
+        Index("pr304_checkpoint_step", "research_task_id", "step_id"),
+        Index(
+            "pr304_checkpoint_response_receipt",
+            "research_task_id",
+            "response_receipt_id",
+            postgresql_where=text("response_receipt_id IS NOT NULL"),
+        ),  # noqa: E501
+        Index("pr304_checkpoint_receipt", "research_task_id", "receipt_id"),
+        Index(
+            "pr304_checkpoint_one_pending",
+            "research_task_id",
+            "step_id",
+            "checkpoint_type",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
+            postgresql_where=text("status = 'PENDING'"),
+        ),  # noqa: E501
+        CheckConstraint(
+            "checkpoint_type IN ('plan_review','hypothesis_selection','experiment_approval','budget_extension','code_risk','claim_freeze','manuscript_release','exception')"  # noqa: E501
+        ),
+        CheckConstraint("status IN ('PENDING','APPROVED','REJECTED','MODIFIED','EXPIRED')"),
+        CheckConstraint("length(btrim(reason)) BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED"),
+        CheckConstraint("requested_at = created_at"),
+        CheckConstraint("expires_at > requested_at"),
+        CheckConstraint(
+            "length(btrim(response_reason)) BETWEEN 1 AND 8192 AND response_reason IS NFC NORMALIZED"  # noqa: E501
+        ),
+        CheckConstraint("row_version IN (1,2)"),
+        CheckConstraint(
+            "(status = 'PENDING' AND row_version = 1 AND num_nonnulls(responded_at,responded_by,response_reason,response_receipt_id) = 0)\n    OR (status IN ('APPROVED','REJECTED','MODIFIED') AND row_version = 2 AND num_nonnulls(responded_at,responded_by,response_reason,response_receipt_id) = 4 AND responded_at >= requested_at AND responded_at < expires_at)\n    OR (status = 'EXPIRED' AND row_version = 2 AND num_nonnulls(responded_at,response_reason,response_receipt_id) = 3 AND responded_at >= expires_at AND responded_by IS NULL)"  # noqa: E501
+        ),
+        CheckConstraint(
+            "(checkpoint_type = 'budget_extension') = (proposed_budget_id IS NOT NULL)"
+        ),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "proposed_budget_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "response_receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "proposed_budget_id"],
+            ["execution_budgets.research_task_id", "execution_budgets.id"],
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    checkpoint_type = mapped_column(Text, nullable=False)
+    status = mapped_column(Text, nullable=False)
+    reason = mapped_column(Text, nullable=False)
+    requested_at = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at = mapped_column(DateTime(timezone=True), nullable=False)
+    responded_at = mapped_column(DateTime(timezone=True), nullable=True)
+    responded_by = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=True
+    )
+    response_reason = mapped_column(Text, nullable=True)
+    row_version = mapped_column(Integer, nullable=False)
+    response_receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    proposed_budget_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)

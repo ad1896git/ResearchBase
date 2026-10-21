@@ -38,6 +38,12 @@ from researchbase.agent_runtime.application.contracts import (
 from researchbase.agent_runtime.application.contracts import (
     parse_command as parse_task_command,
 )
+from researchbase.agent_runtime.application.safety_contracts import (
+    CheckpointHistoryRead,
+    SafetyCommandResult,
+    TaskSafetyRead,
+    parse_safety_command,
+)
 from researchbase.api.context import execution_context
 from researchbase.api.errors import ErrorEnvelope
 from researchbase.application.commands import (
@@ -2916,3 +2922,112 @@ def get_task_graph(id: UUID, project_id: UUID, request: Request):
 def get_task_progress(id: UUID, project_id: UUID, request: Request):
     principal = _verified_principal(request)
     return _json(_services(request).research_tasks.get_task_progress(principal, project_id, id))
+
+
+class TaskSafetyMutationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    project_id: UUID
+    task_id: UUID
+    command_id: UUID
+    expected_row_version: StrictInt = Field(gt=0)
+    arguments: dict[str, Any]
+
+
+def _safety_command(id: UUID, body: TaskSafetyMutationIn, name: str):
+    if id != body.task_id:
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "path and body task differ")
+    return parse_safety_command(name, body.model_dump())
+
+
+@router.post(
+    "/research-tasks/{id}:bind-policies",
+    operation_id="bind_task_policies",
+    response_model=_response_schema(SafetyCommandResult),
+)
+def bind_task_policies(id: UUID, body: TaskSafetyMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = _safety_command(id, body, "bind_task_policies")
+    return _json(_services(request).task_safety.bind_task_policies(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:reserve-budget",
+    operation_id="reserve_task_budget",
+    response_model=_response_schema(SafetyCommandResult),
+)
+def reserve_task_budget(id: UUID, body: TaskSafetyMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = _safety_command(id, body, "reserve_task_budget")
+    return _json(_services(request).task_safety.reserve_task_budget(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:settle-budget",
+    operation_id="settle_task_budget",
+    response_model=_response_schema(SafetyCommandResult),
+)
+def settle_task_budget(id: UUID, body: TaskSafetyMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = _safety_command(id, body, "settle_task_budget")
+    return _json(_services(request).task_safety.settle_task_budget(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}:evaluate-termination",
+    operation_id="evaluate_task_termination",
+    response_model=_response_schema(SafetyCommandResult),
+)
+def evaluate_task_termination(id: UUID, body: TaskSafetyMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = _safety_command(id, body, "evaluate_task_termination")
+    return _json(_services(request).task_safety.evaluate_task_termination(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}/checkpoints",
+    operation_id="request_human_checkpoint",
+    response_model=_response_schema(SafetyCommandResult),
+)
+def request_human_checkpoint(id: UUID, body: TaskSafetyMutationIn, request: Request):
+    principal = _verified_principal(request)
+    command = _safety_command(id, body, "request_human_checkpoint")
+    return _json(_services(request).task_safety.request_human_checkpoint(principal, command))
+
+
+@router.post(
+    "/research-tasks/{id}/checkpoints/{checkpoint_id}:respond",
+    operation_id="respond_human_checkpoint",
+    response_model=_response_schema(SafetyCommandResult),
+)
+def respond_human_checkpoint(
+    id: UUID, checkpoint_id: UUID, body: TaskSafetyMutationIn, request: Request
+):
+    principal = _verified_principal(request)
+    command = _safety_command(id, body, "respond_human_checkpoint")
+    if getattr(command.arguments, "checkpoint_id", None) != checkpoint_id:
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "path and body identity differ")
+    return _json(_services(request).task_safety.respond_human_checkpoint(principal, command))
+
+
+@router.get(
+    "/research-tasks/{id}/safety",
+    operation_id="get_task_safety",
+    response_model=_response_schema(TaskSafetyRead),
+)
+def get_task_safety(id: UUID, project_id: UUID, request: Request):
+    return _json(
+        _services(request).task_safety.get_task_safety(_verified_principal(request), project_id, id)
+    )
+
+
+@router.get(
+    "/research-tasks/{id}/checkpoints",
+    operation_id="get_task_checkpoint_history",
+    response_model=_response_schema(CheckpointHistoryRead),
+)
+def get_task_checkpoint_history(id: UUID, project_id: UUID, request: Request):
+    return _json(
+        _services(request).task_safety.get_task_checkpoint_history(
+            _verified_principal(request), project_id, id
+        )
+    )

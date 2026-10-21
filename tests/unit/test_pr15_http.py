@@ -297,6 +297,20 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
             ("get", "/v1/research-tasks/{id}/progress"),
         }
     )
+    # PR3-04 freeze §5.1 explicitly authorizes these eight transport actions.
+    # Reserve/settle expose stable fail-closed Application denials.
+    expected.update(
+        {
+            ("post", "/v1/research-tasks/{id}:bind-policies"),
+            ("post", "/v1/research-tasks/{id}:reserve-budget"),
+            ("post", "/v1/research-tasks/{id}:settle-budget"),
+            ("post", "/v1/research-tasks/{id}:evaluate-termination"),
+            ("post", "/v1/research-tasks/{id}/checkpoints"),
+            ("post", "/v1/research-tasks/{id}/checkpoints/{checkpoint_id}:respond"),
+            ("get", "/v1/research-tasks/{id}/safety"),
+            ("get", "/v1/research-tasks/{id}/checkpoints"),
+        }
+    )
     actual = {
         (method, path)
         for path, methods in first["paths"].items()

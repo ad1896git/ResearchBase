@@ -58,7 +58,7 @@ def _tables(conn):
 @pytest.mark.parametrize("start", ["base", "0018_current_pointer_same_parent_integrity", PREVIOUS])
 def test_install_upgrade_exact_catalog_and_one_head(authorship_url, start):
     config = _config(authorship_url)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0077_research_task_graph"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0078_task_safety_policies"]
     command.upgrade(config, start)
     command.upgrade(config, PREVIOUS)
     engine = create_engine(authorship_url)

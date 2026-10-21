@@ -1038,8 +1038,85 @@ ROUTES += (
 )
 
 
+# PR3-04 freeze §5.1: preserve exhaustive bindings for all eight new routes.
+ROUTES += (
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:bind-policies",
+        "bind_task_policies",
+        "bind_task_policies",
+        "TaskSafetyMutationIn",
+        "SafetyCommandResultResponse",
+        "bind_task_policies",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:reserve-budget",
+        "reserve_task_budget",
+        "reserve_task_budget",
+        "TaskSafetyMutationIn",
+        "SafetyCommandResultResponse",
+        "reserve_task_budget",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:settle-budget",
+        "settle_task_budget",
+        "settle_task_budget",
+        "TaskSafetyMutationIn",
+        "SafetyCommandResultResponse",
+        "settle_task_budget",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}:evaluate-termination",
+        "evaluate_task_termination",
+        "evaluate_task_termination",
+        "TaskSafetyMutationIn",
+        "SafetyCommandResultResponse",
+        "evaluate_task_termination",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/checkpoints",
+        "request_human_checkpoint",
+        "request_human_checkpoint",
+        "TaskSafetyMutationIn",
+        "SafetyCommandResultResponse",
+        "request_human_checkpoint",
+    ),
+    RouteContract(
+        "post",
+        "/v1/research-tasks/{id}/checkpoints/{checkpoint_id}:respond",
+        "respond_human_checkpoint",
+        "respond_human_checkpoint",
+        "TaskSafetyMutationIn",
+        "SafetyCommandResultResponse",
+        "respond_human_checkpoint",
+    ),
+    RouteContract(
+        "get",
+        "/v1/research-tasks/{id}/safety",
+        "get_task_safety",
+        "get_task_safety",
+        None,
+        "TaskSafetyReadResponse",
+        "get_task_safety",
+    ),
+    RouteContract(
+        "get",
+        "/v1/research-tasks/{id}/checkpoints",
+        "get_task_checkpoint_history",
+        "get_task_checkpoint_history",
+        None,
+        "CheckpointHistoryReadResponse",
+        "get_task_checkpoint_history",
+    ),
+)
+
+
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 109
+    assert len(ROUTES) == 117
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -1049,7 +1126,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 109
+    assert len({item.operation_id for item in ROUTES}) == 117
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]

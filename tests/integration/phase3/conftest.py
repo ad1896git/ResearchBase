@@ -81,7 +81,7 @@ def planning(tmp_path_factory):
     ):
         patch.setenv("DATABASE_URL", url)
         engine, _, _, principal, project = _authorized_service(
-            url, migration_revision="0077_research_task_graph"
+            url, migration_revision="0078_task_safety_policies"
         )
         try:
             with engine.connect() as conn:

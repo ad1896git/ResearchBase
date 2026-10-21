@@ -63,7 +63,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0077_research_task_graph (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0078_task_safety_policies (head)"
       - name: Run deterministic pytest file shard
         shell: bash
         run: |

@@ -28,13 +28,13 @@ def test_clean_and_populated_upgrade_and_downgrade_refusal(monkeypatch, tmp_path
         try:
             before = _rows(engine)
             _save(tmp_path, "accepted-0076", _catalog(url), before)
-            command.upgrade(config, "head")
+            command.upgrade(config, "0077_research_task_graph")
             after = _rows(engine)
             assert all(after[table] == rows for table, rows in before.items())
             assert len(after) == len(before) + 10
             if populated:
                 assert service.get(principal, project, plan) == readback
-            assert ScriptDirectory.from_config(config).get_heads() == ["0077_research_task_graph"]
+            assert ScriptDirectory.from_config(config).get_heads() == ["0078_task_safety_policies"]
             revision = ScriptDirectory.from_config(config).get_revision("0077_research_task_graph")
             assert revision is not None and revision.down_revision == "0076_agent_runtime_bootstrap"
             catalog = _catalog(url)
@@ -63,7 +63,7 @@ def test_planning_tables_empty_on_clean_upgrade(monkeypatch):
         monkeypatch.setenv("DATABASE_URL", url)
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", url)
-        command.upgrade(config, "head")
+        command.upgrade(config, "0077_research_task_graph")
         engine = create_engine(url)
         try:
             with engine.connect() as conn:
