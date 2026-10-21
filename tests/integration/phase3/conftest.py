@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 from tests.disposable_postgres import disposable_database
@@ -74,16 +77,34 @@ class PlanningFixture:
         return task, command
 
 
+LEGACY_UNBOUND_AGENT = UUID("01900000-0000-7000-8000-00000000a9e1")
+
+
 @pytest.fixture(scope="session")
 def planning(tmp_path_factory):
-    with (
-        disposable_database("researchbase_pr212_test_") as url,
-        pytest.MonkeyPatch.context() as patch,
-    ):
-        patch.setenv("DATABASE_URL", url)
-        engine, _, _, principal, project = _authorized_service(
-            url, migration_revision="0078_task_safety_policies"
-        )
+    with disposable_database("researchbase_pr212_test_") as url:
+        # Point DATABASE_URL at the disposable database only while it is migrated and
+        # seeded. A session-long override leaked into every later test in the same
+        # process (they silently ran against this database instead of their own).
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setenv("DATABASE_URL", url)
+            engine, _, _, principal, project = _authorized_service(
+                url, migration_revision="0078_task_safety_policies"
+            )
+            # A pre-0079 legacy AGENT row with no subject binding. After 0079 the S1
+            # guard forbids new unenrolled AGENT rows, so legacy data is the only
+            # faithful way to exercise the unbound-Agent denial path.
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO actors(id,actor_type,display_name,created_at) "
+                        "VALUES (:id,'AGENT','Legacy unbound agent',clock_timestamp())"
+                    ),
+                    {"id": LEGACY_UNBOUND_AGENT},
+                )
+            config = Config("alembic.ini")
+            config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
+            command.upgrade(config, "head")
         try:
             with engine.connect() as conn:
                 assert (
