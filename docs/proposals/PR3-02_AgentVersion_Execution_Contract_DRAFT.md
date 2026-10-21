@@ -1,6 +1,6 @@
 # PR3-02 AgentVersion / Execution contract
 
-Status: DRAFT — awaiting owner approval; not authorized for implementation
+Status: APPROVED by owner 2026-10-21 (ADR-0023). PR3-02-S1 AUTHORIZED for implementation after its execution pack passes two director reviews; PR3-02-S2 not yet authorized.
 
 ## Start here
 

@@ -1,6 +1,6 @@
 # PR3-04 Budget / Termination / HumanCheckpoint contract
 
-Status: DRAFT — awaiting owner approval; not authorized for implementation
+Status: APPROVED by owner 2026-10-21 (ADR-0024). AUTHORIZED for implementation after its execution pack passes two director reviews.
 
 ## Start here
 
