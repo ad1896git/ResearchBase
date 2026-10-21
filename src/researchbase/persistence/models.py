@@ -2479,3 +2479,160 @@ class HumanCheckpointsModel(Base):
     row_version = mapped_column(Integer, nullable=False)
     response_receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
     proposed_budget_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+
+
+# ADR-0023 S1 internal persistence mappings. Migration 0079 owns guards and DDL.
+class AgentVersionModel(Base):
+    __tablename__ = "agent_versions"
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    actor_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    agent_role: Mapped[str] = mapped_column(Text, nullable=False)
+    runtime_type: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_template_version: Mapped[str] = mapped_column(Text, nullable=False)
+    model_profile_id: Mapped[str] = mapped_column(Text, nullable=False)
+    tool_policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    capability_set_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    configuration_artifact_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    configuration_content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    hash_scheme: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentAvailabilityModel(Base):
+    __tablename__ = "agent_availability"
+    agent_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("agent_versions.id", ondelete="RESTRICT"),
+        primary_key=True,
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    changed_by: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentCommandReceiptModel(Base):
+    __tablename__ = "agent_command_receipts"
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    caller_actor_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    command_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    operation: Mapped[str] = mapped_column(Text, nullable=False)
+    request_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    hash_scheme: Mapped[str] = mapped_column(Text, nullable=False)
+    result_actor_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("actors.id", ondelete="RESTRICT", deferrable=True, initially="DEFERRED"),
+        nullable=True,
+    )
+    result_binding_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "actor_subject_bindings.id", ondelete="RESTRICT", deferrable=True, initially="DEFERRED"
+        ),
+        nullable=True,
+    )
+    result_membership_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "project_memberships.id", ondelete="RESTRICT", deferrable=True, initially="DEFERRED"
+        ),
+        nullable=True,
+    )
+    result_role_assignment_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "project_role_assignments.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=True,
+    )
+    result_binding_event_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "actor_subject_binding_events.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=True,
+    )
+    result_membership_event_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "project_membership_events.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=True,
+    )
+    result_role_event_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "project_role_events.id", ondelete="RESTRICT", deferrable=True, initially="DEFERRED"
+        ),
+        nullable=True,
+    )
+    result_agent_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("agent_versions.id", ondelete="RESTRICT", deferrable=True, initially="DEFERRED"),
+        nullable=True,
+    )
+    result_availability_event_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "agent_availability_events.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=True,
+    )
+    resulting_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentAvailabilityEventModel(Base):
+    __tablename__ = "agent_availability_events"
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    agent_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("agent_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    prior_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_status: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    receipt_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("agent_command_receipts.id", ondelete="RESTRICT"),
+        nullable=False,
+    )

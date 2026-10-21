@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 from tests.disposable_postgres import disposable_database
 from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase3.agent_fixtures import agents as agents
 
 from researchbase.agent_runtime.application.contracts import parse_command
 from researchbase.agent_runtime.application.research_task import ResearchTaskService

@@ -1,0 +1,91 @@
+# ruff: noqa: E501
+"""Literal frozen S1 inputs and independently frozen expected digests."""
+
+VECTORS = (
+    (
+        {
+            "arguments": {
+                "actor_id": "01900000-0000-7000-8000-000000000003",
+                "attestation": {
+                    "actor_id": "01900000-0000-7000-8000-000000000003",
+                    "deployment_id": "researchbase-test",
+                    "operator_actor_id": "01900000-0000-7000-8000-000000000004",
+                    "proof_record_ref": "test-proof:agent-1",
+                    "proof_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "reason": "Enroll research Agent.",
+                    "subject_credential_id": "agent-cert-1",
+                    "subject_kind": "MTLS_URI",
+                    "subject_value": "spiffe://researchbase.test/agents/research",
+                },
+                "display_name": "Café researcher",
+                "enrollment_proof": {
+                    "actor_id": "01900000-0000-7000-8000-000000000003",
+                    "command_id": "01900000-0000-7000-8000-000000000005",
+                    "deployment_id": "researchbase-test",
+                    "operator_actor_id": "01900000-0000-7000-8000-000000000004",
+                    "owner_actor_id": "01900000-0000-7000-8000-000000000002",
+                    "project_id": "01900000-0000-7000-8000-000000000001",
+                    "proof_record_ref": "test-proof:enrollment-1",
+                    "proof_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "subject_credential_id": "agent-cert-1",
+                    "subject_kind": "MTLS_URI",
+                    "subject_value": "spiffe://researchbase.test/agents/research",
+                },
+                "subject": {
+                    "credential_id": "agent-cert-1",
+                    "deployment_id": "researchbase-test",
+                    "subject_kind": "MTLS_URI",
+                    "subject_value": "spiffe://researchbase.test/agents/research",
+                },
+            },
+            "caller_actor_id": "01900000-0000-7000-8000-000000000002",
+            "command_id": "01900000-0000-7000-8000-000000000005",
+            "expected_revision": None,
+            "material_version": 1,
+            "operation": "provision_project_agent",
+            "project_id": "01900000-0000-7000-8000-000000000001",
+            "type": "AgentCommandMaterial",
+        },
+        "4cc1af5312be685ea559d09e0f2e6ff459e920b03fb7ba82218172346278d3d7",
+    ),
+    (
+        {
+            "arguments": {
+                "actor_id": "01900000-0000-7000-8000-000000000003",
+                "agent_role": "research",
+                "agent_version_id": "01900000-0000-7000-8000-000000000006",
+                "capability_set_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "configuration_artifact_version_id": "01900000-0000-7000-8000-000000000007",
+                "model_profile_id": "model-profile@1.0.0",
+                "prompt_template_version": "research-prompt@1.0.0",
+                "runtime_type": "native",
+                "tool_policy_version": "tool-policy@1.0.0",
+            },
+            "caller_actor_id": "01900000-0000-7000-8000-000000000002",
+            "command_id": "01900000-0000-7000-8000-000000000008",
+            "expected_revision": None,
+            "material_version": 1,
+            "operation": "register_agent_version",
+            "project_id": "01900000-0000-7000-8000-000000000001",
+            "type": "AgentCommandMaterial",
+        },
+        "19b7537803f35a6c1395c4b48abf8af8e2eb85b5da6d7b804c9881bb548224a8",
+    ),
+    (
+        {
+            "arguments": {
+                "agent_version_id": "01900000-0000-7000-8000-000000000006",
+                "reason": "Maintenance window.",
+                "status": "DISABLED",
+            },
+            "caller_actor_id": "01900000-0000-7000-8000-000000000002",
+            "command_id": "01900000-0000-7000-8000-000000000009",
+            "expected_revision": 1,
+            "material_version": 1,
+            "operation": "change_agent_availability",
+            "project_id": "01900000-0000-7000-8000-000000000001",
+            "type": "AgentCommandMaterial",
+        },
+        "b9c60b8b598d025aab9f0fceaeabfc1f11173eb58f8084e2043fb1a224359416",
+    ),
+)

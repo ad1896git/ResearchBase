@@ -93,7 +93,7 @@ def test_forward_upgrade_and_refusal(monkeypatch, tmp_path, populated):
                 json.dumps({"before": before, "after": after})
             )  # noqa: E501
             scripts = ScriptDirectory.from_config(cfg)
-            assert scripts.get_heads() == ["0078_task_safety_policies"]
+            assert scripts.get_heads() == ["0079_agent_identity_versions"]
             assert (
                 scripts.get_revision("0078_task_safety_policies").down_revision
                 == "0077_research_task_graph"

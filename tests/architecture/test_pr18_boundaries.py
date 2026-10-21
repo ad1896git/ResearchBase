@@ -50,6 +50,9 @@ def test_core_has_no_agent_or_phase2_runtime_imports() -> None:
                         "api/routes.py",
                         "cli/composition.py",
                         "cli/commands/research_tasks.py",
+                        "cli/commands/agents.py",
+                        "api/agent_routes.py",
+                        "application/phase2_identity.py",
                     }
                 ):
                     continue

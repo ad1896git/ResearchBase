@@ -49,15 +49,23 @@ def context(actor_id: UUID | None = None) -> ExecutionContext:
 
 def test_create_and_get_actor(service_factory: Callable[[], ApplicationService]) -> None:
     service = service_factory()
-    command = CreateActorCommand(ActorType.AGENT, f"Agent {uuid4()}", f"ext-{uuid4()}", context())
+    command = CreateActorCommand(ActorType.HUMAN, f"Human {uuid4()}", f"ext-{uuid4()}", context())
 
     created = service.create_actor(command)
     loaded = service.get_actor(ActorId(created.id))
 
     assert isinstance(created, ActorReadModel)
     assert loaded == created
-    assert created.actor_type is ActorType.AGENT
+    assert created.actor_type is ActorType.HUMAN
     assert created.row_version == 1
+
+
+def test_generic_create_actor_cannot_bypass_agent_enrollment(service_factory) -> None:
+    service = service_factory()
+    command = CreateActorCommand(ActorType.AGENT, f"Agent {uuid4()}", None, context())
+    with pytest.raises(ResearchBaseError) as raised:
+        service.create_actor(command)
+    assert raised.value.code is ErrorCode.FORBIDDEN
 
 
 def test_create_project_and_workspace_propagate_context_actor(

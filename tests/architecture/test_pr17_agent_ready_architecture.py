@@ -104,6 +104,27 @@ def test_no_agent_runtime_or_workflow_engine_is_present_in_phase1_source() -> No
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
+            # ADR-0023 S1 admits only these identity/version modules and mappings.
+            admitted = {
+                "agent_runtime/domain/agent_version.py",
+                "agent_runtime/domain/harness_manifest.py",
+                "agent_runtime/application/agent_contracts.py",
+                "agent_runtime/application/agent_versions.py",
+                "agent_runtime/ports/agent_repository.py",
+                "persistence/agent_version_repository.py",
+                "api/agent_routes.py",
+            }
+            if path.relative_to(SOURCE).as_posix() in admitted or (
+                path == SOURCE / "persistence/models.py"
+                and node.name
+                in {
+                    "AgentVersionModel",
+                    "AgentAvailabilityModel",
+                    "AgentCommandReceiptModel",
+                    "AgentAvailabilityEventModel",
+                }
+            ):
+                continue
             if (
                 "agent" in node.name.lower()
                 or "workflow" in node.name.lower()

@@ -13,12 +13,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 
 
+@pytest.mark.parametrize("revision", ["0077_research_task_graph", "head"])
 @pytest.mark.parametrize("actor_type", ["HUMAN", "AGENT"])
 @pytest.mark.parametrize("subject_kind", ["OS_UID", "MTLS_URI"])
-def test_existing_subject_binding_guard(phase2_database_url, actor_type, subject_kind):
+def test_existing_subject_binding_guard(phase2_database_url, actor_type, subject_kind, revision):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url.replace("%", "%%"))
-    command.upgrade(config, "head")
+    command.upgrade(config, revision)
     engine = create_engine(phase2_database_url)
     try:
         with engine.connect() as connection:
@@ -34,9 +35,28 @@ def test_existing_subject_binding_guard(phase2_database_url, actor_type, subject
                     AND t.tgname='trg_actor_binding_human' AND t.tgenabled='O'""")
             ).one()
             assert "BEFORE INSERT" in trigger[0]
-            assert "actor_type = 'HUMAN'" in trigger[1]
-            assert "ck_actor_subject_binding_human" in trigger[1]
+            if revision == "0077_research_task_graph":
+                assert "actor_type = 'HUMAN'" in trigger[1]
+                assert "ck_actor_subject_binding_human" in trigger[1]
+            else:
+                assert "pr302_binding_guard" in trigger[1]
+                assert "MTLS_URI" in trigger[1]
             actor, binding = uuid4(), uuid4()
+            if revision == "head" and actor_type == "AGENT":
+                with pytest.raises(IntegrityError) as caught:
+                    connection.execute(
+                        text(
+                            "INSERT INTO actors(id,actor_type,display_name,created_at) VALUES "
+                            "(:id,'AGENT','unceremonied',clock_timestamp())"
+                        ),
+                        {"id": actor},
+                    )
+                assert (
+                    getattr(getattr(caught.value.orig, "diag", None), "constraint_name", None)
+                    == "pr302_scope"
+                )
+                connection.rollback()
+                return
             connection.execute(
                 text("""INSERT INTO actors(id, actor_type, display_name, created_at)
                     VALUES (:id, :kind, 'B02 identity reproduction', clock_timestamp())"""),

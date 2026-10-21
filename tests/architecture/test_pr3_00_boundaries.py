@@ -213,6 +213,11 @@ def test_bootstrap_initializers_stay_empty_and_import_without_activation(tmp_pat
         "agent_runtime/application/task_safety.py",
         "agent_runtime/ports/task_safety_repository.py",
         "agent_runtime/services/fake_consumer.py",
+        "agent_runtime/domain/agent_version.py",
+        "agent_runtime/domain/harness_manifest.py",
+        "agent_runtime/application/agent_contracts.py",
+        "agent_runtime/application/agent_versions.py",
+        "agent_runtime/ports/agent_repository.py",
     }
     for namespace in NAMESPACES:
         for path in sorted((SOURCE / namespace).rglob("*.py")):

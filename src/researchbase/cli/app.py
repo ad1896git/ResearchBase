@@ -7,6 +7,7 @@ import typer
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.ids import new_uuid7
 
+from .commands.agents import register as register_agents
 from .commands.claim import register as register_claim
 from .commands.evidence import register as register_evidence
 from .commands.experiment import register as register_experiment
@@ -94,6 +95,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
     register_literature(app)
     register_search_execution(app)
     register_research_tasks(app)
+    register_agents(app)
 
     @app.callback()
     def callback(

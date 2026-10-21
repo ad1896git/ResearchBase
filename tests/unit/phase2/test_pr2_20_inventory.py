@@ -51,7 +51,7 @@ def test_inventory_resolves_actual_source_lock_modes_and_unversioned_api():
     assert "paper-qa" not in packages and "paperqa" not in packages
     # Manifest/source identities, not upstream licenses, are resolved locally.
     assert len(r.migration_inventory()) >= 47
-    assert r.migration_inventory()[-1]["revision"] == "0078_task_safety_policies"
+    assert r.migration_inventory()[-1]["revision"] == "0079_agent_identity_versions"
 
 
 def test_offline_replacement_candidates_preserve_contract_and_do_not_enable_paperqa():
@@ -113,3 +113,29 @@ def test_complete_migration_chain_inventory_and_rendered_rows():
     for item in items:
         assert sum(line.startswith(f"| {item['revision']} |") for line in table.splitlines()) == 1
         assert item["sha256"] == digest_bytes(Path(item["path"]).read_bytes())
+
+
+def test_agent_s1_command_lock_inventory():
+    from researchbase.persistence.agent_version_repository import ENROLLMENT_SQL, VERSION_SQL
+
+    enrollment = (
+        "actor_subject_bindings",
+        "actors",
+        "project_membership_events",
+        "project_memberships",
+        "project_role_assignments",
+    )
+    versions = (
+        "actor_subject_bindings",
+        "actors",
+        "artifact_versions",
+        "artifacts",
+        "project_membership_events",
+        "project_memberships",
+        "project_role_assignments",
+        "projects",
+    )
+    assert ENROLLMENT_SQL == "LOCK TABLE " + ", ".join(enrollment) + " IN SHARE ROW EXCLUSIVE MODE"
+    assert VERSION_SQL == "LOCK TABLE " + ", ".join(versions) + " IN SHARE MODE"
+    # Runtime traces in S1 concurrency tests verify enrollment's projects SHARE
+    # statement is second and the two version commands share the eight-table mode.

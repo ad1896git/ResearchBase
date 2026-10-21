@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
 
+from researchbase.agent_runtime.ports.agent_repository import UncertainAgentCommit
 from researchbase.agent_runtime.ports.task_repository import UncertainTaskCommit
 from researchbase.application.ports import (
     ActorRepository,
@@ -37,6 +38,7 @@ from researchbase.application.ports import (
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.structured_logging import emit_uow_rollback
+from researchbase.persistence.agent_version_repository import SqlAlchemyAgentRepository
 from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
 from researchbase.persistence.authorship_repository import SqlAlchemyAuthorshipRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
@@ -144,6 +146,8 @@ def _normalize_database_error(
             "role interval overlaps an existing role assignment",
         )
     if sqlstate == "23514":
+        if constraint == "pr302_scope":
+            return ResearchBaseError(ErrorCode.FORBIDDEN, "Agent enrollment scope is unavailable")
         if constraint == "ck_project_owner_coverage":
             return ResearchBaseError(
                 ErrorCode.OWNER_COVERAGE_GAP,
@@ -594,6 +598,7 @@ class SqlAlchemyUnitOfWork:
         self.decision = SqlAlchemyDecisionRepository(self._session)
         self.research_tasks = SqlAlchemyResearchTaskRepository(self._session)
         self.task_safety = SqlAlchemyTaskSafetyRepository(self._session)
+        self.agents = SqlAlchemyAgentRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)
         self.prepared_submission = SqlAlchemyPreparedSubmissionRepository(self._session)
@@ -611,6 +616,11 @@ class SqlAlchemyUnitOfWork:
         self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(
             self._require_session(), protected_reads=True
         )
+
+    def begin_agent_command(self) -> None:
+        self.begin_research_task()
+        self._research_task_error_normalization = False
+        self._agent_error_normalization = True
 
     def begin_research_task(self) -> None:
         """Configure isolation before the literal first SHARE statement."""
@@ -798,6 +808,33 @@ class SqlAlchemyUnitOfWork:
         self._b23_error_normalization = True
 
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if getattr(self, "_agent_error_normalization", False):
+            state = getattr(exc.orig, "sqlstate", None)
+            name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            code = {
+                "pr302_validation": ErrorCode.VALIDATION_ERROR,
+                "pr302_state": ErrorCode.INVALID_STATE_TRANSITION,
+                "pr302_immutable": ErrorCode.IMMUTABLE_RECORD,
+                "pr302_not_frozen": ErrorCode.VERSION_NOT_FROZEN,
+                "pr302_scope": ErrorCode.FORBIDDEN,
+                "pr302_provenance": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+            }.get(str(name)) or {
+                "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "23514": ErrorCode.VALIDATION_ERROR,
+                "23502": ErrorCode.VALIDATION_ERROR,
+                "23505": ErrorCode.CONCURRENT_MODIFICATION,
+                **{
+                    s: ErrorCode.CONCURRENT_MODIFICATION
+                    for s in ("40001", "40P01", "55P03", "57014")
+                },
+            }.get(str(state))
+            if code is not None:
+                return ResearchBaseError(
+                    code, "Agent command rejected", {"retryable_pr302": state in {"40001", "40P01"}}
+                )
+            raise UncertainAgentCommit(
+                "Agent transaction uncertain; reconcile exact receipt"
+            ) from None
         if getattr(self, "_research_task_error_normalization", False):
             state = getattr(exc.orig, "sqlstate", None)
             name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)

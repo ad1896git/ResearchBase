@@ -11,6 +11,7 @@ from typing import Protocol
 from fastapi import FastAPI
 
 from researchbase import __version__
+from researchbase.agent_runtime.application.agent_versions import AgentVersionService
 from researchbase.agent_runtime.application.research_task import ResearchTaskService
 from researchbase.agent_runtime.application.task_safety import TaskSafetyService
 from researchbase.application.commands import ApplicationService
@@ -73,6 +74,7 @@ class ServiceBundle:
     revision_actions: RevisionActionService | None = None
     research_tasks: ResearchTaskService | None = None
     task_safety: TaskSafetyService | None = None
+    agents: AgentVersionService | None = None
 
 
 def build_services() -> ServiceBundle:
@@ -120,6 +122,7 @@ def build_services() -> ServiceBundle:
         task_safety=TaskSafetyService(
             research_task_uow_factory(settings.database_url), credentials, store
         ),
+        agents=AgentVersionService(research_task_uow_factory(settings.database_url), credentials),
         research_tasks=ResearchTaskService(
             research_task_uow_factory(settings.database_url), credentials, store
         ),
@@ -139,7 +142,10 @@ def create_app(services: HttpServices | None = None) -> FastAPI:
     application = FastAPI(title="ResearchBase", version=__version__)
     application.state.services = services or build_services()
     install_error_handlers(application)
+    from researchbase.api.agent_routes import router as agent_router
+
     application.include_router(router)
+    application.include_router(agent_router, prefix="/v1")
 
     @application.get("/health", operation_id="health")
     def health() -> dict[str, str]:

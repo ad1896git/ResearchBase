@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 from dataclasses import dataclass
 
-from researchbase.api import routes
+from researchbase.api import agent_routes, routes
 from researchbase.api.app import create_app
 
 
@@ -25,9 +25,50 @@ class RouteContract:
     request_schema: str | None
     response_schema: str
     operation_id: str
+    module: str = "routes"
 
 
 ROUTES = (
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/agents",
+        "provision_project_agent",
+        "_mutate",
+        "AgentMutationIn",
+        "AgentCommandResultResponse",
+        "provision_project_agent",
+        "agent_routes",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/agent-versions",
+        "register_agent_version",
+        "_mutate",
+        "AgentMutationIn",
+        "AgentCommandResultResponse",
+        "register_agent_version",
+        "agent_routes",
+    ),
+    RouteContract(
+        "post",
+        "/v1/projects/{project_id}/agent-versions/{agent_version_id}/availability",
+        "change_agent_availability",
+        "_mutate",
+        "AgentMutationIn",
+        "AgentCommandResultResponse",
+        "change_agent_availability",
+        "agent_routes",
+    ),
+    RouteContract(
+        "get",
+        "/v1/projects/{project_id}/agent-versions/{agent_version_id}",
+        "get_agent_version",
+        "get_agent_version",
+        None,
+        "AgentVersionDTOResponse",
+        "get_agent_version",
+        "agent_routes",
+    ),
     RouteContract(
         "post",
         "/v1/literature/search-executions",
@@ -1116,7 +1157,7 @@ ROUTES += (
 
 
 def test_all_63_routes_have_exact_schema_operation_and_application_bindings() -> None:
-    assert len(ROUTES) == 117
+    assert len(ROUTES) == 121
     schema = create_app(EmptyServices()).openapi()
     actual = {
         (method, path)
@@ -1126,7 +1167,7 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         if method in {"get", "post", "patch", "put", "delete"}
     }
     assert actual == {(item.method, item.path) for item in ROUTES}
-    assert len({item.operation_id for item in ROUTES}) == 117
+    assert len({item.operation_id for item in ROUTES}) == 121
 
     for item in ROUTES:
         operation = schema["paths"][item.path][item.method]
@@ -1145,8 +1186,13 @@ def test_all_63_routes_have_exact_schema_operation_and_application_bindings() ->
         assert (_ref_name(body) if body else None) == item.request_schema
         assert _ref_name(response) == item.response_schema
         assert operation["operationId"] == item.operation_id
-        source = inspect.getsource(getattr(routes, item.endpoint))
-        if item.handler == "_execution_command":
+        module = {"routes": routes, "agent_routes": agent_routes}[item.module]
+        source = inspect.getsource(getattr(module, item.endpoint))
+        if item.handler == "_mutate":
+            assert f'_mutate("{item.operation_id}",' in source
+            assert ".agents.execute(command)" in inspect.getsource(agent_routes._mutate)
+            assert "parse_agent_command(" in inspect.getsource(agent_routes._mutate)
+        elif item.handler == "_execution_command":
             assert "_execution_command(" in source
         else:
             assert f".{item.handler}(" in source

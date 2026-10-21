@@ -9,7 +9,7 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import UUID, uuid4
 
 from researchbase.application.ports import UnitOfWork
@@ -265,6 +265,8 @@ class Phase2IdentityService:
         subject_credential_verifier: SubjectCredentialVerifier,
         attestation_verifier: OnboardingAttestationVerifier,
         bootstrap_proof_verifier: BootstrapProofVerifier | None = None,
+        agent_enrollment_verifier: Any = None,
+        agent_mtls_resolver: Any = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._nonce_issuer = nonce_issuer
@@ -273,6 +275,52 @@ class Phase2IdentityService:
         self._subject_credential_verifier = subject_credential_verifier
         self._attestation_verifier = attestation_verifier
         self._bootstrap_proof_verifier = bootstrap_proof_verifier
+        self._agent_enrollment_verifier = agent_enrollment_verifier
+        self._agent_mtls_resolver = agent_mtls_resolver
+
+    def resolve_agent_subject(self, subject: VerifiedSubject) -> VerifiedPrincipal:
+        """Trusted mTLS intake only; actor UUID never acts as authentication."""
+        if subject.subject_kind != "MTLS_URI" or self._agent_mtls_resolver is None:
+            raise _error(ErrorCode.SUBJECT_BINDING_UNPROVEN, "trusted mTLS resolver unavailable")
+        with self._uow_factory() as uow:
+            uow.begin_formal_read()
+            repo = uow.phase2_identity
+            facts = repo.resolve_bound_subject(subject)
+            at = repo.database_time()
+            try:
+                valid = self._agent_mtls_resolver.verify(
+                    subject, at
+                ) and self._subject_credential_verifier.is_valid(subject, at)
+            except Exception:
+                valid = False
+            if (
+                not valid
+                or facts is None
+                or facts["retired_at"] is not None
+                or facts["bound_at"] > at
+                or (facts["revoked_at"] is not None and facts["revoked_at"] <= at)
+            ):
+                raise _error(
+                    ErrorCode.SUBJECT_BINDING_UNPROVEN, "current verified subject unavailable"
+                )
+            return VerifiedPrincipal(
+                facts["actor_id"],
+                subject.deployment_id,
+                subject.subject_kind,
+                subject.subject_value,
+                subject.credential_id,
+                at,
+            )
+
+    def provision_project_agent(self, command):
+        from researchbase.agent_runtime.application.agent_versions import AgentVersionService
+
+        return AgentVersionService(
+            cast(Any, self._uow_factory),
+            self._credential_verifier,
+            identity=self,
+            enrollment_verifier=self._agent_enrollment_verifier,
+        ).provision_project_agent(command)
 
     def bootstrap_first_owner(
         self,
@@ -595,6 +643,8 @@ class Phase2IdentityService:
             target_binding = repo.active_binding_for_actor_for_update(command.actor_id)
             if owner_facts is None or target_actor is None or target_binding is None:
                 raise _error(ErrorCode.FORBIDDEN, "project role assignment is not authorized")
+            if target_actor["actor_type"] == "AGENT" and command.role != "RESEARCHER":
+                raise _error(ErrorCode.FORBIDDEN, "enrolled Agent role ceiling is RESEARCHER")
             if target_actor["retired_at"] is not None or (
                 target_membership is not None and target_membership["retired_at"] is not None
             ):
