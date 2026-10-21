@@ -11,10 +11,12 @@ and the delivered [PR3-01 pack](PR3-01-contract-freeze.md), especially §3.4.
 Read AGENTS.md, architecture 01 → 02 → 03 → 08 → Phase 3 specification 06 →
 Harness specification 09 before this pack. ADR-0023 resolves the proposal's
 historical “awaiting owner decisions” wording; the two-review condition remains.
-For locking, the owner's reviewer-fix instruction refines contract §7 and
-ADR-0023 D302-05's uniform S1 SHARE recipe into the per-command modes in §4.
-This refinement is part of the pack being reviewed; governing documents are
-unchanged and no implementation is authorized by this correction alone.
+For locking, §4 refines contract §7 and ADR-0023 D302-05's uniform S1 SHARE
+recipe into per-command modes: enrollment writes identity tables it would
+otherwise only SHARE-lock, so two concurrent enrollments could each hold SHARE and
+deadlock on the write upgrade. The refinement came from the pipeline's automated
+review, not from an owner instruction; the director accepted it and recorded it as
+the ADR-0023 amendment of 2026-10-21.
 
 ## 1. Baseline and scope
 
