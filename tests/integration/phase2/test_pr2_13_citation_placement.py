@@ -38,7 +38,7 @@ def test_citation_placement_persists_as_citation_only(
 ):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", discussion_database_url)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     _, engine, credentials, principal, project, _, source_version = discussion_env
     factory = lambda: SqlAlchemyUnitOfWork(  # noqa: E731
         sessionmaker(engine, expire_on_commit=False, autoflush=False)

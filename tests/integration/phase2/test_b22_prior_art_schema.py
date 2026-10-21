@@ -70,7 +70,7 @@ def test_catalog_populated_v1_upgrade_and_v2_downgrade_refusal(novelty_env, phas
             ).scalar_one()
             == root.content_hash
         )
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     with e["engine"].connect() as conn:
         assert conn.execute(text("SHOW server_version_num")).scalar_one().startswith("18")
         columns = dict(
@@ -227,7 +227,7 @@ def test_preflight_rejects_unexpected_shared_guard(novelty_env, phase2_database_
             AS $$ BEGIN RETURN; END $$""")
         )
     with pytest.raises(RuntimeError, match="unexpected shared novelty guard baseline"):
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0075_m1_reconsideration")
     with e["engine"].connect() as conn:
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == PARENT
         assert (

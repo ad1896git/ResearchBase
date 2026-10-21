@@ -62,7 +62,7 @@ def test_catalog_and_root_upgrade_downgrade_preserve_hashes(b15_env, monkeypatch
             if c["name"] == "evidence_artifact_version_id"
         )["nullable"]
     command.downgrade(config, "0060_b15_package_preparation")
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     with engine.connect() as conn:
         assert set(inspect(conn).get_table_names()) == before
         assert (
@@ -253,11 +253,11 @@ def test_roundtrip_restores_exact_0060_function_catalog(monkeypatch):
             # Obtain the real predecessor by forward migration only, never by B16 restoration.
             command.upgrade(cfg, "0060_b15_package_preparation")
             before = catalog()
-            command.upgrade(cfg, "head")
+            command.upgrade(cfg, "0075_m1_reconsideration")
             after = catalog()
             command.downgrade(cfg, "0060_b15_package_preparation")
             assert catalog() == before
-            command.upgrade(cfg, "head")
+            command.upgrade(cfg, "0075_m1_reconsideration")
             assert catalog() == after
         finally:
             engine.dispose()

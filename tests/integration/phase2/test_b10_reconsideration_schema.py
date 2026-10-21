@@ -143,7 +143,7 @@ def test_empty_roundtrip_and_populated_downgrade_refusal(reconsideration_env):
     service, command, actor, approval = reconsideration_env
     env = approval[-1]
     migration.downgrade(config(env), "0055_b09_approval_tuples")
-    migration.upgrade(config(env), "head")
+    migration.upgrade(config(env), "0075_m1_reconsideration")
     saved = service.record_rejection_reconsideration(command, actor)
     with pytest.raises(DBAPIError):
         migration.downgrade(config(env), "0055_b09_approval_tuples")

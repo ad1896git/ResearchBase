@@ -17,7 +17,7 @@ TABLES = {
 }
 
 
-def _upgrade(database_url: str, revision: str = "head") -> None:
+def _upgrade(database_url: str, revision: str = "0075_m1_reconsideration") -> None:
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", database_url)
     with patch.dict("os.environ", {"DATABASE_URL": database_url}):
@@ -57,7 +57,7 @@ def test_pr2_03_fresh_install_adds_exact_four_tables_and_unique_head(
 
 def test_pr2_03_upgrade_from_0022_and_empty_downgrade(phase2_database_url: str) -> None:
     _upgrade(phase2_database_url, "0022_source_version_and_merge_lineage")
-    _upgrade(phase2_database_url, "head")
+    _upgrade(phase2_database_url, "0075_m1_reconsideration")
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     with patch.dict("os.environ", {"DATABASE_URL": phase2_database_url}):

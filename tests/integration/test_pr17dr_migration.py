@@ -301,7 +301,7 @@ def test_downgrade_removes_all_pr17d_owned_objects() -> None:
     if not base_url:
         pytest.skip("DATABASE_URL is not set; run against PostgreSQL 18")
     with _temporary_database(base_url) as (database_url, engine):
-        _assert_alembic_ok(_run_alembic(database_url, "upgrade", "head"))
+        _assert_alembic_ok(_run_alembic(database_url, "upgrade", "0075_m1_reconsideration"))
         _assert_alembic_ok(_run_alembic(database_url, "downgrade", "0015_governance_audit"))
         _assert_0015_empty_catalog(engine)
 

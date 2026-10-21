@@ -48,7 +48,7 @@ class _BootstrapProofVerifier:
 def _authorized_service(
     database_url: str,
     credential_verifier=None,
-    migration_revision: str = "head",
+    migration_revision: str = "0075_m1_reconsideration",
 ):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", database_url)

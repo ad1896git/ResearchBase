@@ -75,7 +75,7 @@ def test_populated_b07_upgrade_open_downgrade_and_terminal_refusal(revision_env)
             )
         ).all()
     command.downgrade(config, "0052_b07_revision_decisions")
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     with base[8].connect() as conn:
         assert (
             conn.execute(
@@ -198,7 +198,7 @@ def test_upgrade_preflight_refuses_corrupt_legacy_root_without_partial_ddl(revis
         )
         conn.execute(text("ALTER TABLE review_issue_events ENABLE TRIGGER USER"))
     with pytest.raises(DBAPIError) as caught:
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
     assert getattr(caught.value.orig, "sqlstate", None) == "P17F2"
     with base[8].connect() as conn:
         assert (

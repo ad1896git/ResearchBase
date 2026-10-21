@@ -65,7 +65,7 @@ def test_clean_upgrade_catalog_and_empty_downgrade(monkeypatch):
         engine = create_engine(url)
         with engine.connect() as conn:
             before = set(inspect(conn).get_table_names())
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
         with engine.connect() as conn:
             assert int(conn.execute(text("SHOW server_version_num")).scalar_one()) // 10000 == 18
             assert set(inspect(conn).get_table_names()) - before == set(TABLES) | {
@@ -97,7 +97,7 @@ def test_clean_upgrade_catalog_and_empty_downgrade(monkeypatch):
                 i["name"] for i in inspect(conn).get_indexes("author_consents")
             }
         command.downgrade(config, "0059_b13_grant_consumption")
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
         engine.dispose()
 
 

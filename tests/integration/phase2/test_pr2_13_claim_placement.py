@@ -36,7 +36,7 @@ phase2_database_url = _phase2_database_url
 def _draft(conclusion_env, phase2_database_url, tmp_path):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     scientific, _, _, principal, _, project, claim_id, _, engine, credentials = conclusion_env
     factory = lambda: SqlAlchemyUnitOfWork(  # noqa: E731
         sessionmaker(engine, expire_on_commit=False, autoflush=False)

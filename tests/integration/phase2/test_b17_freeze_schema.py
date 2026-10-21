@@ -90,7 +90,7 @@ def test_clean_upgrade_roundtrip_preserves_predecessor_catalog(monkeypatch):
             }
         command.downgrade(cfg, "0066_b19_close_prior_art_basis")
         assert catalog(engine) == before
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0075_m1_reconsideration")
         engine.dispose()
 
 
@@ -101,7 +101,7 @@ def test_populated_prepared_upgrade_and_frozen_downgrade_refusal(b17_env, monkey
     cfg = config(url)
     before = f.app.get_prepared_submission(f.actor, f.query)
     command.downgrade(cfg, "0064_b14_publication_ready")
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     assert f.app.get_prepared_submission(f.actor, f.query) == before
     f.app.freeze_prepared_submission(f.actor, f.command)
     with pytest.raises(DBAPIError, match="frozen history prevents downgrade"):

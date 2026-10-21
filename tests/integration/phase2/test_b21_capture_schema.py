@@ -64,7 +64,7 @@ def test_catalog_and_owned_downgrade(novelty_env, phase2_database_url):
         "strategy_question_admissions",
         "strategy_hypothesis_admissions",
     }
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     with e["engine"].connect() as conn:
         assert (
             conn.execute(
@@ -172,7 +172,7 @@ def test_populated_v1_upgrade_preserves_hash_nested_ref_and_replay(
             ),
         )
         uow.commit()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     from tests.integration.phase2.pr2_18_fixtures import add_resolution
 
     add_resolution(e, e["results"][0])
@@ -205,7 +205,7 @@ def test_populated_v1_upgrade_preserves_hash_nested_ref_and_replay(
     assert replay.search_coverage.material_version == 1
     assert replay.search_coverage.quality.captured_unresolved_result_count is None
     command.downgrade(cfg, "0067_b17_prepared_package_freeze")
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
 
 
 def copy_capture(conn, old, new, *, version=2, count=None, children=True, resolutions=True):
@@ -391,5 +391,5 @@ def test_unexpected_baseline_refuses_upgrade(novelty_env, phase2_database_url, c
         else:
             conn.execute(text("ALTER FUNCTION pr218_immutable() SET search_path TO public"))
     with pytest.raises(DBAPIError, match="unexpected B21 baseline"):
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0075_m1_reconsideration")
     assert "search_coverage_resolutions" not in inspect(e["engine"]).get_table_names()

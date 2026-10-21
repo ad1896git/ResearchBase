@@ -168,7 +168,7 @@ def test_each_downgrade_restores_exact_predecessor_catalog(phase2_database_url):
             restored = catalog()
             assert restored == snapshots[revision]
             print("DOWNGRADE", revision, "EXACT MATCH", summary(restored))
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0075_m1_reconsideration")
         assert catalog() == snapshots[revisions[-1]]
         print("RE-UPGRADE", revisions[-1], "EXACT MATCH", summary(catalog()))
     finally:

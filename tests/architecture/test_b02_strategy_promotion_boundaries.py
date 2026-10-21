@@ -74,7 +74,7 @@ def test_exact_b02_child_and_only_four_approved_relations():
     from alembic.script import ScriptDirectory
 
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0075_m1_reconsideration"]
+    assert scripts.get_heads() == ["0076_agent_runtime_bootstrap"]
     assert (
         scripts.get_revision("0073_b02_strategy_admission").down_revision
         == "0072_b03_discussion_hypothesis"

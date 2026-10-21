@@ -294,3 +294,30 @@ restricted query/fulltext or public cache export is added here. Restore checks r
 disposable databases; test failures must be resolved under the owning predicate, without
 repairing immutable history. Phase 2 is accepted; Phase 3 proceeds one explicitly
 authorized PR at a time.
+
+## Phase 3 bootstrap (PR3-00)
+
+Owner authorization on 2026-10-20 and [ADR-0021](docs/architecture/adr/ADR-0021-tdg3-phase3-technology-decisions.md)
+permit PR3-00 only. The [frozen scope](docs/phase3/PR3-00-contract-freeze.md)
+adds empty runtime, strategy, capability and adapter packages plus the empty,
+forward-only `0076_agent_runtime_bootstrap` revision after accepted Phase 2
+`0075_m1_reconsideration` (commit `286cd9a`). It adds no task model, worker,
+provider, dependency, schema object or API/CLI command. Agent callers will use the
+existing Application boundary; the development harness owns no scientific state.
+
+Use the existing explicit disposable PostgreSQL 18 admin selector
+`RB_TEST_ADMIN_URL` (described above), with PostgreSQL 18 `pg_dump` on `PATH`:
+
+```sh
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run alembic heads
+uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture tests/integration/phase3/test_pr3_00_bootstrap.py
+```
+
+Tests create and drop isolated databases through the existing disposable helper;
+file artifacts go under pytest `tmp_path`. See [verification evidence](docs/phase3/PR3-00-evidence.md)
+for exact focused commands and counts. The enclosing check loop owns the full
+suite run. **STOP after PR3-00 evidence.** PR3-01 and ADR-0022 staging require
+separate implementation authorization.

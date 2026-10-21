@@ -235,7 +235,7 @@ def test_forward_guard_preserves_rows_and_downgrade_refuses_history(
             .mappings()
             .one()
         )
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     with engine.connect() as conn:
         assert (
             conn.execute(

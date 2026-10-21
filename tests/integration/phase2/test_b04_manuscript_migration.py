@@ -52,7 +52,7 @@ def test_upgrade_catalog_and_empty_downgrade(start, monkeypatch):
         config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
         if start != "base":
             command.upgrade(config, start)
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
         engine = create_engine(url)
         with engine.connect() as conn:
             assert (
@@ -77,7 +77,7 @@ def test_upgrade_catalog_and_empty_downgrade(start, monkeypatch):
             )
         engine.dispose()
         command.downgrade(config, "0047_pr2_18_novelty_prior_art")
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
 
 
 def test_populated_draft_downgrade_and_frozen_refusal(b04_env, phase2_database_url):
@@ -85,7 +85,7 @@ def test_populated_draft_downgrade_and_frozen_refusal(b04_env, phase2_database_u
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     command.downgrade(config, "0047_pr2_18_novelty_prior_art")
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     assert service.get_manuscript_version(actor, q).status == "DRAFT"
     freeze(service, actor, q)
     with pytest.raises(DBAPIError):

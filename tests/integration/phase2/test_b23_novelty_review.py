@@ -163,7 +163,7 @@ def test_legacy_null_capture_and_new_zero_capture_stay_distinct(novelty_env):
     cfg = Config("alembic.ini")
     command.downgrade(cfg, "0067_b17_prepared_package_freeze")
     legacy = legacy_coverage(e)
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     zero = e["service"].record_search_coverage(
         e["author"],
         RecordSearchCoverageCommand(

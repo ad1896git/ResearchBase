@@ -487,7 +487,7 @@ def test_empty_downgrade_upgrade_and_catalog(approval_env):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", env[-1][8].url.render_as_string(hide_password=False))
     alembic_command.downgrade(config, "0044_pr2_15_revision_action")
-    alembic_command.upgrade(config, "head")
+    alembic_command.upgrade(config, "0075_m1_reconsideration")
     with env[-1][8].connect() as conn:
         fks = (
             conn.execute(

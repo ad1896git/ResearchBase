@@ -307,7 +307,7 @@ def test_empty_and_populated_downgrade_and_preserved_existing_rows(b02_env):
     )
     before = count(e, "hypotheses")
     command.downgrade(cfg, "0068_b21_unresolved_capture")
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     assert count(e, "hypotheses") == before
     saved = capture(e)
     with pytest.raises(DBAPIError, match="populated history"):

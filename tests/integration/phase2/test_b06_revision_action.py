@@ -593,7 +593,7 @@ def test_forward_migration_retains_shipped_history_and_preserved_catalog(revisio
             )
         ).all()
     alembic_command.downgrade(config, "0050_b01_resolution_admission")
-    alembic_command.upgrade(config, "head")
+    alembic_command.upgrade(config, "0075_m1_reconsideration")
     with base[8].connect() as conn:
         assert (
             conn.execute(text("SELECT * FROM revision_actions WHERE id=:id"), {"id": cmd.id}).one()
@@ -721,7 +721,9 @@ def test_global_artifact_metric_inputs_keep_phase1_owner_semantics(revision_env)
     alembic_command.downgrade(
         _config(base[8].url.render_as_string(hide_password=False)), "0051_b06_revision_action"
     )
-    alembic_command.upgrade(_config(base[8].url.render_as_string(hide_password=False)), "head")
+    alembic_command.upgrade(
+        _config(base[8].url.render_as_string(hide_password=False)), "0075_m1_reconsideration"
+    )
     with base[8].connect() as conn:
         assert (
             conn.execute(text("SELECT id,content_hash FROM revision_actions ORDER BY id")).all()

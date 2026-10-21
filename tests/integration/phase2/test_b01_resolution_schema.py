@@ -136,7 +136,7 @@ def test_nullable_legacy_hash_survives_downgrade_and_reupgrade(b01_env):
     before = saved()
     command.downgrade(cfg, "0047_pr2_18_novelty_prior_art")
     assert saved() == before
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     assert saved() == before
     from researchbase.application.search_result_resolution import ExactResolutionQuery
 

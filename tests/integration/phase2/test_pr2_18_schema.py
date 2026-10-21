@@ -82,7 +82,7 @@ def test_catalog_and_empty_downgrade(novelty_env, phase2_database_url):
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", phase2_database_url)
     command.downgrade(cfg, "0045_pr2_16_basic_approval")
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     result = e["service"].record_search_coverage(
         e["author"],
         RecordSearchCoverageCommand(
