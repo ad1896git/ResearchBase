@@ -20,7 +20,7 @@ jobs:
           POSTGRES_USER: researchbase
           POSTGRES_PASSWORD: researchbase
           # SERIALIZABLE fixture writers retain predicate locks across overlapping work.
-          POSTGRES_INITDB_ARGS: "--set=max_pred_locks_per_transaction=256"
+          POSTGRES_INITDB_ARGS: "--set=max_locks_per_transaction=256"
         ports:
           - 5432:5432
         options: >-
