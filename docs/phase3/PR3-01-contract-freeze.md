@@ -1,6 +1,6 @@
 # PR3-01 contract freeze and execution pack
 
-Status: documentation freeze for migration review. Implementation is NOT authorized.
+Status: FROZEN execution pack; passed two director reviews 2026-10-21. Implementation AUTHORIZED by the owner 2026-10-21.
 
 Authority: [approved PR3-01 contract](../proposals/PR3-01_ResearchTask_Step_Graph_Contract_DRAFT.md)
 §§2–11 and [ADR-0022](../architecture/adr/ADR-0022-pr3-01-policy-staging-input-layout.md).
