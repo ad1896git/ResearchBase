@@ -28,18 +28,31 @@ Status: DRAFT
 | C-22 | Review finding R7: Single-peer DNS pinning without fallback; timed-out lookup leaves daemon thread (adapters/literature_http.py) | docs/phase2/phase2_exit_review_2026-10-20.md:32 | P3 finding | Accepted limitation; review disposition: Phase 3 backlog | Adapter owner |
 | C-23 | Reference/provider intake: resolve revision, license/notice/terms, dated advisory review before enabling providers | docs/phase2/phase2_exit_report.md:64 | deferred scope | Providers must stay disabled until resolved; unresolved in adapter inventory (owner decision still open) | Owner; Phase 3 adapter lead |
 
-## Item 8: skipped-as-pending tests in tests/integration/phase2
+## Item 8: skipped-as-pending tests and unavailable PR2-19 gate subcases
 
-No rows. `grep -rn -i -E "pytest\.(skip|mark\.skip|xfail|importorskip)|skipif|xfail"` found one skip only: `tests/integration/phase2/test_hg1_runner_live.py:111` (`test_four_durable_deployments_authenticate_and_clean_up`), whose reason is an opt-in environment flag (`set HG1_RUN_LIVE=1 ...`), not pending/known gap, so it is not carried. No skip reason mentions pending or known gap.
+The pytest skip scan found only `tests/integration/phase2/test_hg1_runner_live.py:111` (`test_four_durable_deployments_authenticate_and_clean_up`), an opt-in environment skip (`set HG1_RUN_LIVE=1 ...`), not pending scope. Separately, all eight `SUBCASES` tuples whose fourth field is `False` in `tests/integration/phase2/test_pr2_19_dependencies.py` are recorded below, with their reasons quoted verbatim. This is informational owner availability, not acceptance evidence; historical reason strings may be stale. C-24 overlaps C-02 and C-28 overlaps C-11; totals count inventory rows, not distinct capabilities.
+
+| ID | Item | Source (file:line) | Kind | Consequence | Suggested owner |
+|---|---|---|---|---|---|
+| C-24 | G2 s3-contract-reconciliation | tests/integration/phase2/test_pr2_19_dependencies.py:63 | owner-accepted gap | "AQ-S3-08: bound AGENT fixture requires owning Application admission path"; same owner-accepted gap as C-02 | Identity/Application owner |
+| C-25 | G6 manuscript-cycle | tests/integration/phase2/test_pr2_19_dependencies.py:67 | deferred scope | "MANUSCRIPT_CHANGE denied"; unavailable gate subcase remains recorded; M1 manuscript-concern support does not itself establish this E2E cycle | Phase 3 governance/publication lead |
+| C-26 | G7 lock-free-completed-command-replay | tests/integration/phase2/test_pr2_19_dependencies.py:74 | deferred scope | "Owner decision pending: authorize production snapshot replay or defer §7 requirement"; production replay disposition remains pending | Owner; novelty/Application lead |
+| C-27 | G7 strong-novelty | tests/integration/phase2/test_pr2_19_dependencies.py:83 | deferred scope | "Exact screening/comparison basis absent"; stale reason after B20 (see reconciliation below); gate evidence still requires reconciliation | Phase 3 novelty/test lead |
+| C-28 | F1 automatic-finding-impact-propagation | tests/integration/phase2/test_pr2_19_dependencies.py:98 | deferred scope | "No automatic finding/impact propagation owner"; overlaps C-11 | Phase 3 governance lead |
+| C-29 | F5c manuscript-reconsideration | tests/integration/phase2/test_pr2_19_dependencies.py:105 | deferred scope | "B10 release-only scope"; manuscript reconsideration remains outside this gate slice | Phase 3 governance/publication lead |
+| C-30 | F6 manuscript-result | tests/integration/phase2/test_pr2_19_dependencies.py:107 | deferred scope | "Seventh action type deferred"; unavailable manuscript-result subcase requires reconciliation with M1 support | Phase 3 governance/publication lead |
+| C-31 | F9 scheduled-role-expiry | tests/integration/phase2/test_pr2_19_dependencies.py:117 | deferred scope | "BLOCKED: no owning Application command to schedule role expiry (AQ-S2-02)"; credential/grant expiry and role revocation do not cover scheduled role expiry | Identity/Application owner |
+
+G7 strong-novelty reconciliation: **(b) stale after B20**, because B20 §§3–4 delivered the bounded negative assessment's exact screening/resolution/comparison basis (`0070_b20_screening_basis`, `src/researchbase/domain/novelty.py:662`), using B22 §3 terminal-comparison rules, whereas `tests/integration/phase2/test_pr2_19_novelty.py:65` tests denial without that basis and does not establish positive G7 acceptance (universal priority and publication gates remain excluded by B20 §12.5).
 
 ## Totals per kind
 
 | Kind | Count |
 |---|---|
-| owner-accepted gap | 3 |
-| deferred scope | 16 |
+| owner-accepted gap | 4 |
+| deferred scope | 23 |
 | P3 finding | 4 |
 | accepted P2 | 0 |
-| **Total** | 23 |
+| **Total** | 31 |
 
 Note: no row has kind "accepted P2": no source item is an accepted P2 finding (R2/R3 are P2 but were not in the requested list; R3 concerns exit-report evidence, not provider intake). The provider-intake item is an open owner decision, classed as deferred scope.
