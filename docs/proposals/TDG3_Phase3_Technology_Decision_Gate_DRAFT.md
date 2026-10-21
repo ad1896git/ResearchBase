@@ -8,7 +8,7 @@
 
 Read this proposal under the precedence established by [AGENTS.md](../../AGENTS.md), [System Architecture](../architecture/01_ResearchBase_System_Architecture_v1.3_Harness_Integrated.md), [Correction Addendum](../architecture/02_Final_Architecture_Correction_Addendum_v1.0.md), [Global Registry](../architecture/03_Global_Schema_and_Contract_Registry_v1.0.md), [Cross-Phase Contracts](../architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md), [Phase 3 specification](../architecture/06_Phase3_Development_Specification_v1.1_Harness_Integrated.md), and [Harness Integration Specification](../harness/09_Harness_Integration_Specification_v1.0.md). The concise decision/required-contract structure follows [TDG-2](../architecture/11_TDG2_Phase2_Technology_Decision_Gate_v1.0.md).
 
-The planning source supplied for this task is `PHASE3_Roadmap_DRAFT.md`, §4, at `/Users/fengwang/Documents/ResearchBaseProject/.pipeline/tasks/phase3_drafts/PHASE3_Roadmap_DRAFT.md`; inspected SHA-256: `cffa9d239108675a17ccd7d72e9bc5f6d549e9ffd495fa044920d5a03d85fea4`. It is an external planning input, not a new normative repository contract. Repository baseline inspected: `286cd9ae985dcad91d3e225b4b50c5c46fadeef5`.
+The planning source is [Phase 3 roadmap DRAFT](PHASE3_Roadmap_DRAFT.md), §4 (`docs/proposals/PHASE3_Roadmap_DRAFT.md`, landing in the same merge). It is a planning proposal, not a new normative repository contract. Repository baseline inspected: `286cd9ae985dcad91d3e225b4b50c5c46fadeef5`.
 
 Section references below refer to the Phase 3 specification unless qualified. Its final **Harness Runtime Integration Addendum** repeats the number 85; references to “Harness §85.x” mean that final addendum, not the earlier reference-system pinning notes. PR identifiers use specification §79; detailed schema allocation and recovery ordering are roadmap proposals requiring approved execution packs.
 
@@ -18,17 +18,19 @@ All upstream facts, including exact versions/revisions, licenses, service/model 
 
 ### TDG3-01 — Phase entry and first-slice gaps
 
-**Question:** What evidence permits Phase 3 to start?
+**Question:** Is explicit Phase 3 GO granted, and which first PR is authorized?
 
-**Options:** (A) Accept full Phase 2 exit, exact contract revisions and explicit owner GO; (B) start runtime work against accepted first slices while carrying required Phase 2 gaps forward.
+**Accepted baseline:** Phase 2 was accepted on 2026-10-20 by director GO under owner delegation; see the [Phase 2 exit report](../phase2/phase2_exit_report.md) and [independent director review](../phase2/phase2_exit_review_2026-10-20.md). Its recorded owner-accepted deferrals remain explicit; Phase 2 acceptance does not grant Phase 3 GO.
 
-**Recommended option and required contract:** A. Partial contract freezes cannot supply the scientific/governance boundary on which agents depend. Require accepted Phase 1/2 regression evidence, full Phase 2 E2E/hardening and exit artifacts, resolution of open P0/P1 findings, TDG-3 ADRs, and a named authorized PR pack. PreparedSubmissionVersion proves preparation, never an external send. Preserve Phase 1 hashes. Optional extensions may remain explicitly deferred; mandatory exit rows may not be relabeled optional. Basis: Cross-Phase §§6, 42; Correction A17–A23; §§0, 81–82.
+**Options:** (A) Grant explicit Phase 3 GO and authorize PR3-00 only against the accepted Phase 2 baseline; (B) withhold Phase 3 GO; (C) name another first PR with its explicit authorization and prerequisites.
+
+**Recommended option and required contract:** A: recommend PR3-00 only as the first authorized PR. Partial contract freezes cannot supply the scientific/governance boundary on which agents depend. Require accepted Phase 1/2 regression evidence, full Phase 2 E2E/hardening and exit artifacts, resolution of open P0/P1 findings, TDG-3 ADRs, and a named authorized PR pack. PreparedSubmissionVersion proves preparation, never an external send. Preserve Phase 1 hashes. Preserve the recorded owner-accepted Phase 2 deferrals; other mandatory exit rows may not be relabeled optional. Basis: Cross-Phase §§6, 42; Correction A17–A23; §§0, 81–82.
 
 **Before selection:** Source/revision: identify accepted Phase 2 contracts, commits, exit report and exact command/count evidence, including blocked/skipped rows. License/terms: reconcile inherited adapter approvals; unresolved upstream facts are **to verify at intake**. Transitive dependencies: compare accepted inventories and locks. Security/data exposure: close required adapter, authorization and disclosure findings. Rollback: demonstrate that denied entry leaves the accepted baseline unchanged and no Phase 3 runtime enabled.
 
 **Dependent PRs:** PR3-00–23; this is the common entry prerequisite.
 
-**Owner question:** Do you require accepted full Phase 2 exit before explicit Phase 3 GO?
+**Owner question:** Do you grant explicit Phase 3 GO, and authorize (A) PR3-00 only (recommended), (B) no PR yet, or (C) another explicitly named first PR?
 
 ### TDG3-02 — Deployment and compute
 
@@ -90,29 +92,29 @@ All upstream facts, including exact versions/revisions, licenses, service/model 
 
 **Question:** Which primary and alternate coding adapters should Phase 3 accept?
 
-**Options:** (A) One primary adapter plus one narrowly scoped alternate after separate intake; (B) one primary with an explicit SHOULD deferral of the alternate; (C) multiple embedded provider SDKs from the start.
+**Options:** (A) Codex CLI primary plus Antigravity `agy` CLI as a narrowly scoped alternate, each after separate intake; (B) Codex CLI primary with an explicit SHOULD deferral of the alternate; (C) other owner-named provider arrangement. These machine-available candidates are **to verify at intake**; retain the fake adapter in every option.
 
-**Recommended option and required contract:** A. Nominate Codex or an approved equivalent for PR3-09 and an OpenHands/ACP-compatible alternate for PR3-10; identities remain pending intake. Prefer a thin replaceable integration, with no SDK embedding by default. Keep PR3-08 fake contract coverage. Record repository/workspace hashes, model/provider, commands, patch/source/configuration/lock/test artifacts and actual workspace outcome. Completion text cannot establish success; semantic edits require assessment and, when material, a new ExperimentSpecVersion. Basis: §§10–11, 36–37, 63–68, 79.
+**Recommended option and required contract:** A. Nominate Codex CLI for PR3-09 and Antigravity `agy` CLI for PR3-10; exact identities, protocol compatibility and fitness remain **to verify at intake**. Prefer a thin replaceable integration, with no SDK embedding by default. Keep PR3-08 fake contract coverage. Record repository/workspace hashes, model/provider, commands, patch/source/configuration/lock/test artifacts and actual workspace outcome. Completion text cannot establish success; semantic edits require assessment and, when material, a new ExperimentSpecVersion. Basis: §§10–11, 36–37, 63–68, 79.
 
 **Before selection:** Source/revision: resolve exact client/API/CLI, protocol and adapter identities, **to verify at intake**. License/terms: review executable and service terms, repository disclosure and generated-output conditions. Transitive dependencies: inspect clients, bundled runtimes and optional SDK trees. Security/data exposure: verify allowed paths/commands, install policy, upload restrictions, secrets isolation and sandbox enforcement. Rollback: disable an adapter, reconcile outstanding work and switch through a new CapabilityInvocation; retain earlier failures and fingerprints.
 
 **Dependent PRs:** PR3-08–11, 15, 18–23; PR3-10 must be accepted or explicitly deferred with its coverage limitation.
 
-**Owner question:** Which primary coding provider and narrowly scoped alternate do you approve for intake?
+**Owner question:** For intake, choose (A) Codex CLI primary + Antigravity `agy` CLI alternate (recommended), (B) Codex CLI only with alternate deferred, or (C) other; retain the fake adapter in all cases and verify candidates at intake?
 
 ### TDG3-07 — Models, data and credentials
 
 **Question:** Which model profile may process which data using which credentials?
 
-**Options:** (A) One approved model profile with an explicit permitted-data matrix; (B) role-based multi-provider routing after separate per-profile approval; (C) local-only model execution under the same data and resource policy.
+**Options:** (A) One model profile from the provider the owner already uses, with the smallest permitted data class: synthetic/test fixtures only for pilots, and credentials held by the host owner outside agent workspaces; (B) other owner-named profile, data scope or credential arrangement, subject to separate approval. The existing provider/profile candidate is **to verify at intake**.
 
-**Recommended option and required contract:** A. Approve exact model/provider identity, data classes, project scope and allowed operations before upload. Deny cross-project sharing and provider transmission unless explicitly permitted. Inject service credentials at the trusted gateway/adapter boundary, outside agent workspaces, prompts, artifacts and logs. Record model changes in execution provenance; do not silently fall back to another provider. A service alias alone must not be represented as an immutable model revision when the provider cannot prove that mapping. Basis: §§8, 26–27, 38, 50–52; Harness §85.4.
+**Recommended option and required contract:** A. Start with one profile from the provider the owner already uses and synthetic/test fixtures only for pilots; exact profile and provider terms are **to verify at intake**. The host owner holds credentials outside agent workspaces. Approve exact model/provider identity, data classes, project scope and allowed operations before upload. Deny cross-project sharing and provider transmission unless explicitly permitted. Inject service credentials at the trusted gateway/adapter boundary, outside agent workspaces, prompts, artifacts and logs. Record model changes in execution provenance; do not silently fall back to another provider. A service alias alone must not be represented as an immutable model revision when the provider cannot prove that mapping. Basis: §§8, 26–27, 38, 50–52; Harness §85.4.
 
 **Before selection:** Source/revision: resolve model/profile, endpoint and adapter identity and document any reproducibility limitation, **to verify at intake**. License/terms: verify model/data rights, retention, training use, region and deletion terms. Transitive dependencies: inspect client, tokenizer and model artifacts if used. Security/data exposure: approve the data-flow matrix, redaction, project access, credential rotation and egress tests. Rollback: block upload, revoke credentials, reconcile calls and restore an approved profile without changing historical attribution.
 
 **Dependent PRs:** PR3-02–05, 08–15, 17–23; inherited literature/model capabilities need the same scope checks.
 
-**Owner question:** Which model profile, permitted data classes and credential custodian do you approve?
+**Owner question:** Choose (A) one profile from your existing provider, synthetic/test fixtures only for pilots, host-owner credentials outside agent workspaces (recommended; to verify at intake), or (B) other explicitly named profile/data/custodian arrangement?
 
 ### TDG3-08 — Autonomy and formal gates
 
@@ -206,13 +208,13 @@ Promotion record and canonical create/revise must commit in the **same Applicati
 
 **Options:** (A) Separate reviewer execution with reconstructed evidence and named human operational owners; (B) an additional independent reviewer/model for higher-risk changes under the same human accountability.
 
-**Recommended option and required contract:** A initially; use B when risk justifies it. Review uses authoritative specs, relevant canonical state, candidate/diff/artifacts and machine evidence, without author scratchpad or private reasoning. A separate reviewer execution is required by this proposed acceptance policy; a different model is optional. Assign named human gate, migration, security, budget and incident owners, plus stop/escalation coverage. Review does not confer approval authority or scientific truth. Findings use P0 BLOCKER/P1 MAJOR/P2 MINOR/P3 SUGGESTION and include location, evidence, violated rule, impact and action. Close P0/P1 before gate success. Basis: §§17, 65–66, 78, 80–82; Harness §85.5–85.6; AGENTS.md §10.
+**Recommended option and required contract:** A initially; use B when risk justifies it. Review uses authoritative specs, relevant canonical state, candidate/diff/artifacts and machine evidence, without author scratchpad or private reasoning. A separate reviewer execution is required by this proposed acceptance policy; a different model is optional. For this single-owner project, propose owner **eshine** as gate, budget and incident owner, retaining human accountability for migration and security. The director, **Claude Code acting under owner delegation**, is the independent reviewer and migration/security first reviewer, using a separate reviewer execution. The owner may override these assignments and designate stop/escalation coverage. Review does not confer approval authority or scientific truth. Findings use P0 BLOCKER/P1 MAJOR/P2 MINOR/P3 SUGGESTION and include location, evidence, violated rule, impact and action. Close P0/P1 before gate success. Basis: §§17, 65–66, 78, 80–82; Harness §85.5–85.6; AGENTS.md §10.
 
 **Before selection:** Source/revision: identify reviewer execution/context manifests, owner roster, approved runbooks and gate evidence. License/terms: any reviewer provider/service remains **to verify at intake**. Transitive dependencies: inventory review tooling; a second model is not automatically trusted. Security/data exposure: verify least-privilege review access, no author scratchpad leakage, incident escalation and auditor denial of approval/direct writes. Rollback: owners can suspend dispatch, revoke credentials/Skills and reconcile jobs while preserving findings and scientific history; verify response coverage before unattended use.
 
 **Dependent PRs:** PR3-00–23 for review/accountability; PR3-14 implements reviewer isolation, PR3-19 recovery, PR3-20–23 acceptance evidence.
 
-**Owner question:** Who are the gate, migration, security, budget and incident owners for independently reviewed Phase 3 operation?
+**Owner question:** Do you accept eshine as gate/budget/incident owner and director Claude Code under owner delegation as independent reviewer and migration/security first reviewer, or override these assignments?
 
 ## Selection and activation gates
 
@@ -220,7 +222,7 @@ All fourteen rows remain **PENDING OWNER DECISION**. Record each answer, rationa
 
 TDG-3 selection cannot close Phase 2 gaps, weaken scientific invariants or substitute for per-PR authorization. Freeze unresolved numeric evaluation targets, sandbox resource limits and cancellation/overshoot bounds before their dependent PRs activate. A failed intake leaves that adapter disabled and returns the choice for review; it does not authorize additional infrastructure. At Phase 3 exit require the seven §82 artifacts and the final harness extension, then STOP pending separate Phase 4 GO.
 
-Verification scope for this draft: documentation structure, local links, decision coverage and whitespace only. No tests run; no implementation acceptance or gate success is claimed.
+Verification scope for this draft: documentation structure, local links, decision coverage and whitespace only. No implementation acceptance or gate success is claimed.
 
 ## Owner decision sheet
 
@@ -228,17 +230,17 @@ All answers pending; record owner/date/ADR revision on selection. This compact s
 
 | ID | Proposed answer | Exact owner question |
 |---|---|---|
-| TDG3-01 | Full Phase 2 exit, then GO | Do you require accepted full Phase 2 exit before explicit Phase 3 GO? |
+| TDG3-01 | Phase 2 accepted; Phase 3 GO + PR3-00 only proposed | Do you grant explicit Phase 3 GO, and authorize (A) PR3-00 only (recommended), (B) no PR yet, or (C) another explicitly named first PR? |
 | TDG3-02 | DEV_LOCAL; isolated CPU worker | Do you approve DEV_LOCAL with dedicated isolated CPU execution and no GPU or cloud credentials? |
 | TDG3-03 | Constrained Docker; intake first | Do you approve a constrained Docker sandbox subject to host, license and containment intake? |
 | TDG3-04 | Small native state machine | Do you approve native orchestration with no external agent runtime dependency initially? |
 | TDG3-05 | PostgreSQL dispatch; no Redis | Do you approve PostgreSQL dispatch and leases with no Redis or separate broker? |
-| TDG3-06 | Primary + narrow alternate | Which primary coding provider and narrowly scoped alternate do you approve for intake? |
-| TDG3-07 | One profile; scoped data/secrets | Which model profile, permitted data classes and credential custodian do you approve? |
+| TDG3-06 | Codex CLI + agy CLI; fake retained; intake pending | For intake, choose (A) Codex CLI primary + Antigravity `agy` CLI alternate (recommended), (B) Codex CLI only with alternate deferred, or (C) other; retain the fake adapter in all cases and verify candidates at intake? |
+| TDG3-07 | Existing-provider profile; fixtures only; host-owner credentials | Choose (A) one profile from your existing provider, synthetic/test fixtures only for pilots, host-owner credentials outside agent workspaces (recommended; to verify at intake), or (B) other explicitly named profile/data/custodian arrangement? |
 | TDG3-08 | A1/A2; gated bounded A3 | Do you approve A1/A2 defaults with human freeze/release and separately authorized bounded A3? |
 | TDG3-09 | Eleven stated pilot caps | Do you approve the stated eleven pilot caps, including USD 5 and zero GPU hours? |
 | TDG3-10 | Hard stops; human extension | Do you approve first-bound termination, two-failure/two-no-improvement stops and explicit human budget extensions? |
 | TDG3-11 | Typed atomic promotion; serial DDL | Do you approve the proposed PR ownership, atomic typed promotion and serial migration allocation? |
 | TDG3-12 | Reviewed/pinned bounded registry | Do you approve reviewed immutable intake through the existing bounded Skill registry only? |
 | TDG3-13 | Zero safety failures; frozen targets | Do you approve zero safety violations and predeclared fixture-specific quality, cost and recovery targets? |
-| TDG3-14 | Independent review; named owners | Who are the gate, migration, security, budget and incident owners for independently reviewed Phase 3 operation? |
+| TDG3-14 | eshine ownership; director independent/first review; owner may override | Do you accept eshine as gate/budget/incident owner and director Claude Code under owner delegation as independent reviewer and migration/security first reviewer, or override these assignments? |
