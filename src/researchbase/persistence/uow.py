@@ -295,8 +295,14 @@ def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
 
 
 def _issue_disposition_database_error(exc: DBAPIError) -> ResearchBaseError:
-    """B08 alone opts in to its finite fresh-UoW retry protocol."""
+    """B08 separates read-only timeout recovery from fresh-UoW mutation retries."""
     error = _decision_database_error(exc)
+    if getattr(exc.orig, "sqlstate", None) == "55P03":
+        return ResearchBaseError(
+            ErrorCode.CONCURRENT_MODIFICATION,
+            "issue disposition lock timeout",
+            {"reload_b08_receipt": True},
+        )
     if getattr(exc.orig, "sqlstate", None) in {"40001", "40P01"}:
         return ResearchBaseError(error.code, error.message, {"retryable_b08": True})
     return error

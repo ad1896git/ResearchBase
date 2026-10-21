@@ -1407,6 +1407,13 @@ class InternalReviewService:
             try:
                 return self._record_disposition_once(principal, command)
             except ResearchBaseError as error:
+                if (error.details or {}).get("reload_b08_receipt"):
+                    # The failed wait's UoW has rolled back. A winner (or an
+                    # earlier waiter serving its replay) may now have committed.
+                    # Read only: never retry the mutation after a lock timeout.
+                    saved = self._saved_disposition(principal, command)
+                    if saved is not None:
+                        return saved
                 if error.message == "reload issue disposition":
                     # The failed UoW has rolled back; compare saved history only.
                     return self._record_disposition_once(principal, command, reload_only=True)
@@ -1419,9 +1426,7 @@ class InternalReviewService:
                 raise ResearchBaseError(error.code, error.message) from None
         raise AssertionError("unreachable disposition retry")
 
-    def _record_disposition_once(
-        self, principal, command, *, reload_only=False
-    ) -> IssueDispositionReadback:
+    def _saved_disposition(self, principal, command) -> IssueDispositionReadback | None:
         try:
             saved = self.get_issue_disposition(principal, command.project_id, command.id)
         except ResearchBaseError as error:
@@ -1444,6 +1449,15 @@ class InternalReviewService:
                 or saved.new_status != command.disposition
             ):
                 _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "event UUID reused with changed material")
+            return saved
+
+        return None
+
+    def _record_disposition_once(
+        self, principal, command, *, reload_only=False
+    ) -> IssueDispositionReadback:
+        saved = self._saved_disposition(principal, command)
+        if saved is not None:
             return saved
         with self._factory() as uow:
             uow.enable_issue_disposition_error_normalization()

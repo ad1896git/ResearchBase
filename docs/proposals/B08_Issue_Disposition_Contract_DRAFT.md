@@ -187,7 +187,11 @@ is recovered by the same UUID; do not blindly create another event.
 
 Only SQLSTATE 40001/40P01 retry: three total fresh UoWs, no delay/external call,
 redo all locks/reads/authority. Force deferred guards before final fresh-clock
-checks. Timeout rolls back with existing sanitized fallback, without blind retry.
+checks. A lock timeout (55P03) rolls back, then checks the exact UUID in a fresh
+lock-free historical read before returning an error. A completed receipt still
+requires original actor, identical material and current read entitlement. If no
+receipt exists, return CONCURRENT_MODIFICATION; never retry the mutation after a
+timeout. Statement timeout/unknown errors retain the existing sanitized fallback.
 Failure between event insertion and status projection, or during constraints,
 leaves neither transition nor event. Historical reads follow the distinct protocol.
 
@@ -259,15 +263,19 @@ Rows match `src/researchbase/api/errors.py` and `src/researchbase/cli/errors.py`
 | IMMUTABLE_RECORD | 409 | 4 | Update/delete history, late basis or Issue descriptor edit. |
 | REFERENTIAL_INTEGRITY_ERROR | 409 | 5 | Concrete FK violation. |
 | PROVENANCE_CLOSURE_VIOLATION | 409 | 5 | Saved graph/hash/history mismatch, unrelated link, invalid required changed result. |
-| CONCURRENT_MODIFICATION | 409 | 4 | 40001/40P01 after three total attempts. |
+| CONCURRENT_MODIFICATION | 409 | 4 | 40001/40P01 after three total attempts; 55P03 with no completed exact receipt after rollback. |
 
 Reuse UoW P17R1→INVALID_STATE_TRANSITION, P17F1→IMMUTABLE_RECORD,
 P17F2→PROVENANCE_CLOSURE_VIOLATION. Add named unique handling for
 `uq_b08_issue_terminal`: rollback/reload under entitlement, compare same event UUID
 for replay; another UUID gets INVALID_STATE_TRANSITION. Primary-key collision
 also reloads/compares after rollback, never swallows the failed statement.
-Timeout/unknown DB errors retain sanitized INVALID_STATE_TRANSITION fallback;
-only SQLSTATE determines retry eligibility. Unexpected transport fallback remains
+After 55P03, rollback and perform only an entitled exact receipt read (§7); no
+receipt means sanitized CONCURRENT_MODIFICATION. Statement timeout/unknown DB
+errors retain sanitized INVALID_STATE_TRANSITION fallback; only SQLSTATE
+40001/40P01 determines mutation retry eligibility. This bounded recovery follows
+the same-key CI race fix authorization of 2026-10-21 and preserves §12.2's locks.
+Unexpected transport fallback remains
 HTTP 500 `INTERNAL_ERROR`, CLI exit 1, with no raw diagnostics.
 
 ### 11.3 DTO fields, Python types and limits

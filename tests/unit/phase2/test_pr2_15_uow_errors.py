@@ -153,6 +153,22 @@ def test_b08_only_serialization_and_deadlock_are_retryable(state, retry):
     assert bool((result.details or {}).get("retryable_b08")) == retry
 
 
+def test_b08_lock_timeout_requests_read_only_receipt_recovery_only():
+    from researchbase.persistence.uow import (
+        _decision_database_error,
+        _issue_disposition_database_error,
+    )
+
+    failure = _error("55P03")
+    result = _issue_disposition_database_error(failure)
+    assert result.code == ErrorCode.CONCURRENT_MODIFICATION
+    assert result.details == {"reload_b08_receipt": True}
+    assert "SYNTHETIC_SECRET" not in result.message
+    # Other Decision writers retain their own accepted error/retry policies.
+    assert _decision_database_error(failure).code == ErrorCode.INVALID_STATE_TRANSITION
+    assert _decision_database_error(failure).details is None
+
+
 @pytest.mark.parametrize("retryable,expected_attempts", [(True, 3), (False, 1)])
 def test_b08_restarts_only_retryable_failures_exactly_three_total_attempts(
     monkeypatch, retryable, expected_attempts

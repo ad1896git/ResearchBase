@@ -94,6 +94,95 @@ def test_observed_same_issue_race_commits_one_terminal_event(revision_env, same_
     assert len(service.get_issue_history(actor, base[5], cmd.review_issue_id).events) == 2
 
 
+@pytest.mark.parametrize("outcome", ["replay", "changed", "revoked", "absent"])
+def test_timed_out_same_key_wait_reloads_committed_receipt(revision_env, outcome):
+    """A failed lock wait must roll back before looking for the winner's receipt."""
+    service, actor, cmd, base, _ = disposition_case(revision_env)
+    entered, release = Event(), Event()
+    timed_out, deliver_error = Event(), Event()
+    holder = {}
+    waiter = {}
+    recovery_sql = []
+    waiting_command = replace(cmd, rationale="Changed material") if outcome == "changed" else cmd
+
+    def pause(conn, cursor, statement, parameters, context, many):
+        if get_ident() == waiter.get("thread") and timed_out.is_set():
+            recovery_sql.append(statement)
+        if get_ident() == waiter.get("thread") and statement == "SET LOCAL statement_timeout='30s'":
+            # Test-only acceleration of the real PostgreSQL 55P03 failure in CI.
+            conn.execute(text("SET LOCAL lock_timeout='5s'"))
+        if statement.startswith("INSERT INTO review_issue_events") and not entered.is_set():
+            holder["pid"] = conn.connection.driver_connection.info.backend_pid
+            entered.set()
+            assert release.wait(30)
+            if outcome == "absent":
+                raise RuntimeError("winner rolled back")
+
+    def failed_wait(context):
+        if get_ident() == waiter.get("thread"):
+            assert getattr(context.original_exception, "sqlstate", None) == "55P03"
+            timed_out.set()
+            assert deliver_error.wait(20)
+
+    def follow():
+        waiter["thread"] = get_ident()
+        return service.record_issue_disposition(actor, waiting_command)
+
+    event.listen(base[8], "after_cursor_execute", pause)
+    event.listen(base[8], "handle_error", failed_wait)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            winner = pool.submit(service.record_issue_disposition, actor, cmd)
+            try:
+                assert entered.wait(10)
+                pending = pool.submit(follow)
+                witness = _wait_for_pg_blocker(base[8], holder["pid"], "advisory")
+                assert "pg_advisory_xact_lock" in witness["query"]
+                assert timed_out.wait(10)
+                # The waiter is still handling its failed SQL statement. Commit the
+                # winner before allowing rollback and Application error handling.
+                release.set()
+                if outcome == "absent":
+                    with pytest.raises(RuntimeError, match="winner rolled back"):
+                        winner.result(timeout=15)
+                    saved = None
+                else:
+                    saved = winner.result(timeout=15)
+                if outcome == "revoked":
+                    base[-1].enabled = False
+            finally:
+                release.set()
+                deliver_error.set()
+            if outcome == "replay":
+                assert pending.result(timeout=15) == saved
+            else:
+                with pytest.raises(ResearchBaseError) as caught:
+                    pending.result(timeout=15)
+                assert (
+                    caught.value.code
+                    == {
+                        "changed": ErrorCode.IDEMPOTENCY_CONFLICT,
+                        "revoked": ErrorCode.FORBIDDEN,
+                        "absent": ErrorCode.CONCURRENT_MODIFICATION,
+                    }[outcome]
+                )
+    finally:
+        release.set()
+        deliver_error.set()
+        base[-1].enabled = True
+        event.remove(base[8], "after_cursor_execute", pause)
+        event.remove(base[8], "handle_error", failed_wait)
+    history = service.get_issue_history(actor, base[5], cmd.review_issue_id)
+    assert len(history.events) == (1 if outcome == "absent" else 2)
+    assert history.disposition == saved
+    assert recovery_sql
+    assert not any(
+        token in sql.upper()
+        for sql in recovery_sql
+        for token in ("LOCK TABLE", "ADVISORY", "FOR UPDATE", "FOR SHARE", "INSERT", "UPDATE ")
+    )
+
+
 @pytest.mark.parametrize("first_writer", ["disposition", "correction"])
 def test_correction_and_disposition_both_commit_orders_without_action_lock_cycle(
     revision_env, first_writer
