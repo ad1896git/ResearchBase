@@ -12,7 +12,9 @@ PR3-01 is delivered: migration `0077_research_task_graph`,
 `src/researchbase/agent_runtime/`, and its contract freeze are the baseline.
 The freeze pack's historical statements that these objects are absent are no
 longer checkout facts. A future migration must follow 0077 at **0078+**, reconcile
-any intervening PR3-04 migration, and retain one head; never edit 0077.
+any intervening migrations, and retain one head; never edit 0077. S2's migration
+number follows whatever head exists when S2 is authorized; do not reserve 0078
+for S2.
 
 **Naming rule:** every proposed table, column, DTO, command, query, key, hash
 material and diagnostic label defined below is **new in PR3-02**, including names
@@ -20,6 +22,30 @@ already present as concepts in architecture documents. Existing implementation
 identifiers are explicitly inventoried in §10. SQL isolation levels, lock modes
 and SQLSTATEs below are PostgreSQL primitives, not proposed repository identifiers.
 No code, DDL, dependency, test or other document is changed by this proposal.
+
+## Slices
+
+This draft retains the full contract but assigns implementation and acceptance to
+two separately authorized slices. Promotion requires a SUCCEEDED execution;
+implementing it while transitions remain denied would leave untested dead code.
+
+| Slice | Prerequisites and assigned content | Owner decisions required (§9) |
+| --- | --- | --- |
+| **PR3-02-S1** | Can follow accepted PR3-01 directly. §4 `provision_project_agent`, including AQ-S3-08 closure through positive B02 G2 AGENT Application evidence; §5 `register_agent_version`, `change_agent_availability`, AgentVersionDTO, `get_agent_version` and their command results; §6 `agent_versions`, `agent_availability`, `agent_availability_events` and `agent_command_receipts` for these three operations; §7 HarnessManifest value definition and S1 transaction inventory. | D302-01 and D302-02; D302-05 for S1's four tables, receipt links and reduced SHARE inventory only. |
+| **PR3-02-S2** | Only after PR3-03 (gateway) and PR3-04 (policies) are accepted. §5 `create_agent_execution`, `transition_agent_execution`, `promote_agent_candidate`, execution/promotion DTOs and queries; §6 `agent_execution_instances`, `agent_execution_events`, `agent_promotion_records`, `agent_promotion_outputs`, atomic promotion composition and outputs; extend receipts with these operations and typed result FKs; §7 execution harness binding and S2 transaction inventory. | D302-03 and D302-04; D302-05 for the remaining four tables, receipt extensions and S2 SHARE recipe; preserve accepted D302-01/02 contracts. |
+
+§§1–3 supply shared authority, scope and invariants, applied to each slice's
+objects. §§5–8 share DTO/envelope, persistence, transaction, error and replay rules
+only for the assigned operations. In §7, define/validate the manifest value in S1;
+its execution FK, saved digest and admission binding belong to S2. §9 acceptance
+cases split on the same object/operation boundary: S1 proves identity, versions,
+availability, manifests and their receipts/races/migration; S2 proves execution
+lifecycle, atomic promotion, typed outputs and their receipts/races/migration,
+including positive SUCCEEDED-to-promotion coverage with accepted gateway/policies.
+§10 is shared reference/authoring evidence. S1 adds no execution/promotion tables,
+commands or placeholder receipt FKs, and does not use disabled transitions as
+positive coverage. S2 extends the accepted S1 schema in a migration following
+whatever head exists then, retaining one head and never editing accepted migrations.
 
 ## 1. Authority
 
@@ -48,11 +74,12 @@ scientific ownership change. Run remains the existing scientific execution.
 one Agent execution can later have many such calls and can produce zero or many
 scientific objects. An execution succeeding never proves a Run succeeded.
 
-PR3-02 may store CREATED execution intent for a sealed PLANNING task. It must not
+PR3-02-S2 may store CREATED execution intent for a sealed PLANNING task. It must not
 advance the task/steps or start work while PR3-01's execution gate is closed.
-Lifecycle/provenance interfaces are defined here; their positive running and
-promotion cases require accepted policy/gateway integration in the owning later
-PRs. No temporary switch or fixture-only production bypass opens that gate.
+Lifecycle/provenance interfaces are defined here for S2; their positive running
+and promotion cases require accepted PR3-03 gateway and PR3-04 policy integration
+before S2 implementation. No temporary switch or fixture-only production bypass
+opens that gate.
 
 ## 3. Invariants
 
@@ -241,7 +268,31 @@ identifies inputs, not a promise of identical stochastic output.
 Every write uses one synchronous READ COMMITTED UoW. Set connection startup
 lock_timeout=10s and statement_timeout=30s before SQL; no earlier SET, authorization,
 replay query or advisory lock. The **first Application SQL** acquires SHARE on
-this fixed inventory, in exactly the following order (existing table names):
+the slice's fixed inventory, even for empty inputs and replay, in the stated order
+(existing table names).
+
+**S1 inventory (8 tables, ordered):** actor_subject_bindings, actors,
+artifact_versions, artifacts, project_membership_events, project_memberships,
+project_role_assignments, projects.
+
+| S1 protected table | Why S1 operations need SHARE protection |
+| --- | --- |
+| actor_subject_bindings | Live caller/OWNER and Agent subject binding, credential revocation and enrollment subject uniqueness. |
+| actors | Caller/OWNER and target Agent type/retirement checks; fresh Agent identity insertion. |
+| artifact_versions | Exact frozen configuration version, project binding and saved hash for registration. |
+| artifacts | Configuration artifact parent identity and project scope. |
+| project_membership_events | Membership interval/history evidence used by existing identity role checks and enrollment's initial event. |
+| project_memberships | Current OWNER/Agent project entitlement and new Agent membership. |
+| project_role_assignments | HUMAN OWNER authorization and the new Agent's RESEARCHER ceiling. |
+| projects | Project identity and lifecycle admission for all three commands. |
+
+S1 needs no task-input, literature-source, candidate-capture/admission or promoted
+scientific-target SHARE locks. Its manifest value definition adds no write command
+or table. Positive B02 G2 AGENT evidence calls existing B02 commands with their
+own accepted transaction recipe; it does not broaden the S1 command inventory.
+New S1 version/availability/receipt rows use the advisory/row locks and guards below.
+
+**S2 inventory (23 tables, ordered):**
 
 actor_subject_bindings, actors, artifact_versions, artifacts, claim_versions,
 claims, hypothesis_versions, hypotheses, literature_source_project_links,
@@ -251,14 +302,14 @@ research_question_versions, research_questions, source_versions,
 strategy_candidate_captures, strategy_candidate_sources,
 strategy_hypothesis_admissions, strategy_question_admissions.
 
-This is the union of delivered PR3-01 and B02 protected inventories, 23 tables;
+S2 retains the union of delivered PR3-01 and B02 protected inventories, 23 tables;
 fixed even for empty inputs and replay. It protects identity, scope, frozen input
 and candidate admission facts. It is deliberately broad; SHARE-to-write upgrades
 for enrollment/promotion can deadlock under concurrent arrivals, so no claim of
 contention-free operation. Use the bounded whole-transaction retry below and test
 these exact races. Do not alter accepted Phase 2 writer ordering in this PR.
 
-Then acquire, in order:
+Then acquire, in order, skipping locks for objects/operations outside the slice:
 
 1. Existing `rb_phase2_lock_project` for the single project.
 2. Command advisory key **pr302:command:<project>:<caller>:<command> (new in PR3-02)**.
@@ -355,8 +406,8 @@ executed tests** or evidence of a gate passing:
 | Unit/static/architecture | Full lifecycle/availability matrices; terminal rejection; closed DTOs; independent literal hash vectors; fingerprint order/pinning/change detection; common Human/Agent boundary; no runtime ORM/vendor access or new scientific entity. |
 | Identity | Application-only enrollment and subject resolution; positive B02 G2 AGENT composition; unchanged HUMAN bootstrap/enrollment; B03 Agent denial; proof/subject/credential mismatch, expiry, revocation, duplicate binding, self-enrollment and role escalation. No actor-type UPDATE fixture. |
 | PostgreSQL schema/application | Real PostgreSQL 18, normal-role SQL; strong composite FKs, XOR targets, immutable/no-op UPDATE/DELETE, complete events/receipts, same-transaction canonical/promotion success and forced failure on each side. DRAFT hashes stay NULL. All cross-project/wrong-actor/artifact mismatches reject. |
-| Concurrency/replay | Observe first 23-table SHARE before other SQL; actual availability/credential/membership/source-link revoke races, enrollment lock upgrade, promotion upgrade, same candidate/same command races, stale revisions, lost response and uncertain commit. One winner or explicit sanitized bounded failure; no partial history. Read snapshots take no locks. |
-| Migration/compatibility | Clean upgrade and populated upgrade from 0077, sole head, unchanged PR3-01/Phase 1/2 IDs/hashes/trace. Forward repair; downgrade refuses before destructive action. Policy-gated operations remain denied until owning prerequisites land; that denial is not positive execution coverage. |
+| Concurrency/replay | Observe first S1 8-table / S2 23-table SHARE before other SQL; actual availability/credential/membership/source-link revoke races, enrollment lock upgrade, promotion upgrade, same candidate/same command races, stale revisions, lost response and uncertain commit. One winner or explicit sanitized bounded failure; no partial history. Read snapshots take no locks. |
+| Migration/compatibility | S1 clean/populated upgrade from 0077 or intervening head; S2 upgrade from the then-current head after accepted PR3-03/04 and S1, sole head, unchanged PR3-01/Phase 1/2 IDs/hashes/trace. Forward repair; downgrade refuses before destructive action. Policy-gated operations remain denied until owning prerequisites land; that denial is not positive execution coverage. |
 
 Future verification: existing static commands `.venv/bin/ruff check .`,
 `.venv/bin/ruff format --check .`, `.venv/bin/pyright`; focused unit/architecture
@@ -371,9 +422,9 @@ setup; delegate the full suite to the authorized check loop. No SQLite substitut
 | --- | --- |
 | D302-01 (new in PR3-02): Agent identity | Approve additive project enrollment and MTLS_URI proof/resolution through the existing identity boundary. Require independent verifier intake and positive Application-only G2 evidence before marking AQ-S3-08 closed. |
 | D302-02 (new in PR3-02): version scope/material | Project-scoped immutable versions; separate availability; artifacts/manifests carry pinned behavior. No separate fingerprint or model-policy entity. |
-| D302-03 (new in PR3-02): staged execution | Permit CREATED intent only; nullable start time until first RUNNING. Require PR3-04 policy and PR3-03 gateway integration before start/promotion; no weakening of ADR-0022 or 0077 task checks. Freeze the enabling contract in the owning later pack. |
+| D302-03 (new in PR3-02): staged execution | S2 only: permit CREATED intent only; nullable start time until first RUNNING. Require PR3-04 policy and PR3-03 gateway integration before start/promotion; no weakening of ADR-0022 or 0077 task checks. Freeze the enabling contract in the owning later pack. |
 | D302-04 (new in PR3-02): atomic targets | Start with two B02 DRAFT target families and additive in-UoW composition. Human/Agent promotion modes retain producer identity; other canonical families expand through explicit typed review in their owning PR. |
-| D302-05 (new in PR3-02): schema/locking | Admit the eight pattern-based tables, concrete receipt result links and broad SHARE recipe; require contention/deadlock evidence. Review exact columns, bounds, indexes, trigger inventory, hash vectors and sanitized error translations in the execution pack before DDL authorization. |
+| D302-05 (new in PR3-02): schema/locking | Admit S1's four pattern-based tables, scoped receipt result links and 8-table SHARE recipe; S2 adds the remaining four tables, execution/promotion receipt links and broad 23-table SHARE recipe; require contention/deadlock evidence. Review exact columns, bounds, indexes, trigger inventory, hash vectors and sanitized error translations in the execution pack before DDL authorization. |
 
 These are recommendations awaiting owner decisions, not implicit approval. No new
 ErrorCode is requested. Approval must identify these decisions and a subsequent
@@ -396,7 +447,8 @@ Existing implementation names used above were checked with focused `rg` against
 | begin_formal_read; canonical_json_bytes, sha256_canonical_json, sha256-cjson-v1; every ErrorCode in §8 | src/researchbase/persistence/uow.py; src/researchbase/foundation/canonical_json.py; src/researchbase/foundation/hashing.py; src/researchbase/foundation/errors.py. |
 | Focused existing test paths in §9 | tests/unit/phase3; tests/architecture/test_pr3_01_boundaries.py; tests/integration/phase3; tests/integration/phase2/test_b02_identity_boundary.py. |
 
-Authoring verification: identifier/source inspection, change-scope and trailing
+Original draft authoring verification (historical, before this slice revision):
+identifier/source inspection, change-scope and trailing
 whitespace checks only, plus these static checks (no dependency changes):
 
 | Exact command | Observed result |
@@ -414,4 +466,11 @@ confirmed. `git status --short --untracked-files=all` showed only this new file;
 Unit, architecture and PostgreSQL tests: **NOT RUN**, per this task's specific
 “No tests run” instruction. No pass counts are claimed. This draft does not prove
 Agent enrollment, migration safety, execution readiness or Phase 3 gate success.
-Only this new file is the deliverable; no commit, branch or push.
+Only this document is the deliverable; no commit, branch or push.
+
+Slice-revision verification: `.venv/bin/ruff check .` exited 0 (all checks
+passed); `.venv/bin/ruff format --check .` exited 0 (837 files already formatted);
+`.venv/bin/pyright` exited 0 (0 errors, 0 warnings, 0 informations; separate
+version-update notice). `git diff --check` exited 0; only this tracked document
+changed, with zero trailing-whitespace lines. Unit, architecture and PostgreSQL
+tests remain **NOT RUN** under the specific “No tests run” instruction.
