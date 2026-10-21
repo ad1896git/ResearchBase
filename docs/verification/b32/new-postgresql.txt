@@ -1,0 +1,19 @@
+.......                                                                  [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b13_grant_consumption.py: 9 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 6 warnings
+tests/integration/phase2/test_b17_package_freeze.py: 6 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b13_grant_consumption.py::test_b32_manuscript_grants_cannot_release_conclusion[READY_FOR_SUBMISSION]
+tests/integration/phase2/test_b13_grant_consumption.py::test_b32_manuscript_grants_cannot_release_conclusion[PREPARE_SUBMISSION]
+tests/integration/phase2/test_b14_publication_ready.py::test_b32_approval_is_not_ready_or_package_freeze
+tests/integration/phase2/test_b14_publication_ready.py::test_b32_prepare_grant_cannot_make_publication_ready
+tests/integration/phase2/test_b17_package_freeze.py::test_b32_freeze_preserves_ready_history_and_local_receipt
+tests/integration/phase2/test_b17_package_freeze.py::test_b32_exact_reads_and_completed_freeze_are_readonly_snapshots
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane48/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+7 passed, 52 deselected, 27 warnings in 12.67s

@@ -1,0 +1,397 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_empty, Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Running upgrade 0001_empty -> 0002_actor_project_workspace, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running upgrade 0002_actor_project_workspace -> 0003_research_question_hypothesis, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0003_research_question_hypothesis -> 0004_experiment_spec, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0004_experiment_spec -> 0005_dataset_snapshot, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_dataset_snapshot -> 0006_artifact_version, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0006_artifact_version -> 0007_metric_definition, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0007_metric_definition -> 0008_run_core, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running upgrade 0008_run_core -> 0009_run_input_seal_fix, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running upgrade 0009_run_input_seal_fix -> 0010_measurement, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running upgrade 0010_measurement -> 0011_statistical_result, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_statistical_result -> 0012_statistical_result_input_guard, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running upgrade 0012_statistical_result_input_guard -> 0013_statistical_result_legacy_input_precheck, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running upgrade 0013_statistical_result_legacy_input_precheck -> 0014_claim_evidence, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running upgrade 0014_claim_evidence -> 0015_governance_audit, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running upgrade 0015_governance_audit -> 0016_pr17d_history_protection, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running upgrade 0016_pr17d_history_protection -> 0017_persisted_canonical_enum_normalization, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running upgrade 0017_persisted_canonical_enum_normalization -> 0018_current_pointer_same_parent_integrity, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0018_current_pointer_same_parent_integrity -> 0019_phase2_bootstrap_membership, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running upgrade 0019_phase2_bootstrap_membership -> 0020_literature_source_identity, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running upgrade 0020_literature_source_identity -> 0021_source_merge_governance_bridge, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0021_source_merge_governance_bridge -> 0021a_source_merge_gov_guards, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running upgrade 0021a_source_merge_gov_guards -> 0022_source_version_and_merge_lineage, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_source_version_and_merge_lineage -> 0023_literature_search_plan, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running upgrade 0023_literature_search_plan -> 0023a_search_plan_review_guards, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running upgrade 0023a_search_plan_review_guards -> 0024_literature_search_execution, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0024_literature_search_execution -> 0025_pr2_04_reservation_guards, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0025_pr2_04_reservation_guards -> 0026_pr2_04_p1_contract_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0026_pr2_04_p1_contract_guards -> 0027_pr2_04_hash_scheme_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0027_pr2_04_hash_scheme_guards -> 0028_provider_cancellation, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running upgrade 0028_provider_cancellation -> 0029_metadata_observations, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running upgrade 0029_metadata_observations -> 0030_literature_evidence, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0030_literature_evidence -> 0031_m3_snapshot_relation_cardinality, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running upgrade 0031_m3_snapshot_relation_cardinality -> 0032_pr2_10_discussion, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running upgrade 0032_pr2_10_discussion -> 0033_pr2_11_r2_scientific_conclusion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "create_hypothesis", "correlation_id": null, "duration_ms": 5.757, "error_code": null, "level": "INFO", "project_id": "2b33483c-eca7-4f61-984e-666369255c0f", "request_id": "99f5d834-4736-429e-9faf-dccf4048f6ce", "result": "success", "rollback": false, "target_id": "2b33483c-eca7-4f61-984e-666369255c0f", "timestamp": "2026-10-17T04:19:04.728232+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "freeze_hypothesis", "correlation_id": null, "duration_ms": 2.753, "error_code": null, "level": "INFO", "project_id": null, "request_id": "99f5d834-4736-429e-9faf-dccf4048f6ce", "result": "success", "rollback": false, "target_id": "01a14815-b595-7004-8e49-dbb23268f7e2", "timestamp": "2026-10-17T04:19:04.731054+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "create_metric_definition", "correlation_id": null, "duration_ms": 3.125, "error_code": null, "level": "INFO", "project_id": "2b33483c-eca7-4f61-984e-666369255c0f", "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "2b33483c-eca7-4f61-984e-666369255c0f", "timestamp": "2026-10-17T04:19:04.734401+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.735087+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition", "correlation_id": null, "duration_ms": 0.653, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.735120+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.682, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14815-b59b-7096-ad98-162f5405c4ce", "timestamp": "2026-10-17T04:19:04.735141+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "freeze_metric_definition", "correlation_id": null, "duration_ms": 2.347, "error_code": null, "level": "INFO", "project_id": null, "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "01a14815-b59b-7096-ad98-162f5405c4ce", "timestamp": "2026-10-17T04:19:04.737514+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.737931+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_metric_definition_version", "correlation_id": null, "duration_ms": 0.394, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.737958+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.417, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14815-b59b-7096-ad98-162f5405c4ce", "timestamp": "2026-10-17T04:19:04.737973+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "create_experiment_spec", "correlation_id": null, "duration_ms": 2.907, "error_code": null, "level": "INFO", "project_id": "2b33483c-eca7-4f61-984e-666369255c0f", "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "2b33483c-eca7-4f61-984e-666369255c0f", "timestamp": "2026-10-17T04:19:04.740912+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.741560+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec", "correlation_id": null, "duration_ms": 0.623, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.741589+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.646, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14815-b5a2-76ff-8b19-2dcc159082d2", "timestamp": "2026-10-17T04:19:04.741607+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "freeze_experiment_spec", "correlation_id": null, "duration_ms": 2.88, "error_code": null, "level": "INFO", "project_id": null, "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "01a14815-b5a2-76ff-8b19-2dcc159082d2", "timestamp": "2026-10-17T04:19:04.744521+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.745001+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_experiment_spec_version", "correlation_id": null, "duration_ms": 0.442, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.745025+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.464, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14815-b5a2-76ff-8b19-2dcc159082d2", "timestamp": "2026-10-17T04:19:04.745042+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "create_run", "correlation_id": null, "duration_ms": 2.066, "error_code": null, "level": "INFO", "project_id": "2b33483c-eca7-4f61-984e-666369255c0f", "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "2b33483c-eca7-4f61-984e-666369255c0f", "timestamp": "2026-10-17T04:19:04.747132+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.747969+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0.835, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.748013+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.866, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.748040+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "start_run", "correlation_id": null, "duration_ms": 3.583, "error_code": null, "level": "INFO", "project_id": null, "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "01a14815-b5a9-756e-b5f1-9f2e392b1d2f", "timestamp": "2026-10-17T04:19:04.751658+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.752079+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0.4, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.752106+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.422, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.752123+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "finish_run", "correlation_id": null, "duration_ms": 0.93, "error_code": null, "level": "INFO", "project_id": null, "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "01a14815-b5a9-756e-b5f1-9f2e392b1d2f", "timestamp": "2026-10-17T04:19:04.753081+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.753510+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_run", "correlation_id": null, "duration_ms": 0.416, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.753531+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.433, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.753545+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "record_measurement", "correlation_id": null, "duration_ms": 2.716, "error_code": null, "level": "INFO", "project_id": null, "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "01a14815-b5a9-756e-b5f1-9f2e392b1d2f", "timestamp": "2026-10-17T04:19:04.756289+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_measurement", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.757122+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_measurement", "correlation_id": null, "duration_ms": 0.836, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.757166+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.865, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.757187+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "create_claim", "correlation_id": null, "duration_ms": 2.953, "error_code": null, "level": "INFO", "project_id": "2b33483c-eca7-4f61-984e-666369255c0f", "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "2b33483c-eca7-4f61-984e-666369255c0f", "timestamp": "2026-10-17T04:19:04.760173+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.760766+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim", "correlation_id": null, "duration_ms": 0.577, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.760792+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.601, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14815-b5b5-7c68-b5fc-442a4c567e6b", "timestamp": "2026-10-17T04:19:04.760811+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.761723+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 0.919, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.761746+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "link_evidence", "correlation_id": null, "duration_ms": 3.029, "error_code": null, "level": "INFO", "project_id": null, "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "01a14815-b5b5-7c68-b5fc-442a4c567e6b", "timestamp": "2026-10-17T04:19:04.764800+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_evidence_relation", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.765428+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_evidence_relation", "correlation_id": null, "duration_ms": 0.626, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.765468+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.656, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.765492+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.766550+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_current_claim_version", "correlation_id": null, "duration_ms": 1.068, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.766582+00:00"}
+INFO  [researchbase.commands] {"actor_id": "9ff1fe4b-dffc-46c2-bc1d-fe04572e04b7", "application_env": "development", "command_name": "freeze_claim_version", "correlation_id": null, "duration_ms": 3.476, "error_code": null, "level": "INFO", "project_id": null, "request_id": "be89f482-167d-4f7f-affa-a5b44fa9795f", "result": "success", "rollback": false, "target_id": "01a14815-b5b5-7c68-b5fc-442a4c567e6b", "timestamp": "2026-10-17T04:19:04.770089+00:00"}
+ERROR [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim_version", "correlation_id": null, "duration_ms": 0, "error_code": null, "level": "ERROR", "project_id": null, "request_id": null, "result": "failure", "rollback": true, "target_id": null, "timestamp": "2026-10-17T04:19:04.770852+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "get_claim_version", "correlation_id": null, "duration_ms": 0.751, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": null, "timestamp": "2026-10-17T04:19:04.770894+00:00"}
+INFO  [researchbase.commands] {"actor_id": null, "application_env": "development", "command_name": "project_write_result", "correlation_id": null, "duration_ms": 0.781, "error_code": null, "level": "INFO", "project_id": null, "request_id": null, "result": "success", "rollback": false, "target_id": "01a14815-b5b5-7c68-b5fc-442a4c567e6b", "timestamp": "2026-10-17T04:19:04.770916+00:00"}
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0033_pr2_11_r2_scientific_conclusion -> 0034_pr2_10_exact_transcript_binding, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running upgrade 0034_pr2_10_exact_transcript_binding -> 0035_pr2_12_publication_draft, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running upgrade 0035_pr2_12_publication_draft -> 0036_pr2_13_citation_placement, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running upgrade 0036_pr2_13_citation_placement -> 0037_pr2_13_claim_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0037_pr2_13_claim_placement -> 0038_pr2_13_artifact_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0038_pr2_13_artifact_placement -> 0039_pr2_13_citation_rebinding_guard, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running upgrade 0039_pr2_13_citation_rebinding_guard -> 0040_pr2_14_initial_internal_review, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running upgrade 0040_pr2_14_initial_internal_review -> 0041_pr2_15_review_coordination, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running upgrade 0041_pr2_15_review_coordination -> 0042_pr2_15_minimal_decision, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running upgrade 0042_pr2_15_minimal_decision -> 0043_pr2_04_schema_contract, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running upgrade 0043_pr2_04_schema_contract -> 0044_pr2_15_revision_action, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running upgrade 0044_pr2_15_revision_action -> 0045_pr2_16_basic_approval, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running upgrade 0045_pr2_16_basic_approval -> 0046_pr2_17_authorship, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running upgrade 0046_pr2_17_authorship -> 0047_pr2_18_novelty_prior_art, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running upgrade 0047_pr2_18_novelty_prior_art -> 0048_b04_manuscript_freeze, B04 initial manuscript seal; retain scientific history and draft placement checks.
+INFO  [alembic.runtime.migration] Running upgrade 0048_b04_manuscript_freeze -> 0049_b05_manuscript_review, B05 manuscript review coordination and deferred immutable OPEN history guards.
+INFO  [alembic.runtime.migration] Running upgrade 0049_b05_manuscript_review -> 0050_b01_resolution_admission, Repeat the existing M2 structural resolution closure at transaction end.
+INFO  [alembic.runtime.migration] Running upgrade 0050_b01_resolution_admission -> 0051_b06_revision_action, Owner-approved B06 issue-only completed results; no result or Issue mutation.
+INFO  [alembic.runtime.migration] Running upgrade 0051_b06_revision_action -> 0052_b07_revision_decisions, B07 approved revision choices and immutable concern/re-review relations.
+INFO  [alembic.runtime.migration] Running upgrade 0052_b07_revision_decisions -> 0053_b08_issue_disposition, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running upgrade 0053_b08_issue_disposition -> 0054_b11_ready_for_submission, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0056_b10_reconsideration -> 0055_b09_approval_tuples, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Running downgrade 0055_b09_approval_tuples -> 0054_b11_ready_for_submission, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running downgrade 0054_b11_ready_for_submission -> 0053_b08_issue_disposition, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running downgrade 0053_b08_issue_disposition -> 0052_b07_revision_decisions, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0052_b07_revision_decisions -> 0053_b08_issue_disposition, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running upgrade 0053_b08_issue_disposition -> 0054_b11_ready_for_submission, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0056_b10_reconsideration -> 0055_b09_approval_tuples, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Running downgrade 0055_b09_approval_tuples -> 0054_b11_ready_for_submission, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running downgrade 0054_b11_ready_for_submission -> 0053_b08_issue_disposition, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running downgrade 0053_b08_issue_disposition -> 0052_b07_revision_decisions, B08 immutable terminal Issue events and guarded status projection.
+DISPOSABLE_PG_PREFLIGHT: port=5432 system_id=7696072587520791948
+DISPOSABLE_CREATED: researchbase_pr211_r2_test_958e19363ac449148f836d9ae6181d3e
+PR211_R2_REVISION: researchbase_pr211_r2_test_958e19363ac449148f836d9ae6181d3e=0033_pr2_11_r2_scientific_conclusion
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_empty, Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Running upgrade 0001_empty -> 0002_actor_project_workspace, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running upgrade 0002_actor_project_workspace -> 0003_research_question_hypothesis, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0003_research_question_hypothesis -> 0004_experiment_spec, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0004_experiment_spec -> 0005_dataset_snapshot, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_dataset_snapshot -> 0006_artifact_version, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0006_artifact_version -> 0007_metric_definition, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0007_metric_definition -> 0008_run_core, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running upgrade 0008_run_core -> 0009_run_input_seal_fix, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running upgrade 0009_run_input_seal_fix -> 0010_measurement, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running upgrade 0010_measurement -> 0011_statistical_result, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_statistical_result -> 0012_statistical_result_input_guard, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running upgrade 0012_statistical_result_input_guard -> 0013_statistical_result_legacy_input_precheck, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running upgrade 0013_statistical_result_legacy_input_precheck -> 0014_claim_evidence, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running upgrade 0014_claim_evidence -> 0015_governance_audit, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running upgrade 0015_governance_audit -> 0016_pr17d_history_protection, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running upgrade 0016_pr17d_history_protection -> 0017_persisted_canonical_enum_normalization, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running upgrade 0017_persisted_canonical_enum_normalization -> 0018_current_pointer_same_parent_integrity, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0018_current_pointer_same_parent_integrity -> 0019_phase2_bootstrap_membership, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running upgrade 0019_phase2_bootstrap_membership -> 0020_literature_source_identity, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running upgrade 0020_literature_source_identity -> 0021_source_merge_governance_bridge, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0021_source_merge_governance_bridge -> 0021a_source_merge_gov_guards, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running upgrade 0021a_source_merge_gov_guards -> 0022_source_version_and_merge_lineage, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_source_version_and_merge_lineage -> 0023_literature_search_plan, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running upgrade 0023_literature_search_plan -> 0023a_search_plan_review_guards, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running upgrade 0023a_search_plan_review_guards -> 0024_literature_search_execution, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0024_literature_search_execution -> 0025_pr2_04_reservation_guards, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0025_pr2_04_reservation_guards -> 0026_pr2_04_p1_contract_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0026_pr2_04_p1_contract_guards -> 0027_pr2_04_hash_scheme_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0027_pr2_04_hash_scheme_guards -> 0028_provider_cancellation, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running upgrade 0028_provider_cancellation -> 0029_metadata_observations, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running upgrade 0029_metadata_observations -> 0030_literature_evidence, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0030_literature_evidence -> 0031_m3_snapshot_relation_cardinality, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running upgrade 0031_m3_snapshot_relation_cardinality -> 0032_pr2_10_discussion, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running upgrade 0032_pr2_10_discussion -> 0033_pr2_11_r2_scientific_conclusion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0033_pr2_11_r2_scientific_conclusion -> 0034_pr2_10_exact_transcript_binding, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running upgrade 0034_pr2_10_exact_transcript_binding -> 0035_pr2_12_publication_draft, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running upgrade 0035_pr2_12_publication_draft -> 0036_pr2_13_citation_placement, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running upgrade 0036_pr2_13_citation_placement -> 0037_pr2_13_claim_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0037_pr2_13_claim_placement -> 0038_pr2_13_artifact_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0038_pr2_13_artifact_placement -> 0039_pr2_13_citation_rebinding_guard, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running upgrade 0039_pr2_13_citation_rebinding_guard -> 0040_pr2_14_initial_internal_review, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running upgrade 0040_pr2_14_initial_internal_review -> 0041_pr2_15_review_coordination, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running upgrade 0041_pr2_15_review_coordination -> 0042_pr2_15_minimal_decision, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running upgrade 0042_pr2_15_minimal_decision -> 0043_pr2_04_schema_contract, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running upgrade 0043_pr2_04_schema_contract -> 0044_pr2_15_revision_action, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running upgrade 0044_pr2_15_revision_action -> 0045_pr2_16_basic_approval, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running upgrade 0045_pr2_16_basic_approval -> 0046_pr2_17_authorship, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running upgrade 0046_pr2_17_authorship -> 0047_pr2_18_novelty_prior_art, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running upgrade 0047_pr2_18_novelty_prior_art -> 0048_b04_manuscript_freeze, B04 initial manuscript seal; retain scientific history and draft placement checks.
+INFO  [alembic.runtime.migration] Running upgrade 0048_b04_manuscript_freeze -> 0049_b05_manuscript_review, B05 manuscript review coordination and deferred immutable OPEN history guards.
+INFO  [alembic.runtime.migration] Running upgrade 0049_b05_manuscript_review -> 0050_b01_resolution_admission, Repeat the existing M2 structural resolution closure at transaction end.
+INFO  [alembic.runtime.migration] Running upgrade 0050_b01_resolution_admission -> 0051_b06_revision_action, Owner-approved B06 issue-only completed results; no result or Issue mutation.
+INFO  [alembic.runtime.migration] Running upgrade 0051_b06_revision_action -> 0052_b07_revision_decisions, B07 approved revision choices and immutable concern/re-review relations.
+INFO  [alembic.runtime.migration] Running upgrade 0052_b07_revision_decisions -> 0053_b08_issue_disposition, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running upgrade 0053_b08_issue_disposition -> 0054_b11_ready_for_submission, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0056_b10_reconsideration -> 0055_b09_approval_tuples, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Running downgrade 0055_b09_approval_tuples -> 0054_b11_ready_for_submission, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running downgrade 0054_b11_ready_for_submission -> 0053_b08_issue_disposition, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running downgrade 0053_b08_issue_disposition -> 0052_b07_revision_decisions, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running downgrade 0052_b07_revision_decisions -> 0051_b06_revision_action, B07 approved revision choices and immutable concern/re-review relations.
+INFO  [alembic.runtime.migration] Running downgrade 0051_b06_revision_action -> 0050_b01_resolution_admission, Owner-approved B06 issue-only completed results; no result or Issue mutation.
+INFO  [alembic.runtime.migration] Running downgrade 0050_b01_resolution_admission -> 0049_b05_manuscript_review, Repeat the existing M2 structural resolution closure at transaction end.
+INFO  [alembic.runtime.migration] Running downgrade 0049_b05_manuscript_review -> 0048_b04_manuscript_freeze, B05 manuscript review coordination and deferred immutable OPEN history guards.
+INFO  [alembic.runtime.migration] Running downgrade 0048_b04_manuscript_freeze -> 0047_pr2_18_novelty_prior_art, B04 initial manuscript seal; retain scientific history and draft placement checks.
+INFO  [alembic.runtime.migration] Running downgrade 0047_pr2_18_novelty_prior_art -> 0046_pr2_17_authorship, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running downgrade 0046_pr2_17_authorship -> 0045_pr2_16_basic_approval, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running downgrade 0045_pr2_16_basic_approval -> 0044_pr2_15_revision_action, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running downgrade 0044_pr2_15_revision_action -> 0043_pr2_04_schema_contract, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running downgrade 0043_pr2_04_schema_contract -> 0042_pr2_15_minimal_decision, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running downgrade 0042_pr2_15_minimal_decision -> 0041_pr2_15_review_coordination, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running downgrade 0041_pr2_15_review_coordination -> 0040_pr2_14_initial_internal_review, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running downgrade 0040_pr2_14_initial_internal_review -> 0039_pr2_13_citation_rebinding_guard, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running downgrade 0039_pr2_13_citation_rebinding_guard -> 0038_pr2_13_artifact_placement, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running downgrade 0038_pr2_13_artifact_placement -> 0037_pr2_13_claim_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running downgrade 0037_pr2_13_claim_placement -> 0036_pr2_13_citation_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running downgrade 0036_pr2_13_citation_placement -> 0035_pr2_12_publication_draft, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running downgrade 0035_pr2_12_publication_draft -> 0034_pr2_10_exact_transcript_binding, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running downgrade 0034_pr2_10_exact_transcript_binding -> 0033_pr2_11_r2_scientific_conclusion, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running downgrade 0033_pr2_11_r2_scientific_conclusion -> 0032_pr2_10_discussion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Running downgrade 0032_pr2_10_discussion -> 0031_m3_snapshot_relation_cardinality, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running downgrade 0031_m3_snapshot_relation_cardinality -> 0030_literature_evidence, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running downgrade 0030_literature_evidence -> 0029_metadata_observations, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running downgrade 0029_metadata_observations -> 0028_provider_cancellation, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running downgrade 0028_provider_cancellation -> 0027_pr2_04_hash_scheme_guards, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running downgrade 0027_pr2_04_hash_scheme_guards -> 0026_pr2_04_p1_contract_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running downgrade 0026_pr2_04_p1_contract_guards -> 0025_pr2_04_reservation_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running downgrade 0025_pr2_04_reservation_guards -> 0024_literature_search_execution, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running downgrade 0024_literature_search_execution -> 0023a_search_plan_review_guards, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running downgrade 0023a_search_plan_review_guards -> 0023_literature_search_plan, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running downgrade 0023_literature_search_plan -> 0022_source_version_and_merge_lineage, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running downgrade 0022_source_version_and_merge_lineage -> 0021a_source_merge_gov_guards, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running downgrade 0021a_source_merge_gov_guards -> 0021_source_merge_governance_bridge, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running downgrade 0021_source_merge_governance_bridge -> 0020_literature_source_identity, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running downgrade 0020_literature_source_identity -> 0019_phase2_bootstrap_membership, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running downgrade 0019_phase2_bootstrap_membership -> 0018_current_pointer_same_parent_integrity, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running downgrade 0018_current_pointer_same_parent_integrity -> 0017_persisted_canonical_enum_normalization, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running downgrade 0017_persisted_canonical_enum_normalization -> 0016_pr17d_history_protection, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running downgrade 0016_pr17d_history_protection -> 0015_governance_audit, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running downgrade 0015_governance_audit -> 0014_claim_evidence, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running downgrade 0014_claim_evidence -> 0013_statistical_result_legacy_input_precheck, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running downgrade 0013_statistical_result_legacy_input_precheck -> 0012_statistical_result_input_guard, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running downgrade 0012_statistical_result_input_guard -> 0011_statistical_result, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running downgrade 0011_statistical_result -> 0010_measurement, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running downgrade 0010_measurement -> 0009_run_input_seal_fix, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running downgrade 0009_run_input_seal_fix -> 0008_run_core, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running downgrade 0008_run_core -> 0007_metric_definition, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running downgrade 0007_metric_definition -> 0006_artifact_version, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running downgrade 0006_artifact_version -> 0005_dataset_snapshot, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running downgrade 0005_dataset_snapshot -> 0004_experiment_spec, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running downgrade 0004_experiment_spec -> 0003_research_question_hypothesis, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running downgrade 0003_research_question_hypothesis -> 0002_actor_project_workspace, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running downgrade 0002_actor_project_workspace -> 0001_empty, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running downgrade 0001_empty -> , Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_empty, Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Running upgrade 0001_empty -> 0002_actor_project_workspace, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running upgrade 0002_actor_project_workspace -> 0003_research_question_hypothesis, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0003_research_question_hypothesis -> 0004_experiment_spec, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0004_experiment_spec -> 0005_dataset_snapshot, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_dataset_snapshot -> 0006_artifact_version, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0006_artifact_version -> 0007_metric_definition, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0007_metric_definition -> 0008_run_core, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running upgrade 0008_run_core -> 0009_run_input_seal_fix, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running upgrade 0009_run_input_seal_fix -> 0010_measurement, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running upgrade 0010_measurement -> 0011_statistical_result, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_statistical_result -> 0012_statistical_result_input_guard, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running upgrade 0012_statistical_result_input_guard -> 0013_statistical_result_legacy_input_precheck, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running upgrade 0013_statistical_result_legacy_input_precheck -> 0014_claim_evidence, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running upgrade 0014_claim_evidence -> 0015_governance_audit, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running upgrade 0015_governance_audit -> 0016_pr17d_history_protection, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running upgrade 0016_pr17d_history_protection -> 0017_persisted_canonical_enum_normalization, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running upgrade 0017_persisted_canonical_enum_normalization -> 0018_current_pointer_same_parent_integrity, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0018_current_pointer_same_parent_integrity -> 0019_phase2_bootstrap_membership, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running upgrade 0019_phase2_bootstrap_membership -> 0020_literature_source_identity, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running upgrade 0020_literature_source_identity -> 0021_source_merge_governance_bridge, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0021_source_merge_governance_bridge -> 0021a_source_merge_gov_guards, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running upgrade 0021a_source_merge_gov_guards -> 0022_source_version_and_merge_lineage, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_source_version_and_merge_lineage -> 0023_literature_search_plan, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running upgrade 0023_literature_search_plan -> 0023a_search_plan_review_guards, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running upgrade 0023a_search_plan_review_guards -> 0024_literature_search_execution, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0024_literature_search_execution -> 0025_pr2_04_reservation_guards, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0025_pr2_04_reservation_guards -> 0026_pr2_04_p1_contract_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0026_pr2_04_p1_contract_guards -> 0027_pr2_04_hash_scheme_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0027_pr2_04_hash_scheme_guards -> 0028_provider_cancellation, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running upgrade 0028_provider_cancellation -> 0029_metadata_observations, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running upgrade 0029_metadata_observations -> 0030_literature_evidence, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0030_literature_evidence -> 0031_m3_snapshot_relation_cardinality, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running upgrade 0031_m3_snapshot_relation_cardinality -> 0032_pr2_10_discussion, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running upgrade 0032_pr2_10_discussion -> 0033_pr2_11_r2_scientific_conclusion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0033_pr2_11_r2_scientific_conclusion -> 0034_pr2_10_exact_transcript_binding, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running upgrade 0034_pr2_10_exact_transcript_binding -> 0035_pr2_12_publication_draft, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running upgrade 0035_pr2_12_publication_draft -> 0036_pr2_13_citation_placement, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running upgrade 0036_pr2_13_citation_placement -> 0037_pr2_13_claim_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0037_pr2_13_claim_placement -> 0038_pr2_13_artifact_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0038_pr2_13_artifact_placement -> 0039_pr2_13_citation_rebinding_guard, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running upgrade 0039_pr2_13_citation_rebinding_guard -> 0040_pr2_14_initial_internal_review, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running upgrade 0040_pr2_14_initial_internal_review -> 0041_pr2_15_review_coordination, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running upgrade 0041_pr2_15_review_coordination -> 0042_pr2_15_minimal_decision, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running upgrade 0042_pr2_15_minimal_decision -> 0043_pr2_04_schema_contract, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running upgrade 0043_pr2_04_schema_contract -> 0044_pr2_15_revision_action, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running upgrade 0044_pr2_15_revision_action -> 0045_pr2_16_basic_approval, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running upgrade 0045_pr2_16_basic_approval -> 0046_pr2_17_authorship, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running upgrade 0046_pr2_17_authorship -> 0047_pr2_18_novelty_prior_art, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running upgrade 0047_pr2_18_novelty_prior_art -> 0048_b04_manuscript_freeze, B04 initial manuscript seal; retain scientific history and draft placement checks.
+INFO  [alembic.runtime.migration] Running upgrade 0048_b04_manuscript_freeze -> 0049_b05_manuscript_review, B05 manuscript review coordination and deferred immutable OPEN history guards.
+INFO  [alembic.runtime.migration] Running upgrade 0049_b05_manuscript_review -> 0050_b01_resolution_admission, Repeat the existing M2 structural resolution closure at transaction end.
+INFO  [alembic.runtime.migration] Running upgrade 0050_b01_resolution_admission -> 0051_b06_revision_action, Owner-approved B06 issue-only completed results; no result or Issue mutation.
+INFO  [alembic.runtime.migration] Running upgrade 0051_b06_revision_action -> 0052_b07_revision_decisions, B07 approved revision choices and immutable concern/re-review relations.
+INFO  [alembic.runtime.migration] Running upgrade 0052_b07_revision_decisions -> 0053_b08_issue_disposition, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running upgrade 0053_b08_issue_disposition -> 0054_b11_ready_for_submission, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+DISPOSABLE_DROPPED: researchbase_pr211_r2_test_958e19363ac449148f836d9ae6181d3e
+.INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_empty, Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Running upgrade 0001_empty -> 0002_actor_project_workspace, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running upgrade 0002_actor_project_workspace -> 0003_research_question_hypothesis, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0003_research_question_hypothesis -> 0004_experiment_spec, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0004_experiment_spec -> 0005_dataset_snapshot, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_dataset_snapshot -> 0006_artifact_version, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0006_artifact_version -> 0007_metric_definition, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0007_metric_definition -> 0008_run_core, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running upgrade 0008_run_core -> 0009_run_input_seal_fix, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running upgrade 0009_run_input_seal_fix -> 0010_measurement, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running upgrade 0010_measurement -> 0011_statistical_result, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_statistical_result -> 0012_statistical_result_input_guard, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running upgrade 0012_statistical_result_input_guard -> 0013_statistical_result_legacy_input_precheck, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running upgrade 0013_statistical_result_legacy_input_precheck -> 0014_claim_evidence, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running upgrade 0014_claim_evidence -> 0015_governance_audit, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running upgrade 0015_governance_audit -> 0016_pr17d_history_protection, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running upgrade 0016_pr17d_history_protection -> 0017_persisted_canonical_enum_normalization, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running upgrade 0017_persisted_canonical_enum_normalization -> 0018_current_pointer_same_parent_integrity, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0018_current_pointer_same_parent_integrity -> 0019_phase2_bootstrap_membership, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running upgrade 0019_phase2_bootstrap_membership -> 0020_literature_source_identity, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running upgrade 0020_literature_source_identity -> 0021_source_merge_governance_bridge, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0021_source_merge_governance_bridge -> 0021a_source_merge_gov_guards, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running upgrade 0021a_source_merge_gov_guards -> 0022_source_version_and_merge_lineage, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_source_version_and_merge_lineage -> 0023_literature_search_plan, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running upgrade 0023_literature_search_plan -> 0023a_search_plan_review_guards, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running upgrade 0023a_search_plan_review_guards -> 0024_literature_search_execution, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0024_literature_search_execution -> 0025_pr2_04_reservation_guards, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0025_pr2_04_reservation_guards -> 0026_pr2_04_p1_contract_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0026_pr2_04_p1_contract_guards -> 0027_pr2_04_hash_scheme_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0027_pr2_04_hash_scheme_guards -> 0028_provider_cancellation, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running upgrade 0028_provider_cancellation -> 0029_metadata_observations, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running upgrade 0029_metadata_observations -> 0030_literature_evidence, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0030_literature_evidence -> 0031_m3_snapshot_relation_cardinality, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running upgrade 0031_m3_snapshot_relation_cardinality -> 0032_pr2_10_discussion, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running upgrade 0032_pr2_10_discussion -> 0033_pr2_11_r2_scientific_conclusion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0033_pr2_11_r2_scientific_conclusion -> 0034_pr2_10_exact_transcript_binding, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running upgrade 0034_pr2_10_exact_transcript_binding -> 0035_pr2_12_publication_draft, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running upgrade 0035_pr2_12_publication_draft -> 0036_pr2_13_citation_placement, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running upgrade 0036_pr2_13_citation_placement -> 0037_pr2_13_claim_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0037_pr2_13_claim_placement -> 0038_pr2_13_artifact_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0038_pr2_13_artifact_placement -> 0039_pr2_13_citation_rebinding_guard, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running upgrade 0039_pr2_13_citation_rebinding_guard -> 0040_pr2_14_initial_internal_review, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running upgrade 0040_pr2_14_initial_internal_review -> 0041_pr2_15_review_coordination, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running upgrade 0041_pr2_15_review_coordination -> 0042_pr2_15_minimal_decision, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running upgrade 0042_pr2_15_minimal_decision -> 0043_pr2_04_schema_contract, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running upgrade 0043_pr2_04_schema_contract -> 0044_pr2_15_revision_action, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running upgrade 0044_pr2_15_revision_action -> 0045_pr2_16_basic_approval, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running upgrade 0045_pr2_16_basic_approval -> 0046_pr2_17_authorship, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running upgrade 0046_pr2_17_authorship -> 0047_pr2_18_novelty_prior_art, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running upgrade 0047_pr2_18_novelty_prior_art -> 0048_b04_manuscript_freeze, B04 initial manuscript seal; retain scientific history and draft placement checks.
+INFO  [alembic.runtime.migration] Running upgrade 0048_b04_manuscript_freeze -> 0049_b05_manuscript_review, B05 manuscript review coordination and deferred immutable OPEN history guards.
+INFO  [alembic.runtime.migration] Running upgrade 0049_b05_manuscript_review -> 0050_b01_resolution_admission, Repeat the existing M2 structural resolution closure at transaction end.
+INFO  [alembic.runtime.migration] Running upgrade 0050_b01_resolution_admission -> 0051_b06_revision_action, Owner-approved B06 issue-only completed results; no result or Issue mutation.
+INFO  [alembic.runtime.migration] Running upgrade 0051_b06_revision_action -> 0052_b07_revision_decisions, B07 approved revision choices and immutable concern/re-review relations.
+INFO  [alembic.runtime.migration] Running upgrade 0052_b07_revision_decisions -> 0053_b08_issue_disposition, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running upgrade 0053_b08_issue_disposition -> 0054_b11_ready_for_submission, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 0056_b10_reconsideration -> 0055_b09_approval_tuples, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Running downgrade 0055_b09_approval_tuples -> 0054_b11_ready_for_submission, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+Schema comparison artifacts: /private/var/folders/h5/hx7bbybn4j9422jrdzpkgln00000gp/T/pytest-of-fengwang/pytest-1109/test_batch_c_downgrade_restore0
+B11 schema before/after SHA256: 33b19ffccb5ecce1435edd656f4db54ea6bce38c715c9bcbfe2b9257d0e79844
+.
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b08_schema.py: 6 warnings
+tests/integration/phase2/test_batch_c_migration.py: 7 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 13 warnings in 5.00s

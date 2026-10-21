@@ -1,0 +1,110 @@
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+........................................................................ [ 15%]
+........................................................................ [ 19%]
+........................................................................ [ 23%]
+........................................................................ [ 27%]
+........................................................................ [ 31%]
+........................................................................ [ 35%]
+........................................................................ [ 39%]
+........................................................................ [ 43%]
+.......F................................................................ [ 46%]
+........................................................................ [ 50%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 62%]
+........................................................................ [ 66%]
+........................................................................ [ 70%]
+........................................................................ [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 86%]
+........................................................................ [ 89%]
+........................................................................ [ 93%]
+........................................................................ [ 97%]
+.........................................                                [100%]
+=================================== FAILURES ===================================
+__________ test_candidate_static_gates_and_inherited_formatter_delta ___________
+
+pr204_trace = <scripts.pr2_04_pytest_evidence.FactRecorder object at 0x10e14e2d0>
+
+    @pytest.mark.pr204_requirements("PR204-REG-03")
+    def test_candidate_static_gates_and_inherited_formatter_delta(pr204_trace: FactRecorder) -> None:
+        def execute(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+            result = subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True, check=False)
+            pr204_trace.record(
+                command=arguments,
+                exit_code=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+            )
+            return result
+
+        baseline = json.loads(BASELINE.read_text())
+        assert ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini"))).get_heads() == [
+            baseline["migration_head"]
+        ]
+        assert baseline["baseline_commit"] == "b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff"
+        assert (
+            execute(
+                ["git", "merge-base", "--is-ancestor", baseline["baseline_commit"], "HEAD"]
+            ).returncode
+            == 0
+        )
+        scopes = ["src", "migrations", "tests", "scripts"]
+        lint = execute([sys.executable, "-m", "ruff", "check", *scopes, "--output-format", "json"])
+        assert lint.returncode in {0, 1}
+        lint_diagnostics = [
+            (str(Path(row["filename"]).relative_to(ROOT)), row["code"], row["message"])
+            for row in json.loads(lint.stdout)
+        ]
+        types = execute([sys.executable, "-m", "pyright", "--outputjson"])
+        assert types.returncode in {0, 1}
+        type_diagnostics = [
+            (str(Path(row["file"]).relative_to(ROOT)), row["severity"], row.get("rule"), row["message"])
+            for row in json.loads(types.stdout)["generalDiagnostics"]
+        ]
+        # Exact file/rule/message multisets cap inherited debt; new or duplicated errors fail.
+        assert not (Counter(lint_diagnostics) - Counter(map(tuple, baseline.get("ruff", []))))
+        assert not (Counter(type_diagnostics) - Counter(map(tuple, baseline["pyright"])))
+        lineage = execute([sys.executable, RECOVERY_GATES, "lineage"])
+        assert lineage.returncode == 0
+        assert json.loads(lineage.stdout)["recovery_lineage"]["status"] == "PASS"
+        # Whitespace/format deltas start at the current authorized baseline below.
+        raw = execute([sys.executable, "-m", "ruff", "format", "--check", *scopes])
+        assert raw.returncode in {0, 1}
+        current = set(re.findall(r"^Would reformat: (.+)$", raw.stdout + raw.stderr, re.MULTILINE))
+        assert current <= set(baseline.get("formatter", []))
+        assert (raw.returncode == 0 and not current) or (raw.returncode == 1 and bool(current))
+        changed = execute(
+            [
+                "git",
+                "diff",
+                "--name-only",
+                "--diff-filter=ACMR",
+                baseline["baseline_commit"],
+                "--",
+                "*.py",
+                "*.pyi",
+            ]
+        )
+        assert changed.returncode == 0
+>       assert execute(["git", "diff", "--check", baseline["baseline_commit"]]).returncode == 0
+E       AssertionError: assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['git', 'diff', '--check', 'b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff'], returncode=2, stdout='mi...           \nmigrations/versions/0045_pr2_16_basic_approval.py:406: trailing whitespace.\n+             \n', stderr='').returncode
+E        +    where CompletedProcess(args=['git', 'diff', '--check', 'b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff'], returncode=2, stdout='mi...           \nmigrations/versions/0045_pr2_16_basic_approval.py:406: trailing whitespace.\n+             \n', stderr='') = <function test_candidate_static_gates_and_inherited_formatter_delta.<locals>.execute at 0x10d8cb740>(['git', 'diff', '--check', 'b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff'])
+
+tests/unit/phase2/test_pr2_04_static_acceptance.py:81: AssertionError
+=============================== warnings summary ===============================
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py::test_r8a_actual_migration_graph_and_frozen_bytes
+tests/unit/phase2/test_pr2_04_static_acceptance.py::test_candidate_static_gates_and_inherited_formatter_delta
+tests/unit/test_ci_migration_head.py::test_ci_migration_head_assertion_matches_repository_head
+tests/unit/test_task12_migration_history.py::test_task12_preserves_every_historical_migration_byte_and_exact_child
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/phase2/test_pr2_04_static_acceptance.py::test_candidate_static_gates_and_inherited_formatter_delta
+1 failed, 1840 passed, 4 warnings in 33.36s

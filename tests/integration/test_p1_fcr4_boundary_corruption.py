@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import Engine, text
+
 from tests.e2e.support import WorkflowFixture, WorkflowIds, fresh_fixture, run_workflow
 
 pytestmark = pytest.mark.integration
@@ -250,7 +251,7 @@ def test_boundary_database_is_postgresql_18_6_at_alembic_0018(
 ) -> None:
     fixture, _ids = boundary_workflow
     with fixture.engine.connect() as connection:
-        assert connection.scalar(text("SHOW server_version")) == "18.6"
+        assert int(connection.scalar(text("SHOW server_version_num"))) == 180006
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
             == "0018_current_pointer_same_parent_integrity"

@@ -1,0 +1,236 @@
+{
+  "files": 46,
+  "all_identical_to_HEAD": true,
+  "migrations": [
+    {
+      "path": "migrations/versions/0001_empty_bootstrap.py",
+      "sha256": "e40c25c3b4b41bdf1a3831599b786f0d0f62800873f869a032382ba38df894f9",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0002_actor_project_workspace.py",
+      "sha256": "28cde30f786e3b629cf4553ac475518e5a13a381a4800a12f34817744f083dab",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0003_research_question_hypothesis.py",
+      "sha256": "78e520d53634d9015cca6efdc5aab41ae55d61081e121f39bdf691837178a251",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0004_experiment_spec.py",
+      "sha256": "8a16b3d1313e3eda2256626a32576e433775fd1542a858bb4c3115efd3139697",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0005_dataset_snapshot.py",
+      "sha256": "bde5ee8a193dfd42259e0b7484c0450467490e40dab1dc304b18cea082144736",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0006_artifact_version.py",
+      "sha256": "5de0531212cfd5322294b7e1736a4d331a2c9a9ee979fb09ab083e01e439dd9f",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0007_metric_definition.py",
+      "sha256": "a1325daea0623becab05a4e55d52c0a796f477f921d41e5a40e326a7f916a5d2",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0008_run_core.py",
+      "sha256": "fb4f03493ded0d3ba168a5fe413be4f330e01bc21a48148e1cfa8fdb9636ffe6",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0009_run_input_seal_fix.py",
+      "sha256": "75a04a25c3b7b46677bd5b3c49e0f84955df5437a0b20ab202ff3f50e012a09f",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0010_measurement.py",
+      "sha256": "962e9928f5c604865e0d6b8d8178439f81016cafbdba15520175f2f046843405",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0011_statistical_result.py",
+      "sha256": "ddb6b29cc20343e5bc1d179a3bb68862bc32206dbdc31e7cd818cfcaba569b7f",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0012_statistical_result_input_guard.py",
+      "sha256": "7b11676e5b92149693f9b7ff8ee3f86bacc5d2bae3e91ec0a551def323583a5d",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0013_statistical_result_legacy_input_precheck.py",
+      "sha256": "ab47bfb02493a58a47cb41485bd02cd91b19b9737c45be97623df1ec495c9a9a",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0014_claim_evidence.py",
+      "sha256": "71a60f4f565e94dda91db5e87e00ae3b3146b6ea4d91f5324d67b8c9cf713718",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0015_governance_audit.py",
+      "sha256": "c8e138423c4d4f180c18a6a262f503a478eb540f2317861ee40c9da23163b073",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0016_pr17d_history_protection.py",
+      "sha256": "4bee1a77319d0462fee9731dc68b637f55e93c7fe8ab5da1675f7ad44cd3c41f",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0017_persisted_canonical_enum_normalization.py",
+      "sha256": "8885a1aee20f6583c2267ae845ada7314597d7048f868db0bcef85f12a78f3a7",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0018_current_pointer_same_parent_integrity.py",
+      "sha256": "91c4ddfd54c08ee4b0607474e3b9699a3b04ab66a7272d3e7c309ae894c5dbaf",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0019_phase2_bootstrap_membership.py",
+      "sha256": "5cd033b7db3e7fd1f734be74f2b104169a26fd9abc4b659e7f25415ab9e94b35",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0020_literature_source_identity.py",
+      "sha256": "d7d9d9c7af64f79cb69de90358d4769d7dd93f6a8a9d7d835be22bc9c2f543dd",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0021_source_merge_governance_bridge.py",
+      "sha256": "90e0bc77a14716455bdcd73ab855ade00a2d39884008b245974a6ea0a06152f2",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0021a_source_merge_governance_guards.py",
+      "sha256": "c6a4a9d8784bef2cfe90ac9b9bbae628d93e9dfef944a7ed3eb7f4ceccf671e1",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0022_source_version_and_merge_lineage.py",
+      "sha256": "ecb967f6a46f5ecac66f1133a48a2aa8fcb2170d39b20d521db0de3e3f60eeca",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0023_literature_search_plan.py",
+      "sha256": "b45efd54000766b927e288aacc875f60867bed2df4f3d125e58e1d835e938667",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0023a_search_plan_review_guards.py",
+      "sha256": "b9306a4fc063276f0e37e70c41448319d02db2507350e9c80c1d39b7a692c860",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0024_literature_search_execution.py",
+      "sha256": "7492edc479a1b4117f4581fd5c1b72157abb07d8e633558b911e08d02a06f7b2",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0025_pr2_04_reservation_guards.py",
+      "sha256": "352a7a088e935ac937075f748447439dde090af2bc8d52aeb750ee207df77ad0",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0026_pr2_04_p1_contract_guards.py",
+      "sha256": "35502cf80dd085369f6a7ab627ef6053e13ee9c14256239794dfca8590e1f9ca",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0027_pr2_04_hash_scheme_guards.py",
+      "sha256": "cc0dccc6ebbae41b70b014ff99b9bdcc16e44e11f5b95af329cabd44a816a269",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0028_provider_cancellation.py",
+      "sha256": "761d175f0abdc3e0bcd75874222d36313b369f4f7047b94b801fc8aa42311a34",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0029_metadata_observations.py",
+      "sha256": "42ce605f81996330116968e9c6119855022d495d56d47a6406da923a36c7467e",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0030_literature_evidence.py",
+      "sha256": "f541fa5a5d9ec00752f3af3d20d8e33f1b5981568296664d098db4c56b76403c",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0031_m3_snapshot_relation_cardinality.py",
+      "sha256": "bfd387b9ff5bef5b53c39acdcac04d3f5371981a2f766861fa85cff05f624921",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0032_pr2_10_discussion.py",
+      "sha256": "115646bf64c8f9a8bb98947f1a26a4b2223ae4f889702b2ed406813dcc2589f7",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0033_pr2_11_r2_scientific_conclusion.py",
+      "sha256": "f0040ca50208a2b5db9f625182e1bdbb8775db0a128969d7415315d6c3f9c7ef",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0034_pr2_10_exact_transcript_binding.py",
+      "sha256": "8973ed9869897347a2036d6385d649a4841030033f2d25414a1d3ab763bde4e7",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0035_pr2_12_publication_draft.py",
+      "sha256": "e2edbfd14e243a057f10b93500796a945e49b66fb84b74321464dc942c9bbbbb",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0036_pr2_13_citation_placement.py",
+      "sha256": "e8a6b1ca24988f5353907aa66e56699cd9d000f3a73b04d2e4e369ba613f7887",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0037_pr2_13_claim_placement.py",
+      "sha256": "804e7195c0333168f839f7f8944a170f68f9797407969bb9e1a7e9fe5e4edbb1",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0038_pr2_13_artifact_placement.py",
+      "sha256": "fa21eeb80352de56715c035693b04bd41da8cf6a1bfde27ddae9fc8f43cbc150",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0039_pr2_13_citation_rebinding_guard.py",
+      "sha256": "c205b0a265ca953b7fb9314d2bc3532c070c6b1e3f81f25757ddbb8651e9adbf",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0040_pr2_14_initial_internal_review.py",
+      "sha256": "5cfb790aa6afd1d1685612be064715736ac94a9aea3a91d69881d4d94f3bc25f",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0041_pr2_15_review_coordination.py",
+      "sha256": "25fbc0f7a662cc8f625f66896378402376b4a9b8f37c1c464408291b8a803c44",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0042_pr2_15_minimal_decision.py",
+      "sha256": "8a61d6714b6f7a05cd87d6a4ac95f5cf7eb9d5b0fc7e21d1e7522f31aa73e312",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0043_pr2_04_schema_contract.py",
+      "sha256": "7ddd69ac5283ec6b5ab76ae3076873b6d1ab12b8946bb2e317d9a44f0be71ed2",
+      "identical_to_HEAD": true
+    },
+    {
+      "path": "migrations/versions/0044_pr2_15_revision_action.py",
+      "sha256": "c1885dea62e2564c9e53fc804c77fa909d0a2b2c075b06d550eee2a0fd2863d0",
+      "identical_to_HEAD": true
+    }
+  ]
+}

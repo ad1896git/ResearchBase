@@ -1,0 +1,810 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="238" time="92.188" timestamp="2026-10-13T21:23:09.122383-04:00" hostname="Yuans-Mac-Mini-2.local"><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_empty_upgrade_downgrade_and_reupgrade" time="0.667" /><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_populated_0042_roundtrip_preserves_every_row_and_schema[planned]" time="0.467"><failure message="researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed">phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_bac9902b514e4a56921e40efaa30655e'
+stage = 'planned'
+
+    @pytest.mark.parametrize("stage", ["planned", "reserved", "sealed", "terminal"])
+    def test_populated_0042_roundtrip_preserves_every_row_and_schema(phase2_database_url, stage):
+        url = phase2_database_url
+        material = _parent_material(url, stage)
+        engine = material["engine"]
+&gt;       other = _parent_material(url, stage)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
+    return coverage._material(url, stage)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_04_schema_coverage.py:110: in _material
+    engine, plans, principal, project, plan, version = _setup(url)
+                                                       ^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1139: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1143: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1204: in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_task12_schema_migration.py:85: in &lt;lambda&gt;
+    coverage, "_setup", side_effect=lambda url: _setup(url, migration_revision=PARENT)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_03_review_guards.py:52: in _setup
+    engine, _, _, principal, project = _authorized_service(
+tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_service
+    bootstrap = identity.bootstrap_first_owner(
+src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
+    return self._bootstrap_first_owner_once(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10c962ba0&gt;
+authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('22558407-7b61-41c...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
+
+    def _bootstrap_first_owner_once(
+        self,
+        authority: BootstrapAuthority,
+        *,
+        request_id: UUID,
+        display_name: str,
+        project_name: str,
+    ) -&gt; BootstrapResult:
+        if self._bootstrap_proof_verifier is None or not self._bootstrap_proof_verifier.verify(
+            authority
+        ):
+            raise _error(ErrorCode.FORBIDDEN, "bootstrap authority is unavailable")
+        display_name = _normalized_name(display_name, "display_name", 200)
+        project_name = _normalized_name(project_name, "project_name", 255)
+        fingerprint_material = {
+            "type": "BOOTSTRAP_FIRST_OWNER",
+            "material_version": 1,
+            "deployment_id": authority.deployment_id,
+            "operator_credential_id": authority.operator.credential_id,
+            "verified_os_uid": authority.verified_os_uid,
+            "display_name": display_name,
+            "project_name": project_name,
+        }
+        request_fingerprint = str(sha256_canonical_json(fingerprint_material))
+        actor_id, binding_id, project_id, membership_id, role_id, record_id = (
+            uuid4() for _ in range(6)
+        )
+        external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
+&#32;&#32;&#32;&#32;
+        with self._uow_factory() as uow:
+            uow.begin_serializable()
+            repo = uow.phase2_identity
+            repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
+            if not repo.actors_and_projects_empty():
+&gt;               raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
+E               researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed
+
+src/researchbase/application/phase2_identity.py:335: ResearchBaseError</failure></testcase><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_populated_0042_roundtrip_preserves_every_row_and_schema[reserved]" time="0.441"><failure message="researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed">phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_51106914421043049e699bbd1d368ce0'
+stage = 'reserved'
+
+    @pytest.mark.parametrize("stage", ["planned", "reserved", "sealed", "terminal"])
+    def test_populated_0042_roundtrip_preserves_every_row_and_schema(phase2_database_url, stage):
+        url = phase2_database_url
+        material = _parent_material(url, stage)
+        engine = material["engine"]
+&gt;       other = _parent_material(url, stage)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
+    return coverage._material(url, stage)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_04_schema_coverage.py:110: in _material
+    engine, plans, principal, project, plan, version = _setup(url)
+                                                       ^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1139: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1143: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1204: in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_task12_schema_migration.py:85: in &lt;lambda&gt;
+    coverage, "_setup", side_effect=lambda url: _setup(url, migration_revision=PARENT)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_03_review_guards.py:52: in _setup
+    engine, _, _, principal, project = _authorized_service(
+tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_service
+    bootstrap = identity.bootstrap_first_owner(
+src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
+    return self._bootstrap_first_owner_once(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10d894320&gt;
+authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('0219030f-9982-4f1...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
+
+    def _bootstrap_first_owner_once(
+        self,
+        authority: BootstrapAuthority,
+        *,
+        request_id: UUID,
+        display_name: str,
+        project_name: str,
+    ) -&gt; BootstrapResult:
+        if self._bootstrap_proof_verifier is None or not self._bootstrap_proof_verifier.verify(
+            authority
+        ):
+            raise _error(ErrorCode.FORBIDDEN, "bootstrap authority is unavailable")
+        display_name = _normalized_name(display_name, "display_name", 200)
+        project_name = _normalized_name(project_name, "project_name", 255)
+        fingerprint_material = {
+            "type": "BOOTSTRAP_FIRST_OWNER",
+            "material_version": 1,
+            "deployment_id": authority.deployment_id,
+            "operator_credential_id": authority.operator.credential_id,
+            "verified_os_uid": authority.verified_os_uid,
+            "display_name": display_name,
+            "project_name": project_name,
+        }
+        request_fingerprint = str(sha256_canonical_json(fingerprint_material))
+        actor_id, binding_id, project_id, membership_id, role_id, record_id = (
+            uuid4() for _ in range(6)
+        )
+        external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
+&#32;&#32;&#32;&#32;
+        with self._uow_factory() as uow:
+            uow.begin_serializable()
+            repo = uow.phase2_identity
+            repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
+            if not repo.actors_and_projects_empty():
+&gt;               raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
+E               researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed
+
+src/researchbase/application/phase2_identity.py:335: ResearchBaseError</failure></testcase><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_populated_0042_roundtrip_preserves_every_row_and_schema[sealed]" time="0.481"><failure message="researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed">phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_d16f889a09cb4caeb196cf2efecfa350'
+stage = 'sealed'
+
+    @pytest.mark.parametrize("stage", ["planned", "reserved", "sealed", "terminal"])
+    def test_populated_0042_roundtrip_preserves_every_row_and_schema(phase2_database_url, stage):
+        url = phase2_database_url
+        material = _parent_material(url, stage)
+        engine = material["engine"]
+&gt;       other = _parent_material(url, stage)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
+    return coverage._material(url, stage)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_04_schema_coverage.py:110: in _material
+    engine, plans, principal, project, plan, version = _setup(url)
+                                                       ^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1139: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1143: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1204: in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_task12_schema_migration.py:85: in &lt;lambda&gt;
+    coverage, "_setup", side_effect=lambda url: _setup(url, migration_revision=PARENT)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_03_review_guards.py:52: in _setup
+    engine, _, _, principal, project = _authorized_service(
+tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_service
+    bootstrap = identity.bootstrap_first_owner(
+src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
+    return self._bootstrap_first_owner_once(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10cc4c260&gt;
+authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('a926873b-c028-427...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
+
+    def _bootstrap_first_owner_once(
+        self,
+        authority: BootstrapAuthority,
+        *,
+        request_id: UUID,
+        display_name: str,
+        project_name: str,
+    ) -&gt; BootstrapResult:
+        if self._bootstrap_proof_verifier is None or not self._bootstrap_proof_verifier.verify(
+            authority
+        ):
+            raise _error(ErrorCode.FORBIDDEN, "bootstrap authority is unavailable")
+        display_name = _normalized_name(display_name, "display_name", 200)
+        project_name = _normalized_name(project_name, "project_name", 255)
+        fingerprint_material = {
+            "type": "BOOTSTRAP_FIRST_OWNER",
+            "material_version": 1,
+            "deployment_id": authority.deployment_id,
+            "operator_credential_id": authority.operator.credential_id,
+            "verified_os_uid": authority.verified_os_uid,
+            "display_name": display_name,
+            "project_name": project_name,
+        }
+        request_fingerprint = str(sha256_canonical_json(fingerprint_material))
+        actor_id, binding_id, project_id, membership_id, role_id, record_id = (
+            uuid4() for _ in range(6)
+        )
+        external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
+&#32;&#32;&#32;&#32;
+        with self._uow_factory() as uow:
+            uow.begin_serializable()
+            repo = uow.phase2_identity
+            repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
+            if not repo.actors_and_projects_empty():
+&gt;               raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
+E               researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed
+
+src/researchbase/application/phase2_identity.py:335: ResearchBaseError</failure></testcase><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_populated_0042_roundtrip_preserves_every_row_and_schema[terminal]" time="0.434"><failure message="researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed">phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_50b3a14d93b447d8ac8c4df56db05e33'
+stage = 'terminal'
+
+    @pytest.mark.parametrize("stage", ["planned", "reserved", "sealed", "terminal"])
+    def test_populated_0042_roundtrip_preserves_every_row_and_schema(phase2_database_url, stage):
+        url = phase2_database_url
+        material = _parent_material(url, stage)
+        engine = material["engine"]
+&gt;       other = _parent_material(url, stage)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/phase2/test_task12_schema_migration.py:155:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
+    return coverage._material(url, stage)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_04_schema_coverage.py:110: in _material
+    engine, plans, principal, project, plan, version = _setup(url)
+                                                       ^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1139: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1143: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1204: in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_task12_schema_migration.py:85: in &lt;lambda&gt;
+    coverage, "_setup", side_effect=lambda url: _setup(url, migration_revision=PARENT)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_03_review_guards.py:52: in _setup
+    engine, _, _, principal, project = _authorized_service(
+tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_service
+    bootstrap = identity.bootstrap_first_owner(
+src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
+    return self._bootstrap_first_owner_once(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10cd2c7d0&gt;
+authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('fd3dd4a2-c704-4f0...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
+
+    def _bootstrap_first_owner_once(
+        self,
+        authority: BootstrapAuthority,
+        *,
+        request_id: UUID,
+        display_name: str,
+        project_name: str,
+    ) -&gt; BootstrapResult:
+        if self._bootstrap_proof_verifier is None or not self._bootstrap_proof_verifier.verify(
+            authority
+        ):
+            raise _error(ErrorCode.FORBIDDEN, "bootstrap authority is unavailable")
+        display_name = _normalized_name(display_name, "display_name", 200)
+        project_name = _normalized_name(project_name, "project_name", 255)
+        fingerprint_material = {
+            "type": "BOOTSTRAP_FIRST_OWNER",
+            "material_version": 1,
+            "deployment_id": authority.deployment_id,
+            "operator_credential_id": authority.operator.credential_id,
+            "verified_os_uid": authority.verified_os_uid,
+            "display_name": display_name,
+            "project_name": project_name,
+        }
+        request_fingerprint = str(sha256_canonical_json(fingerprint_material))
+        actor_id, binding_id, project_id, membership_id, role_id, record_id = (
+            uuid4() for _ in range(6)
+        )
+        external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
+&#32;&#32;&#32;&#32;
+        with self._uow_factory() as uow:
+            uow.begin_serializable()
+            repo = uow.phase2_identity
+            repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
+            if not repo.actors_and_projects_empty():
+&gt;               raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
+E               researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed
+
+src/researchbase/application/phase2_identity.py:335: ResearchBaseError</failure></testcase><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_preflight_rejects_conflicting_data_without_partial_ddl[attempt_query]" time="0.415"><failure message="researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed">phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_e09e76887526448699dd55f82c09d59c'
+corruption = 'attempt_query'
+
+    @pytest.mark.parametrize("corruption", ["attempt_query", "scoped_query", "receipt_range"])
+    def test_preflight_rejects_conflicting_data_without_partial_ddl(phase2_database_url, corruption):
+        url = phase2_database_url
+        material = _parent_material(url, "sealed")
+&gt;       other = _parent_material(url, "sealed")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/phase2/test_task12_schema_migration.py:185:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
+    return coverage._material(url, stage)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_04_schema_coverage.py:110: in _material
+    engine, plans, principal, project, plan, version = _setup(url)
+                                                       ^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1139: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1143: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1204: in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_task12_schema_migration.py:85: in &lt;lambda&gt;
+    coverage, "_setup", side_effect=lambda url: _setup(url, migration_revision=PARENT)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_03_review_guards.py:52: in _setup
+    engine, _, _, principal, project = _authorized_service(
+tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_service
+    bootstrap = identity.bootstrap_first_owner(
+src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
+    return self._bootstrap_first_owner_once(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10ccc4e30&gt;
+authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('c4706f3f-b3b6-4d6...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
+
+    def _bootstrap_first_owner_once(
+        self,
+        authority: BootstrapAuthority,
+        *,
+        request_id: UUID,
+        display_name: str,
+        project_name: str,
+    ) -&gt; BootstrapResult:
+        if self._bootstrap_proof_verifier is None or not self._bootstrap_proof_verifier.verify(
+            authority
+        ):
+            raise _error(ErrorCode.FORBIDDEN, "bootstrap authority is unavailable")
+        display_name = _normalized_name(display_name, "display_name", 200)
+        project_name = _normalized_name(project_name, "project_name", 255)
+        fingerprint_material = {
+            "type": "BOOTSTRAP_FIRST_OWNER",
+            "material_version": 1,
+            "deployment_id": authority.deployment_id,
+            "operator_credential_id": authority.operator.credential_id,
+            "verified_os_uid": authority.verified_os_uid,
+            "display_name": display_name,
+            "project_name": project_name,
+        }
+        request_fingerprint = str(sha256_canonical_json(fingerprint_material))
+        actor_id, binding_id, project_id, membership_id, role_id, record_id = (
+            uuid4() for _ in range(6)
+        )
+        external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
+&#32;&#32;&#32;&#32;
+        with self._uow_factory() as uow:
+            uow.begin_serializable()
+            repo = uow.phase2_identity
+            repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
+            if not repo.actors_and_projects_empty():
+&gt;               raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
+E               researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed
+
+src/researchbase/application/phase2_identity.py:335: ResearchBaseError</failure></testcase><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_preflight_rejects_conflicting_data_without_partial_ddl[scoped_query]" time="0.404"><failure message="researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed">phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_67e5a4b99dcf4444bc532b1cc8509942'
+corruption = 'scoped_query'
+
+    @pytest.mark.parametrize("corruption", ["attempt_query", "scoped_query", "receipt_range"])
+    def test_preflight_rejects_conflicting_data_without_partial_ddl(phase2_database_url, corruption):
+        url = phase2_database_url
+        material = _parent_material(url, "sealed")
+&gt;       other = _parent_material(url, "sealed")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/phase2/test_task12_schema_migration.py:185:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
+    return coverage._material(url, stage)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_04_schema_coverage.py:110: in _material
+    engine, plans, principal, project, plan, version = _setup(url)
+                                                       ^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1139: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1143: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1204: in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_task12_schema_migration.py:85: in &lt;lambda&gt;
+    coverage, "_setup", side_effect=lambda url: _setup(url, migration_revision=PARENT)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_03_review_guards.py:52: in _setup
+    engine, _, _, principal, project = _authorized_service(
+tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_service
+    bootstrap = identity.bootstrap_first_owner(
+src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
+    return self._bootstrap_first_owner_once(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10d1555b0&gt;
+authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('ad8072a3-15ac-439...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
+
+    def _bootstrap_first_owner_once(
+        self,
+        authority: BootstrapAuthority,
+        *,
+        request_id: UUID,
+        display_name: str,
+        project_name: str,
+    ) -&gt; BootstrapResult:
+        if self._bootstrap_proof_verifier is None or not self._bootstrap_proof_verifier.verify(
+            authority
+        ):
+            raise _error(ErrorCode.FORBIDDEN, "bootstrap authority is unavailable")
+        display_name = _normalized_name(display_name, "display_name", 200)
+        project_name = _normalized_name(project_name, "project_name", 255)
+        fingerprint_material = {
+            "type": "BOOTSTRAP_FIRST_OWNER",
+            "material_version": 1,
+            "deployment_id": authority.deployment_id,
+            "operator_credential_id": authority.operator.credential_id,
+            "verified_os_uid": authority.verified_os_uid,
+            "display_name": display_name,
+            "project_name": project_name,
+        }
+        request_fingerprint = str(sha256_canonical_json(fingerprint_material))
+        actor_id, binding_id, project_id, membership_id, role_id, record_id = (
+            uuid4() for _ in range(6)
+        )
+        external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
+&#32;&#32;&#32;&#32;
+        with self._uow_factory() as uow:
+            uow.begin_serializable()
+            repo = uow.phase2_identity
+            repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
+            if not repo.actors_and_projects_empty():
+&gt;               raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
+E               researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed
+
+src/researchbase/application/phase2_identity.py:335: ResearchBaseError</failure></testcase><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_preflight_rejects_conflicting_data_without_partial_ddl[receipt_range]" time="0.364"><failure message="researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed">phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_eae53f2e801e4db091c4bb6892ee39e5'
+corruption = 'receipt_range'
+
+    @pytest.mark.parametrize("corruption", ["attempt_query", "scoped_query", "receipt_range"])
+    def test_preflight_rejects_conflicting_data_without_partial_ddl(phase2_database_url, corruption):
+        url = phase2_database_url
+        material = _parent_material(url, "sealed")
+&gt;       other = _parent_material(url, "sealed")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/phase2/test_task12_schema_migration.py:185:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+tests/integration/phase2/test_task12_schema_migration.py:87: in _parent_material
+    return coverage._material(url, stage)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_04_schema_coverage.py:110: in _material
+    engine, plans, principal, project, plan, version = _setup(url)
+                                                       ^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1139: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1143: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:1204: in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_task12_schema_migration.py:85: in &lt;lambda&gt;
+    coverage, "_setup", side_effect=lambda url: _setup(url, migration_revision=PARENT)
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_03_review_guards.py:52: in _setup
+    engine, _, _, principal, project = _authorized_service(
+tests/integration/phase2/test_pr2_01_source_identity.py:79: in _authorized_service
+    bootstrap = identity.bootstrap_first_owner(
+src/researchbase/application/phase2_identity.py:286: in bootstrap_first_owner
+    return self._bootstrap_first_owner_once(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;researchbase.application.phase2_identity.Phase2IdentityService object at 0x10cc24470&gt;
+authority = BootstrapAuthority(deployment_id='pr2-01-test-deployment', operator=VerifiedPrincipal(actor_id=UUID('a532dd96-6fce-4e4...oof_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', proof_record_ref='audit/test-bootstrap')
+
+    def _bootstrap_first_owner_once(
+        self,
+        authority: BootstrapAuthority,
+        *,
+        request_id: UUID,
+        display_name: str,
+        project_name: str,
+    ) -&gt; BootstrapResult:
+        if self._bootstrap_proof_verifier is None or not self._bootstrap_proof_verifier.verify(
+            authority
+        ):
+            raise _error(ErrorCode.FORBIDDEN, "bootstrap authority is unavailable")
+        display_name = _normalized_name(display_name, "display_name", 200)
+        project_name = _normalized_name(project_name, "project_name", 255)
+        fingerprint_material = {
+            "type": "BOOTSTRAP_FIRST_OWNER",
+            "material_version": 1,
+            "deployment_id": authority.deployment_id,
+            "operator_credential_id": authority.operator.credential_id,
+            "verified_os_uid": authority.verified_os_uid,
+            "display_name": display_name,
+            "project_name": project_name,
+        }
+        request_fingerprint = str(sha256_canonical_json(fingerprint_material))
+        actor_id, binding_id, project_id, membership_id, role_id, record_id = (
+            uuid4() for _ in range(6)
+        )
+        external_key = f"local-os:{authority.deployment_id}:{authority.verified_os_uid}"
+&#32;&#32;&#32;&#32;
+        with self._uow_factory() as uow:
+            uow.begin_serializable()
+            repo = uow.phase2_identity
+            repo.lock_bootstrap_tables()
+            repo.lock_deployment(authority.deployment_id)
+            if repo.legacy_state_violations():
+                raise _error(ErrorCode.LEGACY_STATE_INVALID, "legacy identity state is invalid")
+            if not repo.actors_and_projects_empty():
+&gt;               raise _error(ErrorCode.BOOTSTRAP_CLOSED, "first-owner bootstrap is already closed")
+E               researchbase.foundation.errors.ResearchBaseError: first-owner bootstrap is already closed
+
+src/researchbase/application/phase2_identity.py:335: ResearchBaseError</failure></testcase><testcase classname="tests.integration.phase2.test_task12_schema_migration" name="test_downgrade_restricts_unexpected_dependents_without_partial_ddl" time="0.375" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_live_column_pk_nullability_and_fk_restrict_inventory[literature_search_executions]" time="0.323" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_live_column_pk_nullability_and_fk_restrict_inventory[literature_search_provider_attempts]" time="0.328" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_live_column_pk_nullability_and_fk_restrict_inventory[search_query_records]" time="0.393" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_live_column_pk_nullability_and_fk_restrict_inventory[search_result_records]" time="0.330" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_live_column_pk_nullability_and_fk_restrict_inventory[literature_search_execution_events]" time="0.410" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_live_column_pk_nullability_and_fk_restrict_inventory[literature_search_execution_command_receipts]" time="0.338" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_every_fk_has_unconditional_leading_btree_index[literature_search_executions]" time="0.354" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_every_fk_has_unconditional_leading_btree_index[literature_search_provider_attempts]" time="0.444" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_every_fk_has_unconditional_leading_btree_index[search_query_records]" time="0.327" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_every_fk_has_unconditional_leading_btree_index[search_result_records]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_every_fk_has_unconditional_leading_btree_index[literature_search_execution_events]" time="0.353" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_every_fk_has_unconditional_leading_btree_index[literature_search_execution_command_receipts]" time="0.418" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.id]" time="0.350" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.project_id]" time="0.355" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.search_plan_version_id]" time="0.420" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.strategy_id]" time="0.342" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.strategy_version]" time="0.345" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.status]" time="0.420" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.requested_by]" time="0.341" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.executed_by]" time="0.389" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.execution_context]" time="0.418" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.idempotency_key]" time="0.347" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.row_version]" time="0.350" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.created_by]" time="0.424" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_executions.created_at]" time="0.331" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.id]" time="0.328" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.execution_id]" time="0.344" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.query_index]" time="0.421" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.attempt_number]" time="0.332" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.provider_request_key]" time="0.358" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.reserved_at]" time="0.359" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.deadline_at]" time="0.442" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.recovery_after]" time="0.339" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.status]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.row_version]" time="0.385" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.created_by]" time="0.421" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_provider_attempts.created_at]" time="0.331" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.id]" time="0.359" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.literature_search_execution_id]" time="0.370" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.provider_attempt_id]" time="0.419" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.query_text]" time="0.366" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.provider_id]" time="0.361" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.ordinal]" time="0.346" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.executed_at]" time="0.413" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.query_hash]" time="0.418" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.hash_scheme]" time="0.364" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.created_by]" time="0.359" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_query_records.created_at]" time="0.395" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.id]" time="0.343" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.search_query_record_id]" time="0.371" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.rank]" time="0.370" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.title]" time="0.447" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.retrieved_at]" time="0.363" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.content_hash]" time="0.364" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.hash_scheme]" time="0.406" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.created_by]" time="0.453" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[search_result_records.created_at]" time="0.346" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.id]" time="0.379" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.deployment_id]" time="0.365" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.project_id]" time="0.434" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.actor_id]" time="0.373" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.command_name]" time="0.341" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.request_id]" time="0.359" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.request_hash]" time="0.366" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.hash_scheme]" time="0.445" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.result_execution_id]" time="0.354" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.result_dto_version]" time="0.355" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.result_dto]" time="0.358" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.completed_at]" time="0.459" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.created_by]" time="0.339" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_required_column_null_is_rejected[literature_search_execution_command_receipts.created_at]" time="0.338" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[search_query_records-update]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[search_query_records-delete]" time="0.428" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[search_result_records-update]" time="0.444" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[search_result_records-delete]" time="0.343" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[literature_search_execution_events-update]" time="0.343" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[literature_search_execution_events-delete]" time="0.353" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[literature_search_execution_command_receipts-update]" time="0.370" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[literature_search_execution_command_receipts-delete]" time="0.456" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[literature_search_provider_attempts-update]" time="0.343" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_immutable_rows_reject_update_and_delete[literature_search_provider_attempts-delete]" time="0.362" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[id]" time="0.333" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[project_id]" time="0.344" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[search_plan_version_id]" time="0.454" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[strategy_id]" time="0.346" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[strategy_version]" time="0.325" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[requested_by]" time="0.346" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[execution_context]" time="0.372" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[idempotency_key]" time="0.392" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[created_by]" time="0.370" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[created_at]" time="0.491" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_material_cannot_be_changed[executed_by]" time="0.325" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_row_version_requires_exact_increment[zero]" time="0.359" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_row_version_requires_exact_increment[no_increment]" time="0.357" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_row_version_requires_exact_increment[double_increment]" time="0.361" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_increment_without_matching_event_rolls_back_at_commit" time="0.368" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[id]" time="0.468" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[execution_id]" time="0.334" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[query_index]" time="0.345" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[attempt_number]" time="0.372" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[provider_request_key]" time="0.339" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[reserved_at]" time="0.355" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[deadline_at]" time="0.464" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[recovery_after]" time="0.323" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[created_by]" time="0.340" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reserved_attempt_material_is_fixed[created_at]" time="0.342" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_terminal_execution_rejects_new_attempt_query_result_and_event[literature_search_provider_attempts]" time="0.367" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_terminal_execution_rejects_new_attempt_query_result_and_event[search_query_records]" time="0.377" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_terminal_execution_rejects_new_attempt_query_result_and_event[search_result_records]" time="0.486" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_terminal_execution_rejects_new_attempt_query_result_and_event[literature_search_execution_events]" time="0.344" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_terminal_execution_rejects_update_and_delete[update]" time="0.348" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_terminal_execution_rejects_update_and_delete[delete]" time="0.413" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_query_same_parent_and_atomic_observation_guards[same_parent]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_query_same_parent_and_atomic_observation_guards[ordinal_gap]" time="0.357" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_query_same_parent_and_atomic_observation_guards[missing_seal]" time="0.461" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_query_same_parent_and_atomic_observation_guards[input_mismatch]" time="0.423" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_result_orphan_rank_late_append_and_retrieval_guards[rank_gap]" time="0.407" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_result_orphan_rank_late_append_and_retrieval_guards[orphan]" time="0.382" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_result_orphan_rank_late_append_and_retrieval_guards[late_append]" time="0.427" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_result_orphan_rank_late_append_and_retrieval_guards[different_retrieved_at]" time="0.406" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_coordinates_cannot_fabricate_execution_mutation[gap]" time="0.452" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_coordinates_cannot_fabricate_execution_mutation[wrong_status]" time="0.398" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_coordinates_cannot_fabricate_execution_mutation[wrong_version]" time="0.387" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_coordinates_cannot_fabricate_execution_mutation[wrong_prior]" time="0.369" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_coordinates_cannot_fabricate_execution_mutation[event_only]" time="0.430" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_terminal_recovery_receipt_and_exact_replay_preserve_all_provenance" time="0.446" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.status-0]" time="0.389" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.strategy_id-1]" time="0.481" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.strategy_version-2]" time="0.311" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.row_version-3]" time="0.317" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.failure_code-4]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.requested_by-5]" time="0.363" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.created_by-6]" time="0.356" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.search_plan_version_id-7]" time="0.385" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_executions.project_id-8]" time="0.478" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_provider_attempts.query_index-9]" time="0.329" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_provider_attempts.attempt_number-10]" time="0.381" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_provider_attempts.status-11]" time="0.352" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_provider_attempts.row_version-12]" time="0.352" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_provider_attempts.provider_request_key-13]" time="0.410" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_provider_attempts.created_by-14]" time="0.365" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_query_records.ordinal-15]" time="0.510" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_query_records.query_hash-16]" time="0.349" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_query_records.created_by-17]" time="0.337" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.rank-18]" time="0.367" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.content_hash-19]" time="0.381" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.provider_score-20]" time="0.365" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.provider_score-21]" time="0.510" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.provider_score-22]" time="0.345" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.title-23]" time="0.344" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.url-24]" time="0.354" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.external_identifier-25]" time="0.359" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.snippet-26]" time="0.346" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[search_result_records.created_by-27]" time="0.371" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_execution_command_receipts.deployment_id-28]" time="0.544" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_execution_command_receipts.command_name-29]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_execution_command_receipts.request_hash-30]" time="0.360" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_execution_command_receipts.hash_scheme-31]" time="0.367" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_execution_command_receipts.result_dto_version-32]" time="0.368" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_insert_checks_lengths_and_missing_foreign_parents[literature_search_execution_command_receipts.result_execution_id-33]" time="0.368" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reservation_uniqueness_contiguity_and_input_bounds[one_reserved]" time="0.510" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reservation_uniqueness_contiguity_and_input_bounds[number_gap]" time="0.332" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_reservation_uniqueness_contiguity_and_input_bounds[invalid_input_index]" time="0.348" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_receipt_projection_is_closed_typed_and_fk_bound[result_dto-value0]" time="0.382" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_receipt_projection_is_closed_typed_and_fk_bound[result_dto-value1]" time="0.357" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_receipt_projection_is_closed_typed_and_fk_bound[accepted_row_version-0]" time="0.388" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_receipt_projection_is_closed_typed_and_fk_bound[accepted_row_version-1]" time="0.361" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_receipt_projection_is_closed_typed_and_fk_bound[accepted_at-None]" time="0.533" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_receipt_projection_is_closed_typed_and_fk_bound[execution_id-00000000-0000-0000-0000-000000000000]" time="0.322" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_receipt_projection_is_closed_typed_and_fk_bound[command_name-EXECUTE_LITERATURE_SEARCH_EXECUTION]" time="0.362" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_new_receipt_terminal_exception_requires_existing_scoped_execution[absent_execution]" time="0.369" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_new_receipt_terminal_exception_requires_existing_scoped_execution[wrong_project]" time="0.363" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_new_receipt_terminal_exception_requires_existing_scoped_execution[wrong_terminal_command]" time="0.373" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_new_receipt_terminal_exception_requires_existing_scoped_execution[wrong_terminal_version]" time="0.359" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[schema_version-0]" time="0.535" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[provider_id-1]" time="0.343" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[provider_version-2]" time="0.388" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[provider_id-3]" time="0.355" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[provider_version-4]" time="0.361" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[max_results-5]" time="0.348" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[max_results-6]" time="0.349" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[max_results-7]" time="0.508" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[max_provider_attempts-8]" time="0.330" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[max_provider_attempts-9]" time="0.375" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[timeout_seconds-10]" time="0.364" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[timeout_seconds-11]" time="0.357" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[execution_budget_seconds-12]" time="0.349" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[execution_budget_seconds-13]" time="0.354" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[queries-14]" time="0.344" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[queries-15]" time="0.670" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[queries-16]" time="0.396" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[queries-17]" time="0.368" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[queries-18]" time="0.353" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[queries-19]" time="0.334" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_execution_closed_context_schema_and_bounds_are_database_enforced[extra_key-20]" time="0.329" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_execution_insert_requires_frozen_plan_in_same_project[draft_plan]" time="0.331" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_execution_insert_requires_frozen_plan_in_same_project[other_project_plan]" time="0.537" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[result_count-0]" time="0.374" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[result_count-1]" time="0.415" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[retry_after_seconds-2]" time="0.356" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[retry_after_seconds-3]" time="0.422" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[delivery_certainty-4]" time="0.401" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[failure_code-5]" time="0.400" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[warning_codes-6]" time="0.564" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[warning_codes-7]" time="0.416" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[warning_codes-8]" time="0.397" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[row_version-9]" time="0.376" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[row_version-10]" time="0.415" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_attempt_outcome_shape_certainty_reason_warnings_and_version_guards[status-11]" time="0.436" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[created_at]" time="0.353" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[created_by]" time="0.503" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[execution_id]" time="0.340" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[id]" time="0.349" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[kind]" time="0.390" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[new_row_version]" time="0.374" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[new_status]" time="0.370" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[occurred_at]" time="0.370" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_event_required_columns_reject_null_in_matching_mutation[sequence]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_sql_unique_scopes_reject_duplicate_material[execution_idempotency]" time="0.606" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_sql_unique_scopes_reject_duplicate_material[query_ordinal]" time="0.367" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_sql_unique_scopes_reject_duplicate_material[query_hash]" time="0.366" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_sql_unique_scopes_reject_duplicate_material[result_rank]" time="0.368" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_direct_sql_unique_scopes_reject_duplicate_material[receipt_scope]" time="0.357" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_atomic_outcome_rejects_invalid_complete_response_set[rank_gap_at_seal]" time="0.351" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_atomic_outcome_rejects_invalid_complete_response_set[mixed_retrieval_times]" time="0.524" /><testcase classname="tests.integration.phase2.test_pr2_04_schema_coverage" name="test_atomic_outcome_rejects_invalid_complete_response_set[failed_attempt_has_results]" time="0.337" /><testcase classname="tests.integration.phase2.test_pr2_04_structural_guard_repair" name="test_exact_scoped_query_key_supports_concrete_fk" time="0.352"><failure message="sqlalchemy.exc.ProgrammingError: (psycopg.errors.InvalidTableDefinition) constraints on temporary tables may reference only temporary tables&#10;[SQL: &#10;                CREATE TEMP TABLE r5_scoped_query_probe (&#10;                  execution_id uuid, query_id uuid,&#10;                  FOREIGN KEY(execution_id,query_id)&#10;                    REFERENCES search_query_records(literature_search_execution_id,id)&#10;                ) ON COMMIT DROP&#10;            ]&#10;(Background on this error at: https://sqlalche.me/e/20/f405)">self = &lt;sqlalchemy.engine.base.Connection object at 0x10e6ce210&gt;
+dialect = &lt;sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x111052030&gt;
+context = &lt;sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x10e70afc0&gt;
+statement = &lt;sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x110aff2f0&gt;
+parameters = [{}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -&gt; CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+&#32;&#32;&#32;&#32;
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+&#32;&#32;&#32;&#32;
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+&#32;&#32;&#32;&#32;
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+&#32;&#32;&#32;&#32;
+        effective_parameters: Optional[_AnyExecuteParams]
+&#32;&#32;&#32;&#32;
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+&#32;&#32;&#32;&#32;
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+&#32;&#32;&#32;&#32;
+        if self._echo:
+            self._log_info(str_statement)
+&#32;&#32;&#32;&#32;
+            stats = context._get_cache_stats()
+&#32;&#32;&#32;&#32;
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+&#32;&#32;&#32;&#32;
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+&gt;                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;psycopg.Cursor [closed] [BAD] at 0x10d4b0290&gt;
+query = '\n                CREATE TEMP TABLE r5_scoped_query_probe (\n                  execution_id uuid, query_id uuid,\n   ...    REFERENCES search_query_records(literature_search_execution_id,id)\n                ) ON COMMIT DROP\n            '
+params = {}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -&gt; Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+&gt;           raise ex.with_traceback(None)
+E           psycopg.errors.InvalidTableDefinition: constraints on temporary tables may reference only temporary tables
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InvalidTableDefinition
+
+The above exception was the direct cause of the following exception:
+
+phase2_database_url = 'postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_pr2_test_c0c710f1da9c48b3b4fa684dbe54aa73'
+pr204_trace = &lt;scripts.pr2_04_pytest_evidence.FactRecorder object at 0x1110cabd0&gt;
+
+    @pytest.mark.pr204_requirements("PR204-DB-01")
+    def test_exact_scoped_query_key_supports_concrete_fk(
+        phase2_database_url, pr204_trace: FactRecorder
+    ):
+        material = _material(phase2_database_url, "sealed")
+        engine = material["engine"]
+        try:
+            before = _rows(engine)
+            query = before[Q][0]
+            uniques = inspect(engine).get_unique_constraints(Q)
+            # Temporary dependent is a catalog capability probe, not canonical persistence.
+            with engine.begin() as connection:
+&gt;               connection.execute(
+                    text("""
+                    CREATE TEMP TABLE r5_scoped_query_probe (
+                      execution_id uuid, query_id uuid,
+                      FOREIGN KEY(execution_id,query_id)
+                        REFERENCES search_query_records(literature_search_execution_id,id)
+                    ) ON COMMIT DROP
+                """)
+                )
+
+tests/integration/phase2/test_pr2_04_structural_guard_repair.py:103:&#32;
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+.venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _&#32;
+
+self = &lt;psycopg.Cursor [closed] [BAD] at 0x10d4b0290&gt;
+query = '\n                CREATE TEMP TABLE r5_scoped_query_probe (\n                  execution_id uuid, query_id uuid,\n   ...    REFERENCES search_query_records(literature_search_execution_id,id)\n                ) ON COMMIT DROP\n            '
+params = {}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -&gt; Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+&gt;           raise ex.with_traceback(None)
+E           sqlalchemy.exc.ProgrammingError: (psycopg.errors.InvalidTableDefinition) constraints on temporary tables may reference only temporary tables
+E           [SQL:&#32;
+E                           CREATE TEMP TABLE r5_scoped_query_probe (
+E                             execution_id uuid, query_id uuid,
+E                             FOREIGN KEY(execution_id,query_id)
+E                               REFERENCES search_query_records(literature_search_execution_id,id)
+E                           ) ON COMMIT DROP
+E                       ]
+E           (Background on this error at: https://sqlalche.me/e/20/f405)
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ProgrammingError</failure></testcase><testcase classname="tests.integration.phase2.test_pr2_04_structural_guard_repair" name="test_duplicate_scoped_query_identity_preserves_global_primary_key" time="0.378" /><testcase classname="tests.integration.phase2.test_pr2_04_structural_guard_repair" name="test_same_query_text_is_permitted_in_different_execution_scope" time="0.358" /></testsuite></testsuites>

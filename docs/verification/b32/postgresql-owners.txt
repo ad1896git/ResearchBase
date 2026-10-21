@@ -1,0 +1,49 @@
+........................................................................ [ 17%]
+........................................................................ [ 34%]
+........................................................................ [ 52%]
+........................................................................ [ 69%]
+........................................................................ [ 87%]
+....................................................                     [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b09_approval_schema.py: 55 warnings
+tests/integration/phase2/test_b09_approval_concurrency.py: 42 warnings
+tests/integration/phase2/test_b13_grant_concurrency.py: 78 warnings
+tests/integration/phase2/test_b13_grant_consumption.py: 36 warnings
+tests/integration/phase2/test_b13_grant_lifecycle.py: 9 warnings
+tests/integration/phase2/test_b13_grant_replay.py: 51 warnings
+tests/integration/phase2/test_b13_grant_schema.py: 72 warnings
+tests/integration/phase2/test_b14r_ready_approval.py: 102 warnings
+tests/integration/phase2/test_b14r_ready_approval_races.py: 126 warnings
+tests/integration/phase2/test_b14r_ready_approval_replay.py: 39 warnings
+tests/integration/phase2/test_b14r_ready_approval_schema.py: 68 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 90 warnings
+tests/integration/phase2/test_b14_ready_concurrency.py: 84 warnings
+tests/integration/phase2/test_b14_ready_replay.py: 54 warnings
+tests/integration/phase2/test_b14_ready_schema.py: 59 warnings
+tests/integration/phase2/test_b17_freeze_concurrency.py: 125 warnings
+tests/integration/phase2/test_b17_freeze_replay.py: 36 warnings
+tests/integration/phase2/test_b17_freeze_schema.py: 55 warnings
+tests/integration/phase2/test_b17_package_freeze.py: 57 warnings
+tests/integration/phase2/test_b17_package_history.py: 21 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b13_grant_consumption.py: 2 warnings
+tests/integration/phase2/test_b14r_ready_approval.py: 34 warnings
+tests/integration/phase2/test_b14r_ready_approval_races.py: 42 warnings
+tests/integration/phase2/test_b14r_ready_approval_replay.py: 13 warnings
+tests/integration/phase2/test_b14r_ready_approval_schema.py: 18 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 30 warnings
+tests/integration/phase2/test_b14_ready_concurrency.py: 25 warnings
+tests/integration/phase2/test_b14_ready_replay.py: 18 warnings
+tests/integration/phase2/test_b14_ready_schema.py: 18 warnings
+tests/integration/phase2/test_b17_freeze_concurrency.py: 41 warnings
+tests/integration/phase2/test_b17_freeze_replay.py: 12 warnings
+tests/integration/phase2/test_b17_freeze_schema.py: 16 warnings
+tests/integration/phase2/test_b17_package_freeze.py: 19 warnings
+tests/integration/phase2/test_b17_package_history.py: 7 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane48/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+412 passed, 1554 warnings in 918.26s (0:15:18)

@@ -9,6 +9,7 @@ import pytest
 from scripts import pr18_evidence
 from scripts.pr18_evidence import PR18EvidenceError, validate_query_contract
 from sqlalchemy import create_engine
+
 from tests.contracts.pr18_manifest import FROZEN_QUERY_EXPECTATIONS
 
 

@@ -1,0 +1,44 @@
+[
+  {
+    "shard": 0,
+    "test": "tests.integration.phase2.test_pr2_04_temporal_wait_supplement::test_pg_remaining_required_lock_sites_reauthorize_after_expiry[4-role_expiry-execute_admission-project]",
+    "out_of_shared_memory": true,
+    "message": "E           psycopg.errors.OutOfMemory: out of shared memory\nE           HINT:  You might need to increase \"max_locks_per_transaction\".\nE           sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nE           HINT:  You might need to increase \"max_locks_per_transaction\"."
+  },
+  {
+    "shard": 1,
+    "test": "tests.integration.phase2.test_pr2_04_authority_coverage::test_pg_cross_project_get_provenance_cursor_and_writes_are_non_disclosing",
+    "out_of_shared_memory": true,
+    "message": "failed on setup with \"sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: CREATE CONSTRAINT TRIGGER pr217_snapshot_complete_authorship_snapshots AFTER INSERT ON authorship_snapshots DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pr217_snapshot_complete()]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)\""
+  },
+  {
+    "shard": 1,
+    "test": "tests.integration.phase2.test_pr2_04_authority_coverage::test_pg_authority_loss_denies_each_post_admission_boundary[TX_B]",
+    "out_of_shared_memory": true,
+    "message": "failed on setup with \"sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: ALTER TABLE claims ADD CONSTRAINT fk_claim_current_version FOREIGN KEY(current_version_id) REFERENCES claim_versions (id) ON DELETE RESTRICT]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)\""
+  },
+  {
+    "shard": 2,
+    "test": "tests.integration.phase2.test_b13_grant_concurrency::test_real_wait_crosses_grant_expiry_with_zero_partial_history[scope]",
+    "out_of_shared_memory": false,
+    "message": "AssertionError: assert datetime.datetime(2026, 10, 18, 1, 34, 48, 255190, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')) < datetime.datetime(2026, 10, 18, 1, 34, 44, 776597, tzinfo=zoneinfo.ZoneInfo(key='America/New_York'))"
+  },
+  {
+    "shard": 2,
+    "test": "tests.integration.phase2.test_pr2_04_ownership_races::test_pg_competing_execute_keys_get_only_one_reservation_owner[A-first-4]",
+    "out_of_shared_memory": false,
+    "message": "AssertionError: assert (False or <ErrorCode.CONCURRENT_MODIFICATION: 'CONCURRENT_MODIFICATION'> is <ErrorCode.INVALID_STATE_TRANSITION: 'INVALID_STATE_TRANSITION'>)\n +  where False = isinstance(<ErrorCode.CONCURRENT_MODIFICATION: 'CONCURRENT_MODIFICATION'>, dict)\n +  and   <ErrorCode.INVALID_STATE_TRANSITION: 'INVALID_STATE_TRANSITION'> = ErrorCode.INVALID_STATE_TRANSITION"
+  },
+  {
+    "shard": 2,
+    "test": "tests.integration.phase2.test_pr2_03_review_guards::test_abandon_commands_load_the_command_version_id[experiment_spec-experiment_spec_versions-experiment_spec_id]",
+    "out_of_shared_memory": true,
+    "message": "sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: CREATE INDEX ix_pr216_approval_requests_basis_decision_id ON approval_requests(basis_decision_id)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)"
+  },
+  {
+    "shard": 5,
+    "test": "tests.integration.phase2.test_pr2_04_idempotency_coverage::test_pg_all_commands_exact_replay_preserves_every_durable_row[execute]",
+    "out_of_shared_memory": true,
+    "message": "failed on setup with \"sqlalchemy.exc.OperationalError: (psycopg.errors.OutOfMemory) out of shared memory\nHINT:  You might need to increase \"max_locks_per_transaction\".\n[SQL: CREATE TABLE authorship_snapshots (id UUID NOT NULL CONSTRAINT pk_authorship_snapshots PRIMARY KEY,created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),created_by UUID NOT NULL CONSTRAINT fk_authorship_snapshots_created_by REFERENCES actors(id) ON DELETE RESTRICT,content_hash CHAR(64) NOT NULL,hash_scheme VARCHAR(32) NOT NULL,CONSTRAINT ck_authorship_snapshots_digest CHECK (content_hash IS NULL OR content_hash ~ '^[0-9a-f]{64}$'),CONSTRAINT ck_authorship_snapshots_scheme CHECK (hash_scheme = 'sha256-cjson-v1'),publication_id UUID NOT NULL CONSTRAINT fk_authorship_snapshots_publication_id REFERENCES publications(id) ON DELETE RESTRICT,CONSTRAINT uq_authorship_snapshots_parent_id UNIQUE (publication_id,id))]\n(Back"
+  }
+]

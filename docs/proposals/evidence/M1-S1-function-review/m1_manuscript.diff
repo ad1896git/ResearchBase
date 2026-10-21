@@ -1,0 +1,30 @@
+--- /dev/null
++++ 0074/m1_manuscript.sql
+@@ -0,0 +1,27 @@
++CREATE OR REPLACE FUNCTION public.m1_manuscript(tid uuid, pid uuid)
++ RETURNS void
++ LANGUAGE plpgsql
++ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
++AS $function$
++DECLARE m manuscript_versions; cp JSONB; ap JSONB; sp JSONB; ph TEXT; root RECORD;
++BEGIN
++ SELECT v.* INTO m FROM manuscript_versions v JOIN publications p ON p.id=v.publication_id WHERE v.id=tid AND p.project_id=pid;
++ IF m.id IS NULL OR m.status<>'FROZEN' THEN RAISE EXCEPTION 'frozen manuscript required' USING ERRCODE='P17F2'; END IF;
++ PERFORM b04_verify_structure(tid);
++ SELECT coalesce(jsonb_agg(jsonb_build_object('target',pr216_ref(CASE WHEN p.claim_version_id IS NOT NULL THEN 'ClaimVersion' ELSE 'ScientificConclusionVersion' END,coalesce(p.claim_version_id,p.scientific_conclusion_version_id),coalesce(c.content_hash,s.content_hash)),
++ 'section_id',p.section_id,'locator',p.locator,'rhetorical_strength',p.rhetorical_strength,'ordinal',p.ordinal) ORDER BY p.section_id COLLATE "C",p.ordinal),'[]'::jsonb) INTO cp
++ FROM manuscript_claim_placements p LEFT JOIN claim_versions c ON c.id=p.claim_version_id LEFT JOIN scientific_conclusion_versions s ON s.id=p.scientific_conclusion_version_id WHERE p.manuscript_version_id=tid;
++ SELECT coalesce(jsonb_agg(jsonb_build_object('source_version',pr216_ref('SourceVersion',s.id,s.content_hash),'section_id',p.section_id,'locator',p.locator,'citation_purpose',p.citation_purpose,'ordinal',p.ordinal) ORDER BY p.section_id COLLATE "C",p.ordinal),'[]'::jsonb) INTO sp
++ FROM manuscript_citation_placements p JOIN source_versions s ON s.id=p.source_version_id WHERE p.manuscript_version_id=tid;
++ SELECT coalesce(jsonb_agg(jsonb_build_object('artifact_version',pr216_ref('ArtifactVersion',v.id,v.content_hash),'section_id',p.section_id,'locator',p.locator,'artifact_role',p.artifact_role,'ordinal',p.ordinal) ORDER BY p.section_id COLLATE "C",p.ordinal),'[]'::jsonb) INTO ap
++ FROM manuscript_artifact_placements p JOIN artifact_versions v ON v.id=p.artifact_version_id WHERE p.manuscript_version_id=tid;
++ ph:=pr216_hash(jsonb_build_object('type','ManuscriptVersionPlacementSet','material_version',1,'claim_placements',cp,'citation_placements',sp,'artifact_placements',ap));
++ IF m.placement_set_hash IS DISTINCT FROM ph OR m.content_hash IS DISTINCT FROM pr216_hash(jsonb_build_object('type','ManuscriptVersion','material_version',1,'publication_id',m.publication_id,
++ 'document_artifact',pr216_ref('ArtifactVersion',m.document_artifact_version_id,(SELECT content_hash FROM artifact_versions WHERE id=m.document_artifact_version_id)),
++ 'title',m.title,'abstract',m.abstract,'semantic_change_class',m.semantic_change_class,'placement_set_hash',ph)) THEN
++ RAISE EXCEPTION 'manuscript seal mismatch' USING ERRCODE='P17F2'; END IF;
++ FOR root IN SELECT * FROM b11_roots(tid) LOOP
++ IF root.kind IN ('claim_versions','scientific_conclusion_versions') THEN PERFORM b07_target(root.id,pid,root.kind);
++ ELSE PERFORM b07_facts(root.id,pid,root.kind); END IF;
++ END LOOP;
++END $function$

@@ -1,0 +1,33 @@
+........................................................................ [ 28%]
+.....................s.................................................. [ 56%]
+........................................................................ [ 85%]
+......................................                                   [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b04_manuscript_freeze.py: 69 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b04_manuscript_races.py: 72 warnings
+tests/integration/phase2/test_b05_manuscript_review.py: 63 warnings
+tests/integration/phase2/test_b05_review_basis.py: 24 warnings
+tests/integration/phase2/test_b05_review_migration.py: 76 warnings
+tests/integration/phase2/test_b05_review_races.py: 60 warnings
+tests/integration/phase2/test_b08_concurrency.py: 138 warnings
+tests/integration/phase2/test_b08_issue_disposition.py: 99 warnings
+tests/integration/phase2/test_b08_issue_history.py: 18 warnings
+tests/integration/phase2/test_b08_schema.py: 53 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b04_manuscript_races.py::test_mixed_existing_repository_lock_protocols[decision]
+tests/integration/phase2/test_b05_review_races.py::test_mixed_existing_protocols_with_protected_verifier[decision]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/decision_repository.py:141: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_b05_manuscript_review.py: 20 warnings
+tests/integration/phase2/test_b05_review_basis.py: 7 warnings
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+tests/integration/phase2/test_b05_review_races.py: 19 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+253 passed, 1 skipped, 836 warnings in 585.27s (0:09:45)

@@ -7,34 +7,71 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
     services:
       postgres:
         image: postgres:18
         env:
-          POSTGRES_DB: researchbase
+          POSTGRES_DB: researchbase_ci_${{ matrix.shard }}
           POSTGRES_USER: researchbase
           POSTGRES_PASSWORD: researchbase
+          # SERIALIZABLE fixture writers retain predicate locks across overlapping work.
+          # UNVERIFIED mitigation, pending Linux CI: avoid possible LLVM JIT
+          # overhead in trigger-heavy tests. The 57014 timeout is confirmed;
+          # JIT attribution has not been measured on the local non-JIT server.
+          POSTGRES_INITDB_ARGS: "--set=max_locks_per_transaction=256 --set=jit=off"
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U researchbase -d researchbase"
+          --health-cmd "pg_isready -U researchbase -d researchbase_ci_${{ matrix.shard }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
+      DATABASE_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_ci_${{ matrix.shard }}
+      RB_TEST_ADMIN_URL: postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # pull_request runs check out a detached merge commit; branch-bound scripts
+      # (scripts/researchbase_host_pr2_04_verification.sh --dry-run) need a named branch.
+      - name: Name the checked-out commit for branch-bound scripts
+        if: github.event_name == 'pull_request'
+        run: git switch -c "ci-pr-${{ github.run_id }}"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - name: Install PostgreSQL 18 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+      - run: pg_dump --version
       - run: uv sync --locked --group dev
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0018_current_pointer_same_parent_integrity (head)"
-      - run: uv run pytest
+      - run: test "$(uv run alembic current | tail -n 1)" = "0075_m1_reconsideration (head)"
+      - name: Run deterministic pytest file shard
+        shell: bash
+        run: |
+          uv run python scripts/ci_pytest_files.py --index ${{ matrix.shard }} --count 6 --durations .github/pytest-durations.json > /tmp/pytest-files.txt
+          mapfile -t test_files < /tmp/pytest-files.txt
+          uv run pytest --junitxml=/tmp/pytest-results.xml "${test_files[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-timings-${{ matrix.shard }}
+          path: /tmp/pytest-results.xml

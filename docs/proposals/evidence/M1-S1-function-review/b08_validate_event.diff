@@ -1,0 +1,19 @@
+--- 0073/b08_validate_event.sql
++++ 0074/b08_validate_event.sql
+@@ -13,14 +13,14 @@
+   SELECT * INTO link FROM revision_action_re_reviews WHERE revision_action_id=a.id AND internal_review_record_id=r.id;
+   SELECT coalesce(a.review_issue_id,c.review_issue_id) INTO effective FROM (SELECT 1) x
+     LEFT JOIN decision_revision_concerns c ON c.decision_id=a.decision_record_id;
+   IF i.id IS NULL OR old.id IS NULL OR r.id IS NULL OR a.id IS NULL OR link.revision_action_id IS NULL
+     OR effective IS DISTINCT FROM i.id OR old.project_id IS DISTINCT FROM r.project_id
+-    OR (old.claim_version_id IS NULL AND old.scientific_conclusion_version_id IS NULL)
++    OR (old.claim_version_id IS NULL AND old.scientific_conclusion_version_id IS NULL AND old.manuscript_version_id IS NULL)
+     OR r.id=old.id OR r.recommendation NOT IN ('ACCEPT','MINOR_REVISION')
+     OR a.decision_record_id IS DISTINCT FROM e.decision_id
+-    OR (e.new_status='ADDRESSED' AND (a.action_type NOT IN ('NEW_EXPERIMENT','ANALYSIS_CHANGE','CLAIM_CHANGE','CONCLUSION_CHANGE','SOURCE_CHANGE')
++    OR (e.new_status='ADDRESSED' AND (a.action_type NOT IN ('NEW_EXPERIMENT','ANALYSIS_CHANGE','CLAIM_CHANGE','CONCLUSION_CHANGE','SOURCE_CHANGE','MANUSCRIPT_CHANGE')
+       OR (i.severity='BLOCKING' AND d.id IS NULL) OR (d.id IS NOT NULL AND d.decision<>'REQUIRE_CHANGE')))
+     OR (e.new_status='DISMISSED' AND (a.action_type<>'NO_CHANGE' OR d.id IS NULL OR d.decision<>'ACCEPT_NO_CHANGE'))
+     OR e.rationale IS NULL OR e.rationale<>normalize(e.rationale,NFC) OR length(e.rationale)>16000
+     OR e.occurred_at<greatest(i.created_at,a.created_at,r.created_at,link.recorded_at,d.decided_at)
+     OR e.occurred_at>clock_timestamp() THEN

@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
-from tests.application_compat import LegacyApplicationService as ApplicationService
 
 from researchbase.application.commands import (
     CreateActorCommand,
@@ -42,6 +41,7 @@ from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.time import FixedClock
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 pytestmark = pytest.mark.integration
 

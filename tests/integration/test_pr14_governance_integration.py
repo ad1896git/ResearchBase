@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # Raw SQL is intentionally kept visibly exact for schema-contract tests.
-# ruff: noqa: E501
 import os
 import threading
 from collections.abc import Iterator
@@ -141,25 +140,33 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
     with engine.begin() as c:
         c.execute(
             text(
-                "INSERT INTO actors(id,actor_type,display_name,created_at) VALUES (:id,'HUMAN','auditor',:now)"
+                "INSERT INTO actors(id,actor_type,display_name,created_at) VALUES "
+                "(:id,'HUMAN','auditor',:now)"
             ),
             {"id": ids["actor"], "now": now},
         )
         c.execute(
             text(
-                "INSERT INTO projects(id,name,created_by,created_at) VALUES (:id,'PR14',:actor,:now)"
+                "INSERT INTO projects(id,name,created_by,created_at) VALUES "
+                "(:id,'PR14',:actor,:now)"
             ),
             {"id": ids["project"], "actor": ids["actor"], "now": now},
         )
         c.execute(
             text(
-                "INSERT INTO experiment_specs(id,project_id,created_by,created_at) VALUES (:id,:project,:actor,:now)"
+                "INSERT INTO experiment_specs(id,project_id,created_by,created_at) VALUES "
+                "(:id,:project,:actor,:now)"
             ),
             {"id": ids["spec"], "project": ids["project"], "actor": ids["actor"], "now": now},
         )
         c.execute(
             text(
-                "INSERT INTO experiment_spec_versions(id,experiment_spec_id,version_number,status,title,objective,protocol,content_hash,created_by,created_at,frozen_at) VALUES (:id,:parent,1,'FROZEN','t','o','{\"steps\":[\"execute\"]}',:hash,:actor,:now,:now)"
+                "INSERT INTO "
+                "experiment_spec_versions(id,experiment_spec_id,"
+                "version_number,status,title,objective,protocol,content_hash,"
+                "created_by,created_at,frozen_at) "
+                "VALUES "
+                "(:id,:parent,1,'FROZEN','t','o','{\"steps\":[\"execute\"]}',:hash,:actor,:now,:now)"
             ),
             {
                 "id": ids["spec_version"],
@@ -171,13 +178,18 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO artifacts(id,project_id,artifact_type,name,created_by,created_at) VALUES (:id,:project,'code','A1',:actor,:now)"
+                "INSERT INTO "
+                "artifacts(id,project_id,artifact_type,name,created_by,created_at) VALUES "
+                "(:id,:project,'code','A1',:actor,:now)"
             ),
             {"id": ids["artifact"], "project": ids["project"], "actor": ids["actor"], "now": now},
         )
         c.execute(
             text(
-                "INSERT INTO artifact_versions(id,artifact_id,version_number,status,content_hash,created_by,created_at,frozen_at) VALUES (:id,:parent,1,'FROZEN',:hash,:actor,:now,:now)"
+                "INSERT INTO "
+                "artifact_versions(id,artifact_id,version_number,status,"
+                "content_hash,created_by,created_at,frozen_at) "
+                "VALUES (:id,:parent,1,'FROZEN',:hash,:actor,:now,:now)"
             ),
             {
                 "id": ids["artifact_version"],
@@ -189,13 +201,17 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO datasets(id,project_id,name,created_by,created_at) VALUES (:id,:project,'D1',:actor,:now)"
+                "INSERT INTO datasets(id,project_id,name,created_by,created_at) VALUES "
+                "(:id,:project,'D1',:actor,:now)"
             ),
             {"id": ids["dataset"], "project": ids["project"], "actor": ids["actor"], "now": now},
         )
         c.execute(
             text(
-                "INSERT INTO dataset_snapshots(id,dataset_id,manifest_hash,selection_definition,content_hash,created_by,created_at) VALUES (:id,:parent,:manifest,'{}',:hash,:actor,:now)"
+                "INSERT INTO "
+                "dataset_snapshots(id,dataset_id,manifest_hash,"
+                "selection_definition,content_hash,created_by,created_at) "
+                "VALUES (:id,:parent,:manifest,'{}',:hash,:actor,:now)"
             ),
             {
                 "id": ids["snapshot"],
@@ -208,7 +224,9 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO runs(id,project_id,experiment_spec_version_id,status,created_by,created_at) VALUES (:id,:project,:spec,'PLANNED',:actor,:now)"
+                "INSERT INTO "
+                "runs(id,project_id,experiment_spec_version_id,status,created_by,created_at) "
+                "VALUES (:id,:project,:spec,'PLANNED',:actor,:now)"
             ),
             {
                 "id": ids["run"],
@@ -220,13 +238,15 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO run_artifact_inputs(run_id,artifact_version_id,role) VALUES (:run,:target,'source_code')"
+                "INSERT INTO run_artifact_inputs(run_id,artifact_version_id,role) VALUES "
+                "(:run,:target,'source_code')"
             ),
             {"run": ids["run"], "target": ids["artifact_version"]},
         )
         c.execute(
             text(
-                "INSERT INTO run_dataset_inputs(run_id,dataset_snapshot_id,role) VALUES (:run,:target,'test')"
+                "INSERT INTO run_dataset_inputs(run_id,dataset_snapshot_id,role) VALUES "
+                "(:run,:target,'test')"
             ),
             {"run": ids["run"], "target": ids["snapshot"]},
         )
@@ -246,13 +266,18 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO metric_definitions(id,project_id,name,created_by,created_at) VALUES (:id,:project,'m',:actor,:now)"
+                "INSERT INTO metric_definitions(id,project_id,name,created_by,created_at) "
+                "VALUES (:id,:project,'m',:actor,:now)"
             ),
             {"id": ids["metric"], "project": ids["project"], "actor": ids["actor"], "now": now},
         )
         c.execute(
             text(
-                "INSERT INTO metric_definition_versions(id,metric_definition_id,version_number,status,definition,content_hash,created_by,created_at,frozen_at) VALUES (:id,:parent,1,'FROZEN','{}',:hash,:actor,:now,:now)"
+                "INSERT INTO "
+                "metric_definition_versions(id,metric_definition_id,"
+                "version_number,status,definition,content_hash,created_by,"
+                "created_at,frozen_at) "
+                "VALUES (:id,:parent,1,'FROZEN','{}',:hash,:actor,:now,:now)"
             ),
             {
                 "id": ids["metric_version"],
@@ -264,7 +289,10 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO measurements(id,run_id,metric_definition_version_id,numeric_value,content_hash,created_by,created_at) VALUES (:id,:run,:metric,1.0,:hash,:actor,:now)"
+                "INSERT INTO "
+                "measurements(id,run_id,metric_definition_version_id,"
+                "numeric_value,content_hash,created_by,created_at) "
+                "VALUES (:id,:run,:metric,1.0,:hash,:actor,:now)"
             ),
             {
                 "id": ids["measurement"],
@@ -277,7 +305,11 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO statistical_results(id,project_id,analysis_type,result_payload,analysis_definition,content_hash,created_by,created_at) VALUES (:id,:project,'mean','{}','{}',:hash,:actor,:now)"
+                "INSERT INTO "
+                "statistical_results(id,project_id,analysis_type,"
+                "result_payload,analysis_definition,content_hash,created_by,"
+                "created_at) "
+                "VALUES (:id,:project,'mean','{}','{}',:hash,:actor,:now)"
             ),
             {
                 "id": ids["stat"],
@@ -289,19 +321,24 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO statistical_result_inputs(statistical_result_id,measurement_id,input_role) VALUES (:stat,:measurement,'input')"
+                "INSERT INTO "
+                "statistical_result_inputs(statistical_result_id,measurement_id,input_role) "
+                "VALUES (:stat,:measurement,'input')"
             ),
             {"stat": ids["stat"], "measurement": ids["measurement"]},
         )
         c.execute(
             text(
-                "INSERT INTO claims(id,project_id,created_by,created_at) VALUES (:id,:project,:actor,:now)"
+                "INSERT INTO claims(id,project_id,created_by,created_at) VALUES "
+                "(:id,:project,:actor,:now)"
             ),
             {"id": ids["claim"], "project": ids["project"], "actor": ids["actor"], "now": now},
         )
         c.execute(
             text(
-                "INSERT INTO claim_versions(id,claim_id,version_number,status,statement,created_by,created_at) VALUES (:id,:parent,1,'DRAFT','claim',:actor,:now)"
+                "INSERT INTO "
+                "claim_versions(id,claim_id,version_number,status,statement,created_by,created_at) "
+                "VALUES (:id,:parent,1,'DRAFT','claim',:actor,:now)"
             ),
             {
                 "id": ids["claim_version"],
@@ -312,7 +349,10 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO evidence_relations(id,claim_version_id,measurement_id,relation_type,created_by,created_at) VALUES (:id,:claim,:measurement,'SUPPORTS',:actor,:now)"
+                "INSERT INTO "
+                "evidence_relations(id,claim_version_id,measurement_id,"
+                "relation_type,created_by,created_at) "
+                "VALUES (:id,:claim,:measurement,'SUPPORTS',:actor,:now)"
             ),
             {
                 "id": ids["evidence_direct"],
@@ -324,7 +364,10 @@ def _seed_graph(engine: Engine) -> dict[str, UUID]:
         )
         c.execute(
             text(
-                "INSERT INTO evidence_relations(id,claim_version_id,statistical_result_id,relation_type,created_by,created_at) VALUES (:id,:claim,:stat,'SUPPORTS',:actor,:now)"
+                "INSERT INTO "
+                "evidence_relations(id,claim_version_id,"
+                "statistical_result_id,relation_type,created_by,created_at) "
+                "VALUES (:id,:claim,:stat,'SUPPORTS',:actor,:now)"
             ),
             {
                 "id": ids["evidence_stat"],
@@ -752,7 +795,9 @@ def test_downstream_select_count_is_stage_bounded(engine: Engine) -> None:
                 now = datetime(2026, 8, 30, tzinfo=UTC)
                 connection.execute(
                     text(
-                        "INSERT INTO runs(id,project_id,experiment_spec_version_id,status,created_by,created_at) "
+                        "INSERT INTO "
+                        "runs(id,project_id,experiment_spec_version_id,status,"
+                        "created_by,created_at) "
                         "VALUES (:run,:project,:spec,'PLANNED',:actor,:now)"
                     ),
                     {
@@ -765,7 +810,8 @@ def test_downstream_select_count_is_stage_bounded(engine: Engine) -> None:
                 )
                 connection.execute(
                     text(
-                        "INSERT INTO run_artifact_inputs(run_id,artifact_version_id,role) VALUES (:run,:artifact,'source_code')"
+                        "INSERT INTO run_artifact_inputs(run_id,artifact_version_id,role) VALUES "
+                        "(:run,:artifact,'source_code')"
                     ),
                     {"run": run_id, "artifact": ids["artifact_version"]},
                 )
@@ -785,7 +831,9 @@ def test_downstream_select_count_is_stage_bounded(engine: Engine) -> None:
                 )
                 connection.execute(
                     text(
-                        "INSERT INTO measurements(id,run_id,metric_definition_version_id,numeric_value,content_hash,created_by,created_at) "
+                        "INSERT INTO "
+                        "measurements(id,run_id,metric_definition_version_id,"
+                        "numeric_value,content_hash,created_by,created_at) "
                         "VALUES (:measurement,:run,:metric,1.0,:hash,:actor,:now)"
                     ),
                     {
@@ -833,7 +881,8 @@ def test_impact_target_resolution_is_batch_bounded(engine: Engine) -> None:
             run_ids.append(run_id)
             connection.execute(
                 text(
-                    "INSERT INTO runs(id,project_id,experiment_spec_version_id,status,created_by,created_at) "
+                    "INSERT INTO "
+                    "runs(id,project_id,experiment_spec_version_id,status,created_by,created_at) "
                     "VALUES (:run,:project,:spec,'PLANNED',:actor,:now)"
                 ),
                 {

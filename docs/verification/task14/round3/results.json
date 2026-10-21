@@ -1,0 +1,34 @@
+{
+  "exact_check": {
+    "command": "uv run pyright && uv run ruff format --check . && uv run ruff check . && DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -q -rfE -p no:cacheprovider",
+    "exit_code": 0,
+    "printed_summary": "5168 passed, 1 skipped, 2940 warnings in 4967.06s (1:22:47)",
+    "HG1_RUN_LOCAL": null,
+    "HG1_RUN_LIVE": null,
+    "PYTEST_ADDOPTS": null
+  },
+  "unit": {
+    "command": "uv run pytest tests/unit -q",
+    "exit_code": 0,
+    "log": "unit.log"
+  },
+  "architecture": {
+    "command": "uv run pytest tests/architecture -q",
+    "exit_code": 0,
+    "log": "architecture.log"
+  },
+  "counted_unit": {
+    "command": "uv run pytest tests/unit -q -o addopts=''",
+    "exit_code": 0,
+    "printed_summary": "1841 passed, 4 warnings in 38.70s"
+  },
+  "counted_architecture": {
+    "command": "uv run pytest tests/architecture -q -o addopts=''",
+    "exit_code": 0,
+    "printed_summary": "60 passed, 1 warning in 2.25s"
+  },
+  "skip_diagnosis": {
+    "exit_code": 0,
+    "printed_output": "s                                                                        [100%]\n=========================== short test summary info ============================\nSKIPPED [1] tests/integration/phase2/test_hg1_runner_live.py:111: set HG1_RUN_LIVE=1 for the authorized read-only M2 check\n1 skipped in 0.02s\n"
+  }
+}

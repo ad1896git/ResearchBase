@@ -1,0 +1,12 @@
+........................................................................ [ 58%]
+...................................................                      [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_approval.py: 213 warnings
+tests/integration/phase2/test_pr2_15_coordination.py: 46 warnings
+tests/integration/phase2/test_pr2_15_decision.py: 108 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+123 passed, 380 warnings in 207.21s (0:03:27)

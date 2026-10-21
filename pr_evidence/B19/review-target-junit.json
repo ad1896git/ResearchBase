@@ -1,0 +1,23 @@
+[
+  {
+    "shard": "junit-1",
+    "classname": "tests.integration.phase2.test_b19_close_prior_art_schema",
+    "name": "test_empty_downgrade_restores_exact_parent_catalog",
+    "time": "0.888",
+    "passed": true
+  },
+  {
+    "shard": "junit-1",
+    "classname": "tests.integration.phase2.test_b15_package_schema",
+    "name": "test_clean_upgrade_catalog_and_empty_downgrade",
+    "time": "0.723",
+    "passed": true
+  },
+  {
+    "shard": "junit-3",
+    "classname": "tests.integration.phase2.test_b07_schema",
+    "name": "test_empty_forward_upgrade_and_downgrade",
+    "time": "1.069",
+    "passed": true
+  }
+]

@@ -1,0 +1,35 @@
+........................................................................ [ 23%]
+........................................................................ [ 47%]
+........................................................................ [ 71%]
+........................................................................ [ 94%]
+................                                                         [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; tests.integration.phase2.b01_support
+    self.import_plugin(import_spec)
+
+tests/integration/phase2/test_pr2_19_candidates.py: 21 warnings
+tests/integration/phase2/test_b01_resolution_admission.py: 17 warnings
+tests/integration/phase2/test_b01_resolution_replay.py: 19 warnings
+tests/integration/phase2/test_pr2_15_decision_schema.py: 13 warnings
+tests/integration/phase2/test_pr2_18_search_coverage.py: 9 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_b05_review_migration.py: 76 warnings
+tests/integration/phase2/test_b08_schema.py: 53 warnings
+tests/integration/phase2/test_b14a_entry_schema.py: 63 warnings
+tests/integration/phase2/test_batch_c_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py: 7 warnings
+tests/integration/phase2/test_pr2_03_review_guards.py: 42 warnings
+tests/integration/phase2/test_pr2_04_execution_migration.py: 11 warnings
+tests/integration/phase2/test_pr2_04_migration_coverage.py: 24 warnings
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_revision_action.py: 163 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+304 passed, 693 warnings in 497.40s (0:08:17)

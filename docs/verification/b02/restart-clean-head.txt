@@ -1,0 +1,9 @@
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_pr2_04_restart_completion.py::test_pg_restart_cannot_reset_persisted_retry_after_or_invoke_early
+tests/integration/phase2/test_pr2_04_restart_completion.py::test_pg_new_execute_key_continues_next_query_and_retains_prior_hits
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 4.08s

@@ -1,0 +1,17 @@
+--- 0073/b07_closure.sql
++++ 0074/b07_closure.sql
+@@ -2,11 +2,13 @@
+  RETURNS TABLE(kind text, id uuid)
+  LANGUAGE sql
+  STABLE
+  SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ AS $function$
+-WITH RECURSIVE edges AS (SELECT
++WITH RECURSIVE edges AS (SELECT 'manuscript_versions'::text AS kind,m.id,r.kind AS child_kind,r.id AS child_id
++ FROM manuscript_versions m CROSS JOIN LATERAL b11_roots(m.id) r
++ UNION ALL SELECT
+     'scientific_conclusion_versions'::text AS kind,
+     id,'scientific_conclusions'::text AS child_kind,
+     scientific_conclusion_id AS child_id
+     FROM scientific_conclusion_versions
+  UNION ALL SELECT 'claim_versions'::text

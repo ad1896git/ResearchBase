@@ -306,9 +306,7 @@ def _summary_counts(output: str) -> dict[str, int]:
         if matches:
             for match in matches:
                 kind = (
-                    "error"
-                    if match.group("kind") in {"error", "errors"}
-                    else match.group("kind")
+                    "error" if match.group("kind") in {"error", "errors"} else match.group("kind")
                 )
                 counts[kind] = int(match.group("count"))
             break
@@ -359,11 +357,7 @@ def _validated_pytest_counts(
     xpassed = summary["xpassed"]
     skipped = junit["junit_skipped"] - xfailed
     passed = (
-        junit["collected"]
-        - junit["failed"]
-        - junit["error"]
-        - junit["junit_skipped"]
-        - xpassed
+        junit["collected"] - junit["failed"] - junit["error"] - junit["junit_skipped"] - xpassed
     )
     counts = {
         **collection,
@@ -456,9 +450,7 @@ def _run_verification(
     skip_details = _skip_details(output)
     if completed.returncode != 0:
         verdict = "FAIL"
-    elif collection is not None and (
-        collection["return_code"] != 0 or counts is None
-    ):
+    elif collection is not None and (collection["return_code"] != 0 or counts is None):
         verdict = "NOT_VERIFIED"
     elif counts is not None and (counts["failed"] or counts["error"]):
         verdict = "FAIL"
@@ -879,9 +871,7 @@ def _audit_preexisting_implementation_artifact() -> dict[str, Any]:
         raise RuntimeError("stored command evidence is not a regular file")
 
     try:
-        artifact = json.loads(
-            artifact_path.read_bytes(), object_pairs_hook=_strict_json_object
-        )
+        artifact = json.loads(artifact_path.read_bytes(), object_pairs_hook=_strict_json_object)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise RuntimeError("stored command evidence is unreadable or invalid JSON") from error
     if not isinstance(artifact, dict) or not isinstance(artifact.get("commands"), dict):
@@ -949,9 +939,7 @@ def _audit_verification_commands() -> dict[str, Any]:
             targets = []
         else:
             executable = (
-                command[2]
-                if command[:2] == ["uv", "run"] and len(command) > 2
-                else command[0]
+                command[2] if command[:2] == ["uv", "run"] and len(command) > 2 else command[0]
             )
             targets = []
             invalid_executable_sequences.append(command_id)

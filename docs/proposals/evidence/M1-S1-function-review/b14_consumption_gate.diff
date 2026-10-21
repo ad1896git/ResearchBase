@@ -1,0 +1,19 @@
+--- 0073/b14_consumption_gate.sql
++++ 0074/b14_consumption_gate.sql
+@@ -41,14 +41,14 @@
+   OR rr.content_hash IS DISTINCT FROM pr216_hash(jsonb_build_object('type','InternalReviewRecord','material_version',1,
+    'project_id',rr.project_id,'target',pr216_ref('ManuscriptVersion',m.id,m.content_hash),
+    'reviewer_actor_id',rr.reviewer_actor_id,'review_type',rr.review_type,'recommendation',rr.recommendation,'summary',rr.summary)) THEN
+     RAISE EXCEPTION 'matching manuscript review corrupt' USING ERRCODE='P17F2'; END IF;
+  END LOOP;
+- FOR iid IN SELECT i.id FROM review_issues i JOIN b11_applicable_reviews(m.id,r.project_id) review ON review.id=i.review_record_id ORDER BY i.id LOOP
++ FOR iid IN SELECT i.id FROM review_issues i JOIN m1_admission_reviews(m.id,r.project_id) review ON review.id=i.review_record_id ORDER BY i.id LOOP
+   PERFORM b08_check_history(iid);
+  END LOOP;
+- IF EXISTS(SELECT 1 FROM review_issues i JOIN b11_applicable_reviews(m.id,r.project_id) review ON review.id=i.review_record_id
++ IF EXISTS(SELECT 1 FROM review_issues i JOIN m1_admission_reviews(m.id,r.project_id) review ON review.id=i.review_record_id
+   WHERE i.status='OPEN' AND i.severity='BLOCKING') THEN
+    RAISE EXCEPTION 'applicable OPEN blocker' USING ERRCODE='P16G1'; END IF;
+  IF EXISTS(SELECT 1 FROM decision_basis_reviews b JOIN internal_review_records review ON review.id=b.internal_review_record_id
+   WHERE b.decision_id=d.id AND review.reviewer_actor_id=r.requested_by) THEN
+    RAISE EXCEPTION 'independent requester required' USING ERRCODE='P16C1'; END IF;

@@ -1,0 +1,93 @@
+[
+  {
+    "name": "unit",
+    "command": "UV_CACHE_DIR=tmp/task14-verification/uv-cache uv run pytest -o addopts='' -q tests/unit --junitxml=docs/verification/task14/restart/unit-final.xml",
+    "exit_code": 0,
+    "junit_counts": {
+      "tests": 1841,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 1841
+    },
+    "printed_summary": "1841 passed, 4 warnings in 37.44s",
+    "log": "unit-final.log"
+  },
+  {
+    "name": "architecture",
+    "command": "UV_CACHE_DIR=tmp/task14-verification/uv-cache uv run pytest -o addopts='' -q tests/architecture --junitxml=docs/verification/task14/restart/architecture-final.xml",
+    "exit_code": 0,
+    "junit_counts": {
+      "tests": 60,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 60
+    },
+    "printed_summary": "60 passed, 1 warning in 2.27s",
+    "log": "architecture-final.log"
+  },
+  {
+    "name": "approval",
+    "command": "DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres UV_CACHE_DIR=tmp/task14-verification/uv-cache uv run pytest -o addopts='' -q -ra tests/integration/phase2/test_approval.py --junitxml=docs/verification/task14/restart/approval.xml",
+    "exit_code": 0,
+    "junit_counts": {
+      "tests": 69,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 69
+    },
+    "printed_summary": "69 passed, 210 warnings in 50.40s",
+    "log": "approval.log"
+  },
+  {
+    "name": "pyright",
+    "command": "UV_CACHE_DIR=tmp/task14-verification/uv-cache uv run pyright",
+    "exit_code": 0,
+    "printed_output": "0 errors, 0 warnings, 0 informations\nWARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).\nPlease install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`\n\n",
+    "log": "pyright-final.log"
+  },
+  {
+    "name": "ruff-check",
+    "command": "UV_CACHE_DIR=tmp/task14-verification/uv-cache uv run ruff check .",
+    "exit_code": 0,
+    "printed_output": "All checks passed!\n",
+    "log": "ruff-check-final.log"
+  },
+  {
+    "name": "ruff-format",
+    "command": "UV_CACHE_DIR=tmp/task14-verification/uv-cache uv run ruff format --check .",
+    "exit_code": 0,
+    "printed_output": "482 files already formatted\n",
+    "log": "ruff-format-final.log"
+  },
+  {
+    "name": "full-suite",
+    "command": "RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres HG1_RUN_LOCAL=1 UV_CACHE_DIR=tmp/task14-verification/uv-cache uv run python docs/verification/task14/restart/run_full.py",
+    "status": "COMPLETED",
+    "log": "full-sharded-runner.log",
+    "exit_code": 0,
+    "result": {
+      "collected": 5169,
+      "unique_results": 5169,
+      "totals": {
+        "passed": 5169,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "exits": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "coverage": "Every collected test has exactly one JUnit result"
+    },
+    "environment": "full/environment.json",
+    "partition_commands": "full/shard-*-command.json",
+    "cleanup": "full/cleanup.json"
+  }
+]

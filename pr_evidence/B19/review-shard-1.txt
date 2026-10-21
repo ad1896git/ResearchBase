@@ -1,0 +1,131 @@
+........................................................................ [  4%]
+........................................................................ [  8%]
+........................................................................ [ 12%]
+........................................................................ [ 16%]
+........................................................................ [ 20%]
+........................................................................ [ 24%]
+........................................................................ [ 28%]
+........................................................................ [ 32%]
+........................................................................ [ 36%]
+........................................................................ [ 40%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 52%]
+........................................................................ [ 56%]
+........................................................................ [ 60%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 72%]
+........................................................................ [ 76%]
+........................................................................ [ 80%]
+........................................................................ [ 84%]
+........................................................................ [ 88%]
+........................................................................ [ 92%]
+........................................................................ [ 96%]
+........................................................                 [100%]
+=============================== warnings summary ===============================
+../../../.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; tests.integration.phase2.pr2_18_fixtures
+    self.import_plugin(import_spec)
+
+tests/integration/phase2/test_pr2_04_process_completion.py: 25 warnings
+tests/integration/phase2/test_pr2_19_grant_consumption_release.py: 48 warnings
+tests/integration/phase2/test_m1_local_onboarding.py: 5 warnings
+tests/integration/phase2/test_pr2_15_decision.py: 108 warnings
+tests/integration/phase2/test_b16_concurrency.py: 58 warnings
+tests/integration/phase2/test_b19_close_prior_art_schema.py: 43 warnings
+tests/integration/phase2/test_pr2_04_idempotency_completion.py: 33 warnings
+tests/integration/phase2/test_b04_manuscript_races.py: 72 warnings
+tests/integration/phase2/test_b04_manuscript_migration.py: 100 warnings
+tests/integration/phase2/test_pr2_02_source_version_migration.py: 15 warnings
+tests/integration/phase2/test_pr2_03_review_guards.py: 42 warnings
+tests/integration/phase2/test_b09_approval_schema.py: 55 warnings
+tests/integration/phase2/test_pr2_04_provider_pg_coverage.py: 23 warnings
+tests/integration/phase2/test_pr2_19_races.py: 30 warnings
+tests/integration/phase2/test_b15_package_schema.py: 37 warnings
+tests/integration/phase2/test_pr2_14_internal_review.py: 28 warnings
+tests/integration/phase2/test_pr2_19_lineage.py: 39 warnings
+tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py: 14 warnings
+tests/integration/phase2/test_pr2_11_r2_persistence.py: 34 warnings
+tests/integration/phase2/test_pr2_04_transaction_coverage.py: 16 warnings
+tests/integration/phase2/test_b22_prior_art_correction.py: 10 warnings
+tests/integration/phase2/test_m3_evidence.py: 16 warnings
+tests/integration/phase2/test_pr2_19_replay.py: 30 warnings
+tests/integration/phase2/test_pr2_04_execution_provenance.py: 9 warnings
+tests/integration/phase2/test_pr2_20_security.py: 20 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 18 warnings
+tests/integration/phase2/test_pr2_20_catalog_plans.py: 15 warnings
+tests/integration/phase2/test_pr2_19_rejection.py: 9 warnings
+tests/integration/phase2/test_b15_package_preparation.py: 8 warnings
+tests/integration/phase2/test_pr2_18_api.py: 3 warnings
+tests/integration/phase2/test_pr2_04_provider_budget_completion.py: 6 warnings
+tests/integration/phase2/test_pr2_13_artifact_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_20_novelty.py: 3 warnings
+tests/integration/phase2/test_pr2_04_structural_guard_repair.py: 3 warnings
+tests/integration/phase2/test_b16_replay.py: 4 warnings
+tests/architecture/test_b04_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b16_concurrency.py: 10 warnings
+tests/integration/phase2/test_pr2_14_internal_review.py: 1 warning
+tests/integration/phase2/test_b12_prepare_decision.py: 4 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane38/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_b04_manuscript_races.py::test_mixed_existing_repository_lock_protocols[decision]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane38/src/researchbase/persistence/decision_repository.py:141: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_abandon_commands_load_the_command_version_id[research_question-research_question_versions-research_question_id]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_abandon_commands_load_the_command_version_id[hypothesis-hypothesis_versions-hypothesis_id]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_abandon_commands_load_the_command_version_id[experiment_spec-experiment_spec_versions-experiment_spec_id]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_abandon_commands_load_the_command_version_id[claim-claim_versions-claim_id]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_abandon_commands_load_the_command_version_id[artifact-artifact_versions-artifact_id]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_abandon_commands_load_the_command_version_id[metric_definition-metric_definition_versions-metric_definition_id]
+  tests/integration/phase2/test_pr2_03_review_guards.py:188: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize(
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected[initial_frozen]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected[current_superseded]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected[null_language]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected[frozen_edit]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected[frozen_input_delete]
+  tests/integration/phase2/test_pr2_03_review_guards.py:318: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize(
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_required_fk_leading_indexes
+  tests/integration/phase2/test_pr2_03_review_guards.py:376: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_required_fk_leading_indexes(phase2_database_url, record_property):
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_question_identity_uniqueness_race[A-first]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_question_identity_uniqueness_race[B-first]
+  tests/integration/phase2/test_pr2_03_review_guards.py:399: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize("first", [0, 1], ids=["A-first", "B-first"])
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_ordinal_determinism_revision_supersession_and_hash
+  tests/integration/phase2/test_pr2_03_review_guards.py:493: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_ordinal_determinism_revision_supersession_and_hash(phase2_database_url, record_property):
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_question_reference_validation_matrix[missing]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_question_reference_validation_matrix[draft]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_question_reference_validation_matrix[abandoned]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_question_reference_validation_matrix[corrupt_hash]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_question_reference_validation_matrix[cross_project]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_question_reference_validation_matrix[duplicate_identity]
+  tests/integration/phase2/test_pr2_03_review_guards.py:596: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize(
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_original_0023_counterexample_and_fail_closed_upgrade[initial_frozen]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_original_0023_counterexample_and_fail_closed_upgrade[current_superseded]
+tests/integration/phase2/test_pr2_03_review_guards.py::test_original_0023_counterexample_and_fail_closed_upgrade[blank_objective]
+  tests/integration/phase2/test_pr2_03_review_guards.py:692: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize("violation", ["initial_frozen", "current_superseded", "blank_objective"])
+
+tests/integration/phase2/test_pr2_03_review_guards.py::test_live_schema_guard_contract
+  tests/integration/phase2/test_pr2_03_review_guards.py:788: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_live_schema_guard_contract(phase2_database_url, record_property):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+----- generated xml file: /private/tmp/b19-review-local-shards/junit-1.xml -----
+1784 passed, 1033 warnings in 1435.12s (0:23:55)

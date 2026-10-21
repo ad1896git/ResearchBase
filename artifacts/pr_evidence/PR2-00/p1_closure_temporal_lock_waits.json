@@ -1,0 +1,85 @@
+{
+  "tests": {
+    "tests/integration/phase2/test_pr2_00_concurrency.py::test_challenge_expiry_after_lock_wait": {
+      "authorization_times": [
+        "2026-10-03 03:57:59.956070+00:00",
+        "2026-10-03 03:57:59.956496+00:00"
+      ],
+      "backend_pid": 5919,
+      "effect_result": "DENY",
+      "expiry_at": "2026-10-03 03:57:59.942581+00:00",
+      "lock_acquired_at": "2026-10-03 03:57:59.951341+00:00",
+      "lock_wait_started_at": "2026-10-03 03:57:56.956456+00:00",
+      "observed_wait": {
+        "observed_at": "2026-10-03 03:57:56.956456+00:00",
+        "query": "SELECT * FROM actor_enrollment_challenges WHERE id = $1 FOR UPDATE",
+        "wait_event": "transactionid",
+        "wait_event_type": "Lock"
+      },
+      "persisted_effects": {
+        "binding_events": 0,
+        "bindings": 0,
+        "challenge_status": "ISSUED"
+      },
+      "tx_started_at": "2026-10-03 03:57:56.945688+00:00"
+    },
+    "tests/integration/phase2/test_pr2_00_concurrency.py::test_fresh_time_after_each_required_wait": {
+      "authorization_times": [
+        "2026-10-03 03:58:02.669615+00:00",
+        "2026-10-03 03:58:04.672851+00:00"
+      ],
+      "backend_pid": 5929,
+      "distinct_further_wait": true,
+      "effect_result": "DENY",
+      "expiry_at": "2026-10-03 03:58:04.666565+00:00",
+      "lock_acquired_at": "2026-10-03 03:58:04.670313+00:00",
+      "lock_wait_started_at": "2026-10-03 03:58:02.674867+00:00",
+      "observed_wait": {
+        "observed_at": "2026-10-03 03:58:02.674867+00:00",
+        "query": "SELECT m.id AS membership_id, m.status, a.retired_at FROM project_memberships m JOIN actors a ON a.id = m.actor_id WHERE m.actor_id = $1 AND m.project_id = $2 AND m.status = 'ACTIVE' FOR UPDATE OF m, a",
+        "wait_event": "transactionid",
+        "wait_event_type": "Lock"
+      },
+      "protected_counts": {
+        "membership_events": 1,
+        "memberships": 1,
+        "role_events": 1,
+        "roles": 1
+      },
+      "tx_started_at": "2026-10-03 03:58:02.667357+00:00"
+    },
+    "tests/integration/phase2/test_pr2_00_concurrency.py::test_owner_credential_expiry_after_lock_wait": {
+      "authorization_times": [
+        "2026-10-03 03:58:02.312055+00:00"
+      ],
+      "backend_pid": 5924,
+      "distinct_further_wait": false,
+      "effect_result": "DENY",
+      "expiry_at": "2026-10-03 03:58:02.295288+00:00",
+      "lock_acquired_at": "2026-10-03 03:58:02.309560+00:00",
+      "lock_wait_started_at": "2026-10-03 03:58:00.302472+00:00",
+      "observed_wait": {
+        "observed_at": "2026-10-03 03:58:00.302472+00:00",
+        "query": "SELECT rb_phase2_lock_project($1)",
+        "wait_event": "transactionid",
+        "wait_event_type": "Lock"
+      },
+      "protected_counts": {
+        "membership_events": 1,
+        "memberships": 1,
+        "role_events": 1,
+        "roles": 1
+      },
+      "tx_started_at": "2026-10-03 03:58:00.296061+00:00"
+    }
+  },
+  "verification_context": {
+    "capture_source": "pytest -s tests/integration/phase2/test_pr2_00_concurrency.py",
+    "formatter_contract_subject": "8c45e393c6ba68ab3989acaa4a319bc63c3bea89",
+    "original_implementation_start": "e756b1392ee25c2753e0837bda8eb905df7de013",
+    "p1_clarification_subject": "5a79d9cacc97ffbfd307d8c3f586d2521271194e",
+    "phase1_frozen_baseline": "d2400fbeca835c89bd802a4e9d647bda01cfd115",
+    "postgresql": "18.6",
+    "remediation_subject": "21d04de1ec5e11be11581f288a161826fa86377f"
+  }
+}

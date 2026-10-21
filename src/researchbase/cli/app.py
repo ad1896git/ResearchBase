@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import typer
 
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from researchbase.foundation.ids import new_uuid7
+
 from .commands.claim import register as register_claim
 from .commands.evidence import register as register_evidence
 from .commands.experiment import register as register_experiment
 from .commands.governance import register as register_governance
+from .commands.literature import register as register_literature
+from .commands.literature_evidence import register as register_literature_evidence
+from .commands.literature_search_execution import register as register_search_execution
+from .commands.local import register as register_local
+from .commands.metadata_observation import register as register_metadata
 from .commands.research import register as register_research
 from .composition import build_services
 from .context import CliServices, create_runtime
@@ -26,8 +34,26 @@ def _root_callback(
     client_version: str | None,
     services: CliServices | None,
 ) -> None:
-    selected_services = services or build_services()
     try:
+        if services is None and (
+            actor_id is not None
+            or ctx.invoked_subcommand
+            not in {
+                None,
+                "local",
+                "literature",
+                "novelty-review",
+                "novelty-revision",
+                "literature-search-execution",
+                "literature-metadata",
+                "literature-evidence",
+            }
+        ):
+            raise ResearchBaseError(
+                ErrorCode.FORBIDDEN,
+                "use authenticated local or literature commands; actor overrides are forbidden",
+            )
+        selected_services = services or build_services()
         ctx.obj = create_runtime(
             selected_services,
             actor_id,
@@ -37,6 +63,9 @@ def _root_callback(
             client_name,
             client_version,
         )
+    except ResearchBaseError as exc:
+        emit_error(exc, new_uuid7(), bool(ctx.meta.get("json_requested")))
+        raise typer.Exit(code=3) from None
     except CliTransportError as exc:
         emit_error(exc, exc.request_id, bool(ctx.meta.get("json_requested")))
         raise typer.Exit(code=2) from None
@@ -52,11 +81,16 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
         invoke_without_command=True,
         no_args_is_help=False,
     )
+    register_metadata(app)
+    register_literature_evidence(app)
+    register_local(app)
     register_research(app)
     register_evidence(app)
     register_experiment(app)
     register_claim(app)
     register_governance(app)
+    register_literature(app)
+    register_search_execution(app)
 
     @app.callback()
     def callback(

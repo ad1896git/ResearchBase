@@ -12,6 +12,7 @@ from enum import Enum
 from functools import wraps
 from time import monotonic
 from typing import Any
+from uuid import UUID
 
 from researchbase.application.closure import ClosureReport, ProvenanceClosureValidator
 from researchbase.application.config import application_dto_dataclass
@@ -772,11 +773,17 @@ def _instrument_application_service(cls: type[Any]) -> type[Any]:
 @_instrument_application_service
 class ApplicationService:
     def __init__(
-        self, uow_factory: UowFactory, clock: Clock, artifact_store: ArtifactStore | None = None
+        self,
+        uow_factory: UowFactory,
+        clock: Clock,
+        artifact_store: ArtifactStore | None = None,
+        *,
+        project_authorizer: Callable[[UnitOfWork, UUID, bool, UUID | None], None] | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._clock = clock
         self._artifact_store = artifact_store
+        self._project_authorizer = project_authorizer
 
     def to_write_result(self, value: object) -> WriteResult:
         """Convert a typed value for callers that are migrating to WriteResult."""
@@ -877,6 +884,9 @@ class ApplicationService:
     def create_workspace(self, command: CreateWorkspaceCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                self._project_authorizer(uow, command.project_id, True, command.context.actor_id)
             _require_actor(uow, actor_id)
             project = uow.projects.get(ProjectId(command.project_id))
             if project is None:
@@ -896,6 +906,9 @@ class ApplicationService:
     def create_research_question(self, command: CreateResearchQuestionCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                self._project_authorizer(uow, command.project_id, True, command.context.actor_id)
             project = _require_project(uow, ProjectId(command.project_id))
             _require_actor(uow, actor_id)
             question = ResearchQuestion(
@@ -988,6 +1001,14 @@ class ApplicationService:
         actor_id = ActorId(command.context.actor_id)
         question_id = ResearchQuestionId(command.research_question_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                preliminary = uow.research_questions.get(question_id)
+                if preliminary is None:
+                    raise _not_found("research question", question_id)
+                self._project_authorizer(
+                    uow, preliminary.project_id, True, command.context.actor_id
+                )
             _require_actor(uow, actor_id)
             question = uow.research_questions.get_for_update(question_id)
             if question is None:
@@ -1034,6 +1055,9 @@ class ApplicationService:
     def create_hypothesis(self, command: CreateHypothesisCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                self._project_authorizer(uow, command.project_id, True, actor_id)
             project = _require_project(uow, ProjectId(command.project_id))
             _require_actor(uow, actor_id)
             question_id = command.research_question_id
@@ -1042,25 +1066,7 @@ class ApplicationService:
                 if question is None:
                     raise _not_found("research question", question_id)
                 _require_same_project(project.id, question.project_id)
-            hypothesis = Hypothesis(
-                id=new_typed_id(HypothesisId),
-                project_id=project.id,
-                research_question_id=question_id,
-                created_by=actor_id,
-                created_at=self._clock.now(),
-            )
-            version = _new_hypothesis_version(
-                hypothesis.id,
-                command,
-                actor_id,
-                self._clock,
-                uow.hypotheses.max_version_number(hypothesis.id) + 1,
-            )
-            uow.hypotheses.add(hypothesis)
-            uow.hypotheses.add_version(version)
-            uow.hypotheses.update_current_version(
-                hypothesis.id, version.id, hypothesis.row_version, increment=False
-            )
+            hypothesis, version = create_hypothesis_in_uow(uow, command, actor_id, self._clock)
             uow.commit()
             return _hypothesis_read_model(replace(hypothesis, current_version_id=version.id))
 
@@ -1133,6 +1139,12 @@ class ApplicationService:
         actor_id = ActorId(command.context.actor_id)
         hypothesis_id = HypothesisId(command.hypothesis_id)
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
+                preliminary = uow.hypotheses.get(hypothesis_id)
+                if preliminary is None:
+                    raise _not_found("hypothesis", hypothesis_id)
+                self._project_authorizer(uow, preliminary.project_id, True, actor_id)
             _require_actor(uow, actor_id)
             hypothesis = uow.hypotheses.get_for_update(hypothesis_id)
             if hypothesis is None:
@@ -1659,6 +1671,10 @@ class ApplicationService:
             "research_questions",
             "research_question_id",
             _research_question_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                ResearchQuestionVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def abandon_hypothesis_version(self, command: AbandonHypothesisVersionCommand) -> WriteResult:
@@ -1670,6 +1686,10 @@ class ApplicationService:
             "hypotheses",
             "hypothesis_id",
             _hypothesis_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                HypothesisVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def abandon_experiment_spec_version(
@@ -1683,6 +1703,10 @@ class ApplicationService:
             "experiment_specs",
             "experiment_spec_id",
             _experiment_spec_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                ExperimentSpecVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def abandon_metric_definition_version(
@@ -1696,6 +1720,10 @@ class ApplicationService:
             "metric_definition_versions",
             "metric_definition_id",
             _metric_definition_version_read_model,
+            lambda repository, version_id: repository.get_for_update(
+                MetricDefinitionVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update(version, expected),
         )
 
     def abandon_artifact_version(self, command: AbandonArtifactVersionCommand) -> WriteResult:
@@ -1707,6 +1735,8 @@ class ApplicationService:
             "artifact_versions",
             "artifact_id",
             _artifact_version_read_model,
+            lambda repository, version_id: repository.get_for_update(ArtifactVersionId(version_id)),
+            lambda repository, version, expected: repository.update(version, expected),
         )
 
     def abandon_claim_version(self, command: AbandonClaimVersionCommand) -> WriteResult:
@@ -1718,6 +1748,10 @@ class ApplicationService:
             "claims",
             "claim_id",
             _claim_version_read_model,
+            lambda repository, version_id: repository.get_version_for_update(
+                ClaimVersionId(version_id)
+            ),
+            lambda repository, version, expected: repository.update_version(version, expected),
         )
 
     def _abandon_version(
@@ -1729,12 +1763,14 @@ class ApplicationService:
         repository_name: str,
         parent_field: str,
         read_model: Callable[[Any], Any],
+        load_version_for_update: Callable[[Any, Any], Any],
+        update_version: Callable[[Any, Any, int], None],
     ) -> Any:
         actor_id = ActorId(context.actor_id)
         with self._uow_factory() as uow:
             _require_actor(uow, actor_id)
             repository = getattr(uow, repository_name)
-            version = repository.get_for_update(version_id)
+            version = load_version_for_update(repository, version_id)
             if version is None:
                 raise _not_found("version", version_id)
             if getattr(version, parent_field) != parent_id:
@@ -1744,7 +1780,7 @@ class ApplicationService:
                 )
             _require_expected_row_version(version.row_version, expected_row_version)
             abandoned = version.transition_to(VersionStatus.ABANDONED)
-            repository.update_version(abandoned, version.row_version)
+            update_version(repository, abandoned, version.row_version)
             uow.commit()
             return read_model(replace(abandoned, row_version=version.row_version + 1))
 
@@ -2216,9 +2252,13 @@ class ApplicationService:
 
     def get_research_question(self, question_id: ResearchQuestionId) -> ResearchQuestionReadModel:
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
             question = uow.research_questions.get(ResearchQuestionId(question_id))
             if question is None:
                 raise _not_found("research question", question_id)
+            if self._project_authorizer is not None:
+                self._project_authorizer(uow, question.project_id, False, None)
             return _research_question_read_model(question)
 
     def get_hypothesis(self, hypothesis_id: HypothesisId) -> HypothesisReadModel:
@@ -2237,16 +2277,24 @@ class ApplicationService:
 
     def get_project(self, project_id: ProjectId) -> ProjectReadModel:
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
             project = uow.projects.get(ProjectId(project_id))
             if project is None:
                 raise _not_found("project", project_id)
+            if self._project_authorizer is not None:
+                self._project_authorizer(uow, project.id, False, None)
             return _project_read_model(project)
 
     def get_workspace(self, workspace_id: WorkspaceId) -> WorkspaceReadModel:
         with self._uow_factory() as uow:
+            if self._project_authorizer is not None:
+                uow.begin_serializable()
             workspace = uow.workspaces.get(WorkspaceId(workspace_id))
             if workspace is None:
                 raise _not_found("workspace", workspace_id)
+            if self._project_authorizer is not None:
+                self._project_authorizer(uow, workspace.project_id, False, None)
             return _workspace_read_model(workspace)
 
     def register_dataset(self, command: RegisterDatasetCommand) -> WriteResult:
@@ -2616,6 +2664,32 @@ def _new_question_version(
         )
     except ValueError as exc:
         raise _validation_error(str(exc), "question_text") from exc
+
+
+def create_hypothesis_in_uow(
+    uow: UnitOfWork, command: CreateHypothesisCommand, actor_id: ActorId, clock: Clock
+) -> tuple[Hypothesis, HypothesisVersion]:
+    """Create validated research material inside the caller's transaction; never commit."""
+    hypothesis = Hypothesis(
+        id=new_typed_id(HypothesisId),
+        project_id=command.project_id,
+        research_question_id=command.research_question_id,
+        created_by=actor_id,
+        created_at=clock.now(),
+    )
+    version = _new_hypothesis_version(
+        hypothesis.id,
+        command,
+        actor_id,
+        clock,
+        uow.hypotheses.max_version_number(hypothesis.id) + 1,
+    )
+    uow.hypotheses.add(hypothesis)
+    uow.hypotheses.add_version(version)
+    uow.hypotheses.update_current_version(
+        hypothesis.id, version.id, hypothesis.row_version, increment=False
+    )
+    return hypothesis, version
 
 
 def _new_hypothesis_version(

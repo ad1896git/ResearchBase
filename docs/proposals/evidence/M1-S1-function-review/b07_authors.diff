@@ -1,0 +1,35 @@
+--- 0073/b07_authors.sql
++++ 0074/b07_authors.sql
+@@ -2,11 +2,13 @@
+  RETURNS SETOF uuid
+  LANGUAGE sql
+  STABLE
+  SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ AS $function$
+-WITH RECURSIVE edges AS (SELECT
++WITH RECURSIVE edges AS (SELECT 'manuscript_versions'::text AS kind,m.id,r.kind AS child_kind,r.id AS child_id
++ FROM manuscript_versions m CROSS JOIN LATERAL b11_roots(m.id) r
++ UNION ALL SELECT
+     'scientific_conclusion_versions'::text AS kind,
+     id,'scientific_conclusions'::text AS child_kind,
+     scientific_conclusion_id AS child_id
+     FROM scientific_conclusion_versions
+  UNION ALL SELECT 'claim_versions'::text
+@@ -98,11 +100,16 @@
+  UNION ALL SELECT 'source_versions',id,'artifact_versions',correction_basis_artifact_version_id
+       FROM source_versions
+       WHERE correction_basis_artifact_version_id IS NOT NULL),
+           closure(kind,id) AS (SELECT seed_kind,target_id
+             UNION SELECT e.child_kind,e.child_id FROM closure c JOIN edges e
+-              ON e.kind=c.kind AND e.id=c.id), authors AS (SELECT
++              ON e.kind=c.kind AND e.id=c.id), authors AS (SELECT 'manuscript_versions'::text AS kind,id,created_by FROM manuscript_versions
++ UNION SELECT 'manuscript_versions',m.id,p.created_by FROM manuscript_versions m JOIN publications p ON p.id=m.publication_id
++ UNION SELECT 'manuscript_versions',manuscript_version_id,created_by FROM manuscript_claim_placements
++ UNION SELECT 'manuscript_versions',manuscript_version_id,created_by FROM manuscript_citation_placements
++ UNION SELECT 'manuscript_versions',manuscript_version_id,created_by FROM manuscript_artifact_placements
++ UNION SELECT
+     'artifact_versions'::text AS kind,
+     id,created_by
+     FROM artifact_versions
+  UNION ALL SELECT 'artifacts'::text AS kind,id,created_by FROM artifacts
+  UNION ALL SELECT 'claim_versions'::text AS kind,id,created_by FROM claim_versions

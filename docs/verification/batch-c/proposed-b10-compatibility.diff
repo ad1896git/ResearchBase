@@ -1,0 +1,112 @@
+--- migrations/versions/0056_b10_reconsideration.py
++++ migrations/versions/0056_b10_reconsideration.py
+@@ -24,2 +24 @@
+-ALTER TABLE decision_records DROP CONSTRAINT decision_records_decision_type_check;
+-ALTER TABLE decision_records DROP CONSTRAINT decision_records_decision_check;
++ALTER TABLE decision_records DROP CONSTRAINT ck_b11_decision_policy;
+@@ -62,0 +62,2 @@
++ (decision_type='REVISION_RESPONSE' AND decision IN ('REQUIRE_CHANGE','ACCEPT_NO_CHANGE')) OR
++ (decision_type='READY_FOR_SUBMISSION' AND decision='PROCEED') OR
+@@ -831 +832 @@
+-CREATE OR REPLACE FUNCTION pr215_basis_guard() RETURNS trigger LANGUAGE plpgsql AS $$
++CREATE OR REPLACE FUNCTION pr215_basis_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+@@ -836,0 +838,29 @@
++        RETURN NEW;
++      END IF;
++      IF (SELECT decision_type FROM decision_records WHERE id=NEW.decision_id)='READY_FOR_SUBMISSION' THEN
++        IF TG_TABLE_NAME<>'decision_basis_reviews' THEN
++          RAISE EXCEPTION 'readiness excludes conclusion basis' USING ERRCODE='P17F2'; END IF;
++        PERFORM b11_check_basis(NEW.decision_id,
++          (SELECT manuscript_version_id FROM decision_basis_manuscripts WHERE decision_id=NEW.decision_id));
++        IF NOT EXISTS(SELECT 1 FROM internal_review_records r JOIN decision_basis_manuscripts b
++          ON b.manuscript_version_id=r.manuscript_version_id JOIN manuscript_versions m ON m.id=b.manuscript_version_id
++          JOIN decision_records d ON d.id=b.decision_id
++          WHERE b.decision_id=NEW.decision_id AND r.id=NEW.internal_review_record_id
++            AND r.project_id=d.project_id AND r.target_content_hash=m.content_hash
++            AND r.claim_version_id IS NULL AND r.scientific_conclusion_version_id IS NULL AND r.artifact_version_id IS NULL) THEN
++          RAISE EXCEPTION 'exact manuscript review required' USING ERRCODE='P17F2'; END IF;
++        RETURN NEW;
++      END IF;
++      IF (SELECT decision_type FROM decision_records WHERE id=NEW.decision_id)='REVISION_RESPONSE' THEN
++        LOCK TABLE actor_subject_bindings, actors, artifact_versions, artifacts, audit_findings, claims, correction_records, datasets, experiment_spec_versions, experiment_specs, impact_assessments, impact_targets, internal_review_records, literature_evidence, literature_evidence_review_events, literature_source_project_links, literature_sources, metric_definition_versions, metric_definitions, project_membership_events, project_memberships, project_role_assignments, projects, runs, scientific_conclusions, source_versions IN SHARE MODE;
++        IF NOT EXISTS(SELECT 1 FROM decision_records WHERE id=NEW.decision_id AND xmin::text::bigint=pg_current_xact_id()::text::bigint) THEN
++          RAISE EXCEPTION 'basis sealed to creation transaction' USING ERRCODE='P17F1'; END IF;
++        IF TG_TABLE_NAME='decision_basis_conclusions' THEN
++          PERFORM id FROM internal_review_records WHERE scientific_conclusion_version_id=NEW.scientific_conclusion_version_id ORDER BY id FOR SHARE;
++        ELSE
++          PERFORM x.id FROM internal_review_records x JOIN internal_review_records r ON r.id=NEW.internal_review_record_id
++            WHERE x.project_id=r.project_id AND x.claim_version_id IS NOT DISTINCT FROM r.claim_version_id
++              AND x.scientific_conclusion_version_id IS NOT DISTINCT FROM r.scientific_conclusion_version_id
++            ORDER BY x.id FOR SHARE OF x;
++        END IF;
++        PERFORM b07_lock_concern(review_issue_id) FROM decision_revision_concerns WHERE decision_id=NEW.decision_id;
+@@ -876 +906 @@
+-CREATE OR REPLACE FUNCTION pr215_complete_basis() RETURNS trigger LANGUAGE plpgsql AS $$
++CREATE OR REPLACE FUNCTION pr215_complete_basis() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+@@ -884,0 +915,11 @@
++      IF (SELECT decision_type FROM decision_records WHERE id=did)='READY_FOR_SUBMISSION' THEN
++        PERFORM b11_complete(did); RETURN NULL;
++      END IF;
++      IF EXISTS(SELECT 1 FROM decision_basis_manuscripts WHERE decision_id=did) THEN
++        RAISE EXCEPTION 'manuscript basis requires readiness purpose' USING ERRCODE='P17F2'; END IF;
++      IF (SELECT decision_type FROM decision_records WHERE id=did)='REVISION_RESPONSE' THEN
++        PERFORM b07_validate_decision(did,true);
++        RETURN NULL;
++      END IF;
++      IF EXISTS(SELECT 1 FROM decision_revision_concerns WHERE decision_id=did) OR EXISTS(SELECT 1 FROM decision_basis_claims WHERE decision_id=did) THEN
++        RAISE EXCEPTION 'release cannot gain revision basis' USING ERRCODE='P17F2'; END IF;
+@@ -1282 +1323 @@
+-CREATE OR REPLACE FUNCTION pr215_basis_guard() RETURNS trigger LANGUAGE plpgsql AS $$
++CREATE OR REPLACE FUNCTION pr215_basis_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+@@ -1285,0 +1327,29 @@
++      IF (SELECT decision_type FROM decision_records WHERE id=NEW.decision_id)='READY_FOR_SUBMISSION' THEN
++        IF TG_TABLE_NAME<>'decision_basis_reviews' THEN
++          RAISE EXCEPTION 'readiness excludes conclusion basis' USING ERRCODE='P17F2'; END IF;
++        PERFORM b11_check_basis(NEW.decision_id,
++          (SELECT manuscript_version_id FROM decision_basis_manuscripts WHERE decision_id=NEW.decision_id));
++        IF NOT EXISTS(SELECT 1 FROM internal_review_records r JOIN decision_basis_manuscripts b
++          ON b.manuscript_version_id=r.manuscript_version_id JOIN manuscript_versions m ON m.id=b.manuscript_version_id
++          JOIN decision_records d ON d.id=b.decision_id
++          WHERE b.decision_id=NEW.decision_id AND r.id=NEW.internal_review_record_id
++            AND r.project_id=d.project_id AND r.target_content_hash=m.content_hash
++            AND r.claim_version_id IS NULL AND r.scientific_conclusion_version_id IS NULL AND r.artifact_version_id IS NULL) THEN
++          RAISE EXCEPTION 'exact manuscript review required' USING ERRCODE='P17F2'; END IF;
++        RETURN NEW;
++      END IF;
++      IF (SELECT decision_type FROM decision_records WHERE id=NEW.decision_id)='REVISION_RESPONSE' THEN
++        LOCK TABLE actor_subject_bindings, actors, artifact_versions, artifacts, audit_findings, claims, correction_records, datasets, experiment_spec_versions, experiment_specs, impact_assessments, impact_targets, internal_review_records, literature_evidence, literature_evidence_review_events, literature_source_project_links, literature_sources, metric_definition_versions, metric_definitions, project_membership_events, project_memberships, project_role_assignments, projects, runs, scientific_conclusions, source_versions IN SHARE MODE;
++        IF NOT EXISTS(SELECT 1 FROM decision_records WHERE id=NEW.decision_id AND xmin::text::bigint=pg_current_xact_id()::text::bigint) THEN
++          RAISE EXCEPTION 'basis sealed to creation transaction' USING ERRCODE='P17F1'; END IF;
++        IF TG_TABLE_NAME='decision_basis_conclusions' THEN
++          PERFORM id FROM internal_review_records WHERE scientific_conclusion_version_id=NEW.scientific_conclusion_version_id ORDER BY id FOR SHARE;
++        ELSE
++          PERFORM x.id FROM internal_review_records x JOIN internal_review_records r ON r.id=NEW.internal_review_record_id
++            WHERE x.project_id=r.project_id AND x.claim_version_id IS NOT DISTINCT FROM r.claim_version_id
++              AND x.scientific_conclusion_version_id IS NOT DISTINCT FROM r.scientific_conclusion_version_id
++            ORDER BY x.id FOR SHARE OF x;
++        END IF;
++        PERFORM b07_lock_concern(review_issue_id) FROM decision_revision_concerns WHERE decision_id=NEW.decision_id;
++        RETURN NEW;
++      END IF;
+@@ -1323 +1393 @@
+-CREATE OR REPLACE FUNCTION pr215_complete_basis() RETURNS trigger LANGUAGE plpgsql AS $$
++CREATE OR REPLACE FUNCTION pr215_complete_basis() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+@@ -1327,0 +1398,11 @@
++      IF (SELECT decision_type FROM decision_records WHERE id=did)='READY_FOR_SUBMISSION' THEN
++        PERFORM b11_complete(did); RETURN NULL;
++      END IF;
++      IF EXISTS(SELECT 1 FROM decision_basis_manuscripts WHERE decision_id=did) THEN
++        RAISE EXCEPTION 'manuscript basis requires readiness purpose' USING ERRCODE='P17F2'; END IF;
++      IF (SELECT decision_type FROM decision_records WHERE id=did)='REVISION_RESPONSE' THEN
++        PERFORM b07_validate_decision(did,true);
++        RETURN NULL;
++      END IF;
++      IF EXISTS(SELECT 1 FROM decision_revision_concerns WHERE decision_id=did) OR EXISTS(SELECT 1 FROM decision_basis_claims WHERE decision_id=did) THEN
++        RAISE EXCEPTION 'release cannot gain revision basis' USING ERRCODE='P17F2'; END IF;
+@@ -1676,2 +1757,4 @@
+-ALTER TABLE decision_records ADD CONSTRAINT decision_records_decision_type_check CHECK(decision_type='INTERNAL_SCIENTIFIC_RELEASE');
+-ALTER TABLE decision_records ADD CONSTRAINT decision_records_decision_check CHECK(decision='PROCEED');
++ALTER TABLE decision_records ADD CONSTRAINT ck_b11_decision_policy CHECK (
++ (decision_type='INTERNAL_SCIENTIFIC_RELEASE' AND decision='PROCEED') OR
++ (decision_type='REVISION_RESPONSE' AND decision IN ('REQUIRE_CHANGE','ACCEPT_NO_CHANGE')) OR
++ (decision_type='READY_FOR_SUBMISSION' AND decision='PROCEED'));

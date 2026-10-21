@@ -1,0 +1,208 @@
+PR #1: three CI failures, 2026-10-21
+
+Scope: CI/test timing fixes and one proven product lock-order bug.
+No schema, dependency, correctness assertion, skip or xfail change.
+
+B14R evidence:
+  ci_f30384c/b14r_job.log:1355-1369, server timestamp
+  2026-10-21 10:55:47.538 UTC, backend 1793:
+  ERROR: canceling statement due to statement timeout (SQLSTATE 57014).
+  CONTEXT: b11_authors -> b11_complete -> pr215_complete_basis.
+  STATEMENT: SET CONSTRAINTS ALL IMMEDIATE.
+  The test fails constructing record(env), before approval rejection is tested.
+  b11_complete loops over all 101 reviews, and deferred per-basis-row triggers
+  repeat completeness validation. This is a 30-second statement budget failure,
+  not stack depth, parameter count, or an invalid 101-review decision.
+  UNVERIFIED MITIGATION, PENDING LINUX CI: CI initializes PostgreSQL with jit=off. The local PostgreSQL 18.6 reports
+  jit=on but pg_jit_available()=false; Linux's LLVM support is a relevant difference.
+  JIT amplification is inferred, not measured in the supplied server log.
+  GitHub must verify this CI mitigation; no Linux container runtime is available
+  here. The production statement timeout and all approval assertions are retained.
+
+B23 evidence:
+  ci_f30384c/b23_deadlock_job.log:4147-4169, server timestamp
+  2026-10-21 11:22:55.755 UTC, backends 5276 and 5273, SQLSTATE 40P01.
+  One waits in SELECT claim_versions JOIN claims ... FOR UPDATE OF p,v;
+  the other waits inserting internal_review_records.
+  A joined locking SELECT does not promise exact-version-before-parent order.
+  Legacy review's _auth._authorize locks Project plus Actor/membership/role/
+  binding rows before it waits for claim_versions. Novelty review holds the exact
+  version, then its INSERT FKs need the Project/Actor rows. The joined target query
+  can additionally acquire the Claim parent before the version.
+  This is a real product bug, fixed in src/: legacy Claim review now explicitly
+  locks the exact version before the joined parent read AND before authorization
+  takes Project/Actor locks. Novelty uses the same exact-version lock helper.
+  Existing request coordination and fresh authorization checks are preserved;
+  no target-specific business error or readback is returned before current
+  authorization (covered by the reviewer regression below). No inventory changes.
+  Evidence: literature_evidence._authorize, literature_search_plan_repository's
+  lock_project/authorize, and internal_review_records Project/Actor FKs.
+  The existing two-order concurrency regression additionally verifies this order
+  on the same connection (including Project/Actor authorization locks), so it
+  rejects the old behavior independently of timing.
+
+Governance disposition evidence:
+  ci_f30384c/governance_races_job.log:740-765 reports same-key replay mismatch;
+  the caught ResearchBaseError is reduced to ErrorCode, so pytest prints only
+  assert False, without the error's original diagnostics.
+  The server log includes a lock-timeout failure on pg_advisory_xact_lock at
+  10:56:20.087 UTC (:2322-2323). It does not include a test/database identifier
+  with that error, so attribution of that individual backend is not definitive.
+  prepare_disposition sets lock_timeout=10s before its request advisory lock.
+  _s3_contend deliberately holds the leader while waiting up to 15s to observe
+  all followers, and release.wait allowed 20s. Slow follower setup can outlast an
+  earlier follower's 10s lock budget, returning an ErrorCode instead of saved replay.
+  Original timeout attribution is UNVERIFIED, PENDING CI; the supplied log cannot
+  prove which error the test caught. The earlier 60s/90s overrides were removed
+  in the reviewer remediation. The helper now gates every follower immediately
+  BEFORE its first locking SQL, after its historical preflight. The barrier
+  releases only when all exact writer backend PIDs have arrived, so a fast
+  follower cannot consume its 10s DB budget while waiting for a slow preflight.
+  The observer then requires every exact follower PID to be currently waiting in
+  the leader's blocking chain within 5s, and releases the leader immediately.
+  Unrelated backend PIDs cannot satisfy this witness; historical seen-PID unions
+  cannot conceal a follower that timed out. DB timeouts remain unchanged at
+  10s/30s. A handle_error listener prints S3_DATABASE_ERROR with operation,
+  follower index, backend PID, SQLSTATE and driver exception type if a future
+  CI failure occurs; no raw SQL diagnostics or credentials are printed.
+  Exact replay/one-terminal-event assertions remain intact.
+
+Verification results are appended below after completion.
+
+Verification environment: repository .venv via UV_CACHE_DIR=.uv-cache uv run;
+RB_TEST_ADMIN_URL inherited, PostgreSQL 18.6, password authentication,
+disposable databases. The initial turn did not run the full test suite.
+The reviewer explicitly requested the full sharded suite in the follow-up;
+its results are recorded below. No commit, push, or branch creation.
+
+Exact commands and observed results:
+1. UV_CACHE_DIR=.uv-cache uv run ruff check .
+   All checks passed (exit 0).
+2. UV_CACHE_DIR=.uv-cache uv run ruff format --check .
+   801 files already formatted (exit 0).
+3. UV_CACHE_DIR=.uv-cache uv run pyright
+   0 errors, 0 warnings, 0 informations (exit 0).
+4. UV_CACHE_DIR=.uv-cache uv run pytest tests/unit tests/architecture --tb=short
+   6375 passed, 54 warnings in 111.94s (exit 0).
+5. Final combined PostgreSQL suite result appended below.
+6. for iteration in 1 2 3 4 5; do UV_CACHE_DIR=.uv-cache uv run pytest tests/integration/phase2/test_b14r_ready_approval.py::test_saved_101_review_b11_basis_cannot_be_truncated_for_approval 'tests/integration/phase2/test_b23_concurrency.py::test_legacy_review_writer_and_novelty_review_share_target_order[novelty_first]' 'tests/integration/phase2/test_pr2_20_governance_races.py::test_s3_disposition_workers_wait_and_one_terminal_event[True-4]' --tb=short || exit 1; done
+   Five successful rounds, each 3 passed / 7 warnings, in respectively
+   22.94s, 22.67s, 22.90s, 23.54s, 23.34s (15/15, exit 0).
+7. git diff --check
+   Exit 0.
+
+Regression negative control (isolated Python process, no working-tree edit):
+replace lock_claim_target with a wrapper omitting the lock only when called by
+legacy create(), and run the novelty_first node through pytest.main. It fails
+at the new SQL-order assertion as expected; wrapper checks pytest exit == 1.
+The final implementation passes the same regression in all five repeat rounds.
+
+Intermediate validation failures, corrected before final verification:
+- Initial pyright and the static-acceptance unit test caught a missing new
+  repository Protocol method (1 failed / 6374 passed); the port is now declared.
+- Initial three-file PG run: 2 failed / 143 passed, both in the new SQL-order
+  regression, which originally compared ':id' with driver '%(id)s' syntax.
+  The assertion now handles driver placeholders and checks same-connection order.
+  Initial repeat attempt likewise had 1 failed / 2 passed before this correction.
+- Formatter reported the two edited test files during editing; both formatted.
+Warnings in successful pytest runs are existing Alembic path_separator warnings.
+
+Final review correction: a version pre-lock placed AFTER legacy authorization
+would still leave a Project/Actor FK cycle. Final code takes the exact version
+before parent AND authorization locks. The final unit/static checks and five repeat
+rounds above were rerun after that correction. The final six-file PG run below
+also uses that final ordering. Earlier 37-test and 34-test subset runs, plus the
+145-test combined run, passed before that final review correction; they are not
+substituted for final verification.
+
+Final combined PostgreSQL verification, after the full lock-order correction:
+UV_CACHE_DIR=.uv-cache uv run pytest tests/integration/phase2/test_b14r_ready_approval.py tests/integration/phase2/test_b23_concurrency.py tests/integration/phase2/test_pr2_20_governance_races.py tests/integration/phase2/test_pr2_14_internal_review.py tests/integration/phase2/test_b05_review_basis.py tests/integration/phase2/test_b05_review_races.py --tb=short
+182 passed, 479 warnings in 301.65s (exit 0).
+
+Final regression negative control also rerun: omitting legacy pre-lock is rejected
+by the strengthened order assertion (expected pytest exit 1, wrapper exit 0).
+No production timeout change or retry/classification expansion was made.
+GitHub/Linux JIT mitigation remains to be confirmed by the next CI execution.
+
+Reviewer remediation (2026-10-21):
+P1 authorization evidence: new PostgreSQL integration test
+  test_unauthorized_claim_review_target_errors_are_indistinguishable
+compares (code, message, details) for a verified RESEARCHER without review authority
+with an existing target and with a nonexistent target, and an authenticated
+reviewer lacking entitlement to a different supplied Project with an existing
+wrong-project target and with a nonexistent target. All four are identical
+FORBIDDEN errors. An entitled reviewer with a missing target instead gets
+REVIEW_TARGET_NOT_FROZEN; all denied operations leave zero review/Issue/event rows.
+Focused command:
+UV_CACHE_DIR=.uv-cache uv run pytest tests/integration/phase2/test_b23_concurrency.py::test_unauthorized_claim_review_target_errors_are_indistinguishable --tb=short
+1 passed, 1 warning in 1.23s (exit 0).
+
+Lock protocol justification (reviewer's explicit test-and-document alternative):
+Keep request reservation -> exact version -> Claim parent -> Project/Actor
+writer authorization, then target validation. This follows the existing
+conclusion-review target-before-parent/authority pattern and prevents the
+observed version vs Project/Actor INSERT-FK cycle. The SQL target helper returns
+None for missing/wrong-project targets; it raises no not-found business error.
+_authorize runs even when target is None and precedes every target-state/COI/
+validity error and any return. Arbitrary verified callers can still briefly
+acquire a target lock before the final authorization; the transaction's existing
+10s lock and 30s statement bounds apply, and failures roll it back. We do not claim
+that the check prevents lock acquisition or hides infrastructure/timing failures.
+This is an ordering correction inside the existing command/UoW, with no extra
+transaction, authority bypass, inventory change, or new error category. The new
+integration test is the authorization coverage specifically requested in P1.
+
+P2 B14R: CI comment and this evidence explicitly label jit=off unverified,
+pending Linux CI; no claim of measured JIT amplification or GitHub success.
+P2 governance: no timeout overrides; readiness barrier and exact-PID current
+witnesses replace waiting for unidentified or already-timed-out backends.
+A future CI error includes SQLSTATE and PID for definitive attribution.
+P3: explicit parentheses now group the trace assertion's conjunction.
+
+Reviewer verification, current revision:
+- The exact requested chain passed pyright (0 errors/warnings/informations),
+  Ruff format (801 files), Ruff lint, git diff --check HEAD, and the external
+  runner's two-file pre-check (112 passed, 266 warnings in 181.25s).
+- The exact runner could not launch full shards: its hard-coded mutex parent
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs is outside this
+  session's writable paths (os.access(..., os.W_OK) is False). Both lock slots
+  were absent; mkdir errors are suppressed by its retry loop. The process was
+  stopped when the conversation resumed; no full-suite PASS is claimed for it.
+- Safe fallback: tmp/reviewer-full-suite/full_suite_sharded.sh is a local copy
+  of the exact external runner. Only its L_DIR and DUR paths point inside this
+  repository; the timing JSON was copied from the original cache. Test selection,
+  pre-check, PostgreSQL setup, shard count and test commands are unchanged.
+  The original external runner and shared timing/lock files were not modified.
+  Exact fallback command (UV_CACHE_DIR=$PWD/.uv-cache exported):
+  uv run pyright && uv run ruff format --check . && uv run ruff check . && git diff --check HEAD && sh tmp/reviewer-full-suite/full_suite_sharded.sh 6
+  Final fallback results will be appended below.
+- Five current repeat rounds of the three original failing nodes (same exact
+  loop command recorded above) each passed 3 tests / 7 warnings in respectively
+  18.65s, 17.80s, 17.77s, 19.39s, 19.82s (15/15).
+- Initial authorization regression setup incorrectly used the fixture's OWNER
+  as an unauthorized reviewer (1 failed, 77 passed in 132.02s). Corrected the test
+  to use its RESEARCHER principal; the isolated regression and the 112-case
+  pre-check pass. No product authority rule was changed to satisfy the test.
+
+Final reviewer fallback verification: exit 0.
+Static checks: pyright 0 errors/0 warnings/0 informations; Ruff format 801 files
+already formatted; Ruff lint All checks passed; git diff --check HEAD exit 0.
+Local runner pre-check: 112 passed, 266 warnings in 184.08s.
+Full six-shard results:
+  shard 0: 1747 passed, 759 warnings in 2493.99s
+  shard 1: 4394 passed, 1 skipped, 1892 warnings in 2737.23s
+  shard 2: 1338 passed, 1705 warnings in 2841.50s
+  shard 3: 1610 passed, 1941 warnings in 2859.15s
+  shard 4: 1583 passed, 65 skipped, 2030 warnings in 2924.07s
+  shard 5: 1877 passed, 2058 warnings in 2795.34s
+Aggregate: 12549 passed, 66 skipped, 10385 warnings; zero failures/errors.
+The skips are existing suite/environment skips; no skip or xfail was added.
+Raw runner output: tmp/reviewer-full-suite/check.log (ignored local artifact).
+Reversing the two local path substitutions reproduced the external runner's
+contents byte-for-byte; verified after completion. External runner SHA-256:
+edf2719647030e975034a0e8b4a5c0eb6bce62e3e10d07a919cd7895579c151a
+The exact original invocation is NOT reported as PASS: its external mutex
+path was not writable here. The successful local copy runs the same full suite
+with only writable lock/cache paths. Linux/GitHub JIT attribution and the old
+governance SQLSTATE attribution remain unverified, pending CI. No commit, push,
+branch creation, or edits to the original external runner were performed.

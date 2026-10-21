@@ -6,11 +6,6 @@ from dataclasses import dataclass, replace
 
 import pytest
 from sqlalchemy import Engine, text
-from tests.e2e.support import WorkflowFixture, WorkflowIds, fresh_fixture, run_workflow
-from tests.oracles.pr14_governance_hash_oracle import (
-    correction_record_hash,
-    impact_assessment_hash,
-)
 
 from researchbase.application.commands import RecordMeasurementCommand
 from researchbase.domain.claim import ClaimId, ClaimVersionId
@@ -29,6 +24,11 @@ from researchbase.domain.research import (
 from researchbase.domain.run import RunId
 from researchbase.domain.statistical_result import StatisticalResultId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+from tests.e2e.support import WorkflowFixture, WorkflowIds, fresh_fixture, run_workflow
+from tests.oracles.pr14_governance_hash_oracle import (
+    correction_record_hash,
+    impact_assessment_hash,
+)
 
 
 @dataclass(frozen=True, slots=True)

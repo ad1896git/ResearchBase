@@ -1,0 +1,1272 @@
+diff --git a/src/researchbase/persistence/phase2_identity_repository.py b/src/researchbase/persistence/phase2_identity_repository.py
+index c7c2ad1..f48159d 100644
+--- a/src/researchbase/persistence/phase2_identity_repository.py
++++ b/src/researchbase/persistence/phase2_identity_repository.py
+@@ -2,7 +2,7 @@
+
+ from __future__ import annotations
+
+-from datetime import datetime
++from datetime import UTC, datetime
+ from typing import Any, cast
+ from uuid import UUID
+
+@@ -152,7 +152,7 @@ class SqlAlchemyPhase2IdentityRepository:
+         value = self._session.execute(text("SELECT clock_timestamp()")).scalar_one()
+         if not isinstance(value, datetime):
+             raise TypeError("PostgreSQL clock_timestamp() did not return a datetime")
+-        return value
++        return value.astimezone(UTC)
+
+     def actor_for_update(self, actor_id: UUID) -> dict[str, object] | None:
+         row = (
+diff --git a/tests/e2e/test_phase1_failure_recovery.py b/tests/e2e/test_phase1_failure_recovery.py
+index b8c4543..9bc1eb7 100644
+--- a/tests/e2e/test_phase1_failure_recovery.py
++++ b/tests/e2e/test_phase1_failure_recovery.py
+@@ -230,6 +230,8 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() ->
+         ErrorCode.NOT_FOUND: 404,
+         ErrorCode.AUTHENTICATION_REQUIRED: 401,
+         ErrorCode.FORBIDDEN: 403,
++        ErrorCode.REVIEW_TARGET_NOT_FROZEN: 409,
++        ErrorCode.CONFLICT_OF_INTEREST: 403,
+         ErrorCode.SUBJECT_BINDING_UNPROVEN: 403,
+         ErrorCode.INVALID_STATE_TRANSITION: 409,
+         ErrorCode.VERSION_NOT_FROZEN: 409,
+@@ -271,12 +273,17 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() ->
+         ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 422,
+         ErrorCode.SEARCH_PLAN_QUESTION_SCOPE_MISMATCH: 403,
+         ErrorCode.SEARCH_PLAN_VERSION_IMMUTABLE: 409,
++        ErrorCode.SEARCH_PLAN_NOT_FROZEN: 409,
++        ErrorCode.ADAPTER_UNAVAILABLE: 503,
++        ErrorCode.ADAPTER_VERSION_MISMATCH: 409,
+     }
+     expected_cli = {
+         ErrorCode.VALIDATION_ERROR: 2,
+         ErrorCode.NOT_FOUND: 3,
+         ErrorCode.AUTHENTICATION_REQUIRED: 3,
+         ErrorCode.FORBIDDEN: 3,
++        ErrorCode.REVIEW_TARGET_NOT_FROZEN: 4,
++        ErrorCode.CONFLICT_OF_INTEREST: 3,
+         ErrorCode.SUBJECT_BINDING_UNPROVEN: 3,
+         ErrorCode.INVALID_STATE_TRANSITION: 4,
+         ErrorCode.VERSION_NOT_FROZEN: 4,
+@@ -318,6 +325,9 @@ def test_every_stable_researchbase_error_has_explicit_http_and_cli_mapping() ->
+         ErrorCode.SEARCH_PLAN_QUESTION_INVALID: 2,
+         ErrorCode.SEARCH_PLAN_QUESTION_SCOPE_MISMATCH: 3,
+         ErrorCode.SEARCH_PLAN_VERSION_IMMUTABLE: 4,
++        ErrorCode.SEARCH_PLAN_NOT_FROZEN: 4,
++        ErrorCode.ADAPTER_UNAVAILABLE: 5,
++        ErrorCode.ADAPTER_VERSION_MISMATCH: 4,
+     }
+     assert set(expected_http) == set(ErrorCode)
+     assert _STATUS == expected_http
+diff --git a/tests/integration/phase2/test_m0_provider_cancellation.py b/tests/integration/phase2/test_m0_provider_cancellation.py
+index 93308a9..aab3fe2 100644
+--- a/tests/integration/phase2/test_m0_provider_cancellation.py
++++ b/tests/integration/phase2/test_m0_provider_cancellation.py
+@@ -239,12 +239,14 @@ def test_sql_status_or_code_cannot_forge_provider_confirmation(case):
+ def test_migration_empty_roundtrip_and_populated_downgrade(case, phase2_database_url):
+     engine, healthy, _, _, _, create = case
+     healthy.create(create)
++    with engine.connect() as connection:
++        installed_revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+     # Existing valid history cannot be downgraded into the old C1-only semantics.
+     with pytest.raises(DBAPIError, match="cannot downgrade populated"):
+         command.downgrade(_alembic(phase2_database_url), PARENT)
+     with engine.connect() as connection:
+-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+-            "0031_m3_snapshot_relation_cardinality"
++        assert (
++            connection.scalar(text("SELECT version_num FROM alembic_version")) == installed_revision
+         )
+
+
+diff --git a/tests/integration/phase2/test_m2_metadata.py b/tests/integration/phase2/test_m2_metadata.py
+index 5f814da..bcfe58d 100644
+--- a/tests/integration/phase2/test_m2_metadata.py
++++ b/tests/integration/phase2/test_m2_metadata.py
+@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
+ import pytest
+ from alembic import command
+ from alembic.config import Config
++from alembic.script import ScriptDirectory
+ from sqlalchemy import create_engine, text
+ from sqlalchemy.exc import DBAPIError
+
+@@ -460,14 +461,14 @@ def test_populated_migration_preserves_history_and_checks_basis(setup_m2):
+ def test_empty_m2_migration_roundtrip(phase2_database_url):
+     cfg = Config("alembic.ini")
+     cfg.set_main_option("sqlalchemy.url", phase2_database_url)
++    repository_head = ScriptDirectory.from_config(cfg).get_current_head()
++    assert repository_head is not None
+     command.upgrade(cfg, "head")
+     command.downgrade(cfg, "0028_provider_cancellation")
+     command.upgrade(cfg, "head")
+     engine = create_engine(phase2_database_url)
+     with engine.connect() as conn:
+-        assert conn.scalar(text("SELECT version_num FROM alembic_version")) == (
+-            "0031_m3_snapshot_relation_cardinality"
+-        )
++        assert conn.scalar(text("SELECT version_num FROM alembic_version")) == repository_head
+     engine.dispose()
+
+
+diff --git a/tests/integration/phase2/test_m3_evidence.py b/tests/integration/phase2/test_m3_evidence.py
+index 66babe6..246ae96 100644
+--- a/tests/integration/phase2/test_m3_evidence.py
++++ b/tests/integration/phase2/test_m3_evidence.py
+@@ -558,26 +558,29 @@ def test_pg_m3_migration_from_phase1_and_empty_roundtrip(phase2_database_url):
+     engine.dispose()
+
+
+-def test_pg_m3_alembic_env_preserves_percent_escaped_socket_url(phase2_database_url, monkeypatch):
+-    from urllib.parse import quote
+-
++def test_pg_m3_alembic_env_preserves_percent_escaped_url(phase2_database_url, monkeypatch):
+     from alembic import command
+     from alembic.config import Config
+     from sqlalchemy import create_engine, text
+     from sqlalchemy.engine import make_url
+
+-    socket_host = make_url(phase2_database_url).query.get("host")
+-    assert isinstance(socket_host, str) and socket_host.startswith("/")
+-    encoded_url = phase2_database_url.replace(
+-        f"host={socket_host}", f"host={quote(socket_host, safe='')}"
++    # Exercise ConfigParser's literal-percent boundary on both TCP and Unix
++    # socket connections, and verify the decoded value at the actual server.
++    application_name = "researchbase/m3-percent-regression"
++    encoded_url = (
++        make_url(phase2_database_url)
++        .update_query_dict({"application_name": application_name})
++        .render_as_string(hide_password=False)
+     )
+     assert encoded_url != phase2_database_url
++    assert "%2F" in encoded_url
+     monkeypatch.setenv("DATABASE_URL", encoded_url)
+     config = Config("alembic.ini")
+     command.upgrade(config, "0031_m3_snapshot_relation_cardinality")
+     assert config.get_main_option("sqlalchemy.url") == encoded_url
+     engine = create_engine(encoded_url)
+     with engine.connect() as connection:
++        assert connection.execute(text("SHOW application_name")).scalar_one() == application_name
+         assert connection.execute(text("SELECT current_database()")).scalar_one() == (
+             engine.url.database
+         )
+diff --git a/tests/integration/phase2/test_pr2_00_concurrency.py b/tests/integration/phase2/test_pr2_00_concurrency.py
+index e7f67c3..4073be3 100644
+--- a/tests/integration/phase2/test_pr2_00_concurrency.py
++++ b/tests/integration/phase2/test_pr2_00_concurrency.py
+@@ -1,5 +1,9 @@
+ from __future__ import annotations
+
++import os
++
++import pytest
++
+ from tests.integration.phase2.test_pr2_00_challenges import (
+     _challenge_consumers_have_one_winner,
+     _challenge_expiry_after_required_lock_wait_is_denied,
+@@ -11,7 +15,14 @@ def test_challenge_single_winner(phase2_database_url: str) -> None:
+     _challenge_consumers_have_one_winner(phase2_database_url)
+
+
+-def test_challenge_expiry_after_lock_wait(phase2_database_url: str) -> None:
++@pytest.mark.parametrize("database_timezone", ["UTC", "America/New_York"])
++def test_challenge_expiry_after_lock_wait(
++    phase2_database_url: str, monkeypatch: pytest.MonkeyPatch, database_timezone: str
++) -> None:
++    # Canonical ticket times must be UTC even when the DB session uses local time.
++    monkeypatch.setenv(
++        "PGOPTIONS", f"{os.environ.get('PGOPTIONS', '')} -c TimeZone={database_timezone}".strip()
++    )
+     _challenge_expiry_after_required_lock_wait_is_denied(phase2_database_url)
+
+
+diff --git a/tests/integration/phase2/test_pr2_03_effective_authority.py b/tests/integration/phase2/test_pr2_03_effective_authority.py
+index 720ca90..c7e8335 100644
+--- a/tests/integration/phase2/test_pr2_03_effective_authority.py
++++ b/tests/integration/phase2/test_pr2_03_effective_authority.py
+@@ -273,6 +273,8 @@ def test_authority_loss_during_observed_project_lock_wait(
+     original_attempt = service._create_once
+     original_authorize = service._authorize
+     attempts = []
++    # Retain transaction objects so Python cannot recycle their ids between retries.
++    session_transactions = []
+     pids = Queue()
+
+     def observed_attempt(command):
+@@ -315,8 +317,15 @@ def test_authority_loss_during_observed_project_lock_wait(
+
+     def observed(repo, project_id):
+         trace = attempts[-1]
+-        trace["backend_pid"] = repo._session.execute(text("SELECT pg_backend_pid()")).scalar_one()
+-        trace["session_transaction_identity"] = id(repo._session.get_transaction())
++        pid, transaction_id = repo._session.execute(
++            text("SELECT pg_backend_pid(), pg_current_xact_id()::text")
++        ).one()
++        trace["backend_pid"] = pid
++        trace["database_transaction_id"] = transaction_id
++        transaction = repo._session.get_transaction()
++        assert transaction is not None
++        session_transactions.append(transaction)
++        trace["session_transaction_identity"] = id(transaction)
+         trace["project_lock_entered"] = True
+         pids.put(trace)
+         original(repo, project_id)
+@@ -476,8 +485,10 @@ def test_authority_loss_during_observed_project_lock_wait(
+             assert retryable_attempt["retryable_error"] == "CONCURRENT_MODIFICATION"
+             assert retryable_attempt["terminal_result"] == "CONCURRENT_MODIFICATION"
+             assert "40001" in retryable_attempt["sqlstates"]
+-        assert len({trace["backend_pid"] for trace in attempts}) == len(attempts)
++        # A pooled backend may be reused, but each retry must use a fresh DB transaction.
++        assert len({trace["database_transaction_id"] for trace in attempts}) == len(attempts)
+         assert len({trace["session_transaction_identity"] for trace in attempts}) == len(attempts)
++        assert all(not transaction.is_active for transaction in session_transactions)
+         assert terminal_attempt["started_at_monotonic"] > waiting_attempt["exited_at_monotonic"]
+     assert terminal_attempt["authorization_entered_at_monotonic"] >= commit_completed_at
+     assert terminal_attempt["authorization_result"] == "FORBIDDEN"
+@@ -493,14 +504,18 @@ def test_authority_loss_during_observed_project_lock_wait(
+         <= waiting_attempt["project_lock_resumed_at_monotonic"]
+         <= waiting_attempt["exited_at_monotonic"]
+     )
+-    # Retain the complete trace in JUnit even when a production retry is detected.
+-    assert len(attempts) == 1, "AUTHORITY_RACE_RETRY_MASKING_CONFIRMED"
+-    assert waiting_attempt is attempts[-1]
++    # The role update invalidates the waiting SERIALIZABLE snapshot. Require
++    # its explicit 40001 rollback, then fresh authorization in exactly one new
++    # transaction; the trace must never present that retry as the waited attempt.
++    assert len(attempts) == 2
++    assert waiting_attempt is attempts[0]
++    assert terminal_attempt is attempts[1]
++    assert waiting_attempt is not terminal_attempt
+     assert waiting_attempt["attempt"] == 1
+-    assert waiting_attempt["retryable_error"] is None
+-    assert waiting_attempt["sqlstates"] == []
+-    assert waiting_attempt["authorization_result"] == "FORBIDDEN"
+-    assert waiting_attempt["terminal_result"] == "FORBIDDEN"
++    assert waiting_attempt["retryable_error"] == "CONCURRENT_MODIFICATION"
++    assert "40001" in waiting_attempt["sqlstates"]
++    assert waiting_attempt["terminal_result"] == "CONCURRENT_MODIFICATION"
++    assert terminal_attempt["attempt"] == 2
+     assert (
+         controller_locked_at
+         <= waiting_attempt["started_at_monotonic"]
+diff --git a/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py b/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
+index d3d5810..c818746 100644
+--- a/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
++++ b/tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py
+@@ -41,7 +41,7 @@ def test_pr2_03_fresh_install_adds_exact_four_tables_and_unique_head(
+         )
+         assert tables == TABLES
+         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+-            "0023_literature_search_plan"
++            "0042_pr2_15_minimal_decision"
+         )
+         assert (
+             connection.execute(
+@@ -104,6 +104,6 @@ def test_pr2_03_populated_downgrade_refuses_before_dropping_tables(
+             == 1
+         )
+         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+-            "0023_literature_search_plan"
++            "0042_pr2_15_minimal_decision"
+         )
+     engine.dispose()
+diff --git a/tests/integration/phase2/test_pr2_03_review_guards.py b/tests/integration/phase2/test_pr2_03_review_guards.py
+index 9b83ed8..97b3de3 100644
+--- a/tests/integration/phase2/test_pr2_03_review_guards.py
++++ b/tests/integration/phase2/test_pr2_03_review_guards.py
+@@ -569,7 +569,7 @@ def test_remediation_child_upgrade_empty_downgrade_and_unique_head(phase2_databa
+     config.set_main_option("sqlalchemy.url", phase2_database_url)
+     command.upgrade(config, "0023_literature_search_plan")
+     command.upgrade(config, "0023a_search_plan_review_guards")
+-    assert ScriptDirectory.from_config(config).get_heads() == ["0023a_search_plan_review_guards"]
++    assert ScriptDirectory.from_config(config).get_heads() == ["0042_pr2_15_minimal_decision"]
+     engine = create_engine(phase2_database_url)
+     with engine.connect() as c:
+         assert (
+diff --git a/tests/integration/phase2/test_pr2_04_authority_coverage.py b/tests/integration/phase2/test_pr2_04_authority_coverage.py
+index acf87f6..fd83463 100644
+--- a/tests/integration/phase2/test_pr2_04_authority_coverage.py
++++ b/tests/integration/phase2/test_pr2_04_authority_coverage.py
+@@ -418,14 +418,15 @@ def test_pg_equal_created_at_cursor_uses_uuid_tiebreak_without_duplicates_or_omi
+         cursor = UUID(page[-1]["execution_id"])
+         assert len(pages) <= 4
+     with engine.connect() as connection:
+-        stored = list(
+-            connection.execute(
++        stored = [
++            dict(row)
++            for row in connection.execute(
+                 text(
+                     "SELECT id,created_at FROM literature_search_executions WHERE project_id=:id ORDER BY created_at,id"  # noqa: E501
+                 ),
+                 {"id": project},
+             ).mappings()
+-        )
++        ]
+     pr204_trace.record(
+         equal_timestamp=timestamp, stored_rows=stored, pages=pages, expected_ids=expected
+     )
+diff --git a/tests/integration/phase2/test_pr2_04_execution_migration.py b/tests/integration/phase2/test_pr2_04_execution_migration.py
+index dd3dcb5..cb4e7b8 100644
+--- a/tests/integration/phase2/test_pr2_04_execution_migration.py
++++ b/tests/integration/phase2/test_pr2_04_execution_migration.py
+@@ -70,7 +70,7 @@ def test_pr2_04_upgrade_adds_exact_tables_and_unique_head(
+         )
+         assert set(inspect(connection).get_table_names()) >= TABLES
+         assert ScriptDirectory.from_config(_alembic(phase2_database_url)).get_heads() == [
+-            "0026_pr2_04_p1_contract_guards"
++            "0042_pr2_15_minimal_decision"
+         ]
+         pr204_trace.record(
+             current_revision=connection.execute(
+diff --git a/tests/integration/phase2/test_pr2_04_migration_coverage.py b/tests/integration/phase2/test_pr2_04_migration_coverage.py
+index 55c8d46..1f40551 100644
+--- a/tests/integration/phase2/test_pr2_04_migration_coverage.py
++++ b/tests/integration/phase2/test_pr2_04_migration_coverage.py
+@@ -13,7 +13,6 @@ from scripts.pr2_04_pytest_evidence import FactRecorder
+ from sqlalchemy import create_engine, event, inspect, text
+ from sqlalchemy.engine import Engine
+
+-from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+ from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+ from tests.integration.phase2.test_pr2_04_execution_migration import (
+     PARENT,
+@@ -93,14 +92,12 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
+     engine = create_engine(phase2_database_url)
+     try:
+         if origin == PARENT:
+-            # Route only fixture migration selection to the accepted parent. All
+-            # identity, question, review and freeze behavior remains actual code/PG.
+-            with patch(
+-                "tests.integration.phase2.test_pr2_03_review_guards._authorized_service",
+-                side_effect=lambda url: _authorized_service(url, migration_revision=PARENT),
+-            ):
+-                setup_engine, plans, principal, project, plan, version = _setup(phase2_database_url)
+-                _freeze(setup_engine, plans, principal, project, plan, version)
++            # Select the accepted parent through the fixture's explicit revision
++            # parameter; identity, question and freeze behavior stays actual code/PG.
++            setup_engine, plans, principal, project, plan, version = _setup(
++                phase2_database_url, migration_revision=PARENT
++            )
++            _freeze(setup_engine, plans, principal, project, plan, version)
+             setup_engine.dispose()
+         elif origin != "base":
+             _upgrade(phase2_database_url, origin)
+@@ -144,7 +141,7 @@ def test_upgrade_paths_preserve_complete_existing_rows_and_exact_table_delta(
+         )
+         assert before == after
+         assert revisions == [REVISION]
+-        assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
++        assert scripts.get_heads() == ["0042_pr2_15_minimal_decision"]
+         assert revision.down_revision == PARENT
+         if origin == PARENT:
+             assert after_tables - before_tables == set(TABLES)
+@@ -273,7 +270,7 @@ def test_historical_migration_bytes_match_frozen_accepted_tree(pr204_trace: Fact
+     scripts = ScriptDirectory.from_config(_alembic("postgresql://unused"))
+     child = scripts.get_revision("0025_pr2_04_reservation_guards")
+     assert child is not None and child.down_revision == REVISION
+-    assert scripts.get_heads() == ["0026_pr2_04_p1_contract_guards"]
++    assert scripts.get_heads() == ["0042_pr2_15_minimal_decision"]
+     pr204_trace.record(
+         historical_reference=FROZEN_PR204,
+         historical_ancestry_recovered=False,
+diff --git a/tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py b/tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py
+index 28d1d82..b29a764 100644
+--- a/tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py
++++ b/tests/integration/phase2/test_pr2_04_outcome_certainty_matrix_acceptance.py
+@@ -62,6 +62,7 @@ def complete_outcome(connection, m, outcome, reason, certainty):
+         text(
+             f"UPDATE {A} SET status=:status,query_record_id=:query,invoked_at=:at,"
+             "returned_at=:at,completed_at=:at,delivery_certainty=:certainty,"
++            "provider_request_id=:provider_request_id,"
+             "failure_code=:reason,warning_codes='[]'::jsonb,result_count=0,"
+             "retrieved_at=:retrieved,row_version=2 WHERE id=:id"
+         ),
+@@ -71,6 +72,7 @@ def complete_outcome(connection, m, outcome, reason, certainty):
+             at=at,
+             certainty=certainty,
+             reason=reason,
++            provider_request_id="confirmed-remote" if outcome == "CANCELLED" else None,
+             retrieved=at if outcome == "SUCCEEDED" else None,
+             id=attempt["id"],
+         ),
+diff --git a/tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py b/tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py
+index 2f3f94a..f410805 100644
+--- a/tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py
++++ b/tests/integration/phase2/test_pr2_04_outcome_reapplication_acceptance.py
+@@ -52,7 +52,13 @@ def test_pg_all_outcome_exact_reapplication_and_changed_tuple(
+     provider.responses = [response]
+     if kind == "cancelled":
+
+-        def cancel(_request):
++        def cancel(request):
++            provider.responses[0] = replace(
++                response,
++                execution_id=request.execution_id,
++                attempt_id=request.attempt_id,
++                provider_request_key=request.provider_request_key,
++            )
+             service.cancel(
+                 CancelLiteratureSearchExecution(
+                     command.execution_id,
+diff --git a/tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py b/tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py
+index 3ac618d..e95801c 100644
+--- a/tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py
++++ b/tests/integration/phase2/test_pr2_04_parent_restrict_acceptance.py
+@@ -32,12 +32,25 @@ def test_pg_referenced_parent_delete_cannot_remove_provenance(
+         state = getattr(caught.value.orig, "sqlstate", None)
+         # An immutable-parent trigger can reject before PostgreSQL checks its RESTRICT FK.
+         # Existing catalog inventory separately proves every FK's RESTRICT declaration.
+-        assert state in {"23503", "P17D1"}
++        assert state in {"23001", "23503", "P17D1"}
++        constraint = getattr(getattr(caught.value.orig, "diag", None), "constraint_name", None)
++        if state in {"23001", "23503"}:
++            # Prove that the native diagnostic names a real RESTRICT FK to
++            # this parent, rather than accepting an unrelated rejection.
++            with engine.connect() as connection:
++                assert connection.execute(
++                    text(
++                        "SELECT EXISTS (SELECT 1 FROM pg_constraint "
++                        "WHERE conname=:name AND contype='f' AND confdeltype='r' "
++                        "AND confrelid=CAST(:parent AS regclass))"
++                    ),
++                    {"name": constraint, "parent": parent},
++                ).scalar_one()
+         assert _rows(engine) == before
+         pr204_trace.record(
+             parent_table=parent,
+             rejected_sqlstate=state,
+-            constraint=getattr(getattr(caught.value.orig, "diag", None), "constraint_name", None),
++            constraint=constraint,
+             before=before,
+             after=_rows(engine),
+             provider_calls=len(material["provider"].calls),
+diff --git a/tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py b/tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py
+index c535050..13bf5a6 100644
+--- a/tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py
++++ b/tests/integration/phase2/test_pr2_04_pg_retrieval_observation_repair.py
+@@ -32,9 +32,15 @@ pytestmark = pytest.mark.pr204_requirements("PR204-SUCCESS-01")
+
+
+ def material[S: LiteratureSearchExecutionService](
+-    url, hits=0, service_type: type[S] = LiteratureSearchExecutionService
++    url,
++    hits=0,
++    service_type: type[S] = LiteratureSearchExecutionService,
++    *,
++    migration_revision="head",
+ ):
+-    engine, plans, principal, project, plan, version = _setup(url)
++    engine, plans, principal, project, plan, version = _setup(
++        url, migration_revision=migration_revision
++    )
+     _freeze(engine, plans, principal, project, plan, version)
+     response = SearchResponse.success(
+         provider_id="provider-a",
+diff --git a/tests/integration/phase2/test_pr2_04_plan_binding_coverage.py b/tests/integration/phase2/test_pr2_04_plan_binding_coverage.py
+index c81bf36..4e9574e 100644
+--- a/tests/integration/phase2/test_pr2_04_plan_binding_coverage.py
++++ b/tests/integration/phase2/test_pr2_04_plan_binding_coverage.py
+@@ -5,12 +5,23 @@ from uuid import UUID, uuid4
+
+ import pytest
+ from scripts.pr2_04_pytest_evidence import FactRecorder
++from sqlalchemy import text
++from sqlalchemy.orm import sessionmaker
+
+ from researchbase.application.literature_search_plan import (
++    CreateLiteratureSearchPlan,
++    LiteratureSearchPlanService,
+     ReviseLiteratureSearchPlan,
+     TransitionLiteratureSearchPlanVersion,
+ )
+ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
++from researchbase.persistence.uow import SqlAlchemyUnitOfWork
++from tests.integration.phase2.test_pr2_00_challenges import _service as _identity_service
++from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
++    _AlwaysValidCredential,
++    _material,
++)
++from tests.integration.phase2.test_pr2_03_review_guards import _freeze
+ from tests.integration.phase2.test_pr2_04_idempotency_coverage import (
+     _command,
+     _execution_setup,
+@@ -28,10 +39,25 @@ def execution_case(phase2_database_url):
+ def test_pg_admission_rejects_invalid_exact_plan_without_effects(
+     execution_case, phase2_database_url, case, pr204_trace: FactRecorder
+ ):
+-    from tests.integration.phase2.test_pr2_03_review_guards import _freeze, _setup
+-
+     engine, service, provider, principal, project, command = execution_case
+-    other_engine, plans, other, other_project, plan, version = _setup(phase2_database_url)
++    identity, _, _ = _identity_service(phase2_database_url)
++    other = principal
++    other_project = identity.create_project_with_owner(
++        other, name="invalid execution plan fixture", request_id=uuid4()
++    )
++    other_engine = engine
++    plans = LiteratureSearchPlanService(
++        lambda: SqlAlchemyUnitOfWork(
++            sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
++        ),
++        _AlwaysValidCredential(),
++    )
++    created = plans.create(
++        CreateLiteratureSearchPlan(
++            other, other_project, _material(UUID(int=0), language_scope=()), uuid4()
++        )
++    )
++    plan, version = UUID(str(created["plan_id"])), UUID(str(created["version_id"]))
+     try:
+         if case in {"foreign", "superseded"}:
+             _freeze(other_engine, plans, other, other_project, plan, version)
+@@ -40,7 +66,30 @@ def test_pg_admission_rejects_invalid_exact_plan_without_effects(
+                 TransitionLiteratureSearchPlanVersion(other, other_project, plan, version, uuid4())
+             )
+         if case == "superseded":
+-            plans.revise(ReviseLiteratureSearchPlan(other, other_project, plan, version, uuid4()))
++            successor = plans.revise(
++                ReviseLiteratureSearchPlan(other, other_project, plan, version, uuid4())
++            )
++            successor_id = UUID(str(successor["version_id"]))
++            plans.freeze(
++                TransitionLiteratureSearchPlanVersion(
++                    other, other_project, plan, successor_id, uuid4()
++                )
++            )
++            with engine.connect() as connection:
++                assert (
++                    connection.scalar(
++                        text("SELECT status FROM literature_search_plan_versions WHERE id=:id"),
++                        {"id": version},
++                    )
++                    == "SUPERSEDED"
++                )
++                assert (
++                    connection.scalar(
++                        text("SELECT current_version_id FROM literature_search_plans WHERE id=:id"),
++                        {"id": plan},
++                    )
++                    == successor_id
++                )
+         # Foreign is a real frozen version, queried under the original authorized project.
+         # Other cases use their valid same-project authority, isolating lifecycle validation.
+         target = replace(command, plan_version_id=version)
+@@ -82,14 +131,6 @@ def test_pg_admission_rejects_invalid_exact_plan_without_effects(
+ def test_pg_plan_supersession_never_substitutes_current_version(
+     execution_case, phase2_database_url, timing, pr204_trace: FactRecorder
+ ):
+-    from sqlalchemy.orm import sessionmaker
+-
+-    from researchbase.application.literature_search_plan import LiteratureSearchPlanService
+-    from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+-    from tests.integration.phase2.test_pr2_03_literature_search_plan_application import (
+-        _AlwaysValidCredential,
+-    )
+-
+     engine, service, provider, principal, project, create = execution_case
+     plans = LiteratureSearchPlanService(
+         lambda: SqlAlchemyUnitOfWork(
+@@ -100,7 +141,7 @@ def test_pg_plan_supersession_never_substitutes_current_version(
+     admitted = service.create(create)
+     execution_id = UUID(admitted["execution_id"])
+     initial = service.get_provenance(principal, project, execution_id)
+-    plan_id = UUID(initial["plan"]["plan_id"])
++    plan_id = UUID(initial["plan"]["material"]["plan_id"])
+     successors = []
+
+     def supersede(_request=None):
+@@ -111,6 +152,27 @@ def test_pg_plan_supersession_never_substitutes_current_version(
+                 )
+             )
+         )
++        successor_id = UUID(str(successors[-1]["version_id"]))
++        plans.freeze(
++            TransitionLiteratureSearchPlanVersion(
++                principal, project, plan_id, successor_id, uuid4()
++            )
++        )
++        with engine.connect() as connection:
++            assert (
++                connection.scalar(
++                    text("SELECT status FROM literature_search_plan_versions WHERE id=:id"),
++                    {"id": create.plan_version_id},
++                )
++                == "SUPERSEDED"
++            )
++            assert (
++                connection.scalar(
++                    text("SELECT current_version_id FROM literature_search_plans WHERE id=:id"),
++                    {"id": plan_id},
++                )
++                == successor_id
++            )
+
+     if timing == "before_first_start":
+         supersede()
+@@ -144,8 +206,6 @@ def test_pg_plan_supersession_never_substitutes_current_version(
+ def test_pg_corrupt_exact_plan_hash_rejects_without_current_pointer_substitution(
+     execution_case, boundary, pr204_trace: FactRecorder
+ ):
+-    from sqlalchemy import text
+-
+     engine, service, provider, principal, project, create = execution_case
+     execution_id = None
+     if boundary != "create":
+diff --git a/tests/integration/phase2/test_pr2_04_provider_budget_completion.py b/tests/integration/phase2/test_pr2_04_provider_budget_completion.py
+index a096f6a..9c496bd 100644
+--- a/tests/integration/phase2/test_pr2_04_provider_budget_completion.py
++++ b/tests/integration/phase2/test_pr2_04_provider_budget_completion.py
+@@ -66,7 +66,7 @@ def test_pg_lowered_provider_cap_preserves_mixed_failure_history(
+     assert rows["executions"][0]["status"] == "FAILED"
+     assert rows["executions"][0]["failure_code"] == "PROVIDER_RETRY_EXHAUSTED"
+     assert len(rows["receipts"]) == 2
+-    assert len([e for e in rows["events"] if e["event_kind"] == "OUTCOME_RECORDED"]) == cap
++    assert len([e for e in rows["events"] if e["kind"] == "OUTCOME_RECORDED"]) == cap
+     assert service.execute(command) == receipt
+     assert _snapshot(engine, project) == rows
+     assert len(provider.calls) == cap
+diff --git a/tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py b/tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py
+index b08e29f..143abfc 100644
+--- a/tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py
++++ b/tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py
+@@ -27,8 +27,10 @@ PARENT = "0024_literature_search_execution"
+ pytestmark = pytest.mark.pr204_requirements("PR204-DB-01", "PR204-DB-05")
+
+
+-def _case(url, timeout=30, budget=300, outcome=None):
+-    engine, principal, project, provider, service, original = material(url, 0, OutcomeOnly)
++def _case(url, timeout=30, budget=300, outcome=None, *, migration_revision="head"):
++    engine, principal, project, provider, service, original = material(
++        url, 0, OutcomeOnly, migration_revision=migration_revision
++    )
+     plan = next(r for r in _rows(engine)[E] if r["id"] == original.execution_id)[
+         "search_plan_version_id"
+     ]
+@@ -158,7 +160,7 @@ def _cancel(conn, state, actor):
+ def test_r8a_valid_reservations_keep_exact_deadline(phase2_database_url, kind, pr204_trace):
+     engine, actor, provider, state = _case(
+         phase2_database_url,
+-        budget=2 if kind == "budget" else 300,
++        budget=1 if kind == "one_second" else 2 if kind == "budget" else 300,
+         outcome="retry" if kind == "retry" else "success" if kind == "next_query" else None,
+     )
+     try:
+@@ -169,14 +171,14 @@ def test_r8a_valid_reservations_keep_exact_deadline(phase2_database_url, kind, p
+                 state,
+                 actor,
+                 retry=kind == "retry",
+-                remaining=1 if kind == "one_second" else None,
+             )
+         after = _rows(engine)
+         a = next(r for r in after[A] if r["id"] == aid)
+         e = next(r for r in after[E] if r["id"] == state["id"])
+         assert a["deadline_at"] == min(
+-            a["reserved_at"] + timedelta(seconds=30),
+-            e["started_at"] + timedelta(seconds=2 if kind == "budget" else 300),
++            a["reserved_at"] + timedelta(seconds=state["execution_context"]["timeout_seconds"]),
++            e["started_at"]
++            + timedelta(seconds=state["execution_context"]["execution_budget_seconds"]),
+         )
+         if kind == "one_second":
+             assert a["deadline_at"] - a["reserved_at"] == timedelta(seconds=1)
+@@ -320,7 +322,7 @@ def test_r8a_cancellation_reservation_ordering(
+
+ @pytest.mark.pr204_requirements("PR204-MIG-01", "PR204-MIG-02")
+ def test_r8a_populated_upgrade_downgrade_preserves_rows(phase2_database_url, pr204_trace):
+-    engine, _, _, _ = _case(phase2_database_url, outcome="success")
++    engine, _, _, _ = _case(phase2_database_url, outcome="success", migration_revision=HEAD)
+     config = _alembic(phase2_database_url)
+     try:
+         before = _rows(engine)
+diff --git a/tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py b/tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py
+index 74cb8e6..431411d 100644
+--- a/tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py
++++ b/tests/integration/phase2/test_pr2_04_retrieval_observation_repair.py
+@@ -327,7 +327,9 @@ def test_pg_atomic_observation_shape_and_result_owner_guard(
+         engine.dispose()
+
+
+-@pytest.mark.parametrize("field,expected", [("attempt", "P17D1"), ("result", "P17D1")])
++# This fixture is terminal; its parent guard precedes sealed-attempt immutability.
++# The pg_retrieval companion separately proves P17D1 while the parent is RUNNING.
++@pytest.mark.parametrize("field,expected", [("attempt", "P17D3"), ("result", "P17D1")])
+ def test_pg_sealed_retrieval_observations_are_immutable(
+     phase2_database_url,
+     field,
+diff --git a/tests/integration/phase2/test_pr2_04_schema_coverage.py b/tests/integration/phase2/test_pr2_04_schema_coverage.py
+index 7792e95..c617f6f 100644
+--- a/tests/integration/phase2/test_pr2_04_schema_coverage.py
++++ b/tests/integration/phase2/test_pr2_04_schema_coverage.py
+@@ -198,7 +198,15 @@ def _insert(connection, table: str, row: dict[str, Any]) -> None:
+     )
+
+
+-def _reject(engine, operation: Callable, sqlstate: str, trace: FactRecorder, *, case: str) -> None:
++def _reject(
++    engine,
++    operation: Callable,
++    sqlstate: str,
++    trace: FactRecorder,
++    *,
++    case: str,
++    diagnostic: str | None = None,
++) -> None:
+     before = _rows(engine)
+     caught = None
+     try:
+@@ -207,10 +215,14 @@ def _reject(engine, operation: Callable, sqlstate: str, trace: FactRecorder, *,
+     except DBAPIError as exc:
+         caught = exc
+     actual = getattr(caught.orig, "sqlstate", None) if caught is not None else None
++    primary = (
++        getattr(getattr(caught.orig, "diag", None), "message_primary", None) if caught else None
++    )
+     after = _rows(engine)
+     trace.record(
+         case=case,
+         rejected_sqlstate=actual,
++        primary_diagnostic=primary,
+         expected_sqlstate=sqlstate,
+         before_counts={t: len(r) for t, r in before.items()},
+         after_counts={t: len(r) for t, r in after.items()},
+@@ -218,6 +230,8 @@ def _reject(engine, operation: Callable, sqlstate: str, trace: FactRecorder, *,
+     )
+     assert caught is not None, f"database accepted forbidden SQL case {case}"
+     assert actual == sqlstate
++    if diagnostic is not None:
++        assert primary == diagnostic
+     assert after == before
+
+
+@@ -410,12 +424,14 @@ def test_direct_insert_required_column_null_is_rejected(
+         if table == A:
+             row["provider_request_key"] = row["id"]
+         row[column] = None
++        attribution = table == E and column in {"requested_by", "executed_by", "created_by"}
+         _reject(
+             engine,
+             lambda c: _insert(c, table, row),
+-            "23502",
++            "P17D5" if attribution else "23502",
+             pr204_trace,
+             case=f"{table}.{column}=NULL",
++            diagnostic="PR2-04 initial attribution must equal requester" if attribution else None,
+         )
+     finally:
+         engine.dispose()
+@@ -725,7 +741,7 @@ def test_query_same_parent_and_atomic_observation_guards(
+             if case in ("ordinal_gap", "input_mismatch"):
+                 connection.execute(
+                     text(f"""UPDATE {A} SET status='SUCCEEDED',query_record_id=:q,
+-                    invoked_at=:now,returned_at=:now,completed_at=clock_timestamp(),
++                    invoked_at=:now,returned_at=:now,retrieved_at=:now,completed_at=clock_timestamp(),
+                     delivery_certainty='RESPONSE_RECEIVED',result_count=0,warning_codes='[]'::jsonb,
+                     row_version=2 WHERE id=:id"""),
+                     {"q": row["id"], "now": row["executed_at"], "id": attempt["id"]},
+@@ -856,8 +872,8 @@ INVALID_INSERTS = [
+     (E, "strategy_version", "2", "23514"),
+     (E, "row_version", 0, "23514"),
+     (E, "failure_code", "PROVIDER_PERMANENT", "23514"),
+-    (E, "requested_by", "absent_uuid", "23503"),
+-    (E, "created_by", "absent_uuid", "23503"),
++    (E, "requested_by", "absent_uuid", "P17D5"),
++    (E, "created_by", "absent_uuid", "P17D5"),
+     (E, "search_plan_version_id", "absent_uuid", "23503"),
+     (E, "project_id", "absent_uuid", "23503"),
+     (A, "query_index", -1, "23514"),
+@@ -903,10 +919,31 @@ def test_direct_insert_checks_lengths_and_missing_foreign_parents(
+     pr204_trace: FactRecorder,
+ ) -> None:
+     stage = "planned" if table == E else "reserved" if table == A else "sealed"
++    query_creator = table == Q and column == "created_by"
++    if query_creator:
++        stage = "reserved"
+     material = _material(phase2_database_url, stage)
+     engine = material["engine"]
+     try:
+-        row = _rows(engine)[table][0].copy()
++        if query_creator:
++            attempt = _rows(engine)[A][0]
++            row = dict(
++                id=uuid4(),
++                literature_search_execution_id=material["execution"],
++                provider_attempt_id=attempt["id"],
++                query_text="normalization evidence",
++                perspective=None,
++                provider_id="provider-a",
++                provider_version="1",
++                ordinal=0,
++                executed_at=attempt["reserved_at"],
++                query_hash="a" * 64,
++                hash_scheme="sha256-cjson-v1",
++                created_by=material["principal"].actor_id,
++                created_at=attempt["reserved_at"],
++            )
++        else:
++            row = _rows(engine)[table][0].copy()
+         row["id"] = uuid4()
+         if table == E:
+             row["idempotency_key"] = uuid4()
+@@ -914,7 +951,7 @@ def test_direct_insert_checks_lengths_and_missing_foreign_parents(
+             row["provider_request_key"] = row["id"]
+         if table == C:
+             row["request_id"] = uuid4()
+-        if table == Q:
++        if table == Q and not query_creator:
+             row.update(ordinal=1, query_hash="b" * 64)
+         if table == R:
+             row["rank"] = 1
+@@ -925,14 +962,38 @@ def test_direct_insert_checks_lengths_and_missing_foreign_parents(
+                 connection.execute(
+                     text(f"""UPDATE {A} SET status='RETRYABLE_FAILURE',
+                     completed_at=clock_timestamp(),delivery_certainty='NOT_SENT',
+-                    failure_code='PROVIDER_NOT_SENT',warning_codes='[]'::jsonb,
++                    failure_code='PROVIDER_TRANSIENT',warning_codes='[]'::jsonb,
+                     result_count=0,row_version=2 WHERE execution_id=:execution"""),
+                     {"execution": material["execution"]},
+                 )
+                 row["attempt_number"] = 2
+             _insert(connection, table, row)
+
+-        _reject(engine, mutate, sqlstate, pr204_trace, case=f"{table}.{column}")
++        attribution = table == E and column in {"requested_by", "created_by"}
++        _reject(
++            engine,
++            mutate,
++            sqlstate,
++            pr204_trace,
++            case=f"{table}.{column}",
++            diagnostic="PR2-04 initial attribution must equal requester" if attribution else None,
++        )
++        if attribution:
++            # Also reach the actor FK with a coherent initial attribution tuple.
++            absent_actor = row[column]
++            coherent = {
++                **row,
++                "requested_by": absent_actor,
++                "executed_by": absent_actor,
++                "created_by": absent_actor,
++            }
++            _reject(
++                engine,
++                lambda c: _insert(c, E, coherent),
++                "23503",
++                pr204_trace,
++                case=f"{table}.{column}-coherent-missing-actor",
++            )
+     finally:
+         engine.dispose()
+
+@@ -963,7 +1024,7 @@ def test_reservation_uniqueness_contiguity_and_input_bounds(
+                 connection.execute(
+                     text(f"""UPDATE {A} SET status='RETRYABLE_FAILURE',
+                     completed_at=clock_timestamp(),delivery_certainty='NOT_SENT',
+-                    failure_code='PROVIDER_NOT_SENT',warning_codes='[]'::jsonb,
++                    failure_code='PROVIDER_TRANSIENT',warning_codes='[]'::jsonb,
+                     result_count=0,row_version=2 WHERE execution_id=:execution"""),
+                     {"execution": material["execution"]},
+                 )
+@@ -1346,11 +1407,13 @@ def test_atomic_outcome_rejects_invalid_complete_response_set(
+                 text(f"""UPDATE {A} SET status=:status,query_record_id=:q,
+                 invoked_at=:now,returned_at=:now,completed_at=clock_timestamp(),
+                 delivery_certainty='RESPONSE_RECEIVED',failure_code=:reason,
++                retrieved_at=:retrieved,
+                 result_count=:count,warning_codes='[]'::jsonb,row_version=2 WHERE id=:id"""),
+                 {
+                     "id": attempt["id"],
+                     "q": query["id"],
+                     "now": now,
++                    "retrieved": None if case == "failed_attempt_has_results" else now,
+                     "status": "PERMANENT_FAILURE"
+                     if case == "failed_attempt_has_results"
+                     else "SUCCEEDED",
+diff --git a/tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py b/tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py
+index e5484a4..e2c0d67 100644
+--- a/tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py
++++ b/tests/integration/phase2/test_pr2_04_success_coordinates_acceptance.py
+@@ -91,7 +91,7 @@ def test_pg_success_full_coordinates_and_admission(phase2_database_url, hits, pr
+         assert admission["accepted_row_version"] == 2
+         receipt = next(row for row in rows["receipts"] if row["request_id"] == command.request_id)
+         assert receipt["result_execution_id"] == execution["id"]
+-        assert receipt["result_json"] == admission
++        assert receipt["result_dto"] == admission
+         data = service.get_provenance(principal, project, command.execution_id)
+         assert data["plan"]["content_hash"] == frozen["content_hash"]
+         assert service.execute(command) == admission
+diff --git a/tests/integration/test_pr11r2_migration.py b/tests/integration/test_pr11r2_migration.py
+index 4581c60..e6a849e 100644
+--- a/tests/integration/test_pr11r2_migration.py
++++ b/tests/integration/test_pr11r2_migration.py
+@@ -20,16 +20,9 @@ from sqlalchemy.exc import DBAPIError
+ from researchbase.domain.organization import ProjectId
+ from researchbase.foundation.execution_context import ExecutionContext
+ from researchbase.persistence.database import create_database_engine
++from tests.integration.phase2.conftest import phase2_database_url as phase2_database_url
+
+-pytestmark = [
+-    pytest.mark.integration,
+-    pytest.mark.skipif(
+-        not os.getenv("PR11R2_MIGRATION_DB_URL"),
+-        reason=(
+-            "PR11R2_MIGRATION_DB_URL is not set; run migration matrix against disposable PostgreSQL"
+-        ),
+-    ),
+-]
++pytestmark = pytest.mark.integration
+
+ REPOSITORY_ROOT = Path(__file__).parents[2]
+ PREVIOUS_HEAD = "0012_statistical_result_input_guard"
+@@ -49,8 +42,14 @@ def _repository_head() -> str:
+     return head
+
+
+-@pytest.fixture(scope="module", autouse=True)
+-def restore_migration_database_to_repository_head() -> Iterator[None]:
++@pytest.fixture(autouse=True)
++def restore_migration_database_to_repository_head(
++    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
++) -> Iterator[None]:
++    # Use a fresh, owned DB for each destructive historical migration matrix.
++    database_url = request.getfixturevalue("phase2_database_url")
++    assert isinstance(database_url, str)
++    monkeypatch.setenv("PR11R2_MIGRATION_DB_URL", database_url)
+     yield
+     head = _repository_head()
+     restored = _alembic("upgrade", head)
+@@ -63,7 +62,7 @@ def restore_migration_database_to_repository_head() -> Iterator[None]:
+ def _alembic(*arguments: str) -> subprocess.CompletedProcess[str]:
+     environment = os.environ.copy()
+     environment["DATABASE_URL"] = _migration_db_url()
+-    environment["UV_CACHE_DIR"] = "/private/tmp/researchbase-uv-cache"
++    environment["UV_CACHE_DIR"] = str(REPOSITORY_ROOT / ".uv-cache")
+     return subprocess.run(
+         ["uv", "run", "alembic", *arguments],
+         cwd=REPOSITORY_ROOT,
+diff --git a/tests/integration/test_pr18_hardening.py b/tests/integration/test_pr18_hardening.py
+index f1cd9a1..22425df 100644
+--- a/tests/integration/test_pr18_hardening.py
++++ b/tests/integration/test_pr18_hardening.py
+@@ -9,12 +9,15 @@ from collections.abc import Iterator
+ from pathlib import Path
+
+ import pytest
++from alembic import command
++from alembic.config import Config
+ from scripts import pr18_evidence
+ from sqlalchemy import text
+ from sqlalchemy.engine import Engine
+
+ from researchbase.persistence.database import create_database_engine
+ from tests.contracts.pr18_manifest import FROZEN_REQUIRED_INDEXES
++from tests.integration.phase2.conftest import phase2_database_url as phase2_database_url
+
+ pytestmark = pytest.mark.integration
+
+@@ -41,6 +44,24 @@ EXPECTED_INDEXES: dict[str, tuple[str, tuple[str, ...], bool, str | None]] = {
+ }
+
+
++@pytest.fixture
++def frozen_catalog_engine(request: pytest.FixtureRequest) -> Iterator[Engine]:
++    """Keep the exact Phase 1 inventory separate from additive Phase 2 DDL."""
++    database_url = request.getfixturevalue("phase2_database_url")
++    assert isinstance(database_url, str)
++    revision = "0018_current_pointer_same_parent_integrity"
++    config = Config("alembic.ini")
++    config.set_main_option("sqlalchemy.url", database_url)
++    command.upgrade(config, revision)
++    value = create_database_engine(database_url)
++    try:
++        with value.connect() as connection:
++            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == revision
++        yield value
++    finally:
++        value.dispose()
++
++
+ def test_frozen_manifest_includes_workspace_name_uniqueness() -> None:
+     assert EXPECTED_INDEXES["uq_workspaces_project_name"] == (
+         "workspaces",
+@@ -53,7 +74,9 @@ def test_frozen_manifest_includes_workspace_name_uniqueness() -> None:
+     )
+
+
+-def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
++def test_required_phase1_indexes_match_live_catalog(
++    engine: Engine, frozen_catalog_engine: Engine
++) -> None:
+     with engine.connect() as connection:
+         rows = connection.execute(
+             text(
+@@ -78,7 +101,7 @@ def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
+     }
+     assert actual == EXPECTED_INDEXES
+
+-    with engine.connect() as connection:
++    with frozen_catalog_engine.connect() as connection:
+         critical_names = {
+             row.index_name
+             for row in connection.execute(
+@@ -94,12 +117,18 @@ def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
+     assert critical_names == set(EXPECTED_INDEXES)
+
+
+-def test_catalog_projection_is_independent_and_exact(engine: Engine) -> None:
++def test_catalog_projection_is_independent_and_exact(
++    engine: Engine, frozen_catalog_engine: Engine
++) -> None:
+     projection = pr18_evidence.collect_catalog_verification(engine)
+     assert projection["exact_required_coverage"] is True
+     assert projection["missing_required"] == []
+     assert projection["mismatches"] == {}
+-    assert projection["unexpected_critical_names"] == []
++    frozen_projection = pr18_evidence.collect_catalog_verification(frozen_catalog_engine)
++    assert frozen_projection["exact_required_coverage"] is True
++    assert frozen_projection["missing_required"] == []
++    assert frozen_projection["mismatches"] == {}
++    assert frozen_projection["unexpected_critical_names"] == []
+     assert projection["migration_required"] is False
+     assert all(Path(source["source"]).exists() for source in projection["expected_manifest"])
+
+diff --git a/tests/test_architecture.py b/tests/test_architecture.py
+index c112809..9591a15 100644
+--- a/tests/test_architecture.py
++++ b/tests/test_architecture.py
+@@ -35,24 +35,26 @@ def test_no_forbidden_runtime_dependencies_or_parallel_manifests() -> None:
+
+
+ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
+-    migration_text = "\n".join(
+-        path.read_text()
+-        for path in _python_files(ROOT / "migrations")
+-        if path.name
+-        not in {
+-            "0030_literature_evidence.py",
+-            "0031_m3_snapshot_relation_cardinality.py",
+-            "0032_pr2_10_discussion.py",
+-            "0033_pr2_11_r2_scientific_conclusion.py",
+-        }
+-    )
+-    forbidden_tables = (
+-        "literature_evidence",
+-        "scientific_conclusions",
+-        "manuscripts",
+-    )
+-    assert not any(table in migration_text for table in forbidden_tables)
+-    assert "run_versions" not in migration_text
++    # Exact accepted Phase 2 ownership/references; future migrations get no exemption.
++    authorized_tables = {
++        "0030_literature_evidence.py": {"literature_evidence"},
++        "0031_m3_snapshot_relation_cardinality.py": {"literature_evidence"},
++        "0032_pr2_10_discussion.py": {"literature_evidence"},
++        "0033_pr2_11_r2_scientific_conclusion.py": {
++            "literature_evidence",
++            "scientific_conclusions",
++        },
++        "0037_pr2_13_claim_placement.py": {"scientific_conclusions"},
++        "0040_pr2_14_initial_internal_review.py": {"scientific_conclusions"},
++        "0041_pr2_15_review_coordination.py": {"scientific_conclusions"},
++        "0042_pr2_15_minimal_decision.py": {"scientific_conclusions"},
++    }
++    for path in _python_files(ROOT / "migrations"):
++        contents = path.read_text()
++        permitted = authorized_tables.get(path.name, set())
++        for table in ("literature_evidence", "scientific_conclusions", "manuscripts"):
++            assert table in permitted or table not in contents, (path.name, table)
++        assert "run_versions" not in contents, path.name
+
+
+ def test_pr12_adds_only_claim_evidence_schema_slice() -> None:
+diff --git a/tests/unit/test_hg1_identity.py b/tests/unit/test_hg1_identity.py
+index 1babed0..b95fc67 100644
+--- a/tests/unit/test_hg1_identity.py
++++ b/tests/unit/test_hg1_identity.py
+@@ -14,14 +14,17 @@ from researchbase.domain.phase2_identity import VerifiedPrincipal
+ from researchbase.foundation.errors import ResearchBaseError
+ from researchbase.hg1_identity import PeerCredential, TrustedPeerIdentity
+
+-NOW = datetime.now(UTC)
++
++@pytest.fixture
++def now() -> datetime:
++    return datetime.now(UTC)
+
+
+ def _canonical(value: object) -> bytes:
+     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+
+
+-def _fixture(tmp_path: Path):
++def _fixture(tmp_path: Path, now: datetime):
+     key = tmp_path / "c-key.pem"
+     pub = tmp_path / "c-pub.pem"
+     subprocess.run(["openssl", "genpkey", "-algorithm", "ED25519", "-out", str(key)], check=True)
+@@ -31,10 +34,10 @@ def _fixture(tmp_path: Path):
+     audit.mkdir(mode=0o700)
+     actor_a, actor_b, actor_c = uuid4(), uuid4(), uuid4()
+     records = (
+-        PeerCredential(501, actor_a, "a-credential", NOW - timedelta(days=1), None),
+-        PeerCredential(502, actor_b, "b-credential", NOW - timedelta(days=1), None),
++        PeerCredential(501, actor_a, "a-credential", now - timedelta(days=1), None),
++        PeerCredential(502, actor_b, "b-credential", now - timedelta(days=1), None),
+         PeerCredential(
+-            503, actor_c, "c-credential", NOW - timedelta(days=1), NOW + timedelta(days=1)
++            503, actor_c, "c-credential", now - timedelta(days=1), now + timedelta(days=1)
+         ),
+     )
+
+@@ -42,14 +45,14 @@ def _fixture(tmp_path: Path):
+         facts = (
+             {
+                 "actor_id": actor_b,
+-                "bound_at": NOW - timedelta(hours=1),
++                "bound_at": now - timedelta(hours=1),
+                 "revoked_at": None,
+                 "retired_at": None,
+             }
+             if subject.subject_value == "502"
+             else None
+         )
+-        return facts, NOW
++        return facts, now
+
+     policy = TrustedPeerIdentity(
+         "deployment-1",
+@@ -60,11 +63,11 @@ def _fixture(tmp_path: Path):
+         audit_root=audit,
+         binding_lookup=lookup,
+     )
+-    operator = VerifiedPrincipal(actor_c, "deployment-1", "OS_UID", "503", "c-credential", NOW)
++    operator = VerifiedPrincipal(actor_c, "deployment-1", "OS_UID", "503", "c-credential", now)
+     return policy, key, audit, operator, actor_a, actor_b, actor_c
+
+
+-def _attestation(policy, key, audit, operator, actor_b, *, change=None):
++def _attestation(policy, key, audit, operator, actor_b, now: datetime, *, change=None):
+     material = {
+         "version": 1,
+         "ceremony": "PROVISION_ACTOR",
+@@ -79,7 +82,7 @@ def _attestation(policy, key, audit, operator, actor_b, *, change=None):
+         "operator_credential_id": "c-credential",
+         "reason": "independent verification",
+         "evidence_source": "host identity document inspected by C",
+-        "signed_at": NOW.isoformat(),
++        "signed_at": now.isoformat(),
+         "subject_live_proof_sha256": "a" * 64,
+     }
+     if change:
+@@ -123,28 +126,28 @@ def _attestation(policy, key, audit, operator, actor_b, *, change=None):
+     return attestation, path
+
+
+-def test_bound_peer_authenticates_and_rechecks(tmp_path):
+-    policy, *_ = _fixture(tmp_path)
++def test_bound_peer_authenticates_and_rechecks(tmp_path, now: datetime):
++    policy, *_ = _fixture(tmp_path, now)
+     principal = policy.authenticate_subject(502)
+     assert principal.subject_value == "502"
+-    assert policy.is_valid(principal, NOW)
++    assert policy.is_valid(principal, now)
+     assert not policy.is_allowlisted(principal)
+     with pytest.raises(ResearchBaseError):
+         policy.authenticate_subject(999)
+
+
+-def test_independent_c_signed_proof(tmp_path):
+-    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path)
+-    attestation, path = _attestation(policy, key, audit, operator, b)
++def test_independent_c_signed_proof(tmp_path, now: datetime):
++    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path, now)
++    attestation, path = _attestation(policy, key, audit, operator, b, now)
+     assert policy.verify(attestation)
+     assert policy.is_allowlisted(operator)
+     path.write_bytes(path.read_bytes().replace(b"independent verification", b"forged verification"))
+     assert not policy.verify(attestation)
+
+
+-def test_cross_identity_and_path_substitution_rejected(tmp_path):
+-    policy, key, audit, operator, a, b, _c = _fixture(tmp_path)
+-    attestation, path = _attestation(policy, key, audit, operator, b)
++def test_cross_identity_and_path_substitution_rejected(tmp_path, now: datetime):
++    policy, key, audit, operator, a, b, _c = _fixture(tmp_path, now)
++    attestation, path = _attestation(policy, key, audit, operator, b, now)
+     wrong = ProvisioningAttestation(
+         a,
+         attestation.deployment_id,
+@@ -173,21 +176,27 @@ def test_cross_identity_and_path_substitution_rejected(tmp_path):
+     assert not policy.verify(wrong_path)
+
+
+-def test_expiry_and_operator_separation(tmp_path):
+-    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path)
++def test_expiry_and_operator_separation(tmp_path, now: datetime):
++    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path, now)
+     attestation, _ = _attestation(
+-        policy, key, audit, operator, b, change={"signed_at": (NOW - timedelta(days=2)).isoformat()}
++        policy,
++        key,
++        audit,
++        operator,
++        b,
++        now,
++        change={"signed_at": (now - timedelta(days=2)).isoformat()},
+     )
+     assert not policy.verify(attestation)
+     assert not policy.is_valid(
+-        VerifiedSubject("deployment-2", "OS_UID", "502", "b-credential"), NOW
++        VerifiedSubject("deployment-2", "OS_UID", "502", "b-credential"), now
+     )
+-    assert not policy.is_valid(operator, NOW + timedelta(days=3650))
++    assert not policy.is_valid(operator, now + timedelta(days=3650))
+
+
+-def test_forged_signature_and_missing_proof_rejected(tmp_path):
+-    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path)
+-    attestation, path = _attestation(policy, key, audit, operator, b)
++def test_forged_signature_and_missing_proof_rejected(tmp_path, now: datetime):
++    policy, key, audit, operator, _a, b, _c = _fixture(tmp_path, now)
++    attestation, path = _attestation(policy, key, audit, operator, b, now)
+     record = json.loads(path.read_bytes())
+     record["signature_hex"] = "00" * 64
+     forged = _canonical(record)
+@@ -211,27 +220,27 @@ def test_forged_signature_and_missing_proof_rejected(tmp_path):
+     assert not policy.verify(attestation)
+
+
+-def test_revoked_binding_and_credential_fail_closed(tmp_path):
+-    policy, _key, _audit, _operator, _a, b, _c = _fixture(tmp_path)
++def test_revoked_binding_and_credential_fail_closed(tmp_path, now: datetime):
++    policy, _key, _audit, _operator, _a, b, _c = _fixture(tmp_path, now)
+     policy._binding_lookup = lambda _subject: (
+         {
+             "actor_id": b,
+-            "bound_at": NOW - timedelta(hours=1),
+-            "revoked_at": NOW,
++            "bound_at": now - timedelta(hours=1),
++            "revoked_at": now,
+             "retired_at": None,
+         },
+-        NOW,
++        now,
+     )
+     with pytest.raises(ResearchBaseError):
+         policy.authenticate_subject(502)
+-    assert not policy.is_valid(VerifiedSubject("deployment-1", "OS_UID", "502", "wrong"), NOW)
++    assert not policy.is_valid(VerifiedSubject("deployment-1", "OS_UID", "502", "wrong"), now)
+
+
+-def test_host_policy_change_revokes_live_peer_authority(tmp_path):
+-    policy, *_ = _fixture(tmp_path)
++def test_host_policy_change_revokes_live_peer_authority(tmp_path, now: datetime):
++    policy, *_ = _fixture(tmp_path, now)
+     policy._config_guard = lambda: False
+     assert not policy.is_valid(
+-        VerifiedSubject("deployment-1", "OS_UID", "502", "b-credential"), NOW
++        VerifiedSubject("deployment-1", "OS_UID", "502", "b-credential"), now
+     )
+     with pytest.raises(ResearchBaseError):
+         policy.authenticate_subject(502)

@@ -1,0 +1,8 @@
+{
+  "schema": "recovery-external-host-blocker-v1",
+  "status": "NOT_RUN",
+  "historical_external_checkout": "UNAVAILABLE",
+  "recovery_checkout": "/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-recovery",
+  "required_stage": "F3",
+  "original_evidence_recovered": false
+}

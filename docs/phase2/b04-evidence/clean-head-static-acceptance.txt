@@ -1,0 +1,37 @@
+Clean HEAD archive with isolated index; no branch/worktree creation. All git commands below use GIT_DIR=<repository>/.git, GIT_WORK_TREE=tmp/b04-review/clean-head, GIT_INDEX_FILE=tmp/b04-review/clean-head.index. PYTHONPATH points to the archived src and repository.
+$ git rev-parse HEAD
+6d978ed254405316bb8502ea5985e21e9b2162da
+exit_code=0
+$ git status --porcelain
+exit_code=0
+$ git diff --exit-code HEAD
+exit_code=0
+$ git show HEAD:tests/fixtures/phase2_static_baseline.json
+{
+  "baseline_commit": "b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff",
+  "pyright": [],
+  "migration_head": "0047_pr2_18_novelty_prior_art"
+}
+exit_code=0
+$ git diff --check b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff
+pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e344b24661a6cfc466be11e02dee1f3725836d/pyright-000.txt:4: new blank line at EOF.
+exit_code=2
+$ /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane7/.venv/bin/python -m pytest tests/unit/phase2/test_pr2_04_static_acceptance.py::test_candidate_static_gates_and_inherited_formatter_delta -o addopts= -q -rfE -p no:cacheprovider --tb=short
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_candidate_static_gates_and_inherited_formatter_delta ___________
+tests/unit/phase2/test_pr2_04_static_acceptance.py:81: in test_candidate_static_gates_and_inherited_formatter_delta
+    assert execute(["git", "diff", "--check", baseline["baseline_commit"]]).returncode == 0
+E   AssertionError: assert 2 == 0
+E    +  where 2 = CompletedProcess(args=['git', 'diff', '--check', 'b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff'], returncode=2, stdout='pr...a9a7ac2f6d2a7f04ad79b907e344b24661a6cfc466be11e02dee1f3725836d/pyright-000.txt:4: new blank line at EOF.\n', stderr='').returncode
+E    +    where CompletedProcess(args=['git', 'diff', '--check', 'b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff'], returncode=2, stdout='pr...a9a7ac2f6d2a7f04ad79b907e344b24661a6cfc466be11e02dee1f3725836d/pyright-000.txt:4: new blank line at EOF.\n', stderr='') = <function test_candidate_static_gates_and_inherited_formatter_delta.<locals>.execute at 0x106e9a5c0>(['git', 'diff', '--check', 'b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff'])
+=============================== warnings summary ===============================
+tests/unit/phase2/test_pr2_04_static_acceptance.py::test_candidate_static_gates_and_inherited_formatter_delta
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane7/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/phase2/test_pr2_04_static_acceptance.py::test_candidate_static_gates_and_inherited_formatter_delta
+1 failed, 1 warning in 6.15s
+exit_code=1

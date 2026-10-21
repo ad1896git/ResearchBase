@@ -11,7 +11,6 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
-from tests.application_compat import LegacyApplicationService as ApplicationService
 
 import researchbase.application.commands as commands_module
 from researchbase.application.commands import (
@@ -34,6 +33,7 @@ from researchbase.foundation.versioning import VersionStatus
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.repositories import SqlAlchemyExperimentSpecRepository
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
 
 pytestmark = pytest.mark.integration
 
@@ -407,28 +407,34 @@ def test_concurrent_revisions_create_only_one_child(
     assert error.code is ErrorCode.CONCURRENT_MODIFICATION
     history = service.get_experiment_spec_history(created.id)
     assert [item.version_number for item in history] == [1, 2]
-    assert all(
-        result[0] == "ok" or isinstance(result[1], ResearchBaseError) for result in results
-    )
+    assert all(result[0] == "ok" or isinstance(result[1], ResearchBaseError) for result in results)
     engine = create_database_engine()
     try:
         with engine.connect() as connection:
-            rows = connection.execute(
-                text(
-                    "SELECT id, version_number, status FROM experiment_spec_versions "
-                    "WHERE experiment_spec_id = :spec_id ORDER BY version_number"
-                ),
-                {"spec_id": created.id},
-            ).mappings().all()
-            pointer = connection.execute(
-                text(
-                    "SELECT s.current_version_id, s.row_version, v.experiment_spec_id "
-                    "FROM experiment_specs s "
-                    "JOIN experiment_spec_versions v ON v.id = s.current_version_id "
-                    "WHERE s.id = :spec_id"
-                ),
-                {"spec_id": created.id},
-            ).mappings().one()
+            rows = (
+                connection.execute(
+                    text(
+                        "SELECT id, version_number, status FROM experiment_spec_versions "
+                        "WHERE experiment_spec_id = :spec_id ORDER BY version_number"
+                    ),
+                    {"spec_id": created.id},
+                )
+                .mappings()
+                .all()
+            )
+            pointer = (
+                connection.execute(
+                    text(
+                        "SELECT s.current_version_id, s.row_version, v.experiment_spec_id "
+                        "FROM experiment_specs s "
+                        "JOIN experiment_spec_versions v ON v.id = s.current_version_id "
+                        "WHERE s.id = :spec_id"
+                    ),
+                    {"spec_id": created.id},
+                )
+                .mappings()
+                .one()
+            )
         assert [(row["id"], row["version_number"], row["status"]) for row in rows] == [
             (history[0].id, 1, "SUPERSEDED"),
             (history[1].id, 2, "DRAFT"),

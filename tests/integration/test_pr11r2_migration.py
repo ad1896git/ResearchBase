@@ -1,3 +1,5 @@
+# Historical schema fixtures preserve literal SQL for migration-boundary review.
+
 from __future__ import annotations
 
 import os
@@ -13,24 +15,13 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
-from tests.integration.test_pr11_application import (
-    record_result,
-    seed_measurement,
-    seed_project,
-)
 
-from researchbase.application.commands import StatisticalResultInputCommand
+from researchbase.domain.organization import ProjectId
+from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.persistence.database import create_database_engine
+from tests.integration.phase2.conftest import phase2_database_url as phase2_database_url
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        not os.getenv("PR11R2_MIGRATION_DB_URL"),
-        reason=(
-            "PR11R2_MIGRATION_DB_URL is not set; run migration matrix against disposable PostgreSQL"
-        ),
-    ),
-]
+pytestmark = pytest.mark.integration
 
 REPOSITORY_ROOT = Path(__file__).parents[2]
 PREVIOUS_HEAD = "0012_statistical_result_input_guard"
@@ -50,8 +41,14 @@ def _repository_head() -> str:
     return head
 
 
-@pytest.fixture(scope="module", autouse=True)
-def restore_migration_database_to_repository_head() -> Iterator[None]:
+@pytest.fixture(autouse=True)
+def restore_migration_database_to_repository_head(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    # Use a fresh, owned DB for each destructive historical migration matrix.
+    database_url = request.getfixturevalue("phase2_database_url")
+    assert isinstance(database_url, str)
+    monkeypatch.setenv("PR11R2_MIGRATION_DB_URL", database_url)
     yield
     head = _repository_head()
     restored = _alembic("upgrade", head)
@@ -64,7 +61,7 @@ def restore_migration_database_to_repository_head() -> Iterator[None]:
 def _alembic(*arguments: str) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["DATABASE_URL"] = _migration_db_url()
-    environment["UV_CACHE_DIR"] = "/private/tmp/researchbase-uv-cache"
+    environment["UV_CACHE_DIR"] = str(REPOSITORY_ROOT / ".uv-cache")
     return subprocess.run(
         ["uv", "run", "alembic", *arguments],
         cwd=REPOSITORY_ROOT,
@@ -84,6 +81,190 @@ def _reset_to_previous_head() -> Engine:
     return create_database_engine(database_url)
 
 
+def _seed_historical_project(engine: Engine, label: str):
+    actor_id, project_id = uuid4(), uuid4()
+    created_at = datetime(2026, 8, 29, tzinfo=UTC)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO actors(id,actor_type,display_name,created_at) "
+                "VALUES (:id,'human',:name,:at)"
+            ),
+            {"id": actor_id, "name": f"{label}-actor", "at": created_at},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO projects(id,name,lifecycle_status,created_by,created_at) "
+                "VALUES (:id,:name,'active',:actor,:at)"
+            ),
+            {
+                "id": project_id,
+                "name": f"{label}-project",
+                "actor": actor_id,
+                "at": created_at,
+            },
+        )
+    return (
+        actor_id,
+        ProjectId(project_id),
+        ExecutionContext(actor_id=actor_id, request_id=uuid4(), client_type="test"),
+    )
+
+
+def _seed_historical_measurement(engine: Engine, project_id: UUID, actor_id: UUID) -> UUID:
+    metric, metric_version = uuid4(), uuid4()
+    spec, spec_version = uuid4(), uuid4()
+    run, measurement = uuid4(), uuid4()
+    at = datetime(2026, 8, 29, tzinfo=UTC)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO "
+                "metric_definitions(id,project_id,name,current_version_id,created_by,created_at) "
+                "VALUES (:id,:project,'historical metric',NULL,:actor,:at)"
+            ),
+            {"id": metric, "project": project_id, "actor": actor_id, "at": at},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO "
+                "metric_definition_versions(id,metric_definition_id,"
+                "version_number,status,definition,unit,aggregation,"
+                "content_hash,created_by,created_at,frozen_at) "
+                "VALUES "
+                "(:id,:parent,1,'FROZEN','{\"kind\":\"mean\"}'::jsonb,'ms','mean',:hash,:actor,:at,:at)"
+            ),
+            {
+                "id": metric_version,
+                "parent": metric,
+                "hash": "1" * 64,
+                "actor": actor_id,
+                "at": at,
+            },
+        )
+        connection.execute(
+            text("UPDATE metric_definitions SET current_version_id=:version WHERE id=:id"),
+            {"version": metric_version, "id": metric},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO "
+                "experiment_specs(id,project_id,current_version_id,created_by,created_at) "
+                "VALUES (:id,:project,NULL,:actor,:at)"
+            ),
+            {"id": spec, "project": project_id, "actor": actor_id, "at": at},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO "
+                "experiment_spec_versions(id,experiment_spec_id,"
+                "version_number,status,title,objective,protocol,content_hash,"
+                "created_by,created_at,frozen_at) "
+                "VALUES (:id,:parent,1,'FROZEN','historical spec','historical "
+                'objective\',\'{"steps":["execute"]}\'::jsonb,:hash,:actor,:at,:at)'
+            ),
+            {
+                "id": spec_version,
+                "parent": spec,
+                "hash": "2" * 64,
+                "actor": actor_id,
+                "at": at,
+            },
+        )
+        connection.execute(
+            text("UPDATE experiment_specs SET current_version_id=:version WHERE id=:id"),
+            {"version": spec_version, "id": spec},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO "
+                "runs(id,project_id,experiment_spec_version_id,status,"
+                "inputs_sealed_at,started_at,finished_at,exit_code,"
+                "created_by,created_at) "
+                "VALUES (:id,:project,:spec,'SUCCEEDED',:at,:at,:at,0,:actor,:at)"
+            ),
+            {
+                "id": run,
+                "project": project_id,
+                "spec": spec_version,
+                "actor": actor_id,
+                "at": at,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO "
+                "measurements(id,run_id,metric_definition_version_id,"
+                "numeric_value,unit,evaluation_scope,content_hash,created_by,"
+                "created_at) "
+                "VALUES (:id,:run,:metric,1.25,'ms','{\"split\":\"test\"}'::jsonb,:hash,:actor,:at)"
+            ),
+            {
+                "id": measurement,
+                "run": run,
+                "metric": metric_version,
+                "hash": "3" * 64,
+                "actor": actor_id,
+                "at": at,
+            },
+        )
+    return measurement
+
+
+def _insert_valid_result(
+    engine: Engine, result_id: UUID, project_id: UUID, actor_id: UUID, measurement_id: UUID
+) -> None:
+    _insert_result_with_inputs(
+        engine, result_id, project_id, actor_id, ((measurement_id, "input", 0),)
+    )
+
+
+def _insert_result_with_inputs(
+    engine: Engine,
+    result_id: UUID,
+    project_id: UUID,
+    actor_id: UUID,
+    inputs: tuple[tuple[UUID, str, int], ...],
+) -> None:
+    with engine.begin() as connection:
+        _insert_parent(connection, result_id, project_id, actor_id)
+        for measurement_id, role, ordinal in inputs:
+            connection.execute(
+                text(
+                    "INSERT INTO statistical_result_inputs"
+                    "(statistical_result_id,measurement_id,input_role,ordinal) "
+                    "VALUES (:result,:measurement,:role,:ordinal)"
+                ),
+                {
+                    "result": result_id,
+                    "measurement": measurement_id,
+                    "role": role,
+                    "ordinal": ordinal,
+                },
+            )
+
+
+def _insert_parent(connection, result_id: UUID, project_id: UUID, actor_id: UUID) -> None:
+    connection.execute(
+        text(
+            "INSERT INTO statistical_results "
+            "(id, project_id, analysis_type, result_payload, analysis_definition, "
+            "content_hash, created_by, created_at) VALUES "
+            "(:id, :project_id, 't_test', CAST(:payload AS jsonb), "
+            "CAST(:definition AS jsonb), :content_hash, :created_by, :created_at)"
+        ),
+        {
+            "id": result_id,
+            "project_id": project_id,
+            "payload": '{"p_value":0.01}',
+            "definition": '{"method":"student"}',
+            "content_hash": "0" * 64,
+            "created_by": actor_id,
+            "created_at": datetime(2026, 8, 29, tzinfo=UTC),
+        },
+    )
+
+
 def _insert_parent_only(
     engine: Engine,
     result_id: UUID,
@@ -91,24 +272,7 @@ def _insert_parent_only(
     actor_id: UUID,
 ) -> None:
     with engine.begin() as connection:
-        connection.execute(
-            text(
-                "INSERT INTO statistical_results "
-                "(id, project_id, analysis_type, result_payload, analysis_definition, "
-                "content_hash, created_by, created_at) VALUES "
-                "(:id, :project_id, 't_test', CAST(:payload AS jsonb), "
-                "CAST(:definition AS jsonb), :content_hash, :created_by, :created_at)"
-            ),
-            {
-                "id": result_id,
-                "project_id": project_id,
-                "payload": '{"p_value":0.01}',
-                "definition": '{"method":"student"}',
-                "content_hash": "0" * 64,
-                "created_by": actor_id,
-                "created_at": datetime(2026, 8, 29, tzinfo=UTC),
-            },
-        )
+        _insert_parent(connection, result_id, project_id, actor_id)
 
 
 def _counts(engine: Engine, result_id: UUID) -> tuple[int, int]:
@@ -204,43 +368,23 @@ def _catalog_snapshot(engine: Engine) -> dict[str, tuple[tuple[object, ...], ...
 def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() -> None:
     engine = _reset_to_previous_head()
     try:
-        from tests.application_compat import LegacyApplicationService as ApplicationService
-
-        from researchbase.foundation.time import FixedClock
-        from researchbase.persistence.database import create_session_factory
-        from researchbase.persistence.uow import SqlAlchemyUnitOfWork
-
-        sessions = create_session_factory(engine)
-        service = ApplicationService(
-            lambda: SqlAlchemyUnitOfWork(sessions),
-            FixedClock(datetime(2026, 8, 29, tzinfo=UTC)),
-        )
-        actor_id, project_id, actor_context = seed_project(service, "pr11r3-clean")
-        measurement_id, _ = seed_measurement(
-            service,
-            project_id,
-            actor_context,
-            "pr11r3-clean",
-        )
-        valid_result = record_result(
-            service,
-            project_id,
-            actor_context,
-            (StatisticalResultInputCommand(measurement_id),),
-        )
-        before_result = _result_snapshot(engine, valid_result.id)
-        before_inputs = _input_snapshot(engine, valid_result.id)
-        assert actor_id == valid_result.created_by
-        assert _counts(engine, valid_result.id) == (1, 1)
-        assert before_inputs == ((valid_result.id, measurement_id, "input", 0),)
+        actor_id, project_id, actor_context = _seed_historical_project(engine, "pr11r3-clean")
+        assert actor_context.actor_id == actor_id
+        measurement_id = _seed_historical_measurement(engine, project_id, actor_id)
+        result_id = uuid4()
+        _insert_valid_result(engine, result_id, project_id, actor_id, measurement_id)
+        before_result = _result_snapshot(engine, result_id)
+        before_inputs = _input_snapshot(engine, result_id)
+        assert _counts(engine, result_id) == (1, 1)
+        assert before_inputs == ((result_id, measurement_id, "input", 0),)
 
         upgrade = _alembic("upgrade", PR11_FINAL_HEAD)
         assert upgrade.returncode == 0, upgrade.stdout + upgrade.stderr
         current = _alembic("current")
         assert current.returncode == 0, current.stdout + current.stderr
         assert PR11_FINAL_HEAD in current.stdout
-        assert _result_snapshot(engine, valid_result.id) == before_result
-        assert _input_snapshot(engine, valid_result.id) == before_inputs
+        assert _result_snapshot(engine, result_id) == before_result
+        assert _input_snapshot(engine, result_id) == before_inputs
 
         downgrade = _alembic("downgrade", PREVIOUS_HEAD)
         assert downgrade.returncode == 0, downgrade.stdout + downgrade.stderr
@@ -253,18 +397,8 @@ def test_clean_previous_head_upgrade_and_roundtrip_reaches_fail_closed_head() ->
 def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() -> None:
     engine = _reset_to_previous_head()
     try:
-        from tests.application_compat import LegacyApplicationService as ApplicationService
-
-        from researchbase.foundation.time import FixedClock
-        from researchbase.persistence.database import create_session_factory
-        from researchbase.persistence.uow import SqlAlchemyUnitOfWork
-
-        sessions = create_session_factory(engine)
-        service = ApplicationService(
-            lambda: SqlAlchemyUnitOfWork(sessions),
-            FixedClock(datetime(2026, 8, 29, tzinfo=UTC)),
-        )
-        actor_id, project_id, actor_context = seed_project(service, "pr11r2-legacy")
+        actor_id, project_id, actor_context = _seed_historical_project(engine, "pr11r2-legacy")
+        assert actor_context.actor_id == actor_id
 
         downgrade = _alembic("downgrade", "0011_statistical_result")
         assert downgrade.returncode == 0, downgrade.stdout + downgrade.stderr
@@ -292,12 +426,7 @@ def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() ->
         assert _result_snapshot(engine, legacy_result_id) == before_result
         assert _input_snapshot(engine, legacy_result_id) == ()
 
-        measurement_id, _ = seed_measurement(
-            service,
-            project_id,
-            actor_context,
-            "pr11r2-manual-remediation",
-        )
+        measurement_id = _seed_historical_measurement(engine, project_id, actor_id)
         with engine.begin() as connection:
             connection.exec_driver_sql(
                 "ALTER TABLE statistical_result_inputs DISABLE TRIGGER "
@@ -327,27 +456,18 @@ def test_invalid_legacy_upgrade_fails_closed_and_manual_remediation_retries() ->
             _insert_parent_only(engine, future_parent_id, project_id, actor_id)
         assert _counts(engine, future_parent_id) == (0, 0)
 
-        one_input = record_result(
-            service,
+        one_input = uuid4()
+        _insert_valid_result(engine, one_input, project_id, actor_id, measurement_id)
+        second_measurement_id = _seed_historical_measurement(engine, project_id, actor_id)
+        multi_input = uuid4()
+        _insert_result_with_inputs(
+            engine,
+            multi_input,
             project_id,
-            actor_context,
-            (StatisticalResultInputCommand(measurement_id),),
+            actor_id,
+            ((measurement_id, "input", 0), (second_measurement_id, "secondary", 1)),
         )
-        second_measurement_id, _ = seed_measurement(
-            service,
-            project_id,
-            actor_context,
-            "pr11r2-normal-multi",
-        )
-        multi_input = record_result(
-            service,
-            project_id,
-            actor_context,
-            (
-                StatisticalResultInputCommand(measurement_id),
-                StatisticalResultInputCommand(second_measurement_id, "secondary", 1),
-            ),
-        )
-        assert one_input.id != multi_input.id
+        assert _counts(engine, one_input) == (1, 1)
+        assert _counts(engine, multi_input) == (1, 2)
     finally:
         engine.dispose()

@@ -1,0 +1,26 @@
+{
+  "database": "researchbase_task13_shared_test_4e2c495180e54530a9b19197d6425df7",
+  "commands": [
+    [
+      "/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python",
+      "-m",
+      "alembic",
+      "upgrade",
+      "head"
+    ],
+    [
+      "/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-o",
+      "addopts=",
+      "-q",
+      "-ra",
+      "-p",
+      "no:cacheprovider",
+      "--junitxml=/Users/fengwang/Documents/ResearchBaseProject/docs/verification/task13/shared-final.xml",
+      "tests",
+      "--ignore=tests/integration/phase2"
+    ]
+  ]
+}

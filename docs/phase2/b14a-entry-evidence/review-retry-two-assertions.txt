@@ -1,0 +1,13 @@
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b13_grant_concurrency.py::test_real_wait_crosses_grant_expiry_with_zero_partial_history[scope]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_real_wait_crosses_grant_expiry_with_zero_partial_history[scope]
+tests/integration/phase2/test_b13_grant_concurrency.py::test_real_wait_crosses_grant_expiry_with_zero_partial_history[scope]
+tests/integration/phase2/test_pr2_04_ownership_races.py::test_pg_competing_execute_keys_get_only_one_reservation_owner[A-first-4]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 4 warnings in 4.32s
+
+Exit status: 0

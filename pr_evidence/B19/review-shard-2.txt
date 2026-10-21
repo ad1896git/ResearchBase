@@ -1,0 +1,96 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 13%]
+........................................................................ [ 18%]
+........................................................................ [ 23%]
+........................................................................ [ 27%]
+........................................................................ [ 32%]
+........................................................................ [ 36%]
+........................................................................ [ 41%]
+........................................................................ [ 46%]
+........................................................................ [ 50%]
+........................................................................ [ 55%]
+........................................................................ [ 60%]
+........................................................................ [ 64%]
+........................................................................ [ 69%]
+........................................................................ [ 73%]
+........................................................................ [ 78%]
+........................................................................ [ 83%]
+........................................................................ [ 87%]
+........................................................................ [ 92%]
+........................................................................ [ 96%]
+...............................................                          [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py:29
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane38/tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py:29: PytestCollectionWarning: cannot collect test class 'TestOwnedInterruption' because it has a __init__ constructor (from: tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py)
+    class TestOwnedInterruption(RuntimeError):
+
+tests/integration/phase2/test_pr2_04_temporal_phase_acceptance.py: 240 warnings
+tests/integration/phase2/test_pr2_04_recovery_acceptance_completion.py: 4 warnings
+tests/integration/phase2/test_b26_finding_impact.py: 147 warnings
+tests/integration/phase2/test_m0_provider_cancellation.py: 32 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 81 warnings
+tests/integration/phase2/test_pr2_04_context_guard_repair.py: 53 warnings
+tests/integration/phase2/test_pr2_19_revision_cycle.py: 48 warnings
+tests/integration/phase2/test_b07_concern_carry_forward.py: 54 warnings
+tests/integration/phase2/test_b13_grant_schema.py: 72 warnings
+tests/integration/phase2/test_b14_ready_replay.py: 54 warnings
+tests/integration/phase2/test_b14r_ready_approval_schema.py: 68 warnings
+tests/integration/phase2/test_pr2_04_provider_coverage.py: 23 warnings
+tests/integration/phase2/test_pr2_18_schema.py: 29 warnings
+tests/integration/phase2/test_b19_close_prior_art_concurrency.py: 18 warnings
+tests/integration/phase2/test_pr2_04_idempotency_coverage.py: 25 warnings
+tests/integration/phase2/test_pr2_04_context_types.py: 22 warnings
+tests/integration/phase2/test_pr2_04_child_lock_acceptance.py: 20 warnings
+tests/integration/phase2/test_pr2_04_remaining_schema_acceptance.py: 15 warnings
+tests/integration/phase2/test_b12_prepare_schema.py: 37 warnings
+tests/integration/phase2/test_b14a_entry_replay.py: 45 warnings
+tests/integration/phase2/test_b12_prepare_races.py: 39 warnings
+tests/integration/phase2/test_b15_package_withdrawal.py: 24 warnings
+tests/integration/phase2/test_b19_close_prior_art_replay.py: 8 warnings
+tests/integration/phase2/test_task12_schema_migration.py: 29 warnings
+tests/integration/phase2/test_pr2_04_plan_binding_coverage.py: 10 warnings
+tests/integration/phase2/test_pr2_04_migration_coverage.py: 24 warnings
+tests/integration/phase2/test_pr2_00_bootstrap.py: 14 warnings
+tests/integration/phase2/test_lean_p1_sql.py: 24 warnings
+tests/integration/phase2/test_b13_grant_lifecycle.py: 9 warnings
+tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py: 8 warnings
+tests/integration/phase2/test_pr2_18_replay.py: 4 warnings
+tests/integration/phase2/test_pr2_18_novelty.py: 4 warnings
+tests/integration/phase2/test_pr2_04_execution_migration.py: 11 warnings
+tests/integration/phase2/test_pr2_10_binding_contract.py: 21 warnings
+tests/integration/phase2/test_pr2_13_citation_placement.py: 11 warnings
+tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py: 3 warnings
+tests/integration/phase2/test_m3_p1r2.py: 8 warnings
+tests/integration/phase2/test_pr2_04_deadline_minimum_acceptance.py: 2 warnings
+tests/integration/phase2/test_hg1_enrollment_integration.py: 2 warnings
+tests/integration/phase2/test_pr2_02_gov_migration.py: 5 warnings
+tests/integration/phase2/test_hg1_review_integration.py: 1 warning
+tests/integration/phase2/test_pr2_00_temporal_auth.py: 1 warning
+tests/unit/test_task12_migration_history.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b14_publication_ready.py: 27 warnings
+tests/integration/phase2/test_b14_ready_replay.py: 18 warnings
+tests/integration/phase2/test_b14r_ready_approval_schema.py: 18 warnings
+tests/integration/phase2/test_b14a_entry_replay.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane38/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py::test_same_key_replays_and_changed_canonical_request_conflicts
+  tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py:138: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_same_key_replays_and_changed_canonical_request_conflicts(
+
+tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py::test_request_id_reuse_across_projects_and_command_names_is_allowed
+  tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py:178: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_request_id_reuse_across_projects_and_command_names_is_allowed(
+
+tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py::test_concurrent_same_key_create_has_one_durable_mutation_and_replay
+  tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py:239: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_concurrent_same_key_create_has_one_durable_mutation_and_replay(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+----- generated xml file: /private/tmp/b19-review-local-shards/junit-2.xml -----
+1559 passed, 1419 warnings in 1441.46s (0:24:01)

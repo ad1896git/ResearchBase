@@ -1,0 +1,239 @@
+"""Independent literal preimages, ordering and closed S1 command boundaries."""
+
+import hashlib
+import json
+from dataclasses import asdict, replace
+from typing import Any, cast
+from uuid import UUID, uuid4
+
+import pytest
+
+from researchbase.application.authorship import (
+    CreateAuthorshipSnapshotCommand,
+    GetAuthorshipSnapshotQuery,
+    GetContributionQuery,
+    RecordContributionCommand,
+)
+from researchbase.domain.authorship import (
+    ROLES,
+    AuthorshipAuthor,
+    ExactReference,
+    OrderedContribution,
+    authorship_material,
+    authorship_sets,
+    contribution_material,
+    contribution_text,
+    validate_coverage,
+)
+from researchbase.foundation.errors import ResearchBaseError
+from researchbase.foundation.hashing import sha256_canonical_json
+
+
+def _record(**changes):
+    return replace(
+        RecordContributionCommand(uuid4(), uuid4(), uuid4(), uuid4(), "WRITING", "Study"), **changes
+    )
+
+
+def _snapshot(**changes):
+    a, b = uuid4(), uuid4()
+    return replace(
+        CreateAuthorshipSnapshotCommand(
+            uuid4(), uuid4(), uuid4(), (a, b), (a,), ((a, b),), (uuid4(),)
+        ),
+        **changes,
+    )
+
+
+@pytest.mark.parametrize("field", ["id", "project_id", "publication_id", "actor_id"])
+@pytest.mark.parametrize("value", ["00000000-0000-0000-0000-000000000001", None, 1])
+def test_exact_uuid_rejection(field, value):
+    with pytest.raises(ResearchBaseError):
+        _record(**{field: value})
+
+
+@pytest.mark.parametrize("role", sorted(ROLES))
+def test_all_role_literals(role):
+    assert _record(contribution_role=cast(Any, role)).contribution_role == role
+
+
+@pytest.mark.parametrize("value", ["", " \t\n", "\0", "x\ud800", "x\udfff", "x" * 10001, None, 2])
+def test_invalid_text(value):
+    with pytest.raises(ResearchBaseError):
+        _record(contribution_statement=value)
+
+
+@pytest.mark.parametrize("value", ["x", "x" * 10000, " e\u0301 \n"])
+def test_text_edges_nfc_whitespace(value):
+    result = _record(contribution_statement=value)
+    assert result.contribution_statement == contribution_text(value)
+    assert contribution_text(" e\u0301 \n") == " é \n"
+
+
+@pytest.mark.parametrize("value", ["writing", "OTHER", "", None, 1])
+def test_bad_role(value):
+    with pytest.raises(ResearchBaseError):
+        _record(contribution_role=value)
+
+
+def test_closed_commands_queries_tuple_and_bounds():
+    for make in (GetContributionQuery, GetAuthorshipSnapshotQuery):
+        with pytest.raises(ResearchBaseError):
+            make(uuid4(), cast(Any, "wrong"))
+        with pytest.raises(TypeError):
+            cast(Any, make)(uuid4(), uuid4(), "extra")
+    with pytest.raises(TypeError):
+        RecordContributionCommand(**{**asdict(_record()), "status": "FROZEN"})
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("author_ids", ()),
+        ("author_ids", tuple(uuid4() for _ in range(101))),
+        ("corresponding_author_ids", ()),
+        ("contribution_record_ids", ()),
+        ("contribution_record_ids", tuple(uuid4() for _ in range(1001))),
+        ("author_ids", [uuid4()]),
+        ("equal_contribution_groups", [()]),
+        ("equal_contribution_groups", ((uuid4(),),)),
+    ],
+)
+def test_tuple_bounds(field, value):
+    with pytest.raises(ResearchBaseError):
+        _snapshot(**{field: value})
+
+
+def test_duplicate_subset_overlap_rejected():
+    a, b, c = uuid4(), uuid4(), uuid4()
+    for corresponding, groups in (
+        ((a, a), ()),
+        ((c,), ()),
+        ((a,), ((a, b), (a, b))),
+        ((a,), ((a, c),)),
+    ):
+        with pytest.raises(ValueError):
+            authorship_sets((a, b), corresponding, groups)
+    with pytest.raises(ResearchBaseError):
+        _snapshot(author_ids=(a, a))
+    with pytest.raises(ResearchBaseError):
+        _snapshot(contribution_record_ids=(a, a))
+
+
+def test_human_same_publication_and_per_author_coverage():
+    a, b, pub = uuid4(), uuid4(), uuid4()
+    rows = [{"publication_id": pub, "actor_id": a}]
+    for types, authors, records in (
+        ({a: "AGENT"}, (a,), rows),
+        ({a: "HUMAN", b: "HUMAN"}, (a, b), rows),
+        ({a: "HUMAN"}, (a,), [{"publication_id": uuid4(), "actor_id": a}]),
+    ):
+        with pytest.raises(ValueError):
+            validate_coverage(authors, types, pub, records)
+    validate_coverage((a,), {a: "HUMAN"}, pub, rows)
+
+
+def _vector():
+    uid = lambda n: UUID(f"00000000-0000-0000-0000-{n:012d}")  # noqa: E731
+    authors = (AuthorshipAuthor(uid(5), 1), AuthorshipAuthor(uid(6), 2))
+    refs = tuple(
+        OrderedContribution(ExactReference("ContributionRecord", uid(n), digest * 64), i)
+        for i, (n, digest) in enumerate(((17, "e"), (18, "f")))
+    )
+    return uid, authors, refs
+
+
+def test_independent_r2_snapshot_golden():
+    uid, authors, refs = _vector()
+    actual = authorship_material(uid(4), authors, (uid(6),), ((uid(6), uid(5)),), refs)
+    # Literal preimage is copied from normative R2, never generated by the implementation.
+    preimage = '{"authors":[{"actor":{"id":"00000000-0000-0000-0000-000000000005","type":"ActorIdentity"},"ordinal":1},{"actor":{"id":"00000000-0000-0000-0000-000000000006","type":"ActorIdentity"},"ordinal":2}],"contribution_records":[{"contribution_record":{"content_hash":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","id":"00000000-0000-0000-0000-000000000017","type":"ContributionRecord"},"ordinal":0},{"contribution_record":{"content_hash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","id":"00000000-0000-0000-0000-000000000018","type":"ContributionRecord"},"ordinal":1}],"corresponding_authors":[{"id":"00000000-0000-0000-0000-000000000006","type":"ActorIdentity"}],"equal_contribution_groups":[[{"id":"00000000-0000-0000-0000-000000000005","type":"ActorIdentity"},{"id":"00000000-0000-0000-0000-000000000006","type":"ActorIdentity"}]],"material_version":1,"publication_id":"00000000-0000-0000-0000-000000000004","type":"AuthorshipSnapshot"}'  # noqa: E501
+    assert actual == json.loads(preimage)
+    assert (
+        hashlib.sha256(preimage.encode()).hexdigest()
+        == "3cb9fe56ea44ba2ab98c838e01946321e2302fe7f2eeff7473303d4988cc60a6"
+    )
+    assert str(sha256_canonical_json(actual)) == hashlib.sha256(preimage.encode()).hexdigest()
+
+
+def test_set_invariance_authored_order_sensitivity():
+    uid, authors, refs = _vector()
+    material = authorship_material(uid(4), authors, (uid(5), uid(6)), ((uid(5), uid(6)),), refs)
+    assert material == authorship_material(
+        uid(4), authors, (uid(6), uid(5)), ((uid(6), uid(5)),), refs
+    )
+    reversed_authors = tuple(
+        AuthorshipAuthor(a.actor_id, i + 1) for i, a in enumerate(reversed(authors))
+    )
+    reversed_refs = tuple(
+        OrderedContribution(c.contribution_record, i) for i, c in enumerate(reversed(refs))
+    )
+    assert material != authorship_material(
+        uid(4), reversed_authors, (uid(5), uid(6)), ((uid(5), uid(6)),), refs
+    )
+    assert material != authorship_material(
+        uid(4), authors, (uid(5), uid(6)), ((uid(5), uid(6)),), reversed_refs
+    )
+
+
+def test_contribution_literal_material():
+    pub, actor, recorder = UUID(int=4), UUID(int=5), UUID(int=6)
+    expected = {
+        "type": "ContributionRecord",
+        "material_version": 1,
+        "publication": {"type": "Publication", "id": str(pub)},
+        "actor": {"type": "ActorIdentity", "id": str(actor)},
+        "contribution_role": "WRITING",
+        "contribution_statement": " é ",
+        "recorded_by": {"type": "ActorIdentity", "id": str(recorder)},
+    }
+    expected["contribution_statement"] = " é "
+    assert contribution_material(pub, actor, "WRITING", " é ", recorder) == expected
+
+
+def test_maximum_snapshot_bounds_and_closed_fields():
+    authors = tuple(uuid4() for _ in range(100))
+    groups = tuple(authors[i : i + 2] for i in range(0, 100, 2))
+    command = _snapshot(
+        author_ids=authors,
+        corresponding_author_ids=authors,
+        equal_contribution_groups=groups,
+        contribution_record_ids=tuple(uuid4() for _ in range(1000)),
+    )
+    assert len(command.author_ids) == len(command.corresponding_author_ids) == 100
+    assert len(command.equal_contribution_groups) == 50
+    assert len(command.contribution_record_ids) == 1000
+    with pytest.raises(TypeError):
+        CreateAuthorshipSnapshotCommand(**{**asdict(command), "created_by": uuid4()})
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("id", "invalid"),
+        ("project_id", None),
+        ("publication_id", 1),
+        ("author_ids", ("invalid",)),
+        ("corresponding_author_ids", ("invalid",)),
+        ("corresponding_author_ids", tuple(uuid4() for _ in range(101))),
+        ("contribution_record_ids", ("invalid",)),
+        ("contribution_record_ids", [uuid4()]),
+        ("equal_contribution_groups", (("invalid", uuid4()),)),
+        ("equal_contribution_groups", tuple((uuid4(), uuid4()) for _ in range(51))),
+        ("equal_contribution_groups", (tuple(uuid4() for _ in range(101)),)),
+        ("equal_contribution_groups", ([uuid4(), uuid4()],)),
+    ],
+)
+def test_snapshot_remaining_type_and_overflow_edges(field, value):
+    with pytest.raises(ResearchBaseError):
+        _snapshot(**{field: value})
+
+
+def test_equal_group_set_order_invariance():
+    authors = tuple(UUID(int=n) for n in range(1, 5))
+    first = authorship_sets(authors, authors, (authors[:2], authors[2:]))
+    assert first == authorship_sets(
+        authors,
+        tuple(reversed(authors)),
+        (tuple(reversed(authors[2:])), tuple(reversed(authors[:2]))),
+    )

@@ -1,0 +1,62 @@
+{
+  "collected": 5058,
+  "workers": [
+    {
+      "worker": 0,
+      "exit_code": 0,
+      "counts": {
+        "tests": 2812,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "worker": 1,
+      "exit_code": 0,
+      "counts": {
+        "tests": 562,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "worker": 2,
+      "exit_code": 0,
+      "counts": {
+        "tests": 560,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "worker": 3,
+      "exit_code": 0,
+      "counts": {
+        "tests": 562,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "worker": 4,
+      "exit_code": 1,
+      "counts": {
+        "tests": 562,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "totals": {
+    "tests": 5058,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5057
+  }
+}

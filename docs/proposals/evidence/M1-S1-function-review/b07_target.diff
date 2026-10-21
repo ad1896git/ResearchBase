@@ -1,0 +1,14 @@
+--- 0073/b07_target.sql
++++ 0074/b07_target.sql
+@@ -2,10 +2,11 @@
+  RETURNS void
+  LANGUAGE plpgsql
+ AS $function$
+ DECLARE cv claim_versions; v scientific_conclusion_versions; support TEXT; cs JSONB; ls JSONB;
+ BEGIN
++  IF seed_kind='manuscript_versions' THEN PERFORM m1_manuscript(tid,pid); RETURN; END IF;
+   IF seed_kind NOT IN ('claim_versions','scientific_conclusion_versions') THEN
+     RAISE EXCEPTION 'typed scientific target required' USING ERRCODE='P17F2'; END IF;
+   PERFORM b07_facts(tid,pid,seed_kind);
+   SELECT * INTO v FROM scientific_conclusion_versions WHERE id=tid AND seed_kind='scientific_conclusion_versions';
+   IF v.id IS NOT NULL THEN

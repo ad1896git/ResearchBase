@@ -3,16 +3,16 @@
 from collections.abc import Callable, Iterator
 
 import pytest
-from tests.integration.test_p1_fcr4_ownership_matrix import (
-    domain_factories,
-    nested_json,
-)
 
 from researchbase.foundation.frozen_json import (
     FrozenJSONArray,
     FrozenJSONObject,
     freeze_json,
     thaw_json,
+)
+from tests.integration.test_p1_fcr4_ownership_matrix import (
+    domain_factories,
+    nested_json,
 )
 
 Attack = Callable[[object], None]

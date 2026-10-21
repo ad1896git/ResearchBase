@@ -1,0 +1,9 @@
+fe6fb7155b7b40fa4b33b3a4dcfeb3ba54fae4898c299ca77abf82e689a4feaa  docs/verification/batch-g-review/b20-concurrency.txt
+2a251fa9c4e8849d528ab4e52dc3549ba45f43f793c0913459fc0322a4a86b4c  docs/verification/batch-g-review/composition-catalog.txt
+991881b7342e19831e225a06cf738137ca55a055a15ecdbf202599231e98c722  docs/verification/batch-g-review/full-check.txt
+79b971a2a4258f2088fa00c621a93d27ff06d9c51f735d270cacad2bb7d0b599  docs/verification/batch-g-review/head-catalog.txt
+31caf33a65189ae818220337fb2740b58ea4ad3929e54e332b04f93e8b0df12c  docs/verification/batch-g-review/migration-cycle.txt
+306897954cc53c838c855f40a0f88cb765658d9ca26661e94622d0fa0227b5c4  docs/verification/batch-g-review/phantom-repeat.txt
+ae797ee30ee9f2d21a2bd350cc5868013a751185af345efd431c7e08ed17578a  docs/verification/batch-g-review/pre-fix-deadlock.txt
+e4aa17ac8b6b6bad237b9f757da3169889fc1ec8770a8640f5fcb1d00481cf27  docs/verification/batch-g-review/source-sha256.txt
+510c32d163c87eba7ab764d540fc23042581830a411f9545e2f6d604214297ce  docs/verification/batch-g-integration.txt

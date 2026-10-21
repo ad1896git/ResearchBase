@@ -1,0 +1,61 @@
+UV_CACHE_DIR="$PWD/.uv-cache" uv run python - <<'PY'
+from pathlib import Path
+import gzip
+import json
+import re
+import subprocess
+import xml.etree.ElementTree as ET
+
+root = Path('docs/verification/task9')
+checks = []
+for args in (
+    ['git', 'diff', '--check'],
+    ['git', 'diff', '--check', 'b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff'],
+    ['git', 'diff', '--exit-code', '--', 'src', 'tests', 'migrations', 'docs/architecture'],
+):
+    result = subprocess.run(args, capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    checks.append(f"PASS exit 0: {' '.join(args)}")
+expected = {
+    ('git', 'branch', '--show-current'): 'work/pr2-15-base',
+    ('git', 'rev-parse', 'HEAD'): '820d514545f7a8d1f624d7aa1e85268c3e1d38da',
+    ('git', 'rev-parse', 'origin/backup/pr2-15-v51-verified-20261013'): '76b60ed29ad220010bba9020401e10a962a5de60',
+}
+for args, value in expected.items():
+    assert subprocess.check_output(args, text=True).strip() == value
+checks.append('PASS: branch, HEAD and backup base unchanged (3 checks)')
+changed = subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()
+p = Path('docs/proposals/PR2-16_Basic_Approval_Contract_DRAFT.md')
+assert changed == [str(p)], changed
+before = subprocess.check_output(['git', 'show', f'HEAD:{p}'])
+assert before.endswith(b'\n\n') and p.read_bytes() == before[:-1]
+checks.append('PASS: only tracked edit is one EOF newline removed from Basic Approval draft')
+summary = Path('docs/verification/STABILIZATION_SUMMARY.md')
+for doc in (summary, *sorted(Path('docs/proposals').glob('*.md'))):
+    content = doc.read_text()
+    links = re.findall(r'\]\(([^)]+)\)', content)
+    assert all((doc.parent / target.split('#')[0]).exists() for target in links), doc
+    assert all(line == line.rstrip() for line in content.splitlines()), doc
+    assert content.endswith('\n') and not content.endswith('\n\n'), doc
+    if doc != summary:
+        assert 'DRAFT — awaiting owner approval; not authorized for implementation' in content
+    else:
+        assert 'PENDING' not in content and 'Pending' not in content
+        for marker in ('### Before', '### After', '### How', '4955 passed, 9 failed, 0 errors, 0 skipped'):
+            assert marker in content, marker
+    checks.append(f'PASS: {doc}: {len(links)} links resolve; whitespace/EOF and status/content checks pass')
+counts = json.loads((root / 'final-counts.json').read_text())
+xml = ET.fromstring(gzip.decompress((root / 'full-pytest.xml.gz').read_bytes()))
+suite = xml.find('testsuite')
+assert suite is not None
+for key in ('tests', 'failures', 'errors', 'skipped'):
+    assert counts[key] == int(suite.attrib[key])
+console = gzip.decompress((root / 'full-pytest.log.gz').read_bytes()).decode()
+assert '9 failed, 4955 passed, 2617 warnings in 4800.74s (1:20:00)' in console
+assert set(counts['failed_nodes']) == set(Path('docs/verification/task5/remaining-schema-failures.txt').read_text().splitlines())
+for name in ('full-pytest-initial.log.gz', 'full-pytest-initial.xml.gz'):
+    assert gzip.decompress((root / name).read_bytes())
+checks.append('PASS: final XML/console/JSON counts reconcile; exact nine known failed IDs; four archives readable')
+(root / 'final-validation.txt').write_text('\n'.join(checks) + '\n')
+print('\n'.join(checks))
+PY

@@ -1,0 +1,23 @@
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+710 files already formatted
+All checks passed!
+== quick pre-check: 33 changed test files
+  File "/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane37/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 546, in teardown_exact
+    fin()
+  File "/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane37/.venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 1069, in finish
+    raise exceptions[0]
+  File "/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane37/.venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 1058, in finish
+    fin()
+  File "/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane37/.venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 939, in _teardown_yield_fixture
+    next(it)
+  File "/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane37/.venv/lib/python3.12/site-packages/_pytest/tmpdir.py", line 269, in tmp_path
+    result_dict = request.node.stash[tmppath_result_key]
+                  ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane37/.venv/lib/python3.12/site-packages/_pytest/stash.py", line 84, in __getitem__
+    return cast(T, self._storage[key])
+                   ~~~~~~~~~~~~~^^^^^
+KeyError: <_pytest.stash.StashKey object at 0x108e65140>
+quick pre-check failed; full suite not run

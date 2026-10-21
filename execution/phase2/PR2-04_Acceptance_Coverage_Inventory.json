@@ -1,0 +1,8 @@
+{
+  "schema": "recovery-source-inventory-v1",
+  "status": "PENDING_F3",
+  "runtime_results": "NOT_RUN",
+  "source_manifest": "MERGED_DEPENDENCY_MANIFEST.json",
+  "targets": 255,
+  "source_scope": "Acceptance authored dimensions; fresh node collection attached separately"
+}

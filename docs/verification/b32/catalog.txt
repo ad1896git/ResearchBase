@@ -1,0 +1,37 @@
+PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin27.0.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit
+Migration heads: ['0068_b21_unresolved_capture']
+Observed disposable database head: 0068_b21_unresolved_capture
+approval_grant_consumptions_actor_id_not_null: NOT NULL actor_id
+approval_grant_consumptions_command_key_not_null: NOT NULL command_key
+approval_grant_consumptions_command_not_null: NOT NULL command
+approval_grant_consumptions_consumed_at_not_null: NOT NULL consumed_at
+approval_grant_consumptions_grant_id_not_null: NOT NULL grant_id
+approval_grant_consumptions_hash_scheme_not_null: NOT NULL hash_scheme
+approval_grant_consumptions_id_not_null: NOT NULL id
+approval_grant_consumptions_project_id_not_null: NOT NULL project_id
+approval_grant_consumptions_request_hash_not_null: NOT NULL request_hash
+approval_grant_consumptions_result_dto_not_null: NOT NULL result_dto
+approval_grant_consumptions_result_dto_version_not_null: NOT NULL result_dto_version
+b13_complete_consumption: TRIGGER DEFERRABLE INITIALLY DEFERRED
+b14_complete_ready_consumption: TRIGGER DEFERRABLE INITIALLY DEFERRED
+b17_complete_consumption: TRIGGER DEFERRABLE INITIALLY DEFERRED
+ck_b13_dto: CHECK (((result_dto_version = 1) AND (jsonb_typeof(result_dto) = 'object'::text)))
+ck_b13_hash: CHECK (((request_hash ~ '^[0-9a-f]{64}$'::text) AND ((hash_scheme)::text = 'sha256-cjson-v1'::text)))
+ck_b13_result_tuple: CHECK (((((command)::text = 'RECORD_INTERNAL_SCIENTIFIC_RELEASE'::text) AND (result_scientific_conclusion_version_id IS NOT NULL) AND (result_publication_id IS NULL) AND (result_prepared_submission_version_id IS NULL)) OR (((command)::text = 'TRANSITION_PUBLICATION_READY'::text) AND (result_publication_id IS NOT NULL) AND (result_scientific_conclusion_version_id IS NULL) AND (result_prepared_submission_version_id IS NULL)) OR (((command)::text = 'FREEZE_PREPARED_SUBMISSION'::text) AND (result_prepared_submission_version_id IS NOT NULL) AND (result_publication_id IS NULL) AND (result_scientific_conclusion_version_id IS NULL))))
+ck_b13_time: CHECK (isfinite(consumed_at))
+fk_b13_consumption_actor: FOREIGN KEY (actor_id) REFERENCES actors(id) ON DELETE RESTRICT
+fk_b13_consumption_grant: FOREIGN KEY (grant_id) REFERENCES approval_grants(id) ON DELETE RESTRICT
+fk_b13_consumption_project: FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT
+fk_b13_result_conclusion: FOREIGN KEY (result_scientific_conclusion_version_id) REFERENCES scientific_conclusion_versions(id) ON DELETE RESTRICT
+fk_b13_result_publication: FOREIGN KEY (result_publication_id) REFERENCES publications(id) ON DELETE RESTRICT
+fk_b17_result_package: FOREIGN KEY (result_prepared_submission_version_id) REFERENCES prepared_submission_versions(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+pk_b13_consumptions: PRIMARY KEY (id)
+uq_b13_command_key: UNIQUE (command_key)
+uq_b13_consumption_grant: UNIQUE (grant_id)
+b14_complete_publication: True: True
+b14_complete_ready_consumption: True: True
+b14_complete_ready_event: True: True
+b17_complete_consumption: True: True
+b17_complete_event: True: True
+b17_complete_item: True: True
+b17_complete_package: True: True

@@ -1,0 +1,25 @@
+--- 0073/b14a_verify_entry.sql
++++ 0074/b14a_verify_entry.sql
+@@ -15,20 +15,19 @@
+   RETURN;
+  END IF;
+  SELECT * INTO m FROM manuscript_versions WHERE id=e.manuscript_version_id;
+  IF p.lifecycle_status NOT IN ('INTERNAL_REVIEW','READY') OR e.id IS NULL OR e.prior_status IS DISTINCT FROM 'DRAFTING'
+  OR m.id IS NULL OR m.publication_id IS DISTINCT FROM pid OR m.status<>'FROZEN' OR m.frozen_at IS NULL
+- OR e.manuscript_version_id IS DISTINCT FROM p.current_manuscript_version_id
++ OR NOT EXISTS(SELECT 1 FROM manuscript_versions current WHERE current.id=p.current_manuscript_version_id AND current.publication_id=pid AND current.status='FROZEN' AND current.version_number>=m.version_number)
+  OR e.occurred_at<m.frozen_at OR e.occurred_at<p.created_at OR e.occurred_at>clock_timestamp()
+  OR e.basis_decision_id IS NOT NULL OR e.basis_grant_consumption_id IS NOT NULL THEN
+  RAISE EXCEPTION 'complete exact entry graph required' USING ERRCODE='P14P1'; END IF;
+  PERFORM b04_verify_structure(m.id);
+  IF p.lifecycle_status='INTERNAL_REVIEW' AND EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid) THEN
+   IF NOT EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+    RAISE EXCEPTION 'same transaction transition required' USING ERRCODE='P14I1'; END IF;
+   PERFORM b14a_preheld(); PERFORM b14a_admission(m.id,p.project_id);
+   IF NOT b13_authorized(e.actor_id,p.project_id,ARRAY['OWNER','RESEARCHER']) OR NOT EXISTS(SELECT 1 FROM projects WHERE id=p.project_id AND lifecycle_status='ACTIVE') THEN
+    RAISE EXCEPTION 'final entry authority unavailable' USING ERRCODE='P14A1'; END IF;
+- ELSIF p.lifecycle_status='INTERNAL_REVIEW' AND EXISTS(SELECT 1 FROM publications WHERE id=pid AND xmin=pg_current_xact_id()::xid) THEN
+-  RAISE EXCEPTION 'old event cannot complete new transition' USING ERRCODE='P14I1';
++
+  END IF;
+ END $function$

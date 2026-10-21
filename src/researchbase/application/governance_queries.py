@@ -140,11 +140,21 @@ class GovernanceQueryService:
     def validity_projection(
         self, project_id: UUID, target_type: GovernanceTargetType | str, target_id: UUID
     ) -> ValidityProjection:
+        with self._uow_factory() as uow:
+            return self.validity_projection_in_uow(uow, project_id, target_type, target_id)
+
+    def validity_projection_in_uow(
+        self,
+        uow: UnitOfWork,
+        project_id: UUID,
+        target_type: GovernanceTargetType | str,
+        target_id: UUID,
+    ) -> ValidityProjection:
+        """Evaluate existing governance facts inside the caller's command transaction."""
         project = ProjectId(project_id)
         kind = GovernanceTargetType(target_type)
-        with self._uow_factory() as uow:
-            self._resolvers.resolve(uow.governance, project, kind, target_id)
-            rows = uow.governance.validity_rows(project_id, kind.value, target_id)
+        self._resolvers.resolve(uow.governance, project, kind, target_id)
+        rows = uow.governance.validity_rows(project_id, kind.value, target_id)
         active: list[tuple[UUID, str, UUID | None]] = []
         corrections: set[UUID] = set()
         for raw_row in rows:

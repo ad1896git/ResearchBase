@@ -1,0 +1,19 @@
+{
+  "schema": "recovery-section13-inputs-v1",
+  "status": "PENDING_F3",
+  "checks": [
+    "admission",
+    "provider_outcome_atomicity",
+    "retries",
+    "cancellation",
+    "recovery",
+    "authorization_after_locks",
+    "sealed_replay",
+    "migration_constraints",
+    "full_suite",
+    "host_topology",
+    "binding_inventory"
+  ],
+  "acceptance": "NOT_RUN",
+  "historical_results_accepted": false
+}

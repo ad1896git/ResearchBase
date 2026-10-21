@@ -1,0 +1,17 @@
+Archived original expiry failure: initial freeze, before replay.
+
+...................................F.................................... [ 72%]
+...........................                                              [100%]
+=================================== FAILURES ===================================
+___________ test_exact_multi_review_permutations_replay_after_expiry ___________
+tests/integration/phase2/test_b17_freeze_replay.py:217: in test_exact_multi_review_permutations_replay_after_expiry
+    saved = f.app.freeze_prepared_submission(f.actor, reversed_command)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/researchbase/application/prepared_submission.py:1548: in freeze_prepared_submission
+    result = app._consume_package_in_uow(uow, principal, command, package, effect)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/researchbase/application/approval.py:1784: in _consume_package_in_uow
+    _fail(ErrorCode.GRANT_INVALID, "final grant expiry reached")
+src/researchbase/application/approval.py:40: in _fail
+    raise ResearchBaseError(code, message)
+E   researchbase.foundation.errors.ResearchBaseError: final grant expiry reached

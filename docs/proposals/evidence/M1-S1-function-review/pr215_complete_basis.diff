@@ -1,0 +1,21 @@
+--- 0073/pr215_complete_basis.sql
++++ 0074/pr215_complete_basis.sql
+@@ -12,16 +12,16 @@
+         RETURN NULL;
+       END IF;
+       IF (SELECT decision_type FROM decision_records WHERE id=did) IN ('READY_FOR_SUBMISSION','PREPARE_SUBMISSION') THEN
+         PERFORM b11_complete(did); RETURN NULL;
+       END IF;
+-      IF EXISTS(SELECT 1 FROM decision_basis_manuscripts WHERE decision_id=did) THEN
+-        RAISE EXCEPTION 'manuscript basis requires readiness purpose' USING ERRCODE='P17F2'; END IF;
+       IF (SELECT decision_type FROM decision_records WHERE id=did)='REVISION_RESPONSE' THEN
+         PERFORM b07_validate_decision(did,true);
+         RETURN NULL;
+       END IF;
++      IF EXISTS(SELECT 1 FROM decision_basis_manuscripts WHERE decision_id=did) THEN
++        RAISE EXCEPTION 'manuscript basis requires readiness purpose' USING ERRCODE='P17F2'; END IF;
+       IF EXISTS(SELECT 1 FROM decision_revision_concerns WHERE decision_id=did) OR EXISTS(SELECT 1 FROM decision_basis_claims WHERE decision_id=did) THEN
+         RAISE EXCEPTION 'release cannot gain revision basis' USING ERRCODE='P17F2'; END IF;
+       SELECT d.project_id,b.scientific_conclusion_version_id,v.content_hash
+         INTO pid,tid,target_hash FROM decision_records d
+         JOIN decision_basis_conclusions b ON b.decision_id=d.id

@@ -184,7 +184,7 @@ def _run_clean_install(database_url: str) -> None:
     environment["DATABASE_URL"] = database_url
     environment.setdefault("UV_CACHE_DIR", "/tmp/researchbase-uv-cache")
     result = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        [sys.executable, "-m", "alembic", "upgrade", "0018_current_pointer_same_parent_integrity"],
         cwd=REPOSITORY_ROOT,
         env=environment,
         capture_output=True,

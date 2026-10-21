@@ -4,15 +4,20 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import fields, is_dataclass
+from datetime import date
+from threading import Event
 from types import UnionType
-from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
-from uuid import UUID
+from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_type_hints
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictStr, create_model
+from starlette.concurrency import run_in_threadpool
 
 from researchbase.api.context import execution_context
 from researchbase.api.errors import ErrorEnvelope
@@ -49,6 +54,12 @@ from researchbase.application.commands import (
     StatisticalResultInputCommand,
     WriteProjectionTarget,
 )
+from researchbase.application.decision import (
+    RecordManuscriptRejectionReconsiderationCommand,
+    RecordRevisionDecisionCommand,
+    RejectionReconsiderationReadback,
+    RevisionDecisionReadback,
+)
 from researchbase.application.dto import (
     ArtifactReadModel,
     ArtifactVersionReadModel,
@@ -78,7 +89,73 @@ from researchbase.application.governance import (
     ProposedImpactTarget,
 )
 from researchbase.application.governance_queries import DownstreamImpactTarget
+from researchbase.application.internal_review import (
+    IssueDispositionReadback,
+    IssueHistoryReadback,
+    NoveltyReviewReadback,
+    RecordIssueDispositionCommand,
+    ReviewIssueRequest,
+)
+from researchbase.application.literature_search_execution import (
+    CancelLiteratureSearchExecution,
+    CreateLiteratureSearchExecution,
+    ExecuteLiteratureSearchExecution,
+    LiteratureSearchExecutionService,
+    RecoverLiteratureSearchExecution,
+    SearchQueryInput,
+    _http_disconnect,
+)
+from researchbase.application.literature_search_plan import (
+    CreateLiteratureSearchPlan,
+    EditLiteratureSearchPlanQuestions,
+    LiteratureSearchPlanService,
+    RemoveLiteratureSearchPlanQuestion,
+    ReviseLiteratureSearchPlan,
+    TransitionLiteratureSearchPlanVersion,
+    UpdateLiteratureSearchPlanDraft,
+)
+from researchbase.application.novelty import (
+    ExactReadQuery,
+    NoveltyReadback,
+    PriorArtReadback,
+    PriorArtSelectionQuery,
+    PriorArtSelectionReadback,
+    RecordNoveltyAssessmentCommand,
+    RecordPriorArtRelationCommand,
+    RecordSearchCoverageCommand,
+    SearchCoverageReadback,
+)
 from researchbase.application.provenance_queries import ClaimToRunsTraceDTO, RunProvenanceDTO
+from researchbase.application.revision_action import (
+    ConcernReReviewReadback,
+    NoveltyReReviewReadback,
+    NoveltyRevisionReadback,
+    RecordConcernReReviewCommand,
+    RecordNoveltyRevisionCommand,
+    RecordRevisionActionCommand,
+    RevisionActionReadback,
+)
+from researchbase.application.source_identity import (
+    AddSourceIdentifier,
+    RegisterLiteratureSource,
+    RejectSourceIdentifier,
+    VerifySourceIdentifier,
+)
+from researchbase.application.source_merge import (
+    DecideSourceMerge,
+    ProposeSourceMerge,
+    RevokeSourceMergeApproval,
+)
+from researchbase.application.source_merge_execution import (
+    ConsumeSourceMergeProposal,
+    SourceMergeExecutionService,
+)
+from researchbase.application.source_version import (
+    CreateSourceVersion,
+    SourceVersionService,
+    TransitionSourceVersion,
+    UpdateSourceVersionDraft,
+)
 from researchbase.domain.claim import EvidenceRelationType
 from researchbase.domain.governance import (
     AuditFinding,
@@ -90,7 +167,33 @@ from researchbase.domain.governance import (
     ImpactAssessmentConclusion,
     ImpactKind,
 )
+from researchbase.domain.literature_search_plan import (
+    FrozenResearchQuestionReference,
+    LiteratureSearchPlanMaterial,
+    LiteratureSearchStrategy,
+    LiteratureSourceScope,
+)
+from researchbase.domain.novelty import (
+    ClosenessCriteria,
+    NoveltyOutcome,
+    PriorArtBasisInput,
+    PriorArtKind,
+    ProbeDisposition,
+    ProbeInput,
+    ScreeningBasisInput,
+    ScreeningDisposition,
+    ScreeningResultInput,
+    TimeScope,
+)
+from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
+from researchbase.domain.source_identity import IdentifierType, SourceKind
+from researchbase.domain.source_version import (
+    FrozenSourceReference,
+    SourceVersionKind,
+    SourceVersionMaterial,
+)
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObject, thaw_json
 
@@ -127,7 +230,15 @@ def _response_schema(model: type[Any]) -> type[BaseModel]:
     schema = create_model(
         f"{model.__name__}Response",
         __config__=ConfigDict(extra="forbid"),
-        **{field.name: (_safe_type(hints[field.name]), ...) for field in fields(model)},
+        **{
+            field.name: (
+                _safe_type(hints[field.name]),
+                Field(..., alias={"from_date": "from", "through_date": "through"}[field.name])
+                if model is TimeScope
+                else ...,
+            )
+            for field in fields(model)
+        },
     )
     _SCHEMA_CACHE[model] = schema
     return schema
@@ -162,6 +273,40 @@ DownstreamImpactTarget = _response_schema(DownstreamImpactTarget)
 
 class InputModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class SourceMergeProposalResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposal_id: UUID
+    status: str
+    proposal_basis_hash: str
+
+
+class SourceMergeDecisionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approval_id: UUID
+    proposal_id: UUID
+    project_id: UUID
+    decision: str
+
+
+class SourceMergeProposalStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposal_id: UUID
+    source_a_id: UUID
+    source_b_id: UUID
+    canonical_survivor_id: UUID
+    proposal_basis_hash: str
+    status: str
+    affected_project_count: int
+    decision_count: int
+    project_decision: str | None
+    project_decision_reason: str | None
+
+
+class SourceMergeRevocationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: str
 
 
 class ProjectIn(InputModel):
@@ -408,6 +553,141 @@ class CorrectionIn(InputModel):
     reason: str = Field(min_length=1)
 
 
+class LiteratureSourceIn(InputModel):
+    kind: SourceKind
+    title: str = Field(min_length=1, max_length=2048)
+    initial_identifier_type: IdentifierType | None = None
+    initial_identifier_value: str | None = Field(default=None, max_length=2048)
+
+
+class SourceIdentifierIn(InputModel):
+    identifier_type: IdentifierType
+    identifier_value: str = Field(min_length=1, max_length=2048)
+    is_primary: bool = False
+    binding_basis_artifact_version_id: UUID | None = None
+    supersedes_rejected_identifier_id: UUID | None = None
+
+
+class IdentifierStatusIn(InputModel):
+    basis_artifact_version_id: UUID
+    reason: str = Field(min_length=1, max_length=2048)
+
+
+class SourceMergeProposalIn(InputModel):
+    source_a_id: UUID
+    source_b_id: UUID
+    canonical_survivor_id: UUID
+    rationale: str = Field(min_length=1, max_length=4096)
+    supersedes_proposal_id: UUID | None = None
+    evidence_artifact_ids: list[UUID] = Field(default_factory=list)
+
+
+class SourceMergeDecisionIn(InputModel):
+    reason: str | None = Field(default=None, max_length=2048)
+
+
+class SourceMergeConsumeIn(InputModel):
+    proposal_basis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    identity_basis_artifact: SourceVersionReferenceIn
+
+
+class SourceVersionReferenceIn(InputModel):
+    id: UUID
+    content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class SourceVersionIn(InputModel):
+    version_kind: SourceVersionKind
+    predecessor_source_version: SourceVersionReferenceIn | None = None
+    correction_basis_artifact: SourceVersionReferenceIn | None = None
+    title: str = Field(min_length=1)
+    abstract: str | None = None
+    authors: list[dict[str, str | None]]
+    publication_date: date | None = None
+    venue: str | None = None
+    external_version_label: str | None = None
+    fulltext_artifact: SourceVersionReferenceIn | None = None
+    metadata: dict[str, str | None] | None = None
+
+
+class SearchPlanQuestionReferenceIn(InputModel):
+    research_question_id: UUID
+    version_id: UUID
+    content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class LiteratureSearchPlanIn(InputModel):
+    objective: str = Field(min_length=1)
+    source_scope: LiteratureSourceScope
+    inclusion_criteria: dict[str, Any] | None = None
+    exclusion_criteria: dict[str, Any] | None = None
+    time_range: dict[str, date | None] | None = None
+    language_scope: list[str] | None = None
+    search_strategy: LiteratureSearchStrategy
+    planned_providers: list[str]
+    stopping_rule: dict[str, str] | None = None
+    research_question_refs: list[SearchPlanQuestionReferenceIn] = Field(default_factory=list)
+
+
+class LiteratureSearchExecutionQueryIn(InputModel):
+    query_type: str = Field(default="TEXT", pattern="^TEXT$")
+    query_text: str = Field(min_length=1, max_length=4096)
+    perspective: str | None = Field(default=None, max_length=256)
+
+
+class LiteratureSearchExecutionIn(InputModel):
+    project_id: UUID
+    search_plan_version_id: UUID
+    provider_id: str = Field(min_length=1, max_length=128)
+    provider_version: str = Field(min_length=1, max_length=128)
+    queries: list[LiteratureSearchExecutionQueryIn] = Field(min_length=1, max_length=32)
+    max_results: int = Field(default=20, ge=1, le=100)
+    max_provider_attempts: int = Field(default=3, ge=1, le=3)
+    timeout_seconds: int = Field(default=30, ge=1, le=30)
+    execution_budget_seconds: int = Field(default=300, ge=1, le=600)
+
+
+class LiteratureSearchExecutionScopeIn(InputModel):
+    project_id: UUID
+
+
+class SourceVersionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_version_id: str
+    literature_source_id: str
+    version_number: int
+    status: str
+    content_hash: str | None
+
+
+class SourceVersionReadResult(SourceVersionResult):
+    version_kind: str
+    predecessor_source_version_id: str | None
+    correction_basis_artifact_version_id: str | None
+    title: str
+    abstract: str | None
+    authors: Any
+    publication_date: str | None
+    venue: str | None
+    external_version_label: str | None
+    fulltext_artifact_version_id: str | None
+    metadata: Any
+    hash_scheme: str
+    frozen_at: str | None
+
+
+class SourceMergeRecordResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_merge_record_id: str
+    losing_source_id: str
+    winning_source_id: str
+    identity_basis_artifact_version_id: str
+    reason: str
+    merged_by: str
+    merged_at: str
+    content_hash: str
+
+
 router = APIRouter(
     prefix="/v1",
     responses={
@@ -424,6 +704,24 @@ def _services(request: Request) -> Any:
     return request.app.state.services
 
 
+def _verified_principal(request: Request) -> VerifiedPrincipal:
+    principal = getattr(request.state, "verified_principal", None)
+    if not isinstance(principal, VerifiedPrincipal):
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.AUTHENTICATION_REQUIRED, "a trusted verified principal is required"
+        )
+    supplied_actor = request.headers.get("X-Actor-ID")
+    if supplied_actor is not None and supplied_actor != str(principal.actor_id):
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.FORBIDDEN, "X-Actor-ID does not match the authenticated principal"
+        )
+    return principal
+
+
 def _http_json_value(value: object) -> object:
     """Return a fresh transport tree without exposing FrozenJSON wrappers."""
     if isinstance(value, FrozenJSONObject | FrozenJSONArray):
@@ -432,6 +730,8 @@ def _http_json_value(value: object) -> object:
         return {
             name: _http_json_value(getattr(value, name)) for name in value.__class__.model_fields
         }
+    if isinstance(value, TimeScope):
+        return value.material()
     if is_dataclass(value) and not isinstance(value, type):
         return {field.name: _http_json_value(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, dict):
@@ -1009,4 +1309,1407 @@ def downstream_impact(
 ) -> Any:
     return _json(
         _services(request).governance_queries.downstream_impact(project_id, target_type, target_id)
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/sources",
+    status_code=201,
+    operation_id="register_literature_source",
+)
+def register_literature_source(
+    project_id: UUID,
+    body: LiteratureSourceIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.register_literature_source(
+            RegisterLiteratureSource(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                kind=body.kind,
+                title=body.title,
+                request_id=idempotency_key,
+                initial_identifier_type=body.initial_identifier_type,
+                initial_identifier_value=body.initial_identifier_value,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/sources/{source_id}/identifiers",
+    status_code=201,
+    operation_id="add_source_identifier",
+)
+def add_source_identifier(
+    project_id: UUID,
+    source_id: UUID,
+    body: SourceIdentifierIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.add_source_identifier(
+            AddSourceIdentifier(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                source_id=source_id,
+                identifier_type=body.identifier_type,
+                identifier_value=body.identifier_value,
+                is_primary=body.is_primary,
+                request_id=idempotency_key,
+                binding_basis_artifact_version_id=body.binding_basis_artifact_version_id,
+                supersedes_rejected_identifier_id=body.supersedes_rejected_identifier_id,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/identifiers/{identifier_id}:verify",
+    operation_id="verify_source_identifier",
+)
+def verify_source_identifier(
+    project_id: UUID,
+    identifier_id: UUID,
+    body: IdentifierStatusIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.verify_source_identifier(
+            VerifySourceIdentifier(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                identifier_id=identifier_id,
+                basis_artifact_version_id=body.basis_artifact_version_id,
+                reason=body.reason,
+                request_id=idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/identifiers/{identifier_id}:reject",
+    operation_id="reject_source_identifier",
+)
+def reject_source_identifier(
+    project_id: UUID,
+    identifier_id: UUID,
+    body: IdentifierStatusIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).literature.reject_source_identifier(
+            RejectSourceIdentifier(
+                principal=_verified_principal(request),
+                project_id=project_id,
+                identifier_id=identifier_id,
+                basis_artifact_version_id=body.basis_artifact_version_id,
+                reason=body.reason,
+                request_id=idempotency_key,
+            )
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources/{source_id}",
+    operation_id="get_literature_source",
+)
+def get_literature_source(project_id: UUID, source_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).literature.get_literature_source(
+            _verified_principal(request), project_id, source_id
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources:resolve",
+    operation_id="find_source_by_identifier",
+)
+def find_source_by_identifier(
+    project_id: UUID,
+    request: Request,
+    identifier_type: Annotated[IdentifierType, Query()],
+    value: Annotated[str, Query(min_length=1, max_length=2048)],
+) -> Any:
+    return _json(
+        _services(request).literature.find_source_by_identifier(
+            _verified_principal(request), project_id, identifier_type, value
+        )
+    )
+
+
+def _source_version_material(source_id: UUID, body: SourceVersionIn) -> SourceVersionMaterial:
+    def reference(value: SourceVersionReferenceIn | None) -> FrozenSourceReference | None:
+        if value is None:
+            return None
+        return FrozenSourceReference(value.id, value.content_hash)
+
+    return SourceVersionMaterial(
+        literature_source_id=source_id,
+        version_kind=body.version_kind,
+        predecessor_source_version=reference(body.predecessor_source_version),
+        correction_basis_artifact=reference(body.correction_basis_artifact),
+        title=body.title,
+        abstract=body.abstract,
+        authors=tuple(body.authors),
+        publication_date=body.publication_date,
+        venue=body.venue,
+        external_version_label=body.external_version_label,
+        fulltext_artifact=reference(body.fulltext_artifact),
+        metadata=body.metadata,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/sources/{source_id}/versions",
+    status_code=201,
+    operation_id="create_source_version",
+    response_model=SourceVersionResult,
+)
+def create_source_version(
+    project_id: UUID,
+    source_id: UUID,
+    body: SourceVersionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    service: SourceVersionService = _services(request).source_versions
+    return _json(
+        service.create(
+            CreateSourceVersion(
+                _verified_principal(request),
+                project_id,
+                _source_version_material(source_id, body),
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.patch(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}",
+    operation_id="update_source_version_draft",
+    response_model=SourceVersionResult,
+)
+def update_source_version_draft(
+    project_id: UUID,
+    source_version_id: UUID,
+    body: SourceVersionIn,
+    request: Request,
+    source_id: Annotated[UUID, Query()],
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    service: SourceVersionService = _services(request).source_versions
+    return _json(
+        service.update(
+            UpdateSourceVersionDraft(
+                _verified_principal(request),
+                project_id,
+                source_version_id,
+                _source_version_material(source_id, body),
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}:freeze",
+    operation_id="freeze_source_version",
+    response_model=SourceVersionResult,
+)
+def freeze_source_version(
+    project_id: UUID,
+    source_version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_versions.freeze(
+            TransitionSourceVersion(
+                _verified_principal(request), project_id, source_version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}:abandon",
+    operation_id="abandon_source_version",
+    response_model=SourceVersionResult,
+)
+def abandon_source_version(
+    project_id: UUID,
+    source_version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_versions.abandon(
+            TransitionSourceVersion(
+                _verified_principal(request), project_id, source_version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources/{source_id}/versions",
+    operation_id="list_source_versions",
+    response_model=list[SourceVersionReadResult],
+)
+def list_source_versions(project_id: UUID, source_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).source_versions.list(_verified_principal(request), project_id, source_id)
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/source-versions/{source_version_id}",
+    operation_id="get_source_version",
+    response_model=SourceVersionReadResult,
+)
+def get_source_version(project_id: UUID, source_version_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).source_versions.get(
+            _verified_principal(request), project_id, source_version_id
+        )
+    )
+
+
+def _search_plan_service(request: Request) -> LiteratureSearchPlanService:
+    service = getattr(_services(request), "literature_search_plans", None)
+    if service is None:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.AUTHENTICATION_REQUIRED, "search plan service unavailable"
+        )
+    return service
+
+
+def _search_plan_material(
+    plan_id: UUID, body: LiteratureSearchPlanIn, *, include_refs: bool
+) -> LiteratureSearchPlanMaterial:
+    try:
+        refs = (
+            tuple(
+                FrozenResearchQuestionReference(
+                    item.research_question_id, item.version_id, item.content_hash
+                )
+                for item in body.research_question_refs
+            )
+            if include_refs
+            else ()
+        )
+        return LiteratureSearchPlanMaterial(
+            plan_id=plan_id,
+            research_question_refs=refs,
+            objective=body.objective,
+            source_scope=body.source_scope,
+            inclusion_criteria=body.inclusion_criteria,
+            exclusion_criteria=body.exclusion_criteria,
+            time_range=body.time_range,
+            language_scope=tuple(body.language_scope) if body.language_scope is not None else None,
+            search_strategy=body.search_strategy,
+            planned_providers=tuple(body.planned_providers),
+            stopping_rule=body.stopping_rule,
+        )
+    except (TypeError, ValueError) as exc:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, str(exc)) from exc
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans",
+    status_code=201,
+    operation_id="create_literature_search_plan",
+)
+def create_literature_search_plan(
+    project_id: UUID,
+    body: LiteratureSearchPlanIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).create(
+            CreateLiteratureSearchPlan(
+                _verified_principal(request),
+                project_id,
+                _search_plan_material(uuid4(), body, include_refs=True),
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/search-plans", operation_id="list_literature_search_plans"
+)
+def list_literature_search_plans(project_id: UUID, request: Request) -> Any:
+    return _json(_search_plan_service(request).list(_verified_principal(request), project_id))
+
+
+@router.get(
+    "/projects/{project_id}/literature/search-plans/{plan_id}",
+    operation_id="get_literature_search_plan",
+)
+def get_literature_search_plan(project_id: UUID, plan_id: UUID, request: Request) -> Any:
+    return _json(
+        _search_plan_service(request).get(_verified_principal(request), project_id, plan_id)
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}:revise",
+    operation_id="revise_literature_search_plan",
+)
+def revise_literature_search_plan(
+    project_id: UUID,
+    plan_id: UUID,
+    base_version_id: Annotated[UUID, Query()],
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).revise(
+            ReviseLiteratureSearchPlan(
+                _verified_principal(request), project_id, plan_id, base_version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.put(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}",
+    operation_id="update_literature_search_plan_draft",
+)
+def update_literature_search_plan_draft(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    body: LiteratureSearchPlanIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    if body.research_question_refs:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "question relations use the dedicated add/remove commands",
+        )
+    material = _search_plan_material(plan_id, body, include_refs=False)
+    return _json(
+        _search_plan_service(request).update(
+            UpdateLiteratureSearchPlanDraft(
+                _verified_principal(request),
+                project_id,
+                plan_id,
+                version_id,
+                material,
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}/questions",
+    operation_id="add_literature_search_plan_question",
+)
+def add_literature_search_plan_question(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    research_question_version_id: Annotated[UUID, Query()],
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).add_question(
+            EditLiteratureSearchPlanQuestions(
+                _verified_principal(request),
+                project_id,
+                plan_id,
+                version_id,
+                research_question_version_id,
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.delete(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}/questions/{research_question_id}",
+    operation_id="remove_literature_search_plan_question",
+)
+def remove_literature_search_plan_question(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    research_question_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).remove_question(
+            RemoveLiteratureSearchPlanQuestion(
+                _verified_principal(request),
+                project_id,
+                plan_id,
+                version_id,
+                research_question_id,
+                idempotency_key,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}:freeze",
+    operation_id="freeze_literature_search_plan",
+)
+def freeze_literature_search_plan(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).freeze(
+            TransitionLiteratureSearchPlanVersion(
+                _verified_principal(request), project_id, plan_id, version_id, idempotency_key
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/search-plans/{plan_id}/versions/{version_id}:abandon",
+    operation_id="abandon_literature_search_plan",
+)
+def abandon_literature_search_plan(
+    project_id: UUID,
+    plan_id: UUID,
+    version_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _search_plan_service(request).abandon(
+            TransitionLiteratureSearchPlanVersion(
+                _verified_principal(request), project_id, plan_id, version_id, idempotency_key
+            )
+        )
+    )
+
+
+def _search_execution_service(request: Request) -> LiteratureSearchExecutionService:
+    service = getattr(_services(request), "literature_search_executions", None)
+    if service is None:
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        raise ResearchBaseError(ErrorCode.ADAPTER_UNAVAILABLE, "search adapter unavailable")
+    return service
+
+
+@router.post(
+    "/literature/search-executions",
+    status_code=201,
+    operation_id="create_literature_search_execution",
+)
+def create_literature_search_execution(
+    body: LiteratureSearchExecutionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    principal = _verified_principal(request)
+    return _json(
+        _search_execution_service(request).create(
+            CreateLiteratureSearchExecution(
+                project_id=body.project_id,
+                plan_version_id=body.search_plan_version_id,
+                actor_id=principal.actor_id,
+                deployment_id=principal.deployment_id,
+                request_id=idempotency_key,
+                provider_id=body.provider_id,
+                provider_version=body.provider_version,
+                queries=tuple(
+                    SearchQueryInput(item.query_text, item.perspective, item.query_type)
+                    for item in body.queries
+                ),
+                max_results=body.max_results,
+                max_provider_attempts=body.max_provider_attempts,
+                timeout_seconds=body.timeout_seconds,
+                execution_budget_seconds=body.execution_budget_seconds,
+                principal=principal,
+            )
+        )
+    )
+
+
+def _execution_command(
+    command_type: type[
+        ExecuteLiteratureSearchExecution
+        | CancelLiteratureSearchExecution
+        | RecoverLiteratureSearchExecution
+    ],
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    request_id: UUID,
+) -> Any:
+    principal = _verified_principal(request)
+    command = command_type(
+        execution_id=execution_id,
+        actor_id=principal.actor_id,
+        deployment_id=principal.deployment_id,
+        request_id=request_id,
+        project_id=body.project_id,
+        principal=principal,
+    )
+    service = _search_execution_service(request)
+    method = {
+        ExecuteLiteratureSearchExecution: service.execute,
+        CancelLiteratureSearchExecution: service.cancel,
+        RecoverLiteratureSearchExecution: service.recover,
+    }[command_type]
+    return _json(method(command))
+
+
+@router.post(
+    "/literature/search-executions/{execution_id}:execute",
+    status_code=202,
+    operation_id="execute_literature_search_execution",
+)
+async def execute_literature_search_execution(
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    disconnected = Event()
+    context_token = _http_disconnect.set(disconnected)
+
+    async def watch_disconnect() -> None:
+        while True:
+            if (await request.receive())["type"] == "http.disconnect":
+                disconnected.set()
+                return
+
+    watcher = asyncio.create_task(watch_disconnect())
+    try:
+        return await run_in_threadpool(
+            lambda: _execution_command(
+                ExecuteLiteratureSearchExecution, execution_id, body, request, idempotency_key
+            ),
+        )
+    finally:
+        watcher.cancel()
+        try:
+            with suppress(asyncio.CancelledError):
+                await watcher
+        finally:
+            _http_disconnect.reset(context_token)
+
+
+@router.post(
+    "/literature/search-executions/{execution_id}:cancel",
+    status_code=202,
+    operation_id="cancel_literature_search_execution",
+)
+def cancel_literature_search_execution(
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _execution_command(
+        CancelLiteratureSearchExecution, execution_id, body, request, idempotency_key
+    )
+
+
+@router.post(
+    "/literature/search-executions/{execution_id}:recover",
+    status_code=202,
+    operation_id="recover_literature_search_execution",
+)
+def recover_literature_search_execution(
+    execution_id: UUID,
+    body: LiteratureSearchExecutionScopeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _execution_command(
+        RecoverLiteratureSearchExecution, execution_id, body, request, idempotency_key
+    )
+
+
+@router.get(
+    "/literature/search-executions/{execution_id}",
+    operation_id="get_literature_search_execution",
+)
+def get_literature_search_execution(
+    execution_id: UUID, project_id: Annotated[UUID, Query()], request: Request
+) -> Any:
+    return _json(
+        _search_execution_service(request).get(
+            _verified_principal(request), project_id, execution_id
+        )
+    )
+
+
+@router.get(
+    "/literature/search-executions",
+    operation_id="list_literature_search_executions",
+)
+def list_literature_search_executions(
+    project_id: Annotated[UUID, Query()],
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    after: Annotated[UUID | None, Query()] = None,
+) -> Any:
+    return _json(
+        _search_execution_service(request).list(
+            _verified_principal(request), project_id, limit, after
+        )
+    )
+
+
+@router.get(
+    "/literature/search-executions/{execution_id}/provenance",
+    operation_id="get_literature_search_execution_provenance",
+)
+def get_literature_search_execution_provenance(
+    execution_id: UUID, project_id: Annotated[UUID, Query()], request: Request
+) -> Any:
+    return _json(
+        _search_execution_service(request).get_provenance(
+            _verified_principal(request), project_id, execution_id
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/literature/sources/{source_id}/identifiers",
+    operation_id="list_source_identifiers",
+)
+def list_source_identifiers(project_id: UUID, source_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).literature.list_source_identifiers(
+            _verified_principal(request), project_id, source_id
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals",
+    status_code=201,
+    operation_id="propose_source_merge",
+    response_model=SourceMergeProposalResult,
+)
+def propose_source_merge(
+    project_id: UUID,
+    body: SourceMergeProposalIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_merge.propose(
+            ProposeSourceMerge(
+                _verified_principal(request),
+                project_id,
+                body.source_a_id,
+                body.source_b_id,
+                body.canonical_survivor_id,
+                body.rationale,
+                idempotency_key,
+                body.supersedes_proposal_id,
+                tuple(body.evidence_artifact_ids),
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:approve",
+    operation_id="approve_source_merge",
+    response_model=SourceMergeDecisionResult,
+)
+def approve_source_merge(
+    project_id: UUID,
+    proposal_id: UUID,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_merge.decide(
+            DecideSourceMerge(
+                _verified_principal(request), project_id, proposal_id, "APPROVE", idempotency_key
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:reject",
+    operation_id="reject_source_merge",
+    response_model=SourceMergeDecisionResult,
+)
+def reject_source_merge(
+    project_id: UUID,
+    proposal_id: UUID,
+    body: SourceMergeDecisionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    return _json(
+        _services(request).source_merge.decide(
+            DecideSourceMerge(
+                _verified_principal(request),
+                project_id,
+                proposal_id,
+                "REJECT",
+                idempotency_key,
+                body.reason,
+            )
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:revoke",
+    operation_id="revoke_source_merge_approval",
+    response_model=SourceMergeRevocationResult,
+)
+def revoke_source_merge_approval(
+    project_id: UUID,
+    proposal_id: UUID,
+    body: SourceMergeDecisionIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    _services(request).source_merge.revoke(
+        RevokeSourceMergeApproval(
+            _verified_principal(request),
+            project_id,
+            proposal_id,
+            body.reason or "",
+            idempotency_key,
+        )
+    )
+    return {"status": "REVOKED"}
+
+
+@router.get(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}",
+    operation_id="get_source_merge_proposal",
+    response_model=SourceMergeProposalStatus,
+)
+def get_source_merge_proposal(project_id: UUID, proposal_id: UUID, request: Request) -> Any:
+    return _json(
+        _services(request).source_merge.get(_verified_principal(request), project_id, proposal_id)
+    )
+
+
+@router.post(
+    "/projects/{project_id}/literature/source-merge-proposals/{proposal_id}:consume",
+    operation_id="consume_source_merge_proposal",
+    response_model=SourceMergeRecordResult,
+)
+def consume_source_merge_proposal(
+    project_id: UUID,
+    proposal_id: UUID,
+    body: SourceMergeConsumeIn,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+) -> Any:
+    service: SourceMergeExecutionService = _services(request).source_merge_execution
+    return _json(
+        service.consume(
+            ConsumeSourceMergeProposal(
+                _verified_principal(request),
+                project_id,
+                proposal_id,
+                body.proposal_basis_hash,
+                FrozenSourceReference(
+                    body.identity_basis_artifact.id,
+                    body.identity_basis_artifact.content_hash,
+                ),
+                idempotency_key,
+            )
+        )
+    )
+
+
+def _novelty_uuid(value):
+    if type(value) is UUID:
+        return value
+    if not isinstance(value, str):
+        raise ValueError("canonical UUID required")
+    parsed = UUID(value)
+    if str(parsed) != value:
+        raise ValueError("canonical UUID required")
+    return parsed
+
+
+NoveltyUUID = Annotated[UUID, BeforeValidator(_novelty_uuid)]
+
+
+class SearchCoverageIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    search_plan_version_id: NoveltyUUID
+    search_execution_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    coverage_limitations: str
+
+
+class PriorArtIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    claim_version_id: NoveltyUUID
+    source_version_id: NoveltyUUID
+    relation: PriorArtKind
+    rationale: str
+    literature_evidence_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    supersedes_prior_art_relation_id: NoveltyUUID | None = None
+
+
+class PriorArtSelectionIn(InputModel):
+    claim_version_id: NoveltyUUID
+    source_version_id: NoveltyUUID
+
+
+class PriorArtBasisIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    prior_art_relation_id: NoveltyUUID
+    search_result_resolution_id: NoveltyUUID
+
+
+class ClosenessCriteriaIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    statements: tuple[str, ...] = Field(min_length=1, max_length=100)
+
+
+class ProbeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    search_execution_id: NoveltyUUID
+    query_index: Annotated[int, Field(strict=True, ge=0, le=31)]
+    disposition: ProbeDisposition
+    rationale: str
+
+
+class ScreeningResultIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    search_result_record_id: NoveltyUUID
+    disposition: ScreeningDisposition
+    criteria_ordinals: tuple[Annotated[int, Field(strict=True, ge=0, le=99)], ...] = Field(
+        min_length=1, max_length=100
+    )
+    rationale: str
+    prior_art_relation_id: NoveltyUUID | None = None
+    search_result_resolution_id: NoveltyUUID | None = None
+
+
+class ScreeningBasisIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    probes: tuple[ProbeIn, ...] = Field(min_length=1, max_length=3200)
+    results: tuple[ScreeningResultIn, ...] = Field(max_length=10000)
+
+
+class NoveltyAssessmentIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    claim_version_id: NoveltyUUID
+    search_coverage_id: NoveltyUUID
+    assessment: NoveltyOutcome
+    limitations: str
+    supersedes_assessment_id: NoveltyUUID | None = None
+    prior_art_basis: tuple[PriorArtBasisIn, ...] = Field(default=(), max_length=100)
+    scope_statement: str | None = None
+    closeness_criteria: ClosenessCriteriaIn | None = None
+    screening_basis: ScreeningBasisIn | None = None
+
+
+@router.post(
+    "/projects/{project_id}/search-coverage",
+    operation_id="record_search_coverage",
+    response_model=_response_schema(SearchCoverageReadback),
+)
+def record_search_coverage(project_id: NoveltyUUID, body: SearchCoverageIn, request: Request):
+    return _json(
+        _services(request).novelty.record_search_coverage(
+            _verified_principal(request),
+            RecordSearchCoverageCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/search-coverage/{id}",
+    operation_id="read_search_coverage",
+    response_model=_response_schema(SearchCoverageReadback),
+)
+def read_search_coverage(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).novelty.read_search_coverage(
+            _verified_principal(request), ExactReadQuery(project_id, id)
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/prior-art-relations",
+    operation_id="record_prior_art_relation",
+    response_model=_response_schema(PriorArtReadback),
+)
+def record_prior_art_relation(project_id: NoveltyUUID, body: PriorArtIn, request: Request):
+    return _json(
+        _services(request).novelty.record_prior_art_relation(
+            _verified_principal(request),
+            RecordPriorArtRelationCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/prior-art-relations/selection",
+    operation_id="select_prior_art_relation",
+    response_model=_response_schema(PriorArtSelectionReadback),
+)
+def select_prior_art_relation(
+    project_id: NoveltyUUID,
+    query: Annotated[PriorArtSelectionIn, Query()],
+    request: Request,
+):
+    return _json(
+        _services(request).novelty.select_prior_art_relation(
+            _verified_principal(request),
+            PriorArtSelectionQuery(project_id, query.claim_version_id, query.source_version_id),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/prior-art-relations/{id}",
+    operation_id="read_prior_art_relation",
+    response_model=_response_schema(PriorArtReadback),
+)
+def read_prior_art_relation(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).novelty.read_prior_art_relation(
+            _verified_principal(request), ExactReadQuery(project_id, id)
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/novelty-assessments",
+    operation_id="record_novelty_assessment",
+    response_model=_response_schema(NoveltyReadback),
+)
+def record_novelty_assessment(project_id: NoveltyUUID, body: NoveltyAssessmentIn, request: Request):
+    try:
+        command = RecordNoveltyAssessmentCommand(
+            project_id=project_id,
+            **body.model_dump(exclude={"prior_art_basis", "closeness_criteria", "screening_basis"}),
+            screening_basis=ScreeningBasisInput(
+                tuple(ProbeInput(**x.model_dump()) for x in body.screening_basis.probes),
+                tuple(ScreeningResultInput(**x.model_dump()) for x in body.screening_basis.results),
+            )
+            if body.screening_basis is not None
+            else None,
+            prior_art_basis=tuple(
+                PriorArtBasisInput(**x.model_dump()) for x in body.prior_art_basis
+            ),
+            closeness_criteria=ClosenessCriteria(body.closeness_criteria.statements)
+            if body.closeness_criteria
+            else None,
+        )
+    except (ValueError, TypeError):
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "invalid closed novelty command"
+        ) from None
+    return _json(
+        _services(request).novelty.record_novelty_assessment(_verified_principal(request), command)
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-assessments/{id}",
+    operation_id="read_novelty_assessment",
+    response_model=_response_schema(NoveltyReadback),
+)
+def read_novelty_assessment(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).novelty.read_novelty_assessment(
+            _verified_principal(request), ExactReadQuery(project_id, id)
+        )
+    )
+
+
+class NoveltyReviewIssueIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    severity: Literal["INFO", "MINOR", "MAJOR", "BLOCKING"]
+    issue_type: Literal[
+        "UNSUPPORTED_CLAIM",
+        "CITATION",
+        "STATISTICAL",
+        "METHODOLOGICAL",
+        "REPRODUCIBILITY",
+        "OVERCLAIM",
+        "CONTRADICTION",
+        "NOVELTY",
+        "WRITING",
+        "OTHER",
+    ]
+    description: str
+
+
+class NoveltyReviewIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target_id: NoveltyUUID
+    review_type: Literal[
+        "SCIENTIFIC", "STATISTICAL", "LITERATURE", "REPRODUCIBILITY", "EDITORIAL", "COMPREHENSIVE"
+    ]
+    recommendation: Literal["ACCEPT", "MINOR_REVISION", "MAJOR_REVISION", "REJECT", "UNCERTAIN"]
+    summary: StrictStr
+    issues: tuple[NoveltyReviewIssueIn, ...] = Field(max_length=100)
+    request: NoveltyUUID
+
+
+class NoveltyRevisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    review_issue_id: NoveltyUUID
+    result_novelty_assessment_id: NoveltyUUID
+    supersedes_revision_action_id: NoveltyUUID | None = None
+
+
+@router.post(
+    "/projects/{project_id}/novelty-reviews",
+    status_code=201,
+    operation_id="record_novelty_review",
+    response_model=_response_schema(NoveltyReviewReadback),
+)
+def record_novelty_review(project_id: NoveltyUUID, body: NoveltyReviewIn, request: Request):
+    return _json(
+        _services(request).internal_reviews.create(
+            _verified_principal(request),
+            project_id,
+            "NOVELTY_ASSESSMENT",
+            body.target_id,
+            body.review_type,
+            body.recommendation,
+            body.summary,
+            tuple(ReviewIssueRequest(**i.model_dump()) for i in body.issues),
+            body.request,
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-reviews/{id}",
+    operation_id="read_novelty_review",
+    response_model=_response_schema(NoveltyReviewReadback),
+)
+def read_novelty_review(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    value = _services(request).internal_reviews.read(_verified_principal(request), project_id, id)
+    if type(value) is not NoveltyReviewReadback:
+        raise ResearchBaseError(ErrorCode.NOT_FOUND, "novelty review not found")
+    return _json(value)
+
+
+@router.post(
+    "/projects/{project_id}/novelty-revision-actions",
+    status_code=201,
+    operation_id="record_novelty_revision",
+    response_model=_response_schema(NoveltyRevisionReadback),
+)
+def record_novelty_revision(project_id: NoveltyUUID, body: NoveltyRevisionIn, request: Request):
+    return _json(
+        _services(request).revision_actions.record_novelty_revision(
+            _verified_principal(request),
+            RecordNoveltyRevisionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-revision-actions/{id}",
+    operation_id="read_novelty_revision",
+    response_model=_response_schema(NoveltyRevisionReadback),
+)
+def read_novelty_revision(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    value = _services(request).revision_actions.read_revision_action(
+        _verified_principal(request), project_id, id
+    )
+    if type(value) is not NoveltyRevisionReadback:
+        raise ResearchBaseError(ErrorCode.NOT_FOUND, "novelty revision not found")
+    return _json(value)
+
+
+@router.post(
+    "/projects/{project_id}/novelty-revision-actions/{id}/re-reviews/{review_id}",
+    status_code=201,
+    operation_id="link_novelty_re_review",
+    response_model=_response_schema(NoveltyReReviewReadback),
+)
+def link_novelty_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.record_concern_re_review(
+            _verified_principal(request),
+            RecordConcernReReviewCommand(project_id, id, review_id),
+            novelty=True,
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/novelty-revision-actions/{id}/re-reviews/{review_id}",
+    operation_id="read_novelty_re_review",
+    response_model=_response_schema(NoveltyReReviewReadback),
+)
+def read_novelty_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.read_novelty_re_review(
+            _verified_principal(request), project_id, id, review_id
+        )
+    )
+
+
+class RevisionDecisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    review_issue_id: NoveltyUUID
+    question: StrictStr
+    rationale: StrictStr
+    decision: Literal["REQUIRE_CHANGE", "ACCEPT_NO_CHANGE"]
+    decision_type: Literal["REVISION_RESPONSE"] = "REVISION_RESPONSE"
+
+
+class RevisionActionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    action_type: Literal[
+        "NEW_EXPERIMENT",
+        "ANALYSIS_CHANGE",
+        "CLAIM_CHANGE",
+        "CONCLUSION_CHANGE",
+        "MANUSCRIPT_CHANGE",
+        "SOURCE_CHANGE",
+        "NO_CHANGE",
+    ]
+    review_issue_id: NoveltyUUID | None = None
+    decision_record_id: NoveltyUUID | None = None
+    result_experiment_spec_version_id: NoveltyUUID | None = None
+    result_run_id: NoveltyUUID | None = None
+    result_statistical_result_id: NoveltyUUID | None = None
+    result_claim_version_id: NoveltyUUID | None = None
+    result_scientific_conclusion_version_id: NoveltyUUID | None = None
+    result_manuscript_version_id: NoveltyUUID | None = None
+    result_source_version_id: NoveltyUUID | None = None
+    supersedes_revision_action_id: NoveltyUUID | None = None
+
+
+class IssueDispositionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    review_issue_id: NoveltyUUID
+    disposition: Literal["ADDRESSED", "DISMISSED"]
+    revision_action_id: NoveltyUUID
+    re_review_record_id: NoveltyUUID
+    rationale: StrictStr
+    decision_id: NoveltyUUID | None = None
+
+
+@router.post(
+    "/projects/{project_id}/revision-decisions",
+    status_code=201,
+    operation_id="record_revision_decision",
+    response_model=_response_schema(RevisionDecisionReadback),
+)
+def record_revision_decision(project_id: NoveltyUUID, body: RevisionDecisionIn, request: Request):
+    return _json(
+        _services(request).decisions.record_revision_decision(
+            _verified_principal(request),
+            RecordRevisionDecisionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/revision-decisions/{id}",
+    operation_id="get_revision_decision",
+    response_model=_response_schema(RevisionDecisionReadback),
+)
+def get_revision_decision(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).decisions.get_revision_decision(
+            _verified_principal(request), project_id, id
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/revision-actions",
+    status_code=201,
+    operation_id="record_revision_action",
+    response_model=_response_schema(RevisionActionReadback),
+)
+def record_revision_action(project_id: NoveltyUUID, body: RevisionActionIn, request: Request):
+    return _json(
+        _services(request).revision_actions.record_revision_action(
+            _verified_principal(request),
+            RecordRevisionActionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/revision-actions/{id}",
+    operation_id="get_revision_action",
+    response_model=_response_schema(RevisionActionReadback),
+)
+def get_revision_action(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    value = _services(request).revision_actions.read_revision_action(
+        _verified_principal(request), project_id, id
+    )
+    if type(value) is not RevisionActionReadback:
+        raise ResearchBaseError(ErrorCode.NOT_FOUND, "revision action not found")
+    return _json(value)
+
+
+@router.post(
+    "/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}",
+    status_code=201,
+    operation_id="record_revision_re_review",
+    response_model=_response_schema(ConcernReReviewReadback),
+)
+def record_revision_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.record_concern_re_review(
+            _verified_principal(request), RecordConcernReReviewCommand(project_id, id, review_id)
+        )
+    )
+
+
+@router.post(
+    "/projects/{project_id}/issue-dispositions",
+    status_code=201,
+    operation_id="record_issue_disposition",
+    response_model=_response_schema(IssueDispositionReadback),
+)
+def record_issue_disposition(project_id: NoveltyUUID, body: IssueDispositionIn, request: Request):
+    return _json(
+        _services(request).internal_reviews.record_issue_disposition(
+            _verified_principal(request),
+            RecordIssueDispositionCommand(project_id=project_id, **body.model_dump()),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/issue-dispositions/{id}",
+    operation_id="get_issue_disposition",
+    response_model=_response_schema(IssueDispositionReadback),
+)
+def get_issue_disposition(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).internal_reviews.get_issue_disposition(
+            _verified_principal(request), project_id, id
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/review-issues/{id}/history",
+    operation_id="get_issue_history",
+    response_model=_response_schema(IssueHistoryReadback),
+)
+def get_issue_history(project_id: NoveltyUUID, id: NoveltyUUID, request: Request):
+    return _json(
+        _services(request).internal_reviews.get_issue_history(
+            _verified_principal(request), project_id, id
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}",
+    operation_id="get_revision_re_review",
+    response_model=_response_schema(ConcernReReviewReadback),
+)
+def get_revision_re_review(
+    project_id: NoveltyUUID, id: NoveltyUUID, review_id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).revision_actions.get_concern_re_review(
+            _verified_principal(request),
+            RecordConcernReReviewCommand(project_id, id, review_id),
+        )
+    )
+
+
+class ManuscriptReconsiderationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: NoveltyUUID
+    manuscript_version_id: NoveltyUUID
+    approval_purpose: Literal["READY_FOR_SUBMISSION", "PREPARE_SUBMISSION"]
+    decision: Literal["CORRECTED_REVIEW"]
+    rationale: StrictStr
+    rejected_approval_decision_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    fresh_review_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    corrected_review_ids: tuple[NoveltyUUID, ...] = Field(min_length=1, max_length=100)
+    revision_action_ids: tuple[NoveltyUUID, ...] = Field(default=(), max_length=0)
+
+
+@router.post(
+    "/projects/{project_id}/manuscript-rejection-reconsiderations",
+    status_code=201,
+    operation_id="record_manuscript_rejection_reconsideration",
+    response_model=_response_schema(RejectionReconsiderationReadback),
+)
+def record_manuscript_rejection_reconsideration(
+    project_id: NoveltyUUID, body: ManuscriptReconsiderationIn, request: Request
+):
+    return _json(
+        _services(request).decisions.record_manuscript_rejection_reconsideration(
+            RecordManuscriptRejectionReconsiderationCommand(
+                project_id=project_id, **body.model_dump()
+            ),
+            _verified_principal(request),
+        )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/manuscript-rejection-reconsiderations/{id}",
+    operation_id="get_manuscript_rejection_reconsideration",
+    response_model=_response_schema(RejectionReconsiderationReadback),
+)
+def get_manuscript_rejection_reconsideration(
+    project_id: NoveltyUUID, id: NoveltyUUID, request: Request
+):
+    return _json(
+        _services(request).decisions.get_manuscript_rejection_reconsideration(
+            project_id, id, _verified_principal(request)
+        )
     )

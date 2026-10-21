@@ -526,6 +526,14 @@ class SqlAlchemyHypothesisRepository:
 
 
 class SqlAlchemyExperimentSpecRepository:
+    def get_many(self, identities: set[ExperimentSpecId]) -> list[ExperimentSpec]:
+        if not identities:
+            return []
+        rows = self._session.scalars(
+            select(ExperimentSpecModel).where(ExperimentSpecModel.id.in_(identities))
+        ).all()
+        return [_experiment_spec_from_model(row) for row in rows]
+
     def __init__(self, session: Session) -> None:
         self._session = session
 
@@ -699,6 +707,14 @@ class SqlAlchemyExperimentSpecRepository:
 
 
 class SqlAlchemyDatasetRepository:
+    def get_many(self, identities: set[DatasetId]) -> list[Dataset]:
+        if not identities:
+            return []
+        rows = self._session.scalars(
+            select(DatasetModel).where(DatasetModel.id.in_(identities))
+        ).all()
+        return [_dataset_from_model(row) for row in rows]
+
     def __init__(self, session: Session) -> None:
         self._session = session
 
@@ -765,6 +781,14 @@ class SqlAlchemyDatasetSnapshotRepository:
 
 
 class SqlAlchemyArtifactRepository:
+    def get_many(self, identities: set[ArtifactId]) -> list[Artifact]:
+        if not identities:
+            return []
+        rows = self._session.scalars(
+            select(ArtifactModel).where(ArtifactModel.id.in_(identities))
+        ).all()
+        return [_artifact_from_model(row) for row in rows]
+
     def __init__(self, session: Session) -> None:
         self._session = session
 
@@ -920,6 +944,14 @@ class SqlAlchemyArtifactVersionRepository:
 
 
 class SqlAlchemyMetricDefinitionRepository:
+    def get_many(self, identities: set[MetricDefinitionId]) -> list[MetricDefinition]:
+        if not identities:
+            return []
+        rows = self._session.scalars(
+            select(MetricDefinitionModel).where(MetricDefinitionModel.id.in_(identities))
+        ).all()
+        return [_metric_definition_from_model(row) for row in rows]
+
     def __init__(self, session: Session) -> None:
         self._session = session
 

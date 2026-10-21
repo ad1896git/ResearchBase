@@ -1,0 +1,15 @@
+--- 0073/b14_verify_ready.sql
++++ 0074/b14_verify_ready.sql
+@@ -26,11 +26,11 @@
+   OR p.current_manuscript_version_id IS DISTINCT FROM m.id OR m.content_hash IS DISTINCT FROM r.target_content_hash
+   OR m.hash_scheme IS DISTINCT FROM r.target_hash_scheme
+   OR e.basis_decision_id IS DISTINCT FROM r.basis_decision_id
+   OR e.actor_id IS DISTINCT FROM c.actor_id OR e.occurred_at IS DISTINCT FROM c.consumed_at
+   OR ge.actor_id IS DISTINCT FROM c.actor_id OR ge.occurred_at IS DISTINCT FROM c.consumed_at OR ge.new_status<>'CONSUMED'
+-  OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=pid AND new_status='INTERNAL_REVIEW' AND manuscript_version_id=m.id AND occurred_at<=e.occurred_at)
++  OR NOT EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE publication_id=pid AND new_status='INTERNAL_REVIEW' AND occurred_at<=e.occurred_at AND manuscript_version_id IN (SELECT id FROM manuscript_versions WHERE publication_id=pid AND status='FROZEN' AND version_number<=m.version_number))
+   OR (SELECT count(*) FROM publication_lifecycle_events WHERE publication_id=pid)<>3 THEN
+   RAISE EXCEPTION 'complete READY graph required' USING ERRCODE='P17F2'; END IF;
+  PERFORM b14r_saved_decision(r.basis_decision_id,m.id,p.project_id);
+  IF EXISTS(SELECT 1 FROM approval_grant_consumptions WHERE id=c.id AND xmin=pg_current_xact_id()::xid)
+  OR EXISTS(SELECT 1 FROM publication_lifecycle_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid)

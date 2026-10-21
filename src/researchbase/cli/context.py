@@ -33,6 +33,7 @@ class CliRuntime:
 
     services: CliServices
     request_id: UUID
+    request_id_supplied: bool
     actor_id: UUID | None
     correlation_id: UUID | None
     causation_id: UUID | None
@@ -77,6 +78,7 @@ def create_runtime(
     return CliRuntime(
         services=services,
         request_id=effective_request_id,
+        request_id_supplied=request_id is not None,
         actor_id=parse_uuid_option(actor_id, "--actor-id", effective_request_id),
         correlation_id=parse_uuid_option(correlation_id, "--correlation-id", effective_request_id),
         causation_id=parse_uuid_option(causation_id, "--causation-id", effective_request_id),

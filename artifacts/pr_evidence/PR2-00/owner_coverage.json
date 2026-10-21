@@ -1,0 +1,13 @@
+{
+  "implementation_subject": "5b65f6983dd627757ac7ab7b1fb6befe0a832573",
+  "postgresql_version": "18.6",
+  "focused_command": "uv run pytest -o addopts='' tests/integration/phase2/test_pr2_00_identity.py tests/integration/phase2/test_pr2_00_ownership.py -ra",
+  "result": "4 passed",
+  "additional_bootstrap_coverage": "9 bootstrap integration tests passed in full regression",
+  "scenarios": [
+    "contiguous OWNER coverage accepts a touching successor",
+    "last-owner role closure, membership suspension, binding revocation and actor retirement are denied without history loss",
+    "reactivation creates new membership and role rows while retaining prior history",
+    "new project creation includes continuous OWNER coverage"
+  ]
+}

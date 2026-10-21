@@ -1,0 +1,28 @@
+--- 0073/b07_review.sql
++++ 0074/b07_review.sql
+@@ -2,20 +2,21 @@
+  RETURNS void
+  LANGUAGE plpgsql
+ AS $function$
+ DECLARE tid UUID; kind TEXT; digest TEXT;
+ BEGIN
+-  tid:=coalesce(r.claim_version_id,r.scientific_conclusion_version_id);
+-  kind:=CASE WHEN r.claim_version_id IS NOT NULL THEN 'ClaimVersion' ELSE 'ScientificConclusionVersion' END;
+-  PERFORM b07_target(tid,r.project_id,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END);
++  tid:=coalesce(r.claim_version_id,r.scientific_conclusion_version_id,r.manuscript_version_id);
++  kind:=CASE WHEN r.claim_version_id IS NOT NULL THEN 'ClaimVersion' WHEN r.manuscript_version_id IS NOT NULL THEN 'ManuscriptVersion' ELSE 'ScientificConclusionVersion' END;
++  PERFORM b07_target(tid,r.project_id,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' WHEN r.manuscript_version_id IS NOT NULL THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END);
+   IF r.claim_version_id IS NOT NULL THEN SELECT content_hash INTO digest FROM claim_versions WHERE id=tid;
++  ELSIF r.manuscript_version_id IS NOT NULL THEN SELECT content_hash INTO digest FROM manuscript_versions WHERE id=tid;
+   ELSE SELECT content_hash INTO digest FROM scientific_conclusion_versions WHERE id=tid; END IF;
+   IF r.created_at>clock_timestamp() OR r.target_content_hash IS DISTINCT FROM digest OR r.hash_scheme<>'sha256-cjson-v1'
+     OR r.content_hash IS DISTINCT FROM pr216_hash(jsonb_build_object('type','InternalReviewRecord','material_version',1,
+       'project_id',r.project_id,'target',pr216_ref(kind,tid,digest),'reviewer_actor_id',r.reviewer_actor_id,
+       'review_type',r.review_type,'recommendation',r.recommendation,'summary',r.summary))
+-    OR r.reviewer_actor_id IN (SELECT b07_authors(tid,CASE WHEN kind='ClaimVersion' THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END)) OR NOT EXISTS(
++    OR r.reviewer_actor_id IN (SELECT b07_authors(tid,CASE WHEN kind='ClaimVersion' THEN 'claim_versions' WHEN kind='ManuscriptVersion' THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END)) OR NOT EXISTS(
+       SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id
+       JOIN project_role_assignments role ON role.membership_id=m.id AND role.actor_id=m.actor_id AND role.project_id=m.project_id
+       WHERE a.id=r.reviewer_actor_id AND a.actor_type='HUMAN' AND a.created_at<=r.created_at
+         AND (a.retired_at IS NULL OR r.created_at<a.retired_at) AND m.project_id=r.project_id AND m.started_at<=r.created_at
+         AND role.role IN ('OWNER','REVIEWER') AND role.effective_from<=r.created_at AND (role.effective_until IS NULL OR r.created_at<role.effective_until)

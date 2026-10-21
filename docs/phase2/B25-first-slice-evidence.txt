@@ -1,0 +1,86 @@
+B25 manuscript validity and audit projection — first slice evidence
+Owner authorization: 2026-10-17
+
+Implemented scope
+- Application-only GetManuscriptValidityQuery/GetManuscriptAuditQuery and frozen,
+  closed readbacks in application/manuscript_validity.py.
+- Exact Project/Publication/FROZEN ManuscriptVersion scope, existing HUMAN reader
+  policy, fresh credential/time checks before return, and one caller-owned UoW.
+- First SQL is SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY.
+  No explicit table/advisory/row locks, commits, receipts or canonical writes.
+- Same-UoW B04 verification hooks collect typed witnesses and every occurrence
+  through experimental inputs, literature snapshots, evidence, source lineage
+  and artifacts. INVALID dominates STALE independent of branch order. Historical
+  predecessors retain local validity witnesses but do not own current validity.
+- Audit embeds the existing scientific trace builder in the same snapshot. Exact
+  nonlocking review selection, literal hashes, historical reviewer authorization,
+  single-target shape and complete OPEN Issue/event history are verified before
+  selecting concerns and all-type blocking IDs. Concerns do not change validity.
+- Fixed row/node/path ceilings fail closed. A Session-local B25 SELECT guard
+  applies LIMIT 10001 before DBAPI materialization; snapshot predecessor chains
+  are bounded before owner hydration. Existing public readers retain their mode.
+- Existing hash payloads, error codes and transport mappings are unchanged.
+
+Scope reconciliation/substitutions
+- Zero migrations: approved contract section 12.1 governs. The generic instruction
+  to add one migration was not applied, as clarified by the owner/reviewer.
+  No migrations, migration inventories, schemas or architecture files changed.
+- No B25 writes exist. Existing B04/B05 write inventories and first-statement
+  SHARE/READ COMMITTED protocols are retained and covered by regression tests.
+- No path substitutions were needed. The shipped SourceVersionKind enum is reused
+  unchanged; it also contains WEB_SNAPSHOT and OTHER beyond the proposal's list.
+- No adapters, workflow transitions, dependencies, commits, pushes or branches.
+
+Environment
+All commands below used UV_CACHE_DIR=/private/tmp/rb-lane16-uv. Existing configured
+RB_TEST_ADMIN_URL selected disposable local PostgreSQL 18 databases. No SQLite.
+
+Final static checks
+uv run --frozen pyright
+  0 errors, 0 warnings, 0 informations; exit 0.
+uv run --frozen ruff format --check .
+  577 files already formatted; exit 0.
+uv run --frozen ruff check .
+  All checks passed; exit 0.
+git diff --check
+  No output; exit 0.
+
+Unit and architecture selection
+uv run --frozen pytest tests/unit tests/architecture -o addopts='' -q -rfE -p no:cacheprovider --tb=short --show-capture=no
+  2460 passed, 0 failed, 0 skipped; 41 warnings; 49.73s; exit 0.
+  Includes B04/B05 contract/hash vectors and the B25 contract/boundary tests.
+  Earlier development run: 2458 passed, 2 failed while files were being edited
+  (in-progress static diagnostics and changing evidence subject). Corrected and
+  rerun with stable files; the result above supersedes that development run.
+
+B25 PostgreSQL selection
+uv run --frozen pytest tests/integration/phase2/test_b25_manuscript_read_races.py tests/integration/phase2/test_b25_manuscript_audit.py tests/integration/phase2/test_b25_manuscript_validity.py -o addopts='' -q -rfE -p no:cacheprovider --tb=short --show-capture=no
+  92 passed, 0 failed, 0 skipped; 276 warnings; 68.11s; exit 0.
+  Covers experimental/StatisticalResult/sealed input witnesses, direct/bound
+  literature, disputed/rejected/unreviewed support, corrections/retractions,
+  predecessor semantics, exact concern occurrences, corruption/error mapping,
+  row ceiling+1, repeatable read/read only and captured absence of explicit locks.
+  UNREVIEWED direct frozen support without its historical verification is rejected
+  by the retained owner verifier; bound snapshot staleness retains owner semantics.
+
+After strengthening expiry synchronization to pause at the final authorization
+(after material reads and the initial credential check), reran the entire race file:
+uv run --frozen pytest tests/integration/phase2/test_b25_manuscript_read_races.py -o addopts='' -q -rfE -p no:cacheprovider --tb=short --show-capture=no
+  8 passed, 0 failed, 0 skipped; 24 warnings; 5.27s; exit 0.
+  Separate connections/barriers cover concurrent review, Issue, governance,
+  verification, retraction and unrelated INSERT commits; credential expiry denies
+  return, and concurrent freeze cannot produce mixed material. Static checks were
+  rerun after this test-only strengthening and passed as recorded above.
+
+Existing PostgreSQL regression selection
+uv run --frozen pytest tests/integration/phase2/test_b04_manuscript_migration.py tests/integration/phase2/test_b04_manuscript_freeze.py tests/integration/phase2/test_b04_manuscript_races.py tests/integration/phase2/test_pr2_13_scientific_trace.py tests/integration/phase2/test_b05_manuscript_review.py tests/integration/phase2/test_b05_review_basis.py tests/integration/phase2/test_b05_review_races.py tests/integration/phase2/test_b05_review_migration.py tests/integration/test_pr14_governance_integration.py -o addopts='' -q -rfE -p no:cacheprovider --tb=short --show-capture=no
+  167 passed, 0 failed, 1 skipped; 476 warnings; 130.32s; exit 0.
+  Skip: existing test_superseded_manuscript_review; shipped B04 lifecycle supports
+  only DRAFT/FROZEN and later manuscript supersession remains outside this slice.
+
+Warnings are the existing Alembic path_separator deprecation. Read-only sub-agent
+review findings about bounds, target shape and nested source-edge errors were
+resolved with focused regressions. No open P0/P1 identified in the final review.
+
+No whole-suite run or whole-suite success is claimed. The outer loop owns the
+requested full pytest check. This evidence stops at the authorized first slice.

@@ -1,0 +1,40 @@
+--- 0073/b08_validate_mapping.sql
++++ 0074/b08_validate_mapping.sql
+@@ -17,18 +17,19 @@
+   END IF;
+   PERFORM b07_validate_revision(a);
+   PERFORM b07_review(r);
+   attestation:=r; attestation.created_at:=link.recorded_at;
+   PERFORM b07_review(attestation);
+-  tid:=coalesce(r.claim_version_id,r.scientific_conclusion_version_id);
+-  old_tid:=coalesce(old.claim_version_id,old.scientific_conclusion_version_id);
+-  IF link.recorded_by IN (SELECT b07_authors(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END) UNION SELECT b07_authors(old_tid,CASE WHEN old.claim_version_id IS NOT NULL THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END)) THEN
++  tid:=coalesce(r.claim_version_id,r.scientific_conclusion_version_id,r.manuscript_version_id);
++  old_tid:=coalesce(old.claim_version_id,old.scientific_conclusion_version_id,old.manuscript_version_id);
++  IF link.recorded_by IN (SELECT b07_authors(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' WHEN r.manuscript_version_id IS NOT NULL THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END) UNION SELECT b07_authors(old_tid,CASE WHEN old.claim_version_id IS NOT NULL THEN 'claim_versions' WHEN old.manuscript_version_id IS NOT NULL THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END)) THEN
+     RAISE EXCEPTION 'independent re-reviewer required' USING ERRCODE='P17F2'; END IF;
+-  IF disposer=a.created_by OR disposer IN (SELECT b07_authors(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END) UNION SELECT b07_authors(old_tid,CASE WHEN old.claim_version_id IS NOT NULL THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END)) THEN
++  IF disposer=a.created_by OR disposer IN (SELECT b07_authors(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' WHEN r.manuscript_version_id IS NOT NULL THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END) UNION SELECT b07_authors(old_tid,CASE WHEN old.claim_version_id IS NOT NULL THEN 'claim_versions' WHEN old.manuscript_version_id IS NOT NULL THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END)) THEN
+     RAISE EXCEPTION 'independent disposer required' USING ERRCODE='P17F2'; END IF;
+-  SELECT coalesce(array_agg(id),ARRAY[]::UUID[]) INTO cs FROM b07_closure(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END) WHERE kind='claim_versions';
++  SELECT coalesce(array_agg(id),ARRAY[]::UUID[]) INTO cs FROM b07_closure(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' WHEN r.manuscript_version_id IS NOT NULL THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END) WHERE kind='claim_versions';
+   IF a.action_type='NO_CHANGE' THEN good:=tid=old_tid AND r.target_content_hash=old.target_content_hash;
++  ELSIF a.action_type='MANUSCRIPT_CHANGE' THEN good:=r.manuscript_version_id=a.result_manuscript_version_id;
+   ELSIF a.action_type='CLAIM_CHANGE' THEN good:=r.claim_version_id=a.result_claim_version_id;
+   ELSIF a.action_type='CONCLUSION_CHANGE' THEN good:=r.scientific_conclusion_version_id=a.result_scientific_conclusion_version_id;
+   ELSE
+     IF old.claim_version_id IS NOT NULL THEN
+       SELECT * INTO old_cv FROM claim_versions WHERE id=old.claim_version_id;
+@@ -37,11 +38,11 @@
+       SELECT * INTO old_sc FROM scientific_conclusion_versions WHERE id=old.scientific_conclusion_version_id;
+       good:=EXISTS(SELECT 1 FROM scientific_conclusion_versions WHERE id=r.scientific_conclusion_version_id
+         AND scientific_conclusion_id=old_sc.scientific_conclusion_id AND version_number>=old_sc.version_number);
+     END IF;
+     IF a.action_type='NEW_EXPERIMENT' THEN
+-      good:=good AND EXISTS(SELECT 1 FROM b07_closure(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' ELSE 'scientific_conclusion_versions' END) x JOIN measurements m ON x.kind='measurements' AND m.id=x.id
++      good:=good AND EXISTS(SELECT 1 FROM b07_closure(tid,CASE WHEN r.claim_version_id IS NOT NULL THEN 'claim_versions' WHEN r.manuscript_version_id IS NOT NULL THEN 'manuscript_versions' ELSE 'scientific_conclusion_versions' END) x JOIN measurements m ON x.kind='measurements' AND m.id=x.id
+         JOIN runs run ON run.id=m.run_id WHERE run.id=a.result_run_id AND run.experiment_spec_version_id=a.result_experiment_spec_version_id);
+     ELSIF a.action_type='ANALYSIS_CHANGE' THEN
+       good:=good AND EXISTS(SELECT 1 FROM evidence_relations WHERE claim_version_id=ANY(cs) AND statistical_result_id=a.result_statistical_result_id);
+     ELSIF a.action_type='SOURCE_CHANGE' THEN
+       good:=good AND EXISTS(SELECT 1 FROM literature_evidence e WHERE e.source_version_id=a.result_source_version_id AND e.id IN (

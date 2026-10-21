@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.16,<2",
     "fastapi>=0.141,<0.142",
+    "idna>=3.10,<4",
     "psycopg[binary]>=3.2,<4",
     "pydantic>=2.11,<3",
     "sqlalchemy>=2.0,<2.1",
@@ -39,6 +40,41 @@ addopts = "-q"
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+# 0001-0024 are SHA256-pinned in scripts/pr2_04_recovery_baseline.json.
+# 0025-0028 are SHA256-pinned against the frozen git tree in
+# tests/unit/phase2/test_pr2_04_r8a_host_topology.py.
+extend-exclude = [
+    "migrations/versions/0001_empty_bootstrap.py",
+    "migrations/versions/0002_actor_project_workspace.py",
+    "migrations/versions/0003_research_question_hypothesis.py",
+    "migrations/versions/0004_experiment_spec.py",
+    "migrations/versions/0005_dataset_snapshot.py",
+    "migrations/versions/0006_artifact_version.py",
+    "migrations/versions/0007_metric_definition.py",
+    "migrations/versions/0008_run_core.py",
+    "migrations/versions/0009_run_input_seal_fix.py",
+    "migrations/versions/0010_measurement.py",
+    "migrations/versions/0011_statistical_result.py",
+    "migrations/versions/0012_statistical_result_input_guard.py",
+    "migrations/versions/0013_statistical_result_legacy_input_precheck.py",
+    "migrations/versions/0014_claim_evidence.py",
+    "migrations/versions/0015_governance_audit.py",
+    "migrations/versions/0016_pr17d_history_protection.py",
+    "migrations/versions/0017_persisted_canonical_enum_normalization.py",
+    "migrations/versions/0018_current_pointer_same_parent_integrity.py",
+    "migrations/versions/0019_phase2_bootstrap_membership.py",
+    "migrations/versions/0020_literature_source_identity.py",
+    "migrations/versions/0021_source_merge_governance_bridge.py",
+    "migrations/versions/0021a_source_merge_governance_guards.py",
+    "migrations/versions/0022_source_version_and_merge_lineage.py",
+    "migrations/versions/0023_literature_search_plan.py",
+    "migrations/versions/0023a_search_plan_review_guards.py",
+    "migrations/versions/0024_literature_search_execution.py",
+    "migrations/versions/0025_pr2_04_reservation_guards.py",
+    "migrations/versions/0026_pr2_04_p1_contract_guards.py",
+    "migrations/versions/0027_pr2_04_hash_scheme_guards.py",
+    "migrations/versions/0028_provider_cancellation.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

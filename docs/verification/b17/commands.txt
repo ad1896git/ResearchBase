@@ -1,0 +1,23 @@
+# Post-review commands run from the repository root.
+
+# Existing environment: DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane37
+
+# Existing environment: RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+
+export UV_CACHE_DIR=/tmp/rb-b17-uv
+
+uv run pytest tests/integration/phase2/test_batch_c_migration.py tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py tests/integration/phase2/test_revision_action.py tests/integration/phase2/test_pr2_04_migration_coverage.py tests/integration/phase2/test_pr2_04_execution_migration.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/integration/phase2/test_pr2_17_authorship_schema.py tests/integration/phase2/test_pr2_03_review_guards.py tests/integration/phase2/test_b08_schema.py -o addopts='' -q --tb=short
+
+uv run pytest tests/integration/phase2/test_b17_package_freeze.py tests/integration/phase2/test_b17_package_history.py tests/integration/phase2/test_b17_freeze_replay.py tests/integration/phase2/test_b17_freeze_concurrency.py tests/integration/phase2/test_b17_freeze_schema.py tests/integration/phase2/test_pr2_19_package_freeze.py tests/integration/phase2/test_pr2_19_dependencies.py -o addopts='' -q --tb=short
+
+uv run pytest tests/unit/phase2/test_b17_freeze_contract.py tests/unit/phase2/test_b17_freeze_hash_vectors.py tests/architecture/test_b17_boundaries.py -o addopts='' -q --tb=short
+
+uv run pyright && uv run ruff format --check . && uv run ruff check . && git diff --check HEAD && /Users/fengwang/Documents/ResearchBaseProject/.pipeline/bin/full_suite_sharded.sh 6
+
+git diff HEAD -- docs/proposals/B17_Prepared_Package_Freeze_Contract_DRAFT.md
+
+git diff HEAD --numstat -- migrations/versions
+
+uv run pytest tests/integration/phase2/test_b17_freeze_concurrency.py::test_actual_required_wait_crosses_grant_expiry -o addopts='' -q --tb=short -rP --show-capture=stdout
+
+uv run pyright && uv run ruff format --check . && uv run ruff check . && git diff --check HEAD

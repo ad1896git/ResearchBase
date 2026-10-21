@@ -1,0 +1,8 @@
+{
+  "frozen_accepted_hashes_matched": 26,
+  "existing_HEAD_migrations_byte_identical": 66,
+  "changed_existing_migrations": [],
+  "new_migrations": [
+    "migrations/versions/0065_b17_prepared_package_freeze.py"
+  ]
+}

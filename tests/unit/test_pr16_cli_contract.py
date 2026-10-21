@@ -15,6 +15,7 @@ from researchbase.application.dto import ProjectReadModel, WriteResult, write_re
 from researchbase.cli import context as cli_context
 from researchbase.cli.app import create_app
 from researchbase.domain.organization import LifecycleStatus
+from researchbase.domain.phase2_identity import VerifiedPrincipal
 
 
 @dataclass
@@ -43,10 +44,14 @@ class FakeServices:
     provenance: Any = None
     governance: Any = None
     governance_queries: Any = None
+    source_merge: Any = None
+    verified_principal: VerifiedPrincipal | None = None
 
 
 def test_root_help_lists_frozen_command_groups() -> None:
-    result = CliRunner().invoke(create_app(FakeServices(FakeApplication())))
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
+        create_app(FakeServices(FakeApplication()))
+    )
 
     assert result.exit_code == 0
     for group in (
@@ -68,6 +73,144 @@ def test_root_help_lists_frozen_command_groups() -> None:
         assert group in result.stdout
 
 
+def test_literature_merge_proposal_help_lists_frozen_governance_commands() -> None:
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
+        create_app(FakeServices(FakeApplication())),
+        ["literature", "merge-proposal", "--help"],
+    )
+
+    assert result.exit_code == 0
+    for command in ("create", "show", "approve", "reject", "revoke", "supersede", "consume"):
+        assert command in result.stdout
+
+
+def test_literature_source_version_cli_commands_are_registered_and_json_capable() -> None:
+    runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
+    group = runner.invoke(
+        create_app(FakeServices(FakeApplication())), ["literature", "version", "--help"]
+    )
+    assert group.exit_code == 0
+    for name in ("create", "update", "freeze", "abandon", "show", "list"):
+        result = runner.invoke(
+            create_app(FakeServices(FakeApplication())), ["literature", "version", name, "--help"]
+        )
+        assert result.exit_code == 0
+        assert "--json" in result.stdout
+
+
+def test_literature_merge_proposal_commands_forward_typed_operations() -> None:
+    class SourceMerge:
+        def __init__(self) -> None:
+            self.commands: list[object] = []
+
+        def propose(self, command: object) -> dict[str, str]:
+            self.commands.append(command)
+            return {"operation": "propose"}
+
+        def get(self, principal: object, project_id: object, proposal_id: object) -> dict[str, str]:
+            self.commands.append((principal, project_id, proposal_id))
+            return {"operation": "get"}
+
+        def decide(self, command: object) -> dict[str, str]:
+            self.commands.append(command)
+            return {"operation": "decide"}
+
+        def revoke(self, command: object) -> None:
+            self.commands.append(command)
+
+    actor_id = uuid4()
+    project_id = uuid4()
+    proposal_id = uuid4()
+    source_a_id = uuid4()
+    source_b_id = uuid4()
+    service = SourceMerge()
+    services = FakeServices(
+        FakeApplication(),
+        source_merge=service,
+        verified_principal=VerifiedPrincipal(
+            actor_id, "deployment", "OS_UID", "user:1", "credential", datetime.now(UTC)
+        ),
+    )
+    common = [
+        "--request-id",
+        str(uuid4()),
+        "literature",
+        "merge-proposal",
+    ]
+    runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
+    for operation, extra in (
+        (
+            "create",
+            [
+                "--source-a-id",
+                str(source_a_id),
+                "--source-b-id",
+                str(source_b_id),
+                "--canonical-survivor-id",
+                str(source_b_id),
+                "--rationale",
+                "duplicate",
+            ],
+        ),
+        (
+            "supersede",
+            [
+                "--prior-proposal-id",
+                str(proposal_id),
+                "--source-a-id",
+                str(source_a_id),
+                "--source-b-id",
+                str(source_b_id),
+                "--canonical-survivor-id",
+                str(source_b_id),
+                "--rationale",
+                "reconsidered",
+            ],
+        ),
+    ):
+        result = runner.invoke(
+            create_app(services),
+            [*common, operation, "--project-id", str(project_id), *extra, "--json"],
+        )
+        assert result.exit_code == 0
+    shown = runner.invoke(
+        create_app(services),
+        [
+            "literature",
+            "merge-proposal",
+            "show",
+            "--project-id",
+            str(project_id),
+            "--proposal-id",
+            str(proposal_id),
+            "--json",
+        ],
+    )
+    assert shown.exit_code == 0
+    for operation, extra, expected in (
+        ("approve", [], "APPROVE"),
+        ("reject", ["--reason", "distinct records"], "REJECT"),
+    ):
+        result = runner.invoke(
+            create_app(services),
+            [
+                "--request-id",
+                str(uuid4()),
+                "literature",
+                "merge-proposal",
+                operation,
+                "--project-id",
+                str(project_id),
+                "--proposal-id",
+                str(proposal_id),
+                *extra,
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0
+        assert service.commands[-1].decision == expected
+
+
 def test_project_create_forwards_exact_execution_context_and_json_serializes_result() -> None:
     actor_id = uuid4()
     request_id = uuid4()
@@ -85,7 +228,7 @@ def test_project_create_forwards_exact_execution_context_and_json_serializes_res
             row_version=1,
         )
     )
-    result = CliRunner().invoke(
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
         create_app(FakeServices(fake)),
         [
             "--actor-id",
@@ -133,7 +276,7 @@ def test_project_create_forwards_exact_execution_context_and_json_serializes_res
 
 
 def test_project_help_identifies_required_options_and_json_mode() -> None:
-    result = CliRunner().invoke(
+    result = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}).invoke(
         create_app(FakeServices(FakeApplication())), ["project", "create", "--help"]
     )
 
@@ -157,7 +300,7 @@ def test_request_id_isolation_across_successive_invocations() -> None:
         )
     )
     app = create_app(FakeServices(fake))
-    runner = CliRunner()
+    runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"})
 
     first = runner.invoke(
         app,

@@ -1,0 +1,30 @@
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+738 files already formatted
+All checks passed!
+== quick pre-check: 30 changed test files
+    util.warn_deprecated(
+
+tests/architecture/test_pr2_19_boundaries.py: 1 warning
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+tests/integration/phase2/test_b14_publication_ready.py: 40 warnings
+tests/integration/phase2/test_b17_package_freeze.py: 18 warnings
+tests/integration/phase2/test_pr2_19_governance.py: 4 warnings
+tests/integration/phase2/test_pr2_19_grant_consumption_publication.py: 64 warnings
+tests/integration/phase2/test_pr2_19_lineage.py: 14 warnings
+tests/integration/phase2/test_pr2_19_package_freeze.py: 3 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane47/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+596 passed, 1457 warnings in 873.55s (0:14:33)
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted

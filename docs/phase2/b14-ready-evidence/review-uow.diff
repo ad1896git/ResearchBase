@@ -1,0 +1,47 @@
+diff --git a/src/researchbase/persistence/uow.py b/src/researchbase/persistence/uow.py
+index d2b9673..53dd8c3 100644
+--- a/src/researchbase/persistence/uow.py
++++ b/src/researchbase/persistence/uow.py
+@@ -280 +280 @@ def _issue_disposition_database_error(exc: DBAPIError) -> ResearchBaseError:
+-def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
++def _approval_database_error(exc: DBAPIError, *, strict: bool = False) -> ResearchBaseError:
+@@ -343,0 +344,27 @@ def _approval_database_error(exc: DBAPIError) -> ResearchBaseError:
++    if strict:
++        ready_codes = {
++            "P17F1": ErrorCode.IMMUTABLE_RECORD,
++            "P17F2": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
++            "P17D1": ErrorCode.IMMUTABLE_RECORD,
++            "P04M1": ErrorCode.IMMUTABLE_RECORD,
++            "P04M2": ErrorCode.APPROVAL_GATE_FAILED,
++            "P14B1": ErrorCode.APPROVAL_GATE_FAILED,
++            "P14C1": ErrorCode.CONCURRENT_MODIFICATION,
++            "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
++        }
++        if state in ready_codes:
++            return ResearchBaseError(ready_codes[state], "readiness transaction rejected")
++        if state == "23505" and constraint in {"uq_b14_ready_event", "uq_b14_ready_consumption"}:
++            return ResearchBaseError(ErrorCode.IMMUTABLE_RECORD, "READY history already sealed")
++        if state == "23514" and constraint in {
++            "ck_b14a_publication_status",
++            "ck_b14a_event_tuple",
++            "ck_b14a_event_time",
++            "ck_b13_hash",
++            "ck_b13_time",
++            "ck_b13_dto",
++        }:
++            return ResearchBaseError(
++                ErrorCode.VALIDATION_ERROR, "invalid closed readiness material"
++            )
++        raise RuntimeError("readiness transaction failed; recover by exact command key") from None
+@@ -443,0 +471 @@ class SqlAlchemyUnitOfWork:
++        self._strict_approval_error_normalization = False
+@@ -459,0 +488 @@ class SqlAlchemyUnitOfWork:
++        self._strict_approval_error_normalization = False
+@@ -650 +679 @@ class SqlAlchemyUnitOfWork:
+-    def enable_approval_error_normalization(self) -> None:
++    def enable_approval_error_normalization(self, *, strict: bool = False) -> None:
+@@ -652,0 +682 @@ class SqlAlchemyUnitOfWork:
++        self._strict_approval_error_normalization = strict
+@@ -805 +835 @@ class SqlAlchemyUnitOfWork:
+-            _approval_database_error(exc)
++            _approval_database_error(exc, strict=self._strict_approval_error_normalization)

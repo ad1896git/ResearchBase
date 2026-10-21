@@ -1,0 +1,54 @@
+{
+  "policy": "FORMAT-BASELINE-01",
+  "formatter_gate": "PASS_VIA_BASELINE_DELTA",
+  "formatter_contract_subject": "8c45e393c6ba68ab3989acaa4a319bc63c3bea89",
+  "original_authorized_starting_subject": "e756b1392ee25c2753e0837bda8eb905df7de013",
+  "implementation_subject": "5b65f6983dd627757ac7ab7b1fb6befe0a832573",
+  "ruff_version": "ruff 0.12.12",
+  "command": "uv run ruff format --check .",
+  "baseline": {
+    "source": "clean git archive of original_authorized_starting_subject",
+    "exit_code": 1,
+    "files_would_be_reformatted": 9,
+    "already_formatted_count": 205,
+    "failing_files": [
+      "migrations/versions/0004_experiment_spec.py",
+      "scripts/pr17dr_evidence.py",
+      "tests/integration/test_pr04_application.py",
+      "tests/integration/test_pr04_schema.py",
+      "tests/integration/test_pr05_application.py",
+      "tests/integration/test_pr05_schema.py",
+      "tests/integration/test_pr06_application.py",
+      "tests/unit/domain/test_pr05_experiment.py",
+      "tests/unit/test_pr17dr2_evidence.py"
+    ]
+  },
+  "current_implementation_subject": {
+    "exit_code": 1,
+    "files_would_be_reformatted": 9,
+    "already_formatted_count": 221,
+    "failing_files": [
+      "migrations/versions/0004_experiment_spec.py",
+      "scripts/pr17dr_evidence.py",
+      "tests/integration/test_pr04_application.py",
+      "tests/integration/test_pr04_schema.py",
+      "tests/integration/test_pr05_application.py",
+      "tests/integration/test_pr05_schema.py",
+      "tests/integration/test_pr06_application.py",
+      "tests/unit/domain/test_pr05_experiment.py",
+      "tests/unit/test_pr17dr2_evidence.py"
+    ]
+  },
+  "new_formatter_failures": [],
+  "resolved_inherited_failures": [],
+  "changed_file_proof": {
+    "source_range": "8c45e393c6ba68ab3989acaa4a319bc63c3bea89..5b65f6983dd627757ac7ab7b1fb6befe0a832573",
+    "git_derived_changed_files": 30,
+    "python_or_pyi_files_checked": 29,
+    "python_or_pyi_files_clean": 29,
+    "command_exit_code": 0
+  },
+  "frozen_inherited_files_modified_for_formatting": [],
+  "formatter_configuration_or_command_weakened": false,
+  "result": "Current failure set is identical to the exact starting-baseline set; the repository-wide command remains unchanged."
+}

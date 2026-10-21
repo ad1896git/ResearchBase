@@ -1,0 +1,29 @@
+........................................................................ [ 40%]
+........................................................................ [ 81%]
+................................                                         [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b09_approval_concurrency.py: 42 warnings
+tests/integration/phase2/test_b09_approval_schema.py: 55 warnings
+tests/integration/phase2/test_b11_readiness_decision.py: 100 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 125 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 21 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 99 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 12 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 18 warnings
+tests/integration/phase2/test_b12_prepare_races.py: 39 warnings
+tests/integration/phase2/test_b12_prepare_replay.py: 6 warnings
+tests/integration/phase2/test_b12_prepare_schema.py: 37 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b11_readiness_decision.py: 31 warnings
+tests/integration/phase2/test_b11_readiness_races.py: 41 warnings
+tests/integration/phase2/test_b11_readiness_replay.py: 7 warnings
+tests/integration/phase2/test_b11_readiness_schema.py: 25 warnings
+tests/integration/phase2/test_b12_prepare_approval.py: 2 warnings
+tests/integration/phase2/test_b12_prepare_decision.py: 4 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+176 passed, 664 warnings in 265.12s (0:04:25)

@@ -1,0 +1,24 @@
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+751 files already formatted
+All checks passed!
+== quick pre-check: 33 changed test files
+tests/integration/phase2/test_pr2_17_authorship_schema.py: 51 warnings
+tests/integration/phase2/test_pr2_19_candidates.py: 21 warnings
+tests/integration/phase2/test_revision_action.py: 163 warnings
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py: 1 warning
+tests/unit/test_batch_c_migration_history.py: 1 warning
+tests/unit/test_task12_migration_history.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane56/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+491 passed, 980 warnings in 483.76s (0:08:03)
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted

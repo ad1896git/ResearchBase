@@ -1,0 +1,17 @@
+
+==================================== ERRORS ====================================
+___ ERROR collecting tests/integration/phase2/test_pr2_11_r2_persistence.py ____
+ImportError while importing test module '/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/pr2-11-r2-recovery/tests/integration/phase2/test_pr2_11_r2_persistence.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.14/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/phase2/test_pr2_11_r2_persistence.py:16: in <module>
+    from researchbase.application.scientific_conclusion import (
+E   ModuleNotFoundError: No module named 'researchbase.application.scientific_conclusion'
+=========================== short test summary info ============================
+ERROR tests/integration/phase2/test_pr2_11_r2_persistence.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+
+TEST_PROCESS_EXIT_STATUS=2

@@ -1,0 +1,17 @@
+--- 0073/b11_complete.sql
++++ 0074/b11_complete.sql
+@@ -35,12 +35,12 @@
+          AND (SELECT e.new_status FROM project_membership_events e WHERE e.membership_id=mem.id AND e.occurred_at<=saved_review.created_at ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1)='ACTIVE'
+          AND role.role IN ('OWNER','REVIEWER') AND role.effective_from<=saved_review.created_at AND (role.effective_until IS NULL OR saved_review.created_at<role.effective_until)
+          AND EXISTS(SELECT 1 FROM actor_subject_bindings b WHERE b.actor_id=a.id AND b.bound_at<=saved_review.created_at AND (b.revoked_at IS NULL OR saved_review.created_at<b.revoked_at))) THEN
+      RAISE EXCEPTION 'historical independent HUMAN review required' USING ERRCODE='P17F2'; END IF;
+  END LOOP;
+- FOR iid IN SELECT i.id FROM review_issues i JOIN b11_applicable_reviews(m.id,d.project_id) r ON r.id=i.review_record_id ORDER BY i.id LOOP
++ FOR iid IN SELECT i.id FROM review_issues i JOIN m1_admission_reviews(m.id,d.project_id) r ON r.id=i.review_record_id ORDER BY i.id LOOP
+    PERFORM b08_check_history(iid);
+  END LOOP;
+- IF EXISTS(SELECT 1 FROM review_issues i JOIN b11_applicable_reviews(m.id,d.project_id) r ON r.id=i.review_record_id WHERE i.status='OPEN' AND i.severity='BLOCKING') THEN
++ IF EXISTS(SELECT 1 FROM review_issues i JOIN m1_admission_reviews(m.id,d.project_id) r ON r.id=i.review_record_id WHERE i.status='OPEN' AND i.severity='BLOCKING') THEN
+    RAISE EXCEPTION 'applicable OPEN blocker' USING ERRCODE='P17F2'; END IF;
+ IF d.decision_type='PREPARE_SUBMISSION' THEN PERFORM b12_saved_decision(did,m.id,d.project_id); END IF;
+ END $function$

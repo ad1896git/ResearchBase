@@ -1,0 +1,254 @@
+{
+  "schema_version": "pr204-group-c-defect-review-v1",
+  "review_kind": "READ_ONLY_BOUNDED_FAILURE_CLASSIFICATION_NOT_CLOSURE",
+  "reviewed_head": "a490dfec623ffb939493a23dc788eccd9f404235",
+  "worktree_state": "New test fixtures uncommitted at review; no src/migrations diff output. Not an immutable final-candidate acceptance run.",
+  "evidence": [
+    {
+      "path": "/private/tmp/pr204-acceptance-evidence/group-c-schema-authoring.xml",
+      "sha256": "a002e29d456d3e04222819cc73a6c8fb0363a3a65bb58e8f5b94dbca09b6584b",
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "7",
+          "skipped": "0",
+          "tests": "125",
+          "time": "42.604",
+          "timestamp": "2026-10-08T23:13:24.056760+08:00",
+          "hostname": "192.168.1.216"
+        }
+      ],
+      "failures": [
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_reservation_shape_acceptance",
+          "name": "test_pg_direct_first_reservation_shape[deadline_exceeds_call-P17D5]",
+          "message": "AssertionError: database accepted forbidden SQL case deadline_exceeds_call\nassert None is not None",
+          "accepted_forbidden_sql": true
+        },
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_parent_restrict_acceptance",
+          "name": "test_pg_referenced_parent_delete_cannot_remove_provenance[actors]",
+          "message": "AssertionError: assert '23001' == '23503'\n  \n  - 23503\n  + 23001",
+          "accepted_forbidden_sql": false
+        },
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_parent_restrict_acceptance",
+          "name": "test_pg_referenced_parent_delete_cannot_remove_provenance[projects]",
+          "message": "AssertionError: assert '23001' == '23503'\n  \n  - 23503\n  + 23001",
+          "accepted_forbidden_sql": false
+        },
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_parent_restrict_acceptance",
+          "name": "test_pg_referenced_parent_delete_cannot_remove_provenance[literature_search_executions]",
+          "message": "AssertionError: assert '23001' == '23503'\n  \n  - 23503\n  + 23001",
+          "accepted_forbidden_sql": false
+        },
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_reservation_predecessor_acceptance",
+          "name": "test_pg_direct_successor_reservation_requires_remaining_safe_work[expired_budget]",
+          "message": "AssertionError: database accepted forbidden SQL case expired_budget\nassert None is not None",
+          "accepted_forbidden_sql": true
+        },
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_reservation_predecessor_acceptance",
+          "name": "test_pg_direct_successor_reservation_requires_remaining_safe_work[less_than_one_second]",
+          "message": "AssertionError: database accepted forbidden SQL case less_than_one_second\nassert None is not None",
+          "accepted_forbidden_sql": true
+        },
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_reservation_predecessor_acceptance",
+          "name": "test_pg_direct_successor_reservation_requires_remaining_safe_work[durable_cancel_intent]",
+          "message": "AssertionError: assert 'CANCELLED' == 'RUNNING'\n  \n  - RUNNING\n  + CANCELLED",
+          "accepted_forbidden_sql": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/pr204-acceptance-evidence/group-c-fixture-correction.xml",
+      "sha256": "f7876dba674b37d17168cf924926c34170e16de5801f482f03295fe70dd8de23",
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "7",
+          "time": "2.640",
+          "timestamp": "2026-10-08T23:16:28.361232+08:00",
+          "hostname": "192.168.1.216"
+        }
+      ],
+      "failures": [
+        {
+          "classname": "tests.integration.phase2.test_pr2_04_reservation_predecessor_acceptance",
+          "name": "test_pg_direct_successor_reservation_requires_remaining_safe_work[durable_cancel_intent]",
+          "message": "AssertionError: database accepted forbidden SQL case durable_cancel_intent\nassert None is not None",
+          "accepted_forbidden_sql": true
+        }
+      ]
+    }
+  ],
+  "counts_interpretation": {
+    "initial_authoring": "125 cases,7 failures,0 errors,0 skips:3 forbidden temporal SQL acceptances +3 parent SQLSTATE-oracle failures +1 C2 fixture-stage mismatch",
+    "fixture_correction": "7 cases,1 failure,0 errors,0 skips:parent oracle corrections passed and C1-only fixture now exposes accepted reservation after cancel intent",
+    "not_a_combined_gate": "Do not sum reruns into a full-suite or matrix pass count."
+  },
+  "findings": [
+    {
+      "case": "deadline_exceeds_call",
+      "node_id": "tests/integration/phase2/test_pr2_04_reservation_shape_acceptance.py::test_pg_direct_first_reservation_shape[deadline_exceeds_call-P17D5]",
+      "root_family": "PG_RESERVATION_TIME_BOUNDARY",
+      "observed_evidence": "group-c-schema-authoring.xml: _reject reaches caught is None after engine.begin exited normally; complete invalid reservation transaction committed. Valid first-reservation positive control previously passed SET CONSTRAINTS ALL IMMEDIATE and rolled back.",
+      "contract": [
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:170",
+          "section": "10",
+          "requirement": "deadline_at = min(reserved_at + timeout_seconds, started_at + execution_budget_seconds)"
+        },
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:259",
+          "section": "13.5",
+          "requirement": "deadline follows \u00a710 call/execution minimum; reservation material immutable after insert"
+        }
+      ],
+      "isolated_change": "First reservation deadline = reserved_at + configured timeout +1 second; recovery_after remains deadline+30; execution RUNNING version2 + complete matching ATTEMPT_RESERVED event.",
+      "missing_guard": [
+        "migrations/versions/0024_literature_search_execution.py:120 only deadline>reserved_at; :122 only recovery grace",
+        "migrations/versions/0024_literature_search_execution.py:784 insert guard checks status/version/request key, not deadline min",
+        "migrations/versions/0024_literature_search_execution.py:916 deferred reservation checks omit both timeout/deadline and execution budget"
+      ],
+      "impact": "Direct SQL can record a reservation with a call deadline exceeding the frozen timeout, while passing local shape, causal-event, and deferred provenance checks. This proof does not show the public Application dispatcher performs an overlong call.",
+      "severity": "P1 MAJOR",
+      "classification": "PRODUCT_CONTRACT_GAP"
+    },
+    {
+      "case": "expired_budget",
+      "node_id": "tests/integration/phase2/test_pr2_04_reservation_predecessor_acceptance.py::test_pg_direct_successor_reservation_requires_remaining_safe_work[expired_budget]",
+      "root_family": "PG_RESERVATION_TIME_BOUNDARY",
+      "observed_evidence": "group-c-schema-authoring.xml: accepted forbidden SQL after real DB clock crosses started_at+2-second budget; otherwise-known-safe committed RETRYABLE_FAILURE predecessor and complete version/event successor transaction.",
+      "contract": [
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:170",
+          "section": "10",
+          "requirement": "No new reservation with less than one second remaining; deadline is min(call deadline, original execution budget end)"
+        },
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:259",
+          "section": "13.5",
+          "requirement": "Max attempts/context budget checked under execution lock"
+        }
+      ],
+      "missing_guard": [
+        "migrations/versions/0024_literature_search_execution.py:916 validates count/index/predecessor but never compares reservation to started_at+execution_budget_seconds"
+      ],
+      "impact": "Direct SQL can append a successor reservation after operation budget expires. Existing repository reserve() checks do not protect direct SQL.",
+      "severity": "P1 MAJOR",
+      "classification": "PRODUCT_CONTRACT_GAP"
+    },
+    {
+      "case": "less_than_one_second",
+      "node_id": "tests/integration/phase2/test_pr2_04_reservation_predecessor_acceptance.py::test_pg_direct_successor_reservation_requires_remaining_safe_work[less_than_one_second]",
+      "root_family": "PG_RESERVATION_TIME_BOUNDARY",
+      "observed_evidence": "group-c-schema-authoring.xml: accepted forbidden SQL after DB wait until at least started_at+1.5 seconds of2-second budget.",
+      "contract": [
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:170",
+          "section": "10",
+          "requirement": "No new reservation with less than one second remaining"
+        },
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:259",
+          "section": "13.5",
+          "requirement": "Context budget checked under execution lock"
+        }
+      ],
+      "missing_guard": [
+        "migrations/versions/0024_literature_search_execution.py:916 missing lower bound on remaining dispatch budget"
+      ],
+      "evidence_limit": "Current fixture asserts only elapsed >=1.5 seconds, not elapsed <2 seconds, and sets deadline=now+1 second instead of min(now+1,budget_end). Therefore the run proves forbidden temporal admission but does not isolate a strictly positive subsecond remaining interval from already-expired budget or deadline-min violation. It is not a separate proven root cause.",
+      "future_test_precision": "Record insertion-time DB now and actual remaining; explicitly assert 0 < remaining <1 in the intended subsecond case and use an otherwise-valid minimum deadline. Preserve this original failure evidence and assertions; add precision without relabeling the observed run.",
+      "impact": "The general one-second remaining-budget gate is absent from the DB path; the independent subsecond boundary needs more precise evidence than this case currently records.",
+      "severity": "P1 MAJOR",
+      "classification": "PRODUCT_CONTRACT_GAP_SHARED_ROOT_WITH_EVIDENCE_LIMIT"
+    },
+    {
+      "case": "durable_cancel_intent",
+      "node_id": "tests/integration/phase2/test_pr2_04_reservation_predecessor_acceptance.py::test_pg_direct_successor_reservation_requires_remaining_safe_work[durable_cancel_intent]",
+      "root_family": "PG_RESERVATION_DURABLE_CANCEL_VETO",
+      "observed_evidence": "Initial authoring failed fixture assertion because normal cancel correctly finalized CANCELLED. Corrected fixture pauses only C2 after real C1 commit, keeps RUNNING with retryable predecessor and durable intent, then group-c-fixture-correction.xml reaches accepted-forbidden SQL failure.",
+      "contract": [
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:168",
+          "section": "10",
+          "requirement": "At RUNNING no new reservation may follow committed cancellation intent; previously reserved observed response may still persist"
+        },
+        {
+          "anchor": "execution/phase2/PR2-04_Literature_Search_Execution_Execution_Pack_v1.0.md:259",
+          "section": "13.5",
+          "requirement": "Reservation allocation and context bounds are checked under execution lock"
+        }
+      ],
+      "missing_guard": [
+        "migrations/versions/0024_literature_search_execution.py:803 terminal-child guard locks parent but checks only terminal status, not committed CANCEL_REQUESTED on RUNNING",
+        "migrations/versions/0024_literature_search_execution.py:916 and :933 deferred reservation checks omit cancellation intent and accept RETRYABLE_FAILURE predecessor"
+      ],
+      "impact": "A direct SQL writer can add a new reservation after a committed C1 stop request while C2 is interrupted. Application checks in _execute_admission and _prepare_attempt_tx do not supply the mandatory SQL backstop.",
+      "severity": "P1 MAJOR",
+      "classification": "PRODUCT_CONTRACT_GAP"
+    }
+  ],
+  "root_families": [
+    {
+      "id": "PG_RESERVATION_TIME_BOUNDARY",
+      "cases": [
+        "deadline_exceeds_call",
+        "expired_budget",
+        "less_than_one_second"
+      ],
+      "invariants": [
+        "fixed call/execution minimum deadline",
+        "at least one second remaining at reservation admission"
+      ],
+      "existing_application_enforcement": [
+        "src/researchbase/persistence/literature_search_execution_repository.py:318 budget check",
+        "src/researchbase/persistence/literature_search_execution_repository.py:324 min deadline construction"
+      ],
+      "minimal_future_repair": "In a separately authorized bounded product repair, enforce temporal reservation invariants on the real DB INSERT path under the existing execution-row lock using exact stored execution context/start and the reservation admission time. Reject deadline different from frozen min and budget admitting less than1second. Reuse existing PR204 guards/error conventions; add no entity/table/DTO/runtime dependency. Do not revalidate immutable past reservations against a later commit/query/read clock."
+    },
+    {
+      "id": "PG_RESERVATION_DURABLE_CANCEL_VETO",
+      "cases": [
+        "durable_cancel_intent"
+      ],
+      "existing_application_enforcement": [
+        "src/researchbase/application/literature_search_execution.py:370 cancellation guard in execute admission",
+        "src/researchbase/application/literature_search_execution.py:1096 cancellation stop in subsequent preparation"
+      ],
+      "minimal_future_repair": "In a separately authorized repair, after locking the parent execution on attempt INSERT, reject a new reservation when a prior committed CANCEL_REQUESTED exists. Target provider-attempt insertion only: do not add the veto indiscriminately to the shared query/result guard, since a response from a reservation committed before C1 is still permitted to persist. Avoid a deferred check that retroactively invalidates a reservation admitted before later C1."
+    }
+  ],
+  "fixture_corrections_not_product_defects": [
+    {
+      "case": "parent_delete_SQLSTATE",
+      "actual": "23001 restrict_violation on actors/projects/execution parent deletes in this PG18 environment",
+      "correction": "Change expected SQLSTATE only; rejection and unchanged-row assertions retained. My prior23503 advice was too generic and incorrect for these observed RESTRICT deletes. No missing FK/product defect established."
+    },
+    {
+      "case": "cancelled_fixture_before_probe",
+      "actual": "Normal public cancel completed C1+C2; statusCANCELLED made the intended RUNNING+intent probe invalid",
+      "correction": "Test-owned _finalize_cancel pause only after actual C1; no production guard disabled, no history rewritten. Original failure is quarantined as fixture setup, corrected run is the positive defect evidence."
+    }
+  ],
+  "repair_validation_required": [
+    "Keep all four original failures and root-family distinction",
+    "First-reservation valid control and exact minimum deadline boundaries, recovery grace unchanged",
+    "Valid successor before budget with exactly1second remaining; strictlypositive subsecond case isolated from deadline-min mismatch; expired budget denial",
+    "Reservation before C1 remains admissible, C1 before new reservation denies, previously reserved response persists with current authority after C1; actual row-lock ordering proof for both",
+    "No changes to accepted migration history through0023a, global identity/authority or prior retry policies; review authorized migration vehicle separately",
+    "All current tests plus targeted directSQL regression evidence on immutable repaired candidate; no closure claim from this report"
+  ],
+  "no_changes_made": true,
+  "closure_review": "NOT_PERFORMED",
+  "approval": "No repair implementation authorized or attempted by this review"
+}

@@ -7,14 +7,6 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
-from tests.application_compat import LegacyApplicationService as ApplicationService
-from tests.integration.pr12_support import postgres_resources
-from tests.integration.test_pr09_application import (
-    frozen_artifact,
-    frozen_dataset,
-    frozen_spec,
-)
-from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 from researchbase.application.closure import (
     BatchLookup,
@@ -58,6 +50,14 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
 )
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
+from tests.application_compat import LegacyApplicationService as ApplicationService
+from tests.integration.pr12_support import postgres_resources
+from tests.integration.test_pr09_application import (
+    frozen_artifact,
+    frozen_dataset,
+    frozen_spec,
+)
+from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 pytestmark = pytest.mark.integration
 
@@ -205,7 +205,7 @@ def test_run_queries_preserve_exact_inputs_and_execute_selects_only(
     assert before == after
     assert statements
     assert set(statements) == {"SELECT"}
-    assert len(statements) == 16
+    assert len(statements) == 22  # B27 adds three nonempty owner batches per read.
 
 
 def test_statistical_result_all_inputs_preserve_paths_while_runs_are_deduplicated(
@@ -615,10 +615,10 @@ def test_trace_sql_and_closure_calls_are_bounded_by_stages_and_unique_runs(
         assert set(sql) == {"SELECT"}
 
     assert observations == [
-        (15, 1, 1, 2),
-        (15, 1, 1, 3),
-        (15, 1, 9, 12),
-        (15, 1, 15, 24),
+        (17, 1, 1, 2),
+        (17, 1, 1, 3),
+        (17, 1, 9, 12),
+        (17, 1, 15, 24),
     ]
 
 
@@ -711,7 +711,7 @@ def test_trace_missing_measurements_are_cache_only_and_stage_bounded(
         for item in trace.closure.violations
         if item.object_type == "Measurement" and item.code == ErrorCode.NOT_FOUND.value
     ]
-    assert len(statements) == 15
+    assert len(statements) == 17  # B27 adds spec and metric owner batches.
     assert set(statements) == {"SELECT"}
     assert {item.object_id for item in missing_violations} == {str(item) for item in missing_ids}
     assert all(item.path[-1] == "measurement" for item in missing_violations)
@@ -938,7 +938,7 @@ def test_run_requested_missing_spec_is_deterministic_and_cache_only(
         )
     ]
     assert fallback_calls == {"spec": 0, "dataset_inputs": 0, "artifact_inputs": 0}
-    assert select_counts == [6, 6, 6]
+    assert select_counts == [7, 7, 7]  # One nonempty owner batch, independent of edge count.
 
 
 def test_run_never_requested_spec_is_deterministic_and_non_contextual_still_works(

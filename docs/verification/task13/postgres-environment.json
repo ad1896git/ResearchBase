@@ -1,0 +1,9 @@
+{
+  "server_version": "PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin27.0.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+  "database": "researchbase_task13_test_1d7a42ac663f43708d1c88788d97bf1a",
+  "command": [
+    "/Users/fengwang/Documents/ResearchBaseProject/.venv/bin/python",
+    "/Users/fengwang/Documents/ResearchBaseProject/docs/verification/task13/run_full_sharded.py"
+  ],
+  "HG1_RUN_LOCAL": "1"
+}

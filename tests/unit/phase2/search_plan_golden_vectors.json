@@ -1,0 +1,16 @@
+[
+  {
+    "languages": [],
+    "canonical_utf8": "{\"exclusion_criteria\":null,\"inclusion_criteria\":null,\"language_scope\":[],\"material_version\":1,\"objective\":\"Find evidence about language normalization\",\"plan_id\":\"00000000-0000-0000-0000-000000000001\",\"planned_providers\":[\"provider-a\"],\"research_question_refs\":[{\"content_hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"id\":\"00000000-0000-0000-0000-000000000003\",\"type\":\"ResearchQuestionVersion\"}],\"search_strategy\":\"KEYWORD\",\"source_scope\":\"BIBLIOGRAPHIC\",\"stopping_rule\":null,\"time_range\":null,\"type\":\"LiteratureSearchPlanVersion\"}",
+    "sha256": "0f9fd877e1b73e64943d523b2587a0e51983b459066b4b2cc58a1bd3aaa6c5a8"
+  },
+  {
+    "languages": [
+      "EN",
+      "en",
+      "é"
+    ],
+    "canonical_utf8": "{\"exclusion_criteria\":null,\"inclusion_criteria\":null,\"language_scope\":[\"EN\",\"en\",\"é\"],\"material_version\":1,\"objective\":\"Find evidence about language normalization\",\"plan_id\":\"00000000-0000-0000-0000-000000000001\",\"planned_providers\":[\"provider-a\"],\"research_question_refs\":[{\"content_hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"id\":\"00000000-0000-0000-0000-000000000003\",\"type\":\"ResearchQuestionVersion\"}],\"search_strategy\":\"KEYWORD\",\"source_scope\":\"BIBLIOGRAPHIC\",\"stopping_rule\":null,\"time_range\":null,\"type\":\"LiteratureSearchPlanVersion\"}",
+    "sha256": "049702a4408a89763b8bbd36356eb1b727fe362fae9ec588d047383bc103736e"
+  }
+]

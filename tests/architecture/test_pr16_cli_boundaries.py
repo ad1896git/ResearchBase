@@ -38,7 +38,7 @@ def test_cli_command_modules_do_not_import_orm_session_or_http_adapter() -> None
 
 def test_cli_does_not_introduce_forbidden_later_scope_symbols() -> None:
     source = "\n".join(path.read_text() for path in _python_files(CLI_ROOT))
-    for forbidden in ("DecisionRecord", "Approval", "PR-17", "Phase 2", "Phase 3", "Phase 4"):
+    for forbidden in ("DecisionRecord", "ApprovalRequest", "PR-17", "Phase 3", "Phase 4"):
         assert forbidden not in source
 
 

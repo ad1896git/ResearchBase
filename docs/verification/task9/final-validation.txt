@@ -1,0 +1,9 @@
+PASS exit 0: git diff --check
+PASS exit 0: git diff --check b8179f17720ca47c3b25ad9d36f6a8e8d4aa79ff
+PASS exit 0: git diff --exit-code -- src tests migrations docs/architecture
+PASS: branch, HEAD and backup base unchanged (3 checks)
+PASS: only tracked edit is one EOF newline removed from Basic Approval draft
+PASS: docs/verification/STABILIZATION_SUMMARY.md: 39 links resolve; whitespace/EOF and status/content checks pass
+PASS: docs/proposals/PR2-15_RevisionAction_Contract_DRAFT.md: 17 links resolve; whitespace/EOF and status/content checks pass
+PASS: docs/proposals/PR2-16_Basic_Approval_Contract_DRAFT.md: 19 links resolve; whitespace/EOF and status/content checks pass
+PASS: final XML/console/JSON counts reconcile; exact nine known failed IDs; four archives readable

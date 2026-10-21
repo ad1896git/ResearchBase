@@ -9,12 +9,15 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from scripts import pr18_evidence
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-from tests.contracts.pr18_manifest import FROZEN_REQUIRED_INDEXES
 
 from researchbase.persistence.database import create_database_engine
+from tests.contracts.pr18_manifest import FROZEN_REQUIRED_INDEXES
+from tests.integration.phase2.conftest import phase2_database_url as phase2_database_url
 
 pytestmark = pytest.mark.integration
 
@@ -41,6 +44,24 @@ EXPECTED_INDEXES: dict[str, tuple[str, tuple[str, ...], bool, str | None]] = {
 }
 
 
+@pytest.fixture
+def frozen_catalog_engine(request: pytest.FixtureRequest) -> Iterator[Engine]:
+    """Keep the exact Phase 1 inventory separate from additive Phase 2 DDL."""
+    database_url = request.getfixturevalue("phase2_database_url")
+    assert isinstance(database_url, str)
+    revision = "0018_current_pointer_same_parent_integrity"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(config, revision)
+    value = create_database_engine(database_url)
+    try:
+        with value.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == revision
+        yield value
+    finally:
+        value.dispose()
+
+
 def test_frozen_manifest_includes_workspace_name_uniqueness() -> None:
     assert EXPECTED_INDEXES["uq_workspaces_project_name"] == (
         "workspaces",
@@ -53,7 +74,9 @@ def test_frozen_manifest_includes_workspace_name_uniqueness() -> None:
     )
 
 
-def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
+def test_required_phase1_indexes_match_live_catalog(
+    engine: Engine, frozen_catalog_engine: Engine
+) -> None:
     with engine.connect() as connection:
         rows = connection.execute(
             text(
@@ -78,7 +101,7 @@ def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
     }
     assert actual == EXPECTED_INDEXES
 
-    with engine.connect() as connection:
+    with frozen_catalog_engine.connect() as connection:
         critical_names = {
             row.index_name
             for row in connection.execute(
@@ -94,12 +117,18 @@ def test_required_phase1_indexes_match_live_catalog(engine: Engine) -> None:
     assert critical_names == set(EXPECTED_INDEXES)
 
 
-def test_catalog_projection_is_independent_and_exact(engine: Engine) -> None:
+def test_catalog_projection_is_independent_and_exact(
+    engine: Engine, frozen_catalog_engine: Engine
+) -> None:
     projection = pr18_evidence.collect_catalog_verification(engine)
     assert projection["exact_required_coverage"] is True
     assert projection["missing_required"] == []
     assert projection["mismatches"] == {}
-    assert projection["unexpected_critical_names"] == []
+    frozen_projection = pr18_evidence.collect_catalog_verification(frozen_catalog_engine)
+    assert frozen_projection["exact_required_coverage"] is True
+    assert frozen_projection["missing_required"] == []
+    assert frozen_projection["mismatches"] == {}
+    assert frozen_projection["unexpected_critical_names"] == []
     assert projection["migration_required"] is False
     assert all(Path(source["source"]).exists() for source in projection["expected_manifest"])
 

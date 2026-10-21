@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "migration_head": "0023a_search_plan_review_guards",
+  "rows": [
+    {
+      "requirement": "lifecycle",
+      "source_invariant": "pack\u00a74",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix"
+      ],
+      "host_check": "pr2_03_verification_matrix",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "RQ cardinality",
+      "source_invariant": "pack\u00a73 DRAFT0/FROZEN>=1",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_application.py::test_plan_draft_cardinality_language_freeze_and_immutability",
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_ordinal_determinism_revision_supersession_and_hash"
+      ],
+      "host_check": "focused_pr2_03",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "RQ validity and duplicate identity",
+      "source_invariant": "pack\u00a73 exact valid same-project refs",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_question_reference_validation_matrix",
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_valid_superseded_question_reference_freezes"
+      ],
+      "host_check": "pr2_03_db_guards",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "language NULL / []",
+      "source_invariant": "pack\u00a73/5",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py::test_language_null_mutation_races_freeze"
+      ],
+      "host_check": "pr2_03_concurrency",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "normalization",
+      "source_invariant": "Contract15 NFC(trim), case preserved",
+      "tests": [
+        "tests/unit/phase2/test_literature_search_plan.py::test_nfc_equivalent_language_sets_have_equal_hashes",
+        "tests/unit/phase2/test_literature_search_plan.py::test_language_set_canonicalization_is_order_independent_and_case_sensitive"
+      ],
+      "host_check": "full_suite",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "golden hash vectors",
+      "source_invariant": "Contract15 literal preimage/hash",
+      "tests": [
+        "tests/unit/phase2/test_search_plan_review_regressions.py::test_literal_contract_15_golden_vectors"
+      ],
+      "host_check": "pr2_03_verification_matrix",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "ordinals",
+      "source_invariant": "pack\u00a73 Contract15 reference order",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_ordinal_determinism_revision_supersession_and_hash"
+      ],
+      "host_check": "pr2_03_ordinal_determinism",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "freeze immutability",
+      "source_invariant": "pack\u00a73 immutable fields/inputs",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected"
+      ],
+      "host_check": "pr2_03_db_guards",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "current pointer",
+      "source_invariant": "pack\u00a73 owned FROZEN target at commit",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected"
+      ],
+      "host_check": "pr2_03_db_guards",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "supersession",
+      "source_invariant": "pack\u00a74 old material preserved",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_ordinal_determinism_revision_supersession_and_hash"
+      ],
+      "host_check": "pr2_03_ordinal_determinism",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "effective authority",
+      "source_invariant": "Contract16 current effective roles",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_effective_authority.py::test_historical_roles_do_not_determine_current_write_authority"
+      ],
+      "host_check": "pr2_03_effective_authority",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "authority transition",
+      "source_invariant": "TEMP-AUTH-01 fresh time after waits",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_effective_authority.py::test_authority_loss_during_observed_project_lock_wait"
+      ],
+      "host_check": "pr2_03_effective_authority",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "authority loss",
+      "source_invariant": "pack\u00a77 replay requires current write authority",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[authority_loss-create]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[authority_loss-update]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[authority_loss-add_question]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[authority_loss-remove_question]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[authority_loss-freeze]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[authority_loss-revise]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[authority_loss-abandon]"
+      ],
+      "host_check": "pr2_03_verification_matrix",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "per-command receipt",
+      "source_invariant": "pack\u00a77 seven writes",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix"
+      ],
+      "host_check": "pr2_03_verification_matrix",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "rollback semantics",
+      "source_invariant": "pack\u00a77 atomic effect/receipt rollback",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[rollback-create]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[rollback-update]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[rollback-add_question]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[rollback-remove_question]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[rollback-freeze]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[rollback-revise]",
+        "tests/integration/phase2/test_pr2_03_command_matrix.py::test_each_write_receipt_and_protected_effect_matrix[rollback-abandon]"
+      ],
+      "host_check": "pr2_03_verification_matrix",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "idempotency",
+      "source_invariant": "pack\u00a77 five-part key/replay/conflict",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py::test_same_key_replays_and_changed_canonical_request_conflicts",
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py::test_request_id_reuse_across_projects_and_command_names_is_allowed",
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_idempotency.py::test_concurrent_same_key_create_has_one_durable_mutation_and_replay"
+      ],
+      "host_check": "pr2_03_idempotency",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "addition races",
+      "source_invariant": "pack\u00a78 freeze rereads winning addition",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py::test_addition_races_freeze_rereads_durable_refs"
+      ],
+      "host_check": "pr2_03_concurrency",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "freeze races",
+      "source_invariant": "pack\u00a78 remove/NULL/edit both orders",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py::test_remove_last_question_races_freeze",
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py::test_language_null_mutation_races_freeze",
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_concurrency.py::test_language_edit_races_freeze_hashes_locked_durable_state"
+      ],
+      "host_check": "pr2_03_concurrency",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "identity uniqueness",
+      "source_invariant": "pack\u00a73 one RQ identity per plan version",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_question_identity_uniqueness_race"
+      ],
+      "host_check": "pr2_03_identity_uniqueness",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "DB direct-write guards",
+      "source_invariant": "pack\u00a73 defense in depth",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_direct_invalid_frozen_current_writes_rejected"
+      ],
+      "host_check": "pr2_03_db_guards",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "HTTP malformed material",
+      "source_invariant": "pack\u00a75/7 typed422",
+      "tests": [
+        "tests/unit/phase2/test_search_plan_review_regressions.py::test_malformed_http_material_is_typed_422"
+      ],
+      "host_check": "pr2_03_http_validation",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "CLI mapping",
+      "source_invariant": "frozen exhaustive error exit contracts",
+      "tests": [
+        "tests/unit/test_pr16_cli_errors.py::test_all_stable_error_codes_have_cli_exit_mapping"
+      ],
+      "host_check": "full_suite",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "API surface",
+      "source_invariant": "exact63 bindings and schemas",
+      "tests": [
+        "tests/unit/test_pr15r_route_contract.py::test_all_63_routes_have_exact_schema_operation_and_application_bindings"
+      ],
+      "host_check": "full_suite",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "migration",
+      "source_invariant": "authorized0023 child, fail-closed/data preservation",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_remediation_child_upgrade_empty_downgrade_and_unique_head",
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_populated_child_downgrade_refuses",
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_original_0023_counterexample_and_fail_closed_upgrade",
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_populated_valid_0023_upgrade_preserves_rows"
+      ],
+      "host_check": "pr2_03_db_guards",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "schema checks",
+      "source_invariant": "Contract13 objective nonblank",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_objective_nonblank_database_check"
+      ],
+      "host_check": "pr2_03_schema_guards",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "FK indexes",
+      "source_invariant": "Contract13 six missing leading coverages",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_required_fk_leading_indexes"
+      ],
+      "host_check": "pr2_03_fk_indexes",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "historical regressions",
+      "source_invariant": "historical boundaries0018/0022 retained",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_literature_search_plan_migration.py::test_pr2_03_upgrade_from_0022_and_empty_downgrade"
+      ],
+      "host_check": "focused_pr2_03",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "PR2-00 temporal",
+      "source_invariant": "TEMP-AUTH-01 no protected effect after expiry",
+      "tests": [
+        "tests/integration/phase2/test_pr2_00_concurrency.py::test_challenge_expiry_after_lock_wait"
+      ],
+      "host_check": "pr2_00_temporal",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "Phase1 non-drift",
+      "source_invariant": "frozen baseline d2400fb",
+      "tests": [],
+      "host_check": "phase1_non_drift",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "host-review-runs/<run>/verification_matrix_result.json + logs/*.xml",
+      "result": "PENDING"
+    },
+    {
+      "requirement": "schema guard catalog",
+      "source_invariant": "Contract13 exact FK/CHECK and constraint-trigger semantics",
+      "tests": [
+        "tests/integration/phase2/test_pr2_03_review_guards.py::test_live_schema_guard_contract"
+      ],
+      "host_check": "pr2_03_db_guards",
+      "host_command": "bash scripts/researchbase_host_review.sh --pr2-03-verification",
+      "evidence_artifact": "logs/pr2_03_db_guards.xml",
+      "result": "PENDING"
+    }
+  ]
+}

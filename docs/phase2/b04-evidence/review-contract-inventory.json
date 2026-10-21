@@ -1,0 +1,13 @@
+{
+  "command": [
+    "git",
+    "diff",
+    "HEAD",
+    "--",
+    "docs/phase2/migration_inventory_phase2.md",
+    "docs/proposals/B04_Manuscript_Freeze_Contract_DRAFT.md"
+  ],
+  "exit_code": 0,
+  "stdout": "diff --git a/docs/phase2/migration_inventory_phase2.md b/docs/phase2/migration_inventory_phase2.md\nindex 609fdc9..7e021b4 100644\n--- a/docs/phase2/migration_inventory_phase2.md\n+++ b/docs/phase2/migration_inventory_phase2.md\n@@ -55,3 +55,4 @@ Machine evidence: [subject](../../pr_evidence/pr2-20/3ea9a7ac2f6d2a7f04ad79b907e\n | 0045_pr2_16_basic_approval | 0044_pr2_15_revision_action | 19fb8d0ba3af38347d293ffb3e478cddbef5c5047b41d49a8e1c49ed8323d187 |\n | 0046_pr2_17_authorship | 0045_pr2_16_basic_approval | bac73fbe714985a83a385712e91b56bfe5ba46f0b45327e97a158b22da0f1f65 |\n | 0047_pr2_18_novelty_prior_art | 0046_pr2_17_authorship | a58e2d44d9ee502a7906a92749db28923d2550ba843bb83ea1a64b2fbe4defde |\n+| 0048_b04_manuscript_freeze | 0047_pr2_18_novelty_prior_art | 8dc9b61712aaf6fb02513ece31f12642e4fce7a8e8df947985e8346c85a43660 |\ndiff --git a/docs/proposals/B04_Manuscript_Freeze_Contract_DRAFT.md b/docs/proposals/B04_Manuscript_Freeze_Contract_DRAFT.md\nindex e3e19e6..b4fda87 100644\n--- a/docs/proposals/B04_Manuscript_Freeze_Contract_DRAFT.md\n+++ b/docs/proposals/B04_Manuscript_Freeze_Contract_DRAFT.md\n@@ -1,6 +1,6 @@\n # B04 Manuscript Freeze and Sealed Placement Contract \u2014 DRAFT\n \n-**Status: DRAFT \u2014 awaiting owner approval; not authorized for implementation**\n+**Status: APPROVED by owner 2026-10-15 \u2014 first slice authorized for implementation**\n \n ## Start here (for the implementer)\n \n",
+  "stderr": ""
+}

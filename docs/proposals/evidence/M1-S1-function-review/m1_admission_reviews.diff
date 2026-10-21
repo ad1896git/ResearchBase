@@ -1,0 +1,15 @@
+--- /dev/null
++++ 0074/m1_admission_reviews.sql
+@@ -0,0 +1,12 @@
++CREATE OR REPLACE FUNCTION public.m1_admission_reviews(tid uuid, pid uuid)
++ RETURNS SETOF internal_review_records
++ LANGUAGE sql
++ STABLE
++ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
++AS $function$
++ SELECT * FROM b11_applicable_reviews(tid,pid)
++ UNION SELECT r.* FROM internal_review_records r JOIN manuscript_versions old ON old.id=r.manuscript_version_id
++ JOIN manuscript_versions selected ON selected.publication_id=old.publication_id
++ WHERE selected.id=tid AND old.version_number<selected.version_number AND r.project_id=pid
++ AND EXISTS(SELECT 1 FROM review_issues i WHERE i.review_record_id=r.id AND i.status='OPEN' AND i.severity='BLOCKING')
++$function$

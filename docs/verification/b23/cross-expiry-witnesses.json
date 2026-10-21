@@ -1,0 +1,77 @@
+{
+  "description": "Technical PostgreSQL cross-expiry witnesses, 2026-10-19; not human acceptance.",
+  "witnesses": [
+    {
+      "command": "review",
+      "authority": "credential",
+      "tx_started_at": "2026-10-19T09:26:05.040751-04:00",
+      "expiry_at": "2026-10-19T09:26:07.040057-04:00",
+      "lock_wait_started_at": "2026-10-19T09:26:05.071950-04:00",
+      "lock_released_at": "2026-10-19T09:26:07.051383-04:00",
+      "lock_acquired_at": "2026-10-19T09:26:07.055162-04:00",
+      "authorization_checked_at": "2026-10-19T13:26:07.101504+00:00",
+      "outcome": "FORBIDDEN",
+      "new_effects": 0
+    },
+    {
+      "command": "revision",
+      "authority": "credential",
+      "tx_started_at": "2026-10-19T09:26:09.158331-04:00",
+      "expiry_at": "2026-10-19T09:26:11.157952-04:00",
+      "lock_wait_started_at": "2026-10-19T09:26:09.179894-04:00",
+      "lock_released_at": "2026-10-19T09:26:11.171251-04:00",
+      "lock_acquired_at": "2026-10-19T09:26:11.174054-04:00",
+      "authorization_checked_at": "2026-10-19T13:26:11.177913+00:00",
+      "outcome": "FORBIDDEN",
+      "new_effects": 0
+    },
+    {
+      "command": "link",
+      "authority": "credential",
+      "tx_started_at": "2026-10-19T09:26:13.370318-04:00",
+      "expiry_at": "2026-10-19T09:26:15.369952-04:00",
+      "lock_wait_started_at": "2026-10-19T09:26:13.434951-04:00",
+      "lock_released_at": "2026-10-19T09:26:15.378092-04:00",
+      "lock_acquired_at": "2026-10-19T09:26:15.381208-04:00",
+      "authorization_checked_at": "2026-10-19T13:26:15.386656+00:00",
+      "outcome": "FORBIDDEN",
+      "new_effects": 0
+    },
+    {
+      "command": "review",
+      "authority": "role",
+      "tx_started_at": "2026-10-19T09:26:17.273417-04:00",
+      "expiry_at": "2026-10-19T09:26:19.268081-04:00",
+      "lock_wait_started_at": "2026-10-19T09:26:17.307839-04:00",
+      "lock_released_at": "2026-10-19T09:26:19.275951-04:00",
+      "lock_acquired_at": "2026-10-19T09:26:19.278210-04:00",
+      "authorization_checked_at": "2026-10-19T13:26:19.316028+00:00",
+      "outcome": "FORBIDDEN",
+      "new_effects": 0
+    },
+    {
+      "command": "revision",
+      "authority": "role",
+      "tx_started_at": "2026-10-19T09:26:20.934574-04:00",
+      "expiry_at": "2026-10-19T09:26:22.931248-04:00",
+      "lock_wait_started_at": "2026-10-19T09:26:20.955050-04:00",
+      "lock_released_at": "2026-10-19T09:26:22.942141-04:00",
+      "lock_acquired_at": "2026-10-19T09:26:22.944333-04:00",
+      "authorization_checked_at": "2026-10-19T13:26:22.947837+00:00",
+      "outcome": "FORBIDDEN",
+      "new_effects": 0
+    },
+    {
+      "command": "link",
+      "authority": "role",
+      "tx_started_at": "2026-10-19T09:26:25.180657-04:00",
+      "expiry_at": "2026-10-19T09:26:27.177501-04:00",
+      "lock_wait_started_at": "2026-10-19T09:26:25.238419-04:00",
+      "lock_released_at": "2026-10-19T09:26:27.181315-04:00",
+      "lock_acquired_at": "2026-10-19T09:26:27.184026-04:00",
+      "authorization_checked_at": "2026-10-19T13:26:27.189461+00:00",
+      "outcome": "FORBIDDEN",
+      "new_effects": 0
+    }
+  ]
+}

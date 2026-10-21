@@ -1,0 +1,24 @@
+........................................................................ [ 96%]
+...                                                                      [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane26/.venv/lib/python3.12/site-packages/_pytest/config/__init__.py:833: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; tests.integration.phase2.b01_support
+    self.import_plugin(import_spec)
+
+tests/integration/phase2/test_pr2_19_atomicity.py: 18 warnings
+tests/integration/phase2/test_pr2_19_candidates.py: 18 warnings
+tests/integration/phase2/test_pr2_19_citation_trace.py: 9 warnings
+tests/integration/phase2/test_pr2_19_discussion.py: 12 warnings
+tests/integration/phase2/test_pr2_19_governance.py: 33 warnings
+tests/integration/phase2/test_pr2_19_integrity.py: 33 warnings
+tests/integration/phase2/test_pr2_19_lineage.py: 27 warnings
+tests/integration/phase2/test_pr2_19_novelty.py: 1 warning
+tests/integration/phase2/test_pr2_19_races.py: 30 warnings
+tests/integration/phase2/test_pr2_19_rag_evidence.py: 3 warnings
+tests/integration/phase2/test_pr2_19_replay.py: 30 warnings
+tests/integration/phase2/test_pr2_19_search_evidence.py: 4 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane26/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+75 passed, 219 warnings in 201.24s (0:03:21)

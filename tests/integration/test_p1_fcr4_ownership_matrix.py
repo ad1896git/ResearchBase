@@ -8,18 +8,6 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from tests.e2e.support import WorkflowFixture, WorkflowIds, fresh_fixture, run_workflow
-from tests.unit.domain.test_pr04_research import (
-    _hypothesis_version,
-    _research_question_version,
-)
-from tests.unit.domain.test_pr05_experiment import _version as experiment_version
-from tests.unit.domain.test_pr07_artifact import version as artifact_version
-from tests.unit.domain.test_pr08_metric import _version as metric_version
-from tests.unit.domain.test_pr10_measurement import _measurement
-from tests.unit.domain.test_pr11_statistical_result import make_result
-from tests.unit.domain.test_pr12_claim import claim_version
-from tests.unit.domain.test_pr14_governance import ACTOR_ID, NOW, PROJECT_ID
 
 from researchbase.application.commands import (
     CreateArtifactVersionCommand,
@@ -100,6 +88,18 @@ from researchbase.persistence.repositories import (
     _research_question_version_from_model,
     _statistical_result_from_row,
 )
+from tests.e2e.support import WorkflowFixture, WorkflowIds, fresh_fixture, run_workflow
+from tests.unit.domain.test_pr04_research import (
+    _hypothesis_version,
+    _research_question_version,
+)
+from tests.unit.domain.test_pr05_experiment import _version as experiment_version
+from tests.unit.domain.test_pr07_artifact import version as artifact_version
+from tests.unit.domain.test_pr08_metric import _version as metric_version
+from tests.unit.domain.test_pr10_measurement import _measurement
+from tests.unit.domain.test_pr11_statistical_result import make_result
+from tests.unit.domain.test_pr12_claim import claim_version
+from tests.unit.domain.test_pr14_governance import ACTOR_ID, NOW, PROJECT_ID
 
 JsonFactory = Callable[[], object]
 DtoFactory = Callable[[object], object]

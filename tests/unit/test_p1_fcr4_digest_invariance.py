@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from researchbase.foundation.frozen_json import freeze_json, thaw_json
 from tests.integration.test_p1_fcr4_ownership_matrix import CASES, nested_json, plain
 from tests.oracles.p1_fcr4_digest_corpus import (
     GENERIC_VECTORS,
@@ -10,8 +11,6 @@ from tests.oracles.p1_fcr4_digest_corpus import (
     independent_digest,
     structured_materials,
 )
-
-from researchbase.foundation.frozen_json import freeze_json, thaw_json
 
 # Captured by executing this corpus against exact phase1-final-v3
 # (3ebedad1f204bbb2e974572e6a1a00c89fd00503), not reconstructed by POST code.

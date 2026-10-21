@@ -7,8 +7,6 @@ from typing import Any, cast
 import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from tests.integration.pr12_support import postgres_resources
-from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 from researchbase.application.commands import (
     ApplicationService,
@@ -22,6 +20,8 @@ from researchbase.domain.measurement import MeasurementId
 from researchbase.domain.organization import ProjectId
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.execution_context import ExecutionContext
+from tests.integration.pr12_support import postgres_resources
+from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 pytestmark = pytest.mark.integration
 

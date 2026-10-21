@@ -1,0 +1,26 @@
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+646 files already formatted
+All checks passed!
+== shard 0: 629 passed, 630 warnings, 1 error in 2119.40s (0:35:19)
+ERROR tests/integration/phase2/test_pr2_04_temporal_wait_supplement.py::test_pg_remaining_required_lock_sites_reauthorize_after_expiry[4-credential_expiry-get_provenance-project]
+== shard 1: 2 failed, 1594 passed, 1066 warnings in 1590.12s (0:26:30)
+FAILED tests/integration/test_p1_fcr3_current_pointer.py::test_downgrade_removes_only_p1_fcr3_objects
+FAILED tests/integration/phase2/test_pr2_03_effective_authority.py::test_authority_loss_during_observed_project_lock_wait[run-5]
+== shard 2: 1550 passed, 1432 warnings in 1728.69s (0:28:48)
+== shard 3: 933 passed, 750 warnings, 2 errors in 1571.39s (0:26:11)
+ERROR tests/integration/phase2/test_pr2_04_planned_sql_completion.py::test_pg_planned_cannot_skip_running_into_provider_terminal_state[SUCCEEDED]
+ERROR tests/integration/phase2/test_pr2_18_replay.py::test_unknown_commit_exact_uuid_recovery[coverage]
+== shard 4: 1 failed, 1387 passed, 49 skipped, 1611 warnings, 1 error in 1727.32s (0:28:47)
+FAILED tests/integration/phase2/test_pr2_04_temporal_races.py::test_pg_contention_rechecks_db_time_and_authority_on_every_attempt[credential-1]
+ERROR tests/integration/phase2/test_b14a_entry_replay.py::test_saved_graph_corruption_fails_closed[parent_state]
+== shard 5: 1 failed, 3652 passed, 1 skipped, 1361 warnings in 1671.84s (0:27:51)
+FAILED tests/integration/phase2/test_pr2_04_r8a_reservation_guards.py::test_r8a_cancellation_reservation_ordering[reservation_first-SERIALIZABLE]
+9745 passed, 6850 warning, 4 error, 4 failed, 50 skipped (all shards)
+Traceback (most recent call last):
+  File "<stdin>", line 20, in <module>
+PermissionError: [Errno 1] Operation not permitted: '/Users/fengwang/Documents/ResearchBaseProject/.pipeline/test_durations.json'
+
+Exit status: 1

@@ -1,0 +1,9 @@
+{
+  "test": "tests/integration/phase2/test_hg1_runner_live.py::test_four_durable_deployments_authenticate_and_clean_up",
+  "pre_existing": true,
+  "byte_identical_to_HEAD": true,
+  "sha256": "63ef9e46ecf6c2e2852e304eb1990fb7ce26f159efc51fe54ddb6eb24fc19506",
+  "HG1_RUN_LOCAL": null,
+  "HG1_RUN_LIVE": null,
+  "reason": "set HG1_RUN_LIVE=1 for the authorized read-only M2 check"
+}

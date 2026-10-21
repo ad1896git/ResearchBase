@@ -1,0 +1,16 @@
+.....                                                                    [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b14_publication_ready.py: 15 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b14_publication_ready.py::test_failure_after_each_individual_sql_write_is_atomic[UPDATE PUBLICATIONS]
+tests/integration/phase2/test_b14_publication_ready.py::test_failure_after_each_individual_sql_write_is_atomic[INSERT INTO PUBLICATION_LIFECYCLE_EVENTS]
+tests/integration/phase2/test_b14_publication_ready.py::test_failure_after_each_individual_sql_write_is_atomic[INSERT INTO APPROVAL_GRANT_CONSUMPTIONS]
+tests/integration/phase2/test_b14_publication_ready.py::test_failure_after_each_individual_sql_write_is_atomic[INSERT INTO APPROVAL_GRANT_EVENTS]
+tests/integration/phase2/test_b14_publication_ready.py::test_failure_after_each_individual_sql_write_is_atomic[UPDATE APPROVAL_GRANTS]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane19/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 passed, 20 warnings in 7.36s

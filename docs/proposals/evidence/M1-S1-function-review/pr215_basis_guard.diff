@@ -1,0 +1,24 @@
+--- 0073/pr215_basis_guard.sql
++++ 0074/pr215_basis_guard.sql
+@@ -23,19 +23,20 @@
+             AND r.claim_version_id IS NULL AND r.scientific_conclusion_version_id IS NULL AND r.artifact_version_id IS NULL) THEN
+           RAISE EXCEPTION 'exact manuscript review required' USING ERRCODE='P17F2'; END IF;
+         RETURN NEW;
+       END IF;
+       IF (SELECT decision_type FROM decision_records WHERE id=NEW.decision_id)='REVISION_RESPONSE' THEN
+-        LOCK TABLE actor_subject_bindings, actors, artifact_versions, artifacts, audit_findings, claims, correction_records, datasets, experiment_spec_versions, experiment_specs, impact_assessments, impact_targets, internal_review_records, literature_evidence, literature_evidence_review_events, literature_source_project_links, literature_sources, metric_definition_versions, metric_definitions, project_membership_events, project_memberships, project_role_assignments, projects, runs, scientific_conclusions, source_versions IN SHARE MODE;
++        LOCK TABLE actor_subject_bindings, actors, artifact_versions, artifacts, audit_findings, claim_versions, claims, correction_records, dataset_snapshots, datasets, evidence_relations, experiment_spec_versions, experiment_specs, impact_assessments, impact_targets, internal_review_records, literature_evidence, literature_evidence_relations, literature_evidence_review_events, literature_source_project_links, literature_sources, literature_support_snapshots, manuscript_artifact_placements, manuscript_citation_placements, manuscript_claim_placements, manuscript_versions, measurements, metric_definition_versions, metric_definitions, project_membership_events, project_memberships, project_role_assignments, projects, publications, review_issue_events, review_issues, run_artifact_inputs, run_dataset_inputs, runs, scientific_conclusion_claim_inputs, scientific_conclusion_literature_inputs, scientific_conclusion_versions, scientific_conclusions, source_versions, statistical_result_inputs, statistical_results IN SHARE MODE;
+         IF NOT EXISTS(SELECT 1 FROM decision_records WHERE id=NEW.decision_id AND xmin=pg_current_xact_id()::xid) THEN
+           RAISE EXCEPTION 'basis sealed to creation transaction' USING ERRCODE='P17F1'; END IF;
+         IF TG_TABLE_NAME='decision_basis_conclusions' THEN
+           PERFORM id FROM internal_review_records WHERE scientific_conclusion_version_id=NEW.scientific_conclusion_version_id ORDER BY id FOR SHARE;
+         ELSE
+           PERFORM x.id FROM internal_review_records x JOIN internal_review_records r ON r.id=NEW.internal_review_record_id
+             WHERE x.project_id=r.project_id AND x.claim_version_id IS NOT DISTINCT FROM r.claim_version_id
+               AND x.scientific_conclusion_version_id IS NOT DISTINCT FROM r.scientific_conclusion_version_id
++    AND x.manuscript_version_id IS NOT DISTINCT FROM r.manuscript_version_id
+             ORDER BY x.id FOR SHARE OF x;
+         END IF;
+         PERFORM b07_lock_concern(review_issue_id) FROM decision_revision_concerns WHERE decision_id=NEW.decision_id;
+         RETURN NEW;
+       END IF;

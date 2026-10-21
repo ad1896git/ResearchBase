@@ -1,0 +1,200 @@
+ATTEMPT 1
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.98s
+ATTEMPT 2
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.84s
+ATTEMPT 3
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.82s
+ATTEMPT 4
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.80s
+ATTEMPT 5
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.81s
+ATTEMPT 6
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.77s
+ATTEMPT 7
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.66s
+ATTEMPT 8
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.69s
+ATTEMPT 9
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.84s
+ATTEMPT 10
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.76s
+ATTEMPT 11
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.68s
+ATTEMPT 12
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.78s
+ATTEMPT 13
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.64s
+ATTEMPT 14
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.77s
+ATTEMPT 15
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.79s
+ATTEMPT 16
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.74s
+ATTEMPT 17
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.82s
+ATTEMPT 18
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.82s
+ATTEMPT 19
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.98s
+ATTEMPT 20
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[False]
+tests/integration/phase2/test_b20_screening_concurrency.py::test_execution_insert_phantom_both_lock_orders[True]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane53/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 2 warnings in 1.78s

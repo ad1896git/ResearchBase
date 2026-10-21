@@ -1,0 +1,23 @@
+{
+  "tests": 4964,
+  "failures": 10,
+  "errors": 0,
+  "skipped": 0,
+  "passed": 4954,
+  "exit_code": 1,
+  "warnings": 2617,
+  "failed_nodes": [
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_live_column_pk_nullability_and_fk_restrict_inventory[literature_search_provider_attempts]",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_live_column_pk_nullability_and_fk_restrict_inventory[search_query_records]",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_live_column_pk_nullability_and_fk_restrict_inventory[literature_search_execution_command_receipts]",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_every_fk_has_unconditional_leading_btree_index[literature_search_executions]",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_every_fk_has_unconditional_leading_btree_index[literature_search_provider_attempts]",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_every_fk_has_unconditional_leading_btree_index[search_query_records]",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_every_fk_has_unconditional_leading_btree_index[literature_search_execution_events]",
+    "tests/integration/phase2/test_pr2_04_schema_coverage.py::test_every_fk_has_unconditional_leading_btree_index[literature_search_execution_command_receipts]",
+    "tests/integration/phase2/test_pr2_04_structural_guard_repair.py::test_exact_scoped_query_key_supports_concrete_fk",
+    "tests/unit/phase2/test_pr2_04_static_acceptance.py::test_candidate_static_gates_and_inherited_formatter_delta"
+  ],
+  "console_seconds": 4802.37,
+  "xml_seconds": 4802.333
+}

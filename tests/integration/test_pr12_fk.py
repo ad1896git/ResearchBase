@@ -7,8 +7,6 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
-from tests.integration.pr12_support import postgres_resources
-from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 from researchbase.application.commands import (
     ApplicationService,
@@ -18,6 +16,8 @@ from researchbase.application.commands import (
     StatisticalResultInputCommand,
 )
 from researchbase.domain.statistical_result import StatisticalResultId
+from tests.integration.pr12_support import postgres_resources
+from tests.integration.test_pr12_application import seed_claim, seed_measurement, seed_project
 
 pytestmark = pytest.mark.integration
 

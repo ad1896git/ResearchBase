@@ -1,5 +1,7 @@
 # ResearchBase Cross-Phase Contracts and Compatibility
 
+> **Phase 2 correction:** Final Architecture Correction Addendum A17 and `12_Phase2_Architecture_and_Contract_Correction_v1.0.md` distinguish Phase 2 `PreparedSubmissionVersion` from deferred actual-send `SubmissionVersion` and keep literature in Phase 2. Earlier Phase 2 submission references in this document use the prepared-package meaning only where they describe a pre-send workflow.
+
 > **版本**：v1.0  
 > **状态**：SYSTEM DESIGN CLOSURE / READY FOR FINAL REVIEW  
 > **日期**：2026-08-26  
@@ -101,7 +103,7 @@ DecisionRecord
 ApprovalRequest
 ApprovalDecision
 ApprovalGrant
-SubmissionVersion
+PreparedSubmissionVersion
 ```
 
 Phase 3 运行时稳定核心：
@@ -715,7 +717,7 @@ policy
 
 # 28. Publication Compatibility
 
-Phase 2 SubmissionVersion 在后续接 venue submission 时保持不变。
+Phase 2 的 PreparedSubmissionVersion 是未发送的冻结包。后续 venue submission 扩展新增 SubmissionRecord 与 SubmissionVersion，后者只记录实际已发送的精确包；详见 Phase 2 Architecture and Contract Correction v1.0。不得将准备意图写成已发生的外部事实。
 
 新增：
 
@@ -1277,4 +1279,3 @@ Harness logs, Skill recommendations and Agent reviews are useful provenance/eval
 ## 52.4 Final Closure Rule
 
 The Harness layer is accepted only if it can be removed/replaced without migrating canonical scientific state. Replacing a harness may require preserving historical AgentExecution/fingerprint provenance, but MUST NOT require rewriting historical scientific facts.
-

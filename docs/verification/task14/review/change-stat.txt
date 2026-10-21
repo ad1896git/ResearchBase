@@ -1,0 +1,72 @@
+ .github/workflows/ci.yml                           |    2 +-
+ .../PR2-16_Basic_Approval_Contract_DRAFT.md        |  166 +-
+ docs/verification/task14/approval.xml              |    1 +
+ docs/verification/task14/architecture.xml          |    1 +
+ docs/verification/task14/commands.json             | 2479 ++++++++++++++++++++
+ docs/verification/task14/full-coverage.json        |  193 ++
+ docs/verification/task14/full/cohort-0.xml.gz      |  Bin 0 -> 41811 bytes
+ docs/verification/task14/full/cohort-1.xml.gz      |  Bin 0 -> 14271 bytes
+ docs/verification/task14/full/cohort-2.xml.gz      |  Bin 0 -> 15861 bytes
+ docs/verification/task14/full/cohort-3.xml.gz      |  Bin 0 -> 14192 bytes
+ docs/verification/task14/full/cohort-4.xml.gz      |  Bin 0 -> 13949 bytes
+ .../task14/full/final-collection.log.gz            |  Bin 0 -> 60247 bytes
+ .../task14/full/final-initial-migration.log.gz     |  Bin 0 -> 2210 bytes
+ .../task14/full/final-partition.json.gz            |  Bin 0 -> 72000 bytes
+ .../task14/full/final-postgres-environment.json.gz |  Bin 0 -> 349 bytes
+ .../task14/full/final-shard-0-command.json.gz      |  Bin 0 -> 239 bytes
+ .../task14/full/final-shard-0-exit.json.gz         |  Bin 0 -> 61 bytes
+ docs/verification/task14/full/final-shard-0.log.gz |  Bin 0 -> 923 bytes
+ .../task14/full/final-shard-1-command.json.gz      |  Bin 0 -> 8909 bytes
+ .../task14/full/final-shard-1-exit.json.gz         |  Bin 0 -> 61 bytes
+ docs/verification/task14/full/final-shard-1.log.gz |  Bin 0 -> 1989 bytes
+ .../task14/full/final-shard-2-command.json.gz      |  Bin 0 -> 8585 bytes
+ .../task14/full/final-shard-2-exit.json.gz         |  Bin 0 -> 61 bytes
+ docs/verification/task14/full/final-shard-2.log.gz |  Bin 0 -> 2127 bytes
+ .../task14/full/final-shard-3-command.json.gz      |  Bin 0 -> 8849 bytes
+ .../task14/full/final-shard-3-exit.json.gz         |  Bin 0 -> 61 bytes
+ docs/verification/task14/full/final-shard-3.log.gz |  Bin 0 -> 1957 bytes
+ .../task14/full/final-shard-4-command.json.gz      |  Bin 0 -> 8855 bytes
+ .../task14/full/final-shard-4-exit.json.gz         |  Bin 0 -> 61 bytes
+ docs/verification/task14/full/final-shard-4.log.gz |  Bin 0 -> 1998 bytes
+ .../full/final-shared-database-cleanup.json.gz     |  Bin 0 -> 137 bytes
+ .../verification/task14/full/final-summary.json.gz |  Bin 0 -> 214 bytes
+ .../task14/full/initial-partition.json.gz          |  Bin 0 -> 71892 bytes
+ .../task14/full/initial-shard-0.log.gz             |  Bin 0 -> 2105 bytes
+ .../task14/full/initial-shard-0.xml.gz             |  Bin 0 -> 42997 bytes
+ .../task14/full/initial-shard-3.log.gz             |  Bin 0 -> 5363 bytes
+ .../task14/full/initial-summary.json.gz            |  Bin 0 -> 238 bytes
+ docs/verification/task14/migration-regression.xml  |    1 +
+ docs/verification/task14/regression-rerun.xml      |    1 +
+ .../verification/task14/run_shared_verification.py |   98 +
+ .../task14/unit-architecture-final.xml             |    1 +
+ docs/verification/task14/unit.xml                  |    1 +
+ .../task14/verified-source-sha256.json             |  491 ++++
+ docs/verification/task14/verify_full_coverage.py   |  131 ++
+ migrations/versions/0045_pr2_16_basic_approval.py  | 1080 +++++++++
+ src/researchbase/api/errors.py                     |    7 +
+ src/researchbase/application/approval.py           |  577 +++++
+ src/researchbase/application/ports.py              |    5 +
+ src/researchbase/cli/errors.py                     |    7 +
+ src/researchbase/domain/approval.py                |   50 +
+ src/researchbase/foundation/errors.py              |    7 +
+ .../persistence/approval_repository.py             |  164 ++
+ src/researchbase/persistence/uow.py                |   40 +-
+ tests/architecture/test_basic_approval.py          |   58 +
+ tests/architecture/test_import_boundaries.py       |    1 +
+ tests/e2e/test_phase1_failure_recovery.py          |   14 +
+ tests/fixtures/phase2_static_baseline.json         |    2 +-
+ tests/integration/phase2/test_approval.py          |  918 ++++++++
+ ...test_pr2_03_literature_search_plan_migration.py |    4 +-
+ .../phase2/test_pr2_03_review_guards.py            |    2 +-
+ .../phase2/test_pr2_04_execution_migration.py      |    2 +-
+ .../phase2/test_pr2_04_migration_coverage.py       |    6 +-
+ .../phase2/test_pr2_15_decision_schema.py          |    2 +-
+ tests/integration/phase2/test_revision_action.py   |    6 +-
+ tests/test_architecture.py                         |    4 +
+ tests/unit/foundation/test_errors.py               |    7 +
+ tests/unit/phase2/test_pr2_04_r8a_host_topology.py |    4 +-
+ tests/unit/test_approval.py                        |  112 +
+ tests/unit/test_pr15_http.py                       |    7 +
+ tests/unit/test_pr16_cli_errors.py                 |    7 +
+ tests/unit/test_task12_migration_history.py        |    3 +-
+ 71 files changed, 6606 insertions(+), 56 deletions(-)

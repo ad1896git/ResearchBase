@@ -1,0 +1,24 @@
+== quick pre-check: 37 changed test files
+tests/integration/phase2/test_pr2_19_novelty.py: 8 warnings
+tests/integration/phase2/test_pr2_20_novelty.py: 3 warnings
+tests/integration/phase2/test_revision_action.py: 163 warnings
+tests/unit/phase2/test_pr2_04_r8a_host_topology.py: 1 warning
+tests/unit/test_batch_c_migration_history.py: 1 warning
+tests/unit/test_task12_migration_history.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane39/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+tests/integration/phase2/test_b05_review_migration.py: 16 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane39/src/researchbase/persistence/internal_review_repository.py:124: SAWarning: Connection is already established for the given bind; execution_options ignored
+    self._session.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+519 passed, 51 skipped, 950 warnings in 894.96s (0:14:54)
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2/pid: Operation not permitted
+rm: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/full_suite.lock2: Operation not permitted

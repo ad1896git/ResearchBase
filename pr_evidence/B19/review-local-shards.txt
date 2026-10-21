@@ -1,0 +1,19 @@
+Started shard 0: 1 files
+Started shard 1: 90 files
+Started shard 2: 91 files
+Started shard 3: 92 files
+Started shard 4: 96 files
+Started shard 5: 97 files
+{"shard": 0, "exit_code": 0, "tests": 630, "failures": 0, "errors": 0, "skipped": 0, "passed": 630}
+630 passed, 630 warnings in 1790.47s (0:29:50)
+{"shard": 1, "exit_code": 0, "tests": 1784, "failures": 0, "errors": 0, "skipped": 0, "passed": 1784}
+1784 passed, 1033 warnings in 1435.12s (0:23:55)
+{"shard": 2, "exit_code": 0, "tests": 1559, "failures": 0, "errors": 0, "skipped": 0, "passed": 1559}
+1559 passed, 1419 warnings in 1441.46s (0:24:01)
+{"shard": 3, "exit_code": 0, "tests": 1437, "failures": 0, "errors": 0, "skipped": 1, "passed": 1436}
+1436 passed, 1 skipped, 1477 warnings in 1410.36s (0:23:30)
+{"shard": 4, "exit_code": 0, "tests": 3809, "failures": 0, "errors": 0, "skipped": 0, "passed": 3809}
+3809 passed, 1469 warnings in 1465.04s (0:24:25)
+{"shard": 5, "exit_code": 0, "tests": 1555, "failures": 0, "errors": 0, "skipped": 52, "passed": 1503}
+1503 passed, 52 skipped, 2484 warnings in 1379.77s (0:22:59)
+{"elapsed_seconds": 1794.71, "shards": [{"shard": 0, "exit_code": 0, "tests": 630, "failures": 0, "errors": 0, "skipped": 0, "passed": 630}, {"shard": 1, "exit_code": 0, "tests": 1784, "failures": 0, "errors": 0, "skipped": 0, "passed": 1784}, {"shard": 2, "exit_code": 0, "tests": 1559, "failures": 0, "errors": 0, "skipped": 0, "passed": 1559}, {"shard": 3, "exit_code": 0, "tests": 1437, "failures": 0, "errors": 0, "skipped": 1, "passed": 1436}, {"shard": 4, "exit_code": 0, "tests": 3809, "failures": 0, "errors": 0, "skipped": 0, "passed": 3809}, {"shard": 5, "exit_code": 0, "tests": 1555, "failures": 0, "errors": 0, "skipped": 52, "passed": 1503}], "total": {"tests": 10774, "passed": 10721, "failures": 0, "errors": 0, "skipped": 53}}

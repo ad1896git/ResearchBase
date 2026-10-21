@@ -1,0 +1,16 @@
+
+tests/integration/phase2/test_m3_evidence.py::test_pg_manual_evidence_replay_and_restart PASSED [  7%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_missing_content_version_mismatch_and_wrong_location PASSED [ 15%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_independence_missing_approval_related_and_conflicts PASSED [ 23%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_authority_replay_integrity_and_derived_staleness PASSED [ 30%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_review_rejection_is_terminal_and_history_append_only PASSED [ 38%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_document_import_replay_and_missing_fulltext PASSED [ 46%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_snapshot_sequence_empty_correction_and_sealed_rows PASSED [ 53%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_credential_expiry_and_non_reviewer_cannot_verify PASSED [ 61%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_claim_link_uses_unchanged_phase1_closure PASSED [ 69%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_upstream_retraction_stales_historical_support PASSED [ 76%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_m3_migration_from_phase1_and_empty_roundtrip PASSED [ 84%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_m3_alembic_env_preserves_percent_escaped_socket_url PASSED [ 92%]
+tests/integration/phase2/test_m3_evidence.py::test_pg_authority_expiring_during_document_storage_rolls_back PASSED [100%]
+
+======================= 13 passed, 16 warnings in 4.43s ========================

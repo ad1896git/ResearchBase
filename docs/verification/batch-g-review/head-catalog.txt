@@ -1,0 +1,126 @@
+HEAD 0071_b23_novelty_review
+
+novelty_assessments triggers
+trg_b19_novelty_complete
+CREATE CONSTRAINT TRIGGER trg_b19_novelty_complete AFTER INSERT ON public.novelty_assessments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((NOT new.screening_captured)) EXECUTE FUNCTION b19_complete_basis()
+trg_b19_novelty_prelocked
+CREATE TRIGGER trg_b19_novelty_prelocked BEFORE INSERT ON public.novelty_assessments FOR EACH ROW EXECUTE FUNCTION b19_require_prelocked()
+trg_b20_parent_complete
+CREATE CONSTRAINT TRIGGER trg_b20_parent_complete AFTER INSERT ON public.novelty_assessments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION b20_complete_screening()
+trg_pr218_novelty_assessments_immutable
+CREATE TRIGGER trg_pr218_novelty_assessments_immutable BEFORE DELETE OR UPDATE ON public.novelty_assessments FOR EACH ROW EXECUTE FUNCTION pr218_immutable()
+trg_pr218_novelty_assessments_parent_guard
+CREATE TRIGGER trg_pr218_novelty_assessments_parent_guard BEFORE INSERT ON public.novelty_assessments FOR EACH ROW EXECUTE FUNCTION pr218_parent_guard()
+trg_pr218_novelty_chain
+CREATE TRIGGER trg_pr218_novelty_chain BEFORE INSERT ON public.novelty_assessments FOR EACH ROW EXECUTE FUNCTION pr218_novelty_chain()
+
+novelty_assessments constraints (definitions JSON-escaped to preserve SQL control characters)
+ck_b19_criteria
+"CHECK (((closeness_criteria IS NULL) OR b19_valid_criteria(closeness_criteria)))"
+ck_b19_scope
+"CHECK (((scope_statement IS NULL) OR ((length(btrim(scope_statement, '\t\n\u000b\f\r\u001c\u001d\u001e\u001f \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000'::text)) > 0) AND (char_length(scope_statement) <= 16384) AND (scope_statement = NORMALIZE(scope_statement, NFC)))))"
+ck_b20_novelty_material
+"CHECK ((((NOT screening_captured) AND (((material_version = 1) AND ((assessment)::text = 'INCONCLUSIVE'::text) AND (scope_statement IS NULL) AND (closeness_criteria IS NULL)) OR ((material_version = 2) AND ((assessment)::text = 'CLOSE_PRIOR_ART_FOUND'::text) AND (scope_statement IS NOT NULL) AND (closeness_criteria IS NOT NULL)))) OR (screening_captured AND (material_version = 2) AND ((assessment)::text = ANY ((ARRAY['INCONCLUSIVE'::character varying, 'NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE'::character varying])::text[])) AND (scope_statement IS NOT NULL) AND (closeness_criteria IS NOT NULL))))"
+ck_pr218_novelty_assessor
+"CHECK ((assessed_by = created_by))"
+ck_pr218_novelty_hash
+"CHECK ((content_hash ~ '^[0-9a-f]{64}$'::text))"
+ck_pr218_novelty_not_self
+"CHECK (((supersedes_assessment_id IS NULL) OR (supersedes_assessment_id <> id)))"
+ck_pr218_novelty_outcome
+"CHECK (((assessment)::text = ANY ((ARRAY['NO_CLOSE_PRIOR_ART_WITHIN_COVERAGE'::character varying, 'CLOSE_PRIOR_ART_FOUND'::character varying, 'INCONCLUSIVE'::character varying])::text[])))"
+ck_pr218_novelty_scheme
+"CHECK (((hash_scheme)::text = 'sha256-cjson-v1'::text))"
+ck_pr218_novelty_text
+"CHECK (((length(btrim(limitations)) > 0) AND ((char_length(limitations) >= 1) AND (char_length(limitations) <= 16384))))"
+fk_pr218_novelty_assessed_by
+"FOREIGN KEY (assessed_by) REFERENCES actors(id) ON DELETE RESTRICT"
+fk_pr218_novelty_claim_version_id
+"FOREIGN KEY (claim_version_id) REFERENCES claim_versions(id) ON DELETE RESTRICT"
+fk_pr218_novelty_created_by
+"FOREIGN KEY (created_by) REFERENCES actors(id) ON DELETE RESTRICT"
+fk_pr218_novelty_search_coverage_id
+"FOREIGN KEY (search_coverage_id) REFERENCES search_coverage(id) ON DELETE RESTRICT"
+fk_pr218_novelty_supersedes_assessment_id
+"FOREIGN KEY (supersedes_assessment_id) REFERENCES novelty_assessments(id) ON DELETE RESTRICT"
+novelty_assessments_assessed_by_not_null
+"NOT NULL assessed_by"
+novelty_assessments_assessment_not_null
+"NOT NULL assessment"
+novelty_assessments_claim_version_id_not_null
+"NOT NULL claim_version_id"
+novelty_assessments_content_hash_not_null
+"NOT NULL content_hash"
+novelty_assessments_created_at_not_null
+"NOT NULL created_at"
+novelty_assessments_created_by_not_null
+"NOT NULL created_by"
+novelty_assessments_hash_scheme_not_null
+"NOT NULL hash_scheme"
+novelty_assessments_id_not_null
+"NOT NULL id"
+novelty_assessments_limitations_not_null
+"NOT NULL limitations"
+novelty_assessments_material_version_not_null
+"NOT NULL material_version"
+novelty_assessments_screening_captured_not_null
+"NOT NULL screening_captured"
+novelty_assessments_search_coverage_id_not_null
+"NOT NULL search_coverage_id"
+pk_pr218_novelty
+"PRIMARY KEY (id)"
+trg_b19_novelty_complete
+"TRIGGER DEFERRABLE INITIALLY DEFERRED"
+trg_b20_parent_complete
+"TRIGGER DEFERRABLE INITIALLY DEFERRED"
+
+composed functions
+b13_stale
+CREATE OR REPLACE FUNCTION public.b13_stale(g approval_grants)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+#variable_conflict use_column
+DECLARE r approval_requests; d approval_decisions;
+BEGIN
+ SELECT * INTO d FROM approval_decisions WHERE id=g.approval_decision_id;
+ SELECT * INTO r FROM approval_requests WHERE id=d.approval_request_id;
+ IF NOT pr216_approver_active(d.decided_by,g.project_id) OR EXISTS(
+ SELECT 1 FROM approval_requests q WHERE q.project_id=r.project_id AND q.approval_purpose=r.approval_purpose
+ AND coalesce(q.scientific_conclusion_version_id,q.manuscript_version_id)<>coalesce(r.scientific_conclusion_version_id,r.manuscript_version_id)
+ AND q.requested_at>r.requested_at) THEN RETURN true; END IF;
+ IF r.manuscript_version_id IS NOT NULL AND r.approval_purpose NOT IN ('READY_FOR_SUBMISSION','PREPARE_SUBMISSION') THEN
+ RAISE EXCEPTION 'B14 consent/effect dependency unavailable' USING ERRCODE='P16G1'; END IF;
+ BEGIN
+  PERFORM b13_release_gate(r,d.decided_by);
+ EXCEPTION WHEN SQLSTATE 'P16T1' OR SQLSTATE 'P16R1' OR SQLSTATE 'P16G1' OR SQLSTATE 'P16C1' OR SQLSTATE 'P16A1' OR SQLSTATE 'P13S1' OR SQLSTATE 'P14B1' THEN RETURN true;
+ END;
+ RETURN false;
+END $function$
+
+b20_child_guard
+CREATE OR REPLACE FUNCTION public.b20_child_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+    DECLARE parent novelty_assessments; owner_xmin xid;
+    BEGIN
+      IF NOT pr218_capture_prelocked() THEN RAISE EXCEPTION 'capture prelocks required' USING ERRCODE='P17D3'; END IF;
+      SELECT * INTO parent FROM novelty_assessments WHERE id=NEW.novelty_assessment_id;
+      SELECT xmin INTO owner_xmin FROM novelty_assessments WHERE id=NEW.novelty_assessment_id;
+      IF parent.id IS NULL THEN RETURN NEW; END IF;
+      IF owner_xmin IS DISTINCT FROM pg_current_xact_id()::xid THEN RAISE EXCEPTION 'sealed screening set' USING ERRCODE='P17D1'; END IF;
+      IF NOT parent.screening_captured OR NEW.created_by IS DISTINCT FROM parent.created_by
+        OR NEW.created_at IS DISTINCT FROM parent.created_at THEN
+        RAISE EXCEPTION 'screening attribution mismatch' USING ERRCODE='P17D3'; END IF;
+      RETURN NEW;
+    END $function$
+
+pr218_capture_prelocked
+CREATE OR REPLACE FUNCTION public.pr218_capture_prelocked()
+ RETURNS boolean
+ LANGUAGE sql
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$ SELECT current_setting('transaction_isolation')='read committed' AND NOT EXISTS (SELECT 1 FROM unnest(ARRAY['actor_subject_bindings','actors','artifact_versions','artifacts','audit_findings','claim_versions','claims','correction_records','datasets','experiment_spec_versions','experiment_specs','impact_assessments','impact_targets','literature_evidence','literature_evidence_review_events','literature_search_execution_events','literature_search_executions','literature_search_plan_versions','literature_search_plans','literature_search_provider_attempts','literature_source_project_links','literature_sources','metadata_observations','metric_definition_versions','metric_definitions','project_membership_events','project_memberships','project_role_assignments','projects','runs','scientific_conclusions','search_query_records','search_result_records','search_result_resolutions','source_versions']) AS names(name) WHERE NOT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='relation' AND relation=to_regclass(names.name) AND mode='ShareLock' AND granted)) $function$
