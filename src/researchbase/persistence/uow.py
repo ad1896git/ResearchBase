@@ -41,6 +41,7 @@ from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.agent_version_repository import SqlAlchemyAgentRepository
 from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
 from researchbase.persistence.authorship_repository import SqlAlchemyAuthorshipRepository
+from researchbase.persistence.capability_gateway_repository import SqlAlchemyGatewayRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 from researchbase.persistence.discussion_hypothesis_repository import (
     SqlAlchemyDiscussionHypothesisRepository,
@@ -518,6 +519,7 @@ class SqlAlchemyUnitOfWork:
     revision_action: SqlAlchemyRevisionActionRepository
     approval: SqlAlchemyApprovalRepository
     decision: SqlAlchemyDecisionRepository
+    gateway: SqlAlchemyGatewayRepository
     task_safety: SqlAlchemyTaskSafetyRepository
     research_tasks: SqlAlchemyResearchTaskRepository
 
@@ -605,6 +607,7 @@ class SqlAlchemyUnitOfWork:
         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
         self.research_tasks = SqlAlchemyResearchTaskRepository(self._session)
+        self.gateway = SqlAlchemyGatewayRepository(self._session)
         self.task_safety = SqlAlchemyTaskSafetyRepository(self._session)
         self.agents = SqlAlchemyAgentRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)

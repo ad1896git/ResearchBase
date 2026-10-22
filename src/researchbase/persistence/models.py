@@ -1746,10 +1746,19 @@ class ResearchTaskStepInputsModel(Base):
 class ResearchTaskCommandReceiptsModel(Base):
     __tablename__ = "research_task_command_receipts"
     __table_args__ = (
-        CheckConstraint(
-            "command_name IN (\n  'create_research_task','create_task_plan','add_task_step','add_task_step_dependency','seal_task_plan','cancel_research_task',\n  'bind_task_policies','reserve_task_budget','settle_task_budget','evaluate_task_termination','request_human_checkpoint','respond_human_checkpoint')",  # noqa: E501
-            name="pr304_command_names",
-        ),  # noqa: E501
+        Index("pr303_receipt_policy", "result_tool_policy_id", "project_id"),
+        Index(
+            "pr303_receipt_invocation",
+            "research_task_id",
+            "project_id",
+            "result_capability_invocation_id",
+        ),
+        Index(
+            "pr303_receipt_event",
+            "result_capability_event_id",
+            unique=True,
+            postgresql_where=text("result_capability_event_id IS NOT NULL"),
+        ),
         CheckConstraint("request_hash ~ '^[0-9a-f]{64}$'"),
         CheckConstraint("hash_scheme = 'sha256-cjson-v1'"),
         CheckConstraint("material_version = 1"),
@@ -1765,6 +1774,63 @@ class ResearchTaskCommandReceiptsModel(Base):
         ),
         Index("pr301_receipts_actor", "actor_id"),
         Index("pr301_receipts_project_time", "project_id", "completed_at", "id"),
+        UniqueConstraint("research_task_id", "project_id", "id", name="pr303_receipt_scope_key"),
+        CheckConstraint(
+            "command_name IN ( 'create_research_task','create_task_plan','add_task_step',"
+            "'add_task_step_dependency','seal_task_plan','cancel_research_task', "
+            "'bind_task_policies','reserve_task_budget','settle_task_budget',"
+            "'evaluate_task_termination','request_human_checkpoint','respond_human_checkpoint',"
+            " 'register_agent_tool_policy','request_capability_invocation',"
+            "'start_capability_invocation','finish_capability_invocation')",
+            name="pr303_command_names",
+        ),
+        ForeignKeyConstraint(
+            ["result_tool_policy_id", "project_id"],
+            ["agent_tool_policies.id", "agent_tool_policies.project_id"],
+            ondelete="RESTRICT",
+            name="pr303_receipt_policy_fk",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "result_capability_invocation_id"],
+            [
+                "capability_invocations.research_task_id",
+                "capability_invocations.project_id",
+                "capability_invocations.id",
+            ],
+            ondelete="RESTRICT",
+            name="pr303_receipt_invocation_fk",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "result_capability_event_id"],
+            [
+                "capability_invocation_events.research_task_id",
+                "capability_invocation_events.project_id",
+                "capability_invocation_events.id",
+            ],
+            ondelete="RESTRICT",
+            name="pr303_receipt_event_fk",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        CheckConstraint(
+            "(command_name = 'register_agent_tool_policy' AND result_tool_policy_id IS NOT "
+            "NULL AND num_nonnulls(result_capability_invocation_id,result_capability_event_id,"
+            "resulting_invocation_revision) = 0) OR (command_name IN "
+            "('request_capability_invocation','start_capability_invocation',"
+            "'finish_capability_invocation') AND num_nonnulls(result_tool_policy_id,"
+            "result_capability_invocation_id,result_capability_event_id,"
+            "resulting_invocation_revision) = 4 AND resulting_invocation_revision BETWEEN 1 "
+            "AND 3) OR (command_name NOT IN ('register_agent_tool_policy',"
+            "'request_capability_invocation','start_capability_invocation',"
+            "'finish_capability_invocation') AND num_nonnulls(result_tool_policy_id,"
+            "result_capability_invocation_id,result_capability_event_id,"
+            "resulting_invocation_revision) = 0)",
+            name="pr303_receipt_shape",
+        ),
     )
     id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
     project_id = mapped_column(
@@ -1781,22 +1847,25 @@ class ResearchTaskCommandReceiptsModel(Base):
     material_version = mapped_column(Integer, nullable=False)
     resulting_row_version = mapped_column(Integer, nullable=False)
     completed_at = mapped_column(DateTime(timezone=True), nullable=False)
+    result_tool_policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    result_capability_invocation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    result_capability_event_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    resulting_invocation_revision = mapped_column(Integer, nullable=True)
 
 
 class ResearchTaskEventsModel(Base):
     __tablename__ = "research_task_events"
     __table_args__ = (
+        Index("pr303_task_event_policy", "result_tool_policy_id"),
+        Index("pr303_task_event_invocation", "research_task_id", "result_capability_invocation_id"),
+        Index("pr303_task_event_capability", "result_capability_event_id"),
         Index(
             "pr304_events_receipt_tuple",
             "research_task_id",
             "actor_id",
             "command_id",
             "task_row_version",
-        ),  # noqa: E501
-        CheckConstraint(
-            "event_type IN (\n    'CREATED','PLAN_CREATED','STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED','CANCELLED',\n    'POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED')",  # noqa: E501
-            name="pr304_event_names",
-        ),  # noqa: E501
+        ),
         CheckConstraint("sequence >= 1"),
         CheckConstraint("task_row_version >= 1"),
         UniqueConstraint("research_task_id", "id"),
@@ -1804,21 +1873,9 @@ class ResearchTaskEventsModel(Base):
         UniqueConstraint("research_task_id", "task_row_version"),
         CheckConstraint("(sequence = task_row_version"),
         CheckConstraint(
-            "\n    (event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED') OR\n    (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = 'PLANNING') OR\n    (event_type IN ('STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED') AND prior_status = 'PLANNING' AND new_status = 'PLANNING') OR\n    (event_type = 'CANCELLED' AND prior_status IN ('CREATED','PLANNING') AND new_status = 'CANCELLED') OR\n    (event_type IN ('POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED')\n      AND prior_status IN ('CREATED','PLANNING','CANCELLED') AND new_status = prior_status)",  # noqa: E501
-            name="pr304_event_states",
-        ),  # noqa: E501
-        CheckConstraint(
             "event_type = 'CREATED' OR prior_status IS NOT NULL", name="pr304_event_prior"
-        ),  # noqa: E501
-        CheckConstraint(
-            "\n    CASE WHEN event_type IN ('CANCELLED','POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED')\n    THEN reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED\n    ELSE reason IS NULL END",  # noqa: E501
-            name="pr304_event_reason",
-        ),  # noqa: E501
+        ),
         CheckConstraint("NOT stop_success", name="pr304_event_stop_slice"),
-        CheckConstraint(
-            "\n    event_type IN ('BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED') OR\n    NOT (stop_human OR stop_policy OR stop_budget OR stop_repeated_failure OR stop_no_improvement OR stop_success)",  # noqa: E501
-            name="pr304_event_stop_kind",
-        ),  # noqa: E501
         ForeignKeyConstraint(
             ["research_task_id", "actor_id", "command_id", "task_row_version"],
             [
@@ -1832,6 +1889,71 @@ class ResearchTaskEventsModel(Base):
             initially="DEFERRED",
         ),
         Index("pr301_task_events_actor", "actor_id"),
+        ForeignKeyConstraint(
+            ["result_tool_policy_id"],
+            ["agent_tool_policies.id"],
+            ondelete="RESTRICT",
+            name="pr303_task_event_policy_fk",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "result_capability_invocation_id"],
+            ["capability_invocations.research_task_id", "capability_invocations.id"],
+            ondelete="RESTRICT",
+            name="pr303_task_event_invocation_fk",
+        ),
+        ForeignKeyConstraint(
+            ["result_capability_event_id"],
+            ["capability_invocation_events.id"],
+            ondelete="RESTRICT",
+            name="pr303_task_event_capability_fk",
+        ),
+        CheckConstraint(
+            "event_type IN ( 'CREATED','PLAN_CREATED','STEP_ADDED','DEPENDENCY_ADDED',"
+            "'PLAN_SEALED','CANCELLED', 'POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED',"
+            "'TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED', "
+            "'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED',"
+            "'CAPABILITY_FINISHED')",
+            name="pr303_event_names",
+        ),
+        CheckConstraint(
+            "(event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED') OR "
+            "(event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = "
+            "'PLANNING') OR (event_type IN ('STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED') AND "
+            "prior_status = 'PLANNING' AND new_status = 'PLANNING') OR (event_type = "
+            "'CANCELLED' AND prior_status IN ('CREATED','PLANNING') AND new_status = "
+            "'CANCELLED') OR (event_type IN ('POLICIES_BOUND','BUDGET_RESERVED',"
+            "'BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED',"
+            "'CHECKPOINT_RESPONDED', 'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED',"
+            "'CAPABILITY_STARTED','CAPABILITY_FINISHED') AND prior_status IN ('CREATED',"
+            "'PLANNING','CANCELLED') AND new_status = prior_status)",
+            name="pr303_event_states",
+        ),
+        CheckConstraint(
+            "CASE WHEN event_type IN ( 'CANCELLED','POLICIES_BOUND','BUDGET_RESERVED',"
+            "'BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED',"
+            "'CHECKPOINT_RESPONDED', 'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED',"
+            "'CAPABILITY_STARTED','CAPABILITY_FINISHED') THEN reason IS NOT NULL AND "
+            "length(btrim(reason)) BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED ELSE reason "
+            "IS NULL END",
+            name="pr303_event_reason",
+        ),
+        CheckConstraint(
+            "event_type IN ( 'BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED',"
+            "'CAPABILITY_REQUESTED','CAPABILITY_FINISHED') OR NOT (stop_human OR stop_policy "
+            "OR stop_budget OR stop_repeated_failure OR stop_no_improvement OR stop_success)",
+            name="pr303_event_stop_kind",
+        ),
+        CheckConstraint(
+            "(event_type = 'TOOL_POLICY_REGISTERED' AND result_tool_policy_id IS NOT NULL AND "
+            "result_capability_invocation_id IS NULL AND result_capability_event_id IS NULL) "
+            "OR (event_type IN ('CAPABILITY_REQUESTED','CAPABILITY_STARTED',"
+            "'CAPABILITY_FINISHED') AND num_nonnulls(result_tool_policy_id,"
+            "result_capability_invocation_id,result_capability_event_id) = 3) OR (event_type "
+            "NOT IN ('TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED',"
+            "'CAPABILITY_FINISHED') AND num_nonnulls(result_tool_policy_id,"
+            "result_capability_invocation_id,result_capability_event_id) = 0)",
+            name="pr303_task_event_shape",
+        ),
     )
     id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
     research_task_id = mapped_column(
@@ -1862,6 +1984,9 @@ class ResearchTaskEventsModel(Base):
     stop_no_improvement = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     stop_success = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    result_tool_policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    result_capability_invocation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    result_capability_event_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
 
 
 class ResearchTaskStepEventsModel(Base):
@@ -2278,6 +2403,9 @@ class BudgetReservationsModel(Base):
             ["research_task_steps.research_task_id", "research_task_steps.id"],
             ondelete="RESTRICT",
         ),
+        UniqueConstraint(
+            "research_task_id", "id", "operation_id", name="pr303_reservation_operation_key"
+        ),
     )
     id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
     research_task_id = mapped_column(
@@ -2315,7 +2443,7 @@ class BudgetUsageRecordsModel(Base):
             "reservation_id",
             unique=True,
             postgresql_where=text("is_final"),
-        ),  # noqa: E501
+        ),
         CheckConstraint("outcome IN ('SUCCEEDED','FAILED','CANCELLED','PRUNED','UNKNOWN')"),
         CheckConstraint("wall_time_seconds >= 0"),
         CheckConstraint("agent_steps >= 0"),
@@ -2349,6 +2477,9 @@ class BudgetUsageRecordsModel(Base):
             ["research_task_id", "reservation_id"],
             ["budget_reservations.research_task_id", "budget_reservations.id"],
             ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "research_task_id", "reservation_id", "id", name="pr303_usage_reservation_key"
         ),
     )
     id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
@@ -2484,6 +2615,7 @@ class HumanCheckpointsModel(Base):
 # ADR-0023 S1 internal persistence mappings. Migration 0079 owns guards and DDL.
 class AgentVersionModel(Base):
     __tablename__ = "agent_versions"
+    __table_args__ = (UniqueConstraint("id", "project_id", "actor_id"),)
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
     project_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
@@ -2636,3 +2768,589 @@ class AgentAvailabilityEventModel(Base):
         ForeignKey("agent_command_receipts.id", ondelete="RESTRICT"),
         nullable=False,
     )
+
+
+# PR3-03 inert metadata. Migration 0080 owns the persisted schema and guards.
+
+
+class AgentToolPoliciesModel(Base):
+    __tablename__ = "agent_tool_policies"
+    __table_args__ = (
+        CheckConstraint(
+            "length(btrim(version)) BETWEEN 1 AND 512 AND version IS NFC NORMALIZED AND "
+            "lower(btrim(version)) NOT IN ('latest','current','main','master')"
+        ),
+        CheckConstraint("capability_set_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("max_tool_calls > 0"),
+        CheckConstraint(
+            "max_parallel_invocations > 0 AND max_parallel_invocations <= max_tool_calls"
+        ),
+        CheckConstraint("filesystem_scope = 'DENY'"),
+        CheckConstraint("network_scope = 'DENY'"),
+        CheckConstraint("compute_scope = 'DENY'"),
+        CheckConstraint("external_effect_scope = 'DENY'"),
+        CheckConstraint("registry_content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("hash_scheme = 'sha256-cjson-v1'"),
+        UniqueConstraint("project_id", "version"),
+        UniqueConstraint("id", "project_id"),
+        ForeignKeyConstraint(
+            ["registration_task_id", "project_id"],
+            ["research_tasks.id", "research_tasks.project_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["registration_task_id", "project_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.project_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        Index("pr303_policy_registration", "registration_task_id", "project_id", "receipt_id"),
+        Index("pr303_policy_registry", "registry_artifact_version_id"),
+        Index("pr303_policy_creator", "created_by"),
+        Index("pr303_policy_time", "project_id", "created_at", "id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    registration_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    version = mapped_column(Text, nullable=False)
+    capability_set_hash = mapped_column(Text, nullable=False)
+    max_tool_calls = mapped_column(Integer, nullable=False)
+    max_parallel_invocations = mapped_column(Integer, nullable=False)
+    filesystem_scope = mapped_column(Text, nullable=False)
+    network_scope = mapped_column(Text, nullable=False)
+    compute_scope = mapped_column(Text, nullable=False)
+    external_effect_scope = mapped_column(Text, nullable=False)
+    registry_artifact_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    registry_content_hash = mapped_column(Text, nullable=False)
+    content_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=False)
+    created_by = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentToolPolicyPermissionsModel(Base):
+    __tablename__ = "agent_tool_policy_permissions"
+    __table_args__ = (
+        CheckConstraint("parameter_schema_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("effect IN ('ALLOW','DENY')"),
+        UniqueConstraint(
+            "policy_id",
+            "capability_id",
+            "capability_version",
+            "operation",
+            "adapter_id",
+            "adapter_version",
+            "parameter_schema_hash",
+            "effect",
+        ),
+        ForeignKeyConstraint(
+            ["policy_id", "project_id"],
+            ["agent_tool_policies.id", "agent_tool_policies.project_id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "length(btrim(capability_id)) BETWEEN 1 AND 128 AND capability_id IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(capability_version)) BETWEEN 1 AND 512 AND capability_version IS NFC "
+            "NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(operation)) BETWEEN 1 AND 128 AND operation IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(adapter_id)) BETWEEN 1 AND 128 AND adapter_id IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(adapter_version)) BETWEEN 1 AND 512 AND adapter_version IS NFC NORMALIZED"
+        ),
+        Index("pr303_permission_scope", "policy_id", "project_id"),
+        Index("pr303_permission_project", "project_id", "policy_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    project_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    capability_id = mapped_column(Text, nullable=False)
+    capability_version = mapped_column(Text, nullable=False)
+    operation = mapped_column(Text, nullable=False)
+    adapter_id = mapped_column(Text, nullable=False)
+    adapter_version = mapped_column(Text, nullable=False)
+    parameter_schema_hash = mapped_column(Text, nullable=False)
+    effect = mapped_column(Text, nullable=False)
+
+
+class CapabilityInvocationsModel(Base):
+    __tablename__ = "capability_invocations"
+    __table_args__ = (
+        CheckConstraint("policy_content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("mode = 'CONTRACT_FAKE'"),
+        CheckConstraint("parameter_schema_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("harness_content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("parameters_content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("requested_parameters_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("parameters_byte_size BETWEEN 1 AND 65536"),
+        CheckConstraint("trace_content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint(
+            "status IN ( 'REQUESTED','RUNNING','SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED')"
+        ),
+        CheckConstraint("row_version BETWEEN 1 AND 3"),
+        CheckConstraint(
+            "octet_length(result_summary) <= 8192 AND result_summary IS NFC NORMALIZED"
+        ),
+        UniqueConstraint("research_task_id", "project_id", "id"),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "id", "reservation_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id"],
+            ["research_tasks.id", "research_tasks.project_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["agent_version_id", "project_id", "agent_actor_id"],
+            ["agent_versions.id", "agent_versions.project_id", "agent_versions.actor_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["policy_id", "project_id"],
+            ["agent_tool_policies.id", "agent_tool_policies.project_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "reservation_id", "id"],
+            [
+                "budget_reservations.research_task_id",
+                "budget_reservations.id",
+                "budget_reservations.operation_id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "reservation_id", "usage_record_id"],
+            [
+                "budget_usage_records.research_task_id",
+                "budget_usage_records.reservation_id",
+                "budget_usage_records.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "retry_parent_id"],
+            ["capability_invocations.research_task_id", "capability_invocations.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "request_receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.project_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "start_receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.project_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "finish_receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.project_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("retry_parent_id IS DISTINCT FROM id"),
+        CheckConstraint("(trace_artifact_version_id IS NULL) = (trace_content_hash IS NULL)"),
+        CheckConstraint("started_at IS NULL OR started_at >= created_at"),
+        CheckConstraint("finished_at IS NULL OR finished_at >= coalesce(started_at, created_at)"),
+        CheckConstraint(
+            "(status = 'REQUESTED' AND row_version = 1 AND num_nonnulls(started_at, "
+            "finished_at,start_receipt_id,finish_receipt_id,usage_record_id, "
+            "trace_artifact_version_id,result_summary,error_code) = 0) OR (status = 'RUNNING' "
+            "AND row_version = 2 AND started_at IS NOT NULL AND start_receipt_id IS NOT NULL "
+            "AND num_nonnulls(finished_at, finish_receipt_id,usage_record_id,"
+            "trace_artifact_version_id,result_summary,error_code) = 0) OR (status = "
+            "'CANCELLED' AND row_version = 2 AND started_at IS NULL AND start_receipt_id IS "
+            "NULL AND finished_at IS NOT NULL AND finish_receipt_id IS NOT NULL AND "
+            "usage_record_id IS NOT NULL) OR (status IN ('SUCCEEDED','FAILED',"
+            "'UNKNOWN_OUTCOME','CANCELLED') AND row_version = 3 AND num_nonnulls(started_at,"
+            "start_receipt_id,finished_at,finish_receipt_id,usage_record_id) = 5)"
+        ),
+        CheckConstraint(
+            "CASE WHEN status IN ('FAILED','UNKNOWN_OUTCOME') THEN error_code IS NOT NULL AND "
+            "error_code IN ('ADAPTER_UNAVAILABLE','INVALID_STATE_TRANSITION') ELSE error_code "
+            "IS NULL END"
+        ),
+        CheckConstraint(
+            "length(btrim(capability_id)) BETWEEN 1 AND 128 AND capability_id IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(capability_version)) BETWEEN 1 AND 512 AND capability_version IS NFC "
+            "NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(operation)) BETWEEN 1 AND 128 AND operation IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(adapter_id)) BETWEEN 1 AND 128 AND adapter_id IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(adapter_version)) BETWEEN 1 AND 512 AND adapter_version IS NFC NORMALIZED"
+        ),
+        CheckConstraint("length(btrim(skill_id)) BETWEEN 1 AND 128 AND skill_id IS NFC NORMALIZED"),
+        CheckConstraint(
+            "length(btrim(skill_version)) BETWEEN 1 AND 512 AND skill_version IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(strategy_id)) BETWEEN 1 AND 128 AND strategy_id IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(strategy_version)) BETWEEN 1 AND 512 AND strategy_version IS NFC "
+            "NORMALIZED"
+        ),
+        Index("pr303_invocation_task_time", "research_task_id", "created_at", "id"),
+        Index("pr303_invocation_project", "project_id", "research_task_id", "id"),
+        Index("pr303_invocation_step", "research_task_id", "step_id"),
+        Index("pr303_invocation_version", "agent_version_id", "project_id", "agent_actor_id"),
+        Index("pr303_invocation_actor", "agent_actor_id"),
+        Index("pr303_invocation_requester", "requested_by"),
+        Index("pr303_invocation_policy", "policy_id", "project_id"),
+        Index("pr303_invocation_harness", "harness_artifact_version_id"),
+        Index("pr303_invocation_parameters", "parameters_artifact_version_id"),
+        Index(
+            "pr303_invocation_trace",
+            "trace_artifact_version_id",
+            postgresql_where=text("trace_artifact_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_invocation_retry",
+            "research_task_id",
+            "retry_parent_id",
+            postgresql_where=text("retry_parent_id IS NOT NULL"),
+        ),
+        Index("pr303_invocation_usage", "research_task_id", "reservation_id", "usage_record_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    agent_version_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    agent_actor_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    requested_by = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    policy_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    policy_content_hash = mapped_column(Text, nullable=False)
+    mode = mapped_column(Text, nullable=False)
+    capability_id = mapped_column(Text, nullable=False)
+    capability_version = mapped_column(Text, nullable=False)
+    operation = mapped_column(Text, nullable=False)
+    adapter_id = mapped_column(Text, nullable=False)
+    adapter_version = mapped_column(Text, nullable=False)
+    parameter_schema_hash = mapped_column(Text, nullable=False)
+    skill_id = mapped_column(Text, nullable=False)
+    skill_version = mapped_column(Text, nullable=False)
+    strategy_id = mapped_column(Text, nullable=False)
+    strategy_version = mapped_column(Text, nullable=False)
+    harness_artifact_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    harness_content_hash = mapped_column(Text, nullable=False)
+    parameters_artifact_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    parameters_content_hash = mapped_column(Text, nullable=False)
+    requested_parameters_hash = mapped_column(Text, nullable=False)
+    parameters_byte_size = mapped_column(Integer, nullable=False)
+    reservation_id = mapped_column(PostgreSQLUUID(as_uuid=True), unique=True, nullable=False)
+    usage_record_id = mapped_column(PostgreSQLUUID(as_uuid=True), unique=True, nullable=True)
+    trace_artifact_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    trace_content_hash = mapped_column(Text, nullable=True)
+    retry_parent_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    status = mapped_column(Text, nullable=False)
+    row_version = mapped_column(Integer, nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at = mapped_column(DateTime(timezone=True), nullable=True)
+    request_receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), unique=True, nullable=False)
+    start_receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), unique=True, nullable=True)
+    finish_receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), unique=True, nullable=True)
+    result_summary = mapped_column(Text, nullable=True)
+    error_code = mapped_column(Text, nullable=True)
+
+
+class CapabilityInvocationRefsModel(Base):
+    __tablename__ = "capability_invocation_refs"
+    __table_args__ = (
+        CheckConstraint("direction IN ('INPUT','OUTPUT')"),
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "invocation_id"],
+            [
+                "capability_invocations.research_task_id",
+                "capability_invocations.project_id",
+                "capability_invocations.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.project_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "num_nonnulls(research_question_version_id,hypothesis_version_id, claim_version_id,"
+            "source_version_id,artifact_version_id,manuscript_version_id) = 1"
+        ),
+        CheckConstraint(
+            "CASE WHEN source_version_id IS NOT NULL OR manuscript_version_id IS NOT NULL THEN "
+            "hash_scheme IS NOT NULL AND hash_scheme = 'sha256-cjson-v1' ELSE hash_scheme IS "
+            "NULL END"
+        ),
+        CheckConstraint("direction <> 'OUTPUT' OR artifact_version_id IS NOT NULL"),
+        Index("pr303_refs_owner", "invocation_id", "direction", "id"),
+        Index("pr303_refs_scope", "research_task_id", "project_id", "invocation_id"),
+        Index("pr303_refs_receipt", "research_task_id", "project_id", "receipt_id"),
+        Index(
+            "pr303_refs_research_question",
+            "invocation_id",
+            "direction",
+            "research_question_version_id",
+            unique=True,
+            postgresql_where=text("research_question_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_research_question_target",
+            "research_question_version_id",
+            postgresql_where=text("research_question_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_hypothesis",
+            "invocation_id",
+            "direction",
+            "hypothesis_version_id",
+            unique=True,
+            postgresql_where=text("hypothesis_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_hypothesis_target",
+            "hypothesis_version_id",
+            postgresql_where=text("hypothesis_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_claim",
+            "invocation_id",
+            "direction",
+            "claim_version_id",
+            unique=True,
+            postgresql_where=text("claim_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_claim_target",
+            "claim_version_id",
+            postgresql_where=text("claim_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_source",
+            "invocation_id",
+            "direction",
+            "source_version_id",
+            unique=True,
+            postgresql_where=text("source_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_source_target",
+            "source_version_id",
+            postgresql_where=text("source_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_artifact",
+            "invocation_id",
+            "direction",
+            "artifact_version_id",
+            unique=True,
+            postgresql_where=text("artifact_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_artifact_target",
+            "artifact_version_id",
+            postgresql_where=text("artifact_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_manuscript",
+            "invocation_id",
+            "direction",
+            "manuscript_version_id",
+            unique=True,
+            postgresql_where=text("manuscript_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr303_refs_manuscript_target",
+            "manuscript_version_id",
+            postgresql_where=text("manuscript_version_id IS NOT NULL"),
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    invocation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    direction = mapped_column(Text, nullable=False)
+    research_question_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_question_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    hypothesis_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("hypothesis_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    claim_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("claim_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    source_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("source_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    artifact_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    manuscript_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("manuscript_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    content_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=True)
+
+
+class CapabilityInvocationEventsModel(Base):
+    __tablename__ = "capability_invocation_events"
+    __table_args__ = (
+        CheckConstraint("sequence BETWEEN 1 AND 4"),
+        CheckConstraint("invocation_row_version BETWEEN 1 AND 3"),
+        CheckConstraint("event_type IN ('REQUESTED','STARTED','FINISHED','RECONCILED')"),
+        CheckConstraint(
+            "new_status IN ( 'REQUESTED','RUNNING','SUCCEEDED','FAILED','UNKNOWN_OUTCOME',"
+            "'CANCELLED')"
+        ),
+        CheckConstraint("reconciled_outcome IN ('SUCCEEDED','FAILED','CANCELLED')"),
+        CheckConstraint("length(btrim(reason)) BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED"),
+        UniqueConstraint("research_task_id", "project_id", "id"),
+        UniqueConstraint("invocation_id", "sequence"),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "invocation_id"],
+            [
+                "capability_invocations.research_task_id",
+                "capability_invocations.project_id",
+                "capability_invocations.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "invocation_id", "reservation_id"],
+            [
+                "capability_invocations.research_task_id",
+                "capability_invocations.id",
+                "capability_invocations.reservation_id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.project_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "reservation_id", "usage_record_id"],
+            [
+                "budget_usage_records.research_task_id",
+                "budget_usage_records.reservation_id",
+                "budget_usage_records.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "(event_type = 'REQUESTED' AND sequence = 1 AND invocation_row_version = 1 AND "
+            "prior_status IS NULL AND new_status = 'REQUESTED' AND usage_record_id IS NULL) OR "
+            "(event_type = 'STARTED' AND sequence = 2 AND invocation_row_version = 2 AND "
+            "prior_status = 'REQUESTED' AND new_status = 'RUNNING' AND usage_record_id IS NULL)"
+            " OR (event_type = 'FINISHED' AND usage_record_id IS NOT NULL AND ((sequence = 2 "
+            "AND invocation_row_version = 2 AND prior_status = 'REQUESTED' AND new_status = "
+            "'CANCELLED') OR (sequence = 3 AND invocation_row_version = 3 AND prior_status = "
+            "'RUNNING' AND new_status IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED')))"
+            ") OR (event_type = 'RECONCILED' AND sequence = 4 AND invocation_row_version = 3 "
+            "AND prior_status = 'UNKNOWN_OUTCOME' AND new_status = 'UNKNOWN_OUTCOME' AND "
+            "usage_record_id IS NOT NULL)"
+        ),
+        CheckConstraint("event_type = 'REQUESTED' OR prior_status IS NOT NULL"),
+        CheckConstraint("(event_type = 'RECONCILED') = (reconciled_outcome IS NOT NULL)"),
+        Index("pr303_events_scope", "research_task_id", "project_id", "invocation_id"),
+        Index("pr303_events_reservation", "research_task_id", "invocation_id", "reservation_id"),
+        Index("pr303_events_actor", "actor_id"),
+        Index("pr303_events_usage", "research_task_id", "reservation_id", "usage_record_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    invocation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    reservation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), unique=True, nullable=False)
+    sequence = mapped_column(Integer, nullable=False)
+    invocation_row_version = mapped_column(Integer, nullable=False)
+    event_type = mapped_column(Text, nullable=False)
+    prior_status = mapped_column(Text, nullable=True)
+    new_status = mapped_column(Text, nullable=False)
+    reconciled_outcome = mapped_column(Text, nullable=True)
+    usage_record_id = mapped_column(PostgreSQLUUID(as_uuid=True), unique=True, nullable=True)
+    actor_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    occurred_at = mapped_column(DateTime(timezone=True), nullable=False)
+    reason = mapped_column(Text, nullable=False)

@@ -47,6 +47,14 @@ TABLES = frozenset(
 )
 
 
+TASK_EVENTS_SQL = """
+SELECT id,research_task_id,actor_id,command_id,event_type,sequence,task_row_version,
+       prior_status,new_status,reason,occurred_at,stop_human,stop_policy,stop_budget,
+       stop_repeated_failure,stop_no_improvement,stop_success
+FROM research_task_events WHERE research_task_id=:id ORDER BY sequence
+"""
+
+
 class SqlAlchemyResearchTaskRepository:
     def __init__(self, session: Session):
         self._session = session
@@ -95,10 +103,13 @@ class SqlAlchemyResearchTaskRepository:
         )
 
     def events(self, task, *, step=False):
-        table = "research_task_step_events" if step else "research_task_events"
-        order = "step_id,sequence" if step else "sequence"
+        if not step:
+            # Preserve the planning DTO shape after additive stored-event extensions.
+            return self._many(TASK_EVENTS_SQL, {"id": task})
         return self._many(
-            f"SELECT * FROM {table} WHERE research_task_id=:id ORDER BY {order}", {"id": task}
+            "SELECT * FROM research_task_step_events "
+            "WHERE research_task_id=:id ORDER BY step_id,sequence",
+            {"id": task},
         )
 
     def receipt(self, project, actor, command):
