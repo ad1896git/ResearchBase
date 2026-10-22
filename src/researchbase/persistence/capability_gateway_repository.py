@@ -190,6 +190,11 @@ class SqlAlchemyGatewayRepository(SqlAlchemyTaskSafetyRepository):
     def task_invocations(self, project, task):
         return self._many(TASK_INVOCATIONS_SQL, {"project": project, "task": task})
 
+    def invocation_page(self, project, task, limit, after_at, after_id):
+        from researchbase.persistence.capability_gateway_queries import invocation_page
+
+        return invocation_page(self._session, project, task, limit, after_at, after_id)
+
     def agent_version(self, identity):
         return self._agents.version(identity)
 

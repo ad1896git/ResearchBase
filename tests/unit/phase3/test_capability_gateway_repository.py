@@ -596,3 +596,157 @@ def test_invocation_update_is_parameterized_closed_cas():
     with pytest.raises(ResearchBaseError) as error:
         repository.update_invocation(TARGET, 1, {"status": "RUNNING"})
     assert error.value.code == ErrorCode.CONCURRENT_MODIFICATION
+
+
+def test_snapshot_page_sql_scopes_orders_and_fetches_one_lookahead():
+    from researchbase.persistence.capability_gateway_queries import INVOCATION_PAGE_SQL
+
+    session = RecordingSession()
+    repository = SqlAlchemyGatewayRepository(cast(Session, session))
+    at = datetime(2026, 10, 22, tzinfo=UTC)
+    session.results[normalized(INVOCATION_PAGE_SQL)] = [{"id": V}, {"id": TARGET}]
+    assert repository.invocation_page(P, T, 1, at, C) == [{"id": V}, {"id": TARGET}]
+    assert session.trace == [
+        [
+            normalized(INVOCATION_PAGE_SQL),
+            {
+                "project": P,
+                "task": T,
+                "after_at": at,
+                "after_id": C,
+                "fetch_limit": 2,
+            },
+        ]
+    ]
+    sql = session.trace[0][0]
+    assert "ORDER BY created_at,id" in sql and "(created_at,id) >" in sql
+    assert all(
+        token not in sql.upper()
+        for token in ("OFFSET", "FOR UPDATE", "LOCK", "INSERT", "UPDATE", "DELETE")
+    )
+    session.trace.clear()
+    repository.invocation_page(P, T, 256, None, None)
+    assert session.trace[0][1]["fetch_limit"] == 257
+    assert session.trace[0][1]["after_at"] is session.trace[0][1]["after_id"] is None
+
+
+def test_formal_read_selects_one_readonly_repeatable_snapshot_before_sql():
+    class SnapshotSession(RecordingSession):
+        def connection(self, *, execution_options):
+            self.trace.append(["CONNECTION", execution_options])
+
+    session = SnapshotSession()
+    uow = SqlAlchemyUnitOfWork(lambda: cast(Session, session))
+    uow._session = cast(Session, session)
+    uow.begin_formal_read()
+    SqlAlchemyGatewayRepository(cast(Session, session)).invocation_page(P, T, 1, None, None)
+    assert session.autoflush is False
+    assert session.trace[0] == [
+        "CONNECTION",
+        {
+            "isolation_level": "REPEATABLE READ",
+            "postgresql_readonly": True,
+        },
+    ]
+    assert len(session.trace) == 2 and session.trace[1][0].startswith("SELECT")
+
+
+@pytest.mark.parametrize("operation", ["policy", "invocation", "list"])
+def test_queries_use_one_session_for_authority_and_all_nested_rows_without_write_sql(
+    monkeypatch, operation
+):
+    from contextlib import contextmanager
+
+    from tests.unit.phase3.gateway_fixtures import NOW, Fixture
+
+    f = Fixture()
+    f.install_policy()
+    f.run()
+    f.tables["capability_invocation_refs"].clear()
+    authority = f.repo.authority(f.principal, f.project)
+
+    class QueryResult(Result):
+        def all(self):
+            return self.rows
+
+        def scalar_one(self):
+            return self.rows[0]
+
+        def scalar_one_or_none(self):
+            return self.rows[0] if self.rows else None
+
+    class QuerySession(RecordingSession):
+        def connection(self, *, execution_options):
+            self.trace.append(["CONNECTION", execution_options])
+
+        def execute(self, sql, params=None):
+            sql = normalized(sql)
+            self.trace.append([sql, dict(params or {})])
+            if sql.startswith("SELECT transaction_timestamp()"):
+                return QueryResult([NOW])
+            if "FROM actors a JOIN project_memberships" in sql:
+                return QueryResult(authority)
+            if sql.startswith("SELECT lifecycle_status"):
+                return QueryResult(["ACTIVE"])
+            if "FROM agent_availability" in sql:
+                return QueryResult([f.availability])
+            for table in (
+                "research_tasks",
+                "agent_tool_policies",
+                "agent_tool_policy_permissions",
+                "capability_invocations",
+                "capability_invocation_refs",
+                "capability_invocation_events",
+            ):
+                if f"FROM {table} " in sql:
+                    return QueryResult(
+                        [f.task_row] if table == "research_tasks" else f.tables[table]
+                    )
+            raise AssertionError("unexpected SQL: " + sql)
+
+    session = QuerySession()
+    calls = []
+
+    @contextmanager
+    def factory():
+        calls.append(True)
+        uow = SqlAlchemyUnitOfWork(lambda: cast(Session, session))
+        uow._session = cast(Session, session)
+        uow.gateway = SqlAlchemyGatewayRepository(cast(Session, session))
+        yield uow
+
+    monkeypatch.setattr(f.service, "_factory", factory)
+    if operation == "policy":
+        assert (
+            f.service.get_agent_tool_policy(f.principal, f.project, f.policy_id).id == f.policy_id
+        )
+    elif operation == "invocation":
+        assert (
+            f.service.get_capability_invocation(
+                f.principal, f.project, f.task, f.args.invocation_id
+            ).id
+            == f.args.invocation_id
+        )
+    else:
+        assert (
+            len(
+                f.service.list_task_capability_invocations(
+                    f.principal, f.project, f.task
+                ).invocations
+            )
+            == 1
+        )
+    assert calls == [True]
+    assert session.trace[0] == [
+        "CONNECTION",
+        {
+            "isolation_level": "REPEATABLE READ",
+            "postgresql_readonly": True,
+        },
+    ]
+    assert all(row[0].startswith("SELECT") for row in session.trace[1:])
+    assert not any(
+        "FOR UPDATE" in row[0] or "pg_advisory" in row[0] or "LOCK TABLE" in row[0]
+        for row in session.trace
+    )
+    assert sum("FROM actors a JOIN project_memberships" in row[0] for row in session.trace) == 1

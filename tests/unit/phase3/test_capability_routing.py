@@ -249,3 +249,28 @@ def test_loader_does_no_discovery_or_io(monkeypatch):
     monkeypatch.setattr("importlib.import_module", forbidden)
     result = SkillRegistryLoader().load(raw)
     assert json.loads(raw)["entries"][0]["skill_id"] == result.entries[0].skill_id
+
+
+@pytest.mark.parametrize(
+    "outcome,summary,error",
+    [
+        ("SUCCEEDED", "echo", None),
+        ("FAILED", "Fake failure.", "ADAPTER_UNAVAILABLE"),
+        ("UNKNOWN_OUTCOME", "Fake outcome unknown.", "INVALID_STATE_TRANSITION"),
+        ("CANCELLED", "Fake cancelled.", None),
+    ],
+)
+def test_finite_fake_echo_closed_exact_outcomes(outcome, summary, error):
+    from researchbase.agent_runtime.application.routing import finite_fake_echo
+    from researchbase.agent_runtime.domain.capability_invocation import FakeParameters
+
+    assert finite_fake_echo(FakeParameters("echo", outcome)) == (summary, error)
+
+
+@pytest.mark.parametrize("value", [object(), {"message": "x", "outcome": "SUCCEEDED"}, None])
+def test_finite_fake_rejects_arbitrary_objects(value):
+    from researchbase.agent_runtime.application.routing import finite_fake_echo
+
+    with pytest.raises(ResearchBaseError) as exc:
+        finite_fake_echo(value)
+    assert exc.value.code == ErrorCode.VALIDATION_ERROR

@@ -15,11 +15,19 @@ from researchbase.agent_runtime.application.agent_contracts import (
 from researchbase.agent_runtime.application.contracts import InputType, TaskInput
 from researchbase.agent_runtime.application.gateway_contracts import (
     AgentExecutionContext,
+    AgentToolPolicyRead,
+    CapabilityEventRead,
+    CapabilityInvocationRead,
+    CapabilityRequest,
+    CapabilityResult,
     FinishInvocationArguments,
     GatewayCommand,
+    GatewayRefRead,
+    InvocationListCursor,
     RegisterToolPolicyArguments,
     RequestInvocationArguments,
     StartInvocationArguments,
+    TaskCapabilityInvocationsRead,
 )
 from researchbase.agent_runtime.application.research_task import _INPUT_COLUMNS, fail
 from researchbase.agent_runtime.application.routing import (
@@ -51,7 +59,7 @@ from researchbase.agent_runtime.domain.capability_invocation import (
 )
 from researchbase.agent_runtime.domain.harness_manifest import HarnessManifest
 from researchbase.agent_runtime.domain.research_task import invalid
-from researchbase.agent_runtime.domain.task_safety import ADDITIVE, ResourceVector
+from researchbase.agent_runtime.domain.task_safety import ADDITIVE, ResourceVector, integer
 from researchbase.agent_runtime.domain.tool_policy import PermissionSpec, ToolPolicySpec
 from researchbase.agent_runtime.ports.task_repository import UncertainTaskCommit
 from researchbase.foundation.canonical_json import canonical_json_bytes
@@ -187,6 +195,35 @@ def policy_spec(repo, project, identity):
     return row, value
 
 
+def fake_measurement(outcome):
+    return (
+        FAKE_RESOURCES
+        if outcome == "UNKNOWN_OUTCOME"
+        else replace(
+            FAKE_RESOURCES, wall_time_seconds=0, gpu_hours=Decimal(0), token_cost=Decimal(0)
+        )
+    )
+
+
+def task_stopped(repo, task, *, ignored_event=None):
+    """Sticky task stop, excluding this command's own newly written event."""
+    return task["status"] == "CANCELLED" or any(
+        any(
+            event[key]
+            for key in (
+                "stop_human",
+                "stop_policy",
+                "stop_budget",
+                "stop_repeated_failure",
+                "stop_no_improvement",
+                "stop_success",
+            )
+        )
+        for event in repo.events(task["id"])
+        if event["id"] != ignored_event
+    )
+
+
 class CapabilityGatewayService(TaskSafetyService):
     """Shares safety authorization helpers, never enters a public safety command."""
 
@@ -208,6 +245,262 @@ class CapabilityGatewayService(TaskSafetyService):
 
     def finish_capability_invocation(self, principal, command: GatewayCommand, context=None):
         return self._run(principal, command, "finish_capability_invocation", context)
+
+    def _read_scope(self, uow, principal, project, task=None):
+        # All authority and current projections belong to this one formal snapshot.
+        uow.begin_formal_read()
+        repo = uow.gateway
+        self._authorize(repo, principal, project, at=repo.snapshot_at())
+        if task is not None:
+            self._scoped(repo, project, task)
+        return repo
+
+    def get_agent_tool_policy(self, principal, project_id, policy_id):
+        """Exact stored policy and canonically ordered permissions in one snapshot."""
+        self._principal(principal)
+        with self._factory() as uow:
+            repo = self._read_scope(uow, principal, project_id)
+            row, policy = policy_spec(repo, project_id, policy_id)
+            return AgentToolPolicyRead(**row, permissions=policy.permissions)
+
+    def get_capability_invocation(self, principal, project_id, task_id, invocation_id):
+        """Availability/effective outcome/usage are projections of this read snapshot."""
+        self._principal(principal)
+        with self._factory() as uow:
+            repo = self._read_scope(uow, principal, project_id, task_id)
+            row = repo.invocation(project_id, task_id, invocation_id)
+            if row is None:
+                fail(ErrorCode.NOT_FOUND, "invocation unavailable")
+            return self._invocation_projection(uow, row)
+
+    def list_task_capability_invocations(
+        self, principal, project_id, task_id, limit=100, after=None
+    ):
+        """Keyset page; every nested projection shares the same formal snapshot."""
+        self._principal(principal)
+        integer(limit, minimum=1, maximum=256)
+        if after is not None and type(after) is not InvocationListCursor:
+            invalid("closed invocation cursor required")
+        with self._factory() as uow:
+            repo = self._read_scope(uow, principal, project_id, task_id)
+            rows = repo.invocation_page(
+                project_id,
+                task_id,
+                limit,
+                after.created_at if after else None,
+                after.id if after else None,
+            )
+            page = rows[:limit]
+            cursor = (
+                InvocationListCursor(page[-1]["created_at"], page[-1]["id"])
+                if len(rows) > limit
+                else None
+            )
+            return TaskCapabilityInvocationsRead(
+                task_id, tuple(self._invocation_projection(uow, row) for row in page), cursor
+            )
+
+    def _invocation_projection(self, uow, row):
+        repo = uow.gateway
+        project, task, identity = row["project_id"], row["research_task_id"], row["id"]
+        refs = []
+        for ref in repo.invocation_refs(project, task, identity):
+            family, column = next(
+                (family, column)
+                for family, column in _INPUT_COLUMNS.items()
+                if ref[column] is not None
+            )
+            owning = self._resolve(uow, project, TaskInput(InputType(family), ref[column]), ref)
+            refs.append(
+                (
+                    ref["direction"],
+                    family,
+                    ref[column],
+                    GatewayRefRead(**ref, validity_warnings=owning.validity_warnings),
+                )
+            )
+        events = tuple(
+            CapabilityEventRead(**event)
+            for event in sorted(
+                repo.invocation_events(project, task, identity), key=lambda event: event["sequence"]
+            )
+        )
+        effective = next(
+            (event for event in reversed(events) if event.event_type in ("RECONCILED", "FINISHED")),
+            None,
+        )
+        availability = repo.agent_availability(row["agent_version_id"])
+        if availability is None:
+            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved availability unavailable")
+        return CapabilityInvocationRead(
+            **row,
+            refs=tuple(ref[-1] for ref in sorted(refs, key=lambda ref: ref[:3])),
+            events=events,
+            effective_outcome=(effective.reconciled_outcome or effective.new_status)
+            if effective
+            else None,
+            effective_usage_record_id=effective.usage_record_id if effective else None,
+            current_availability=availability["status"],
+            execution_enabled=False,
+        )
+
+    def invoke(
+        self, request: CapabilityRequest, context: AgentExecutionContext
+    ) -> CapabilityResult:
+        """One fresh committed start authorizes one call; replay never redispatches."""
+        if type(request) is not CapabilityRequest:
+            invalid("closed capability request required")
+        if type(context) is not AgentExecutionContext or not self._trusted(
+            context.consumer_capability
+        ):
+            fail(ErrorCode.FORBIDDEN, "trusted in-process context required")
+        principal = context.principal
+        requested = GatewayCommand(
+            context.project_id,
+            context.task_id,
+            request.request_command_id,
+            request.expected_row_version,
+            "request_capability_invocation",
+            request.arguments,
+        )
+        self._context(principal, requested, context)
+        saved_request = self.request_capability_invocation(principal, requested, context)
+        start = GatewayCommand(
+            context.project_id,
+            context.task_id,
+            request.start_command_id,
+            saved_request.resulting_row_version,
+            "start_capability_invocation",
+            StartInvocationArguments(
+                request.arguments.invocation_id,
+                saved_request.resulting_invocation_revision,
+                "Start finite fake invocation.",
+            ),
+        )
+        saved_start = self.start_capability_invocation(principal, start, context)
+        if saved_start.replayed:
+            completed = self._saved_completion(request, context, saved_start)
+            if completed is not None:
+                return completed
+            fail(
+                ErrorCode.INVALID_STATE_TRANSITION,
+                "Prior start unresolved; explicit reconciliation required.",
+            )
+        # No UoW survives either command call. No injected executable or hidden subcall.
+        from researchbase.agent_runtime.application.routing import finite_fake_echo
+
+        summary, error = finite_fake_echo(request.arguments.parameters)
+        outcome = request.arguments.parameters.outcome
+        measured = fake_measurement(outcome)
+        observation = FinishInvocationArguments(
+            request.arguments.invocation_id,
+            saved_start.resulting_invocation_revision,
+            "FINISH",
+            outcome,
+            measured,
+            (),
+            None,
+            None,
+            summary,
+            error,
+            "Observe finite fake invocation.",
+        )
+        finish = GatewayCommand(
+            context.project_id,
+            context.task_id,
+            request.finish_command_id,
+            saved_start.resulting_row_version,
+            "finish_capability_invocation",
+            observation,
+        )
+        saved_finish = self.finish_capability_invocation(
+            principal, finish, replace(context, finish_observation=observation)
+        )
+        # Read the immutable receipt-owned completion, including an uncertain finish commit.
+        result = self._saved_completion(request, context, saved_start)
+        if result is None or saved_finish.invocation_id != result.invocation_id:
+            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved finish unavailable")
+        return result
+
+    def _saved_completion(self, request, context, saved_start):
+        with self._factory() as uow:
+            repo = self._read_scope(uow, context.principal, context.project_id, context.task_id)
+            receipt = repo.gateway_receipt(
+                context.project_id, context.principal.actor_id, request.finish_command_id
+            )
+            if receipt is None:
+                return None
+            row = repo.invocation(
+                context.project_id, context.task_id, request.arguments.invocation_id
+            )
+            if row is None or (
+                receipt["command_name"] != "finish_capability_invocation"
+                or receipt["result_capability_invocation_id"] != row["id"]
+                or receipt["id"] != row["finish_receipt_id"]
+            ):
+                fail(ErrorCode.IDEMPOTENCY_CONFLICT, "finish identity belongs to another command")
+            event = next(
+                (
+                    event
+                    for event in repo.invocation_events(
+                        context.project_id, context.task_id, row["id"]
+                    )
+                    if event["id"] == receipt["result_capability_event_id"]
+                    and event["event_type"] == "FINISHED"
+                ),
+                None,
+            )
+            if event is None:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved finish event unavailable")
+            usage = next(
+                (
+                    row
+                    for row in repo.rows("budget_usage_records", context.task_id)
+                    if row["id"] == event["usage_record_id"]
+                ),
+                None,
+            )
+            if usage is None:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved finish usage unavailable")
+            measured = ResourceVector(**{f.name: usage[f.name] for f in fields(ResourceVector)})
+            outputs = tuple(
+                GatewayRef(
+                    "ARTIFACT_VERSION", ref["artifact_version_id"], ref["content_hash"], None
+                )
+                for ref in repo.invocation_refs(context.project_id, context.task_id, row["id"])
+                if ref["receipt_id"] == receipt["id"] and ref["direction"] == "OUTPUT"
+            )
+            observation = FinishInvocationArguments(
+                row["id"],
+                saved_start.resulting_invocation_revision,
+                "FINISH",
+                event["new_status"],
+                measured,
+                outputs,
+                row["trace_artifact_version_id"],
+                row["trace_content_hash"],
+                row["result_summary"],
+                row["error_code"],
+                "Observe finite fake invocation.",
+            )
+            command = GatewayCommand(
+                context.project_id,
+                context.task_id,
+                request.finish_command_id,
+                saved_start.resulting_row_version,
+                "finish_capability_invocation",
+                observation,
+            )
+            self._saved(repo, receipt, command.request_hash(context.principal.actor_id))
+            return CapabilityResult(
+                row["id"],
+                event["new_status"],
+                outputs,
+                row["trace_artifact_version_id"],
+                measured,
+                row["error_code"],
+                row["result_summary"],
+            )
 
     def _context(self, principal, command, context, invocation=None, *, finish=False):
         if (
@@ -835,21 +1128,7 @@ class CapabilityGatewayService(TaskSafetyService):
                     self._authorize(repo, principal, command.project_id, write=True)
                 else:
                     task = self._scoped(repo, command.project_id, command.task_id)
-                    stopped = task["status"] == "CANCELLED" or any(
-                        any(
-                            event[key]
-                            for key in (
-                                "stop_human",
-                                "stop_policy",
-                                "stop_budget",
-                                "stop_repeated_failure",
-                                "stop_no_improvement",
-                                "stop_success",
-                            )
-                        )
-                        for event in repo.events(command.task_id)
-                        if event["id"] != ids["task_event"]
-                    )
+                    stopped = task_stopped(repo, task, ignored_event=ids["task_event"])
                     if not stopped:
                         self._authorize(repo, principal, command.project_id, write=True)
                 if not ready:
@@ -960,16 +1239,7 @@ class CapabilityGatewayService(TaskSafetyService):
             if not allowed:
                 fail(ErrorCode.INVALID_STATE_TRANSITION, "invocation lifecycle edge denied")
             if not starting:
-                expected = (
-                    FAKE_RESOURCES
-                    if args.outcome == "UNKNOWN_OUTCOME"
-                    else replace(
-                        FAKE_RESOURCES,
-                        wall_time_seconds=0,
-                        gpu_hours=Decimal(0),
-                        token_cost=Decimal(0),
-                    )
-                )
+                expected = fake_measurement(args.outcome)
                 if args.measured != expected:
                     invalid("trusted fake measurement disagrees")
             task = self._scoped(repo, command.project_id, command.task_id)
@@ -1289,3 +1559,7 @@ class CapabilityGatewayService(TaskSafetyService):
             self._consumer_capability,
         )
         return task, at
+
+
+class CapabilityGateway(CapabilityGatewayService):
+    """Application implementation of the caller-neutral finite fake gateway port."""

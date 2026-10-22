@@ -45,6 +45,7 @@ class Fixture:
         self.principal = VerifiedPrincipal(self.actor, "test", "OS_UID", "1", "test", NOW)
         self.consumer = FakeConsumerCapability()
         self.trace: list[Any] = []
+        self.open_uows = 0
         self.locked = False
         self.in_command = False
         self.command_transactions = self.commits = 0
@@ -277,6 +278,7 @@ class Uow:
         self.committed = False
 
     def __enter__(self):
+        self.f.open_uows += 1
         self.saved = deepcopy((self.f.task_row, self.f.tables))
         return self
 
@@ -296,6 +298,7 @@ class Uow:
         self.f.trace.append(["commit"])
 
     def __exit__(self, kind, value, traceback):
+        self.f.open_uows -= 1
         if not self.committed:
             self.f.task_row, self.f.tables = self.saved
         self.f.locked = self.f.in_command = False
@@ -367,6 +370,27 @@ class Repository:
 
     def at(self):
         return self.f.clock
+
+    def snapshot_at(self):
+        self.f.trace.append(["snapshot_at"])
+        return self.f.clock
+
+    def invocation_page(self, project, task, limit, after_at, after_id):
+        rows = sorted(
+            (
+                row
+                for row in self.f.tables["capability_invocations"]
+                if row["project_id"] == project and row["research_task_id"] == task
+            ),
+            key=lambda row: (row["created_at"], row["id"]),
+        )
+        return deepcopy(
+            [
+                row
+                for row in rows
+                if after_at is None or (row["created_at"], row["id"]) > (after_at, after_id)
+            ][: limit + 1]
+        )
 
     def task(self, identity):
         return dict(self.f.task_row) if identity == self.f.task else None

@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import timedelta
 from decimal import Decimal
+from typing import Any, cast
 
 import pytest
 from tests.unit.phase3.gateway_fixtures import Fixture
@@ -1041,3 +1042,389 @@ def test_finish_authority_split(stopped, role):
         assert (f.task_row, f.tables) == before
     else:
         assert execute_lifecycle(f, command).usage_record_id is not None
+
+
+def invoke_fixture(outcome="SUCCEEDED"):
+    from researchbase.agent_runtime.application.gateway_contracts import CapabilityRequest
+
+    f = Fixture()
+    parameters = replace(f.args.parameters, message="Finite écho.", outcome=outcome)
+    identity, digest = f.retain(parameters.canonical_bytes())
+    f.args = replace(
+        f.args,
+        parameters=parameters,
+        parameters_artifact_version_id=identity,
+        parameters_content_hash=digest,
+        requested_parameters_hash=parameters.digest(),
+        parameters_byte_size=len(parameters.canonical_bytes()),
+    )
+    f.install_policy()
+    request = CapabilityRequest(
+        new_uuid7(), new_uuid7(), new_uuid7(), f.task_row["row_version"], f.args
+    )
+    return f, request
+
+
+def spy_fake(monkeypatch, f):
+    from researchbase.agent_runtime.application import routing
+
+    original = routing.finite_fake_echo
+    calls = []
+
+    def echo(parameters):
+        assert not f.open_uows and not f.in_command and not f.locked
+        calls.append(parameters)
+        f.trace.append(["fake"])
+        return original(parameters)
+
+    monkeypatch.setattr(routing, "finite_fake_echo", echo)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "outcome,summary,error",
+    [
+        ("SUCCEEDED", "Finite écho.", None),
+        ("FAILED", "Fake failure.", "ADAPTER_UNAVAILABLE"),
+        ("UNKNOWN_OUTCOME", "Fake outcome unknown.", "INVALID_STATE_TRANSITION"),
+        ("CANCELLED", "Fake cancelled.", None),
+    ],
+)
+def test_invoke_three_commits_one_outside_call_and_saved_terminal_replay(
+    monkeypatch, tmp_path, outcome, summary, error
+):
+    f, request = invoke_fixture(outcome)
+    calls = spy_fake(monkeypatch, f)
+    result = f.service.invoke(request, f.context)
+    assert (result.outcome, result.result_summary, result.error_code) == (outcome, summary, error)
+    assert result.output_refs == () and result.trace_artifact_version_id is None
+    assert f.command_transactions == f.commits == 3
+    assert len(calls) == 1
+    positions = {
+        kind: [i for i, row in enumerate(f.trace) if row[0] == kind]
+        for kind in ("command_begin", "commit", "fake")
+    }
+    assert positions["commit"][1] < positions["fake"][0] < positions["command_begin"][2]
+    assert [r["command_id"] for r in f.tables["research_task_command_receipts"]][1:] == [
+        request.request_command_id,
+        request.start_command_id,
+        request.finish_command_id,
+    ]
+    (tmp_path / "s6-invoke-trace.json").write_text(json.dumps(f.trace, default=str, indent=2))
+    original_tables = deepcopy(f.tables)
+    f.task_row["row_version"] += 100
+    f.availability["status"] = "DISABLED"
+    f.byte_failure = True
+    f.role = "VIEWER"
+    assert f.service.invoke(request, f.context) == result
+    assert len(calls) == 1 and f.commits == 3
+    assert f.tables == original_tables
+    # The input fixture stays retained candidate material: no scientific output is created.
+    assert f.artifacts[f.ref_id]["status"] == "FROZEN"
+    assert not f.tables["capability_invocation_refs"][-1]["direction"] == "OUTPUT"
+
+
+@pytest.mark.parametrize("lost_commit", [1, 2, 3])
+def test_invoke_response_loss_at_each_commit(monkeypatch, lost_commit):
+    from tests.unit.phase3.gateway_fixtures import Uow
+
+    f, request = invoke_fixture()
+    calls = spy_fake(monkeypatch, f)
+    original = Uow.commit
+
+    def commit(uow):
+        original(uow)
+        if f.commits == lost_commit:
+            raise UncertainTaskCommit()
+
+    monkeypatch.setattr(Uow, "commit", commit)
+    if lost_commit == 2:
+        with pytest.raises(ResearchBaseError, match="Prior start unresolved") as exc:
+            f.service.invoke(request, f.context)
+        assert exc.value.code == ErrorCode.INVALID_STATE_TRANSITION
+        assert f.commits == 2 and not calls
+        with pytest.raises(ResearchBaseError, match="Prior start unresolved"):
+            f.service.invoke(request, f.context)
+        assert not calls and f.commits == 2
+    else:
+        result = f.service.invoke(request, f.context)
+        assert result.outcome == "SUCCEEDED" and len(calls) == 1 and f.commits == 3
+        assert f.service.invoke(request, f.context) == result
+        assert len(calls) == 1 and f.commits == 3
+    assert any(row[0] == "formal_read" for row in f.trace)
+
+
+def test_invoke_saved_finish_missing_usage_reports_provenance_violation(monkeypatch):
+    f, request = invoke_fixture()
+    calls = spy_fake(monkeypatch, f)
+    f.service.invoke(request, f.context)
+    usage_id = f.tables["capability_invocations"][0]["usage_record_id"]
+    f.tables["budget_usage_records"] = [
+        row for row in f.tables["budget_usage_records"] if row["id"] != usage_id
+    ]
+    before = deepcopy(f.tables)
+
+    with pytest.raises(ResearchBaseError, match="saved finish usage unavailable") as exc:
+        f.service.invoke(request, f.context)
+
+    assert exc.value.code == ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    assert len(calls) == 1 and f.commits == 3
+    assert f.tables == before
+
+
+@pytest.mark.parametrize("bad", [object(), FakeConsumerCapability(), None])
+def test_invoke_arbitrary_capability_is_denied_before_disclosure(monkeypatch, bad):
+    f, request = invoke_fixture()
+    calls = spy_fake(monkeypatch, f)
+    context = replace(f.context) if bad is not None else object()
+    if bad is not None:
+        object.__setattr__(context, "consumer_capability", bad)
+    with pytest.raises(ResearchBaseError) as exc:
+        f.service.invoke(request, cast(Any, context))
+    assert exc.value.code == ErrorCode.FORBIDDEN
+    assert f.commits == 0 and not calls and not f.trace
+
+
+def test_invoke_unresolved_start_without_saved_finish_never_calls_fake(monkeypatch):
+    f, request = invoke_fixture()
+    f.run(
+        GatewayCommand(
+            f.project,
+            f.task,
+            request.request_command_id,
+            request.expected_row_version,
+            "request_capability_invocation",
+            f.args,
+        )
+    )
+    start = GatewayCommand(
+        f.project,
+        f.task,
+        request.start_command_id,
+        f.task_row["row_version"],
+        "start_capability_invocation",
+        StartInvocationArguments(f.args.invocation_id, 1, "Start finite fake invocation."),
+    )
+    execute_lifecycle(f, start)
+    calls = spy_fake(monkeypatch, f)
+    with pytest.raises(ResearchBaseError, match="Prior start unresolved"):
+        f.service.invoke(request, f.context)
+    assert not calls and f.commits == 2
+    assert f.tables["capability_invocations"][0]["status"] == "RUNNING"
+    assert not f.tables["budget_usage_records"]
+
+
+def test_invoke_unresolved_commit_with_no_visible_receipt_never_dispatches(monkeypatch):
+    from tests.unit.phase3.gateway_fixtures import Uow
+
+    f, request = invoke_fixture()
+    calls = spy_fake(monkeypatch, f)
+    original = Uow.commit
+
+    def commit(uow):
+        if f.commits == 1:
+            raise UncertainTaskCommit()
+        original(uow)
+
+    monkeypatch.setattr(Uow, "commit", commit)
+    with pytest.raises(UncertainTaskCommit):
+        f.service.invoke(request, f.context)
+    assert not calls and f.commits == 1
+
+
+def test_snapshot_queries_exact_policy_invocation_and_no_io(monkeypatch):
+    f = running()
+    execute_lifecycle(f, lifecycle(f, outcome="UNKNOWN_OUTCOME"))
+    execute_lifecycle(f, lifecycle(f, kind="RECONCILE", outcome="SUCCEEDED"))
+    f.role = "VIEWER"
+    f.active = False
+    f.availability["status"] = "DISABLED"
+    f.trace.clear()
+    before = deepcopy(f.tables)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("write, lock or byte I/O during query")
+
+    monkeypatch.setattr(f, "open", forbidden)
+    monkeypatch.setattr(f.repo, "lock_gateway", forbidden)
+    monkeypatch.setattr(f.repo, "insert", forbidden)
+    result = f.service.get_capability_invocation(
+        f.principal, f.project, f.task, f.args.invocation_id
+    )
+    assert result.status == "UNKNOWN_OUTCOME" and result.effective_outcome == "SUCCEEDED"
+    assert result.usage_record_id != result.effective_usage_record_id
+    assert result.current_availability == "DISABLED" and result.execution_enabled is False
+    assert tuple(event.sequence for event in result.events) == (1, 2, 3, 4)
+    assert len(result.refs) == 1 and result.refs[0].validity_warnings == ()
+    assert [row[0] for row in f.trace[:3]] == ["formal_read", "snapshot_at", "authority"]
+    assert sum(row[0] == "formal_read" for row in f.trace) == 1
+    f.trace.clear()
+    policy = f.service.get_agent_tool_policy(f.principal, f.project, f.policy_id)
+    assert policy.permissions == f.policy.permissions
+    assert policy.content_hash == f.policy.digest(f.project)
+    assert sum(row[0] == "formal_read" for row in f.trace) == 1
+    assert f.tables == before
+
+
+@pytest.mark.parametrize("query", ["invocation", "list", "policy"])
+@pytest.mark.parametrize("allowed", [True, False])
+def test_snapshot_query_authorization_precedes_missing_objects(query, allowed):
+    f = Fixture()
+    f.valid = allowed
+    f.trace.clear()
+    missing = new_uuid7()
+    with pytest.raises(ResearchBaseError) as exc:
+        if query == "policy":
+            f.service.get_agent_tool_policy(f.principal, f.project, missing)
+        elif query == "list":
+            f.service.list_task_capability_invocations(f.principal, f.project, missing)
+        else:
+            f.service.get_capability_invocation(f.principal, f.project, missing, missing)
+    assert exc.value.code == (ErrorCode.NOT_FOUND if allowed else ErrorCode.FORBIDDEN)
+    assert f.commits == 0 and f.command_transactions == 0
+
+
+def test_snapshot_paging_empty_ties_boundaries_and_no_offset():
+    from researchbase.agent_runtime.application.gateway_contracts import InvocationListCursor
+
+    f = Fixture()
+    empty = f.service.list_task_capability_invocations(f.principal, f.project, f.task)
+    assert empty.invocations == () and empty.next_cursor is None
+    f.install_policy()
+    f.run()
+    base = deepcopy(f.tables["capability_invocations"][0])
+    # Independent stored rows deliberately arrive out of order and tie on timestamp.
+    ids = sorted(new_uuid7() for _ in range(3))
+    f.tables["capability_invocations"] = [dict(base, id=identity) for identity in reversed(ids)]
+    f.tables["capability_invocation_refs"].clear()
+    f.tables["capability_invocation_events"].clear()
+    f.trace.clear()
+    first = f.service.list_task_capability_invocations(f.principal, f.project, f.task, limit=2)
+    assert tuple(row.id for row in first.invocations) == tuple(ids[:2])
+    assert first.next_cursor == InvocationListCursor(base["created_at"], ids[1])
+    last = f.service.list_task_capability_invocations(
+        f.principal, f.project, f.task, limit=2, after=first.next_cursor
+    )
+    assert tuple(row.id for row in last.invocations) == (ids[2],) and last.next_cursor is None
+    end = f.service.list_task_capability_invocations(
+        f.principal,
+        f.project,
+        f.task,
+        limit=1,
+        after=InvocationListCursor(base["created_at"], ids[2]),
+    )
+    assert not end.invocations and end.next_cursor is None
+    assert sum(row[0] == "formal_read" for row in f.trace) == 3
+    full = f.service.list_task_capability_invocations(f.principal, f.project, f.task, limit=3)
+    assert len(full.invocations) == 3 and full.next_cursor is None
+    assert (
+        len(
+            f.service.list_task_capability_invocations(
+                f.principal, f.project, f.task, limit=256
+            ).invocations
+        )
+        == 3
+    )
+
+
+@pytest.mark.parametrize("limit", [0, 257, -1, True, "1"])
+def test_query_limit_rejects_outside_closed_bounds(limit):
+    f = Fixture()
+    with pytest.raises(ResearchBaseError) as exc:
+        f.service.list_task_capability_invocations(f.principal, f.project, f.task, limit=limit)
+    assert exc.value.code == ErrorCode.VALIDATION_ERROR and not f.trace
+
+
+def test_query_refs_use_owning_snapshot_warnings_and_canonical_order(monkeypatch):
+    from researchbase.agent_runtime.application.contracts import InputRead
+
+    f = running()
+    output_ids = sorted([new_uuid7(), new_uuid7()])
+    for identity in output_ids:
+        f.artifacts[identity] = {**f.artifacts[f.ref_id], "id": identity}
+    outputs = tuple(
+        GatewayRef("ARTIFACT_VERSION", identity, f.ref_hash, None)
+        for identity in reversed(output_ids)
+    )
+    finish = lifecycle(f)
+    finish = replace(finish, arguments=replace(finish.arguments, output_refs=outputs))
+    execute_lifecycle(f, finish)
+    f.tables["capability_invocation_refs"].reverse()
+    seen = []
+
+    def owning(uow, project, ref, saved):
+        assert f.open_uows == 1 and not f.locked and project == f.project
+        seen.append((ref.type.value, ref.id))
+        return InputRead(
+            ref.type.value,
+            ref.id,
+            saved["content_hash"],
+            saved["hash_scheme"],
+            ("OWNER_SNAPSHOT_WARNING",),
+        )
+
+    monkeypatch.setattr(f.service, "_resolve", owning)
+    f.trace.clear()
+    result = f.service.get_capability_invocation(
+        f.principal, f.project, f.task, f.args.invocation_id
+    )
+    assert [ref.direction for ref in result.refs] == ["INPUT", "OUTPUT", "OUTPUT"]
+    assert [ref.artifact_version_id for ref in result.refs[1:]] == output_ids
+    assert all(ref.validity_warnings == ("OWNER_SNAPSHOT_WARNING",) for ref in result.refs)
+    assert len(seen) == 3 and sum(row[0] == "formal_read" for row in f.trace) == 1
+
+
+def test_invoke_rejects_arbitrary_request_without_dispatch(monkeypatch):
+    f, _ = invoke_fixture()
+    calls = spy_fake(monkeypatch, f)
+    with pytest.raises(ResearchBaseError) as exc:
+        f.service.invoke(cast(Any, object()), f.context)
+    assert exc.value.code == ErrorCode.VALIDATION_ERROR
+    assert not calls and not f.trace
+
+
+def test_invoke_replay_rechecks_current_entitlement(monkeypatch):
+    f, request = invoke_fixture()
+    calls = spy_fake(monkeypatch, f)
+    f.service.invoke(request, f.context)
+    f.valid = False
+    with pytest.raises(ResearchBaseError) as exc:
+        f.service.invoke(request, f.context)
+    assert exc.value.code == ErrorCode.FORBIDDEN
+    assert len(calls) == 1 and f.commits == 3
+
+
+def test_invoke_saved_unknown_finish_survives_final_reconciliation(monkeypatch):
+    f, request = invoke_fixture("UNKNOWN_OUTCOME")
+    calls = spy_fake(monkeypatch, f)
+    original = f.service.invoke(request, f.context)
+    execute_lifecycle(f, lifecycle(f, kind="RECONCILE", outcome="SUCCEEDED"))
+    assert f.service.invoke(request, f.context) == original
+    assert original.outcome == "UNKNOWN_OUTCOME" and len(calls) == 1
+    assert f.commits == 4
+
+
+@pytest.mark.parametrize("operation", ["policy", "invocation", "list"])
+def test_query_denied_scope_never_looks_up_existence(monkeypatch, operation):
+    f = Fixture()
+    other = new_uuid7()
+    original = f.repo.authority
+    monkeypatch.setattr(
+        f.repo,
+        "authority",
+        lambda principal, project: original(principal, project) if project == f.project else [],
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("existence lookup before entitlement")
+
+    for method in ("policy", "task", "invocation", "invocation_page"):
+        monkeypatch.setattr(f.repo, method, forbidden)
+    with pytest.raises(ResearchBaseError) as exc:
+        if operation == "policy":
+            f.service.get_agent_tool_policy(f.principal, other, new_uuid7())
+        elif operation == "invocation":
+            f.service.get_capability_invocation(f.principal, other, f.task, new_uuid7())
+        else:
+            f.service.list_task_capability_invocations(f.principal, other, f.task)
+    assert exc.value.code == ErrorCode.FORBIDDEN

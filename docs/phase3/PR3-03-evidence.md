@@ -2838,3 +2838,786 @@ docs/phase3/PR3-03-evidence.md:2831: new blank line at EOF.
 Removed the extra EOF blank line. Final `git diff --check HEAD`: exit 0,
 empty stdout/stderr. Final `git status --short`: exit 0, five modified paths
 listed above, no staged files.
+
+## S6 — Snapshot queries and finite fake invoke
+
+### Step 0 — prerequisite evidence repair
+
+Step 0a: raw history search from the S6 small-fix baseline `1194dbb`.
+
+```sh
+git log --oneline -- docs/phase3/PR3-03-evidence.md
+```
+
+```text
+1194dbb PR3-03 sub-task S6 — snapshot queries and CapabilityGateway.invoke (finite fake, no real adapter)
+653cea2 PR3-03 sub-task S5 — start, finish, reconciliation and durable replay (no dispatch)
+cdf2160 PR3-03 sub-task S4 — register/request commands and reserve_in_uow (no start, finish or dispatch)
+1c44def PR3-03 sub-task S3 — closed domain/Application values, hashes and routing predicates (no commands)
+bd89082 PR3-03 sub-task S2 — repository ports, composed locks and stored-row reads (no command behaviour)
+52d984a Record PR3-03 S1 evidence (documentation only)
+ae50409 S1 retry with owner-approved amendment A1 (syntax-only parenthesisation)
+```
+
+Exit code: 0.
+
+```sh
+git grep -n "S5 requirement" $(git rev-list 653cea2 -n 5) -- docs/phase3/PR3-03-evidence.md
+```
+
+```text
+653cea2966a8b78b1321d1b2d655ecead40be16e:docs/phase3/PR3-03-evidence.md:2496:The S5 requirement is "current entitlement checked before conflict disclosure"
+```
+
+Exit code: 0.
+
+The match is an authorization sentence, not an earlier S5 requirement table.
+Inspected the evidence file at each earlier file-history revision: `653cea2`,
+`cdf2160`, `1c44def`, `bd89082`, `52d984a`, and `ae50409`. Only `653cea2`
+has an S5 section; it has no S5 requirement table. The table cannot be recovered
+from earlier history. Deviation S6-E1: the following is a reconstruction of S5
+requirements covered by current tests, not a verbatim historical restoration.
+All cited tests are in `tests/unit/phase3/test_capability_gateway.py`; these
+unit fixtures do not establish PostgreSQL acceptance.
+
+| S5 requirement | Existing test in tests/unit/phase3/test_capability_gateway.py |
+| --- | --- |
+| Public observation trust denied | test_public_self_supplied_observation_is_forbidden |
+| Authorization before existence disclosure | test_unknown_invocation_requires_authorization_before_disclosure |
+| Start without new accounting; pre-start cancel | test_start_zero_new_accounting_and_prestart_cancel_retains_counts |
+| Four outcomes and finish after stop | test_running_outcomes_and_finish_after_cancel_stop_and_disabled_agent |
+| Finish authority split | test_finish_authority_split |
+| Append-only reconciliation and saved results | test_reconciliation_append_only_and_saved_event_results |
+| Lifecycle edges | test_lifecycle_edge_matrix |
+| Own first attributable exact-cap stop | test_exact_cap_start_only_own_first_attributable_stop |
+| CAS and saved replay | test_lifecycle_cas_and_saved_receipt_precedes_stale_revisions |
+| Success-only outputs; immutable observation | test_output_refs_success_and_reconciliation_preserves_observation; test_reconciliation_rejects_changed_observation; test_output_refs_rejected_for_every_non_success |
+| Retry-parent eligibility | test_retry_parent_requires_failure_or_final_reconciled_unknown |
+| Rollback at finish writes | test_finish_rolls_back_every_write_stage |
+| Uncertain commit formal receipt lookup | test_finish_uncertain_commit_uses_formal_receipt_lookup |
+| Entitlement/replay after every wait | test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability |
+| Fresh checks after DML waits | test_fresh_lifecycle_checks_after_dml_wait_roll_back |
+| Stable retries, single settlement | test_lifecycle_retry_ids_stable_and_single_settlement |
+| Unknown retains occupancy/full budget | test_unknown_reservation_still_occupies_slot_and_full_budget |
+| Charge ownership | test_finish_exact_charge_ownership_is_required |
+| Unknown preserves final failure streak | test_unknown_does_not_advance_final_failure_streak_until_reconciliation |
+
+Step 0b: replace the inline calculation with shared `task_stopped`, retaining
+exclusion of this command's own task event. Existing finish-authority tests cover
+its behavior. No availability requirement is introduced for finish bookkeeping.
+
+Step 0c: verbatim raw output of the requested plan command:
+
+```sh
+grep -n -A12 '^### S6' docs/phase3/PR3-03-implementation-plan.md
+```
+
+```text
+451:### S6 — Snapshot queries and CapabilityGateway.invoke
+452-
+453-Goal: expose the three entitled read operations and implement the finite fake
+454-gateway: request commit → start commit → one pure echo outside UoW → finish
+455-commit. Saved command results drive subsequent revisions. Completed replay returns
+456-the saved finish result with zero fake calls; an uncertain prior start never
+457-grants permission to redispatch. No persistent recovery or real adapter activation.
+458-
+459-**Files:** create
+460-`src/researchbase/persistence/capability_gateway_queries.py`; change
+461-`src/researchbase/agent_runtime/application/capability_gateway.py`,
+462-`src/researchbase/agent_runtime/application/routing.py`,
+463-`src/researchbase/agent_runtime/ports/gateway_repository.py`,
+```
+
+Exit code: 0.
+
+The plan explicitly says that completed replay returns the saved finish result
+with zero fake calls and an uncertain prior start never grants permission to
+redispatch. The exact wording "A committed start is the only permission for
+one finite fake call outside the transaction; a lost start response must be
+reconciled, not interpreted as permission to redispatch." occurs only in pack
+§5, not in the S6 plan section. The plan expresses the same redispatch restriction
+in the different wording quoted verbatim above.
+
+All PostgreSQL-dependent gateway claims: **unverified until S8**.
+S7 and S8 are not started by this task.
+
+### S6 implementation and evidence limits
+
+The three reads use one `begin_formal_read` snapshot for entitlement and nested
+rows. `current_availability`, `effective_outcome`, and
+`effective_usage_record_id` are labeled snapshot projections in the Application
+read docstrings; the frozen §8 DTO vocabulary is unchanged (no timestamp field
+is invented). Keyset SQL is parameterized, scoped by project/task, ascending
+`(created_at,id)`, fetches limit+1, and uses typed NULL cursor casts.
+Owning-domain `_resolve` supplies validity warnings with saved-seal reads and no
+byte acquisition. Stored UNKNOWN_OUTCOME remains separate from reconciliation.
+
+`CapabilityGateway.invoke` uses saved request/start revisions, stable IDs,
+identity-based injected consumer trust, and a single pure finite echo only after
+a fresh acknowledged committed start. A recovered/replayed start can only look
+for a saved finish; absent completion yields INVALID_STATE_TRANSITION with
+`Prior start unresolved; explicit reconciliation required.` No new recovery,
+transport, real adapter, execution identity, dependency, or scientific promotion.
+The immutable FINISHED event and its usage/ref receipt own replayed results,
+including UNKNOWN_OUTCOME after a later final reconciliation. Output refs and
+trace default empty. Fixture artifacts remain retained candidate inputs; no
+scientific validity is inferred from the fake result.
+
+| S6 requirement | Test node name (tests/unit/phase3/) |
+| --- | --- |
+| Three reads; snapshot authorization; archived/disabled reads; no byte I/O | test_capability_gateway.py::test_snapshot_queries_exact_policy_invocation_and_no_io |
+| Empty/tied/keyset pages and exact boundary; limits 1–256 | test_capability_gateway.py::test_snapshot_paging_empty_ties_boundaries_and_no_offset; test_query_limit_rejects_outside_closed_bounds |
+| Authorization before existence and denied project scope | test_capability_gateway.py::test_snapshot_query_authorization_precedes_missing_objects; test_query_denied_scope_never_looks_up_existence |
+| Canonical refs with owning warnings | test_capability_gateway.py::test_query_refs_use_owning_snapshot_warnings_and_canonical_order |
+| One read-only repeatable snapshot; no write/lock SQL or second session | test_capability_gateway_repository.py::test_formal_read_selects_one_readonly_repeatable_snapshot_before_sql; test_queries_use_one_session_for_authority_and_all_nested_rows_without_write_sql |
+| Parameterized SQL, scoped tuple order, lookahead boundary | test_capability_gateway_repository.py::test_snapshot_page_sql_scopes_orders_and_fetches_one_lookahead |
+| Four outcomes, exact summary/errors, three commits/one call; terminal replay | test_capability_gateway.py::test_invoke_three_commits_one_outside_call_and_saved_terminal_replay; test_capability_routing.py::test_finite_fake_echo_closed_exact_outcomes |
+| Lost responses at request/start/finish commits | test_capability_gateway.py::test_invoke_response_loss_at_each_commit |
+| Prior start unresolved or no visible commit receipt: no dispatch | test_capability_gateway.py::test_invoke_unresolved_start_without_saved_finish_never_calls_fake; test_invoke_unresolved_commit_with_no_visible_receipt_never_dispatches |
+| Arbitrary capability/context/request/echo objects denied | test_capability_gateway.py::test_invoke_arbitrary_capability_is_denied_before_disclosure; test_invoke_rejects_arbitrary_request_without_dispatch; test_capability_routing.py::test_finite_fake_rejects_arbitrary_objects |
+| Saved finish remains original after reconciliation; current entitlement on replay | test_capability_gateway.py::test_invoke_saved_unknown_finish_survives_final_reconciliation; test_invoke_replay_rechecks_current_entitlement |
+
+These are unit/recording-session assertions only. Every PostgreSQL-dependent
+claim, including query snapshot coherence, SQL parameter typing on PostgreSQL,
+lock freedom, visibility, durability, guard/CAS behavior and exactly-once
+settlement, is **unverified until S8**. No gateway PostgreSQL suite exists yet;
+creating those suites belongs to S8 and is not part of this task.
+
+Deviation S6-E2: `docs/phase3/PR3-03-evidence.md` is outside S6's production/test
+file list but explicitly required by this task's Step 0 and verification evidence.
+Scope: evidence only. Impact: none on contracts. Disposition: authorized here.
+No other outside-file change, frozen-pack change, accepted-migration change,
+architecture exception, pyproject.toml or uv.lock change.
+
+Development setup: `python` was unavailable (`zsh:1: command not found: python`);
+no Step 0 edits from that failed interpreter invocation ran. Re-executed the
+script using python3 successfully. `export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`
+preceded every uv command. `uv sync --locked --group dev` exited 0:
+
+```text
+Resolved 38 packages in 3ms
+Checked 34 packages in 3ms
+```
+
+Initial development focused run: exit 1, 325 collected, 324 passed, 1 failed,
+0 skipped. Failure: `test_invoke_arbitrary_capability_is_denied_before_disclosure[bad0]`
+constructed an invalid context outside its raises block, so ClosedValue validation
+raised `VALIDATION_ERROR: injected trusted context required` before invoke.
+Corrected the adversarial setup to tamper a constructed context. Subsequent
+focused run: exit 0, 328 collected / 328 passed / 0 failed / 0 skipped in 2.34s.
+Additional snapshot/entitlement/reconciliation evidence was added afterward.
+Ruff formatting was applied to the nine Python paths; `ruff check --fix` corrected
+one import-order diagnostic (`Found 1 error (1 fixed, 0 remaining).`).
+
+### S6 separate final verification runs
+
+Every command below runs separately, in the required order. Raw combined
+stdout/stderr and exit status are copied below and retained in ignored
+`tmp/pr3-03/s6/`. PostgreSQL-dependent gateway behavior remains
+**unverified until S8**; these commands do not constitute overall PR acceptance.
+
+#### Interrupted verification attempts (corrected)
+
+```sh
+git diff --check HEAD
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+```
+
+```sh
+uv run ruff check .
+```
+
+Exit code: `1`. Raw combined stdout/stderr:
+
+```text
+I001 [*] Import block is un-sorted or un-formatted
+   --> tests/unit/phase3/test_capability_gateway_repository.py:658:5
+    |
+656 |       monkeypatch, operation
+657 |   ):
+658 | /     from contextlib import contextmanager
+659 | |
+660 | |     from tests.unit.phase3.gateway_fixtures import Fixture, NOW
+    | |_______________________________________________________________^
+661 |
+662 |       f = Fixture()
+    |
+help: Organize imports
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.
+```
+
+```sh
+git diff --check HEAD
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+```
+
+```sh
+uv run ruff check .
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+All checks passed!
+```
+
+```sh
+uv run ruff format --check .
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+904 files already formatted
+```
+
+```sh
+uv run pyright
+```
+
+Exit code: `1`. Raw combined stdout/stderr:
+
+```text
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119/tests/unit/phase3/test_capability_gateway.py
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119/tests/unit/phase3/test_capability_gateway.py:1164:35 - error: Argument of type "AgentExecutionContext | object" cannot be assigned to parameter "context" of type "AgentExecutionContext" in function "invoke"
+    Type "AgentExecutionContext | object" is not assignable to type "AgentExecutionContext"
+      "object" is not assignable to "AgentExecutionContext" (reportArgumentType)
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119/tests/unit/phase3/test_capability_gateway.py:1362:26 - error: Argument of type "object" cannot be assigned to parameter "request" of type "CapabilityRequest" in function "invoke"
+    "object" is not assignable to "CapabilityRequest" (reportArgumentType)
+2 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+#### Final required sequence
+
+```sh
+git diff --check HEAD
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+```
+
+```sh
+uv run ruff check .
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+All checks passed!
+```
+
+```sh
+uv run ruff format --check .
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+904 files already formatted
+```
+
+```sh
+uv run pyright
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+```sh
+uv run alembic heads
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+0080_capability_gateway (head)
+```
+
+```sh
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -ra tests/unit/phase3/test_capability_gateway.py tests/unit/phase3/test_capability_gateway_repository.py tests/unit/phase3/test_capability_routing.py
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 335 items
+
+tests/unit/phase3/test_capability_gateway.py ........................... [  8%]
+........................................................................ [ 29%]
+........................................................................ [ 51%]
+............................................................             [ 68%]
+tests/unit/phase3/test_capability_gateway_repository.py ................ [ 73%]
+.......................................                                  [ 85%]
+tests/unit/phase3/test_capability_routing.py ........................... [ 93%]
+......................                                                   [100%]
+
+============================= 335 passed in 2.35s ==============================
+```
+
+```sh
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 352 items
+
+tests/architecture/test_b01_resolution_boundaries.py ...                 [  0%]
+tests/architecture/test_b02_strategy_promotion_boundaries.py ....        [  1%]
+tests/architecture/test_b03_discussion_hypothesis_boundaries.py ....     [  3%]
+tests/architecture/test_b04_boundaries.py ....                           [  4%]
+tests/architecture/test_b05_review_boundaries.py ....                    [  5%]
+tests/architecture/test_b06_revision_action.py ...                       [  6%]
+tests/architecture/test_b07_revision_decisions.py ...                    [  7%]
+tests/architecture/test_b08_issue_disposition.py ...                     [  7%]
+tests/architecture/test_b10_reconsideration.py ...                       [  8%]
+tests/architecture/test_b11_readiness_boundaries.py ...                  [  9%]
+tests/architecture/test_b12_prepare_boundaries.py ....                   [ 10%]
+tests/architecture/test_b13_grant_boundaries.py ....                     [ 11%]
+tests/architecture/test_b14_ready_boundaries.py .....                    [ 13%]
+tests/architecture/test_b14a_entry_boundaries.py ..                      [ 13%]
+tests/architecture/test_b14r_ready_approval_boundaries.py ...            [ 14%]
+tests/architecture/test_b15_package_boundaries.py ....                   [ 15%]
+tests/architecture/test_b16_boundaries.py ...                            [ 16%]
+tests/architecture/test_b17_boundaries.py ...                            [ 17%]
+tests/architecture/test_b19_close_prior_art_boundaries.py ..             [ 18%]
+tests/architecture/test_b20_screening_boundaries.py ...                  [ 19%]
+tests/architecture/test_b21_capture_boundaries.py ..                     [ 19%]
+tests/architecture/test_b22_prior_art_boundaries.py ...                  [ 20%]
+tests/architecture/test_b23_novelty_boundaries.py ...                    [ 21%]
+tests/architecture/test_b25_boundaries.py ...                            [ 22%]
+tests/architecture/test_b26_boundaries.py ...                            [ 23%]
+tests/architecture/test_b27_defensive_closure_read.py ...                [ 23%]
+tests/architecture/test_b32_boundaries.py ................               [ 28%]
+tests/architecture/test_basic_approval.py ...                            [ 29%]
+tests/architecture/test_import_boundaries.py .............               [ 32%]
+tests/architecture/test_m1_boundaries.py ...                             [ 33%]
+tests/architecture/test_no_masked_url_reconnect.py ................      [ 38%]
+tests/architecture/test_pr02_boundaries.py ..........                    [ 41%]
+tests/architecture/test_pr12_boundaries.py ....                          [ 42%]
+tests/architecture/test_pr13_boundaries.py ..                            [ 42%]
+tests/architecture/test_pr13r_batched_reads.py ...                       [ 43%]
+tests/architecture/test_pr14_boundaries.py ..                            [ 44%]
+tests/architecture/test_pr15_http_boundaries.py ...                      [ 45%]
+tests/architecture/test_pr16_cli_boundaries.py ....                      [ 46%]
+tests/architecture/test_pr17_agent_ready_architecture.py .......         [ 48%]
+tests/architecture/test_pr18_boundaries.py .......                       [ 50%]
+tests/architecture/test_pr2_00_boundaries.py ...                         [ 51%]
+tests/architecture/test_pr2_17_boundaries.py ...                         [ 51%]
+tests/architecture/test_pr2_18_boundaries.py .................           [ 56%]
+tests/architecture/test_pr2_19_boundaries.py ....................        [ 62%]
+tests/architecture/test_pr2_20_boundaries.py .....                       [ 63%]
+tests/architecture/test_pr3_00_boundaries.py ........................... [ 71%]
+................................                                         [ 80%]
+tests/architecture/test_pr3_01_boundaries.py ....                        [ 81%]
+tests/architecture/test_pr3_02_s1_boundaries.py ..                       [ 82%]
+tests/architecture/test_pr3_04_boundaries.py ..                          [ 82%]
+tests/unit/architecture/test_pr12_guard.py ..........................    [ 90%]
+tests/unit/architecture/test_pr14_guard.py ............................. [ 98%]
+.....                                                                    [100%]
+
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 352 passed, 50 warnings in 22.06s =======================
+```
+
+### S6 result and stop
+
+Final required sequence: all seven commands exited 0. Focused unit selection:
+335 collected / 335 passed / 0 failed / 0 errors / 0 skipped in 2.35s.
+Architecture selection: 352 collected / 352 passed / 0 failed / 0 errors /
+0 skipped, 50 warnings in 22.06s. Pyright: 0 errors, 0 warnings, 0 informations
+(the tool also prints its version-update notice). Ruff: clean; 904 files formatted.
+Alembic sole head: `0080_capability_gateway (head)`.
+
+The earlier static attempt's Pyright failures were deliberately invalid test
+arguments crossing a typed boundary; explicit Any casts now express adversarial
+runtime tests. The earlier lint failure was an import-order diagnostic in the
+new recording-session test. Both failures and subsequent clean results are
+retained above, not relabeled PASS. Additional development focused selection
+before the final sequence: 335 collected / 335 passed in 2.44s.
+
+No new live PostgreSQL behavior/migration suite was run: those suites belong to
+S8. Every PostgreSQL-dependent gateway claim remains **unverified until S8**.
+The unit suite's admin environment selector does not turn recording sessions
+into database evidence. Overall PR3-03 acceptance and external six-shard gate
+remain PENDING. S7 was not started. No full suite/six-shard run, commit, push,
+branch creation, accepted-migration edit or dependency edit occurred.
+
+Changed paths (relative to HEAD, including the new untracked query module):
+
+```text
+docs/phase3/PR3-03-evidence.md
+src/researchbase/agent_runtime/application/capability_gateway.py
+src/researchbase/agent_runtime/application/routing.py
+src/researchbase/agent_runtime/ports/gateway_repository.py
+src/researchbase/persistence/capability_gateway_queries.py
+src/researchbase/persistence/capability_gateway_repository.py
+tests/unit/phase3/gateway_fixtures.py
+tests/unit/phase3/test_capability_gateway.py
+tests/unit/phase3/test_capability_gateway_repository.py
+tests/unit/phase3/test_capability_routing.py
+```
+
+Ignored raw verification logs remain in `tmp/pr3-03/s6/`; pytest trace artifacts
+are generated by `test_invoke_three_commits_one_outside_call_and_saved_terminal_replay`
+in its per-case tmp_path. The four final focused-run traces were also copied to
+`tmp/pr3-03/s6/test_invoke_three_commits_one_{0,1,2,3}.json`; each contains
+exactly three commits and one fake call. Deviations S6-E1/E2 above accompany
+this handoff.
+STOP at S6; next sub-task is S7 under separate authorization.
+
+
+### S6 small fix — missing saved usage (2026-10-22)
+
+Baseline: `1194dbb`; S6 only. `_saved_completion` now supplies `None` to
+`next` and reports `PROVENANCE_CLOSURE_VIOLATION` with
+`saved finish usage unavailable` when the FINISHED event's usage row is absent.
+`test_invoke_saved_finish_missing_usage_reports_provenance_violation` removes
+that exact usage row after a completed invoke, asserts the domain error rather
+than StopIteration, and checks zero extra dispatches, commits or table changes.
+
+Source inspection confirms that `SqlAlchemyGatewayRepository`
+(`src/researchbase/persistence/capability_gateway_repository.py:88`) inherits
+`SqlAlchemyTaskSafetyRepository.rows`
+(`src/researchbase/persistence/task_safety_repository.py:92`). Its `SAFETY_TABLES`
+allowlist includes `budget_usage_records` (line 18), and `rows` selects by
+`research_task_id` ordered by `id`. Real adapter support for this replay lookup:
+**unverified until S8**; unit fixtures do not prove it. No gateway PostgreSQL
+suite exists in this S6 baseline; adding/running gateway acceptance belongs to S8.
+No persistence implementation or SQL changed, so no existing PostgreSQL suite
+is touched by this fix. S7/S8 and the six-shard full suite were not run.
+
+Changed paths (no commit, push or branch creation):
+
+```text
+docs/phase3/PR3-03-evidence.md
+src/researchbase/agent_runtime/application/capability_gateway.py
+tests/unit/phase3/test_capability_gateway.py
+```
+
+The following checks are separate executions. Before every uv command:
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+```
+
+### S6 small-fix raw verification output
+
+Runs 1–4 include the initial Pyright failure in the new test. Corrected the test
+to read the saved invocation's usage ID; runs 5–11 verify the corrected source.
+All output below is raw combined stdout/stderr; empty output is shown as an empty
+code block. Every command was executed separately.
+
+#### Small-fix run 1
+
+```sh
+git diff --check HEAD
+```
+
+```text
+```
+
+Exit code: 0.
+
+#### Small-fix run 2
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+uv run ruff check .
+```
+
+```text
+All checks passed!
+```
+
+Exit code: 0.
+
+#### Small-fix run 3
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+uv run ruff format --check .
+```
+
+```text
+904 files already formatted
+```
+
+Exit code: 0.
+
+#### Small-fix run 4
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+uv run pyright
+```
+
+```text
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119/tests/unit/phase3/test_capability_gateway.py
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119/tests/unit/phase3/test_capability_gateway.py:1162:80 - error: Cannot access attribute "usage_record_id" for class "CapabilityResult"
+    Attribute "usage_record_id" is unknown (reportAttributeAccessIssue)
+1 error, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+Exit code: 1.
+
+#### Small-fix run 5
+
+```sh
+git diff --check HEAD
+```
+
+```text
+```
+
+Exit code: 0.
+
+#### Small-fix run 6
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+uv run ruff check .
+```
+
+```text
+All checks passed!
+```
+
+Exit code: 0.
+
+#### Small-fix run 7
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+uv run ruff format --check .
+```
+
+```text
+904 files already formatted
+```
+
+Exit code: 0.
+
+#### Small-fix run 8
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+uv run pyright
+```
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+Exit code: 0.
+
+#### Small-fix run 9
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+uv run alembic heads
+```
+
+```text
+0080_capability_gateway (head)
+```
+
+Exit code: 0.
+
+#### Small-fix run 10
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -ra tests/unit/phase3/test_capability_gateway.py tests/unit/phase3/test_capability_gateway_repository.py tests/unit/phase3/test_capability_routing.py
+```
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 336 items
+
+tests/unit/phase3/test_capability_gateway.py ........................... [  8%]
+........................................................................ [ 29%]
+........................................................................ [ 50%]
+.............................................................            [ 69%]
+tests/unit/phase3/test_capability_gateway_repository.py ................ [ 73%]
+.......................................                                  [ 85%]
+tests/unit/phase3/test_capability_routing.py ........................... [ 93%]
+......................                                                   [100%]
+
+============================= 336 passed in 2.41s ==============================
+```
+
+Exit code: 0.
+
+#### Small-fix run 11
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture
+```
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 352 items
+
+tests/architecture/test_b01_resolution_boundaries.py ...                 [  0%]
+tests/architecture/test_b02_strategy_promotion_boundaries.py ....        [  1%]
+tests/architecture/test_b03_discussion_hypothesis_boundaries.py ....     [  3%]
+tests/architecture/test_b04_boundaries.py ....                           [  4%]
+tests/architecture/test_b05_review_boundaries.py ....                    [  5%]
+tests/architecture/test_b06_revision_action.py ...                       [  6%]
+tests/architecture/test_b07_revision_decisions.py ...                    [  7%]
+tests/architecture/test_b08_issue_disposition.py ...                     [  7%]
+tests/architecture/test_b10_reconsideration.py ...                       [  8%]
+tests/architecture/test_b11_readiness_boundaries.py ...                  [  9%]
+tests/architecture/test_b12_prepare_boundaries.py ....                   [ 10%]
+tests/architecture/test_b13_grant_boundaries.py ....                     [ 11%]
+tests/architecture/test_b14_ready_boundaries.py .....                    [ 13%]
+tests/architecture/test_b14a_entry_boundaries.py ..                      [ 13%]
+tests/architecture/test_b14r_ready_approval_boundaries.py ...            [ 14%]
+tests/architecture/test_b15_package_boundaries.py ....                   [ 15%]
+tests/architecture/test_b16_boundaries.py ...                            [ 16%]
+tests/architecture/test_b17_boundaries.py ...                            [ 17%]
+tests/architecture/test_b19_close_prior_art_boundaries.py ..             [ 18%]
+tests/architecture/test_b20_screening_boundaries.py ...                  [ 19%]
+tests/architecture/test_b21_capture_boundaries.py ..                     [ 19%]
+tests/architecture/test_b22_prior_art_boundaries.py ...                  [ 20%]
+tests/architecture/test_b23_novelty_boundaries.py ...                    [ 21%]
+tests/architecture/test_b25_boundaries.py ...                            [ 22%]
+tests/architecture/test_b26_boundaries.py ...                            [ 23%]
+tests/architecture/test_b27_defensive_closure_read.py ...                [ 23%]
+tests/architecture/test_b32_boundaries.py ................               [ 28%]
+tests/architecture/test_basic_approval.py ...                            [ 29%]
+tests/architecture/test_import_boundaries.py .............               [ 32%]
+tests/architecture/test_m1_boundaries.py ...                             [ 33%]
+tests/architecture/test_no_masked_url_reconnect.py ................      [ 38%]
+tests/architecture/test_pr02_boundaries.py ..........                    [ 41%]
+tests/architecture/test_pr12_boundaries.py ....                          [ 42%]
+tests/architecture/test_pr13_boundaries.py ..                            [ 42%]
+tests/architecture/test_pr13r_batched_reads.py ...                       [ 43%]
+tests/architecture/test_pr14_boundaries.py ..                            [ 44%]
+tests/architecture/test_pr15_http_boundaries.py ...                      [ 45%]
+tests/architecture/test_pr16_cli_boundaries.py ....                      [ 46%]
+tests/architecture/test_pr17_agent_ready_architecture.py .......         [ 48%]
+tests/architecture/test_pr18_boundaries.py .......                       [ 50%]
+tests/architecture/test_pr2_00_boundaries.py ...                         [ 51%]
+tests/architecture/test_pr2_17_boundaries.py ...                         [ 51%]
+tests/architecture/test_pr2_18_boundaries.py .................           [ 56%]
+tests/architecture/test_pr2_19_boundaries.py ....................        [ 62%]
+tests/architecture/test_pr2_20_boundaries.py .....                       [ 63%]
+tests/architecture/test_pr3_00_boundaries.py ........................... [ 71%]
+................................                                         [ 80%]
+tests/architecture/test_pr3_01_boundaries.py ....                        [ 81%]
+tests/architecture/test_pr3_02_s1_boundaries.py ..                       [ 82%]
+tests/architecture/test_pr3_04_boundaries.py ..                          [ 82%]
+tests/unit/architecture/test_pr12_guard.py ..........................    [ 90%]
+tests/unit/architecture/test_pr14_guard.py ............................. [ 98%]
+.....                                                                    [100%]
+
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane119/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 352 passed, 50 warnings in 20.13s =======================
+```
+
+Exit code: 0.
+
+Final counts: focused unit run 336 collected / 336 passed / 0 failed / 0 skipped;
+architecture run 352 collected / 352 passed / 0 failed / 0 skipped, 50 warnings.
+Final static checks exit 0; Ruff format reports 904 files already formatted;
+Pyright reports 0 errors / 0 warnings / 0 informations; Alembic reports
+`0080_capability_gateway (head)`. The initial failed Pyright run is not PASS.
+PostgreSQL tests: NOT RUN (no persistence/SQL change or existing gateway PG suite
+at S6); real gateway repository behavior remains **unverified until S8**.
+No full suite, six-shard run, S7/S8 work or overall PR acceptance is claimed.
+
+Post-evidence whitespace verification (separate execution):
+
+```sh
+git diff --check HEAD
+```
+
+```text
+docs/phase3/PR3-03-evidence.md:3601: new blank line at EOF.
+```
+
+Exit code: 2. Removed the extra blank line at EOF.
+
+Repeated post-evidence whitespace verification (separate execution):
+
+```sh
+git diff --check HEAD
+```
+
+```text
+```
+
+Exit code: 0 (empty output).

@@ -276,3 +276,22 @@ class SkillRouter:
         ):
             deny("same-project frozen intake required")
         return entry
+
+
+def finite_fake_echo(parameters):
+    """One finite pure in-process call; accepts only the closed fake arguments."""
+    from researchbase.agent_runtime.domain.capability_invocation import FakeParameters
+
+    if type(parameters) is not FakeParameters:
+        invalid("closed fake parameters required")
+    summary = {
+        "SUCCEEDED": parameters.message,
+        "FAILED": "Fake failure.",
+        "UNKNOWN_OUTCOME": "Fake outcome unknown.",
+        "CANCELLED": "Fake cancelled.",
+    }[parameters.outcome]
+    error = {
+        "FAILED": "ADAPTER_UNAVAILABLE",
+        "UNKNOWN_OUTCOME": "INVALID_STATE_TRANSITION",
+    }.get(parameters.outcome)
+    return summary, error
