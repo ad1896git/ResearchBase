@@ -15,6 +15,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    PrimaryKeyConstraint,
     String,
     Text,
     UniqueConstraint,
@@ -1314,3 +1315,596 @@ class LiteratureSearchExecutionCommandReceiptModel(Base):
         PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# PR3-01 planning tables: exact frozen constraints; no implicit ORM indexes.
+
+
+class ResearchTasksModel(Base):
+    __tablename__ = "research_tasks"
+    __table_args__ = (
+        CheckConstraint(
+            "task_type IN ( 'LITERATURE_RESEARCH','HYPOTHESIS_GENERATION','EXPERIMENT_DESIGN', 'EXPERIMENT_EXECUTION','ANALYSIS','CLAIM_REVISION','MANUSCRIPT_DRAFTING', 'INTERNAL_REVIEW','END_TO_END_RESEARCH','REPLICATION','OTHER')"  # noqa: E501
+        ),
+        CheckConstraint(
+            "length(btrim(objective)) BETWEEN 1 AND 8192 AND objective IS NFC NORMALIZED"
+        ),
+        CheckConstraint(
+            "length(btrim(strategy_id)) > 0 AND strategy_id IS NFC NORMALIZED AND lower(btrim(strategy_id)) NOT IN ('latest','main','master')"  # noqa: E501
+        ),
+        CheckConstraint(
+            "length(btrim(strategy_version)) > 0 AND strategy_version IS NFC NORMALIZED AND lower(btrim(strategy_version)) NOT IN ('latest','main','master')"  # noqa: E501
+        ),
+        CheckConstraint("autonomy_level IN ('A0','A1','A2','A3')"),
+        CheckConstraint("status IN ('CREATED','PLANNING','CANCELLED')"),
+        CheckConstraint("row_version >= 1"),
+        UniqueConstraint("id", "project_id"),
+        CheckConstraint("(started_at IS NULL AND current_step_id IS NULL"),
+        CheckConstraint("((status = 'CANCELLED') = (finished_at IS NOT NULL)"),
+        CheckConstraint("(finished_at IS NULL OR finished_at >= created_at"),
+        CheckConstraint(
+            "(plan_sealed_at IS NULL OR (status IN ('PLANNING','CANCELLED') AND plan_sealed_at >= created_at)"  # noqa: E501
+        ),
+        Index("pr301_tasks_project", "project_id", "created_at", "id"),
+        Index("pr301_tasks_requester", "requested_by"),
+        ForeignKeyConstraint(
+            ["id", "current_step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            name="pr301_current_step_same_task",
+            ondelete="RESTRICT",
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    requested_by = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    task_type = mapped_column(Text, nullable=False)
+    objective = mapped_column(Text, nullable=False)
+    strategy_id = mapped_column(Text, nullable=False)
+    strategy_version = mapped_column(Text, nullable=False)
+    autonomy_level = mapped_column(Text, nullable=False)
+    status = mapped_column(Text, nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at = mapped_column(DateTime(timezone=True), nullable=True)
+    plan_sealed_at = mapped_column(DateTime(timezone=True), nullable=True)
+    current_step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    row_version = mapped_column(Integer, nullable=False)
+
+
+class ResearchTaskStepsModel(Base):
+    __tablename__ = "research_task_steps"
+    __table_args__ = (
+        CheckConstraint(
+            "step_type IN ( 'PLAN','RESEARCH','RETRIEVE','HYPOTHESIZE','DESIGN_EXPERIMENT','CODE','DEBUG', 'EXECUTE','ANALYZE','CRITIQUE','WRITE','REVIEW','HUMAN_CHECKPOINT','PROMOTE','OTHER')"  # noqa: E501
+        ),
+        CheckConstraint("ordinal >= 1"),
+        CheckConstraint("status IN ('PENDING','CANCELLED')"),
+        CheckConstraint(
+            "agent_role IS NULL OR (length(btrim(agent_role)) BETWEEN 1 AND 128 AND agent_role IS NFC NORMALIZED)"  # noqa: E501
+        ),
+        CheckConstraint(
+            "capability_id IS NULL OR (length(btrim(capability_id)) BETWEEN 1 AND 128 AND capability_id IS NFC NORMALIZED)"  # noqa: E501
+        ),
+        CheckConstraint("retry_count = 0"),
+        CheckConstraint("row_version >= 1"),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "ordinal"),
+        CheckConstraint("(parent_step_id IS DISTINCT FROM id"),
+        CheckConstraint("(started_at IS NULL AND failure_code IS NULL"),
+        CheckConstraint("((status = 'CANCELLED') = (finished_at IS NOT NULL)"),
+        ForeignKeyConstraint(
+            ["research_task_id", "parent_step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        Index("pr301_steps_parent", "research_task_id", "parent_step_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    step_type = mapped_column(Text, nullable=False)
+    ordinal = mapped_column(Integer, nullable=False)
+    parent_step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    status = mapped_column(Text, nullable=False)
+    agent_role = mapped_column(Text, nullable=True)
+    capability_id = mapped_column(Text, nullable=True)
+    started_at = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_count = mapped_column(Integer, nullable=False, server_default=text("0"))
+    failure_code = mapped_column(Text, nullable=True)
+    row_version = mapped_column(Integer, nullable=False)
+
+
+class ResearchTaskStepDependenciesModel(Base):
+    __tablename__ = "research_task_step_dependencies"
+    __table_args__ = (
+        PrimaryKeyConstraint("research_task_id", "predecessor_id", "dependent_id"),
+        CheckConstraint("(predecessor_id <> dependent_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "predecessor_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "dependent_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+        ),
+        Index("pr301_dependency_reverse", "research_task_id", "dependent_id", "predecessor_id"),
+    )
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    predecessor_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    dependent_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+
+
+class ResearchTaskInputsModel(Base):
+    __tablename__ = "research_task_inputs"
+    __table_args__ = (
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint(
+            "(num_nonnulls(research_question_version_id, hypothesis_version_id, claim_version_id, source_version_id, artifact_version_id, manuscript_version_id) = 1"  # noqa: E501
+        ),
+        CheckConstraint(
+            "(CASE WHEN source_version_id IS NOT NULL OR manuscript_version_id IS NOT NULL THEN hash_scheme IS NOT NULL AND hash_scheme = 'sha256-cjson-v1' ELSE hash_scheme IS NULL END"  # noqa: E501
+        ),
+        Index(
+            "pr301_ti_research_question",
+            "research_task_id",
+            "research_question_version_id",
+            unique=True,
+            postgresql_where=text("research_question_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_research_question_ref",
+            "research_question_version_id",
+            postgresql_where=text("research_question_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_hypothesis",
+            "research_task_id",
+            "hypothesis_version_id",
+            unique=True,
+            postgresql_where=text("hypothesis_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_hypothesis_ref",
+            "hypothesis_version_id",
+            postgresql_where=text("hypothesis_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_claim",
+            "research_task_id",
+            "claim_version_id",
+            unique=True,
+            postgresql_where=text("claim_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_claim_ref",
+            "claim_version_id",
+            postgresql_where=text("claim_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_source",
+            "research_task_id",
+            "source_version_id",
+            unique=True,
+            postgresql_where=text("source_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_source_ref",
+            "source_version_id",
+            postgresql_where=text("source_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_artifact",
+            "research_task_id",
+            "artifact_version_id",
+            unique=True,
+            postgresql_where=text("artifact_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_artifact_ref",
+            "artifact_version_id",
+            postgresql_where=text("artifact_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_manuscript",
+            "research_task_id",
+            "manuscript_version_id",
+            unique=True,
+            postgresql_where=text("manuscript_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_ti_manuscript_ref",
+            "manuscript_version_id",
+            postgresql_where=text("manuscript_version_id IS NOT NULL"),
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_question_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_question_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    hypothesis_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("hypothesis_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    claim_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("claim_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    source_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("source_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    artifact_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    manuscript_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("manuscript_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    content_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=True)
+
+
+class ResearchTaskStepInputsModel(Base):
+    __tablename__ = "research_task_step_inputs"
+    __table_args__ = (
+        CheckConstraint("content_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint(
+            "(num_nonnulls(research_question_version_id, hypothesis_version_id, claim_version_id, source_version_id, artifact_version_id, manuscript_version_id) = 1"  # noqa: E501
+        ),
+        CheckConstraint(
+            "(CASE WHEN source_version_id IS NOT NULL OR manuscript_version_id IS NOT NULL THEN hash_scheme IS NOT NULL AND hash_scheme = 'sha256-cjson-v1' ELSE hash_scheme IS NULL END"  # noqa: E501
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+        ),
+        Index(
+            "pr301_si_research_question",
+            "research_task_id",
+            "step_id",
+            "research_question_version_id",
+            unique=True,
+            postgresql_where=text("research_question_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_research_question_ref",
+            "research_question_version_id",
+            postgresql_where=text("research_question_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_hypothesis",
+            "research_task_id",
+            "step_id",
+            "hypothesis_version_id",
+            unique=True,
+            postgresql_where=text("hypothesis_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_hypothesis_ref",
+            "hypothesis_version_id",
+            postgresql_where=text("hypothesis_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_claim",
+            "research_task_id",
+            "step_id",
+            "claim_version_id",
+            unique=True,
+            postgresql_where=text("claim_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_claim_ref",
+            "claim_version_id",
+            postgresql_where=text("claim_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_source",
+            "research_task_id",
+            "step_id",
+            "source_version_id",
+            unique=True,
+            postgresql_where=text("source_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_source_ref",
+            "source_version_id",
+            postgresql_where=text("source_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_artifact",
+            "research_task_id",
+            "step_id",
+            "artifact_version_id",
+            unique=True,
+            postgresql_where=text("artifact_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_artifact_ref",
+            "artifact_version_id",
+            postgresql_where=text("artifact_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_manuscript",
+            "research_task_id",
+            "step_id",
+            "manuscript_version_id",
+            unique=True,
+            postgresql_where=text("manuscript_version_id IS NOT NULL"),
+        ),
+        Index(
+            "pr301_si_manuscript_ref",
+            "manuscript_version_id",
+            postgresql_where=text("manuscript_version_id IS NOT NULL"),
+        ),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_question_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_question_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    hypothesis_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("hypothesis_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    claim_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("claim_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    source_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("source_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    artifact_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("artifact_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    manuscript_version_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("manuscript_versions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    content_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=True)
+
+
+class ResearchTaskCommandReceiptsModel(Base):
+    __tablename__ = "research_task_command_receipts"
+    __table_args__ = (
+        CheckConstraint(
+            "command_name IN ( 'create_research_task','create_task_plan','add_task_step', 'add_task_step_dependency','seal_task_plan','cancel_research_task')"  # noqa: E501
+        ),
+        CheckConstraint("request_hash ~ '^[0-9a-f]{64}$'"),
+        CheckConstraint("hash_scheme = 'sha256-cjson-v1'"),
+        CheckConstraint("material_version = 1"),
+        CheckConstraint("resulting_row_version >= 1"),
+        UniqueConstraint("project_id", "actor_id", "command_id"),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "resulting_row_version"),
+        UniqueConstraint("research_task_id", "actor_id", "command_id", "resulting_row_version"),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id"],
+            ["research_tasks.id", "research_tasks.project_id"],
+            ondelete="RESTRICT",
+        ),
+        Index("pr301_receipts_actor", "actor_id"),
+        Index("pr301_receipts_project_time", "project_id", "completed_at", "id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    actor_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    command_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    command_name = mapped_column(Text, nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    request_hash = mapped_column(Text, nullable=False)
+    hash_scheme = mapped_column(Text, nullable=False)
+    material_version = mapped_column(Integer, nullable=False)
+    resulting_row_version = mapped_column(Integer, nullable=False)
+    completed_at = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResearchTaskEventsModel(Base):
+    __tablename__ = "research_task_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ( 'CREATED','PLAN_CREATED','STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED','CANCELLED')"  # noqa: E501
+        ),
+        CheckConstraint("sequence >= 1"),
+        CheckConstraint("task_row_version >= 1"),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "sequence"),
+        UniqueConstraint("research_task_id", "task_row_version"),
+        CheckConstraint("(sequence = task_row_version"),
+        CheckConstraint(
+            "( (event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED') OR (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = 'PLANNING') OR (event_type IN ('STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED') AND prior_status = 'PLANNING' AND new_status = 'PLANNING') OR (event_type = 'CANCELLED' AND prior_status IN ('CREATED','PLANNING') AND new_status = 'CANCELLED')"  # noqa: E501
+        ),
+        CheckConstraint("(event_type = 'CREATED' OR prior_status IS NOT NULL"),
+        CheckConstraint(
+            "(CASE WHEN event_type = 'CANCELLED' THEN reason IS NOT NULL AND length(btrim(reason)) > 0 AND reason IS NFC NORMALIZED ELSE reason IS NULL END"  # noqa: E501
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "actor_id", "command_id", "task_row_version"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.actor_id",
+                "research_task_command_receipts.command_id",
+                "research_task_command_receipts.resulting_row_version",
+            ],
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        Index("pr301_task_events_actor", "actor_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    actor_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    command_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    event_type = mapped_column(Text, nullable=False)
+    sequence = mapped_column(Integer, nullable=False)
+    task_row_version = mapped_column(Integer, nullable=False)
+    prior_status = mapped_column(Text, nullable=True)
+    new_status = mapped_column(Text, nullable=False)
+    reason = mapped_column(Text, nullable=True)
+    occurred_at = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResearchTaskStepEventsModel(Base):
+    __tablename__ = "research_task_step_events"
+    __table_args__ = (
+        CheckConstraint("event_type IN ('PLANNED','CANCELLED')"),
+        CheckConstraint("sequence >= 1"),
+        CheckConstraint("step_row_version >= 1"),
+        CheckConstraint("task_row_version >= 1"),
+        UniqueConstraint("research_task_id", "id"),
+        UniqueConstraint("research_task_id", "step_id", "sequence"),
+        CheckConstraint("(sequence = step_row_version"),
+        CheckConstraint(
+            "((event_type = 'PLANNED' AND prior_status IS NULL AND new_status = 'PENDING' AND step_row_version = 1) OR (event_type = 'CANCELLED' AND prior_status IS NOT NULL AND prior_status = 'PENDING' AND new_status = 'CANCELLED' AND step_row_version = 2)"  # noqa: E501
+        ),
+        CheckConstraint(
+            "(CASE WHEN event_type = 'CANCELLED' THEN reason IS NOT NULL AND length(btrim(reason)) > 0 AND reason IS NFC NORMALIZED ELSE reason IS NULL END"  # noqa: E501
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "actor_id", "command_id", "task_row_version"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.actor_id",
+                "research_task_command_receipts.command_id",
+                "research_task_command_receipts.resulting_row_version",
+            ],
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        Index("pr301_step_events_actor", "actor_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    step_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    actor_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False
+    )
+    command_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    event_type = mapped_column(Text, nullable=False)
+    sequence = mapped_column(Integer, nullable=False)
+    step_row_version = mapped_column(Integer, nullable=False)
+    task_row_version = mapped_column(Integer, nullable=False)
+    prior_status = mapped_column(Text, nullable=True)
+    new_status = mapped_column(Text, nullable=False)
+    reason = mapped_column(Text, nullable=True)
+    occurred_at = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResearchTaskReceiptEventsModel(Base):
+    __tablename__ = "research_task_receipt_events"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "event_id"],
+            ["research_task_events.research_task_id", "research_task_events.id"],
+            ondelete="RESTRICT",
+        ),
+        Index("pr301_receipt_events_task", "research_task_id"),
+    )
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    event_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+
+
+class ResearchTaskReceiptStepEventsModel(Base):
+    __tablename__ = "research_task_receipt_step_events"
+    __table_args__ = (
+        PrimaryKeyConstraint("receipt_id", "step_event_id"),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "step_event_id"],
+            ["research_task_step_events.research_task_id", "research_task_step_events.id"],
+            ondelete="RESTRICT",
+        ),
+        Index("pr301_receipt_step_events_task", "research_task_id"),
+    )
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    step_event_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)

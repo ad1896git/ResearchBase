@@ -199,10 +199,20 @@ def test_scanner_allows_application_dtos_and_foundation(tmp_path: Path) -> None:
     assert _forbidden_imports(tmp_path, "researchbase.agent_runtime") == []
 
 
-def test_bootstrap_packages_are_empty_and_import_without_activation(tmp_path: Path) -> None:
+def test_bootstrap_initializers_stay_empty_and_import_without_activation(tmp_path: Path) -> None:
     packages = []
+    admitted_planning_files = {
+        "agent_runtime/domain/research_task.py",
+        "agent_runtime/domain/task_step.py",
+        "agent_runtime/domain/task_graph.py",
+        "agent_runtime/application/contracts.py",
+        "agent_runtime/application/research_task.py",
+        "agent_runtime/ports/task_repository.py",
+    }
     for namespace in NAMESPACES:
         for path in sorted((SOURCE / namespace).rglob("*.py")):
+            if path.relative_to(SOURCE).as_posix() in admitted_planning_files:
+                continue
             assert path.name == "__init__.py" and path.read_bytes() == b""
             packages.append("researchbase." + ".".join(path.relative_to(SOURCE).parent.parts))
     script = """

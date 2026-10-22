@@ -51,7 +51,7 @@ def test_inventory_resolves_actual_source_lock_modes_and_unversioned_api():
     assert "paper-qa" not in packages and "paperqa" not in packages
     # Manifest/source identities, not upstream licenses, are resolved locally.
     assert len(r.migration_inventory()) >= 47
-    assert r.migration_inventory()[-1]["revision"] == "0076_agent_runtime_bootstrap"
+    assert r.migration_inventory()[-1]["revision"] == "0077_research_task_graph"
 
 
 def test_offline_replacement_candidates_preserve_contract_and_do_not_enable_paperqa():

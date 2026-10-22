@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
 
+from researchbase.agent_runtime.ports.task_repository import UncertainTaskCommit
 from researchbase.application.ports import (
     ActorRepository,
     ArtifactRepository,
@@ -84,6 +85,7 @@ from researchbase.persistence.repositories import (
     SqlAlchemyStatisticalResultRepository,
     SqlAlchemyWorkspaceRepository,
 )
+from researchbase.persistence.research_task_repository import SqlAlchemyResearchTaskRepository
 from researchbase.persistence.revision_action_repository import SqlAlchemyRevisionActionRepository
 from researchbase.persistence.scientific_conclusion_repository import (
     SqlAlchemyScientificConclusionRepository,
@@ -503,6 +505,7 @@ class SqlAlchemyUnitOfWork:
     revision_action: SqlAlchemyRevisionActionRepository
     approval: SqlAlchemyApprovalRepository
     decision: SqlAlchemyDecisionRepository
+    research_tasks: SqlAlchemyResearchTaskRepository
 
     def __init__(
         self,
@@ -547,6 +550,7 @@ class SqlAlchemyUnitOfWork:
         self._manuscript_freeze_error_normalization = False
         self._internal_review_error_normalization = False
         self._issue_disposition_error_normalization = False
+        self._research_task_error_normalization = False
         self._session = self._session_factory()
         self._session.begin()
         self.actors = SqlAlchemyActorRepository(self._session)
@@ -586,6 +590,7 @@ class SqlAlchemyUnitOfWork:
         self.internal_review = SqlAlchemyInternalReviewRepository(self._session)
         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
+        self.research_tasks = SqlAlchemyResearchTaskRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)
         self.prepared_submission = SqlAlchemyPreparedSubmissionRepository(self._session)
@@ -603,6 +608,20 @@ class SqlAlchemyUnitOfWork:
         self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(
             self._require_session(), protected_reads=True
         )
+
+    def begin_research_task(self) -> None:
+        """Configure isolation before the literal first SHARE statement."""
+        self._decision_error_normalization = True
+        self._research_task_error_normalization = True
+        session = self._require_session()
+        session.autoflush = False
+        session.connection(
+            execution_options={
+                "isolation_level": "READ COMMITTED",
+                "postgresql_readonly": False,
+            }
+        )
+        self.enable_revision_action_snapshot_reads()
 
     def begin_formal_read(self) -> None:
         """One lock-free snapshot, including nested authorization and verification."""
@@ -776,6 +795,37 @@ class SqlAlchemyUnitOfWork:
         self._b23_error_normalization = True
 
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if getattr(self, "_research_task_error_normalization", False):
+            state = getattr(exc.orig, "sqlstate", None)
+            name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+            guards = {
+                "pr301_validation": ErrorCode.VALIDATION_ERROR,
+                "pr301_state": ErrorCode.INVALID_STATE_TRANSITION,
+                "pr301_immutable": ErrorCode.IMMUTABLE_RECORD,
+                "pr301_not_frozen": ErrorCode.VERSION_NOT_FROZEN,
+                "pr301_scope": ErrorCode.FORBIDDEN,
+                "pr301_provenance": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+            }
+            codes = {
+                "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "23514": ErrorCode.VALIDATION_ERROR,
+                "23502": ErrorCode.VALIDATION_ERROR,
+                "23505": ErrorCode.VALIDATION_ERROR,
+                **{
+                    s: ErrorCode.CONCURRENT_MODIFICATION
+                    for s in ("40001", "40P01", "55P03", "57014")
+                },
+            }
+            code = guards.get(str(name)) or codes.get(str(state))
+            if code is not None:
+                return ResearchBaseError(
+                    code,
+                    "planning transaction rejected",
+                    {"retryable_pr301": state in {"40001", "40P01"}},
+                )
+            raise UncertainTaskCommit(
+                "planning transaction uncertain; reconcile the exact receipt"
+            ) from None
         if getattr(self, "_b23_error_normalization", False):
             state = getattr(exc.orig, "sqlstate", None)
             name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -1225,4 +1275,9 @@ def search_result_resolution_uow_factory(url: str) -> Callable[[], SqlAlchemyUni
 
 def strategy_candidate_promotion_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
     """The startup timeout bounds B02's first SHARE wait before SET LOCAL."""
+    return search_result_resolution_uow_factory(url)
+
+
+def research_task_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
+    """Dedicated pool with startup bounds, so SHARE is the very first SQL."""
     return search_result_resolution_uow_factory(url)

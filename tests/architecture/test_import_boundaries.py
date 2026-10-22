@@ -192,6 +192,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0074_m1_manuscript_revision.py",
         "0075_m1_reconsideration.py",
         "0076_agent_runtime_bootstrap.py",
+        "0077_research_task_graph.py",
     ]
 
 

@@ -98,7 +98,7 @@ def _save(tmp_path: Path, label: str, catalog: str, rows: dict[str, list[str]]) 
 
 def test_single_head_and_exact_parent() -> None:
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == [REVISION]
+    assert scripts.get_heads() == ["0077_research_task_graph"]
     revision = scripts.get_revision(REVISION)
     assert revision is not None and revision.down_revision == PARENT
 
@@ -107,11 +107,11 @@ def test_clean_upgrade(database: tuple[str, Config, Engine], tmp_path: Path) -> 
     url, config, engine = database
     with engine.connect() as conn:
         assert inspect(conn).get_table_names(schema="public") == []
-    command.upgrade(config, "head")
+    command.upgrade(config, REVISION)
     assert _revision(engine) == REVISION
     catalog, rows = _catalog(url), _rows(engine)
     _save(tmp_path, "clean", catalog, rows)
-    command.upgrade(config, "head")
+    command.upgrade(config, REVISION)
     assert _catalog(url) == catalog
     assert _rows(engine) == rows
     assert _revision(engine) == REVISION
@@ -138,7 +138,7 @@ def test_upgrade_from_phase2_preserves_catalog_and_history(
             assert before_rows["research_question_versions"]
             assert before_rows["search_plan_question_inputs"]
         _save(tmp_path, "parent", before_catalog, before_rows)
-        command.upgrade(config, "head")
+        command.upgrade(config, REVISION)
         assert _revision(engine) == REVISION
         after_catalog, after_rows = _catalog(url), _rows(engine)
         _save(tmp_path, "bootstrap", after_catalog, after_rows)
@@ -162,7 +162,7 @@ def test_downgrade_refused_without_revision_catalog_or_data_change(
     try:
         _freeze(setup_engine, service, principal, project, plan, version)
         readback = service.get(principal, project, plan)
-        command.upgrade(config, "head")
+        command.upgrade(config, REVISION)
         before_catalog, before_rows = _catalog(url), _rows(engine)
         assert before_rows["literature_search_plan_versions"]
         _save(tmp_path, "before-refusal", before_catalog, before_rows)

@@ -39,6 +39,20 @@ def test_core_has_no_agent_or_phase2_runtime_imports() -> None:
             else:
                 continue
             for name in names:
+                # PR3-01 admits the planning module at its specified adapters/ports.
+                # Phase 1 scientific Core still cannot import that runtime.
+                if name.startswith("researchbase.agent_runtime") and (
+                    path.is_relative_to(SOURCE_ROOT / "agent_runtime")
+                    or path.is_relative_to(SOURCE_ROOT / "persistence")
+                    or path.relative_to(SOURCE_ROOT).as_posix()
+                    in {
+                        "api/app.py",
+                        "api/routes.py",
+                        "cli/composition.py",
+                        "cli/commands/research_tasks.py",
+                    }
+                ):
+                    continue
                 if any(term in name.lower() for term in FORBIDDEN_RUNTIME_TERMS):
                     violations.append(f"{path.relative_to(ROOT)}:{name}")
     assert violations == []

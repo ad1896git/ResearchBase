@@ -280,6 +280,21 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
             ("post", "/v1/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}"),
             ("get", "/v1/projects/{project_id}/issue-dispositions/{id}"),
             ("post", "/v1/projects/{project_id}/issue-dispositions"),
+            ("post", "/v1/research-tasks"),
+            ("post", "/v1/research-tasks/{id}/plan"),
+            ("post", "/v1/research-tasks/{id}/steps"),
+            ("post", "/v1/research-tasks/{id}/dependencies"),
+            ("post", "/v1/research-tasks/{id}:seal-plan"),
+            ("post", "/v1/research-tasks/{id}:cancel"),
+            ("post", "/v1/research-tasks/{id}:start"),
+            ("post", "/v1/research-tasks/{id}:pause"),
+            ("post", "/v1/research-tasks/{id}:resume"),
+            ("post", "/v1/research-tasks/{id}/steps:start"),
+            ("post", "/v1/research-tasks/{id}/steps:finish"),
+            ("post", "/v1/research-tasks/{id}/steps:fail"),
+            ("get", "/v1/research-tasks/{id}"),
+            ("get", "/v1/research-tasks/{id}/graph"),
+            ("get", "/v1/research-tasks/{id}/progress"),
         }
     )
     actual = {

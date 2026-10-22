@@ -4,7 +4,7 @@
 >
 > **Revision 2026-10-20:** Rebased on delivered Phase 2 and head 0075; corrected first-SHARE writes and lock-free snapshot reads, forward-only migrations and AGENT-binding limits; identified proposed schema and required per-table rationale. This aligns the parked draft with actual exit evidence; implementation remains unauthorized. Director review: cited the committed Phase 2 acceptance record and final verification counts. Corrected per-family hash columns, batched cycle checks, input-layout options, SHARE rationale and the source-link table name; made policy staging an explicit owner choice.
 
-**Status: APPROVED by owner 2026-10-20 (ADR-0022 decisions) — NOT yet authorized for implementation**
+**Status: APPROVED by owner 2026-10-20 (ADR-0022 decisions) — AUTHORIZED for implementation 2026-10-21 (owner, after the execution pack passed two director reviews)**
 
 **Scope:** documentation proposal only. No code, migration, runtime dependency,
 worker, provider or production policy is authorized. Proposed decisions require

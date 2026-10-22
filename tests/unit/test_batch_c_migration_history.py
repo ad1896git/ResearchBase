@@ -36,6 +36,7 @@ def test_batch_c_linear_history_and_frozen_lane_sql():
         "0074_m1_manuscript_revision",
         "0075_m1_reconsideration",
         "0076_agent_runtime_bootstrap",
+        "0077_research_task_graph",
     )
     assert scripts.get_heads() == [chain[-1]]
     for parent, child in zip(chain, chain[1:], strict=False):
