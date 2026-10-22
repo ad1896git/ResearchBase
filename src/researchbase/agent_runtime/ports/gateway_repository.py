@@ -2,8 +2,10 @@
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Protocol, TypedDict
+from typing import Any, Protocol, TypedDict
 from uuid import UUID
+
+from researchbase.agent_runtime.ports.task_safety_repository import TaskSafetyRepository
 
 
 class StoredToolPolicy(TypedDict):
@@ -161,7 +163,7 @@ class StoredTaskEvent(TypedDict):
     result_capability_event_id: UUID | None
 
 
-class GatewayRepository(Protocol):
+class GatewayRepository(TaskSafetyRepository, Protocol):
     def lock_gateway(
         self,
         project: UUID,
@@ -185,3 +187,15 @@ class GatewayRepository(Protocol):
         self, project: UUID, actor: UUID, command: UUID
     ) -> StoredGatewayReceipt | None: ...
     def gateway_task_events(self, task: UUID) -> list[StoredTaskEvent]: ...
+
+    def committed_receipt(
+        self, project: UUID, actor: UUID, command: UUID
+    ) -> dict[str, Any] | None: ...
+    def gateway_result(self, receipt: dict[str, Any], *, replayed: bool) -> Any: ...
+    def policy_version_occupied(self, project: UUID, version: str) -> bool: ...
+    def gateway_identity_occupied(self, table: str, identity: UUID) -> bool: ...
+    def task_invocations(self, project: UUID, task: UUID) -> list[dict[str, Any]]: ...
+    def agent_version(self, identity: UUID) -> dict[str, Any] | None: ...
+    def agent_availability(self, identity: UUID) -> dict[str, Any] | None: ...
+    def live_agent(self, actor: UUID, project: UUID) -> bool: ...
+    def artifact_pin(self, project: UUID, identity: UUID) -> dict[str, Any] | None: ...

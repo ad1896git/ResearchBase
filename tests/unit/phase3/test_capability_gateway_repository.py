@@ -417,3 +417,92 @@ def test_legacy_task_event_projection_preserves_dto_shape_after_0080():
     assert columns == set(get_type_hints(TaskEventRead))
     assert "result_tool_policy_id" not in columns
     assert not sql.startswith("SELECT *")
+
+
+def test_committed_receipt_excludes_current_xmin_and_keeps_original_identity():
+    from researchbase.persistence.capability_gateway_repository import COMMITTED_RECEIPT_SQL
+
+    session = RecordingSession()
+    repository = SqlAlchemyGatewayRepository(cast(Session, session))
+    assert repository.committed_receipt(P, A, C) is None
+    assert session.trace == [
+        [normalized(COMMITTED_RECEIPT_SQL), {"project": P, "actor": A, "command": C}]
+    ]
+    assert "xmin <> pg_current_xact_id()::xid" in normalized(COMMITTED_RECEIPT_SQL)
+
+
+def test_request_insert_is_parameterized_and_rejects_unknown_column():
+    session = RecordingSession()
+    repo = SqlAlchemyGatewayRepository(cast(Session, session))
+    row = {"id": V, "project_id": P, "research_task_id": T, "status": "REQUESTED"}
+    repo.insert("capability_invocations", row)
+    sql, params = session.trace[0]
+    assert params == row and str(V) not in sql
+    assert sql == (
+        "INSERT INTO capability_invocations ( id, project_id, research_task_id, status ) "
+        "VALUES ( :id, :project_id, :research_task_id, :status )"
+    )
+    with pytest.raises(ValueError, match="unknown gateway column"):
+        repo.insert("capability_invocations", {"untrusted": True})
+    with pytest.raises(ValueError):
+        repo.insert("untrusted_table", {"id": V})
+
+
+def test_saved_gateway_result_uses_receipt_and_event_never_current_invocation():
+    from researchbase.persistence.capability_gateway_repository import SAVED_EVENT_SQL
+
+    session = RecordingSession()
+    repo = SqlAlchemyGatewayRepository(cast(Session, session))
+    stamp = datetime(2026, 10, 22, tzinfo=UTC)
+    receipt = dict(
+        id=C,
+        project_id=P,
+        research_task_id=T,
+        actor_id=A,
+        command_id=C,
+        command_name="request_capability_invocation",
+        result_tool_policy_id=V,
+        result_capability_invocation_id=V,
+        result_capability_event_id=TARGET,
+        resulting_row_version=5,
+        resulting_invocation_revision=1,
+        completed_at=stamp,
+    )
+    session.results[normalized(SAVED_EVENT_SQL)] = [{"reservation_id": T, "usage_record_id": None}]
+    result = repo.gateway_result(receipt, replayed=True)
+    assert result.reservation_id == T and result.resulting_invocation_revision == 1
+    assert result.resulting_row_version == 5 and result.completed_at == stamp
+    assert session.trace == [[normalized(SAVED_EVENT_SQL), {"id": TARGET}]]
+
+
+@pytest.mark.parametrize("gateway", [False, True])
+@pytest.mark.parametrize(
+    "constraint,expected",
+    [
+        ("agent_tool_policies_pkey", "CONCURRENT_MODIFICATION"),
+        ("agent_tool_policies_project_id_version_key", "CONCURRENT_MODIFICATION"),
+        ("capability_invocations_pkey", "CONCURRENT_MODIFICATION"),
+        ("agent_tool_policy_permissions_policy_id_capability_id_key", "VALIDATION_ERROR"),
+        ("unrelated_unique", "VALIDATION_ERROR"),
+        ("research_task_command_receipt_project_id_actor_id_command_i_key", "IDEMPOTENCY_CONFLICT"),
+    ],
+)
+def test_uniqueness_mapping_is_scoped_to_gateway_and_exact_diagnostics(
+    gateway, constraint, expected
+):
+    from types import SimpleNamespace
+
+    from sqlalchemy.exc import DBAPIError
+
+    unit = SqlAlchemyUnitOfWork(lambda: Session())
+    unit._research_task_error_normalization = True
+    unit._gateway_error_normalization = gateway
+
+    class Original(RuntimeError):
+        sqlstate = "23505"
+        diag = SimpleNamespace(constraint_name=constraint)
+
+    original = Original("message must not be parsed")
+    error = unit._command_database_error(DBAPIError(None, None, original))
+    assert str(error.code) == (expected if gateway else "VALIDATION_ERROR")
+    assert error.details is not None and not error.details["retryable_pr301"]

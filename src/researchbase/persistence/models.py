@@ -2773,7 +2773,7 @@ class AgentAvailabilityEventModel(Base):
 # PR3-03 inert metadata. Migration 0080 owns the persisted schema and guards.
 
 
-class AgentToolPoliciesModel(Base):
+class ToolPolicyRowModel(Base):
     __tablename__ = "agent_tool_policies"
     __table_args__ = (
         CheckConstraint(
@@ -2841,7 +2841,7 @@ class AgentToolPoliciesModel(Base):
     created_at = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class AgentToolPolicyPermissionsModel(Base):
+class ToolPolicyPermissionRowModel(Base):
     __tablename__ = "agent_tool_policy_permissions"
     __table_args__ = (
         CheckConstraint("parameter_schema_hash ~ '^[0-9a-f]{64}$'"),

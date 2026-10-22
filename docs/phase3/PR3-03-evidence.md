@@ -2233,3 +2233,599 @@ docs/phase3/PR3-03-evidence.md:2227: new blank line at EOF.
 
 Removed the extra EOF blank line. Repeated `git diff --check HEAD`: exit 0,
 stdout/stderr empty. Only evidence text changed after the ordered checks above.
+
+## S4 — Register/request commands and reserve_in_uow (2026-10-22)
+
+Scope: S4 only. No start, finish, reconciliation, invoke/dispatch, transport or
+query implementation is added. Frozen pack and accepted migrations, pyproject.toml
+and uv.lock are unchanged. S5 has NOT STARTED. Gateway PostgreSQL atomicity and
+contention are PENDING S8; recording doubles do not establish database atomicity.
+
+### Step 0
+
+Every uv command in S4 sets `UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`.
+The required old-vector run was the first uv command. Exact command:
+
+```sh
+uv run pytest -o addopts='' -ra tests/unit/phase3/test_research_task_contracts.py tests/unit/phase3/test_task_safety_contracts.py tests/unit/phase3/test_agent_version_contracts.py tests/unit/phase3/test_harness_manifest.py
+```
+
+Exit 0; 203 collected, 203 passed, 0 failed, 0 skipped. Exact output:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 203 items
+
+tests/unit/phase3/test_research_task_contracts.py ...................... [ 10%]
+....................................................                     [ 36%]
+tests/unit/phase3/test_task_safety_contracts.py ................         [ 44%]
+tests/unit/phase3/test_agent_version_contracts.py ...................... [ 55%]
+........................................................................ [ 90%]
+....                                                                     [ 92%]
+tests/unit/phase3/test_harness_manifest.py ...............               [100%]
+
+============================= 203 passed ==============================
+```
+
+Step 0b: confirmed the existing **S2 review carry-over for S3** paragraph, before
+S3, states the intended missing-version behavior: absence yields no derivable
+actor key, the version key remains acquired, no actor key follows row locks, and
+S4 must reject missing stored AgentVersion under locks. No S2 paragraph addition
+was needed. S4's `no_version` test exercises that admission denial.
+
+Step 0c: `git check-ignore -v tmp/pr3-03/x`, exit 0. Exact output (tab separator):
+
+```text
+.gitignore:32:tmp/	tmp/pr3-03/x
+```
+
+Setup: `uv sync --locked --group dev`, exit 0. Exact output:
+
+```text
+Resolved 38 packages in 3ms
+Checked 34 packages in 0.90ms
+```
+
+### Changed paths and Deviation
+
+- `src/researchbase/agent_runtime/application/capability_gateway.py` (new)
+- `src/researchbase/agent_runtime/application/gateway_accounting.py` (created in S4; removed by the correction below)
+- `src/researchbase/agent_runtime/application/task_safety.py`
+- `src/researchbase/agent_runtime/ports/gateway_repository.py`
+- `src/researchbase/persistence/capability_gateway_repository.py`
+- `src/researchbase/persistence/uow.py`
+- `tests/unit/phase3/test_capability_gateway.py` (new)
+- `tests/unit/phase3/gateway_fixtures.py` (new)
+- `tests/unit/phase3/test_capability_gateway_repository.py`
+- `docs/phase3/PR3-03-evidence.md`
+
+**Deviation S4-D1 — owner-required evidence outside the S4 production/test file
+list.** Scope: this document and ignored `tmp/pr3-03/s4-*` traces/logs. Evidence:
+the task explicitly requires this S4 evidence section and exact outputs. Impact:
+evidence only; no architecture or frozen-contract change. Disposition: authorized
+by the task. No stop rule G architecture conflict is claimed. SQL rule L applies
+to all new parameterized adapter constants; no new exclusion/noqa is added.
+
+### Implementation and limits
+
+The command service verifies retained registry/intake/harness/parameter bytes in
+a preliminary formal read before the write transaction, retaining hashes/sizes
+and typed values. Preflight failure is held until entitled committed-receipt
+lookup. The write UoW begins with S2's exact first SHARE/composed lock recipe.
+After every acquisition, current credentials/read entitlement and committed
+receipt lookup precede fresh admission. Own current-xmin receipt is excluded.
+All DML and constraint forcing are followed by the same checks, rechecking write
+authority, pins, safety and advancing time. One observed DB provenance timestamp
+is copied to all newly timestamped rows; final checks do not use that saved time
+as their clock. Stable generated receipt/reservation/event/permission/ref IDs are
+allocated before the bounded three-attempt runner. Only the existing transient
+40001/40P01 marker retries; timeout and other denials do not.
+
+Registration checks an active HUMAN OWNER row. Request binds the caller/context,
+consumer object identity, enrolled live Agent, availability, exact policy/version,
+registry/intake/harness pins, exact inputs, full safety bundle, latest checkpoints,
+autonomy, task-wide call/occupancy caps, gauges and historical stops. It writes
+one task revision/receipt/reservation/invocation/request event/task event/link,
+with concrete exact input refs. Registration has no reservation/invocation.
+No public safety command or nested safety UoW is called.
+
+The original PR3-04 reservation calculation was moved, without a second ledger,
+into `reservation_values`/`reservation_gauges` in task_safety.py. Both the public
+safety reserve branch and GatewayAccounting call those functions; balances,
+causes, gates and saved-policy verification remain shared. The fixed §6 vector
+is used verbatim. An exact-cap reservation adds the existing budget-stop flag;
+rechecking the current command excludes only its own uncommitted accounting/event
+to avoid double-counting. Earlier flags remain disqualifying and are never reset.
+Saved command results use receipt-linked event IDs and charges, never a newer
+invocation projection. Narrow gateway uniqueness mappings leave old commands
+and unrelated uniqueness errors unchanged.
+
+Transaction/lock/byte-order trace: pytest `tmp_path / "s4-no-io-trace.json"`
+(the original run used `tmp/pr3-03/s4-no-io-trace.json`). The byte
+store asserts it is never opened after lock entry. The test asserts credential,
+entitlement and committed-receipt ordering after every recorded acquisition.
+The S2 SQL recording traces remain under `tmp/pr3-03/s2-trace-*` and are rerun by
+the required adapter test file. These traces are orchestration evidence only.
+
+### Final ordered verification
+
+All commands below exited 0 after the diagnostic-name and exact-event-exclusion
+corrections. Exact combined stdout/stderr follows. Raw output and exit records
+are in `tmp/pr3-03/s4-final.json` and `s4-final-1.txt` through `s4-final-7.txt`.
+`addopts=''` below is the shell spelling of the empty value passed directly to
+subprocess in the recording runner.
+
+#### git diff --check HEAD
+
+Exit: `0`. Exact combined output:
+
+```text
+```
+
+#### uv run ruff check .
+
+Exit: `0`. Exact combined output:
+
+```text
+All checks passed!
+```
+
+#### uv run ruff format --check .
+
+Exit: `0`. Exact combined output:
+
+```text
+904 files already formatted
+```
+
+#### uv run pyright
+
+Exit: `0`. Exact combined output:
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+#### uv run alembic heads
+
+Exit: `0`. Exact combined output:
+
+```text
+0080_capability_gateway (head)
+```
+
+#### uv run pytest -o addopts='' -ra tests/unit/phase3/test_capability_gateway.py tests/unit/phase3/test_capability_gateway_repository.py
+
+Exit: `0`. Exact combined output:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 116 items
+
+tests/unit/phase3/test_capability_gateway.py ........................... [ 23%]
+.............................................                            [ 62%]
+tests/unit/phase3/test_capability_gateway_repository.py ................ [ 75%]
+............................                                             [100%]
+
+============================= 116 passed ==============================
+```
+
+#### uv run pytest -o addopts='' -ra tests/unit/phase3/test_task_budget_accounting.py tests/unit/phase3/test_task_safety_contracts.py tests/unit/phase3/test_task_safety_transports.py
+
+Exit: `0`. Exact combined output:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 39 items
+
+tests/unit/phase3/test_task_budget_accounting.py .............           [ 33%]
+tests/unit/phase3/test_task_safety_contracts.py ................         [ 74%]
+tests/unit/phase3/test_task_safety_transports.py ..........              [100%]
+
+============================== 39 passed ==============================
+```
+
+Final required unit counts: gateway/adapter 116 collected / 116 passed / 0 failed /
+0 skipped; safety regression 39 collected / 39 passed / 0 failed / 0 skipped.
+This includes 72 gateway transaction/admission tests and 44 adapter tests.
+
+### Focused architecture and touched PostgreSQL regressions
+
+These commands were rerun after both final corrections; both exited 0.
+The PostgreSQL fixtures explicitly create/drop random disposable databases on the
+selected local admin cluster and assert PostgreSQL 18. They upgrade to 0080 and
+exercise existing public safety accounting/application/replay/fake behavior after
+the shared calculation refactor; they do not prove new gateway PostgreSQL
+atomicity, guards or races. Those remain PENDING S8. No SQLite is used.
+
+#### uv run pytest -o addopts='' -ra tests/architecture/test_pr3_01_boundaries.py tests/architecture/test_pr3_04_boundaries.py tests/architecture/test_pr3_02_s1_boundaries.py
+
+Exit: `0`. Counts: 8 collected / 8 passed / 0 failed / 0 skipped; 1 warning. Exact combined output:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 8 items
+
+tests/architecture/test_pr3_01_boundaries.py ....                        [ 50%]
+tests/architecture/test_pr3_04_boundaries.py ..                          [ 75%]
+tests/architecture/test_pr3_02_s1_boundaries.py ..                       [100%]
+
+=============================== warnings summary ===============================
+tests/architecture/test_pr3_02_s1_boundaries.py::test_authorized_head_and_s1_only
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 8 passed, 1 warning =========================
+```
+
+#### uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_04_application.py tests/integration/phase3/test_pr3_04_accounting.py tests/integration/phase3/test_pr3_04_replay.py tests/integration/phase3/test_pr3_04_fake_consumer.py
+
+Exit: `0`. Counts: 39 collected / 39 passed / 0 failed / 0 skipped; 2 warnings. Exact combined output:
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 39 items
+
+tests/integration/phase3/test_pr3_04_application.py .................... [ 51%]
+..                                                                       [ 56%]
+tests/integration/phase3/test_pr3_04_accounting.py ...........           [ 84%]
+tests/integration/phase3/test_pr3_04_replay.py ....                      [ 94%]
+tests/integration/phase3/test_pr3_04_fake_consumer.py ..                 [100%]
+
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_04_application.py::test_bind_checkpoint_reserve_settle_and_read
+tests/integration/phase3/test_pr3_04_application.py::test_bind_checkpoint_reserve_settle_and_read
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 39 passed, 2 warnings ========================
+```
+
+### Exact constraint diagnostic probe
+
+Final review found the 65-character unconstrained spelling of the original
+receipt uniqueness name would not match PostgreSQL's generated diagnostic.
+A disposable 0080 catalog probe observed the exact name
+`research_task_command_receipt_project_id_actor_id_command_i_key`. The mapping
+now uses that exact diagnostic, with a test for gateway IDEMPOTENCY_CONFLICT and
+unchanged old-command VALIDATION_ERROR. No exception message parsing is used.
+No migration changed. The complete ordered verification above and both focused
+regressions were rerun after this correction.
+
+Exact command (exit 0):
+
+```sh
+UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache" PYTHONPATH=. uv run python tmp/pr3-03/s4-diagnostic-probe.py
+```
+
+The ignored script creates a random disposable DB using the accepted helper,
+upgrades through Alembic to head, reads version/role/encoding/head and the receipt
+UNIQUE catalog names, and disposes/drops in finally. Exact combined output:
+
+```text
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_empty, Empty PR-00 migration proving Alembic connectivity.
+INFO  [alembic.runtime.migration] Running upgrade 0001_empty -> 0002_actor_project_workspace, Create PR-02 actor, project, and workspace tables.
+INFO  [alembic.runtime.migration] Running upgrade 0002_actor_project_workspace -> 0003_research_question_hypothesis, Create PR-04 ResearchQuestion and Hypothesis identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0003_research_question_hypothesis -> 0004_experiment_spec, Create PR-05 ExperimentSpec identity/version tables.
+INFO  [alembic.runtime.migration] Running upgrade 0004_experiment_spec -> 0005_dataset_snapshot, Create PR-06 Dataset and immutable DatasetSnapshot tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_dataset_snapshot -> 0006_artifact_version, Create PR-07 Artifact and ArtifactVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0006_artifact_version -> 0007_metric_definition, Create PR-08 MetricDefinition and MetricDefinitionVersion tables.
+INFO  [alembic.runtime.migration] Running upgrade 0007_metric_definition -> 0008_run_core, Create PR-09 Run Core tables.
+INFO  [alembic.runtime.migration] Running upgrade 0008_run_core -> 0009_run_input_seal_fix, Harden PR-09 sealed Run input mutation protection.
+INFO  [alembic.runtime.migration] Running upgrade 0009_run_input_seal_fix -> 0010_measurement, Create PR-10 immutable Measurement records.
+INFO  [alembic.runtime.migration] Running upgrade 0010_measurement -> 0011_statistical_result, Create PR-11 immutable StatisticalResult records and Measurement inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_statistical_result -> 0012_statistical_result_input_guard, Enforce at least one input for every StatisticalResult at commit time.
+INFO  [alembic.runtime.migration] Running upgrade 0012_statistical_result_input_guard -> 0013_statistical_result_legacy_input_precheck, Reject legacy zero-input StatisticalResults before accepting the guarded head.
+INFO  [alembic.runtime.migration] Running upgrade 0013_statistical_result_legacy_input_precheck -> 0014_claim_evidence, Create PR-12 Claim, ClaimVersion, and EvidenceRelation tables.
+INFO  [alembic.runtime.migration] Running upgrade 0014_claim_evidence -> 0015_governance_audit, Create PR-14 governance audit, impact, and correction tables.
+INFO  [alembic.runtime.migration] Running upgrade 0015_governance_audit -> 0016_pr17d_history_protection, Install the PR-17D PostgreSQL history-protection policy.
+INFO  [alembic.runtime.migration] Running upgrade 0016_pr17d_history_protection -> 0017_persisted_canonical_enum_normalization, Normalize Phase 1 persisted canonical enum lexemes.
+INFO  [alembic.runtime.migration] Running upgrade 0017_persisted_canonical_enum_normalization -> 0018_current_pointer_same_parent_integrity, Enforce same-parent ownership for all Phase 1 current-version pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0018_current_pointer_same_parent_integrity -> 0019_phase2_bootstrap_membership, Add Phase 2 identity, membership, and owner-coverage foundations.
+INFO  [alembic.runtime.migration] Running upgrade 0019_phase2_bootstrap_membership -> 0020_literature_source_identity, Add public literature source identity, identifiers, and project access links.
+INFO  [alembic.runtime.migration] Running upgrade 0020_literature_source_identity -> 0021_source_merge_governance_bridge, Persist typed, basis-bound source merge governance proposals and decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0021_source_merge_governance_bridge -> 0021a_source_merge_gov_guards, Serialize proposal basis sealing and verify stale transitions.
+INFO  [alembic.runtime.migration] Running upgrade 0021a_source_merge_gov_guards -> 0022_source_version_and_merge_lineage, Add immutable source versions and non-destructive merge lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_source_version_and_merge_lineage -> 0023_literature_search_plan, Add versioned, project-scoped literature search plans.
+INFO  [alembic.runtime.migration] Running upgrade 0023_literature_search_plan -> 0023a_search_plan_review_guards, PR2-03 independent-review backstops; preserve 0023 and scientific history.
+INFO  [alembic.runtime.migration] Running upgrade 0023a_search_plan_review_guards -> 0024_literature_search_execution, Add bounded literature-search execution provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0024_literature_search_execution -> 0025_pr2_04_reservation_guards, Enforce frozen PR2-04 reservation time and cancellation invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0025_pr2_04_reservation_guards -> 0026_pr2_04_p1_contract_guards, Restore attribution and one-to-one execution provenance contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0026_pr2_04_p1_contract_guards -> 0027_pr2_04_hash_scheme_guards, Enforce the frozen query/result hash scheme without rewriting provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0027_pr2_04_hash_scheme_guards -> 0028_provider_cancellation, M0-CANCEL-001..004: independently confirmed provider cancellation.
+INFO  [alembic.runtime.migration] Running upgrade 0028_provider_cancellation -> 0029_metadata_observations, M2-AQ-001: dependent bibliographic observations and established resolutions.
+INFO  [alembic.runtime.migration] Running upgrade 0029_metadata_observations -> 0030_literature_evidence, Approved M3 literature evidence, review history and independent support snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0030_literature_evidence -> 0031_m3_snapshot_relation_cardinality, Seal M3 snapshot relation ordinals at commit without duplicating canonical hashing.
+INFO  [alembic.runtime.migration] Running upgrade 0031_m3_snapshot_relation_cardinality -> 0032_pr2_10_discussion, PR2-10 typed discussion sessions, immutable turns and exact references.
+INFO  [alembic.runtime.migration] Running upgrade 0032_pr2_10_discussion -> 0033_pr2_11_r2_scientific_conclusion, R2 typed ScientificConclusion versions and sealed scientific inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0033_pr2_11_r2_scientific_conclusion -> 0034_pr2_10_exact_transcript_binding, Enforce the contracted exact transcript ArtifactVersion FK without a seal column.
+INFO  [alembic.runtime.migration] Running upgrade 0034_pr2_10_exact_transcript_binding -> 0035_pr2_12_publication_draft, PR2-12 project publication identity and nonformal manuscript draft.
+INFO  [alembic.runtime.migration] Running upgrade 0035_pr2_12_publication_draft -> 0036_pr2_13_citation_placement, PR2-13 citation-only placement on a draft manuscript version.
+INFO  [alembic.runtime.migration] Running upgrade 0036_pr2_13_citation_placement -> 0037_pr2_13_claim_placement, PR2-13 exact ClaimVersion or ScientificConclusionVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0037_pr2_13_claim_placement -> 0038_pr2_13_artifact_placement, PR2-13 exact frozen ArtifactVersion placement.
+INFO  [alembic.runtime.migration] Running upgrade 0038_pr2_13_artifact_placement -> 0039_pr2_13_citation_rebinding_guard, Prevent direct SQL rebinding of a Citation placement to another manuscript.
+INFO  [alembic.runtime.migration] Running upgrade 0039_pr2_13_citation_rebinding_guard -> 0040_pr2_14_initial_internal_review, PR2-14 immutable frozen-target review and initial OPEN issues.
+INFO  [alembic.runtime.migration] Running upgrade 0040_pr2_14_initial_internal_review -> 0041_pr2_15_review_coordination, Forward exact-conclusion review/Issue coordination, preserving immutable history.
+INFO  [alembic.runtime.migration] Running upgrade 0041_pr2_15_review_coordination -> 0042_pr2_15_minimal_decision, PR2-15 immutable minimal DecisionRecord and typed conclusion/review basis.
+INFO  [alembic.runtime.migration] Running upgrade 0042_pr2_15_minimal_decision -> 0043_pr2_04_schema_contract, Owner-approved Task 12: repair existing PR2-04 schema contracts without row changes.
+INFO  [alembic.runtime.migration] Running upgrade 0043_pr2_04_schema_contract -> 0044_pr2_15_revision_action, Approved conservative completed RevisionAction slice; retained history is immutable.
+INFO  [alembic.runtime.migration] Running upgrade 0044_pr2_15_revision_action -> 0045_pr2_16_basic_approval, Owner-approved bounded Basic Approval; no consumption or scientific effects.
+INFO  [alembic.runtime.migration] Running upgrade 0045_pr2_16_basic_approval -> 0046_pr2_17_authorship, PR2-17 S1 immutable contribution and authorship foundation only.
+INFO  [alembic.runtime.migration] Running upgrade 0046_pr2_17_authorship -> 0047_pr2_18_novelty_prior_art, Immutable first-slice coverage, prior art and inconclusive assessments.
+INFO  [alembic.runtime.migration] Running upgrade 0047_pr2_18_novelty_prior_art -> 0048_b04_manuscript_freeze, B04 initial manuscript seal; retain scientific history and draft placement checks.
+INFO  [alembic.runtime.migration] Running upgrade 0048_b04_manuscript_freeze -> 0049_b05_manuscript_review, B05 manuscript review coordination and deferred immutable OPEN history guards.
+INFO  [alembic.runtime.migration] Running upgrade 0049_b05_manuscript_review -> 0050_b01_resolution_admission, Repeat the existing M2 structural resolution closure at transaction end.
+INFO  [alembic.runtime.migration] Running upgrade 0050_b01_resolution_admission -> 0051_b06_revision_action, Owner-approved B06 issue-only completed results; no result or Issue mutation.
+INFO  [alembic.runtime.migration] Running upgrade 0051_b06_revision_action -> 0052_b07_revision_decisions, B07 approved revision choices and immutable concern/re-review relations.
+INFO  [alembic.runtime.migration] Running upgrade 0052_b07_revision_decisions -> 0053_b08_issue_disposition, B08 immutable terminal Issue events and guarded status projection.
+INFO  [alembic.runtime.migration] Running upgrade 0053_b08_issue_disposition -> 0054_b11_ready_for_submission, B11 exact immutable manuscript readiness judgment; no publication effect.
+INFO  [alembic.runtime.migration] Running upgrade 0054_b11_ready_for_submission -> 0055_b09_approval_tuples, B09 finite approval tuples, lock protocol and project/purpose rejection fence.
+INFO  [alembic.runtime.migration] Running upgrade 0055_b09_approval_tuples -> 0056_b10_reconsideration, B10 owner-approved first conclusion rejection reconsideration slice.
+INFO  [alembic.runtime.migration] Running upgrade 0056_b10_reconsideration -> 0057_xid_wraparound_guards, Keep transaction-identity guards correct across PostgreSQL XID epochs.
+INFO  [alembic.runtime.migration] Running upgrade 0057_xid_wraparound_guards -> 0058_b12_prepare_submission, B12 PREPARE judgment and exact approval tuple, without lifecycle effects.
+INFO  [alembic.runtime.migration] Running upgrade 0058_b12_prepare_submission -> 0059_b13_grant_consumption, B13 one-use release receipts and explicit terminal grant maintenance.
+INFO  [alembic.runtime.migration] Running upgrade 0059_b13_grant_consumption -> 0060_b15_package_preparation, B15 immutable local PREPARED packages and direct HUMAN consent roots.
+INFO  [alembic.runtime.migration] Running upgrade 0060_b15_package_preparation -> 0061_b16_consent_withdrawal, B16 immutable alternating consent and atomic exact-manuscript grant staling.
+INFO  [alembic.runtime.migration] Running upgrade 0061_b16_consent_withdrawal -> 0062_b14a_publication_entry, B14a exact frozen manuscript entry, with retained atomic lifecycle history.
+INFO  [alembic.runtime.migration] Running upgrade 0062_b14a_publication_entry -> 0063_b14r_ready_approval, B14r exact READY approval permission; no publication or consumption effects.
+INFO  [alembic.runtime.migration] Running upgrade 0063_b14r_ready_approval -> 0064_b14_publication_ready, B14 one atomic INTERNAL_REVIEW to READY effect and concrete B13 receipt.
+INFO  [alembic.runtime.migration] Running upgrade 0064_b14_publication_ready -> 0065_b22_prior_art_correction, B22 immutable same-pair prior-art corrections; no new semantic table.
+INFO  [alembic.runtime.migration] Running upgrade 0065_b22_prior_art_correction -> 0066_b19_close_prior_art_basis, B19 sealed selected prior-art basis and versioned positive novelty material.
+INFO  [alembic.runtime.migration] Running upgrade 0066_b19_close_prior_art_basis -> 0067_b17_prepared_package_freeze, B17 exact prepared-package freeze and concrete single-use consumption.
+INFO  [alembic.runtime.migration] Running upgrade 0067_b17_prepared_package_freeze -> 0068_b21_unresolved_capture, B21 sealed historical resolution membership; preserve all v1 material.
+INFO  [alembic.runtime.migration] Running upgrade 0068_b21_unresolved_capture -> 0069_b13_stale_gate_denials, B13 hardening: recognize current READY/PREPARE fact denials as STALE.
+INFO  [alembic.runtime.migration] Running upgrade 0069_b13_stale_gate_denials -> 0070_b20_screening_basis, B20 sealed screening and negative-probe assessment basis.
+INFO  [alembic.runtime.migration] Running upgrade 0070_b20_screening_basis -> 0071_b23_novelty_review, B23 exact novelty reviews and precommitted reassessment correspondence.
+INFO  [alembic.runtime.migration] Running upgrade 0071_b23_novelty_review -> 0072_b03_discussion_hypothesis, B03 immutable explicit discussion to DRAFT hypothesis admission.
+INFO  [alembic.runtime.migration] Running upgrade 0072_b03_discussion_hypothesis -> 0073_b02_strategy_admission, B02 immutable typed strategy candidate admission relations (ADR-0020).
+INFO  [alembic.runtime.migration] Running upgrade 0073_b02_strategy_admission -> 0074_m1_manuscript_revision, M1-S1 manuscript successors, exact revision evidence and carried blockers.
+INFO  [alembic.runtime.migration] Running upgrade 0074_m1_manuscript_revision -> 0075_m1_reconsideration, M1-S2 corrected manuscript review reconsideration, with exact 0074 restoration.
+INFO  [alembic.runtime.migration] Running upgrade 0075_m1_reconsideration -> 0076_agent_runtime_bootstrap, PR3-00 empty, forward-only Agent Runtime bootstrap.
+INFO  [alembic.runtime.migration] Running upgrade 0076_agent_runtime_bootstrap -> 0077_research_task_graph, PR3-01 planning graph, exact frozen DDL and forward-only history guards.
+INFO  [alembic.runtime.migration] Running upgrade 0077_research_task_graph -> 0078_task_safety_policies, PR3-04 immutable safety policies and accounting; forward only.
+INFO  [alembic.runtime.migration] Running upgrade 0078_task_safety_policies -> 0079_agent_identity_versions, Owner-authorized ADR-0023 S1 identity and immutable versions.
+INFO  [alembic.runtime.migration] Running upgrade 0079_agent_identity_versions -> 0080_capability_gateway, Frozen PR3-03 capability gateway; forward-only migration.
+DISPOSABLE_PG_PREFLIGHT: port=5432 system_id=7696072587520791948
+DISPOSABLE_CREATED: researchbase_pr212_test_ce79f1f3d8a94da094baf6a7f742a5ea
+SERVER 180006
+ROLE researchbase
+ENCODING UTF8
+HEAD 0080_capability_gateway
+RECEIPT_UNIQUE pr303_receipt_scope_key
+RECEIPT_UNIQUE research_task_command_receipt_project_id_actor_id_command_i_key
+RECEIPT_UNIQUE research_task_command_receipt_research_task_id_actor_id_com_key
+RECEIPT_UNIQUE research_task_command_receipt_research_task_id_resulting_ro_key
+RECEIPT_UNIQUE research_task_command_receipts_research_task_id_id_key
+DISPOSABLE_DROPPED: researchbase_pr212_test_ce79f1f3d8a94da094baf6a7f742a5ea
+```
+
+### Development attempts and scope of claims
+
+The first command-test development run collected 57 and failed all 57 (0 passed,
+0 skipped) at fixture manifest serialization: canonical JSON rejects tuples.
+Both fixture and production manifest byte comparison now use normalized material.
+The next two `-x` runs each collected 57 and observed 1 passed / 1 failed /
+0 skipped before stopping: first the fixture omitted owning-domain repository
+attributes, then its checkpoint policy hash used conceptual scope-ID names rather
+than stored exact-scope material. These fixture omissions were corrected.
+The fourth `-x` run collected 57 and observed 10 passed / 1 failed / 0 skipped:
+the policy-switch fixture still occupied its only safety parallel slot, so it
+could not isolate the tool-call cap. It now seeds a prior final charge and uses
+a distinct AgentVersion to check the new policy while retaining the admitted call.
+
+Exact outputs are retained in `s4-development-pytest.txt`, `s4-development2.txt`,
+`s4-development3.txt`, and `s4-development4.txt`. Subsequent observed development
+runs: `s4-development5.txt` 57/57 passed; `s4-development6.txt` 99/99 passed;
+`s4-development7.txt` 113/113 passed (each 0 failed, 0 skipped). The first ordered
+verification passed with 113 gateway/adapter tests and 39 safety tests; the final
+run with 115/115 passing followed the catalog-name correction. Final review
+then found command UUID alone was too broad an exclusion for the current event:
+commands from different actors may share a UUID. The calculation now excludes
+only the preallocated event ID, and a cross-actor UUID collision cannot hide a
+prior stop. A new passing regression raises the final gateway/adapter count to
+116. The ordered checks and architecture/PostgreSQL runs above were repeated
+after that correction.
+
+Development Pyright observed 15 errors (heterogeneous dictionary inference),
+then 6 errors (fixture optional/callback annotations), then 3 errors (test exception
+attributes and optional details). Final Pyright reports 0 errors. Saved intermediate
+outputs are `s4-dev-pyright.txt` and `s4-dev-pyright2.txt`. Development Ruff reported
+12 findings (2 fixed) and later 21 findings (1 fixed), primarily lines awaiting
+formatting; formatting/import cleanup resolved them. Final repository-wide lint
+and format checks pass without config changes, exclusions or new noqa.
+These development failures are not counted as passing verification.
+
+No git/uv lock or sandbox failure occurred. No whole-suite/six-shard run,
+commit, push or branch creation occurred. External full-suite check and independent
+review remain PENDING. No S4 architecture gap is claimed and no known P0/P1 is
+left by the focused checks; this is not an overall PR3-03 acceptance declaration.
+S5–S8 are not implemented by this task. STOP at the S4 handoff.
+
+### S4 review correction — preserve the approved ADR scope (2026-10-22)
+
+This section supersedes earlier S4 guard-exception dispositions and verification
+claims for the current working tree. ADR-0025 admits only the seven runtime
+source files named as new in frozen pack §8 and the two DTO class names there
+containing "agent": AgentExecutionContext and AgentToolPolicyRead.
+
+GatewayAccounting and its constants moved unchanged into capability_gateway.py;
+gateway_accounting.py was deleted and test imports were updated. An AST
+comparison against HEAD confirmed the moved constants and class are identical.
+The policy ORM classes are now ToolPolicyRowModel and ToolPolicyPermissionRowModel;
+only their Python names changed, with table names, columns and constraints unchanged.
+The negative architecture test also rejects both former ORM names.
+The entry-state timedelta import and pytest tmp_path fixes are retained.
+
+All commands below ran separately in this continuation, in the listed order.
+Before every uv invocation:
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+```
+
+```sh
+git diff --check HEAD
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+```
+
+```sh
+uv run ruff check .
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+All checks passed!
+```
+
+```sh
+uv run ruff format --check .
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+903 files already formatted
+```
+
+```sh
+uv run pyright
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+```sh
+uv run alembic heads
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+0080_capability_gateway (head)
+```
+
+```sh
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -q tests/architecture tests/unit/architecture tests/unit/phase3
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 27%]
+........................................................................ [ 34%]
+........................................................................ [ 41%]
+........................................................................ [ 48%]
+........................................................................ [ 55%]
+........................................................................ [ 62%]
+........................................................................ [ 69%]
+........................................................................ [ 76%]
+........................................................................ [ 83%]
+........................................................................ [ 90%]
+........................................................................ [ 97%]
+..........................                                               [100%]
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1034 passed, 50 warnings in 25.45s
+```
+
+```sh
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -q tests/integration/phase3/test_pr3_04_application.py tests/integration/phase3/test_pr3_04_accounting.py tests/integration/phase3/test_pr3_04_replay.py tests/integration/phase3/test_pr3_04_fake_consumer.py
+```
+
+Exit code: `0`. Raw combined stdout/stderr:
+
+```text
+.......................................                                  [100%]
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_04_application.py::test_bind_checkpoint_reserve_settle_and_read
+tests/integration/phase3/test_pr3_04_application.py::test_bind_checkpoint_reserve_settle_and_read
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane116/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+39 passed, 2 warnings in 3.18s
+```
+
+Current counts: architecture/unit selection 1034 passed, 0 failed, 0 errors,
+0 skipped, 50 warnings in 25.45s; focused PostgreSQL safety selection 39 passed,
+0 failed, 0 errors, 0 skipped, 2 warnings in 3.18s.
+These timings are copied from the same runs printed above. Historical S4 pytest
+timings are omitted from the earlier runs rather than reused for these runs.
+
+After updating this evidence, `git diff --check HEAD` exited 2:
+
+```text
+docs/phase3/PR3-03-evidence.md:2823: new blank line at EOF.
+```
+
+The trailing blank line was removed. The final `git diff --check HEAD` rerun
+exited 0 with empty output.
+
+Every changed path relative to HEAD, including entry-state partial changes:
+
+- `docs/architecture/adr/ADR-0025-pr3-03-architecture-guard-exception.md`
+- `docs/phase3/PR3-03-evidence.md`
+- `src/researchbase/agent_runtime/application/capability_gateway.py`
+- `src/researchbase/agent_runtime/application/gateway_accounting.py` (deleted)
+- `src/researchbase/persistence/models.py`
+- `tests/architecture/test_pr17_agent_ready_architecture.py`
+- `tests/architecture/test_pr3_00_boundaries.py`
+- `tests/unit/phase3/gateway_fixtures.py`
+- `tests/unit/phase3/test_capability_gateway.py`
+
+Frozen pack, accepted migrations, pyproject.toml and uv.lock are unchanged.
+No S5 work, full-suite/six-shard run, commit, push or branch creation occurred.
+Overall PR3-03 acceptance and gateway PostgreSQL atomicity/race evidence remain
+PENDING; this is focused S4 verification only.

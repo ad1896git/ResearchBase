@@ -1,7 +1,7 @@
 """Inert stored-row adapter and composed PR3-03 locks in the caller's transaction."""
 
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import text
@@ -162,3 +162,113 @@ class SqlAlchemyGatewayRepository(SqlAlchemyTaskSafetyRepository):
 
     def gateway_task_events(self, task: UUID) -> list[StoredTaskEvent]:
         return cast(list[StoredTaskEvent], self._many(TASK_EVENTS_SQL, {"task": task}))
+
+    def committed_receipt(self, project, actor, command):
+        rows = self._many(
+            COMMITTED_RECEIPT_SQL,
+            {
+                "project": project,
+                "actor": actor,
+                "command": command,
+            },
+        )
+        return rows[0] if rows else None
+
+    def policy_version_occupied(self, project, version):
+        return bool(self._many(POLICY_VERSION_SQL, {"project": project, "version": version}))
+
+    def gateway_identity_occupied(self, table, identity):
+        if table not in ("agent_tool_policies", "capability_invocations"):
+            raise ValueError("unknown gateway identity")
+        return bool(self._many(IDENTITY_SQL.format(table=table), {"id": identity}))
+
+    def task_invocations(self, project, task):
+        return self._many(TASK_INVOCATIONS_SQL, {"project": project, "task": task})
+
+    def agent_version(self, identity):
+        return self._agents.version(identity)
+
+    def agent_availability(self, identity):
+        return self._agents.availability(identity)
+
+    def live_agent(self, actor, project):
+        return self._agents.live_agent(actor, project)
+
+    def artifact_pin(self, project, identity):
+        rows = self._many(ARTIFACT_PIN_SQL, {"project": project, "id": identity})
+        return rows[0] if rows else None
+
+    def insert(self, table, row):
+        if table not in GATEWAY_WRITES:
+            return super().insert(table, row)
+        # Names originate only in the closed table/column whitelist, never submitted SQL.
+        if not set(row) <= GATEWAY_WRITES[table]:
+            raise ValueError("unknown gateway column")
+        sql = INSERT_SQL.format(
+            table=table,
+            columns=",\n".join(row),
+            parameters=",\n".join(":" + key for key in row),
+        )
+        self._session.execute(text(sql), row)
+
+    def gateway_result(self, receipt, *, replayed):
+        from researchbase.agent_runtime.application.gateway_contracts import GatewayCommandResult
+
+        rows = self._many(SAVED_EVENT_SQL, {"id": receipt["result_capability_event_id"]})
+        event: Any = rows[0] if rows else None
+        return GatewayCommandResult(
+            receipt["id"],
+            receipt["project_id"],
+            receipt["research_task_id"],
+            receipt["actor_id"],
+            receipt["command_id"],
+            receipt["command_name"],
+            receipt["result_tool_policy_id"],
+            receipt["result_capability_invocation_id"],
+            receipt["result_capability_event_id"],
+            event["reservation_id"] if event else None,
+            event["usage_record_id"] if event else None,
+            receipt["resulting_row_version"],
+            receipt["resulting_invocation_revision"],
+            receipt["completed_at"],
+            replayed,
+        )
+
+
+COMMITTED_RECEIPT_SQL = """
+SELECT * FROM research_task_command_receipts
+WHERE project_id=:project AND actor_id=:actor AND command_id=:command
+  AND xmin <> pg_current_xact_id()::xid
+"""
+POLICY_VERSION_SQL = """
+SELECT id FROM agent_tool_policies WHERE project_id=:project AND version=:version
+"""
+IDENTITY_SQL = """
+SELECT id FROM {table} WHERE id=:id
+"""
+TASK_INVOCATIONS_SQL = """
+SELECT * FROM capability_invocations
+WHERE project_id=:project AND research_task_id=:task ORDER BY id
+"""
+ARTIFACT_PIN_SQL = """
+SELECT v.*, a.project_id, a.project_id=:project AS scoped
+FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id WHERE v.id=:id
+"""
+INSERT_SQL = """
+INSERT INTO {table} (
+{columns}
+) VALUES (
+{parameters}
+)
+"""
+SAVED_EVENT_SQL = """
+SELECT reservation_id,usage_record_id FROM capability_invocation_events WHERE id=:id
+"""
+# Closed stored-row vocabulary is the write whitelist; no later lifecycle mutation is exposed.
+GATEWAY_WRITES = {
+    "agent_tool_policies": frozenset(StoredToolPolicy.__annotations__),
+    "agent_tool_policy_permissions": frozenset(StoredPermission.__annotations__),
+    "capability_invocations": frozenset(StoredInvocation.__annotations__),
+    "capability_invocation_refs": frozenset(StoredInvocationRef.__annotations__),
+    "capability_invocation_events": frozenset(StoredInvocationEvent.__annotations__),
+}
