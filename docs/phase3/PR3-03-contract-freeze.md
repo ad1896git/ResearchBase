@@ -612,6 +612,10 @@ behavior tables as sufficient executable specifications. JSONB below is transien
 comparison/hash material, not persisted semantic state.
 
 These bodies have not yet been compile-checked or verified against PostgreSQL 18.
+The FIRST implementation step is to apply 0080 to a disposable PostgreSQL 18
+database and run each body's `CREATE OR REPLACE`; only after every body compiles
+may DDL/integration tests be authorized. Failure to compile blocks implementation
+acceptance. This is a documented future gate; do not execute it for this pack.
 
 Delivered callable signatures (argument order and return type are binding):
 
@@ -1167,12 +1171,18 @@ command-set branches include their old cases and add only gateway owners.
 Exact changes within the delivered branches called out above, all in
 `migrations/versions/0078_task_safety_policies.py`:
 
-| Function / delivered line | Before | After in the complete replacement below |
+| Function / delivered line range | Before | After in the complete replacement below (document line range) |
 | --- | --- | --- |
-| pr304_child_guard:363 | Reservation owners `ARRAY['reserve_task_budget']`; usage owners `ARRAY['settle_task_budget']`. | Reservation owners `ARRAY['reserve_task_budget','request_capability_invocation']`; usage owners `ARRAY['settle_task_budget','finish_capability_invocation']`. Lines 362 and 364 are unchanged. |
-| pr304_child_guard:372 | Cancelled-task predicate `r.command_name<>'settle_task_budget'`. | Predicate `r.command_name NOT IN ('settle_task_budget','finish_capability_invocation')`. Line 373's rejection and diagnostic remain unchanged. |
-| pr301_receipt_complete:712 | The command set contains the six delivered safety commands. | Append `register_agent_tool_policy`, `request_capability_invocation`, `start_capability_invocation`, and `finish_capability_invocation` to that set. Lines 713–718's time and no-graph-effect checks are unchanged and now also apply to these commands. |
-| pr301_receipt_complete:719 | Cancelled-task exceptions `('settle_task_budget','evaluate_task_termination')`. | Exceptions `('settle_task_budget','evaluate_task_termination','finish_capability_invocation')`. Lines 720–721's rejection, diagnostic and closing branch are unchanged. |
+| pr304_child_guard:363–363 | Reservation owners `ARRAY['reserve_task_budget']`; usage owners `ARRAY['settle_task_budget']`. | Reservation owners gain `request_capability_invocation`; usage owners gain `finish_capability_invocation`. §4.5 lines 1248–1248. Lines 362 and 364 are unchanged. |
+| pr304_child_guard:372–372 | Cancelled-task predicate `r.command_name<>'settle_task_budget'`. | Predicate `r.command_name NOT IN ('settle_task_budget','finish_capability_invocation')`. §4.5 lines 1257–1257. Line 373 remains unchanged. |
+| pr301_receipt_complete:622–622 | Default invoker rights/search path. | Explicit `SECURITY INVOKER` and fixed search path. §4.5 lines 1424–1425; the same hardening applies to all replacement definitions. |
+| pr301_receipt_complete:623–624 | Receipt/event records, mapped text and expected/actual counters. | Retain those locals; add `gateway boolean`, `ci capability_invocations%ROWTYPE` and `ce capability_invocation_events%ROWTYPE`. §4.5 lines 1426–1427. |
+| pr301_receipt_complete:629–632 | Mapped CASE contains six planning and six safety commands. | Preserve all mappings; add `register_agent_tool_policy → TOOL_POLICY_REGISTERED`, `request_capability_invocation → CAPABILITY_REQUESTED`, `start_capability_invocation → CAPABILITY_STARTED`, `finish_capability_invocation → CAPABILITY_FINISHED`. §4.5 lines 1432–1439. |
+| pr301_receipt_complete:678–678 | Reservation count is one only for `r.command_name='reserve_task_budget'`. | Predicate becomes `r.command_name IN ('reserve_task_budget','request_capability_invocation')`. §4.5 lines 1485–1485. |
+| pr301_receipt_complete:680–680 | Usage count is one only for `r.command_name='settle_task_budget'`. | Predicate becomes `r.command_name IN ('settle_task_budget','finish_capability_invocation')`. §4.5 lines 1487–1487. |
+| pr301_receipt_complete:712–718 | Unrelated-safety-effect check covers the six delivered safety commands. | Extend its command set with `register_agent_tool_policy`, `request_capability_invocation`, `start_capability_invocation` and `finish_capability_invocation`. The time and no-graph-effect predicates remain unchanged. §4.5 lines 1519–1525. |
+| pr301_receipt_complete:719–721 | Cancelled-task exceptions `('settle_task_budget','evaluate_task_termination')`. | Append `finish_capability_invocation`; rejection, diagnostic and closing branch remain unchanged. §4.5 lines 1526–1528. |
+| pr301_receipt_complete:721–722 (insertion between these lines) | Closing safety branch is followed immediately by `RETURN NULL`. | Insert the entire gateway block from `gateway:=r.command_name IN (...)` through its closing `END IF` before `RETURN NULL`: exact result pointers/cardinalities, old-command exclusions, current entitlement, task/seal/policy restrictions, event counts, registration/invocation/ref/accounting attribution and fresh-write/reconciliation checks. §4.5 lines 1530–1616. |
 
 All file names above are under `migrations/versions/`. All replacement definitions
 explicitly use invoker rights and the fixed search path, including unchanged
@@ -2166,6 +2176,11 @@ provider stack or untrusted description in errors.
 
 ### 9.1 Required suites (future implementation; NOT RUN for this pack)
 
+The FIRST implementation step is to apply 0080 to a disposable PostgreSQL 18
+database and run each body's `CREATE OR REPLACE`; only after every body compiles
+may DDL/integration tests be authorized. Failure to compile blocks implementation
+acceptance. This is a documented future gate; do not execute it for this pack.
+
 Every new filename in this table is **new in PR3-03**. Tests exercise contracts,
 including valid normal-role DML; no SQLite or trigger disabling. All integration,
 constraint, migration, concurrency and replay suites require real PostgreSQL 18.
@@ -2670,6 +2685,164 @@ agent_version_repository.py:78:pr302:actor:
 agent_version_repository.py:80:pr302:version:
 # src/researchbase/api/errors.py
 errors.py:163:INTERNAL_ERROR
+```
+
+### 12.1a Identifiers used by §4.4 bodies
+
+This supplements §12.1 after the complete §4.4 bodies were added. It includes
+all newly used delivered names plus the requested shared accounting spellings
+already present in §12.1; policy/streak names also cover the §4.5 replacements.
+Each command below runs from the repository root. Matches in 0077/0078/0079
+anchor delivered definitions or inherited use; identity interval/role fields
+are inherited from earlier migrations, not newly defined by these migrations.
+The required `-F` search prints the first matching full line, so a shared spelling
+such as `gpu_hours` can first match its `max_gpu_hours` policy column.
+The eight `max_*` resource fields are included because §4.4 constructs their
+names dynamically from the resource keys.
+
+All names created by PR3-03 (`pr303_*`, new table names, `result_tool_policy_id`,
+`resulting_invocation_revision` and the other §3 columns) are labelled **new in PR3-03**,
+not audited against delivered migrations. The DDL in §2 defines five new tables:
+`agent_tool_policies`, `agent_tool_policy_permissions`, `capability_invocations`,
+`capability_invocation_refs`, `capability_invocation_events`; no sixth table is
+specified or introduced by this audit. New table-qualified columns remain new
+even when their unqualified spelling is shared with a delivered column.
+SQL built-ins, local variables, CTE names and aliases are not delivered APIs.
+
+Exact commands:
+
+```sh
+rg -n --with-filename -m 1 -F -- max_tree_depth migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_parallel_branches migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- score_metric_version_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- evaluator_version migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- score_direction migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- repeated_failure_threshold migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_no_improvement_iterations migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- proposed_budget_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- expires_at migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- response_reason migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- failure_streak migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- no_improvement_streak migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- maximum_autonomy migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- pricing_basis migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_wall_time_seconds migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- required_types migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- checkpoint_type migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- response_receipt_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- bound_at migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- revoked_at migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- effective_from migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- effective_until migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- membership_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- retired_at migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- byte_size migrations/versions/0077_research_task_graph.py
+rg -n --with-filename -m 1 -F -- byte_size migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- byte_size migrations/versions/0079_agent_identity_versions.py
+rg -n --with-filename -m 1 -F -- deadline migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- budget_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- receipt_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- is_final migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- outcome migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- reservation_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- wall_time_seconds migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- gpu_hours migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- token_cost migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- code_iterations migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- experiment_runs migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- tree_nodes migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- agent_steps migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- search_calls migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- task_row_version migrations/versions/0077_research_task_graph.py
+rg -n --with-filename -m 1 -F -- completed_at migrations/versions/0077_research_task_graph.py
+rg -n --with-filename -m 1 -F -- budget_policy_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- checkpoint_policy_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- autonomy_level migrations/versions/0077_research_task_graph.py
+rg -n --with-filename -m 1 -F -- actor_type migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- role migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_agent_steps migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_llm_calls migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_search_calls migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_code_iterations migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_experiment_runs migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_tree_nodes migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_gpu_hours migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- max_token_cost migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- termination_policy_id migrations/versions/0078_task_safety_policies.py
+rg -n --with-filename -m 1 -F -- plan_sealed_at migrations/versions/0077_research_task_graph.py
+```
+
+Captured stdout, in command order (all matching commands exit 0):
+
+```text
+migrations/versions/0078_task_safety_policies.py:24:  max_tree_depth integer NOT NULL CHECK (max_tree_depth > 0),
+migrations/versions/0078_task_safety_policies.py:25:  max_parallel_branches integer NOT NULL CHECK (max_parallel_branches > 0),
+migrations/versions/0078_task_safety_policies.py:49:  score_metric_version_id uuid NULL REFERENCES metric_definition_versions(id) ON DELETE RESTRICT,
+migrations/versions/0078_task_safety_policies.py:51:  evaluator_version text NULL CHECK (length(btrim(evaluator_version)) BETWEEN 1 AND 128 AND evaluator_version IS NFC NORMALIZED AND lower(btrim(evaluator_version)) NOT IN ('latest','main','master')),
+migrations/versions/0078_task_safety_policies.py:50:  score_direction text NULL CHECK (score_direction IN ('MAXIMIZE','MINIMIZE')),
+migrations/versions/0078_task_safety_policies.py:44:  repeated_failure_threshold integer NOT NULL CHECK (repeated_failure_threshold > 0),
+migrations/versions/0078_task_safety_policies.py:45:  max_no_improvement_iterations integer NOT NULL CHECK (max_no_improvement_iterations > 0),
+migrations/versions/0078_task_safety_policies.py:221:  proposed_budget_id uuid NULL,
+migrations/versions/0078_task_safety_policies.py:215:  expires_at timestamptz NOT NULL CHECK (expires_at > requested_at),
+migrations/versions/0078_task_safety_policies.py:218:  response_reason text NULL CHECK (length(btrim(response_reason)) BETWEEN 1 AND 8192 AND response_reason IS NFC NORMALIZED),
+migrations/versions/0078_task_safety_policies.py:189:  failure_streak integer NOT NULL CHECK (failure_streak >= 0),
+migrations/versions/0078_task_safety_policies.py:190:  no_improvement_streak integer NOT NULL CHECK (no_improvement_streak >= 0),
+migrations/versions/0078_task_safety_policies.py:77:  maximum_autonomy text NOT NULL CHECK (maximum_autonomy IN ('A0','A1','A2','A3')),
+migrations/versions/0078_task_safety_policies.py:29:  pricing_basis text NOT NULL CHECK (length(btrim(pricing_basis)) BETWEEN 1 AND 512 AND pricing_basis IS NFC NORMALIZED AND lower(btrim(pricing_basis)) NOT IN ('latest','main','master')),
+migrations/versions/0078_task_safety_policies.py:17:  max_wall_time_seconds integer NOT NULL CHECK (max_wall_time_seconds > 0),
+migrations/versions/0078_task_safety_policies.py:75:  required_types text[] NOT NULL CHECK (required_types <@ ARRAY['plan_review','hypothesis_selection','experiment_approval','budget_extension','code_risk','claim_freeze','manuscript_release','exception']::text[] AND array_position(required_types,NULL) IS NULL),
+migrations/versions/0078_task_safety_policies.py:211:  checkpoint_type text NOT NULL CHECK (checkpoint_type IN ('plan_review','hypothesis_selection','experiment_approval','budget_extension','code_risk','claim_freeze','manuscript_release','exception')),
+migrations/versions/0078_task_safety_policies.py:220:  response_receipt_id uuid NULL,
+migrations/versions/0078_task_safety_policies.py:408:   AND b.status='ACTIVE' AND b.bound_at<=now_at AND (b.revoked_at IS NULL OR now_at<b.revoked_at))
+migrations/versions/0078_task_safety_policies.py:408:   AND b.status='ACTIVE' AND b.bound_at<=now_at AND (b.revoked_at IS NULL OR now_at<b.revoked_at))
+migrations/versions/0078_task_safety_policies.py:407:   AND m.project_id=t.project_id AND m.status='ACTIVE' AND p.role='OWNER' AND p.effective_from<=now_at AND (p.effective_until IS NULL OR now_at<p.effective_until)
+migrations/versions/0078_task_safety_policies.py:407:   AND m.project_id=t.project_id AND m.status='ACTIVE' AND p.role='OWNER' AND p.effective_from<=now_at AND (p.effective_until IS NULL OR now_at<p.effective_until)
+migrations/versions/0078_task_safety_policies.py:405:  IF NOT EXISTS(SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id JOIN project_role_assignments p ON p.membership_id=m.id
+migrations/versions/0078_task_safety_policies.py:406:   JOIN actor_subject_bindings b ON b.actor_id=a.id WHERE a.id=r.actor_id AND a.actor_type='HUMAN' AND a.retired_at IS NULL
+migrations/versions/0078_task_safety_policies.py:159:  deadline timestamptz NOT NULL CHECK (deadline > created_at),
+migrations/versions/0078_task_safety_policies.py:145:  budget_id uuid NOT NULL,
+migrations/versions/0078_task_safety_policies.py:16:  receipt_id uuid NOT NULL,
+migrations/versions/0078_task_safety_policies.py:179:  is_final boolean NOT NULL,
+migrations/versions/0078_task_safety_policies.py:178:  outcome text NOT NULL CHECK (outcome IN ('SUCCEEDED','FAILED','CANCELLED','PRUNED','UNKNOWN')),
+migrations/versions/0078_task_safety_policies.py:177:  reservation_id uuid NOT NULL,
+migrations/versions/0078_task_safety_policies.py:17:  max_wall_time_seconds integer NOT NULL CHECK (max_wall_time_seconds > 0),
+migrations/versions/0078_task_safety_policies.py:26:  max_gpu_hours numeric(20,6) NOT NULL CHECK (max_gpu_hours >= 0 AND max_gpu_hours < 'Infinity'::numeric),
+migrations/versions/0078_task_safety_policies.py:27:  max_token_cost numeric(20,6) NOT NULL CHECK (max_token_cost > 0 AND max_token_cost < 'Infinity'::numeric),
+migrations/versions/0078_task_safety_policies.py:21:  max_code_iterations bigint NOT NULL CHECK (max_code_iterations > 0),
+migrations/versions/0078_task_safety_policies.py:22:  max_experiment_runs bigint NOT NULL CHECK (max_experiment_runs > 0),
+migrations/versions/0078_task_safety_policies.py:23:  max_tree_nodes bigint NOT NULL CHECK (max_tree_nodes > 0),
+migrations/versions/0078_task_safety_policies.py:18:  max_agent_steps bigint NOT NULL CHECK (max_agent_steps > 0),
+migrations/versions/0078_task_safety_policies.py:20:  max_search_calls bigint NOT NULL CHECK (max_search_calls > 0),
+migrations/versions/0077_research_task_graph.py:212:  task_row_version integer NOT NULL CHECK (task_row_version >= 1),
+migrations/versions/0077_research_task_graph.py:192:  completed_at timestamptz NOT NULL,
+migrations/versions/0078_task_safety_policies.py:129:  ADD COLUMN budget_policy_id uuid NULL,
+migrations/versions/0078_task_safety_policies.py:99:  checkpoint_policy_id uuid NOT NULL,
+migrations/versions/0077_research_task_graph.py:28:  autonomy_level text NOT NULL CHECK (autonomy_level IN ('A0','A1','A2','A3')),
+migrations/versions/0078_task_safety_policies.py:406:   JOIN actor_subject_bindings b ON b.actor_id=a.id WHERE a.id=r.actor_id AND a.actor_type='HUMAN' AND a.retired_at IS NULL
+migrations/versions/0078_task_safety_policies.py:405:  IF NOT EXISTS(SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id JOIN project_role_assignments p ON p.membership_id=m.id
+migrations/versions/0078_task_safety_policies.py:18:  max_agent_steps bigint NOT NULL CHECK (max_agent_steps > 0),
+migrations/versions/0078_task_safety_policies.py:19:  max_llm_calls bigint NOT NULL CHECK (max_llm_calls > 0),
+migrations/versions/0078_task_safety_policies.py:20:  max_search_calls bigint NOT NULL CHECK (max_search_calls > 0),
+migrations/versions/0078_task_safety_policies.py:21:  max_code_iterations bigint NOT NULL CHECK (max_code_iterations > 0),
+migrations/versions/0078_task_safety_policies.py:22:  max_experiment_runs bigint NOT NULL CHECK (max_experiment_runs > 0),
+migrations/versions/0078_task_safety_policies.py:23:  max_tree_nodes bigint NOT NULL CHECK (max_tree_nodes > 0),
+migrations/versions/0078_task_safety_policies.py:26:  max_gpu_hours numeric(20,6) NOT NULL CHECK (max_gpu_hours >= 0 AND max_gpu_hours < 'Infinity'::numeric),
+migrations/versions/0078_task_safety_policies.py:27:  max_token_cost numeric(20,6) NOT NULL CHECK (max_token_cost > 0 AND max_token_cost < 'Infinity'::numeric),
+migrations/versions/0078_task_safety_policies.py:130:  ADD COLUMN termination_policy_id uuid NULL,
+migrations/versions/0077_research_task_graph.py:33:  plan_sealed_at timestamptz NULL,
+```
+
+`byte_size`: **not found** in 0077/0078/0079 (each command exits 1 with empty stdout); inherited `artifact_versions.byte_size` is defined in `migrations/versions/0006_artifact_version.py:42`, so the body has no identifier defect and needs no correction.
+The earlier definition is confirmed by this additional read-only command:
+
+```sh
+rg -n --with-filename -m 1 -F -- byte_size migrations/versions/0006_artifact_version.py
+```
+
+Captured stdout (exit 0):
+
+```text
+migrations/versions/0006_artifact_version.py:42:        sa.Column("byte_size", sa.BigInteger(), nullable=True),
 ```
 
 ### 12.2 Foreign-key backing keys
