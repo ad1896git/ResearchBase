@@ -280,6 +280,10 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
             ("post", "/v1/projects/{project_id}/revision-actions/{id}/re-reviews/{review_id}"),
             ("get", "/v1/projects/{project_id}/issue-dispositions/{id}"),
             ("post", "/v1/projects/{project_id}/issue-dispositions"),
+            ("post", "/v1/projects/{project_id}/agents"),
+            ("post", "/v1/projects/{project_id}/agent-versions"),
+            ("post", "/v1/projects/{project_id}/agent-versions/{agent_version_id}/availability"),
+            ("get", "/v1/projects/{project_id}/agent-versions/{agent_version_id}"),
             ("post", "/v1/research-tasks"),
             ("post", "/v1/research-tasks/{id}/plan"),
             ("post", "/v1/research-tasks/{id}/steps"),
@@ -295,6 +299,20 @@ def test_openapi_has_exact_frozen_v1_surface_and_is_reproducible() -> None:
             ("get", "/v1/research-tasks/{id}"),
             ("get", "/v1/research-tasks/{id}/graph"),
             ("get", "/v1/research-tasks/{id}/progress"),
+        }
+    )
+    # PR3-04 freeze §5.1 explicitly authorizes these eight transport actions.
+    # Reserve/settle expose stable fail-closed Application denials.
+    expected.update(
+        {
+            ("post", "/v1/research-tasks/{id}:bind-policies"),
+            ("post", "/v1/research-tasks/{id}:reserve-budget"),
+            ("post", "/v1/research-tasks/{id}:settle-budget"),
+            ("post", "/v1/research-tasks/{id}:evaluate-termination"),
+            ("post", "/v1/research-tasks/{id}/checkpoints"),
+            ("post", "/v1/research-tasks/{id}/checkpoints/{checkpoint_id}:respond"),
+            ("get", "/v1/research-tasks/{id}/safety"),
+            ("get", "/v1/research-tasks/{id}/checkpoints"),
         }
     )
     actual = {

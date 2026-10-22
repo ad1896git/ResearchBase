@@ -343,6 +343,9 @@ class TaskRead:
     current_step_id: UUID | None
     row_version: int
     inputs: tuple[InputRead, ...]
+    budget_policy_id: UUID | None = None
+    termination_policy_id: UUID | None = None
+    checkpoint_policy_id: UUID | None = None
     execution_enabled: bool = False
     unmet_prerequisites: tuple[str, ...] = UNMET_PREREQUISITES
 
@@ -379,6 +382,12 @@ class TaskEventRead:
     new_status: str
     reason: str | None
     occurred_at: datetime
+    stop_human: bool = False
+    stop_policy: bool = False
+    stop_budget: bool = False
+    stop_repeated_failure: bool = False
+    stop_no_improvement: bool = False
+    stop_success: bool = False
 
 
 @dataclass(frozen=True, slots=True)

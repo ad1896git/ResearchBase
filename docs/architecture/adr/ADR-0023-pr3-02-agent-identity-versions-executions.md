@@ -14,3 +14,14 @@ Contract: [PR3-02 draft](../../proposals/PR3-02_AgentVersion_Execution_Contract_
 | D302-04 Atomic targets | First targets: the two B02 DRAFT families via in-UoW composition; producer identity kept separate from the promoter (S2). |
 | D302-05 Schema/locking | The eight pattern-based tables split S1 (4) / S2 (4); S1 uses the reduced 8-table SHARE inventory, S2 the 23-table inventory. |
 | Slices | S1: enrollment + versions/availability. S2: executions + promotion. |
+
+## Amendment 2026-10-21 (director, technical refinement)
+
+D302-05's S1 lock recipe is refined per command in the
+[PR3-02-S1 execution pack](../../phase3/PR3-02-S1-contract-freeze.md) §4:
+`provision_project_agent` first takes SHARE ROW EXCLUSIVE on the five identity tables it
+writes (actor_subject_bindings, actors, project_membership_events, project_memberships,
+project_role_assignments), then SHARE on projects; the two version commands keep the
+8-table SHARE inventory. Reason: SHARE followed by a write upgrade on the same tables can
+deadlock two concurrent enrollments; the self-conflicting mode serializes them instead.
+Consequence: enrollments serialize across projects (owner-run, rare). No other decision changes.

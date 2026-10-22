@@ -29,10 +29,8 @@ def test_closed_owner_and_import_boundary():
 
 def test_one_forward_migration_owns_only_screening_guards():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0077_research_task_graph"]
-    assert (
-        scripts.get_revision(scripts.get_heads()[0]).down_revision == "0076_agent_runtime_bootstrap"
-    )
+    assert scripts.get_heads() == ["0079_agent_identity_versions"]
+    assert scripts.get_revision(scripts.get_heads()[0]).down_revision == "0078_task_safety_policies"
     source = (ROOT / "migrations/versions/0070_b20_screening_basis.py").read_text()
     assert "CREATE OR REPLACE" not in source
     assert "ON DELETE CASCADE" not in source

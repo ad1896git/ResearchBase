@@ -37,7 +37,39 @@ class SqlAlchemyPhase2IdentityRepository:
             .mappings()
             .all()
         )
-        return dict(rows[0]) if len(rows) == 1 else None
+        if len(rows) == 1:
+            return dict(rows[0])
+        # Older accepted migration fixtures retain their HUMAN-only behavior.
+        if (
+            subject.subject_kind != "MTLS_URI"
+            or self._session.execute(
+                text("SELECT to_regclass('public.agent_command_receipts')")
+            ).scalar_one()
+            is None
+        ):
+            return None
+        agent_rows = (
+            self._session.execute(
+                text(
+                    "SELECT b.actor_id,b.bound_at,b.revoked_at,a.retired_at "
+                    "FROM actor_subject_bindings b "
+                    "JOIN actors a ON a.id=b.actor_id JOIN agent_command_receipts r "
+                    "ON r.result_binding_id=b.id AND r.result_actor_id=a.id "
+                    "WHERE r.operation='provision_project_agent' AND a.actor_type='AGENT' "
+                    "AND a.retired_at IS NULL AND b.status='ACTIVE' AND b.subject_kind='MTLS_URI' "
+                    "AND b.proof_kind='MTLS_CHALLENGE' AND b.deployment_id=:deployment "
+                    "AND b.subject_value=:subject AND b.subject_credential_id=:credential"
+                ),
+                {
+                    "deployment": subject.deployment_id,
+                    "subject": subject.subject_value,
+                    "credential": subject.credential_id,
+                },
+            )
+            .mappings()
+            .all()
+        )
+        return dict(agent_rows[0]) if len(agent_rows) == 1 else None
 
     def resolve_local_binding(self, subject: Any) -> dict[str, Any] | None:
         rows = (

@@ -116,15 +116,9 @@ def test_unbound_agent_denied_without_human_attribution(planning):
     from dataclasses import replace
 
     from sqlalchemy import text
+    from tests.integration.phase3.conftest import LEGACY_UNBOUND_AGENT
 
-    actor = new_uuid7()
-    with planning.engine.begin() as conn:
-        conn.execute(
-            text(
-                "INSERT INTO actors(id,actor_type,display_name,created_at) VALUES (:id,'AGENT','Unbound test agent',clock_timestamp())"
-            ),
-            {"id": actor},
-        )
+    actor = LEGACY_UNBOUND_AGENT
     agent = replace(planning.principal, actor_id=actor)
     cmd = planning.command()
     with pytest.raises(ResearchBaseError) as caught:
