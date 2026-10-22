@@ -10,8 +10,19 @@ import pytest
 from tests.unit.phase3.gateway_fixtures import Fixture
 
 from researchbase.agent_runtime.application.capability_gateway import FAKE_RESOURCES
+from researchbase.agent_runtime.application.gateway_contracts import (
+    FinishInvocationArguments,
+    GatewayCommand,
+    StartInvocationArguments,
+    parse_gateway_command,
+)
 from researchbase.agent_runtime.application.safety_contracts import BudgetSpec, policy_hash
 from researchbase.agent_runtime.application.task_safety import TaskSafetyService
+from researchbase.agent_runtime.domain.capability_invocation import (
+    GatewayRef,
+    material,
+)
+from researchbase.agent_runtime.ports.task_repository import UncertainTaskCommit
 from researchbase.agent_runtime.ports.task_safety_repository import FakeConsumerCapability
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.ids import new_uuid7
@@ -445,3 +456,588 @@ def test_reused_command_uuid_from_another_actor_cannot_hide_a_prior_stop():
     )
     denied(f, ErrorCode.INVALID_STATE_TRANSITION, command=command)
     assert not f.attempt_writes
+
+
+# S5 doubles establish command semantics; PostgreSQL-dependent claims are
+# unverified until S8.
+
+
+def lifecycle(
+    f, *, start=False, outcome="SUCCEEDED", kind="FINISH", arguments=None, invocation_id=None
+):
+    invocation = next(
+        i
+        for i in f.tables["capability_invocations"]
+        if i["id"] == (invocation_id or f.args.invocation_id)
+    )
+    args = arguments or (
+        StartInvocationArguments(invocation["id"], invocation["row_version"], "start")
+        if start
+        else FinishInvocationArguments(
+            invocation["id"],
+            invocation["row_version"],
+            kind,
+            outcome,
+            FAKE_RESOURCES
+            if outcome == "UNKNOWN_OUTCOME"
+            else replace(
+                FAKE_RESOURCES, wall_time_seconds=0, gpu_hours=Decimal(0), token_cost=Decimal(0)
+            ),
+            (),
+            None,
+            None,
+            None,
+            {"FAILED": "ADAPTER_UNAVAILABLE", "UNKNOWN_OUTCOME": "INVALID_STATE_TRANSITION"}.get(
+                outcome
+            )
+            if kind == "FINISH"
+            else None,
+            "observe",
+        )
+    )
+    return GatewayCommand(
+        f.project,
+        f.task,
+        new_uuid7(),
+        f.task_row["row_version"],
+        "start_capability_invocation" if start else "finish_capability_invocation",
+        args,
+    )
+
+
+def execute_lifecycle(f, command):
+    if isinstance(command.arguments, StartInvocationArguments):
+        return f.service.start_capability_invocation(f.principal, command, f.context)
+    return f.service.finish_capability_invocation(
+        f.principal, command, replace(f.context, finish_observation=command.arguments)
+    )
+
+
+def requested():
+    f = Fixture()
+    f.install_policy()
+    f.run()
+    return f
+
+
+def running():
+    f = requested()
+    execute_lifecycle(f, lifecycle(f, start=True))
+    return f
+
+
+def test_public_self_supplied_observation_is_forbidden():
+    f = running()
+    command = lifecycle(f)
+    raw = material(command)
+    raw.pop("command_name")
+    with pytest.raises(ResearchBaseError, match="trusted observation required") as error:
+        parse_gateway_command(command.command_name, raw)
+    assert error.value.code == ErrorCode.FORBIDDEN
+    for context in (
+        None,
+        f.context,
+        replace(
+            f.context,
+            finish_observation=command.arguments,
+            consumer_capability=FakeConsumerCapability(),
+        ),
+    ):
+        with pytest.raises(ResearchBaseError, match="trusted observation required") as error:
+            f.service.finish_capability_invocation(f.principal, command, context)
+        assert error.value.code == ErrorCode.FORBIDDEN
+
+
+def test_start_zero_new_accounting_and_prestart_cancel_retains_counts():
+    f = requested()
+    reservations = deepcopy(f.tables["budget_reservations"])
+    result = execute_lifecycle(f, lifecycle(f, start=True))
+    assert result.resulting_invocation_revision == 2 and result.usage_record_id is None
+    assert f.tables["budget_reservations"] == reservations
+    assert f.tables["budget_usage_records"] == []
+    assert not any(
+        f.tables["research_task_events"][-1][k]
+        for k in (
+            "stop_human",
+            "stop_policy",
+            "stop_budget",
+            "stop_repeated_failure",
+            "stop_no_improvement",
+            "stop_success",
+        )
+    )
+    f = requested()
+    execute_lifecycle(f, lifecycle(f, outcome="CANCELLED"))
+    inv = f.tables["capability_invocations"][0]
+    usage = f.tables["budget_usage_records"][0]
+    assert inv["status"] == "CANCELLED" and inv["started_at"] is None
+    assert usage["llm_calls"] == 1 and usage["token_cost"] == usage["wall_time_seconds"] == 0
+    assert len(f.tables["budget_reservations"]) == 1
+
+
+@pytest.mark.parametrize("outcome", ["SUCCEEDED", "FAILED", "UNKNOWN_OUTCOME", "CANCELLED"])
+def test_running_outcomes_and_finish_after_cancel_stop_and_disabled_agent(outcome):
+    f = running()
+    f.task_row["status"] = "CANCELLED"
+    f.role = "VIEWER"
+    f.availability["status"] = "DISABLED"
+    f.agent_live = False
+    f.tables["research_task_events"][-1]["stop_human"] = True
+    f.clock += timedelta(days=1)
+    result = execute_lifecycle(f, lifecycle(f, outcome=outcome))
+    assert f.tables["capability_invocations"][0]["status"] == outcome
+    assert result.resulting_invocation_revision == 3
+    usage = f.tables["budget_usage_records"][0]
+    assert usage["is_final"] == (outcome != "UNKNOWN_OUTCOME")
+    if outcome == "UNKNOWN_OUTCOME":
+        assert {k: usage[k] for k in asdict(FAKE_RESOURCES)} == asdict(FAKE_RESOURCES)
+        assert usage["failure_streak"] == usage["no_improvement_streak"] == 0
+    elif outcome == "FAILED":
+        assert usage["failure_streak"] == 1
+
+
+@pytest.mark.parametrize("outcome", ["SUCCEEDED", "FAILED", "CANCELLED"])
+def test_reconciliation_append_only_and_saved_event_results(outcome):
+    f = requested()
+    start = lifecycle(f, start=True)
+    start_result = execute_lifecycle(f, start)
+    finish = lifecycle(f, outcome="UNKNOWN_OUTCOME")
+    finish_result = execute_lifecycle(f, finish)
+    immutable = deepcopy(
+        {
+            table: f.tables[table]
+            for table in (
+                "capability_invocations",
+                "budget_usage_records",
+                "capability_invocation_events",
+                "research_task_command_receipts",
+            )
+        }
+    )
+    command = lifecycle(f, kind="RECONCILE", outcome=outcome)
+    writes = len([w for w in f.attempt_writes if w[0] == "invocation_update"])
+    result = execute_lifecycle(f, command)
+    assert len([w for w in f.attempt_writes if w[0] == "invocation_update"]) == writes
+    assert result.resulting_invocation_revision == 3
+    assert f.tables["capability_invocations"] == immutable["capability_invocations"]
+    for table in (
+        "budget_usage_records",
+        "capability_invocation_events",
+        "research_task_command_receipts",
+    ):
+        assert f.tables[table][:-1] == immutable[table]
+    assert len(f.tables["budget_usage_records"]) == 2
+    assert sum(u["is_final"] for u in f.tables["budget_usage_records"]) == 1
+    event = f.tables["capability_invocation_events"][-1]
+    assert event["sequence"] == 4 and event["reconciled_outcome"] == outcome
+    assert event["new_status"] == "UNKNOWN_OUTCOME"
+    for old, expected in ((start, start_result), (finish, finish_result), (command, result)):
+        assert execute_lifecycle(f, old) == replace(expected, replayed=True)
+    assert finish_result.usage_record_id != result.usage_record_id
+    with pytest.raises(ResearchBaseError) as error:
+        execute_lifecycle(f, lifecycle(f, kind="RECONCILE", outcome=outcome))
+    assert error.value.code == ErrorCode.INVALID_STATE_TRANSITION
+
+
+@pytest.mark.parametrize(
+    "state", ["REQUESTED", "RUNNING", "SUCCEEDED", "FAILED", "UNKNOWN_OUTCOME", "CANCELLED"]
+)
+@pytest.mark.parametrize(
+    "action",
+    ["START", "FINISH_SUCCESS", "FINISH_FAILED", "FINISH_UNKNOWN", "FINISH_CANCELLED", "RECONCILE"],
+)
+def test_lifecycle_edge_matrix(state, action):
+    f = requested()
+    if state != "REQUESTED":
+        execute_lifecycle(f, lifecycle(f, start=True))
+    if state not in ("REQUESTED", "RUNNING"):
+        execute_lifecycle(f, lifecycle(f, outcome=state))
+    allowed = (
+        (state == "REQUESTED" and action in ("START", "FINISH_CANCELLED"))
+        or (state == "RUNNING" and action.startswith("FINISH_"))
+        or (state == "UNKNOWN_OUTCOME" and action == "RECONCILE")
+    )
+    command = lifecycle(
+        f,
+        start=action == "START",
+        kind="RECONCILE" if action == "RECONCILE" else "FINISH",
+        outcome={
+            "FINISH_FAILED": "FAILED",
+            "FINISH_UNKNOWN": "UNKNOWN_OUTCOME",
+            "FINISH_CANCELLED": "CANCELLED",
+        }.get(action, "SUCCEEDED"),
+    )
+    before = deepcopy((f.task_row, f.tables))
+    if allowed:
+        execute_lifecycle(f, command)
+    else:
+        with pytest.raises(ResearchBaseError) as error:
+            execute_lifecycle(f, command)
+        assert error.value.code == ErrorCode.INVALID_STATE_TRANSITION
+        assert (f.task_row, f.tables) == before
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        None,
+        "earlier",
+        "later",
+        "additional",
+        "timeout",
+        "wall",
+        "checkpoint",
+        "revocation",
+        "missing",
+    ],
+)
+def test_exact_cap_start_only_own_first_attributable_stop(block):
+    f = Fixture()
+    budget = f.tables["execution_budgets"][0]
+    spec = BudgetSpec("fake-usd-v1", max_llm_calls=1)
+    budget.update(asdict(spec), content_hash=policy_hash("ExecutionBudgetPolicy", spec))
+    f.install_policy()
+    f.run()
+    event = f.tables["research_task_events"][-1]
+    assert event["stop_budget"]
+    if block in ("earlier", "later"):
+        other = dict(
+            event,
+            id=new_uuid7(),
+            result_capability_invocation_id=None,
+            event_type="TERMINATION_EVALUATED",
+        )
+        f.tables["research_task_events"].insert(
+            0 if block == "earlier" else len(f.tables["research_task_events"]), other
+        )
+    elif block == "additional":
+        event["stop_human"] = True
+    elif block == "timeout":
+        f.clock = f.tables["budget_reservations"][0]["deadline"]
+    elif block == "wall":
+        f.clock += timedelta(days=2)
+    elif block == "checkpoint":
+        f.tables["human_checkpoints"][0]["status"] = "REJECTED"
+    elif block == "revocation":
+        f.valid = False
+    elif block == "missing":
+        event["result_capability_invocation_id"] = None
+    command = lifecycle(f, start=True)
+    if block is None:
+        execute_lifecycle(f, command)
+        assert len(f.tables["budget_reservations"]) == 1
+    else:
+        with pytest.raises(ResearchBaseError):
+            execute_lifecycle(f, command)
+
+
+@pytest.mark.parametrize("start", [True, False])
+@pytest.mark.parametrize("stale", ["task", "invocation"])
+def test_lifecycle_cas_and_saved_receipt_precedes_stale_revisions(start, stale):
+    f = requested() if start else running()
+    command = lifecycle(f, start=start)
+    changed = (
+        replace(command, expected_row_version=command.expected_row_version - 1)
+        if stale == "task"
+        else replace(
+            command,
+            arguments=replace(command.arguments, expected_invocation_revision=2 if start else 1),
+        )
+    )
+    with pytest.raises(ResearchBaseError) as error:
+        execute_lifecycle(f, changed)
+    assert error.value.code == ErrorCode.CONCURRENT_MODIFICATION
+    result = execute_lifecycle(f, command)
+    f.task_row["row_version"] += 10
+    f.tables["capability_invocations"][0]["row_version"] += 10
+    assert execute_lifecycle(f, command) == replace(result, replayed=True)
+    f.valid = False
+    conflict = replace(command, arguments=replace(command.arguments, reason="changed"))
+    with pytest.raises(ResearchBaseError) as error:
+        execute_lifecycle(f, conflict)
+    assert error.value.code == ErrorCode.FORBIDDEN
+
+
+@pytest.mark.parametrize("outcome,kind", [("SUCCEEDED", "FINISH"), ("SUCCEEDED", "RECONCILE")])
+def test_output_refs_success_and_reconciliation_preserves_observation(outcome, kind):
+    f = running()
+    if kind == "RECONCILE":
+        execute_lifecycle(f, lifecycle(f, outcome="UNKNOWN_OUTCOME"))
+    identity, digest = f.retain(b"candidate output")
+    command = lifecycle(f, outcome=outcome, kind=kind)
+    command = replace(
+        command,
+        arguments=replace(
+            command.arguments, output_refs=(GatewayRef("ARTIFACT_VERSION", identity, digest, None),)
+        ),
+    )
+    execute_lifecycle(f, command)
+    ref = f.tables["capability_invocation_refs"][-1]
+    assert ref["artifact_version_id"] == identity and ref["direction"] == "OUTPUT"
+    assert ref["receipt_id"] == f.tables["research_task_command_receipts"][-1]["id"]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("result_summary", "changed"),
+        ("error_code", "ADAPTER_UNAVAILABLE"),
+        ("trace_artifact_version_id", new_uuid7()),
+    ],
+)
+def test_reconciliation_rejects_changed_observation(field, value):
+    f = running()
+    execute_lifecycle(f, lifecycle(f, outcome="UNKNOWN_OUTCOME"))
+    changes = {field: value}
+    if field == "trace_artifact_version_id":
+        changes["trace_content_hash"] = "a" * 64
+    with pytest.raises(
+        ResearchBaseError, match="reconciliation preserves the original observation"
+    ) as error:
+        replace(lifecycle(f, kind="RECONCILE").arguments, **changes)
+    assert error.value.code == ErrorCode.VALIDATION_ERROR
+
+
+@pytest.mark.parametrize("outcome", ["FAILED", "UNKNOWN_OUTCOME", "SUCCEEDED", "CANCELLED"])
+def test_retry_parent_requires_failure_or_final_reconciled_unknown(outcome):
+    f = running()
+    execute_lifecycle(f, lifecycle(f, outcome=outcome))
+    parent = f.args.invocation_id
+    f.args = replace(f.args, invocation_id=new_uuid7(), retry_parent_id=parent)
+    if outcome == "FAILED":
+        f.run()
+    else:
+        denied(f, ErrorCode.INVALID_STATE_TRANSITION)
+        if outcome == "UNKNOWN_OUTCOME":
+            execute_lifecycle(
+                f, lifecycle(f, kind="RECONCILE", outcome="FAILED", invocation_id=parent)
+            )
+            f.run()
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "task",
+        "research_task_command_receipts",
+        "budget_usage_records",
+        "invocation_update",
+        "capability_invocation_events",
+        "research_task_events",
+        "research_task_receipt_events",
+        "constraints",
+        "commit",
+    ],
+)
+def test_finish_rolls_back_every_write_stage(stage):
+    f = running()
+    command = lifecycle(f)
+    before = deepcopy((f.task_row, f.tables))
+    f.fail_stage = stage
+    with pytest.raises(RuntimeError, match="injected"):
+        execute_lifecycle(f, command)
+    assert (f.task_row, f.tables) == before
+
+
+def test_finish_uncertain_commit_uses_formal_receipt_lookup(monkeypatch):
+    from tests.unit.phase3.gateway_fixtures import Uow
+
+    f = running()
+    command = lifecycle(f)
+    commit = Uow.commit
+
+    def uncertain(uow):
+        commit(uow)
+        raise UncertainTaskCommit("lost response")
+
+    monkeypatch.setattr(Uow, "commit", uncertain)
+    result = execute_lifecycle(f, command)
+    assert result.replayed and len(f.tables["budget_usage_records"]) == 1
+    assert ["formal_read"] in f.trace
+
+
+@pytest.mark.parametrize("start", [True, False])
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "share",
+        "project",
+        "command",
+        "task_key",
+        "agent_key",
+        "version_key",
+        "task_row",
+        "steps",
+        "checkpoints",
+        "availability",
+        "invocations",
+    ],
+)
+def test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability(start, stage):
+    f = requested() if start else running()
+    command = lifecycle(f, start=start)
+    before = deepcopy((f.task_row, f.tables))
+    result = execute_lifecycle(f, command)
+    completed = deepcopy((f.task_row, f.tables))
+    f.task_row, f.tables = before
+
+    def publish(at):
+        if at == stage:
+            f.task_row, f.tables = deepcopy(completed)
+            f.task_row["row_version"] += 100
+            f.tables["capability_invocations"][0]["row_version"] += 100
+            f.availability["status"] = "DISABLED"
+            f.role = "VIEWER"
+
+    f.wait_hook = publish
+    assert execute_lifecycle(f, command) == replace(result, replayed=True)
+
+
+@pytest.mark.parametrize("start", [True, False])
+@pytest.mark.parametrize("change", ["task", "invocation", "credential", "checkpoint"])
+def test_fresh_lifecycle_checks_after_dml_wait_roll_back(start, change):
+    f = requested() if start else running()
+    command = lifecycle(f, start=start)
+    before = deepcopy((f.task_row, f.tables))
+
+    def change_after_write(stage):
+        if stage != "research_task_command_receipts":
+            return
+        if change == "task":
+            f.task_row["row_version"] += 1
+        elif change == "invocation":
+            f.tables["capability_invocations"][0]["row_version"] += 1
+        elif change == "credential":
+            f.valid = False
+        else:
+            f.tables["human_checkpoints"][0]["status"] = "REJECTED"
+
+    f.stage_hook = change_after_write
+    if change == "checkpoint" and not start:
+        execute_lifecycle(f, command)  # finite finish is permitted after a gate changes
+    else:
+        with pytest.raises(ResearchBaseError):
+            execute_lifecycle(f, command)
+        assert (f.task_row, f.tables) == before
+
+
+def test_lifecycle_retry_ids_stable_and_single_settlement():
+    f = running()
+    f.retry_stage = "research_task_receipt_events"
+    command = lifecycle(f)
+    before = f.command_transactions
+    execute_lifecycle(f, command)
+    assert f.command_transactions - before == 2
+    for table in (
+        "budget_usage_records",
+        "capability_invocation_events",
+        "research_task_command_receipts",
+        "research_task_events",
+    ):
+        attempted = [
+            row["id"]
+            for name, row in f.attempt_writes
+            if name == table
+            and (
+                row.get("receipt_id") == f.tables["research_task_command_receipts"][-1]["id"]
+                or row.get("command_id") == command.command_id
+            )
+        ]
+        assert len(attempted) == 2 and attempted[0] == attempted[1]
+    assert len(f.tables["budget_usage_records"]) == 1
+
+
+@pytest.mark.parametrize("outcome", ["FAILED", "UNKNOWN_OUTCOME", "CANCELLED"])
+def test_output_refs_rejected_for_every_non_success(outcome):
+    f = running()
+    with pytest.raises(ResearchBaseError):
+        replace(
+            lifecycle(f, outcome=outcome).arguments,
+            output_refs=(GatewayRef("ARTIFACT_VERSION", f.ref_id, f.ref_hash, None),),
+        )
+
+
+def test_unknown_reservation_still_occupies_slot_and_full_budget():
+    from researchbase.agent_runtime.application.task_safety import balances, reservation_gauges
+
+    f = running()
+    execute_lifecycle(f, lifecycle(f, outcome="UNKNOWN_OUTCOME"))
+    rows = {
+        table: f.repo.rows(table, f.task)
+        for table in ("budget_reservations", "budget_usage_records")
+    }
+    consumed, reserved = balances(rows["budget_reservations"], rows["budget_usage_records"])
+    assert consumed["llm_calls"] == 0 and reserved["llm_calls"] == 1
+    assert reserved["token_cost"] == FAKE_RESOURCES.token_cost
+    assert reservation_gauges(f.repo, f.task_row, rows, None) == (0, 2)
+    f.args = replace(f.args, invocation_id=new_uuid7())
+    denied(f, ErrorCode.INVALID_STATE_TRANSITION)  # occupied reservation slot
+
+
+@pytest.mark.parametrize("outcome", ["FINISH", "RECONCILE"])
+def test_finish_exact_charge_ownership_is_required(outcome):
+    f = running()
+    if outcome == "RECONCILE":
+        execute_lifecycle(f, lifecycle(f, outcome="UNKNOWN_OUTCOME"))
+    f.tables["budget_reservations"][0]["operation_id"] = new_uuid7()
+    with pytest.raises(ResearchBaseError) as error:
+        execute_lifecycle(f, lifecycle(f, kind=outcome))
+    assert error.value.code == ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+
+
+def test_unknown_does_not_advance_final_failure_streak_until_reconciliation():
+    f = running()
+    execute_lifecycle(f, lifecycle(f, outcome="FAILED"))
+    f.args = replace(f.args, invocation_id=new_uuid7())
+    f.run()
+    execute_lifecycle(f, lifecycle(f, start=True))
+    execute_lifecycle(f, lifecycle(f, outcome="UNKNOWN_OUTCOME"))
+    unknown = f.tables["budget_usage_records"][-1]
+    assert not unknown["is_final"] and unknown["failure_streak"] == 1
+    assert not f.tables["research_task_events"][-1]["stop_repeated_failure"]
+    execute_lifecycle(f, lifecycle(f, kind="RECONCILE", outcome="FAILED"))
+    assert f.tables["budget_usage_records"][-1]["failure_streak"] == 2
+    assert f.tables["research_task_events"][-1]["stop_repeated_failure"]
+
+
+@pytest.mark.parametrize("start", [True, False])
+@pytest.mark.parametrize("caller", ["public", "unauthorized", "authorized"])
+def test_unknown_invocation_requires_authorization_before_disclosure(start, caller):
+    f = requested()
+    command = lifecycle(f, start=start)
+    command = replace(command, arguments=replace(command.arguments, invocation_id=new_uuid7()))
+    context = (
+        None if caller == "public" else replace(f.context, finish_observation=command.arguments)
+    )
+    if caller == "unauthorized":
+        f.valid = False
+    before = deepcopy((f.task_row, f.tables))
+    method = (
+        f.service.start_capability_invocation if start else f.service.finish_capability_invocation
+    )
+    with pytest.raises(ResearchBaseError) as error:
+        method(f.principal, command, context)
+    assert error.value.code == (
+        ErrorCode.NOT_FOUND if caller == "authorized" else ErrorCode.FORBIDDEN
+    )
+    assert (f.task_row, f.tables) == before
+
+
+@pytest.mark.parametrize("stopped", [None, "stop_human", "cancelled"])
+@pytest.mark.parametrize("role", ["VIEWER", "RESEARCHER"])
+def test_finish_authority_split(stopped, role):
+    f = running()
+    f.role = role
+    if stopped == "cancelled":
+        f.task_row["status"] = "CANCELLED"
+    elif stopped:
+        f.tables["research_task_events"][-1][stopped] = True
+    command = lifecycle(f)
+    if role == "VIEWER" and stopped is None:
+        before = deepcopy((f.task_row, f.tables))
+        with pytest.raises(ResearchBaseError) as error:
+            execute_lifecycle(f, command)
+        assert error.value.code == ErrorCode.FORBIDDEN
+        assert (f.task_row, f.tables) == before
+    else:
+        assert execute_lifecycle(f, command).usage_record_id is not None

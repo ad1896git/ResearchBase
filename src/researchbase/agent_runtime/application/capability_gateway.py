@@ -1,9 +1,9 @@
-"""PR3-03 S4 registration and request commands. No execution or dispatch."""
+"""PR3-03 Lifecycle commands and append-only settlement. No execution or dispatch."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, replace
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
@@ -15,9 +15,11 @@ from researchbase.agent_runtime.application.agent_contracts import (
 from researchbase.agent_runtime.application.contracts import InputType, TaskInput
 from researchbase.agent_runtime.application.gateway_contracts import (
     AgentExecutionContext,
+    FinishInvocationArguments,
     GatewayCommand,
     RegisterToolPolicyArguments,
     RequestInvocationArguments,
+    StartInvocationArguments,
 )
 from researchbase.agent_runtime.application.research_task import _INPUT_COLUMNS, fail
 from researchbase.agent_runtime.application.routing import (
@@ -27,18 +29,29 @@ from researchbase.agent_runtime.application.routing import (
     SkillRegistryLoader,
     SkillRouter,
 )
-from researchbase.agent_runtime.application.safety_contracts import ReserveBudgetArguments
+from researchbase.agent_runtime.application.safety_contracts import (
+    ReserveBudgetArguments,
+    SettleBudgetArguments,
+)
 from researchbase.agent_runtime.application.task_safety import (
     TaskSafetyService,
+    balances,
     causes,
+    gates,
     reservation_gauges,
     reservation_values,
+    settlement_values,
     verify_saved_policies,
 )
-from researchbase.agent_runtime.domain.capability_invocation import material, typed
+from researchbase.agent_runtime.domain.capability_invocation import (
+    FakeParameters,
+    GatewayRef,
+    material,
+    typed,
+)
 from researchbase.agent_runtime.domain.harness_manifest import HarnessManifest
 from researchbase.agent_runtime.domain.research_task import invalid
-from researchbase.agent_runtime.domain.task_safety import ResourceVector
+from researchbase.agent_runtime.domain.task_safety import ADDITIVE, ResourceVector
 from researchbase.agent_runtime.domain.tool_policy import PermissionSpec, ToolPolicySpec
 from researchbase.agent_runtime.ports.task_repository import UncertainTaskCommit
 from researchbase.foundation.canonical_json import canonical_json_bytes
@@ -123,6 +136,33 @@ class GatewayAccounting:
         )
         return reservation, flags
 
+    def settle_in_uow(self, repo, task, invocation, args, at, *, receipt_id, usage_id, capability):
+        if self._consumer is None or capability is not self._consumer:
+            fail(ErrorCode.FORBIDDEN, "trusted observation required")
+        rows = {table: repo.rows(table, task["id"]) for table in SAFETY_TABLES}
+        verify_saved_policies(repo, task["project_id"], rows)
+        term = next(
+            r for r in rows["termination_policies"] if r["id"] == task["termination_policy_id"]
+        )
+        budget = next(r for r in rows["execution_budgets"] if r["id"] == task["budget_policy_id"])
+        outcome = "UNKNOWN" if args.outcome == "UNKNOWN_OUTCOME" else args.outcome
+        observation = SettleBudgetArguments(
+            invocation["reservation_id"], args.measured, outcome, None, None, args.reason
+        )
+        values = settlement_values(repo, task, rows, term, observation)
+        usage = dict(
+            id=usage_id,
+            research_task_id=task["id"],
+            receipt_id=receipt_id,
+            settled_at=at,
+            created_at=at,
+            **values,
+        )
+        repo.insert("budget_usage_records", usage)
+        return usage, causes(
+            budget, term, rows["budget_reservations"], [*rows["budget_usage_records"], usage], at
+        )
+
 
 class _SavedReplay(Exception):
     def __init__(self, result):
@@ -163,6 +203,38 @@ class CapabilityGatewayService(TaskSafetyService):
     def request_capability_invocation(self, principal, command: GatewayCommand, context=None):
         return self._run(principal, command, "request_capability_invocation", context)
 
+    def start_capability_invocation(self, principal, command: GatewayCommand, context=None):
+        return self._run(principal, command, "start_capability_invocation", context)
+
+    def finish_capability_invocation(self, principal, command: GatewayCommand, context=None):
+        return self._run(principal, command, "finish_capability_invocation", context)
+
+    def _context(self, principal, command, context, invocation=None, *, finish=False):
+        if (
+            type(context) is not AgentExecutionContext
+            or not self._trusted(context.consumer_capability)
+            or (finish and context.finish_observation is not command.arguments)
+        ):
+            fail(
+                ErrorCode.FORBIDDEN,
+                "trusted observation required" if finish else "trusted in-process context required",
+            )
+        if (
+            context.principal != principal
+            or context.project_id != command.project_id
+            or context.task_id != command.task_id
+        ):
+            fail(ErrorCode.FORBIDDEN, "trusted context scope disagrees")
+        if invocation and any(
+            (
+                context.agent_version_id != invocation["agent_version_id"],
+                context.step_id != invocation["step_id"],
+                context.harness_artifact_version_id != invocation["harness_artifact_version_id"],
+                context.harness_content_hash != invocation["harness_content_hash"],
+            )
+        ):
+            fail(ErrorCode.FORBIDDEN, "trusted context provenance disagrees")
+
     @staticmethod
     def _pin(repo, project, identity, digest):
         row = repo.artifact_pin(project, identity)
@@ -183,6 +255,47 @@ class CapabilityGatewayService(TaskSafetyService):
             uow.begin_formal_read()
             repo = uow.gateway
             self._authorize(repo, principal, command.project_id)
+            if isinstance(args, FinishInvocationArguments):
+                return None
+            starting = isinstance(args, StartInvocationArguments)
+            if starting:
+                self._authorize(repo, principal, command.project_id, write=True)
+                invocation = repo.invocation(
+                    command.project_id, command.task_id, args.invocation_id
+                )
+                if invocation is None:
+                    fail(ErrorCode.NOT_FOUND, "invocation unavailable")
+                if self._store is None:
+                    fail(ErrorCode.FROZEN_REFERENCE_REQUIRED, "retained bytes unavailable")
+                data = self._store.open(invocation["parameters_content_hash"])
+                values = {
+                    f.name: invocation[f.name]
+                    for f in fields(RequestInvocationArguments)
+                    if f.name in invocation
+                }
+                reservation = next(
+                    r
+                    for r in repo.rows("budget_reservations", command.task_id)
+                    if r["id"] == invocation["reservation_id"]
+                )
+                values.update(
+                    invocation_id=invocation["id"],
+                    reason=args.reason,
+                    deadline_seconds=int(
+                        (reservation["deadline"] - reservation["created_at"]).total_seconds()
+                    ),
+                    parameters=typed(FakeParameters, json.loads(data), decode=True),
+                    input_refs=tuple(
+                        GatewayRef(family, r[column], r["content_hash"], r["hash_scheme"])
+                        for r in repo.invocation_refs(
+                            command.project_id, command.task_id, invocation["id"]
+                        )
+                        if r["direction"] == "INPUT"
+                        for family, column in _INPUT_COLUMNS.items()
+                        if r[column] is not None
+                    ),
+                )
+                args = RequestInvocationArguments(**values)
             if isinstance(args, RegisterToolPolicyArguments):
                 policy = args.policy
             else:
@@ -217,12 +330,20 @@ class CapabilityGatewayService(TaskSafetyService):
                     invalid("retained harness must be canonical")
                 data = load(args.parameters_artifact_version_id, args.parameters_content_hash)
                 args.verify_retained_parameters(data, args.parameters_content_hash, len(data))
-            return policy, registry, manifest, pins
+            prepared = (policy, registry, manifest, pins)
+            return (*prepared, args) if starting else prepared
 
     def _run(self, principal, command, name, context):
         self._principal(principal)
         if type(command) is not GatewayCommand or command.command_name != name:
             invalid("typed named gateway command required")
+        if isinstance(command.arguments, StartInvocationArguments | FinishInvocationArguments):
+            self._context(
+                principal,
+                command,
+                context,
+                finish=isinstance(command.arguments, FinishInvocationArguments),
+            )
         try:
             prepared = self._preflight(principal, command)
             preflight_error = None
@@ -235,7 +356,7 @@ class CapabilityGatewayService(TaskSafetyService):
             )
         args = command.arguments
         ids: dict[str, Any] = {
-            key: new_uuid7() for key in ("receipt", "reservation", "event", "task_event")
+            key: new_uuid7() for key in ("receipt", "reservation", "event", "task_event", "usage")
         }
         ids["permissions"] = tuple(
             new_uuid7()
@@ -245,11 +366,22 @@ class CapabilityGatewayService(TaskSafetyService):
         )
         ids["refs"] = tuple(
             new_uuid7()
-            for _ in (args.input_refs if isinstance(args, RequestInvocationArguments) else ())
+            for _ in (
+                args.input_refs
+                if isinstance(args, RequestInvocationArguments)
+                else args.output_refs
+                if isinstance(args, FinishInvocationArguments)
+                else ()
+            )
         )
         for attempt in range(3):
             try:
-                return self._once(principal, command, context, ids, prepared, preflight_error)
+                runner = (
+                    self._lifecycle_once
+                    if isinstance(args, StartInvocationArguments | FinishInvocationArguments)
+                    else self._once
+                )
+                return runner(principal, command, context, ids, prepared, preflight_error)
             except _SavedReplay as saved:
                 return saved.result
             except UncertainTaskCommit:
@@ -520,6 +652,471 @@ class CapabilityGatewayService(TaskSafetyService):
                     "research_task_id": task["id"],
                     "event_id": ids["task_event"],
                 },
+            )
+            repo.force_constraints()
+            fresh()
+            result = repo.gateway_result(receipt, replayed=False)
+            uow.commit()
+            return result
+
+    def _start_admission(self, uow, repo, principal, command, context, invocation, prepared, at):
+        task = self._scoped(repo, command.project_id, command.task_id)
+        if task["status"] not in ("CREATED", "PLANNING"):
+            fail(ErrorCode.INVALID_STATE_TRANSITION, "nonterminal planning task required")
+        self._authorize(repo, principal, command.project_id, write=True)
+        policy, registry, manifest, pins, request = prepared
+        for identity, (digest, size) in pins.items():
+            if self._pin(repo, command.project_id, identity, digest)["byte_size"] != size:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "retained size changed")
+        row, current = policy_spec(repo, command.project_id, invocation["policy_id"])
+        if current != policy:
+            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "preflight policy changed")
+        version = repo.agent_version(invocation["agent_version_id"])
+        if version is None:
+            fail(ErrorCode.NOT_FOUND, "AgentVersion unavailable")
+        if not repo.live_agent(version["actor_id"], command.project_id):
+            fail(ErrorCode.FORBIDDEN, "live enrolled Agent required")
+        availability = repo.agent_availability(invocation["agent_version_id"])
+        if availability is None:
+            fail(ErrorCode.FORBIDDEN, "active Agent required")
+        dto = AgentVersionDTO(
+            **version,
+            current_availability=AgentAvailabilityDTO(
+                **{f.name: availability[f.name] for f in fields(AgentAvailabilityDTO)}
+            ),
+        )
+        rows = {table: repo.rows(table, task["id"]) for table in SAFETY_TABLES}
+        verify_saved_policies(repo, command.project_id, rows)
+        budget = next(r for r in rows["execution_budgets"] if r["id"] == task["budget_policy_id"])
+        term = next(
+            r for r in rows["termination_policies"] if r["id"] == task["termination_policy_id"]
+        )
+        checkpoint = next(
+            r for r in rows["checkpoint_policies"] if r["id"] == task["checkpoint_policy_id"]
+        )
+        reservation = next(
+            r for r in rows["budget_reservations"] if r["id"] == invocation["reservation_id"]
+        )
+        origin = min(r["created_at"] for r in rows["budget_reservations"])
+        if at >= reservation["deadline"] or at >= origin + timedelta(
+            seconds=budget["max_wall_time_seconds"]
+        ):
+            fail(ErrorCode.INVALID_STATE_TRANSITION, "reservation or task deadline elapsed")
+        if (
+            task["autonomy_level"] > checkpoint["maximum_autonomy"]
+            or task["autonomy_level"] in ("A2", "A3")
+            or any(
+                not g.satisfied
+                for g in gates(
+                    checkpoint, rows["human_checkpoints"], at, invocation["step_id"], FAKE_RESOURCES
+                )
+            )
+        ):
+            fail(ErrorCode.INVALID_STATE_TRANSITION, "checkpoint or autonomy blocked")
+        consumed, reserved = balances(rows["budget_reservations"], rows["budget_usage_records"])
+        if any(consumed[k] + reserved[k] > budget["max_" + k] for k in ADDITIVE):
+            fail(ErrorCode.INVALID_STATE_TRANSITION, "budget exceeded")
+        depth, occupancy = reservation_gauges(repo, task, rows, invocation["step_id"])
+        if depth > budget["max_tree_depth"] or occupancy - 1 > budget["max_parallel_branches"]:
+            fail(ErrorCode.INVALID_STATE_TRANSITION, "budget gauge exceeded")
+        flags = causes(budget, term, rows["budget_reservations"], rows["budget_usage_records"], at)
+        request_events = [
+            e
+            for e in repo.events(task["id"])
+            if e.get("result_capability_invocation_id") == invocation["id"]
+            and e["event_type"] == "CAPABILITY_REQUESTED"
+            and e.get("result_capability_event_id") is not None
+        ]
+        own = request_events[0] if len(request_events) == 1 else None
+        receipt = next(
+            (
+                r
+                for r in repo.receipt_history(task["id"])
+                if r["id"] == invocation["request_receipt_id"]
+            ),
+            None,
+        )
+        if not (
+            own
+            and receipt
+            and receipt["command_name"] == "request_capability_invocation"
+            and receipt["command_id"] == own["command_id"]
+            and receipt["result_capability_event_id"] == own["result_capability_event_id"]
+        ):
+            own = None
+        # Ignore only the first stop, on this request, caused solely by its own capacity.
+        without = [r for r in rows["budget_reservations"] if r["id"] != reservation["id"]]
+        attributable = (
+            own is not None
+            and own.get("stop_budget", False)
+            and flags["stop_budget"]
+            and not any(causes(budget, term, without, rows["budget_usage_records"], at).values())
+        )
+        for event in repo.events(task["id"]):
+            if any(event.get(k, False) for k in flags):
+                if not (
+                    attributable
+                    and own is not None
+                    and event["id"] == own["id"]
+                    and all(not event.get(k, False) for k in flags if k != "stop_budget")
+                ):
+                    fail(ErrorCode.INVALID_STATE_TRANSITION, "task stopped")
+        if any(v for k, v in flags.items() if k != "stop_budget") or (
+            flags["stop_budget"] and not attributable
+        ):
+            fail(ErrorCode.INVALID_STATE_TRANSITION, "task stopped")
+        self._saved_inputs(
+            uow, command.project_id, repo.inputs(task["id"]) + repo.inputs(task["id"], step=True)
+        )
+        for ref in request.input_refs:
+            self._resolve(
+                uow,
+                command.project_id,
+                TaskInput(InputType(ref.family), ref.version_id),
+                {"content_hash": ref.content_hash, "hash_scheme": ref.hash_scheme},
+            )
+        invocations = repo.task_invocations(command.project_id, task["id"])
+        occupied = sum(
+            i["status"] in ("REQUESTED", "RUNNING", "UNKNOWN_OUTCOME")
+            and not any(
+                u["is_final"] and u["reservation_id"] == i["reservation_id"]
+                for u in rows["budget_usage_records"]
+            )
+            for i in invocations
+        )
+        SkillRouter().select(
+            request,
+            context,
+            dto,
+            CapabilityPolicy(
+                command.project_id, invocation["policy_id"], row["content_hash"], current
+            ),
+            registry,
+            FrozenArtifactPin(
+                policy.registry_artifact_version_id,
+                command.project_id,
+                policy.registry_content_hash,
+                True,
+            ),
+            tuple(
+                FrozenArtifactPin(
+                    e.intake_artifact_version_id, command.project_id, e.intake_content_hash, True
+                )
+                for e in {e.intake_artifact_version_id: e for e in registry.entries}.values()
+            ),
+            manifest,
+            RoutingPolicy(3, True, True, True, len(invocations) - 1, occupied - 1),
+            self._consumer_capability,
+        )
+
+    def _lifecycle_once(self, principal, command, context, ids, prepared, preflight_error):
+        args = command.arguments
+        starting = isinstance(args, StartInvocationArguments)
+        with self._factory() as uow:
+            uow.begin_gateway_command()
+            repo = uow.gateway
+            ready = written = invocation_written = False
+            original = None
+            digest = command.request_hash(principal.actor_id)
+
+            def fresh():
+                at = self._authorize(repo, principal, command.project_id)
+                self._context(principal, command, context, finish=not starting)
+                saved = self._saved(
+                    repo,
+                    repo.committed_receipt(
+                        command.project_id, principal.actor_id, command.command_id
+                    ),
+                    digest,
+                )
+                if saved is not None:
+                    raise _SavedReplay(saved)
+                if starting:
+                    self._authorize(repo, principal, command.project_id, write=True)
+                else:
+                    task = self._scoped(repo, command.project_id, command.task_id)
+                    stopped = task["status"] == "CANCELLED" or any(
+                        any(
+                            event[key]
+                            for key in (
+                                "stop_human",
+                                "stop_policy",
+                                "stop_budget",
+                                "stop_repeated_failure",
+                                "stop_no_improvement",
+                                "stop_success",
+                            )
+                        )
+                        for event in repo.events(command.task_id)
+                        if event["id"] != ids["task_event"]
+                    )
+                    if not stopped:
+                        self._authorize(repo, principal, command.project_id, write=True)
+                if not ready:
+                    return at
+                assert original is not None
+                self._context(principal, command, context, original, finish=not starting)
+                task = self._scoped(repo, command.project_id, command.task_id)
+                if task["row_version"] != command.expected_row_version + int(written):
+                    fail(ErrorCode.CONCURRENT_MODIFICATION, "stale task revision")
+                current = repo.invocation(command.project_id, command.task_id, args.invocation_id)
+                if current is None:
+                    fail(ErrorCode.CONCURRENT_MODIFICATION, "invocation unavailable")
+                delta = int(invocation_written and not reconcile)
+                if current["row_version"] != args.expected_invocation_revision + delta:
+                    fail(ErrorCode.CONCURRENT_MODIFICATION, "stale invocation revision")
+                if invocation_written and not reconcile:
+                    owner = current["start_receipt_id" if starting else "finish_receipt_id"]
+                    if owner != ids["receipt"]:
+                        fail(ErrorCode.CONCURRENT_MODIFICATION, "invocation changed")
+                elif current != original:
+                    fail(ErrorCode.CONCURRENT_MODIFICATION, "invocation changed")
+                usage = [
+                    u
+                    for u in repo.rows("budget_usage_records", command.task_id)
+                    if u["reservation_id"] == original["reservation_id"]
+                    and u["receipt_id"] != ids["receipt"]
+                ]
+                if any(u["is_final"] for u in usage):
+                    fail(ErrorCode.INVALID_STATE_TRANSITION, "reservation already final")
+                reservation = next(
+                    (
+                        r
+                        for r in repo.rows("budget_reservations", task["id"])
+                        if r["id"] == original["reservation_id"]
+                    ),
+                    None,
+                )
+                if reservation is None or (
+                    reservation["operation_id"],
+                    reservation["step_id"],
+                    reservation["budget_id"],
+                    reservation["receipt_id"],
+                ) != (
+                    original["id"],
+                    original["step_id"],
+                    task["budget_policy_id"],
+                    original["request_receipt_id"],
+                ):
+                    fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "reservation ownership disagrees")
+                if starting:
+                    self._start_admission(
+                        uow, repo, principal, command, context, original, prepared, at
+                    )
+                else:
+                    if task["status"] not in ("CREATED", "PLANNING", "CANCELLED"):
+                        fail(ErrorCode.INVALID_STATE_TRANSITION, "task bookkeeping unavailable")
+                    for ref in args.output_refs:
+                        self._pin(repo, command.project_id, ref.version_id, ref.content_hash)
+                    if args.trace_artifact_version_id is not None:
+                        self._pin(
+                            repo,
+                            command.project_id,
+                            args.trace_artifact_version_id,
+                            args.trace_content_hash,
+                        )
+                    refs = [
+                        r
+                        for r in repo.invocation_refs(
+                            command.project_id, command.task_id, args.invocation_id
+                        )
+                        if r["receipt_id"] != ids["receipt"]
+                    ]
+                    if len(refs) + len(args.output_refs) > 256:
+                        invalid("total invocation refs exceeded")
+                return at
+
+            repo.lock_gateway(
+                command.project_id,
+                principal.actor_id,
+                command.command_id,
+                command.task_id,
+                invocation_id=args.invocation_id,
+                after_wait=fresh,
+            )
+            fresh()
+            if preflight_error is not None:
+                raise preflight_error
+            original = repo.invocation(command.project_id, command.task_id, args.invocation_id)
+            if original is None:
+                fail(ErrorCode.NOT_FOUND, "invocation unavailable")
+            original = dict(original)
+            reconcile = not starting and args.kind == "RECONCILE"
+            ready = True
+            at = fresh()
+            if starting:
+                allowed = original["status"] == "REQUESTED"
+            elif reconcile:
+                allowed = original["status"] == "UNKNOWN_OUTCOME" and not any(
+                    e["event_type"] == "RECONCILED"
+                    for e in repo.invocation_events(
+                        command.project_id, command.task_id, args.invocation_id
+                    )
+                )
+            else:
+                allowed = original["status"] == "RUNNING" or (
+                    original["status"] == "REQUESTED" and args.outcome == "CANCELLED"
+                )
+            if not allowed:
+                fail(ErrorCode.INVALID_STATE_TRANSITION, "invocation lifecycle edge denied")
+            if not starting:
+                expected = (
+                    FAKE_RESOURCES
+                    if args.outcome == "UNKNOWN_OUTCOME"
+                    else replace(
+                        FAKE_RESOURCES,
+                        wall_time_seconds=0,
+                        gpu_hours=Decimal(0),
+                        token_cost=Decimal(0),
+                    )
+                )
+                if args.measured != expected:
+                    invalid("trusted fake measurement disagrees")
+            task = self._scoped(repo, command.project_id, command.task_id)
+            revision = task["row_version"] + 1
+            invocation_revision = original["row_version"] + int(not reconcile)
+            event_type = "STARTED" if starting else "RECONCILED" if reconcile else "FINISHED"
+            pointers = dict(
+                result_tool_policy_id=original["policy_id"],
+                result_capability_invocation_id=original["id"],
+                result_capability_event_id=ids["event"],
+            )
+            receipt = dict(
+                id=ids["receipt"],
+                project_id=command.project_id,
+                actor_id=principal.actor_id,
+                command_id=command.command_id,
+                command_name=command.command_name,
+                research_task_id=command.task_id,
+                request_hash=digest,
+                hash_scheme="sha256-cjson-v1",
+                material_version=1,
+                resulting_row_version=revision,
+                completed_at=at,
+                resulting_invocation_revision=invocation_revision,
+                **pointers,
+            )
+            repo.update_task(task["id"], {"row_version": revision})
+            written = True
+            fresh()
+
+            def insert(table, row):
+                repo.insert(table, row)
+                fresh()
+
+            insert("research_task_command_receipts", receipt)
+            flags = dict.fromkeys(
+                (
+                    "stop_human",
+                    "stop_policy",
+                    "stop_budget",
+                    "stop_repeated_failure",
+                    "stop_no_improvement",
+                    "stop_success",
+                ),
+                False,
+            )
+            usage = None
+            if not starting:
+                usage, flags = self._accounting.settle_in_uow(
+                    repo,
+                    task,
+                    original,
+                    args,
+                    at,
+                    receipt_id=ids["receipt"],
+                    usage_id=ids["usage"],
+                    capability=context.consumer_capability,
+                )
+                fresh()
+            status = "RUNNING" if starting else original["status"] if reconcile else args.outcome
+            if not reconcile:
+                values = dict(status=status, row_version=invocation_revision)
+                if starting:
+                    values.update(started_at=at, start_receipt_id=ids["receipt"])
+                else:
+                    assert usage is not None
+                    values.update(
+                        finished_at=at,
+                        finish_receipt_id=ids["receipt"],
+                        usage_record_id=usage["id"],
+                        trace_artifact_version_id=args.trace_artifact_version_id,
+                        trace_content_hash=args.trace_content_hash,
+                        result_summary=args.result_summary,
+                        error_code=args.error_code,
+                    )
+                repo.update_invocation(original["id"], original["row_version"], values)
+                invocation_written = True
+                fresh()
+            insert(
+                "capability_invocation_events",
+                dict(
+                    id=ids["event"],
+                    project_id=command.project_id,
+                    research_task_id=task["id"],
+                    invocation_id=original["id"],
+                    reservation_id=original["reservation_id"],
+                    receipt_id=ids["receipt"],
+                    sequence=4 if reconcile else invocation_revision,
+                    invocation_row_version=invocation_revision,
+                    event_type=event_type,
+                    prior_status=original["status"],
+                    new_status=status,
+                    reconciled_outcome=(
+                        args.outcome
+                        if reconcile and isinstance(args, FinishInvocationArguments)
+                        else None
+                    ),
+                    usage_record_id=usage["id"] if usage else None,
+                    actor_id=principal.actor_id,
+                    occurred_at=at,
+                    reason=args.reason,
+                ),
+            )
+            if not starting:
+                for identity, ref in zip(ids["refs"], args.output_refs, strict=True):
+                    insert(
+                        "capability_invocation_refs",
+                        dict(
+                            id=identity,
+                            project_id=command.project_id,
+                            research_task_id=task["id"],
+                            invocation_id=original["id"],
+                            receipt_id=ids["receipt"],
+                            direction="OUTPUT",
+                            **{
+                                **dict.fromkeys(_INPUT_COLUMNS.values()),
+                                "artifact_version_id": ref.version_id,
+                            },
+                            content_hash=ref.content_hash,
+                            hash_scheme=ref.hash_scheme,
+                        ),
+                    )
+            insert(
+                "research_task_events",
+                dict(
+                    id=ids["task_event"],
+                    research_task_id=task["id"],
+                    actor_id=principal.actor_id,
+                    command_id=command.command_id,
+                    event_type="CAPABILITY_STARTED" if starting else "CAPABILITY_FINISHED",
+                    sequence=revision,
+                    task_row_version=revision,
+                    prior_status=task["status"],
+                    new_status=task["status"],
+                    reason=args.reason,
+                    occurred_at=at,
+                    **flags,
+                    **pointers,
+                ),
+            )
+            insert(
+                "research_task_receipt_events",
+                dict(
+                    receipt_id=ids["receipt"],
+                    research_task_id=task["id"],
+                    event_id=ids["task_event"],
+                ),
             )
             repo.force_constraints()
             fresh()

@@ -506,3 +506,93 @@ def test_uniqueness_mapping_is_scoped_to_gateway_and_exact_diagnostics(
     error = unit._command_database_error(DBAPIError(None, None, original))
     assert str(error.code) == (expected if gateway else "VALIDATION_ERROR")
     assert error.details is not None and not error.details["retryable_pr301"]
+
+
+@pytest.mark.parametrize(
+    "state,retry", [("40001", True), ("40P01", True), ("55P03", False), ("57014", False)]
+)
+def test_lifecycle_retry_sqlstates_are_closed(state, retry):
+    from sqlalchemy.exc import DBAPIError
+    from tests.unit.phase3.test_capability_gateway import (
+        execute_lifecycle,
+        lifecycle,
+        running,
+    )
+
+    f = running()
+    command = lifecycle(f)
+    unit = SqlAlchemyUnitOfWork(lambda: Session())
+    unit._research_task_error_normalization = True
+    unit._gateway_error_normalization = True
+
+    class Original(RuntimeError):
+        sqlstate = state
+
+    mapped = unit._command_database_error(DBAPIError(None, None, Original("not parsed")))
+    calls = []
+    lock = f.repo.lock_gateway
+
+    def injected(*args, **kwargs):
+        lock(*args, **kwargs)
+        calls.append(True)
+        raise mapped
+
+    f.repo.lock_gateway = injected
+    before = f.command_transactions
+    with pytest.raises(type(mapped)):
+        execute_lifecycle(f, command)
+    assert len(calls) == (3 if retry else 1)
+    assert f.command_transactions - before == len(calls)
+    assert not f.tables["budget_usage_records"]
+
+
+def test_lifecycle_invocation_identity_resolved_after_prefix_before_agent_keys():
+    from researchbase.persistence.capability_gateway_repository import INVOCATION_SQL
+
+    session = RecordingSession()
+    session.results[normalized(INVOCATION_SQL)] = [{"agent_version_id": V}]
+    repository = SqlAlchemyGatewayRepository(cast(Session, session))
+    repository.lock_gateway(P, A, C, T, invocation_id=TARGET, after_wait=session.after_wait)
+    queries = [entry[0] for entry in session.trace]
+    lookup = queries.index(normalized(INVOCATION_SQL))
+    assert queries[0] == SHARE
+    assert lookup > next(
+        i for i, row in enumerate(session.trace) if row[1].get("key") == f"pr301:task:{T}"
+    )
+    assert lookup < next(
+        i for i, row in enumerate(session.trace) if row[1].get("key") == f"pr302:actor:{TARGET}"
+    )
+    assert lookup < next(
+        i
+        for i, row in enumerate(session.trace)
+        if "research_tasks" in row[0] and "FOR UPDATE" in row[0]
+    )
+
+
+def test_invocation_update_is_parameterized_closed_cas():
+    from types import SimpleNamespace
+
+    from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+    calls = []
+
+    class WriteSession:
+        count = 1
+
+        def execute(self, sql, params):
+            calls.append((normalized(sql), params))
+            return SimpleNamespace(rowcount=self.count)
+
+    session = WriteSession()
+    repository = SqlAlchemyGatewayRepository(cast(Session, session))
+    repository.update_invocation(TARGET, 1, {"status": "RUNNING", "row_version": 2})
+    assert calls[-1][1] == dict(
+        identity=TARGET, expected_revision=1, status="RUNNING", row_version=2
+    )
+    assert "WHERE id=:identity AND row_version=:expected_revision" in calls[-1][0]
+    with pytest.raises(ValueError):
+        repository.update_invocation(TARGET, 1, {"parameters_content_hash": "injected"})
+    session.count = 0
+    with pytest.raises(ResearchBaseError) as error:
+        repository.update_invocation(TARGET, 1, {"status": "RUNNING"})
+    assert error.value.code == ErrorCode.CONCURRENT_MODIFICATION

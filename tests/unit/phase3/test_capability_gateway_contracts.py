@@ -171,15 +171,16 @@ def test_four_command_roundtrips_and_actor_material(name, args):
     raw = material(command)
     del raw["command_name"]
     raw = json.loads(json.dumps(raw))
-    parsed = c.parse_gateway_command(
-        name, raw, observation=args if name.startswith("finish") else None
-    )
-    assert parsed == command
+    if name.startswith("finish"):
+        with pytest.raises(ResearchBaseError, match="trusted observation required"):
+            c.parse_gateway_command(name, raw)
+    else:
+        assert c.parse_gateway_command(name, raw) == command
     assert command.material(ID)["type"] == "GatewayCommand"
     assert command.request_hash(ID) != command.request_hash(PROJECT)
     raw["arguments"]["untrusted"] = True
     with pytest.raises(ResearchBaseError):
-        c.parse_gateway_command(name, raw, observation=args)
+        c.parse_gateway_command(name, raw)
 
 
 @pytest.mark.parametrize(

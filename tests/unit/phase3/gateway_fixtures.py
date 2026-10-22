@@ -310,8 +310,21 @@ class Repository:
     def _many(self, sql, params):
         return [r for r in self.f.tables["capability_invocation_events"] if r["id"] == params["id"]]
 
-    def lock_gateway(self, project, actor, command, task, *, agent_version=None, after_wait=None):
+    def lock_gateway(
+        self,
+        project,
+        actor,
+        command,
+        task,
+        *,
+        agent_version=None,
+        invocation_id=None,
+        after_wait=None,
+    ):
         self.f.locked = True
+        if invocation_id is not None:
+            target = self.invocation(project, task, invocation_id)
+            agent_version = target["agent_version_id"] if target else None
         for stage in (
             "share",
             "project",
@@ -416,6 +429,36 @@ class Repository:
 
     def task_invocations(self, project, task):
         return deepcopy(self.f.tables["capability_invocations"])
+
+    def invocation(self, project, task, identity):
+        return next(
+            (
+                dict(r)
+                for r in self.f.tables["capability_invocations"]
+                if (r["project_id"], r["research_task_id"], r["id"]) == (project, task, identity)
+            ),
+            None,
+        )
+
+    def invocation_refs(self, project, task, identity):
+        return deepcopy(
+            [
+                r
+                for r in self.f.tables["capability_invocation_refs"]
+                if r["invocation_id"] == identity
+            ]
+        )
+
+    def receipt_history(self, task):
+        return deepcopy(self.f.tables["research_task_command_receipts"])
+
+    def update_invocation(self, identity, expected_revision, values):
+        row = next(r for r in self.f.tables["capability_invocations"] if r["id"] == identity)
+        if row["row_version"] != expected_revision:
+            raise ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "stale invocation revision")
+        row.update(values)
+        self.f.attempt_writes.append(("invocation_update", dict(values)))
+        self.f.stage("invocation_update")
 
     def invocation_events(self, project, task, invocation):
         return [

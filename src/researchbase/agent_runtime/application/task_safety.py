@@ -192,6 +192,49 @@ def reservation_values(repo, task, rows, budget, term, policy, args, at, *, igno
     }
 
 
+def settlement_values(repo, task, rows, term, args):
+    """Shared settlement validation and streak calculation; no persistence effects."""
+    reservation = next(
+        (r for r in rows["budget_reservations"] if r["id"] == args.reservation_id), None
+    )
+    if not reservation:
+        fail(ErrorCode.NOT_FOUND, "reservation unavailable")
+    if any(
+        u["reservation_id"] == args.reservation_id and u["is_final"]
+        for u in rows["budget_usage_records"]
+    ):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "reservation already final")
+    if (
+        args.outcome == "SUCCEEDED"
+        and args.score is None
+        and any(reservation[k] > 0 for k in ("code_iterations", "experiment_runs", "tree_nodes"))
+    ):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "comparable iteration score required")
+    settlement(spec(ResourceVector, reservation), args.measured, args.outcome)
+    if args.score is not None and (
+        args.evaluator_version != term["evaluator_version"] or args.outcome != "SUCCEEDED"
+    ):
+        invalid("incomparable evaluator observation")
+    receipts = {r["id"]: r["resulting_row_version"] for r in repo.receipt_history(task["id"])}
+    reservation_steps = {r["id"]: r["step_id"] for r in rows["budget_reservations"]}
+    history = [
+        (u["outcome"], u["score"])
+        for u in sorted(rows["budget_usage_records"], key=lambda u: receipts[u["receipt_id"]])
+        if u["is_final"] and reservation_steps[u["reservation_id"]] == reservation["step_id"]
+    ]
+    fs, ns = streaks(history, args.outcome, args.score, term["score_direction"])
+    return {
+        "reservation_id": reservation["id"],
+        **asdict(args.measured),
+        "outcome": args.outcome,
+        "is_final": args.outcome != "UNKNOWN",
+        "failure_streak": fs,
+        "no_improvement_streak": ns,
+        "score": args.score,
+        "evaluator_version": args.evaluator_version,
+    }
+
+
 class TaskSafetyService(ResearchTaskService):
     def __init__(self, factory, credentials, artifact_store=None, *, consumer_capability=None):
         super().__init__(factory, credentials, artifact_store)
@@ -451,60 +494,9 @@ class TaskSafetyService(ResearchTaskService):
                     budget, term, rows["budget_reservations"], rows["budget_usage_records"], at
                 )
             elif isinstance(args, SettleBudgetArguments):
-                reservation = next(
-                    (r for r in rows["budget_reservations"] if r["id"] == args.reservation_id), None
-                )
-                if not reservation:
-                    fail(ErrorCode.NOT_FOUND, "reservation unavailable")
-                if any(
-                    u["reservation_id"] == args.reservation_id and u["is_final"]
-                    for u in rows["budget_usage_records"]
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "reservation already final")
-                if (
-                    args.outcome == "SUCCEEDED"
-                    and args.score is None
-                    and any(
-                        reservation[k] > 0
-                        for k in ("code_iterations", "experiment_runs", "tree_nodes")
-                    )
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "comparable iteration score required")
-                settlement(spec(ResourceVector, reservation), args.measured, args.outcome)
                 assert term
-                if args.score is not None and (
-                    args.evaluator_version != term["evaluator_version"]
-                    or args.outcome != "SUCCEEDED"
-                ):
-                    invalid("incomparable evaluator observation")
-                receipts = {
-                    r["id"]: r["resulting_row_version"] for r in repo.receipt_history(task["id"])
-                }
-                reservation_steps = {r["id"]: r["step_id"] for r in rows["budget_reservations"]}
-                history = [
-                    (u["outcome"], u["score"])
-                    for u in sorted(
-                        rows["budget_usage_records"], key=lambda u: receipts[u["receipt_id"]]
-                    )
-                    if u["is_final"]
-                    and reservation_steps[u["reservation_id"]] == reservation["step_id"]
-                ]
-                fs, ns = streaks(history, args.outcome, args.score, term["score_direction"])
-                add(
-                    "budget_usage_records",
-                    {
-                        "id": new_uuid7(),
-                        "reservation_id": reservation["id"],
-                        **asdict(args.measured),
-                        "outcome": args.outcome,
-                        "is_final": args.outcome != "UNKNOWN",
-                        "failure_streak": fs,
-                        "no_improvement_streak": ns,
-                        "score": args.score,
-                        "evaluator_version": args.evaluator_version,
-                        "settled_at": at,
-                    },
-                )
+                values = settlement_values(repo, task, rows, term, args)
+                add("budget_usage_records", {"id": new_uuid7(), **values, "settled_at": at})
                 flags = causes(
                     budget, term, rows["budget_reservations"], rows["budget_usage_records"], at
                 )

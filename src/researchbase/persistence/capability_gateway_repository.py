@@ -5,6 +5,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import text
+from sqlalchemy.engine import CursorResult
 
 from researchbase.agent_runtime.ports.gateway_repository import (
     StoredGatewayReceipt,
@@ -97,9 +98,13 @@ class SqlAlchemyGatewayRepository(SqlAlchemyTaskSafetyRepository):
         task: UUID,
         *,
         agent_version: UUID | None = None,
+        invocation_id: UUID | None = None,
         after_wait: Callable[[], object] | None = None,
     ) -> None:
         self.lock_prefix(project, actor, command, task, after_wait=after_wait)
+        if invocation_id is not None:
+            target = self.invocation(project, task, invocation_id)
+            agent_version = target["agent_version_id"] if target else None
         if agent_version is not None:
             # Immutable identity lookup is deliberately unlocked; diagnostics follow the keys.
             # Missing versions have no derivable actor key. Keep the version key;
@@ -211,6 +216,35 @@ class SqlAlchemyGatewayRepository(SqlAlchemyTaskSafetyRepository):
         )
         self._session.execute(text(sql), row)
 
+    def update_invocation(self, identity, expected_revision, values):
+        allowed = {
+            "status",
+            "row_version",
+            "started_at",
+            "start_receipt_id",
+            "finished_at",
+            "finish_receipt_id",
+            "usage_record_id",
+            "trace_artifact_version_id",
+            "trace_content_hash",
+            "result_summary",
+            "error_code",
+        }
+        if not values or not set(values) <= allowed:
+            raise ValueError("unknown invocation mutation")
+        from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+        result = self._session.execute(
+            text(
+                UPDATE_INVOCATION_SQL.format(
+                    assignments=",\n".join(f"{key}=:{key}" for key in values)
+                )
+            ),
+            {"identity": identity, "expected_revision": expected_revision, **values},
+        )
+        if cast(CursorResult[Any], result).rowcount != 1:
+            raise ResearchBaseError(ErrorCode.CONCURRENT_MODIFICATION, "stale invocation revision")
+
     def gateway_result(self, receipt, *, replayed):
         from researchbase.agent_runtime.application.gateway_contracts import GatewayCommandResult
 
@@ -272,3 +306,9 @@ GATEWAY_WRITES = {
     "capability_invocation_refs": frozenset(StoredInvocationRef.__annotations__),
     "capability_invocation_events": frozenset(StoredInvocationEvent.__annotations__),
 }
+
+UPDATE_INVOCATION_SQL = """
+UPDATE capability_invocations SET
+{assignments}
+WHERE id=:identity AND row_version=:expected_revision
+"""

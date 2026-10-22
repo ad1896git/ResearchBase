@@ -228,7 +228,7 @@ class GatewayCommand(ClosedValue):
         return str(sha256_canonical_json(self.material(actor_id)))
 
 
-def parse_gateway_command(name: str, data: dict, *, observation=None) -> GatewayCommand:
+def parse_gateway_command(name: str, data: dict) -> GatewayCommand:
     """Public parsing never establishes trust in a submitted finish observation."""
     try:
         if type(data) is not dict or set(data) != {
@@ -242,9 +242,7 @@ def parse_gateway_command(name: str, data: dict, *, observation=None) -> Gateway
         kind = _ARGUMENTS[name]
         args = typed(kind, data["arguments"], decode=True)
         if kind is FinishInvocationArguments:
-            if type(observation) is not FinishInvocationArguments or observation != args:
-                raise ResearchBaseError(ErrorCode.FORBIDDEN, "trusted observation required")
-            args = observation
+            raise ResearchBaseError(ErrorCode.FORBIDDEN, "trusted observation required")
         raw: dict[str, Any] = dict(data, command_name=name, arguments=args)
         for key in ("project_id", "task_id", "command_id"):
             raw[key] = typed(UUID, raw[key], decode=True)
@@ -280,6 +278,7 @@ class AgentExecutionContext:
     harness_artifact_version_id: UUID
     harness_content_hash: str
     consumer_capability: FakeConsumerCapability
+    finish_observation: FinishInvocationArguments | None = None
 
     def __post_init__(self):
         for name in ("project_id", "task_id", "agent_version_id", "harness_artifact_version_id"):
