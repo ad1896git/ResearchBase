@@ -1958,3 +1958,278 @@ started. Overall PR3-03 gate success is not declared. STOP at S2.
 Post-evidence verification: `git diff --check HEAD` exited 0 with empty stdout
 and stderr. The working tree has exactly the nine nonignored paths listed above.
 The complete tracked/new-file diff is retained at `tmp/pr3-03/s2-working-tree.diff`.
+
+
+### S2 review carry-over for S3
+
+Missing target AgentVersion intentionally omits the actor key: no actor identity can
+be derived from an absent immutable row. The version key is still acquired, and no
+actor key is acquired after row locks. S3 routing requires an existing stored
+AgentVersion before relying on this lock composition; S4 admission must use that
+validation with its under-lock stored read.
+
+Step 0 removes the tautological foreign-key target assertion (the independent
+RESTRICT assertion remains), anchors trace output to the repository root, and
+documents the missing-version branch in the adapter. Verification follows below.
+
+## S3 — Closed values, hashes and pure routing (2026-10-22)
+
+Baseline HEAD: `bd89082cc3015805bdaa0b7155d8dfed32cc7eec` (S2).
+Initial working tree was clean. Only S3 and the explicitly requested Step 0
+carry-over fixes are implemented. No commands, UoWs, persistence writes, fake
+dispatch, adapter discovery, network/process execution, or scientific promotion
+are added. S4 has NOT STARTED. Overall PR3-03 acceptance remains PENDING.
+
+### Changed paths and Deviations
+
+All changed paths (eight new S3 files, two Step 0 files, one evidence file):
+
+- `src/researchbase/agent_runtime/domain/capability_invocation.py`
+- `src/researchbase/agent_runtime/domain/tool_policy.py`
+- `src/researchbase/agent_runtime/application/gateway_contracts.py`
+- `src/researchbase/agent_runtime/application/routing.py`
+- `src/researchbase/agent_runtime/ports/capability_gateway.py`
+- `tests/unit/phase3/test_capability_gateway_contracts.py`
+- `tests/unit/phase3/test_agent_tool_policy.py`
+- `tests/unit/phase3/test_capability_routing.py`
+- `tests/unit/phase3/test_capability_gateway_repository.py` (S3-D1)
+- `src/researchbase/persistence/capability_gateway_repository.py` (S3-D1)
+- `docs/phase3/PR3-03-evidence.md` (S3-D2)
+
+**Deviation S3-D1 — authorized S2 review carry-over outside S3's file list.**
+Scope: the two S2 test/adapter paths above. Evidence: the vacuous FK target
+assertion is deleted as expressly permitted; ON DELETE RESTRICT and column
+shape assertions remain. `record()` resolves its output directory from
+`Path(__file__).resolve().parents[3]`, independent of process cwd.
+The adapter now documents the intended missing-version branch without changing
+SQL or lock behavior: no actor can be derived from absence, the version key is
+still taken, and no actor key may be added after row locking.
+`SkillRouter.select` checks version existence first and returns NOT_FOUND on
+absence; `test_pins_phase_and_reference_only[no-version]` exercises this.
+Impact: no changed SQL/transaction semantics. Disposition: resolved as explicitly
+authorized by the owner; S4 must apply the predicate to its under-lock stored read.
+
+**Deviation S3-D2 — owner-required evidence outside S3's file list.**
+Scope: this document and ignored `tmp/pr3-03/s3-*.txt` verification logs.
+Impact: evidence only. Disposition: authorized by the task. No frozen pack,
+accepted migration, dependency definition, lockfile, or governing Harness file
+changed. No architecture conflict requiring stop rule G was found; SQL rule L
+requires no new SQL in this pure-value step.
+
+### Contract coverage
+
+The complete §8 vocabulary is represented by frozen, slotted dataclasses and
+recursive exact-type decoding. The public command decoder accepts only its
+closed variant, rejects unknown/missing fields and receives finish observations
+through a separately supplied trusted value. AgentExecutionContext has no public
+decoder, cannot enter command material, and rejects pickle serialization.
+Hashes include authenticated actor, exact command identity, every default and
+NULL, normalized refs, and six-place ResourceVector strings; old envelopes are
+untouched. Owning parameter content hash and canonical parameter digest remain
+separate fields. Retained-parameter verification compares supplied bytes literally
+and checks owning hash/size separately.
+
+Six independently fixed §7.2 inputs are literal UTF-8 expectations in
+`test_frozen_literal_vectors`, with the exact frozen digests:
+schema `79fd29b8c5f855b2d2728a13ba245b96d2287fa52fd364646f4a155e40ff4d8f`;
+empty-set `2be8fb87e16870441bee24424875c19e4bef7500ec600750924b2c00c8d778f1`;
+fake-set `2087127ad6ee04e51ebb37b6fb2f89af70209d3dd99a83645a8f803e7e6125f9`;
+empty-policy `dcbc9330ce3ba36e9bc0988395950922f278aba37cef35d37239d8f8b099cf7c`;
+allow-deny-policy `725ad2c4ac6b22c5f53ee1138b5d65d88b344e033d52df268db46afd7d3f293b`;
+Café parameters `a6d9214ed01cfe46686c39829bde5d0a733d16c31d8b5297e48d245b70ce13b3`.
+Expected bytes/digests are literals in tests, never generated at test runtime.
+
+Tests cover all four command round-trips, read/result round-trips and complete
+stored column vocabulary; lifecycle, pre-dispatch cancellation, immutable unknown
+reconciliation and retry eligibility; nested extras, duplicate refs/permissions/
+registry entries, aliases/patterns, bool-as-int, decimal scale, nonfinite values,
+UTF-8 summary/message limits, combined 256-ref bound, and distinct invoke IDs.
+Policy tests prove exact case-sensitive matching, absent ALLOW denial, DENY
+precedence, defaults 50/1, and below/equal/above task-wide counts surviving a
+policy version change.
+
+The supplied-byte loader uses a local 1,048,576-byte ceiling (callers may tighten
+it), 256-entry ceiling, duplicate JSON key rejection and literal canonical-byte
+comparison after normalization. This is a bounded local admission choice; it
+does not add a persistence constraint. Routing checks current phase, explicit
+authority/disclosure/safety results, exact policy/version/harness/registry/intake
+pins, current availability, reference-only entries, and self-modification
+exclusions. The no-I/O test blocks file opening and dynamic module discovery.
+
+### Verification results
+
+Every uv command used `export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`.
+Setup: `uv sync --locked --group dev`, exit 0, exact output:
+
+```text
+Resolved 38 packages in 2ms
+Checked 34 packages in 3ms
+```
+
+Final ordered verification follows. Combined stdout/stderr is copied verbatim;
+raw copies are in ignored `tmp/pr3-03/s3-final-N.txt`. Each pytest run had zero
+failures, errors or skips.
+
+### git diff --check HEAD
+
+Exit: `0`. Exact combined output: empty.
+
+```text
+```
+
+### uv run ruff check .
+
+Exit: `0`. Exact combined output.
+
+```text
+All checks passed!
+```
+
+### uv run ruff format --check .
+
+Exit: `0`. Exact combined output.
+
+```text
+900 files already formatted
+```
+
+### uv run pyright
+
+Exit: `0`. Exact combined output.
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+### uv run alembic heads
+
+Exit: `0`. Exact combined output.
+
+```text
+0080_capability_gateway (head)
+```
+
+### uv run pytest -o addopts='' -ra tests/unit/phase3/test_capability_gateway_contracts.py tests/unit/phase3/test_agent_tool_policy.py tests/unit/phase3/test_capability_routing.py
+
+Exit: `0`. Exact combined output.
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane115
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 138 items
+
+tests/unit/phase3/test_capability_gateway_contracts.py ................. [ 12%]
+.............................................                            [ 44%]
+tests/unit/phase3/test_agent_tool_policy.py ............................ [ 65%]
+......                                                                   [ 69%]
+tests/unit/phase3/test_capability_routing.py ........................... [ 89%]
+...............                                                          [100%]
+
+============================= 138 passed in 0.16s ==============================
+```
+
+### uv run pytest -o addopts='' -ra tests/unit/phase3/test_research_task_contracts.py tests/unit/phase3/test_task_safety_contracts.py tests/unit/phase3/test_agent_version_contracts.py tests/unit/phase3/test_harness_manifest.py
+
+Exit: `0`. Exact combined output.
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane115
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 203 items
+
+tests/unit/phase3/test_research_task_contracts.py ...................... [ 10%]
+....................................................                     [ 36%]
+tests/unit/phase3/test_task_safety_contracts.py ................         [ 44%]
+tests/unit/phase3/test_agent_version_contracts.py ...................... [ 55%]
+........................................................................ [ 90%]
+....                                                                     [ 92%]
+tests/unit/phase3/test_harness_manifest.py ...............               [100%]
+
+============================= 203 passed in 0.14s ==============================
+```
+
+### uv run pytest -o addopts='' -ra tests/unit/phase3/test_capability_gateway_repository.py tests/unit/phase3/test_task_safety_transports.py tests/architecture/test_pr3_04_boundaries.py tests/architecture/test_pr3_02_s1_boundaries.py
+
+Exit: `0`. Exact combined output.
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane115
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 43 items
+
+tests/unit/phase3/test_capability_gateway_repository.py ................ [ 37%]
+.............                                                            [ 67%]
+tests/unit/phase3/test_task_safety_transports.py ..........              [ 90%]
+tests/architecture/test_pr3_04_boundaries.py ..                          [ 95%]
+tests/architecture/test_pr3_02_s1_boundaries.py ..                       [100%]
+
+=============================== warnings summary ===============================
+tests/architecture/test_pr3_02_s1_boundaries.py::test_authorized_head_and_s1_only
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane115/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 43 passed, 1 warning in 1.75s =========================
+```
+
+### Earlier development attempts and limits
+
+Before implementation, `python - <<'PY' ...` exited 127 with
+`zsh:1: command not found: python`; no edits occurred in that attempt.
+The same Step 0 edit script was rerun successfully with python3.
+The first local Ruff fix pass reported three E501 findings, then formatting
+resolved them. The later test-authoring Ruff fix pass reported twelve findings
+(eight fixed and four remaining E501); formatting resolved the remaining four.
+The first development `uv run pyright` reported
+`106 errors, 0 warnings, 0 informations` (exit 1), from inferred heterogeneous
+JSON dictionary types and optional narrowing. Explicit boundary annotations and
+NoReturn narrowing resolved these. One attempted output redirection did not
+execute pyright because the ignored log directory had not yet been created:
+
+```text
+zsh:18: no such file or directory: tmp/pr3-03/s3-pyright-development.txt
+cat: tmp/pr3-03/s3-pyright-development.txt: No such file or directory
+```
+
+After mkdir, development pyright reported one remaining DataclassInstance
+callability error (raw output in `s3-pyright-development.txt`), fixed by an
+explicit cast at the validated class-construction boundary.
+The first ordered gate then passed with 124/124 new tests; after read/result
+validation was expanded, a development focused run passed 138/138.
+The final ordered runs above supersede these attempts. No pytest failure or
+skip occurred. No git/uv lock or sandbox failure occurred.
+
+Final counts: S3 138 collected / 138 passed / 0 failed / 0 skipped;
+old contracts/vectors 203 collected / 203 passed / 0 failed / 0 skipped;
+S2/transport/architecture 43 collected / 43 passed / 0 failed / 0 skipped,
+with the single Alembic path_separator deprecation warning shown above.
+Total across the three final focused runs: 384 passed, 0 failed, 0 skipped.
+
+PostgreSQL suites: NOT RUN in S3. No SQL, migration, database constraint or
+adapter behavior changed; the sole adapter edit is a comment. These pure tests
+do not establish PostgreSQL lock correctness. SQL/Python parity and all new
+gateway PostgreSQL behavior remain reserved for S8. Six-shard/full suite:
+NOT RUN, owned by the external check loop. S4–S8: NOT STARTED by this task;
+overall gate/independent review: PENDING. No commit, push or branch creation.
+Stop after this S3 handoff.
+
+Post-evidence whitespace check: `git diff --check HEAD` initially exited 2:
+
+```text
+docs/phase3/PR3-03-evidence.md:2227: new blank line at EOF.
+```
+
+Removed the extra EOF blank line. Repeated `git diff --check HEAD`: exit 0,
+stdout/stderr empty. Only evidence text changed after the ordered checks above.

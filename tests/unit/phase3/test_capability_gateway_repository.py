@@ -83,7 +83,7 @@ class RecordingSession:
 
 
 def record(name, expected, actual):
-    path = Path("tmp/pr3-03")
+    path = Path(__file__).resolve().parents[3] / "tmp/pr3-03"
     path.mkdir(parents=True, exist_ok=True)
     (path / f"s2-trace-{name}.json").write_text(
         json.dumps({"expected": expected, "actual": actual}, default=str, indent=2) + "\n"
@@ -349,10 +349,6 @@ def test_closed_stored_columns_match_inert_metadata(table, stored):
     assert stored.__required_keys__ == frozenset(mapped.columns.keys())
     for fk in mapped.foreign_key_constraints:
         assert fk.ondelete == "RESTRICT"
-        assert all(
-            foreign_key.target_fullname.endswith(".id") or "." in foreign_key.target_fullname
-            for foreign_key in fk.elements
-        )
     for column in mapped.columns:
         assert column.default is None
 

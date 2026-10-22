@@ -102,6 +102,8 @@ class SqlAlchemyGatewayRepository(SqlAlchemyTaskSafetyRepository):
         self.lock_prefix(project, actor, command, task, after_wait=after_wait)
         if agent_version is not None:
             # Immutable identity lookup is deliberately unlocked; diagnostics follow the keys.
+            # Missing versions have no derivable actor key. Keep the version key;
+            # Application admission must reject absence before relying on these locks.
             version = self._agents.version(agent_version)
             keys = []
             if version is not None:
