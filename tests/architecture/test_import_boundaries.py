@@ -195,6 +195,7 @@ def test_migration_lineage_preserves_phase1_and_adds_authorized_phase2_migration
         "0077_research_task_graph.py",
         "0078_task_safety_policies.py",
         "0079_agent_identity_versions.py",
+        "0080_capability_gateway.py",
     ]
 
 

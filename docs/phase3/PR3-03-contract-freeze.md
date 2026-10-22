@@ -778,7 +778,7 @@ BEGIN
  ELSIF op='finish_capability_invocation' THEN
   SELECT * INTO u FROM budget_usage_records WHERE id=NEW.usage_record_id AND xmin=pg_current_xact_id()::xid;
   IF u.id IS NULL OR ROW(u.research_task_id,u.reservation_id,u.receipt_id,u.created_at,u.outcome,u.is_final)
-   IS DISTINCT FROM ROW(t.id,br.id,r.id,stamp,CASE WHEN NEW.status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.status END,
+   IS DISTINCT FROM ROW(t.id,br.id,r.id,stamp,(CASE WHEN NEW.status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.status END),
     NEW.status<>'UNKNOWN_OUTCOME') THEN
    RAISE EXCEPTION 'fresh finish usage' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
   END IF;
@@ -875,8 +875,8 @@ BEGIN
   SELECT * INTO u FROM budget_usage_records WHERE id=NEW.usage_record_id AND xmin=pg_current_xact_id()::xid;
   IF u.id IS NULL OR ROW(u.research_task_id,u.reservation_id,u.receipt_id,u.created_at,u.outcome,u.is_final)
    IS DISTINCT FROM ROW(i.research_task_id,i.reservation_id,r.id,NEW.occurred_at,
-    CASE WHEN NEW.event_type='RECONCILED' THEN NEW.reconciled_outcome
-     WHEN NEW.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.new_status END,
+    (CASE WHEN NEW.event_type='RECONCILED' THEN NEW.reconciled_outcome
+     WHEN NEW.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.new_status END),
     NEW.event_type='RECONCILED' OR NEW.new_status<>'UNKNOWN_OUTCOME') THEN
    RAISE EXCEPTION 'event usage correspondence' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
   END IF;
@@ -1040,8 +1040,8 @@ INTO hashes FROM envelope env CROSS JOIN capability_set cset;
     OR ROW(e.actor_id,e.occurred_at,e.reason,r.result_capability_event_id,r.result_capability_invocation_id,
        r.result_tool_policy_id,r.resulting_invocation_revision,r.research_task_id,r.project_id)
      IS DISTINCT FROM ROW(r.actor_id,r.completed_at,te.reason,e.id,i.id,i.policy_id,e.invocation_row_version,t.id,t.project_id)
-    OR r.command_name IS DISTINCT FROM CASE e.event_type WHEN 'REQUESTED' THEN 'request_capability_invocation'
-     WHEN 'STARTED' THEN 'start_capability_invocation' ELSE 'finish_capability_invocation' END THEN
+    OR r.command_name IS DISTINCT FROM (CASE e.event_type WHEN 'REQUESTED' THEN 'request_capability_invocation'
+     WHEN 'STARTED' THEN 'start_capability_invocation' ELSE 'finish_capability_invocation' END) THEN
     RAISE EXCEPTION 'gapless attributable event history' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
    END IF;
    IF e.sequence<=i.row_version AND (
@@ -1060,8 +1060,8 @@ INTO hashes FROM envelope env CROSS JOIN capability_set cset;
     IF u.id IS NULL OR ROW(u.research_task_id,u.reservation_id,u.receipt_id,u.created_at,u.is_final,u.outcome)
      IS DISTINCT FROM ROW(t.id,i.reservation_id,r.id,e.occurred_at,
       e.event_type='RECONCILED' OR e.new_status<>'UNKNOWN_OUTCOME',
-      CASE WHEN e.event_type='RECONCILED' THEN e.reconciled_outcome
-       WHEN e.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE e.new_status END) THEN
+      (CASE WHEN e.event_type='RECONCILED' THEN e.reconciled_outcome
+       WHEN e.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE e.new_status END)) THEN
      RAISE EXCEPTION 'one exact charge per observation' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
     END IF;
     IF u.outcome<>'UNKNOWN' AND (u.wall_time_seconds<>0 OR u.gpu_hours<>0 OR u.token_cost<>0) THEN
@@ -1070,8 +1070,8 @@ INTO hashes FROM envelope env CROSS JOIN capability_set cset;
    END IF;
    prev:=e;
   END LOOP;
-  IF n<>i.row_version+CASE WHEN EXISTS(SELECT 1 FROM capability_invocation_events
-    WHERE invocation_id=i.id AND sequence=4 AND event_type='RECONCILED') THEN 1 ELSE 0 END
+  IF n<>i.row_version+(CASE WHEN EXISTS(SELECT 1 FROM capability_invocation_events
+    WHERE invocation_id=i.id AND sequence=4 AND event_type='RECONCILED') THEN 1 ELSE 0 END)
    OR (SELECT count(*) FROM budget_usage_records WHERE reservation_id=i.reservation_id)<>
       (SELECT count(*) FROM capability_invocation_events WHERE invocation_id=i.id AND usage_record_id IS NOT NULL) THEN
    RAISE EXCEPTION 'missing event or extra charge' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
@@ -1315,7 +1315,7 @@ BEGIN
    THEN RAISE EXCEPTION 'invalid gauges' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
    IF (r.code_iterations>0 OR r.experiment_runs>0 OR r.tree_nodes>0) AND term.score_metric_version_id IS NULL
    THEN RAISE EXCEPTION 'comparable evaluator required' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
-   IF EXISTS(SELECT 1 FROM unnest(c.required_types || ARRAY['plan_review']::text[] || CASE WHEN r.code_iterations>0 THEN ARRAY['code_risk'] ELSE ARRAY[]::text[] END || CASE WHEN r.experiment_runs>0 THEN ARRAY['experiment_approval'] ELSE ARRAY[]::text[] END) gate
+   IF EXISTS(SELECT 1 FROM unnest(c.required_types || ARRAY['plan_review']::text[] || (CASE WHEN r.code_iterations>0 THEN ARRAY['code_risk'] ELSE ARRAY[]::text[] END) || (CASE WHEN r.experiment_runs>0 THEN ARRAY['experiment_approval'] ELSE ARRAY[]::text[] END)) gate
     WHERE NOT EXISTS(SELECT 1 FROM human_checkpoints h JOIN research_task_command_receipts hr ON hr.id=h.response_receipt_id
      WHERE h.id=(SELECT hh.id FROM human_checkpoints hh JOIN research_task_command_receipts qr ON qr.id=hh.receipt_id
        WHERE hh.research_task_id=p_task AND hh.step_id IS NOT DISTINCT FROM r.step_id AND hh.checkpoint_type=gate AND qr.resulting_row_version<history.resulting_row_version
@@ -1462,7 +1462,7 @@ BEGIN
    AND se.actor_id=r.actor_id AND (l.receipt_id IS DISTINCT FROM r.id OR
      se.task_row_version<>r.resulting_row_version OR se.occurred_at IS DISTINCT FROM e.occurred_at
      OR se.reason IS DISTINCT FROM e.reason OR
-     se.event_type IS DISTINCT FROM CASE WHEN mapped='CANCELLED' THEN 'CANCELLED' ELSE 'PLANNED' END))
+     se.event_type IS DISTINCT FROM (CASE WHEN mapped='CANCELLED' THEN 'CANCELLED' ELSE 'PLANNED' END)))
  THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
  SELECT count(*) INTO actual FROM research_task_receipt_step_events WHERE receipt_id=r.id;
  expected:=CASE WHEN mapped='PLAN_CREATED' THEN (SELECT count(*) FROM research_task_steps WHERE research_task_id=r.research_task_id)
@@ -1533,11 +1533,11 @@ BEGIN
   RAISE EXCEPTION 'task event result pointers' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
  END IF;
  IF (SELECT count(*) FROM agent_tool_policies WHERE receipt_id=r.id)<>
-    CASE WHEN r.command_name='register_agent_tool_policy' THEN 1 ELSE 0 END
+    (CASE WHEN r.command_name='register_agent_tool_policy' THEN 1 ELSE 0 END)
   OR (SELECT count(*) FROM capability_invocations WHERE request_receipt_id=r.id)<>
-    CASE WHEN r.command_name='request_capability_invocation' THEN 1 ELSE 0 END
+    (CASE WHEN r.command_name='request_capability_invocation' THEN 1 ELSE 0 END)
   OR (SELECT count(*) FROM capability_invocation_events WHERE receipt_id=r.id)<>
-    CASE WHEN r.command_name IN ('request_capability_invocation','start_capability_invocation','finish_capability_invocation') THEN 1 ELSE 0 END THEN
+    (CASE WHEN r.command_name IN ('request_capability_invocation','start_capability_invocation','finish_capability_invocation') THEN 1 ELSE 0 END) THEN
   RAISE EXCEPTION 'gateway result cardinality' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
  END IF;
  IF NOT gateway THEN
@@ -1583,15 +1583,15 @@ BEGIN
      ce.invocation_id,ce.receipt_id,ce.invocation_row_version,ce.actor_id,ce.occurred_at,ce.reason)
     IS DISTINCT FROM ROW(r.result_tool_policy_id,r.research_task_id,r.project_id,
      ci.id,r.id,r.resulting_invocation_revision,r.actor_id,r.completed_at,e.reason)
-    OR ce.event_type IS DISTINCT FROM CASE r.command_name WHEN 'request_capability_invocation' THEN 'REQUESTED'
-     WHEN 'start_capability_invocation' THEN 'STARTED' ELSE ce.event_type END
+    OR ce.event_type IS DISTINCT FROM (CASE r.command_name WHEN 'request_capability_invocation' THEN 'REQUESTED'
+     WHEN 'start_capability_invocation' THEN 'STARTED' ELSE ce.event_type END)
     OR (r.command_name='finish_capability_invocation' AND ce.event_type NOT IN ('FINISHED','RECONCILED')) THEN
     RAISE EXCEPTION 'saved gateway result' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
    END IF;
    IF r.command_name='start_capability_invocation' AND EXISTS(SELECT 1 FROM capability_invocation_refs WHERE receipt_id=r.id)
     OR EXISTS(SELECT 1 FROM capability_invocation_refs ref WHERE ref.receipt_id=r.id AND
       (ref.invocation_id<>ci.id OR ref.direction IS DISTINCT FROM
-       CASE WHEN r.command_name='request_capability_invocation' THEN 'INPUT' ELSE 'OUTPUT' END)) THEN
+       (CASE WHEN r.command_name='request_capability_invocation' THEN 'INPUT' ELSE 'OUTPUT' END))) THEN
     RAISE EXCEPTION 'extra gateway reference effect' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
    END IF;
    IF EXISTS(SELECT 1 FROM budget_reservations br WHERE br.receipt_id=r.id AND
@@ -3139,3 +3139,245 @@ sed -n '/^## /p' docs/phase3/PR3-03-contract-freeze.md
 §1 retains all exclusions and the complete ACCEPTED-AS-RECOMMENDED owner
 decision table dated 2026-10-22; §9.1 retains the full test matrix and gate
 commands. §12 is the final top-level section.
+
+## 13. Amendment A1 (owner-approved 2026-10-22)
+Syntax-only parenthesisation of CASE expressions in IF/ELSIF/WHILE conditions.
+Original pack line numbers below refer to the pre-amendment text.
+
+- §4.4, `pr303_invocation_guard`, original line 781:
+
+Before:
+
+```sql
+   IS DISTINCT FROM ROW(t.id,br.id,r.id,stamp,CASE WHEN NEW.status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.status END,
+```
+
+After:
+
+```sql
+   IS DISTINCT FROM ROW(t.id,br.id,r.id,stamp,(CASE WHEN NEW.status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.status END),
+```
+
+- §4.4, `pr303_event_insert_guard`, original line 878:
+
+Before:
+
+```sql
+    CASE WHEN NEW.event_type='RECONCILED' THEN NEW.reconciled_outcome
+```
+
+After:
+
+```sql
+    (CASE WHEN NEW.event_type='RECONCILED' THEN NEW.reconciled_outcome
+```
+
+- §4.4, `pr303_event_insert_guard`, original line 879:
+
+Before:
+
+```sql
+     WHEN NEW.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.new_status END,
+```
+
+After:
+
+```sql
+     WHEN NEW.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.new_status END),
+```
+
+- §4.4, `pr303_validate_gateway`, original line 1043:
+
+Before:
+
+```sql
+    OR r.command_name IS DISTINCT FROM CASE e.event_type WHEN 'REQUESTED' THEN 'request_capability_invocation'
+```
+
+After:
+
+```sql
+    OR r.command_name IS DISTINCT FROM (CASE e.event_type WHEN 'REQUESTED' THEN 'request_capability_invocation'
+```
+
+- §4.4, `pr303_validate_gateway`, original line 1044:
+
+Before:
+
+```sql
+     WHEN 'STARTED' THEN 'start_capability_invocation' ELSE 'finish_capability_invocation' END THEN
+```
+
+After:
+
+```sql
+     WHEN 'STARTED' THEN 'start_capability_invocation' ELSE 'finish_capability_invocation' END) THEN
+```
+
+- §4.4, `pr303_validate_gateway`, original line 1063:
+
+Before:
+
+```sql
+      CASE WHEN e.event_type='RECONCILED' THEN e.reconciled_outcome
+```
+
+After:
+
+```sql
+      (CASE WHEN e.event_type='RECONCILED' THEN e.reconciled_outcome
+```
+
+- §4.4, `pr303_validate_gateway`, original line 1064:
+
+Before:
+
+```sql
+       WHEN e.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE e.new_status END) THEN
+```
+
+After:
+
+```sql
+       WHEN e.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE e.new_status END)) THEN
+```
+
+- §4.4, `pr303_validate_gateway`, original line 1073:
+
+Before:
+
+```sql
+  IF n<>i.row_version+CASE WHEN EXISTS(SELECT 1 FROM capability_invocation_events
+```
+
+After:
+
+```sql
+  IF n<>i.row_version+(CASE WHEN EXISTS(SELECT 1 FROM capability_invocation_events
+```
+
+- §4.4, `pr303_validate_gateway`, original line 1074:
+
+Before:
+
+```sql
+    WHERE invocation_id=i.id AND sequence=4 AND event_type='RECONCILED') THEN 1 ELSE 0 END
+```
+
+After:
+
+```sql
+    WHERE invocation_id=i.id AND sequence=4 AND event_type='RECONCILED') THEN 1 ELSE 0 END)
+```
+
+- §4.5, `pr304_validate_safety`, original line 1318:
+
+Before:
+
+```sql
+   IF EXISTS(SELECT 1 FROM unnest(c.required_types || ARRAY['plan_review']::text[] || CASE WHEN r.code_iterations>0 THEN ARRAY['code_risk'] ELSE ARRAY[]::text[] END || CASE WHEN r.experiment_runs>0 THEN ARRAY['experiment_approval'] ELSE ARRAY[]::text[] END) gate
+```
+
+After:
+
+```sql
+   IF EXISTS(SELECT 1 FROM unnest(c.required_types || ARRAY['plan_review']::text[] || (CASE WHEN r.code_iterations>0 THEN ARRAY['code_risk'] ELSE ARRAY[]::text[] END) || (CASE WHEN r.experiment_runs>0 THEN ARRAY['experiment_approval'] ELSE ARRAY[]::text[] END)) gate
+```
+
+- §4.5, `pr301_receipt_complete`, original line 1465:
+
+Before:
+
+```sql
+     se.event_type IS DISTINCT FROM CASE WHEN mapped='CANCELLED' THEN 'CANCELLED' ELSE 'PLANNED' END))
+```
+
+After:
+
+```sql
+     se.event_type IS DISTINCT FROM (CASE WHEN mapped='CANCELLED' THEN 'CANCELLED' ELSE 'PLANNED' END)))
+```
+
+- §4.5, `pr301_receipt_complete`, original line 1536:
+
+Before:
+
+```sql
+    CASE WHEN r.command_name='register_agent_tool_policy' THEN 1 ELSE 0 END
+```
+
+After:
+
+```sql
+    (CASE WHEN r.command_name='register_agent_tool_policy' THEN 1 ELSE 0 END)
+```
+
+- §4.5, `pr301_receipt_complete`, original line 1538:
+
+Before:
+
+```sql
+    CASE WHEN r.command_name='request_capability_invocation' THEN 1 ELSE 0 END
+```
+
+After:
+
+```sql
+    (CASE WHEN r.command_name='request_capability_invocation' THEN 1 ELSE 0 END)
+```
+
+- §4.5, `pr301_receipt_complete`, original line 1540:
+
+Before:
+
+```sql
+    CASE WHEN r.command_name IN ('request_capability_invocation','start_capability_invocation','finish_capability_invocation') THEN 1 ELSE 0 END THEN
+```
+
+After:
+
+```sql
+    (CASE WHEN r.command_name IN ('request_capability_invocation','start_capability_invocation','finish_capability_invocation') THEN 1 ELSE 0 END) THEN
+```
+
+- §4.5, `pr301_receipt_complete`, original line 1586:
+
+Before:
+
+```sql
+    OR ce.event_type IS DISTINCT FROM CASE r.command_name WHEN 'request_capability_invocation' THEN 'REQUESTED'
+```
+
+After:
+
+```sql
+    OR ce.event_type IS DISTINCT FROM (CASE r.command_name WHEN 'request_capability_invocation' THEN 'REQUESTED'
+```
+
+- §4.5, `pr301_receipt_complete`, original line 1587:
+
+Before:
+
+```sql
+     WHEN 'start_capability_invocation' THEN 'STARTED' ELSE ce.event_type END
+```
+
+After:
+
+```sql
+     WHEN 'start_capability_invocation' THEN 'STARTED' ELSE ce.event_type END)
+```
+
+- §4.5, `pr301_receipt_complete`, original line 1594:
+
+Before:
+
+```sql
+       CASE WHEN r.command_name='request_capability_invocation' THEN 'INPUT' ELSE 'OUTPUT' END)) THEN
+```
+
+After:
+
+```sql
+       (CASE WHEN r.command_name='request_capability_invocation' THEN 'INPUT' ELSE 'OUTPUT' END))) THEN
+```

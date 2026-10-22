@@ -52,10 +52,8 @@ def test_empty_upgrade_and_refusal(monkeypatch):
                     .scalars()
                     .all()
                 )
-            command.upgrade(config, "head")
-            assert ScriptDirectory.from_config(config).get_heads() == [
-                "0079_agent_identity_versions"
-            ]
+            command.upgrade(config, "0079_agent_identity_versions")
+            assert ScriptDirectory.from_config(config).get_heads() == ["0080_capability_gateway"]
             with pytest.raises(RuntimeError, match="forward-only"):
                 command.downgrade(config, "0078_task_safety_policies")
             with engine.connect() as conn:
