@@ -264,6 +264,14 @@ def _normalize_database_error(
 def _decision_database_error(exc: DBAPIError) -> ResearchBaseError:
     """PR2-15 opt-in classification from driver codes, never raw diagnostics."""
     state = getattr(exc.orig, "sqlstate", None)
+    if state == "55P03":
+        # Preserve the generic Decision classification for other command surfaces.
+        # The opted-in writers distinguish receipt recovery from mutation retries.
+        return ResearchBaseError(
+            ErrorCode.INVALID_STATE_TRANSITION,
+            "decision lock timeout",
+            {"reload_governance_receipt": True},
+        )
     codes = {
         "P17R1": ErrorCode.INVALID_STATE_TRANSITION,
         "P17F1": ErrorCode.IMMUTABLE_RECORD,

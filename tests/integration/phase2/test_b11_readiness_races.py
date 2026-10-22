@@ -208,6 +208,14 @@ def test_only_sqlstate_retry_and_three_fresh_uows(b05_env, monkeypatch, state, a
     seal(env)
     create(env)
     count = []
+    recovery_reads = []
+    original_read = SqlAlchemyDecisionRepository.prepare_readiness_read
+
+    def read_receipt(self):
+        original_read(self)
+        recovery_reads.append(self._session)
+        assert self._session.execute(text("SHOW transaction_read_only")).scalar_one() == "on"
+
     original = SqlAlchemyDecisionRepository.prepare_readiness_write
 
     def fail(self):
@@ -216,12 +224,16 @@ def test_only_sqlstate_retry_and_three_fresh_uows(b05_env, monkeypatch, state, a
         raise DBAPIError(None, None, cast(Any, SimpleNamespace(sqlstate=state, diag=None)))
 
     monkeypatch.setattr(SqlAlchemyDecisionRepository, "prepare_readiness_write", fail)
+    monkeypatch.setattr(SqlAlchemyDecisionRepository, "prepare_readiness_read", read_receipt)
     with pytest.raises(ResearchBaseError) as exc:
         record(env)
     assert len(count) == attempts and len({id(s) for s in count}) == attempts
+    assert len(recovery_reads) == (1 if state == "55P03" else 0)
+    assert all(reader is not writer for reader in recovery_reads for writer in count)
+    assert exc.value.details is None
     assert exc.value.code == (
         ErrorCode.CONCURRENT_MODIFICATION
-        if attempts == 3
+        if attempts == 3 or state == "55P03"
         else ErrorCode.IDEMPOTENCY_CONFLICT
         if state == "P17F3"
         else ErrorCode.INVALID_STATE_TRANSITION

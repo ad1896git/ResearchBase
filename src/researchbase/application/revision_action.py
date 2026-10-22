@@ -1116,12 +1116,20 @@ class RevisionActionService:
             try:
                 return self._record_once(principal, command)
             except ResearchBaseError as error:
+                if (error.details or {}).get("reload_governance_receipt"):
+                    # The failed UoW has rolled back; never retry this mutation.
+                    saved = self._saved_revision_action(principal, command)
+                    if saved is not None:
+                        return saved
+                    raise ResearchBaseError(
+                        ErrorCode.CONCURRENT_MODIFICATION, error.message
+                    ) from None
                 if error.code is ErrorCode.CONCURRENT_MODIFICATION and attempt < 2:
                     continue
                 raise ResearchBaseError(error.code, error.message) from None
         raise AssertionError("unreachable revision retry")
 
-    def _record_once(self, principal, command):
+    def _saved_revision_action(self, principal, command):
         try:
             saved = self.read_revision_action(principal, command.project_id, command.id)
         except ResearchBaseError as error:
@@ -1134,6 +1142,12 @@ class RevisionActionService:
                 getattr(saved, f.name) != getattr(command, f.name) for f in fields(command)
             ):
                 _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "revision request material conflicts")
+            return saved
+        return None
+
+    def _record_once(self, principal, command):
+        saved = self._saved_revision_action(principal, command)
+        if saved is not None:
             return saved
         with self._factory() as uow:
             uow.enable_decision_error_normalization()
@@ -1406,6 +1420,14 @@ class RevisionActionService:
             try:
                 return self._record_correspondence_once(principal, command, novelty=novelty)
             except ResearchBaseError as error:
+                if not novelty and (error.details or {}).get("reload_governance_receipt"):
+                    # The failed UoW has rolled back; never retry this mutation.
+                    saved = self._saved_legacy_correspondence(principal, command)
+                    if saved is not None:
+                        return saved
+                    raise ResearchBaseError(
+                        ErrorCode.CONCURRENT_MODIFICATION, error.message
+                    ) from None
                 if (
                     error.code is ErrorCode.IDEMPOTENCY_CONFLICT
                     and error.message == "reload concern correspondence"
@@ -1428,11 +1450,17 @@ class RevisionActionService:
             return self._record_novelty_link_once(principal, command)
         return self._record_legacy_correspondence_once(principal, command)
 
-    def _record_legacy_correspondence_once(self, principal, command):
+    def _saved_legacy_correspondence(self, principal, command):
         prior = self._read_concern_re_review(principal, command)
         if prior is not None:
             if prior.recorded_by != principal.actor_id:
                 _fail(ErrorCode.FORBIDDEN, "correspondence unavailable")
+            return prior
+        return None
+
+    def _record_legacy_correspondence_once(self, principal, command):
+        prior = self._saved_legacy_correspondence(principal, command)
+        if prior is not None:
             return prior
         with self._factory() as uow:
             uow.enable_decision_error_normalization()

@@ -164,9 +164,11 @@ def test_b08_lock_timeout_requests_read_only_receipt_recovery_only():
     assert result.code == ErrorCode.CONCURRENT_MODIFICATION
     assert result.details == {"reload_b08_receipt": True}
     assert "SYNTHETIC_SECRET" not in result.message
-    # Other Decision writers retain their own accepted error/retry policies.
+    # Generic classification stays compatible; only the scoped writers consume
+    # the read-only recovery marker, which is never mutation-retry eligibility.
     assert _decision_database_error(failure).code == ErrorCode.INVALID_STATE_TRANSITION
-    assert _decision_database_error(failure).details is None
+    assert _decision_database_error(failure).details == {"reload_governance_receipt": True}
+    assert "SYNTHETIC_SECRET" not in _decision_database_error(failure).message
 
 
 @pytest.mark.parametrize("retryable,expected_attempts", [(True, 3), (False, 1)])

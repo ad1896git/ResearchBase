@@ -513,12 +513,20 @@ class DecisionService:
             try:
                 return self._record_revision_once(principal, command)
             except ResearchBaseError as error:
+                if (error.details or {}).get("reload_governance_receipt"):
+                    # The failed UoW has rolled back; never retry this mutation.
+                    saved = self._saved_revision_decision(principal, command)
+                    if saved is not None:
+                        return saved
+                    raise ResearchBaseError(
+                        ErrorCode.CONCURRENT_MODIFICATION, error.message
+                    ) from None
                 if error.code is ErrorCode.CONCURRENT_MODIFICATION and attempt < 2:
                     continue
                 raise ResearchBaseError(error.code, error.message) from None
         raise AssertionError("unreachable revision Decision retry")
 
-    def _record_revision_once(self, principal, command):
+    def _saved_revision_decision(self, principal, command):
         try:
             saved = self.get_revision_decision(principal, command.project_id, command.id)
         except ResearchBaseError as error:
@@ -532,6 +540,12 @@ class DecisionService:
                 for k in ("review_issue_id", "question", "rationale", "decision", "decision_type")
             ):
                 _fail(ErrorCode.IDEMPOTENCY_CONFLICT, "Decision request material conflicts")
+            return saved
+        return None
+
+    def _record_revision_once(self, principal, command):
+        saved = self._saved_revision_decision(principal, command)
+        if saved is not None:
             return saved
         with self._factory() as uow:
             uow.enable_decision_error_normalization()
@@ -851,18 +865,31 @@ class DecisionService:
             try:
                 return self._record_readiness_once(principal, command)
             except ResearchBaseError as error:
+                if (error.details or {}).get("reload_governance_receipt"):
+                    # The failed UoW has rolled back; never retry this mutation.
+                    saved = self._saved_readiness_decision(principal, command)
+                    if saved is not None:
+                        return saved
+                    raise ResearchBaseError(
+                        ErrorCode.CONCURRENT_MODIFICATION, error.message
+                    ) from None
                 if (
                     error.code is ErrorCode.IDEMPOTENCY_CONFLICT
                     and error.details
                     and error.details.get("reload_decision") is True
                 ):
-                    return self._recover_readiness_collision(principal, command)
+                    saved = self._recover_readiness_collision(principal, command)
+                    assert saved is not None  # PK recovery requires a persisted row.
+                    return saved
                 if error.code is ErrorCode.CONCURRENT_MODIFICATION and attempt < 2:
                     continue
                 raise ResearchBaseError(error.code, error.message) from None
         raise AssertionError("unreachable readiness retry")
 
-    def _recover_readiness_collision(self, principal, command):
+    def _saved_readiness_decision(self, principal, command):
+        return self._recover_readiness_collision(principal, command, allow_absent=True)
+
+    def _recover_readiness_collision(self, principal, command, *, allow_absent=False):
         # A named PK collision is never a successful replay by itself. The failed
         # UoW has exited/rolled back before this exact protected history comparison.
         with self._factory() as uow:
@@ -872,6 +899,9 @@ class DecisionService:
             uow.enable_revision_action_snapshot_reads()
             self._readiness_authorize(uow, principal, command.project_id, _READERS)
             row = uow.decision.decision(command.id, command.project_id)
+            if row is None and allow_absent and not uow.decision.decision_exists(command.id):
+                self._readiness_authorize(uow, principal, command.project_id, _READERS)
+                return None
             if row is None or row["decided_by"] != principal.actor_id:
                 _fail(ErrorCode.FORBIDDEN, "Decision unavailable")
             if row["decision_type"] != "READY_FOR_SUBMISSION":
