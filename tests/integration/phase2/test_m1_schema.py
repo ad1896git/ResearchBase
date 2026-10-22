@@ -46,7 +46,7 @@ def test_m1_upgrade_downgrade_catalog_preserves_predecessor_functions(b05_env):
         tables = conn.execute(
             text("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
         ).all()
-    command.upgrade(c, "head")
+    command.upgrade(c, "0075_m1_reconsideration")
     with engine.connect() as conn:
         assert (
             conn.execute(
@@ -81,7 +81,7 @@ def test_m1_upgrade_downgrade_catalog_preserves_predecessor_functions(b05_env):
             ).all()
         )
         assert before == after
-    command.upgrade(c, "head")
+    command.upgrade(c, "0075_m1_reconsideration")
 
 
 def test_upgraded_revision_validator_executes_and_rejects_empty_basis(b05_env):
@@ -180,7 +180,7 @@ def test_m1_upgrade_duplicate_draft_preflight_does_not_delete(b05_env):
             {"id": uuid4(), "original": env[1].manuscript_version_id},
         )
     with pytest.raises(DBAPIError) as caught:
-        command.upgrade(c, "head")
+        command.upgrade(c, "0075_m1_reconsideration")
     assert getattr(caught.value.orig, "sqlstate", None) == "P17F2"
     assert "duplicate drafts" in getattr(
         getattr(caught.value.orig, "diag", None), "message_primary", ""

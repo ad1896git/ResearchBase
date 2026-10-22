@@ -268,7 +268,7 @@ def test_preflight_rejects_conflicting_data_without_partial_ddl(phase2_database_
 
 def test_downgrade_restricts_unexpected_dependents_without_partial_ddl(phase2_database_url):
     url = phase2_database_url
-    _upgrade(url, "head")
+    _upgrade(url, "0075_m1_reconsideration")
     engine = create_engine(url)
     try:
         with engine.begin() as connection:

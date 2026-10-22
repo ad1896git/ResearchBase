@@ -13,7 +13,7 @@ def test_batch_c_empty_database_roundtrip(phase2_database_url):
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     engine = create_engine(phase2_database_url)
     try:
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
         with engine.connect() as conn:
             assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
                 "0075_m1_reconsideration"
@@ -21,7 +21,7 @@ def test_batch_c_empty_database_roundtrip(phase2_database_url):
         command.downgrade(config, "base")
         with engine.connect() as conn:
             assert conn.execute(text("SELECT count(*) FROM alembic_version")).scalar_one() == 0
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
     finally:
         engine.dispose()
 

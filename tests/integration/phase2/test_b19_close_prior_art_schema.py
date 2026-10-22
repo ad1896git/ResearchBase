@@ -45,7 +45,7 @@ def test_empty_downgrade_restores_exact_parent_catalog(phase2_database_url):
             return tuple(tuple(conn.execute(text(query)).all()) for query in queries)
 
     before = catalog()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     command.downgrade(cfg, PARENT)
     try:
         assert catalog() == before
@@ -135,7 +135,7 @@ def test_populated_v1_upgrade_preserves_hash_and_v2_refuses_downgrade(
     cfg = config(phase2_database_url)
     command.downgrade(cfg, "0067_b17_prepared_package_freeze")
     coverage = legacy_coverage(e)
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     c, _, _, _ = setup(e, coverage=coverage)
     v1 = record(
         e,
@@ -149,7 +149,7 @@ def test_populated_v1_upgrade_preserves_hash_and_v2_refuses_downgrade(
     )
     cfg = config(phase2_database_url)
     command.downgrade(cfg, PARENT)
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     assert (
         record(
             e,
@@ -376,7 +376,7 @@ def test_preflight_refuses_broken_v1_capture_closure(novelty_env, phase2_databas
     cfg = config(phase2_database_url)
     command.downgrade(cfg, "0067_b17_prepared_package_freeze")
     coverage = legacy_coverage(e)
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     c, _, _, _ = setup(e, coverage=coverage)
     record(
         e,
@@ -399,6 +399,6 @@ def test_preflight_refuses_broken_v1_capture_closure(novelty_env, phase2_databas
         )
         conn.execute(text("ALTER TABLE search_coverage_executions ENABLE TRIGGER USER"))
     with pytest.raises(DBAPIError, match="unresolved existing immutable assessment closure"):
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0075_m1_reconsideration")
     with e["engine"].connect() as conn:
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == PARENT

@@ -8,7 +8,6 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 
@@ -29,7 +28,7 @@ REVISION = "0041_pr2_15_review_coordination"
 def coordination_env(conclusion_env, phase2_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     service, _, reviewer, project, version, engine = _frozen_conclusion(conclusion_env)
     review = service.create(
         reviewer,
@@ -171,7 +170,7 @@ def test_history_stays_immutable(coordination_env, table, operation):
 
 def test_catalog_and_downgrade_refuses_to_remove_history_guarantees(coordination_env):
     config, engine, _, review, _ = coordination_env
-    installed_head = ScriptDirectory.from_config(config).get_current_head()
+    installed_head = "0075_m1_reconsideration"
     with engine.connect() as conn:
         before = conn.execute(
             text("SELECT * FROM internal_review_records WHERE id=:id"), {"id": review.id}

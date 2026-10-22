@@ -47,7 +47,7 @@ def test_catalog_and_empty_roundtrip(novelty_env):
         )
     config = Config("alembic.ini")
     command.downgrade(config, "0068_b21_unresolved_capture")
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     with e["engine"].connect() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
@@ -458,7 +458,7 @@ def test_populated_v1_upgrade_preserves_hashes_and_children(novelty_env):
             text("SELECT * FROM review_issue_events WHERE issue_id=:id"),
             {"id": review.issues[0].id},
         ).all()
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     with e["engine"].connect() as conn:
         after = dict(
             conn.execute(
@@ -554,11 +554,11 @@ def test_pinned_guard_definitions_restore_byte_for_byte(novelty_env):
     assert before_triggers == expected_triggers
     assert set(before_checks) == {"ck_pr214_one_target", "revision_action_shape"}
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     assert functions() == {
         name: definition.encode("utf-8") for name, definition in dispatch.items()
     }
     command.downgrade(config, "0068_b21_unresolved_capture")
     assert functions() == expected_legacy
     assert triggers_and_checks() == (before_triggers, before_checks)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")

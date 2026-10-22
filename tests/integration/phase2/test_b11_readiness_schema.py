@@ -82,7 +82,7 @@ def test_catalog_and_empty_downgrade(b05_env):
         ).one()
         assert trigger == (True, True)
     alembic.downgrade(config(env), "0053_b08_issue_disposition")
-    alembic.upgrade(config(env), "head")
+    alembic.upgrade(config(env), "0075_m1_reconsideration")
 
 
 def test_populated_readiness_refuses_downgrade_preserving_every_byte(b05_env):
@@ -237,7 +237,7 @@ def test_populated_release_upgrade_and_permissible_downgrade_preserve_history(de
     assert history() == before
     alembic.downgrade(c, "0053_b08_issue_disposition")
     assert history() == before
-    alembic.upgrade(c, "head")
+    alembic.upgrade(c, "0075_m1_reconsideration")
     assert env[0].record_decision(env[2], request).content_hash == saved.content_hash
 
 
@@ -280,7 +280,7 @@ def test_downgrade_restores_live_0053_function_definitions(phase2_database_url):
         assert definitions() == before
         alembic.upgrade(c, "0054_b11_ready_for_submission")
         assert definitions() == upgraded
-        alembic.upgrade(c, "head")
+        alembic.upgrade(c, "0075_m1_reconsideration")
         integrated = definitions()
         assert all(
             row.proconfig == ["search_path=pg_catalog, public, pg_temp"] for row in integrated
@@ -291,7 +291,7 @@ def test_downgrade_restores_live_0053_function_definitions(phase2_database_url):
             assert "RECONSIDER_REJECTION" in row[1]
         alembic.downgrade(c, "0053_b08_issue_disposition")
         assert definitions() == before
-        alembic.upgrade(c, "head")
+        alembic.upgrade(c, "0075_m1_reconsideration")
         assert definitions() == integrated
     finally:
         engine.dispose()

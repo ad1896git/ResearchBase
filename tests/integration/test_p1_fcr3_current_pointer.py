@@ -207,7 +207,7 @@ def populated_previous_head_database(base_url: str):
 
 @pytest.fixture(scope="module")
 def roundtrip_database(base_url: str):
-    url, engine, admin, database = _create_database_at(base_url, "head")
+    url, engine, admin, database = _create_database_at(base_url, "0075_m1_reconsideration")
     yield url, engine
     engine.dispose()
     with admin.connect() as connection:

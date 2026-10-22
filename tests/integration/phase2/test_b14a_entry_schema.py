@@ -87,7 +87,7 @@ def test_fresh_upgrade_catalog_and_empty_downgrade(start, monkeypatch):
         engine = create_engine(url)
         with engine.connect() as conn:
             predecessor = catalog_inventory(conn)
-        alembic.upgrade(cfg, "head")
+        alembic.upgrade(cfg, "0075_m1_reconsideration")
         with engine.connect() as conn:
             extension = catalog_inventory(conn)
             # The lane replaces distinct functions. Retain B15/B16 definitions,
@@ -156,7 +156,7 @@ def test_fresh_upgrade_catalog_and_empty_downgrade(start, monkeypatch):
                 conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
                 == "0061_b16_consent_withdrawal"
             )
-        alembic.upgrade(cfg, "head")
+        alembic.upgrade(cfg, "0075_m1_reconsideration")
         with engine.connect() as conn:
             assert catalog_inventory(conn) == extension
         engine.dispose()
@@ -168,7 +168,7 @@ def test_populated_creation_and_b04_seal_survive_forward_roundtrip(b05_env):
     cfg = config(env[5].url.render_as_string(hide_password=False))
     before = counts(env)
     alembic.downgrade(cfg, "0061_b16_consent_withdrawal")
-    alembic.upgrade(cfg, "head")
+    alembic.upgrade(cfg, "0075_m1_reconsideration")
     assert counts(env) == before
     enter(env)
     saved = counts(env)
@@ -327,7 +327,7 @@ def test_corrupt_legacy_history_aborts_forward_upgrade_without_repair(b05_env):
             dict(id=damaged, project=env[1].project_id, actor=env[2].actor_id),
         )
     with pytest.raises(DBAPIError) as error:
-        alembic.upgrade(cfg, "head")
+        alembic.upgrade(cfg, "0075_m1_reconsideration")
     assert getattr(error.value.orig, "sqlstate", None) == "P14P1"
     with env[5].connect() as conn:
         assert (

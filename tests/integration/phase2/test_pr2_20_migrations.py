@@ -22,6 +22,8 @@ from tests.integration.phase2.test_pr2_15_decision import _command, _review
 from tests.integration.phase2.test_pr2_17_authorship import authorship_env, authorship_url
 from tests.integration.phase2.test_revision_action import revision_env
 
+PHASE2_HEAD = "0075_m1_reconsideration"
+
 conclusion_env = s.conclusion_env
 phase2_database_url = s.phase2_database_url
 decision_env = s.decision_env
@@ -35,23 +37,23 @@ def test_empty_install_noop_reconnect_and_permitted_empty_round_trip(start, monk
         monkeypatch.setenv("DATABASE_URL", url)
         if start != "base":
             s.upgrade(url, start)
-        s.upgrade(url)
+        s.upgrade(url, PHASE2_HEAD)
         engine = create_engine(url)
         try:
             version = s.require_pg18(engine)
             before = s.catalog(engine)
-            s.upgrade(url)
+            s.upgrade(url, PHASE2_HEAD)
             assert s.catalog(engine) == before
             engine.dispose()
             with engine.connect() as conn:
                 assert (
                     conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                    == scripts[-1]["revision"]
+                    == PHASE2_HEAD
                 )
             config = Config("alembic.ini")
             config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
             command.downgrade(config, "0041_pr2_15_review_coordination")
-            s.upgrade(url)
+            s.upgrade(url, PHASE2_HEAD)
             assert s.catalog(engine) == before
             s.save_migration(
                 "empty-" + start,
@@ -59,10 +61,10 @@ def test_empty_install_noop_reconnect_and_permitted_empty_round_trip(start, monk
                 start,
                 "EMPTY",
                 (
-                    "alembic upgrade head",
-                    "alembic upgrade head",
+                    "alembic upgrade 0075_m1_reconsideration",
+                    "alembic upgrade 0075_m1_reconsideration",
                     "alembic downgrade 0041_pr2_15_review_coordination",
-                    "alembic upgrade head",
+                    "alembic upgrade 0075_m1_reconsideration",
                 ),
                 {},
                 {},
@@ -73,7 +75,7 @@ def test_empty_install_noop_reconnect_and_permitted_empty_round_trip(start, monk
                 {
                     "postgres_version": version,
                     "start": start,
-                    "target": scripts[-1]["revision"],
+                    "target": PHASE2_HEAD,
                     "scripts": scripts,
                     "catalog_before": before,
                     "catalog_after": s.catalog(engine),

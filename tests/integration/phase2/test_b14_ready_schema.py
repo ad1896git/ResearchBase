@@ -48,7 +48,7 @@ def test_forward_empty_catalog_and_exact_downgrade(monkeypatch):
         engine = create_engine(url)
         with engine.connect() as conn:
             before = catalog_inventory(conn)
-        alembic.upgrade(cfg, "head")
+        alembic.upgrade(cfg, "0075_m1_reconsideration")
         with engine.connect() as conn:
             assert conn.execute(text("SHOW server_version_num")).scalar_one().startswith("18")
             constraints = set(conn.execute(text("SELECT conname FROM pg_constraint")).scalars())

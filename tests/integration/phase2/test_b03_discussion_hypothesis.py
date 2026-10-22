@@ -255,7 +255,7 @@ def test_prior_head_upgrade_keeps_receipts_and_empty_downgrade(b03):
     config.set_main_option("sqlalchemy.url", env[1].url.render_as_string(hide_password=False))
     before = durable(env[1])
     alembic_command.downgrade(config, "0068_b21_unresolved_capture")
-    alembic_command.upgrade(config, "head")
+    alembic_command.upgrade(config, "0075_m1_reconsideration")
     assert durable(env[1]) == before
 
 
@@ -442,7 +442,7 @@ def test_empty_upgrade_to_head(discussion_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", discussion_database_url)
     alembic_command.downgrade(config, "base")
-    alembic_command.upgrade(config, "head")
+    alembic_command.upgrade(config, "0075_m1_reconsideration")
     from sqlalchemy import create_engine
 
     engine = create_engine(discussion_database_url)

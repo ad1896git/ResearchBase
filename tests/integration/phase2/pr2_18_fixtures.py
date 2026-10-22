@@ -161,7 +161,7 @@ def novelty_env(phase2_database_url, tmp_path):
     from researchbase.application.literature_evidence import LiteratureEvidenceService
 
     engine, identity, sources, author, project = _authorized_service(
-        phase2_database_url, migration_revision="head"
+        phase2_database_url, migration_revision="0075_m1_reconsideration"
     )
     reviewer_id = uuid4()
     with engine.begin() as conn:

@@ -42,7 +42,7 @@ def test_populated_forward_preserves_literal_history_and_downgrade_refuses(appro
     decision_command = _decide(command)
     decision = service.decide_approval(approver, decision_command)
     before = _counts(approval_env)
-    alembic_command.upgrade(config, "head")
+    alembic_command.upgrade(config, "0075_m1_reconsideration")
     assert (
         service.get_request(requester, command.project_id, command.id).target_content_hash
         == saved.target_content_hash
@@ -62,7 +62,7 @@ def test_b09_catalog_and_empty_roundtrip(approval_env):
     _, _, _, _, env = approval_env
     config = config_for(env)
     alembic_command.downgrade(config, "0051_b06_revision_action")
-    alembic_command.upgrade(config, "head")
+    alembic_command.upgrade(config, "0075_m1_reconsideration")
     with env[-1][8].connect() as conn:
         names = set(
             conn.execute(

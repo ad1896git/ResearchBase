@@ -269,7 +269,7 @@ def test_0031_upgrade_accepts_valid_0030_empty_snapshot_and_formal_read(m3):
     config = _alembic(engine.url.render_as_string(hide_password=False))
     command.downgrade(config, "0030_literature_evidence")
     snapshot = service.snapshot(author, project, "HypothesisVersion", hypothesis, [], uuid4())
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     assert service.get_snapshot(author, project, UUID(snapshot["id"])) == snapshot
     with pytest.raises(Exception, match="preserves nonempty scientific history"):
         command.downgrade(config, "0030_literature_evidence")
@@ -316,7 +316,7 @@ def test_0031_upgrade_refuses_preexisting_gap(m3):
             },
         )
     with pytest.raises(Exception, match="cardinality invalid"):
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
     with engine.connect() as conn:
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
             "0030_literature_evidence"

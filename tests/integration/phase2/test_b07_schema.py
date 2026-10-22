@@ -29,7 +29,7 @@ def test_empty_forward_upgrade_and_downgrade(phase2_database_url):
     try:
         with engine.connect() as conn:
             before = _tables(conn)
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
         with engine.connect() as conn:
             assert _tables(conn) - before == TABLES | {
                 "decision_basis_manuscripts",
@@ -80,7 +80,7 @@ def test_empty_forward_upgrade_and_downgrade(phase2_database_url):
         command.downgrade(config, "0051_b06_revision_action")
         with engine.connect() as conn:
             assert _tables(conn) == before
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
     finally:
         engine.dispose()
 
@@ -255,7 +255,7 @@ def test_upgrade_preflights_retained_release_without_reapplying_late_blockers(
         before = conn.execute(
             text("SELECT id,basis_set_hash,content_hash FROM decision_records")
         ).all()
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     with base[8].connect() as conn:
         assert (
             conn.execute(text("SELECT id,basis_set_hash,content_hash FROM decision_records")).all()

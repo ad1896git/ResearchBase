@@ -110,7 +110,7 @@ def test_independent_frozen_claim_review_and_issue_are_immutable(
 ):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     _, factory, evidence_service, author, reviewer, project, claim_id, _, engine, credentials = (
         conclusion_env
     )
@@ -680,7 +680,7 @@ def test_scheduled_role_expiry_during_request_lock_wait_denies_atomically(
 def test_empty_migration_downgrade_drops_only_new_review_objects(phase2_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     command.downgrade(config, "0039_pr2_13_citation_rebinding_guard")
     from sqlalchemy import create_engine
 

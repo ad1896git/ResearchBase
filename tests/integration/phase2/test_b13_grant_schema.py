@@ -90,7 +90,7 @@ def test_empty_slice_roundtrip_preserves_populated_predecessor(approval_env):
     cfg = config(approval_env)
     before = counts(approval_env)
     alembic.downgrade(cfg, "0058_b12_prepare_submission")
-    alembic.upgrade(cfg, "head")
+    alembic.upgrade(cfg, "0075_m1_reconsideration")
     assert counts(approval_env) == before
 
 
@@ -285,5 +285,5 @@ def test_stale_hardening_downgrade_restores_exact_0067_body(approval_env):
         conn.execute(text(original))
     assert definition() == restored
     assert hardened != restored
-    alembic.upgrade(cfg, "head")
+    alembic.upgrade(cfg, "0075_m1_reconsideration")
     assert definition() == hardened

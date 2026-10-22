@@ -47,7 +47,7 @@ def test_upgrade_actual_head_catalog_and_empty_downgrade(start, monkeypatch):
         config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
         if start != "base":
             command.upgrade(config, start)
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
         engine = create_engine(url)
         with engine.connect() as conn:
             assert (
@@ -84,7 +84,7 @@ def test_upgrade_actual_head_catalog_and_empty_downgrade(start, monkeypatch):
             )
         engine.dispose()
         command.downgrade(config, "0048_b04_manuscript_freeze")
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
 
 
 @pytest.mark.parametrize("mutation", ["gap", "missing", "forged", "duplicate"])
@@ -150,7 +150,7 @@ def test_preflight_rejects_incompatible_history_and_populated_downgrade(
             {"id": uuid4(), "review": review.id},
         )
     with pytest.raises(DBAPIError) as exc:
-        command.upgrade(config, "head")
+        command.upgrade(config, "0075_m1_reconsideration")
     assert getattr(exc.value.orig, "sqlstate", None) == "P05R1" and str(review.id) in str(
         exc.value.orig
     )

@@ -506,7 +506,7 @@ def test_empty_additive_upgrade_downgrade_preserves_predecessor_catalog(phase2_d
         with engine.connect() as conn:
             assert _tables(conn) - tables == {"revision_actions"}
             assert _catalog(conn, tables) == catalog
-        assert ScriptDirectory.from_config(config).get_heads() == ["0075_m1_reconsideration"]
+        assert ScriptDirectory.from_config(config).get_heads() == ["0076_agent_runtime_bootstrap"]
         alembic_command.downgrade(config, "0043_pr2_04_schema_contract")
         with engine.connect() as conn:
             assert _tables(conn) == tables and _catalog(conn, tables) == catalog
@@ -1477,13 +1477,13 @@ def test_h2_populated_0044_0051_0052_head_upgrade_reconnect(revision_env, phase2
         ("0044_pr2_15_revision_action", "old_conclusion"),
         ("0051_b06_revision_action", "b06_validate_revision(NEW)"),
         ("0052_b07_revision_decisions", "b07_validate_revision(NEW)"),
-        ("head", "b07_validate_revision(NEW)"),
+        ("0075_m1_reconsideration", "b07_validate_revision(NEW)"),
     ):
         alembic_command.upgrade(config, revision)
         engine = create_engine(phase2_database_url)
         try:
             assert manifest(engine, tables, columns) == expected
-            if revision == "head":
+            if revision == "0075_m1_reconsideration":
                 assert manifest(engine, tables) == expected_head
             body = _h2_revision_catalog(engine)
             assert marker in body

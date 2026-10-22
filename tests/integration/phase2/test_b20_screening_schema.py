@@ -60,7 +60,7 @@ def test_empty_downgrade_restores_check_trigger_and_functions(phase2_database_ur
             )
 
     before = catalog()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     command.downgrade(cfg, "0068_b21_unresolved_capture")
     assert catalog() == before
     engine.dispose()
@@ -380,7 +380,7 @@ def test_populated_old_shape_upgrade_preserves_hash(novelty_env):
         before = conn.execute(
             text("SELECT content_hash FROM novelty_assessments WHERE id=:id"), {"id": saved.id}
         ).scalar_one()
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
     read = e["service"].read_novelty_assessment(e["author"], ExactReadQuery(e["project"], saved.id))
     assert read.content_hash == before == saved.content_hash
     assert read.material_version == 1 and read.screening_basis is None
@@ -393,14 +393,14 @@ def test_preflight_rejects_changed_sibling_definition(novelty_env):
     with e["engine"].begin() as conn:
         conn.execute(text("ALTER FUNCTION b19_complete_basis() SECURITY DEFINER"))
     with pytest.raises(RuntimeError, match="sibling function definitions"):
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0075_m1_reconsideration")
     with e["engine"].begin() as conn:
         assert (
             conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
             == "0068_b21_unresolved_capture"
         )
         conn.execute(text("ALTER FUNCTION b19_complete_basis() SECURITY INVOKER"))
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0075_m1_reconsideration")
 
 
 def test_normal_role_correctly_retained_incomplete_negative_is_invalid_state(

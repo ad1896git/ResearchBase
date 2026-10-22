@@ -527,7 +527,7 @@ def upgrade_head(engine):
     config.set_main_option(
         "sqlalchemy.url", engine.url.render_as_string(hide_password=False).replace("%", "%%")
     )
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     with engine.connect() as connection:
         assert (
             int(

@@ -48,7 +48,7 @@ from tests.integration.phase2.test_pr2_03_literature_search_plan_application imp
 )
 
 
-def _setup(url, *, migration_revision="head"):
+def _setup(url, *, migration_revision="0075_m1_reconsideration"):
     engine, _, _, principal, project = _authorized_service(
         url, migration_revision=migration_revision
     )
@@ -569,7 +569,7 @@ def test_remediation_child_upgrade_empty_downgrade_and_unique_head(phase2_databa
     config.set_main_option("sqlalchemy.url", phase2_database_url)
     command.upgrade(config, "0023_literature_search_plan")
     command.upgrade(config, "0023a_search_plan_review_guards")
-    assert ScriptDirectory.from_config(config).get_heads() == ["0075_m1_reconsideration"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0076_agent_runtime_bootstrap"]
     engine = create_engine(phase2_database_url)
     with engine.connect() as c:
         assert (

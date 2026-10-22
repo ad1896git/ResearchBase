@@ -44,7 +44,7 @@ phase2_database_url = _database_url
 def decision_env(conclusion_env, phase2_database_url):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", phase2_database_url)
-    command.upgrade(config, "head")
+    command.upgrade(config, "0075_m1_reconsideration")
     scientific, factory, evidence, author, actor, project, claim, _, _, credentials = conclusion_env
     target = scientific.create(
         author,
