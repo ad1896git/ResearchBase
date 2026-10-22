@@ -278,7 +278,11 @@ def test_refs_sort_duplicate_and_combined_bound():
         GatewayRef("SOURCE_VERSION", ID, "a" * 64, None)
 
 
-@pytest.mark.parametrize("summary,allowed", [("é" * 4096, True), ("é" * 4097, False)])
+@pytest.mark.parametrize(
+    "summary,allowed",
+    [("é" * 4096, True), ("é" * 4097, False)],
+    ids=["at-byte-limit", "over-byte-limit"],
+)
 def test_summary_utf8_byte_bound(summary, allowed):
     if allowed:
         assert replace(finish(), result_summary=summary).result_summary == summary
@@ -536,3 +540,75 @@ def test_parameters_message_limits_and_scale():
         FakeParameters("é" * 1025, "SUCCEEDED")
     with pytest.raises(ResearchBaseError):
         FakeParameters("ok", "PENDING")
+
+
+@pytest.mark.parametrize("size", [65535, 65536, 65537])
+def test_parameter_byte_ceiling_does_not_bypass_closed_schema(size):
+    # The closed 1024-character message cannot reach 64 KiB. Even a boundary
+    # declaration must agree with actual canonical bytes; padding grants nothing.
+    value = request()
+    with pytest.raises(ResearchBaseError):
+        replace(value, parameters_byte_size=size)
+    with pytest.raises(ResearchBaseError):
+        value.verify_retained_parameters(b" " * size, value.parameters_content_hash, size)
+
+
+def test_largest_escaped_parameters_and_nfc_summary_boundaries():
+    params = FakeParameters("\x00" * 1024, "UNKNOWN_OUTCOME")
+    value = replace(
+        request(),
+        parameters=params,
+        parameters_byte_size=len(params.canonical_bytes()),
+        requested_parameters_hash=params.digest(),
+    )
+    value.verify_retained_parameters(
+        params.canonical_bytes(), value.parameters_content_hash, value.parameters_byte_size
+    )
+    assert len(params.canonical_bytes()) < 65536
+    assert replace(finish(), result_summary="e\u0301" * 4096).result_summary == "é" * 4096
+    with pytest.raises(ResearchBaseError):
+        replace(finish(), result_summary="é" * 4096 + "a")
+
+
+@pytest.mark.parametrize(
+    "family",
+    [
+        "RESEARCH_QUESTION_VERSION",
+        "HYPOTHESIS_VERSION",
+        "CLAIM_VERSION",
+        "SOURCE_VERSION",
+        "ARTIFACT_VERSION",
+        "MANUSCRIPT_VERSION",
+    ],
+)
+def test_six_reference_families_closed_roundtrip(family):
+    scheme = "sha256-cjson-v1" if family in ("SOURCE_VERSION", "MANUSCRIPT_VERSION") else None
+    value = GatewayRef(family, ID, "a" * 64, scheme)
+    assert typed(GatewayRef, material(value), decode=True) == value
+    with pytest.raises(ResearchBaseError):
+        typed(GatewayRef, dict(material(value), target_id=str(ID)), decode=True)
+
+
+def test_command_reference_order_and_uuid_normalization():
+    first = GatewayRef("ARTIFACT_VERSION", ID, "a" * 64, None)
+    second = GatewayRef("HYPOTHESIS_VERSION", PROJECT, "b" * 64, None)
+    left = c.GatewayCommand(
+        PROJECT,
+        ID,
+        ID,
+        1,
+        "request_capability_invocation",
+        replace(request(), input_refs=(second, first)),
+    )
+    right = replace(left, arguments=replace(left.arguments, input_refs=(first, second)))
+    assert left.request_hash(ID) == right.request_hash(ID)
+    raw = material(left)
+    del raw["command_name"]
+    artifact_id = UUID("019abcde-0000-7000-8000-000000abcdef")
+    raw["arguments"]["parameters_artifact_version_id"] = str(artifact_id).upper()
+    normalized = replace(
+        left, arguments=replace(left.arguments, parameters_artifact_version_id=artifact_id)
+    )
+    assert c.parse_gateway_command(left.command_name, raw) == normalized
+    with pytest.raises(ResearchBaseError):
+        replace(request(), input_refs=(first, first))

@@ -750,3 +750,31 @@ def test_queries_use_one_session_for_authority_and_all_nested_rows_without_write
         for row in session.trace
     )
     assert sum("FROM actors a JOIN project_memberships" in row[0] for row in session.trace) == 1
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        "claims",
+        "measurements",
+        "runs",
+        "artifact_versions",
+        "approval_decisions",
+        "agent_executions",
+    ],
+)
+def test_gateway_repository_cannot_promote_or_write_scientific_tables(table):
+    session = RecordingSession()
+    repository = SqlAlchemyGatewayRepository(cast(Session, session))
+    with pytest.raises(ValueError):
+        repository.insert(table, {"id": V})
+    assert session.trace == []
+
+
+@pytest.mark.parametrize("field", ["target_type", "target_id", "payload", "execution_id"])
+def test_gateway_ref_insert_cannot_smuggle_generic_or_execution_state(field):
+    session = RecordingSession()
+    repository = SqlAlchemyGatewayRepository(cast(Session, session))
+    with pytest.raises(ValueError):
+        repository.insert("capability_invocation_refs", {"id": V, field: "untrusted"})
+    assert session.trace == []

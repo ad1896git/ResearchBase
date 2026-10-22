@@ -104,3 +104,44 @@ def test_permission_normalization_and_projection():
     assert capability_set_hash((permission("ALLOW"), permission("DENY"))) == capability_set_hash(
         (permission(),)
     )
+
+
+@pytest.mark.parametrize("field", tuple(material(FAKE_KEY)))
+def test_each_permission_pin_is_required_without_fallback(field):
+    changed = replace(
+        FAKE_KEY, **{field: "b" * 64 if field == "parameter_schema_hash" else "other-v1"}
+    )
+    assert not policy((permission(),)).allows(changed)
+    assert not policy((PermissionSpec(**material(changed), effect="ALLOW"),)).allows(FAKE_KEY)
+
+
+@pytest.mark.parametrize("limits", [(50, 1), (3, 2), (1, 1)], ids=["default", "reduced", "last"])
+@pytest.mark.parametrize(
+    "call_delta", [-1, 0, 1], ids=["calls-below", "calls-equal", "calls-above"]
+)
+@pytest.mark.parametrize(
+    "slot_delta", [-1, 0, 1], ids=["slots-below", "slots-equal", "slots-above"]
+)
+def test_caps_cross_product_across_policy_switch(limits, call_delta, slot_delta):
+    calls, slots = limits
+    original = policy((permission(),))
+    switched = replace(
+        original, version="reviewed-v2", max_tool_calls=calls, max_parallel_invocations=slots
+    )
+    counts = dict(task_total_calls=calls + call_delta, task_parallel_invocations=slots + slot_delta)
+    expected = call_delta < 0 and slot_delta < 0
+    assert switched.within_caps(**counts) is expected
+    # The same accumulated counts apply when switching back; no per-policy reset.
+    assert original.within_caps(**counts) is (
+        counts["task_total_calls"] < 50 and counts["task_parallel_invocations"] < 1
+    )
+
+
+def test_policy_set_order_defaults_and_duplicates():
+    allow, deny = permission(), permission("DENY")
+    a, b = policy((allow, deny)), policy((deny, allow))
+    assert a == b and a.digest(PROJECT) == b.digest(PROJECT)
+    assert a.material(PROJECT)["content"]["network_scope"] == "DENY"
+    assert a.material(PROJECT)["content"]["max_tool_calls"] == 50
+    with pytest.raises(ResearchBaseError):
+        policy((allow, deny, allow))

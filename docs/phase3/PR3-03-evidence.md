@@ -3621,3 +3621,1070 @@ git diff --check HEAD
 ```
 
 Exit code: 0 (empty output).
+
+## S7 — Complete unit and architecture boundary evidence
+
+Scope: S7 only. Tests and this evidence changed; no production defect was found.
+No frozen pack, accepted migration, dependency manifest/lock or architecture
+exception was edited. ADR-0025 admissions are unchanged. No S8 or six-shard/full
+suite run was started. No commit, push or branch creation was performed.
+
+The recording UoW now rejects nesting, and retry tests inject failures through
+the repository port instead of a private service method. New regressions cover
+all tuple pins, changed-policy cap boundaries, unreviewed intake and metadata,
+self-weakening, inert tool injection, trust-object identity, closed repository
+writes and common Human/Agent execution. The AST scanner checks actual import
+dependencies (including aliases and relative imports); deliberate violations
+prove detection. The private AST call-count assertion for `finite_fake_echo`
+has been removed. The existing Human/Agent runtime spy
+`test_invoke_common_boundary_has_no_nested_safety_or_scientific_effects` checks
+`builtins.open`, `importlib.import_module`, `socket.socket`, `subprocess.Popen`
+and nested `TaskSafetyService.execute`, plus transaction counts and allowed writes.
+
+**PostgreSQL-dependent claims: unverified until S8.** Recording-session traces,
+rollback doubles and ORM metadata establish unit/structural evidence only.
+PostgreSQL lock correctness, contention, durable atomicity, SQL hash parity,
+normal-role DML and migration/guard behavior remain **unverified until S8**.
+Setting RB_TEST_ADMIN_URL on the required commands does not turn these suites
+into PostgreSQL integration evidence. PostgreSQL suites: NOT RUN in S7; no SQL
+or persistence implementation changed and S8 owns those suites.
+
+### S7 Deviations and limits
+
+- **S7-D1 — required evidence path:** `docs/phase3/PR3-03-evidence.md` is outside
+  the seven named test paths. Scope: append this mandatory S7 checklist, raw
+  verification output and handoff. Evidence: the task explicitly requires the
+  checklist here. Impact: documentation only; no contract change. Disposition:
+  within the user's explicit evidence authorization; no other path exception.
+- Review rejected the previous evidence mapping and its unsupported audit claim
+  (P1-1/P1-2). This correction adds explicit behavioral mappings and a reproducible
+  audit; it makes no independent-review or overall gate-success claim.
+- A valid 65536-byte parameter payload is unreachable under the frozen closed
+  1024-character message schema. Tests admit the largest escaped message and
+  reject padded bytes/declared sizes at 65535, 65536 and 65537. The 8192-byte
+  summary boundary and +1 rejection are reachable and exercised after NFC.
+
+Scanner boundary choice: **document the existing limits; do not narrow INTERNAL**.
+`INTERNAL` allows the entire `researchbase.application` and
+`researchbase.foundation` trees (alongside the other listed internal packages);
+it does not inspect those dependencies transitively. Call-effect checks cover
+only `ast.Name` calls (`__import__`, `eval`, `exec`, `open`, `compile`). Attribute
+calls such as `builtins.open` and `os.system` are not checked by that rule.
+Imports of `builtins`/`os` are separately rejected, but that is not a general
+attribute-call or dynamic-attribute guard. The runtime spies cover the named
+effect points above on the exercised paths; neither scanner nor spies establish
+a complete dynamic call graph or sandbox guarantee.
+
+### S7 §9.1 case-to-passing-node checklist
+
+Each listed node was collected and passed in the final unit or architecture
+run below; no required node skipped. Parameterized nodes are expanded literally,
+not inferred from a function name. Existing TaskCommand/SafetyCommand/S1 vectors
+retain their original expected hashes. Duplicate node listings have been removed;
+each node appears once. The two common-boundary runtime-spy cases are mapped
+explicitly under no-nested-UoW (HUMAN) and disabled-execution (AGENT). Both cases
+also assert common caller behavior and absence of hidden effects. The
+summary-boundary helper also covers NFC and parameter bytes.
+
+- [x] Closed DTOs, missing/unknown nested fields and defaults:
+
+```text
+tests/unit/phase3/test_agent_tool_policy.py::test_policy_set_order_defaults_and_duplicates
+tests/unit/phase3/test_capability_gateway_contracts.py::test_read_nested_extras_and_projection_literals
+tests/unit/phase3/test_capability_gateway_contracts.py::test_nested_extras_and_missing_fields[<lambda>0]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_nested_extras_and_missing_fields[<lambda>1]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_nested_extras_and_missing_fields[<lambda>2]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_nested_extras_and_missing_fields[<lambda>3]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_resources_material_is_fixed_six_place_and_nulls_expand
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[0]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[1]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[2]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[3]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[4]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[5]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[6]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_closed_read_and_result_roundtrips[7]
+```
+
+- [x] NFC, lowercase UUID decoding and command set order:
+
+```text
+tests/unit/phase3/test_agent_tool_policy.py::test_permission_normalization_and_projection
+tests/unit/phase3/test_capability_gateway_contracts.py::test_command_reference_order_and_uuid_normalization
+```
+
+- [x] UUID, integer/bool, deadline and parameter declaration rejection:
+
+```text
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates0]
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates1]
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates2]
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates3]
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates4]
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates5]
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates6]
+tests/unit/phase3/test_agent_tool_policy.py::test_invalid_policy[updates7]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_invalid_request_fields[deadline_seconds-True]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_invalid_request_fields[parameters_byte_size-True]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_invalid_request_fields[deadline_seconds-61]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_invalid_request_fields[parameters_byte_size-65537]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_invalid_request_fields[requested_parameters_hash-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_invalid_request_fields[step_id-latest]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_invalid_request_fields[invocation_id-value6]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_capability_request_command_ids_must_be_distinct
+```
+
+- [x] Exact decimal scale, finite values and fixed six-place material:
+
+```text
+tests/unit/phase3/test_capability_gateway_contracts.py::test_exact_six_place_resources[0.0000001]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_exact_six_place_resources[NaN]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_exact_six_place_resources[Infinity]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_exact_six_place_resources[-Infinity]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_exact_six_place_resources[0.5]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_exact_six_place_resources[True]
+```
+
+- [x] Six frozen literal byte/hash vectors (all six nodes):
+
+```text
+tests/unit/phase3/test_capability_gateway_contracts.py::test_frozen_literal_vectors[schema]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_frozen_literal_vectors[empty-set]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_frozen_literal_vectors[fake-set]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_frozen_literal_vectors[empty-policy]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_frozen_literal_vectors[allow-deny-policy]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_frozen_literal_vectors[cafe-parameters]
+```
+
+- [x] All four GatewayCommand variants; authenticated actor material and public finish denial:
+
+```text
+tests/unit/phase3/test_capability_gateway_contracts.py::test_four_command_roundtrips_and_actor_material[register_agent_tool_policy-args0]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_four_command_roundtrips_and_actor_material[request_capability_invocation-args1]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_four_command_roundtrips_and_actor_material[start_capability_invocation-args2]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_four_command_roundtrips_and_actor_material[finish_capability_invocation-args3]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_public_finish_and_trusted_context_cannot_be_deserialized
+tests/unit/phase3/test_capability_gateway_contracts.py::test_trusted_context_has_no_material_or_public_decoder
+```
+
+- [x] Old TaskCommand vectors and normalization unchanged:
+
+```text
+tests/unit/phase3/test_research_task_contracts.py::test_fixed_vectors[{"actor_id":"01900000-0000-7000-8000-000000000002","arguments":{"autonomy_level":"A0","inputs":[],"objective":"Caf\xe9 replication","strategy_id":"human_guided_research","strategy_version":"1.0.0","task_type":"LITERATURE_RESEARCH"},"command_id":"01900000-0000-7000-8000-000000000004","command_name":"create_research_task","expected_row_version":null,"material_version":1,"project_id":"01900000-0000-7000-8000-000000000001","task_id":"01900000-0000-7000-8000-000000000003","type":"ResearchTaskCommand"}-643ae964496ab90b75b5e20140a3ddafa962a542f80d31598fcd10db313615b8]
+tests/unit/phase3/test_research_task_contracts.py::test_fixed_vectors[{"actor_id":"01900000-0000-7000-8000-000000000002","arguments":{"edges":[{"dependent_id":"01900000-0000-7000-8000-000000000011","predecessor_id":"01900000-0000-7000-8000-000000000010"}],"nodes":[{"agent_role":null,"capability_id":null,"inputs":[],"ordinal":2,"parent_step_id":null,"step_id":"01900000-0000-7000-8000-000000000010","step_type":"PLAN"},{"agent_role":"research","capability_id":null,"inputs":[{"id":"01900000-0000-7000-8000-000000000020","type":"ARTIFACT_VERSION"},{"id":"01900000-0000-7000-8000-000000000021","type":"SOURCE_VERSION"}],"ordinal":1,"parent_step_id":"01900000-0000-7000-8000-000000000010","step_id":"01900000-0000-7000-8000-000000000011","step_type":"RESEARCH"}]},"command_id":"01900000-0000-7000-8000-000000000005","command_name":"create_task_plan","expected_row_version":1,"material_version":1,"project_id":"01900000-0000-7000-8000-000000000001","task_id":"01900000-0000-7000-8000-000000000003","type":"ResearchTaskCommand"}-9213a547322e6ea8d35c04f3046af0b034afc8fe3c8c83c05bbeb0d2148d6eed]
+tests/unit/phase3/test_research_task_contracts.py::test_fixed_vectors[{"actor_id":"01900000-0000-7000-8000-000000000002","arguments":{"reason":"Planning withdrawn."},"command_id":"01900000-0000-7000-8000-000000000006","command_name":"cancel_research_task","expected_row_version":2,"material_version":1,"project_id":"01900000-0000-7000-8000-000000000001","task_id":"01900000-0000-7000-8000-000000000003","type":"ResearchTaskCommand"}-743c2a1084f9a7c8c1cdcf74a470b48fe191f166708ec2f0fca3aafcfc4a5067]
+tests/unit/phase3/test_research_task_contracts.py::test_order_independence_and_nfc
+```
+
+- [x] Old SafetyCommand vectors unchanged:
+
+```text
+tests/unit/phase3/test_task_safety_contracts.py::test_fixed_hash_vectors[{"actor_id":"01900000-0000-7000-8000-000000000002","arguments":{"budget":{"currency":"USD","hard_stop":true,"max_agent_steps":50,"max_code_iterations":3,"max_experiment_runs":5,"max_gpu_hours":"0.000000","max_llm_calls":50,"max_parallel_branches":1,"max_search_calls":20,"max_token_cost":"5.000000","max_tree_depth":3,"max_tree_nodes":10,"max_wall_time_seconds":1800,"pricing_basis":"fake-usd-v1"},"budget_id":"01900000-0000-7000-8000-000000000010","checkpoint":{"a3_authorized":false,"allowed_code_paths":[],"allowed_dataset_snapshot_ids":[],"allowed_metric_version_ids":[],"allowed_network_hosts":[],"maximum_autonomy":"A2","network_mode":"DENY","required_types":["plan_review"],"timeout_seconds":86400},"checkpoint_policy_id":"01900000-0000-7000-8000-000000000012","reason":"Caf\xe9 pilot limits.","termination":{"budget_stop":true,"confidence_stop_enabled":false,"confidence_stop_threshold":null,"duplicate_hypothesis_enabled":false,"duplicate_hypothesis_threshold":null,"evaluator_version":null,"human_stop":true,"max_no_improvement_iterations":2,"min_progress_enabled":false,"min_progress_score":null,"policy_stop":true,"repeated_failure_threshold":2,"score_direction":null,"score_metric_version_id":null,"success_condition":null,"success_condition_enabled":false},"termination_policy_id":"01900000-0000-7000-8000-000000000011"},"command_id":"01900000-0000-7000-8000-000000000004","command_name":"bind_task_policies","expected_row_version":1,"material_version":1,"project_id":"01900000-0000-7000-8000-000000000001","task_id":"01900000-0000-7000-8000-000000000003","type":"SafetyCommand"}\n-89dd196e873985a5caffb868135bf79efc841f387d1b8836fa5b7e27fc19313e]
+tests/unit/phase3/test_task_safety_contracts.py::test_fixed_hash_vectors[{"actor_id":"01900000-0000-7000-8000-000000000002","arguments":{"deadline_seconds":60,"observed_depth":0,"observed_parallel_branches":1,"operation_id":"01900000-0000-7000-8000-000000000020","reason":"Bounded fake call.","resources":{"agent_steps":1,"code_iterations":0,"experiment_runs":0,"gpu_hours":"0.000000","llm_calls":1,"search_calls":0,"token_cost":"0.125000","tree_nodes":0,"wall_time_seconds":60},"step_id":"01900000-0000-7000-8000-000000000021"},"command_id":"01900000-0000-7000-8000-000000000005","command_name":"reserve_task_budget","expected_row_version":4,"material_version":1,"project_id":"01900000-0000-7000-8000-000000000001","task_id":"01900000-0000-7000-8000-000000000003","type":"SafetyCommand"}\n-10710e357af6f0e4ec592ba079aae570a60e78b2b26e85b82259a74ba935c0ab]
+tests/unit/phase3/test_task_safety_contracts.py::test_fixed_hash_vectors[{"actor_id":"01900000-0000-7000-8000-000000000002","arguments":{"checkpoint_id":"01900000-0000-7000-8000-000000000030","expected_checkpoint_row_version":1,"reason":"Extension intent only; new task required.","response":"APPROVED"},"command_id":"01900000-0000-7000-8000-000000000006","command_name":"respond_human_checkpoint","expected_row_version":7,"material_version":1,"project_id":"01900000-0000-7000-8000-000000000001","task_id":"01900000-0000-7000-8000-000000000003","type":"SafetyCommand"}\n-a364746081f6cfe74e4102f9efd1f2da2751311a05228f748d06dd4853df687e]
+tests/unit/phase3/test_task_safety_contracts.py::test_complete_extension_request_material
+```
+
+- [x] Old S1 vectors and HarnessManifest material unchanged:
+
+```text
+tests/unit/phase3/test_agent_version_contracts.py::test_literal_vectors[material0-4cc1af5312be685ea559d09e0f2e6ff459e920b03fb7ba82218172346278d3d7]
+tests/unit/phase3/test_agent_version_contracts.py::test_literal_vectors[material1-19b7537803f35a6c1395c4b48abf8af8e2eb85b5da6d7b804c9881bb548224a8]
+tests/unit/phase3/test_agent_version_contracts.py::test_literal_vectors[material2-b9c60b8b598d025aab9f0fceaeabfc1f11173eb58f8084e2043fb1a224359416]
+tests/unit/phase3/test_harness_manifest.py::test_order_and_material[skills]
+tests/unit/phase3/test_harness_manifest.py::test_order_and_material[plugins]
+tests/unit/phase3/test_harness_manifest.py::test_order_and_material[adapters]
+tests/unit/phase3/test_harness_manifest.py::test_order_and_material[hooks]
+tests/unit/phase3/test_harness_manifest.py::test_order_and_material[mcp_capabilities]
+tests/unit/phase3/test_harness_manifest.py::test_order_and_material[reference_libraries]
+tests/unit/phase3/test_harness_manifest.py::test_closed_and_byte_hash_distinction
+```
+
+- [x] Reference set sorting, duplicate rejection, combined bound and all six families:
+
+```text
+tests/unit/phase3/test_capability_gateway_contracts.py::test_refs_sort_duplicate_and_combined_bound
+tests/unit/phase3/test_capability_gateway_contracts.py::test_six_reference_families_closed_roundtrip[RESEARCH_QUESTION_VERSION]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_six_reference_families_closed_roundtrip[HYPOTHESIS_VERSION]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_six_reference_families_closed_roundtrip[CLAIM_VERSION]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_six_reference_families_closed_roundtrip[SOURCE_VERSION]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_six_reference_families_closed_roundtrip[ARTIFACT_VERSION]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_six_reference_families_closed_roundtrip[MANUSCRIPT_VERSION]
+```
+
+- [x] Parameter UTF-8 bytes, retained owning hash, 65535/65536/65537 declaration/byte rejection and message limit:
+
+```text
+tests/unit/phase3/test_capability_gateway_contracts.py::test_retained_parameters_have_separate_owning_hash
+tests/unit/phase3/test_capability_gateway_contracts.py::test_parameters_message_limits_and_scale
+tests/unit/phase3/test_capability_gateway_contracts.py::test_parameter_byte_ceiling_does_not_bypass_closed_schema[65535]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_parameter_byte_ceiling_does_not_bypass_closed_schema[65536]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_parameter_byte_ceiling_does_not_bypass_closed_schema[65537]
+```
+
+- [x] Summary UTF-8 boundary, NFC before byte count, exact 8192 and +1 rejection:
+
+```text
+tests/unit/phase3/test_capability_gateway_contracts.py::test_summary_utf8_byte_bound[at-byte-limit]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_summary_utf8_byte_bound[over-byte-limit]
+tests/unit/phase3/test_capability_gateway_contracts.py::test_largest_escaped_parameters_and_nfc_summary_boundaries
+```
+
+- [x] Exact six-key permission match; absence/empty policy and DENY precedence:
+
+```text
+tests/unit/phase3/test_agent_tool_policy.py::test_exact_effects[effects0-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_exact_effects[effects1-True]
+tests/unit/phase3/test_agent_tool_policy.py::test_exact_effects[effects2-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_exact_effects[effects3-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_exact_effects[effects4-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_each_permission_pin_is_required_without_fallback[capability_id]
+tests/unit/phase3/test_agent_tool_policy.py::test_each_permission_pin_is_required_without_fallback[capability_version]
+tests/unit/phase3/test_agent_tool_policy.py::test_each_permission_pin_is_required_without_fallback[operation]
+tests/unit/phase3/test_agent_tool_policy.py::test_each_permission_pin_is_required_without_fallback[adapter_id]
+tests/unit/phase3/test_agent_tool_policy.py::test_each_permission_pin_is_required_without_fallback[adapter_version]
+tests/unit/phase3/test_agent_tool_policy.py::test_each_permission_pin_is_required_without_fallback[parameter_schema_hash]
+```
+
+- [x] Pins/schema mismatch and alias/pattern/whitespace rejection:
+
+```text
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[latest]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[CURRENT]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[main]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[master]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[x/latest]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[echo*]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[echo?]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[^echo$]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[echo.*]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[(echo)]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[echo[0]]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[ echo]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[echo ]
+tests/unit/phase3/test_agent_tool_policy.py::test_aliases_patterns_and_whitespace_deny[]
+```
+
+- [x] Tool/parallel caps below/equal/above across changed policies, full cross product, no counter reset:
+
+```text
+tests/unit/phase3/test_agent_tool_policy.py::test_task_wide_counts_survive_policy_changes[0-0-True]
+tests/unit/phase3/test_agent_tool_policy.py::test_task_wide_counts_survive_policy_changes[49-0-True]
+tests/unit/phase3/test_agent_tool_policy.py::test_task_wide_counts_survive_policy_changes[50-0-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_task_wide_counts_survive_policy_changes[51-0-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_task_wide_counts_survive_policy_changes[0-1-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_task_wide_counts_survive_policy_changes[0-2-False]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-below-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-below-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-below-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-equal-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-equal-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-equal-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-above-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-above-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-below-calls-above-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-below-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-below-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-below-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-equal-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-equal-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-equal-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-above-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-above-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-equal-calls-above-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-below-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-below-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-below-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-equal-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-equal-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-equal-last]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-above-default]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-above-reduced]
+tests/unit/phase3/test_agent_tool_policy.py::test_caps_cross_product_across_policy_switch[slots-above-calls-above-last]
+tests/unit/phase3/test_capability_gateway.py::test_policy_switch_retains_task_wide_call_count
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[below-task_total_calls-limits0]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[below-task_total_calls-limits1]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[below-task_parallel_invocations-limits0]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[below-task_parallel_invocations-limits1]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[equal-task_total_calls-limits0]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[equal-task_total_calls-limits1]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[equal-task_parallel_invocations-limits0]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[equal-task_parallel_invocations-limits1]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[above-task_total_calls-limits0]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[above-task_total_calls-limits1]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[above-task_parallel_invocations-limits0]
+tests/unit/phase3/test_capability_routing.py::test_router_applies_changed_policy_caps_to_existing_task_counts[above-task_parallel_invocations-limits1]
+```
+
+- [x] Phase, authority, project disclosure and task-safety intersection:
+
+```text
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes0]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes1]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes2]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes3]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes4]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes5]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes6]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes7]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes8]
+tests/unit/phase3/test_capability_routing.py::test_routing_exclusions[changes9]
+```
+
+- [x] Self-weakening and self-install remain forbidden despite injected instructions:
+
+```text
+tests/unit/phase3/test_capability_routing.py::test_injected_message_never_overrides_self_weakening_exclusion[self_install]
+tests/unit/phase3/test_capability_routing.py::test_injected_message_never_overrides_self_weakening_exclusion[governing_file_edits]
+tests/unit/phase3/test_capability_routing.py::test_injected_message_never_overrides_self_weakening_exclusion[changing_pins]
+tests/unit/phase3/test_capability_routing.py::test_injected_message_never_overrides_self_weakening_exclusion[same_execution_weakening]
+```
+
+- [x] Reference-only and missing policy/version; exact registry, manifest and availability pins:
+
+```text
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[reference-only]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[entry-phase]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[missing-entry]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[no-version]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[no-policy]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[wrong-consumer]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[foreign-registry]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[unfrozen-intake]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[wrong-harness]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[availability]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[policy-version]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[capability-set]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[manifest-skill]
+tests/unit/phase3/test_capability_routing.py::test_pins_phase_and_reference_only[manifest-adapter]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[missing-intake]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[foreign-intake]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[intake-hash]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[duplicate-intake]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[unfrozen-registry]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[registry-hash]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[policy-id]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[policy-digest]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[step]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[strategy]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[model]
+tests/unit/phase3/test_capability_routing.py::test_reviewed_intake_and_all_retained_pins_required[prompt]
+```
+
+- [x] Unreviewed intake/scripts/transitive capability and descriptive authority injection denial:
+
+```text
+tests/unit/phase3/test_capability_routing.py::test_unreviewed_registry_metadata_cannot_grant_execution[description]
+tests/unit/phase3/test_capability_routing.py::test_unreviewed_registry_metadata_cannot_grant_execution[scripts]
+tests/unit/phase3/test_capability_routing.py::test_unreviewed_registry_metadata_cannot_grant_execution[transitive_capabilities]
+tests/unit/phase3/test_capability_routing.py::test_unreviewed_registry_metadata_cannot_grant_execution[approved]
+tests/unit/phase3/test_capability_routing.py::test_unreviewed_registry_metadata_cannot_grant_execution[role]
+tests/unit/phase3/test_capability_routing.py::test_unreviewed_registry_metadata_cannot_grant_execution[popularity]
+```
+
+- [x] Supplied canonical registry bytes only, bounded/closed schema, no discovery/IO:
+
+```text
+tests/unit/phase3/test_capability_routing.py::test_exact_route_and_supplied_byte_loader
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw0]
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw1]
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw2]
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw3]
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw4]
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw5]
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw6]
+tests/unit/phase3/test_capability_routing.py::test_closed_registry_negative[raw7]
+tests/unit/phase3/test_capability_routing.py::test_malformed_noncanonical_and_nonfinite_bytes[{"schema_version":1,"schema_version":1,"entries":[]}]
+tests/unit/phase3/test_capability_routing.py::test_malformed_noncanonical_and_nonfinite_bytes[{"schema_version":NaN,"entries":[]}]
+tests/unit/phase3/test_capability_routing.py::test_malformed_noncanonical_and_nonfinite_bytes[{}]
+tests/unit/phase3/test_capability_routing.py::test_malformed_noncanonical_and_nonfinite_bytes[\xff]
+tests/unit/phase3/test_capability_routing.py::test_malformed_noncanonical_and_nonfinite_bytes[[]]
+tests/unit/phase3/test_capability_routing.py::test_malformed_noncanonical_and_nonfinite_bytes[{ "entries":[],"schema_version":1}]
+tests/unit/phase3/test_capability_routing.py::test_malformed_noncanonical_and_nonfinite_bytes[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]
+tests/unit/phase3/test_capability_routing.py::test_registry_byte_limit_and_non_executable_tuple
+tests/unit/phase3/test_capability_routing.py::test_loader_does_no_discovery_or_io
+```
+
+- [x] Only finite pure fake executes; arbitrary objects denied; all four exact outcomes:
+
+```text
+tests/unit/phase3/test_capability_routing.py::test_finite_fake_echo_closed_exact_outcomes[SUCCEEDED-echo-None]
+tests/unit/phase3/test_capability_routing.py::test_finite_fake_echo_closed_exact_outcomes[FAILED-Fake failure.-ADAPTER_UNAVAILABLE]
+tests/unit/phase3/test_capability_routing.py::test_finite_fake_echo_closed_exact_outcomes[UNKNOWN_OUTCOME-Fake outcome unknown.-INVALID_STATE_TRANSITION]
+tests/unit/phase3/test_capability_routing.py::test_finite_fake_echo_closed_exact_outcomes[CANCELLED-Fake cancelled.-None]
+tests/unit/phase3/test_capability_routing.py::test_finite_fake_rejects_arbitrary_objects[value0]
+tests/unit/phase3/test_capability_routing.py::test_finite_fake_rejects_arbitrary_objects[value1]
+tests/unit/phase3/test_capability_routing.py::test_finite_fake_rejects_arbitrary_objects[None]
+```
+
+- [x] Recorded request/start/finish three transactions, fake outside every UoW and lock, stable command identities (PostgreSQL transactions/locks unverified until S8):
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_stable_ids_across_fresh_whole_transaction_retry
+tests/unit/phase3/test_capability_gateway.py::test_lifecycle_retry_ids_stable_and_single_settlement
+tests/unit/phase3/test_capability_gateway.py::test_invoke_three_commits_one_outside_call_and_saved_terminal_replay[SUCCEEDED-Finite \xe9cho.-None]
+tests/unit/phase3/test_capability_gateway.py::test_invoke_three_commits_one_outside_call_and_saved_terminal_replay[FAILED-Fake failure.-ADAPTER_UNAVAILABLE]
+tests/unit/phase3/test_capability_gateway.py::test_invoke_three_commits_one_outside_call_and_saved_terminal_replay[UNKNOWN_OUTCOME-Fake outcome unknown.-INVALID_STATE_TRANSITION]
+tests/unit/phase3/test_capability_gateway.py::test_invoke_three_commits_one_outside_call_and_saved_terminal_replay[CANCELLED-Fake cancelled.-None]
+```
+
+- [x] Human/Agent same Application boundary; Human OWNER registration:
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_registration_requires_current_human_owner[AGENT-OWNER]
+tests/unit/phase3/test_capability_gateway.py::test_registration_requires_current_human_owner[HUMAN-RESEARCHER]
+tests/unit/phase3/test_capability_gateway.py::test_registration_requires_current_human_owner[HUMAN-VIEWER]
+tests/unit/phase3/test_capability_gateway.py::test_entitled_agent_request_uses_same_application_command
+```
+
+- [x] Registration single transaction, complete immutable policy and no reservation:
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_registration_one_transaction_no_reservation_and_complete_policy
+tests/unit/phase3/test_capability_gateway.py::test_registration_rollback[agent_tool_policies]
+tests/unit/phase3/test_capability_gateway.py::test_registration_rollback[agent_tool_policy_permissions]
+```
+
+- [x] Recording-UoW atomic reserve/request and settlement/finish, rollback injection at every write stage (PostgreSQL atomicity unverified until S8):
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_request_atomic_effects_exact_vector_refs_and_no_nested_safety
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[task]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[research_task_command_receipts]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[budget_reservations]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[capability_invocations]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[capability_invocation_events]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[capability_invocation_refs]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[research_task_events]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[research_task_receipt_events]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[constraints]
+tests/unit/phase3/test_capability_gateway.py::test_request_rollback_at_every_write_stage[commit]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[task]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[research_task_command_receipts]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[budget_usage_records]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[invocation_update]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[capability_invocation_events]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[research_task_events]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[research_task_receipt_events]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[constraints]
+tests/unit/phase3/test_capability_gateway.py::test_finish_rolls_back_every_write_stage[commit]
+```
+
+- [x] Failure/unknown/cancellation and reconciliation preserve old unknown history:
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_start_zero_new_accounting_and_prestart_cancel_retains_counts
+tests/unit/phase3/test_capability_gateway.py::test_running_outcomes_and_finish_after_cancel_stop_and_disabled_agent[SUCCEEDED]
+tests/unit/phase3/test_capability_gateway.py::test_running_outcomes_and_finish_after_cancel_stop_and_disabled_agent[FAILED]
+tests/unit/phase3/test_capability_gateway.py::test_running_outcomes_and_finish_after_cancel_stop_and_disabled_agent[UNKNOWN_OUTCOME]
+tests/unit/phase3/test_capability_gateway.py::test_running_outcomes_and_finish_after_cancel_stop_and_disabled_agent[CANCELLED]
+tests/unit/phase3/test_capability_gateway.py::test_reconciliation_append_only_and_saved_event_results[SUCCEEDED]
+tests/unit/phase3/test_capability_gateway.py::test_reconciliation_append_only_and_saved_event_results[FAILED]
+tests/unit/phase3/test_capability_gateway.py::test_reconciliation_append_only_and_saved_event_results[CANCELLED]
+tests/unit/phase3/test_capability_gateway.py::test_unknown_reservation_still_occupies_slot_and_full_budget
+tests/unit/phase3/test_capability_gateway.py::test_unknown_does_not_advance_final_failure_streak_until_reconciliation
+```
+
+- [x] Replay never calls fake, lost response at each commit, unresolved start denies redispatch:
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_invoke_response_loss_at_each_commit[1]
+tests/unit/phase3/test_capability_gateway.py::test_invoke_response_loss_at_each_commit[2]
+tests/unit/phase3/test_capability_gateway.py::test_invoke_response_loss_at_each_commit[3]
+tests/unit/phase3/test_capability_gateway.py::test_invoke_unresolved_start_without_saved_finish_never_calls_fake
+tests/unit/phase3/test_capability_gateway.py::test_invoke_unresolved_commit_with_no_visible_receipt_never_dispatches
+tests/unit/phase3/test_capability_gateway.py::test_invoke_saved_unknown_finish_survives_final_reconciliation
+```
+
+- [x] Replay precedes stale state/CAS after simulated waits and still requires current entitlement (PostgreSQL replay/waits unverified until S8):
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_saved_replay_precedes_stale_cas_role_availability_and_preflight_failure[False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_replay_precedes_stale_cas_role_availability_and_preflight_failure[True]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[share]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[project]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[command]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[task_key]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[agent_key]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[version_key]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[task_row]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[steps]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[checkpoints]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[availability]
+tests/unit/phase3/test_capability_gateway.py::test_committed_receipt_discovered_after_each_wait_wins_before_fresh_diagnostics[invocations]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[share-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[share-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[project-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[project-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[command-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[command-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[task_key-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[task_key-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[agent_key-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[agent_key-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[version_key-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[version_key-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[task_row-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[task_row-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[steps-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[steps-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[checkpoints-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[checkpoints-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[availability-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[availability-False]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[invocations-True]
+tests/unit/phase3/test_capability_gateway.py::test_saved_lifecycle_receipt_after_each_wait_precedes_cas_and_availability[invocations-False]
+tests/unit/phase3/test_capability_gateway.py::test_invoke_replay_rechecks_current_entitlement
+```
+
+- [x] Trusted capability/context identity and identical-but-distinct observation denial:
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_identity_trust_and_context_binding[new_instance]
+tests/unit/phase3/test_capability_gateway.py::test_identity_trust_and_context_binding[no_context]
+tests/unit/phase3/test_capability_gateway.py::test_identity_trust_and_context_binding[wrong_scope]
+tests/unit/phase3/test_capability_gateway.py::test_identity_trust_and_context_binding[wrong_principal]
+tests/unit/phase3/test_capability_gateway.py::test_public_self_supplied_observation_is_forbidden
+tests/unit/phase3/test_capability_gateway.py::test_equal_but_distinct_finish_observation_is_untrusted
+```
+
+- [x] No-nested-UoW or nested safety command; runtime effect spies and exactly three recorded transactions (PostgreSQL transaction correctness unverified until S8):
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_invoke_common_boundary_has_no_nested_safety_or_scientific_effects[HUMAN]
+```
+
+- [x] Tool injection is inert text, no authority/policy/scientific promotion or hidden dispatch:
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_injected_tool_text_is_inert_and_replay_never_dispatches
+```
+
+- [x] Planning execution stays disabled after runtime invocation; read.execution_enabled is False and no stored execution_id:
+
+```text
+tests/unit/phase3/test_capability_gateway.py::test_invoke_common_boundary_has_no_nested_safety_or_scientific_effects[AGENT]
+```
+
+- [x] Repository cannot write scientific/governance/execution tables or generic JSON refs:
+
+```text
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_repository_cannot_promote_or_write_scientific_tables[claims]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_repository_cannot_promote_or_write_scientific_tables[measurements]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_repository_cannot_promote_or_write_scientific_tables[runs]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_repository_cannot_promote_or_write_scientific_tables[artifact_versions]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_repository_cannot_promote_or_write_scientific_tables[approval_decisions]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_repository_cannot_promote_or_write_scientific_tables[agent_executions]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_ref_insert_cannot_smuggle_generic_or_execution_state[target_type]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_ref_insert_cannot_smuggle_generic_or_execution_state[target_id]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_ref_insert_cannot_smuggle_generic_or_execution_state[payload]
+tests/unit/phase3/test_capability_gateway_repository.py::test_gateway_ref_insert_cannot_smuggle_generic_or_execution_state[execution_id]
+```
+
+- [x] Recorded repository lock/callback sequencing and construction only (PostgreSQL correctness unverified until S8):
+
+```text
+tests/unit/phase3/test_capability_gateway_repository.py::test_no_sql_at_uow_or_adapter_construction
+tests/unit/phase3/test_capability_gateway_repository.py::test_entering_uow_constructs_gateway_without_sql
+tests/unit/phase3/test_capability_gateway_repository.py::test_lifecycle_invocation_identity_resolved_after_prefix_before_agent_keys
+```
+
+- [x] Architecture: no domain ORM/transport/SDK imports, no direct Agent persistence/credentials or process/network/filesystem/provider/queue dependencies:
+
+```text
+tests/architecture/test_pr3_03_boundaries.py::test_runtime_import_dependencies_exclude_persistence_transport_sdk_and_effects
+tests/architecture/test_pr3_03_boundaries.py::test_public_port_and_values_do_not_admit_credentials_execution_or_promotion
+```
+
+- [x] Architecture: deliberate violations detected by scanner, including aliases and relative imports:
+
+```text
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[import sqlalchemy as innocent]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[from fastapi import FastAPI]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[from researchbase.persistence import uow]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[from ...persistence import models]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[import unknown_provider_sdk]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[import subprocess as runner]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[from pathlib import Path]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[__import__('researchbase.persistence')]
+tests/architecture/test_pr3_03_boundaries.py::test_boundary_scanner_detects_deliberate_violation[open('credentials')]
+tests/architecture/test_pr3_03_boundaries.py::test_domain_scanner_rejects_application_and_ports
+```
+
+- [x] Architecture: no new dependencies, concrete FK refs and no scientific JSON ownership:
+
+```text
+tests/architecture/test_pr3_03_boundaries.py::test_gateway_tables_use_concrete_refs_and_own_no_scientific_json_state
+tests/architecture/test_pr3_03_boundaries.py::test_runtime_dependencies_remain_the_accepted_set
+```
+
+- [x] Existing disabled-execution transition regressions:
+
+```text
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[resume_research_task-CREATED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[resume_research_task-CREATED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[resume_research_task-PLANNING-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[resume_research_task-PLANNING-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[resume_research_task-CANCELLED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[resume_research_task-CANCELLED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_task_step-CREATED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_task_step-CREATED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_task_step-PLANNING-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_task_step-PLANNING-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_task_step-CANCELLED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_task_step-CANCELLED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[fail_task_step-CREATED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[fail_task_step-CREATED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[fail_task_step-PLANNING-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[fail_task_step-PLANNING-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[fail_task_step-CANCELLED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[fail_task_step-CANCELLED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[finish_task_step-CREATED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[finish_task_step-CREATED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[finish_task_step-PLANNING-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[finish_task_step-PLANNING-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[finish_task_step-CANCELLED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[finish_task_step-CANCELLED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_research_task-CREATED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_research_task-CREATED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_research_task-PLANNING-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_research_task-PLANNING-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_research_task-CANCELLED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[start_research_task-CANCELLED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[pause_research_task-CREATED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[pause_research_task-CREATED-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[pause_research_task-PLANNING-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[pause_research_task-PLANNING-True]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[pause_research_task-CANCELLED-False]
+tests/unit/phase3/test_research_task_graph.py::test_transition_matrix[pause_research_task-CANCELLED-True]
+```
+
+The explicit no-nested-UoW and disabled-execution bullets map to runtime
+assertions in `test_invoke_common_boundary_has_no_nested_safety_or_scientific_effects`:
+the former uses its HUMAN node and the latter its AGENT node. The DTO projection
+node is back under Closed DTOs. All four injected self-weakening cases are listed
+once under Self-weakening. The six `test_each_permission_pin_is_required_without_fallback`
+nodes remain under Exact six-key permission match, and
+`test_registry_byte_limit_and_non_executable_tuple` remains under Supplied canonical
+registry bytes. The reproducible audit below checks these locations, every node's
+presence in the inventory, duplicates and empty checklist entries.
+
+### S7 exact verification commands and raw output
+
+Evidence-quality correction on baseline `6e9cdf0`. This sequence supersedes the
+previous S7 verification transcript. Each command ran separately after
+`export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`. Combined stdout/stderr is
+pasted raw below, with each observed exit code. This seven-command transcript records separate runs; the reviewer-requested
+combined check is recorded separately below. Raw captures are retained under ignored `tmp/pr3-03/s7-fix-*.txt`.
+
+```sh
+git diff --check HEAD
+```
+
+```text
+```
+
+Exit code: 0.
+
+```sh
+uv run ruff check .
+```
+
+```text
+All checks passed!
+```
+
+Exit code: 0.
+
+```sh
+uv run ruff format --check .
+```
+
+```text
+905 files already formatted
+```
+
+Exit code: 0.
+
+```sh
+uv run pyright
+```
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+Exit code: 0.
+
+```sh
+uv run alembic heads
+```
+
+```text
+0080_capability_gateway (head)
+```
+
+Exit code: 0.
+
+```sh
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -ra tests/unit/phase3
+```
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane120
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 953 items
+
+tests/unit/phase3/test_agent_identity_contracts.py .                     [  0%]
+tests/unit/phase3/test_agent_tool_policy.py ............................ [  3%]
+........................................                                 [  7%]
+tests/unit/phase3/test_agent_version_contracts.py ...................... [  9%]
+........................................................................ [ 17%]
+....                                                                     [ 17%]
+tests/unit/phase3/test_agent_version_transports.py ..................    [ 19%]
+tests/unit/phase3/test_capability_gateway.py ........................... [ 22%]
+........................................................................ [ 29%]
+........................................................................ [ 37%]
+.................................................................        [ 44%]
+tests/unit/phase3/test_capability_gateway_contracts.py ................. [ 45%]
+........................................................                 [ 51%]
+tests/unit/phase3/test_capability_gateway_repository.py ................ [ 53%]
+.................................................                        [ 58%]
+tests/unit/phase3/test_capability_routing.py ........................... [ 61%]
+........................................................                 [ 67%]
+tests/unit/phase3/test_harness_manifest.py ...............               [ 68%]
+tests/unit/phase3/test_research_task_contracts.py ...................... [ 71%]
+....................................................                     [ 76%]
+tests/unit/phase3/test_research_task_graph.py .......................... [ 79%]
+........................................................................ [ 86%]
+.                                                                        [ 87%]
+tests/unit/phase3/test_research_task_transports.py ....................  [ 89%]
+tests/unit/phase3/test_task_budget_accounting.py .............           [ 90%]
+tests/unit/phase3/test_task_checkpoints.py ................              [ 92%]
+tests/unit/phase3/test_task_safety_contracts.py ................         [ 93%]
+tests/unit/phase3/test_task_safety_policies.py ......................... [ 96%]
+.......................                                                  [ 98%]
+tests/unit/phase3/test_task_safety_transports.py ..........              [100%]
+
+============================= 953 passed in 7.14s ==============================
+```
+
+Exit code: 0.
+
+```sh
+RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture
+```
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane120
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 366 items
+
+tests/architecture/test_b01_resolution_boundaries.py ...                 [  0%]
+tests/architecture/test_b02_strategy_promotion_boundaries.py ....        [  1%]
+tests/architecture/test_b03_discussion_hypothesis_boundaries.py ....     [  3%]
+tests/architecture/test_b04_boundaries.py ....                           [  4%]
+tests/architecture/test_b05_review_boundaries.py ....                    [  5%]
+tests/architecture/test_b06_revision_action.py ...                       [  6%]
+tests/architecture/test_b07_revision_decisions.py ...                    [  6%]
+tests/architecture/test_b08_issue_disposition.py ...                     [  7%]
+tests/architecture/test_b10_reconsideration.py ...                       [  8%]
+tests/architecture/test_b11_readiness_boundaries.py ...                  [  9%]
+tests/architecture/test_b12_prepare_boundaries.py ....                   [ 10%]
+tests/architecture/test_b13_grant_boundaries.py ....                     [ 11%]
+tests/architecture/test_b14_ready_boundaries.py .....                    [ 12%]
+tests/architecture/test_b14a_entry_boundaries.py ..                      [ 13%]
+tests/architecture/test_b14r_ready_approval_boundaries.py ...            [ 14%]
+tests/architecture/test_b15_package_boundaries.py ....                   [ 15%]
+tests/architecture/test_b16_boundaries.py ...                            [ 16%]
+tests/architecture/test_b17_boundaries.py ...                            [ 16%]
+tests/architecture/test_b19_close_prior_art_boundaries.py ..             [ 17%]
+tests/architecture/test_b20_screening_boundaries.py ...                  [ 18%]
+tests/architecture/test_b21_capture_boundaries.py ..                     [ 18%]
+tests/architecture/test_b22_prior_art_boundaries.py ...                  [ 19%]
+tests/architecture/test_b23_novelty_boundaries.py ...                    [ 20%]
+tests/architecture/test_b25_boundaries.py ...                            [ 21%]
+tests/architecture/test_b26_boundaries.py ...                            [ 22%]
+tests/architecture/test_b27_defensive_closure_read.py ...                [ 22%]
+tests/architecture/test_b32_boundaries.py ................               [ 27%]
+tests/architecture/test_basic_approval.py ...                            [ 28%]
+tests/architecture/test_import_boundaries.py .............               [ 31%]
+tests/architecture/test_m1_boundaries.py ...                             [ 32%]
+tests/architecture/test_no_masked_url_reconnect.py ................      [ 36%]
+tests/architecture/test_pr02_boundaries.py ..........                    [ 39%]
+tests/architecture/test_pr12_boundaries.py ....                          [ 40%]
+tests/architecture/test_pr13_boundaries.py ..                            [ 41%]
+tests/architecture/test_pr13r_batched_reads.py ...                       [ 42%]
+tests/architecture/test_pr14_boundaries.py ..                            [ 42%]
+tests/architecture/test_pr15_http_boundaries.py ...                      [ 43%]
+tests/architecture/test_pr16_cli_boundaries.py ....                      [ 44%]
+tests/architecture/test_pr17_agent_ready_architecture.py .......         [ 46%]
+tests/architecture/test_pr18_boundaries.py .......                       [ 48%]
+tests/architecture/test_pr2_00_boundaries.py ...                         [ 49%]
+tests/architecture/test_pr2_17_boundaries.py ...                         [ 50%]
+tests/architecture/test_pr2_18_boundaries.py .................           [ 54%]
+tests/architecture/test_pr2_19_boundaries.py ....................        [ 60%]
+tests/architecture/test_pr2_20_boundaries.py .....                       [ 61%]
+tests/architecture/test_pr3_00_boundaries.py ........................... [ 68%]
+................................                                         [ 77%]
+tests/architecture/test_pr3_01_boundaries.py ....                        [ 78%]
+tests/architecture/test_pr3_02_s1_boundaries.py ..                       [ 79%]
+tests/architecture/test_pr3_03_boundaries.py ..............              [ 83%]
+tests/architecture/test_pr3_04_boundaries.py ..                          [ 83%]
+tests/unit/architecture/test_pr12_guard.py ..........................    [ 90%]
+tests/unit/architecture/test_pr14_guard.py ............................. [ 98%]
+.....                                                                    [100%]
+
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane120/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 366 passed, 50 warnings in 18.86s =======================
+```
+
+Exit code: 0.
+
+Observed counts: unit 953 collected / 953 passed / 0 failed / 0 skipped;
+architecture 366 collected / 366 passed / 0 failed / 0 skipped, with 50 existing
+Alembic deprecation warnings. The removed private AST call-count test accounts
+for the architecture count changing from 367 to 366. Pyright reported 0 errors,
+0 warnings and 0 informations, followed by a version-update notice. Ruff reported
+905 files already formatted. Alembic reported the sole head
+`0080_capability_gateway (head)`; live PostgreSQL migration/guard correctness is
+**unverified until S8**.
+
+Additional inventory command (collection only, not another test run):
+
+```sh
+uv run pytest -o addopts='' --collect-only -q tests/unit/phase3 tests/architecture/test_pr3_03_boundaries.py > tmp/pr3-03/s7-fix-node-ids.txt
+```
+
+Raw stdout/stderr: empty (node inventory redirected to the named file).
+Exit code: 0. The redirected inventory ends with:
+
+```text
+967 tests collected in 0.47s
+```
+
+### S7 review correction — reproducible checklist and capture audit
+
+P1-1: explicit self-weakening and no-nested-UoW entries now own their behavioral
+nodes. Disabled-execution maps to the AGENT runtime-spy node, which asserts
+`read.execution_enabled is False` and no persisted `execution_id`. The HUMAN
+runtime-spy node maps to no-nested-UoW. The Human/Agent bullet retains its
+registration-role and common Application request tests. The tool-injection
+bullet retains the inert-text/replay test. No runtime assertion was replaced
+with a DTO projection assertion.
+
+P1-2: the six permission-pin nodes remain under Exact six-key permission match;
+the registry byte-limit node remains under Supplied canonical registry bytes.
+The script below checks each location, every checklist node against
+`tmp/pr3-03/s7-fix-node-ids.txt`, duplicates and empty entries. It checks inventory
+membership; the recorded pytest executions establish that these nodes passed.
+
+P2-1: the seven raw outputs above came from actual separate tool executions in
+the preceding turn. The saved captures were displayed in full during this
+review correction. The script compares each pasted output to its named capture.
+Only terminal blank lines are ignored: the capture-file writer added a final
+newline, including for empty output. The separate-run transcript is retained;
+the new reviewer-requested combined check has its own transcript below.
+
+The source of `tmp/pr3-03/s7-checklist-audit.py` is reproduced in full:
+
+```python
+from collections import Counter
+from pathlib import Path
+
+text = Path('docs/phase3/PR3-03-evidence.md').read_text()
+section = text.split('### S7 §9.1 case-to-passing-node checklist', 1)[1]
+section = section.split('### S7 exact verification commands and raw output', 1)[0]
+blocks = section.split('- [x] ')[1:]
+locations = {}
+empty = []
+for block in blocks:
+    title = block.splitlines()[0]
+    nodes = [line for line in block.splitlines() if line.startswith('tests/')]
+    if not nodes:
+        empty.append(title)
+    for node in nodes:
+        locations.setdefault(node, []).append(title)
+counts = Counter(
+    line for block in blocks for line in block.splitlines()
+    if line.startswith('tests/')
+)
+inventory = set(Path('tmp/pr3-03/s7-fix-node-ids.txt').read_text().splitlines())
+missing = sorted(set(counts) - inventory)
+duplicates = sorted(node for node, count in counts.items() if count > 1)
+print(f'checklist_entries={len(blocks)}')
+print(f'mapped_nodes={sum(counts.values())}; unique_nodes={len(counts)}')
+print(f'missing_count={len(missing)}; duplicate_count={len(duplicates)}; empty_entry_count={len(empty)}')
+print(f'missing={missing}; duplicates={duplicates}; empty_entries={empty}')
+
+required = {
+    'reference-only': ('test_pins_phase_and_reference_only[reference-only]', 'Reference-only', 1),
+    'injection': ('test_injected_tool_text_is_inert_and_replay_never_dispatches', 'Tool injection', 1),
+    'self-weakening': ('test_injected_message_never_overrides_self_weakening_exclusion[', 'Self-weakening', 4),
+    'no-nested-UoW': ('test_invoke_common_boundary_has_no_nested_safety_or_scientific_effects[HUMAN]', 'No-nested-UoW', 1),
+    'disabled-execution': ('test_invoke_common_boundary_has_no_nested_safety_or_scientific_effects[AGENT]', 'Planning execution stays disabled', 1),
+    'six permission pins': ('test_each_permission_pin_is_required_without_fallback[', 'Exact six-key permission match', 6),
+    'registry byte limit': ('test_registry_byte_limit_and_non_executable_tuple', 'Supplied canonical registry bytes', 1),
+}
+for label, (needle, prefix, expected) in required.items():
+    matched = [node for node in counts if needle in node]
+    assert len(matched) == expected, (label, matched)
+    assert all(locations[node][0].startswith(prefix) for node in matched)
+    print(f'{label}: {len(matched)} node(s) under {prefix}')
+assert not missing and not duplicates and not empty
+print('CHECKLIST_AUDIT PASS (inventory membership; passing execution is evidenced by pytest)')
+
+import re
+
+transcript = text.split('### S7 exact verification commands and raw output', 1)[1]
+transcript = transcript.split('Additional inventory command', 1)[0]
+runs = re.findall(
+    r'```sh\n(.*?)\n```\n\n```text\n(.*?)```\n\nExit code: (\d+)\.',
+    transcript,
+    flags=re.DOTALL,
+)
+names = ('diff', 'lint', 'format', 'types', 'heads', 'unit', 'arch')
+assert len(runs) == len(names), len(runs)
+for name, (command, output, exit_code) in zip(names, runs):
+    path = Path(f'tmp/pr3-03/s7-fix-{name}.txt')
+    captured = path.read_text()
+    assert captured.rstrip('\n') == output.rstrip('\n'), path
+    assert exit_code == '0', (command, exit_code)
+    print(f'{path}: content matches pasted output; recorded exit={exit_code}')
+print('CAPTURE_AUDIT PASS (only trailing blank lines ignored)')
+```
+
+Exact command:
+
+```sh
+python3 tmp/pr3-03/s7-checklist-audit.py
+```
+
+Raw output:
+
+```text
+checklist_entries=38
+mapped_nodes=383; unique_nodes=383
+missing_count=0; duplicate_count=0; empty_entry_count=0
+missing=[]; duplicates=[]; empty_entries=[]
+reference-only: 1 node(s) under Reference-only
+injection: 1 node(s) under Tool injection
+self-weakening: 4 node(s) under Self-weakening
+no-nested-UoW: 1 node(s) under No-nested-UoW
+disabled-execution: 1 node(s) under Planning execution stays disabled
+six permission pins: 6 node(s) under Exact six-key permission match
+registry byte limit: 1 node(s) under Supplied canonical registry bytes
+CHECKLIST_AUDIT PASS (inventory membership; passing execution is evidenced by pytest)
+tmp/pr3-03/s7-fix-diff.txt: content matches pasted output; recorded exit=0
+tmp/pr3-03/s7-fix-lint.txt: content matches pasted output; recorded exit=0
+tmp/pr3-03/s7-fix-format.txt: content matches pasted output; recorded exit=0
+tmp/pr3-03/s7-fix-types.txt: content matches pasted output; recorded exit=0
+tmp/pr3-03/s7-fix-heads.txt: content matches pasted output; recorded exit=0
+tmp/pr3-03/s7-fix-unit.txt: content matches pasted output; recorded exit=0
+tmp/pr3-03/s7-fix-arch.txt: content matches pasted output; recorded exit=0
+CAPTURE_AUDIT PASS (only trailing blank lines ignored)
+```
+
+Exit code: 0. Observed: 38 entries, 383 mapped nodes, 383 unique nodes,
+0 missing, 0 duplicate and 0 empty entries. Each required behavioral mapping is
+checked explicitly above.
+
+An initial capture-audit attempt exited 1 on the system Python's unsupported
+`zip(..., strict=True)` argument:
+
+```text
+TypeError: zip() takes no keyword arguments
+```
+
+The final source above removes that optional argument; its rerun exited 0.
+The initial full output is retained in
+`tmp/pr3-03/s7-checklist-audit-initial.txt` and is not PASS.
+
+### S7 reviewer-requested combined check
+
+This is the additional combined check requested after the review rejection;
+it is separate from the seven individual runs preserved above. It ran after
+`export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`.
+
+```sh
+git diff --check HEAD && uv run ruff check . && RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres uv run pytest -o addopts="" -q tests/unit/phase3 tests/architecture tests/unit/architecture
+```
+
+Raw combined stdout/stderr (no truncation):
+
+```text
+All checks passed!
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 16%]
+........................................................................ [ 21%]
+........................................................................ [ 27%]
+........................................................................ [ 32%]
+........................................................................ [ 38%]
+........................................................................ [ 43%]
+........................................................................ [ 49%]
+........................................................................ [ 54%]
+........................................................................ [ 60%]
+........................................................................ [ 65%]
+........................................................................ [ 70%]
+........................................................................ [ 76%]
+........................................................................ [ 81%]
+........................................................................ [ 87%]
+........................................................................ [ 92%]
+........................................................................ [ 98%]
+.......................                                                  [100%]
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane120/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1319 passed, 50 warnings in 29.14s
+```
+
+Exit code: 0. Observed: 1319 passed, 0 failed, 0 skipped, 50 existing
+Alembic deprecation warnings. Both preceding commands in the chain succeeded;
+`git diff --check HEAD` emitted no output and Ruff emitted `All checks passed!`.
+Raw capture: `tmp/pr3-03/s7-review-combined.txt`. This focused unit/architecture
+run is not the six-shard full suite. PostgreSQL-dependent claims remain
+**unverified until S8**.
+
+
+### S7 handoff and changed paths
+
+PostgreSQL-dependent claims remain **unverified until S8**. S8 and the six-shard
+full suite are not started; no overall PR or PostgreSQL gate is declared.
+
+Changed paths for this evidence-quality correction:
+
+- `docs/phase3/PR3-03-evidence.md`
+- `tests/architecture/test_pr3_03_boundaries.py`
+- `tests/unit/phase3/test_capability_gateway_contracts.py`

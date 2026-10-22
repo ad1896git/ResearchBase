@@ -278,6 +278,7 @@ class Uow:
         self.committed = False
 
     def __enter__(self):
+        assert self.f.open_uows == 0, "nested gateway UoW"
         self.f.open_uows += 1
         self.saved = deepcopy((self.f.task_row, self.f.tables))
         return self
