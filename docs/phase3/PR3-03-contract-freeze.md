@@ -603,6 +603,1049 @@ Force SET CONSTRAINTS ALL IMMEDIATE before commit under locks. Denial/replay
 write no task, receipt, event or charge. In particular a missing final effect
 cannot be masked by an early flush or appending to an old receipt.
 
+### 4.4 Normative new function definitions
+
+The following SQL is documentation for the future 0080 migration, never an
+instruction to execute it during this freeze. These complete bodies, together
+with the §2/§3 CHECK/FK constraints, replace any interpretation of the preceding
+behavior tables as sufficient executable specifications. JSONB below is transient
+comparison/hash material, not persisted semantic state.
+
+These bodies have not yet been compile-checked or verified against PostgreSQL 18.
+
+Delivered callable signatures (argument order and return type are binding):
+
+- `pr301_validate_input(p_task uuid, p_question uuid, p_hypothesis uuid,
+  p_claim uuid, p_source uuid, p_artifact uuid, p_manuscript uuid,
+  p_hash text, p_scheme text) RETURNS void`: migrations/versions/0077_research_task_graph.py:425–427;
+  branches 433–469 distinguish scope, frozen status and provenance.
+- `pr304_validate_safety(p_task uuid) RETURNS void`:
+  migrations/versions/0078_task_safety_policies.py:467; complete delivered body 467–579.
+- `pr304_canonical_policy_json(p_value jsonb) RETURNS text LANGUAGE plpgsql
+  IMMUTABLE STRICT`: migrations/versions/0078_task_safety_policies.py:298–299;
+  complete body 298–320. It accepts transient integer-valued JSON, not registry
+  bytes or ArtifactVersion IDs. No new serializer or registry SQL helper is assumed.
+
+Registry entry eligibility, retained-byte canonical JSON validation, requested
+parameter hash versus byte content, and identity-based FakeConsumerCapability
+are Application obligations in §§6–8: the delivered schema stores artifact pins,
+not artifact bytes. SQL validates the exact owning pins, byte size and allowed
+fake tuple; it cannot parse an external ArtifactStore through a nonexistent SQL
+helper. Candidate OUTPUT here means an artifact reference admitted as candidate
+by Application, never promotion of scientific truth. SQL never writes its target.
+
+```sql
+CREATE OR REPLACE FUNCTION pr303_immutable() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+ RAISE EXCEPTION 'immutable gateway history'
+  USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+END $$;
+
+CREATE OR REPLACE FUNCTION pr303_policy_insert_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE t research_tasks%ROWTYPE; r research_task_command_receipts%ROWTYPE;
+ now_at timestamptz := clock_timestamp();
+BEGIN
+ SELECT * INTO t FROM research_tasks WHERE id=NEW.registration_task_id
+  AND xmin=pg_current_xact_id()::xid;
+ SELECT * INTO r FROM research_task_command_receipts WHERE id=NEW.receipt_id
+  AND research_task_id=t.id AND xmin=pg_current_xact_id()::xid;
+ IF t.id IS NULL OR r.id IS NULL THEN
+  RAISE EXCEPTION 'fresh registration owners required' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+ END IF;
+ IF ROW(NEW.project_id,NEW.created_by,NEW.created_at,t.row_version)
+  IS DISTINCT FROM ROW(r.project_id,r.actor_id,r.completed_at,r.resulting_row_version)
+  OR t.project_id IS DISTINCT FROM NEW.project_id
+  OR r.command_name<>'register_agent_tool_policy' OR r.result_tool_policy_id IS DISTINCT FROM NEW.id
+  OR NEW.created_at<transaction_timestamp() OR NEW.created_at>now_at THEN
+  RAISE EXCEPTION 'registration attribution' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+ END IF;
+ IF t.status NOT IN ('CREATED','PLANNING') THEN
+  RAISE EXCEPTION 'registration task state' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id
+  JOIN project_role_assignments p ON p.membership_id=m.id JOIN actor_subject_bindings b ON b.actor_id=a.id
+  WHERE a.id=r.actor_id AND a.actor_type='HUMAN' AND a.retired_at IS NULL
+  AND m.project_id=t.project_id AND m.status='ACTIVE' AND p.role='OWNER'
+  AND p.effective_from<=now_at AND (p.effective_until IS NULL OR now_at<p.effective_until)
+  AND b.status='ACTIVE' AND b.bound_at<=now_at AND (b.revoked_at IS NULL OR now_at<b.revoked_at)) THEN
+  RAISE EXCEPTION 'current Human owner required' USING ERRCODE='23514', CONSTRAINT='pr301_scope';
+ END IF;
+ IF NEW.version<>btrim(NEW.version) OR lower(NEW.version) IN ('latest','current','main','master')
+  OR NEW.version ~ '[*?\[\]{}()^$|\\]' THEN
+  RAISE EXCEPTION 'exact policy pin required' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+ END IF;
+ PERFORM pr301_validate_input(t.id,NULL,NULL,NULL,NULL,NEW.registry_artifact_version_id,NULL,NEW.registry_content_hash,NULL);
+ RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION pr303_permission_insert_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE p agent_tool_policies%ROWTYPE; v text;
+BEGIN
+ SELECT * INTO p FROM agent_tool_policies WHERE id=NEW.policy_id AND xmin=pg_current_xact_id()::xid;
+ IF p.id IS NULL OR NOT EXISTS(SELECT 1 FROM research_tasks t
+  JOIN research_task_command_receipts r ON r.research_task_id=t.id
+  WHERE t.id=p.registration_task_id AND t.project_id=p.project_id AND r.id=p.receipt_id
+  AND r.project_id=p.project_id AND r.resulting_row_version=t.row_version
+  AND r.command_name='register_agent_tool_policy' AND r.result_tool_policy_id=p.id
+  AND t.xmin=pg_current_xact_id()::xid AND r.xmin=pg_current_xact_id()::xid) THEN
+  RAISE EXCEPTION 'fresh permission owners required' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+ END IF;
+ IF NEW.project_id IS DISTINCT FROM p.project_id THEN
+  RAISE EXCEPTION 'permission scope' USING ERRCODE='23514', CONSTRAINT='pr301_scope';
+ END IF;
+ FOREACH v IN ARRAY ARRAY[NEW.capability_id,NEW.capability_version,NEW.operation,NEW.adapter_id,NEW.adapter_version] LOOP
+  IF v<>btrim(v) OR lower(v) IN ('latest','current','main','master') OR v ~ '[*?\[\]{}()^$|\\]' THEN
+   RAISE EXCEPTION 'exact permission pin required' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ END LOOP;
+ RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION pr303_invocation_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE t research_tasks%ROWTYPE; r research_task_command_receipts%ROWTYPE;
+ br budget_reservations%ROWTYPE; u budget_usage_records%ROWTYPE;
+ receipt uuid; stamp timestamptz; op text; permitted text[];
+BEGIN
+ IF TG_OP='DELETE' THEN
+  RAISE EXCEPTION 'immutable invocation' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+ END IF;
+ IF TG_OP='INSERT' THEN
+  receipt:=NEW.request_receipt_id; stamp:=NEW.created_at; op:='request_capability_invocation';
+  IF NEW.status<>'REQUESTED' OR NEW.row_version<>1 THEN
+   RAISE EXCEPTION 'initial invocation state' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+  END IF;
+ ELSE
+  IF OLD.status NOT IN ('REQUESTED','RUNNING') OR EXISTS(SELECT 1 FROM capability_invocations
+   WHERE id=OLD.id AND xmin=pg_current_xact_id()::xid) THEN
+   RAISE EXCEPTION 'committed nonterminal invocation required' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+  END IF;
+  IF OLD.status='REQUESTED' AND NEW.status='RUNNING' THEN
+   receipt:=NEW.start_receipt_id; stamp:=NEW.started_at; op:='start_capability_invocation';
+   permitted:=ARRAY['status','row_version','started_at','start_receipt_id'];
+  ELSIF (OLD.status='REQUESTED' AND NEW.status='CANCELLED') OR
+   (OLD.status='RUNNING' AND NEW.status IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED')) THEN
+   receipt:=NEW.finish_receipt_id; stamp:=NEW.finished_at; op:='finish_capability_invocation';
+   permitted:=ARRAY['status','row_version','finished_at','finish_receipt_id','usage_record_id',
+    'trace_artifact_version_id','trace_content_hash','result_summary','error_code'];
+  ELSE
+   RAISE EXCEPTION 'illegal invocation transition' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+  END IF;
+  IF NEW.row_version<>OLD.row_version+1 THEN
+   RAISE EXCEPTION 'invocation revision' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  IF to_jsonb(NEW)-permitted IS DISTINCT FROM to_jsonb(OLD)-permitted THEN
+   RAISE EXCEPTION 'immutable invocation material' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+  END IF;
+ END IF;
+ SELECT * INTO t FROM research_tasks WHERE id=NEW.research_task_id AND xmin=pg_current_xact_id()::xid;
+ SELECT * INTO r FROM research_task_command_receipts WHERE id=receipt AND xmin=pg_current_xact_id()::xid;
+ IF t.id IS NULL OR r.id IS NULL THEN
+  RAISE EXCEPTION 'fresh invocation owners required' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+ END IF;
+ IF ROW(r.research_task_id,r.project_id,r.resulting_row_version,r.command_name,r.result_capability_invocation_id,
+   r.result_tool_policy_id,r.resulting_invocation_revision,r.completed_at)
+  IS DISTINCT FROM ROW(t.id,NEW.project_id,t.row_version,op,NEW.id,NEW.policy_id,NEW.row_version,stamp)
+  OR t.project_id IS DISTINCT FROM NEW.project_id OR stamp IS NULL
+  OR stamp<transaction_timestamp() OR stamp>clock_timestamp() THEN
+  RAISE EXCEPTION 'invocation receipt attribution' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+ END IF;
+ IF op<>'finish_capability_invocation' AND t.status NOT IN ('CREATED','PLANNING') THEN
+  RAISE EXCEPTION 'invocation admission state' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+ END IF;
+ SELECT * INTO br FROM budget_reservations WHERE id=NEW.reservation_id;
+ IF br.id IS NULL OR ROW(br.research_task_id,br.operation_id,br.step_id,br.budget_id)
+  IS DISTINCT FROM ROW(t.id,NEW.id,NEW.step_id,t.budget_policy_id) THEN
+  RAISE EXCEPTION 'reservation ownership' USING ERRCODE='23514', CONSTRAINT='pr301_provenance';
+ END IF;
+ IF TG_OP='INSERT' THEN
+  IF NEW.requested_by IS DISTINCT FROM r.actor_id OR br.receipt_id IS DISTINCT FROM r.id
+   OR br.created_at IS DISTINCT FROM stamp OR NOT EXISTS(SELECT 1 FROM budget_reservations
+    WHERE id=br.id AND xmin=pg_current_xact_id()::xid) THEN
+   RAISE EXCEPTION 'fresh request reservation' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ ELSIF op='finish_capability_invocation' THEN
+  SELECT * INTO u FROM budget_usage_records WHERE id=NEW.usage_record_id AND xmin=pg_current_xact_id()::xid;
+  IF u.id IS NULL OR ROW(u.research_task_id,u.reservation_id,u.receipt_id,u.created_at,u.outcome,u.is_final)
+   IS DISTINCT FROM ROW(t.id,br.id,r.id,stamp,CASE WHEN NEW.status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.status END,
+    NEW.status<>'UNKNOWN_OUTCOME') THEN
+   RAISE EXCEPTION 'fresh finish usage' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  IF OLD.status='REQUESTED' AND (u.wall_time_seconds<>0 OR u.gpu_hours<>0 OR u.token_cost<>0) THEN
+   RAISE EXCEPTION 'undispatched cancellation variable charge' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ END IF;
+ RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION pr303_ref_insert_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE i capability_invocations%ROWTYPE; r research_task_command_receipts%ROWTYPE;
+BEGIN
+ SELECT * INTO i FROM capability_invocations WHERE id=NEW.invocation_id;
+ SELECT * INTO r FROM research_task_command_receipts WHERE id=NEW.receipt_id AND xmin=pg_current_xact_id()::xid;
+ IF r.id IS NULL OR NOT EXISTS(SELECT 1 FROM research_tasks WHERE id=NEW.research_task_id
+  AND row_version=r.resulting_row_version AND xmin=pg_current_xact_id()::xid) THEN
+  RAISE EXCEPTION 'fresh reference owners required' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+ END IF;
+ IF ROW(i.research_task_id,i.project_id,r.research_task_id,r.project_id,r.result_capability_invocation_id)
+  IS DISTINCT FROM ROW(NEW.research_task_id,NEW.project_id,NEW.research_task_id,NEW.project_id,i.id) THEN
+  RAISE EXCEPTION 'reference scope' USING ERRCODE='23514', CONSTRAINT='pr301_scope';
+ END IF;
+ IF NEW.direction='INPUT' THEN
+  IF i.status<>'REQUESTED' OR i.request_receipt_id IS DISTINCT FROM r.id
+   OR r.command_name<>'request_capability_invocation' OR NOT EXISTS(SELECT 1 FROM capability_invocations
+    WHERE id=i.id AND xmin=pg_current_xact_id()::xid) THEN
+   RAISE EXCEPTION 'request inputs only' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+  END IF;
+ ELSE
+  IF NEW.artifact_version_id IS NULL OR r.command_name<>'finish_capability_invocation'
+   OR NOT EXISTS(SELECT 1 FROM capability_invocation_events e WHERE e.id=r.result_capability_event_id
+    AND e.invocation_id=i.id AND e.receipt_id=r.id AND e.xmin=pg_current_xact_id()::xid AND
+    ((e.event_type='FINISHED' AND e.new_status='SUCCEEDED' AND i.status='SUCCEEDED'
+      AND i.finish_receipt_id=r.id AND EXISTS(SELECT 1 FROM capability_invocations WHERE id=i.id AND xmin=pg_current_xact_id()::xid))
+     OR (e.event_type='RECONCILED' AND e.reconciled_outcome='SUCCEEDED' AND i.status='UNKNOWN_OUTCOME'
+      AND EXISTS(SELECT 1 FROM capability_invocations WHERE id=i.id AND xmin<>pg_current_xact_id()::xid)))) THEN
+   RAISE EXCEPTION 'confirmed candidate outputs only' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+  END IF;
+ END IF;
+ PERFORM pr301_validate_input(NEW.research_task_id,NEW.research_question_version_id,NEW.hypothesis_version_id,
+  NEW.claim_version_id,NEW.source_version_id,NEW.artifact_version_id,NEW.manuscript_version_id,NEW.content_hash,NEW.hash_scheme);
+ RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION pr303_event_insert_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE i capability_invocations%ROWTYPE; r research_task_command_receipts%ROWTYPE;
+ prev capability_invocation_events%ROWTYPE; u budget_usage_records%ROWTYPE;
+ op text; saved_receipt uuid; stamp timestamptz;
+BEGIN
+ SELECT * INTO i FROM capability_invocations WHERE id=NEW.invocation_id;
+ SELECT * INTO r FROM research_task_command_receipts WHERE id=NEW.receipt_id AND xmin=pg_current_xact_id()::xid;
+ IF r.id IS NULL OR NOT EXISTS(SELECT 1 FROM research_tasks WHERE id=NEW.research_task_id
+  AND row_version=r.resulting_row_version AND xmin=pg_current_xact_id()::xid) THEN
+  RAISE EXCEPTION 'fresh event owners required' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+ END IF;
+ op:=CASE NEW.event_type WHEN 'REQUESTED' THEN 'request_capability_invocation'
+  WHEN 'STARTED' THEN 'start_capability_invocation' ELSE 'finish_capability_invocation' END;
+ IF ROW(i.research_task_id,i.project_id,i.reservation_id,r.research_task_id,r.project_id,r.command_name,
+  r.actor_id,r.completed_at,r.result_capability_event_id,r.result_capability_invocation_id,r.result_tool_policy_id,r.resulting_invocation_revision)
+  IS DISTINCT FROM ROW(NEW.research_task_id,NEW.project_id,NEW.reservation_id,NEW.research_task_id,NEW.project_id,op,
+   NEW.actor_id,NEW.occurred_at,NEW.id,i.id,i.policy_id,NEW.invocation_row_version)
+  OR NEW.occurred_at<transaction_timestamp() OR NEW.occurred_at>clock_timestamp() THEN
+  RAISE EXCEPTION 'event attribution' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+ END IF;
+ IF NEW.sequence>1 THEN
+  SELECT * INTO prev FROM capability_invocation_events WHERE invocation_id=i.id AND sequence=NEW.sequence-1;
+  IF prev.id IS NULL OR prev.new_status IS DISTINCT FROM NEW.prior_status OR prev.occurred_at>NEW.occurred_at THEN
+   RAISE EXCEPTION 'adjacent event history' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ END IF;
+ IF NEW.event_type='RECONCILED' THEN
+  IF i.status<>'UNKNOWN_OUTCOME' OR i.row_version<>3 OR NOT EXISTS(SELECT 1 FROM capability_invocations
+   WHERE id=i.id AND xmin<>pg_current_xact_id()::xid) OR EXISTS(SELECT 1 FROM capability_invocation_events
+   WHERE invocation_id=i.id AND sequence=4) OR EXISTS(SELECT 1 FROM budget_usage_records
+    WHERE reservation_id=i.reservation_id AND is_final AND id<>NEW.usage_record_id) THEN
+   RAISE EXCEPTION 'one reconciliation of committed unknown' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+  END IF;
+ ELSE
+  saved_receipt:=CASE NEW.event_type WHEN 'REQUESTED' THEN i.request_receipt_id WHEN 'STARTED' THEN i.start_receipt_id ELSE i.finish_receipt_id END;
+  stamp:=CASE NEW.event_type WHEN 'REQUESTED' THEN i.created_at WHEN 'STARTED' THEN i.started_at ELSE i.finished_at END;
+  IF NOT EXISTS(SELECT 1 FROM capability_invocations WHERE id=i.id AND xmin=pg_current_xact_id()::xid)
+   OR ROW(i.row_version,i.status,saved_receipt,stamp) IS DISTINCT FROM
+      ROW(NEW.invocation_row_version,NEW.new_status,r.id,NEW.occurred_at)
+   OR (NEW.event_type='FINISHED' AND i.usage_record_id IS DISTINCT FROM NEW.usage_record_id) THEN
+   RAISE EXCEPTION 'fresh lifecycle projection' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ END IF;
+ IF NEW.usage_record_id IS NOT NULL THEN
+  SELECT * INTO u FROM budget_usage_records WHERE id=NEW.usage_record_id AND xmin=pg_current_xact_id()::xid;
+  IF u.id IS NULL OR ROW(u.research_task_id,u.reservation_id,u.receipt_id,u.created_at,u.outcome,u.is_final)
+   IS DISTINCT FROM ROW(i.research_task_id,i.reservation_id,r.id,NEW.occurred_at,
+    CASE WHEN NEW.event_type='RECONCILED' THEN NEW.reconciled_outcome
+     WHEN NEW.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE NEW.new_status END,
+    NEW.event_type='RECONCILED' OR NEW.new_status<>'UNKNOWN_OUTCOME') THEN
+   RAISE EXCEPTION 'event usage correspondence' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ END IF;
+ RETURN NEW;
+END $$;
+```
+
+Insert lifecycle rows in this order: task → receipt → reservation/usage →
+invocation (except reconciliation) → capability event → refs → task event/link.
+The task event's reason equality is checked by the existing deferred receipt
+check below, so an event inserted before its task event is supported. No new
+trigger or exemption is required for this flush order.
+
+```sql
+CREATE OR REPLACE FUNCTION pr303_validate_gateway(p_task uuid) RETURNS void
+LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE t research_tasks%ROWTYPE; policy_row agent_tool_policies%ROWTYPE; p_policy uuid;
+ i capability_invocations%ROWTYPE; v agent_versions%ROWTYPE; br budget_reservations%ROWTYPE;
+ r research_task_command_receipts%ROWTYPE; e capability_invocation_events%ROWTYPE;
+ te research_task_events%ROWTYPE; u budget_usage_records%ROWTYPE; ref record; hashes record;
+ history record; prev capability_invocation_events%ROWTYPE; parent capability_invocations%ROWTYPE;
+ pin text; n integer; calls integer; occupied integer; k text; total numeric; bound numeric;
+ b execution_budgets%ROWTYPE; c checkpoint_policies%ROWTYPE; origin timestamptz;
+BEGIN
+ SELECT * INTO t FROM research_tasks WHERE id=p_task;
+ FOR policy_row IN SELECT ap.* FROM agent_tool_policies ap WHERE ap.registration_task_id=p_task
+  OR EXISTS(SELECT 1 FROM capability_invocations ci WHERE ci.research_task_id=p_task AND ci.policy_id=ap.id) LOOP
+  p_policy:=policy_row.id;
+  IF (SELECT count(*) FROM agent_tool_policy_permissions WHERE policy_id=policy_row.id)>256 THEN
+   RAISE EXCEPTION 'bounded permission set' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  PERFORM pr301_validate_input(p_task,NULL,NULL,NULL,NULL,policy_row.registry_artifact_version_id,NULL,policy_row.registry_content_hash,NULL);
+WITH p AS (
+  SELECT * FROM agent_tool_policies WHERE id = p_policy
+), permission_rows AS (
+  SELECT q.* FROM agent_tool_policy_permissions q JOIN p ON p.id = q.policy_id
+), permission_set AS (
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'capability_id', capability_id, 'capability_version', capability_version,
+    'operation', operation, 'adapter_id', adapter_id,
+    'adapter_version', adapter_version, 'parameter_schema_hash', parameter_schema_hash,
+    'effect', effect) ORDER BY capability_id COLLATE "C", capability_version COLLATE "C",
+    operation COLLATE "C", adapter_id COLLATE "C", adapter_version COLLATE "C",
+    parameter_schema_hash COLLATE "C", effect COLLATE "C"), '[]'::jsonb) AS value
+  FROM permission_rows
+), distinct_keys AS (
+  SELECT DISTINCT capability_id, capability_version, operation, adapter_id,
+    adapter_version, parameter_schema_hash FROM permission_rows
+), capability_set AS (
+  SELECT jsonb_build_object('type', 'CapabilitySet', 'material_version', 1,
+    'entries', coalesce(jsonb_agg(jsonb_build_object(
+      'capability_id', capability_id, 'capability_version', capability_version,
+      'operation', operation, 'adapter_id', adapter_id,
+      'adapter_version', adapter_version, 'parameter_schema_hash', parameter_schema_hash)
+      ORDER BY capability_id COLLATE "C", capability_version COLLATE "C",
+      operation COLLATE "C", adapter_id COLLATE "C", adapter_version COLLATE "C",
+      parameter_schema_hash COLLATE "C"), '[]'::jsonb)) AS value
+  FROM distinct_keys
+), envelope AS (
+  SELECT jsonb_build_object('type', 'AgentToolPolicy', 'material_version', 1,
+    'content', jsonb_build_object(
+      'project_id', p.project_id::text, 'version', p.version,
+      'capability_set_hash', p.capability_set_hash, 'permissions', s.value,
+      'max_tool_calls', p.max_tool_calls,
+      'max_parallel_invocations', p.max_parallel_invocations,
+      'filesystem_scope', p.filesystem_scope, 'network_scope', p.network_scope,
+      'compute_scope', p.compute_scope, 'external_effect_scope', p.external_effect_scope,
+      'registry_artifact_version_id', p.registry_artifact_version_id::text,
+      'registry_content_hash', p.registry_content_hash)) AS value
+  FROM p CROSS JOIN permission_set s
+)
+SELECT pr304_canonical_policy_json(env.value) AS policy_text,
+  encode(sha256(convert_to(pr304_canonical_policy_json(env.value), 'UTF8')), 'hex')
+    AS policy_digest,
+  encode(sha256(convert_to(pr304_canonical_policy_json(cset.value), 'UTF8')), 'hex')
+    AS capability_set_digest
+INTO hashes FROM envelope env CROSS JOIN capability_set cset;
+  IF hashes.policy_digest IS DISTINCT FROM policy_row.content_hash OR hashes.capability_set_digest IS DISTINCT FROM policy_row.capability_set_hash THEN
+   RAISE EXCEPTION 'policy envelope contradiction' USING ERRCODE='23514', CONSTRAINT='pr301_provenance';
+  END IF;
+ END LOOP;
+ FOR i IN SELECT * FROM capability_invocations WHERE research_task_id=p_task ORDER BY id LOOP
+  SELECT * INTO policy_row FROM agent_tool_policies WHERE id=i.policy_id;
+  SELECT * INTO v FROM agent_versions WHERE id=i.agent_version_id;
+  SELECT * INTO br FROM budget_reservations WHERE id=i.reservation_id;
+  IF ROW(policy_row.project_id,v.project_id,v.actor_id,v.tool_policy_version,v.capability_set_hash,
+    policy_row.content_hash,v.configuration_artifact_version_id,v.configuration_content_hash,
+    br.research_task_id,br.operation_id,br.budget_id,br.step_id,br.receipt_id,br.created_at)
+   IS DISTINCT FROM ROW(t.project_id,t.project_id,i.agent_actor_id,policy_row.version,policy_row.capability_set_hash,
+    i.policy_content_hash,i.harness_artifact_version_id,i.harness_content_hash,
+    t.id,i.id,t.budget_policy_id,i.step_id,i.request_receipt_id,i.created_at) THEN
+   RAISE EXCEPTION 'exact version policy reservation binding' USING ERRCODE='23514', CONSTRAINT='pr301_provenance';
+  END IF;
+  IF ROW(i.capability_id,i.capability_version,i.operation,i.adapter_id,i.adapter_version,i.parameter_schema_hash)
+   IS DISTINCT FROM ROW('fake_capability'::text,'1.0.0'::text,'echo'::text,'fake_in_process'::text,'1.0.0'::text,
+    '79fd29b8c5f855b2d2728a13ba245b96d2287fa52fd364646f4a155e40ff4d8f'::text)
+   OR i.mode<>'CONTRACT_FAKE' THEN
+   RAISE EXCEPTION 'closed fake tuple' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  FOREACH pin IN ARRAY ARRAY[i.capability_id,i.capability_version,i.operation,i.adapter_id,i.adapter_version,
+    i.skill_id,i.skill_version,i.strategy_id,i.strategy_version] LOOP
+   IF pin<>btrim(pin) OR lower(pin) IN ('latest','current','main','master') OR pin ~ '[*?\[\]{}()^$|\\]' THEN
+    RAISE EXCEPTION 'exact invocation pins' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+   END IF;
+  END LOOP;
+  IF NOT EXISTS(SELECT 1 FROM agent_tool_policy_permissions q WHERE q.policy_id=policy_row.id AND q.effect='ALLOW'
+   AND ROW(q.capability_id,q.capability_version,q.operation,q.adapter_id,q.adapter_version,q.parameter_schema_hash)
+    =ROW(i.capability_id,i.capability_version,i.operation,i.adapter_id,i.adapter_version,i.parameter_schema_hash))
+   OR EXISTS(SELECT 1 FROM agent_tool_policy_permissions q WHERE q.policy_id=policy_row.id AND q.effect='DENY'
+   AND ROW(q.capability_id,q.capability_version,q.operation,q.adapter_id,q.adapter_version,q.parameter_schema_hash)
+    =ROW(i.capability_id,i.capability_version,i.operation,i.adapter_id,i.adapter_version,i.parameter_schema_hash)) THEN
+   RAISE EXCEPTION 'exact allow absent or deny wins' USING ERRCODE='23514', CONSTRAINT='pr301_scope';
+  END IF;
+  PERFORM pr301_validate_input(t.id,NULL,NULL,NULL,NULL,i.harness_artifact_version_id,NULL,i.harness_content_hash,NULL);
+  PERFORM pr301_validate_input(t.id,NULL,NULL,NULL,NULL,i.parameters_artifact_version_id,NULL,i.parameters_content_hash,NULL);
+  IF ROW(br.agent_steps,br.llm_calls,br.search_calls,br.code_iterations,br.experiment_runs,br.tree_nodes,
+    br.gpu_hours,br.token_cost,br.wall_time_seconds)
+   IS DISTINCT FROM ROW(0::bigint,1::bigint,0::bigint,0::bigint,0::bigint,0::bigint,0.000000::numeric,0.125000::numeric,60)
+   OR (SELECT pricing_basis FROM execution_budgets WHERE id=br.budget_id) IS DISTINCT FROM 'fake-usd-v1'
+   OR br.deadline>br.created_at+interval '60 seconds' OR br.deadline<br.created_at+interval '1 second' THEN
+   RAISE EXCEPTION 'closed fake reservation vector' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  IF i.parameters_byte_size NOT BETWEEN 1 AND 65536 OR i.parameters_byte_size IS DISTINCT FROM
+    (SELECT byte_size FROM artifact_versions WHERE id=i.parameters_artifact_version_id) THEN
+   RAISE EXCEPTION 'parameter byte size' USING ERRCODE='23514', CONSTRAINT='pr301_provenance';
+  END IF;
+  IF i.trace_artifact_version_id IS NOT NULL THEN
+   PERFORM pr301_validate_input(t.id,NULL,NULL,NULL,NULL,i.trace_artifact_version_id,NULL,i.trace_content_hash,NULL);
+  END IF;
+  IF i.retry_parent_id IS NOT NULL THEN
+   SELECT * INTO parent FROM capability_invocations WHERE id=i.retry_parent_id AND research_task_id=t.id;
+   IF parent.id IS NULL OR parent.id=i.id OR parent.status NOT IN ('FAILED','UNKNOWN_OUTCOME')
+    OR NOT EXISTS(SELECT 1 FROM budget_usage_records bu JOIN research_task_command_receipts ur ON ur.id=bu.receipt_id
+      JOIN research_task_command_receipts qr ON qr.id=i.request_receipt_id
+      WHERE bu.reservation_id=parent.reservation_id AND bu.is_final AND ur.resulting_row_version<qr.resulting_row_version) THEN
+    RAISE EXCEPTION 'retry requires prior final failure observation' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+   END IF;
+  END IF;
+  IF (SELECT count(*) FROM capability_invocation_refs WHERE invocation_id=i.id)>256 THEN
+   RAISE EXCEPTION 'bounded invocation reference set' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  FOR ref IN SELECT * FROM capability_invocation_refs WHERE invocation_id=i.id LOOP
+   PERFORM pr301_validate_input(t.id,ref.research_question_version_id,ref.hypothesis_version_id,ref.claim_version_id,
+    ref.source_version_id,ref.artifact_version_id,ref.manuscript_version_id,ref.content_hash,ref.hash_scheme);
+   IF ref.direction='INPUT' AND ref.receipt_id IS DISTINCT FROM i.request_receipt_id
+    OR ref.direction='OUTPUT' AND (ref.artifact_version_id IS NULL OR NOT EXISTS(
+      SELECT 1 FROM capability_invocation_events ce WHERE ce.invocation_id=i.id AND ce.receipt_id=ref.receipt_id
+       AND ((ce.event_type='FINISHED' AND ce.new_status='SUCCEEDED')
+        OR (ce.event_type='RECONCILED' AND ce.reconciled_outcome='SUCCEEDED')))) THEN
+    RAISE EXCEPTION 'reference lifecycle attribution' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+   END IF;
+  END LOOP;
+  n:=0; prev:=NULL;
+  FOR e IN SELECT * FROM capability_invocation_events WHERE invocation_id=i.id ORDER BY sequence LOOP
+   n:=n+1;
+   SELECT * INTO r FROM research_task_command_receipts WHERE id=e.receipt_id;
+   SELECT * INTO te FROM research_task_events WHERE research_task_id=t.id AND task_row_version=r.resulting_row_version;
+   IF e.sequence<>n OR (n>1 AND (e.prior_status IS DISTINCT FROM prev.new_status OR e.occurred_at<prev.occurred_at))
+    OR ROW(e.actor_id,e.occurred_at,e.reason,r.result_capability_event_id,r.result_capability_invocation_id,
+       r.result_tool_policy_id,r.resulting_invocation_revision,r.research_task_id,r.project_id)
+     IS DISTINCT FROM ROW(r.actor_id,r.completed_at,te.reason,e.id,i.id,i.policy_id,e.invocation_row_version,t.id,t.project_id)
+    OR r.command_name IS DISTINCT FROM CASE e.event_type WHEN 'REQUESTED' THEN 'request_capability_invocation'
+     WHEN 'STARTED' THEN 'start_capability_invocation' ELSE 'finish_capability_invocation' END THEN
+    RAISE EXCEPTION 'gapless attributable event history' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+   END IF;
+   IF e.sequence<=i.row_version AND (
+    (e.sequence=1 AND ROW(e.receipt_id,e.occurred_at,e.actor_id) IS DISTINCT FROM ROW(i.request_receipt_id,i.created_at,i.requested_by))
+    OR (e.event_type='STARTED' AND ROW(e.receipt_id,e.occurred_at) IS DISTINCT FROM ROW(i.start_receipt_id,i.started_at))
+    OR (e.event_type='FINISHED' AND ROW(e.receipt_id,e.occurred_at,e.usage_record_id) IS DISTINCT FROM
+      ROW(i.finish_receipt_id,i.finished_at,i.usage_record_id))
+    OR (e.sequence=i.row_version AND ROW(e.new_status,e.invocation_row_version) IS DISTINCT FROM ROW(i.status,i.row_version))) THEN
+    RAISE EXCEPTION 'saved projection contradiction' USING ERRCODE='23514', CONSTRAINT='pr301_provenance';
+   END IF;
+   IF e.event_type='RECONCILED' AND (i.status<>'UNKNOWN_OUTCOME' OR i.row_version<>3) THEN
+    RAISE EXCEPTION 'reconciled unknown only' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+   END IF;
+   IF e.usage_record_id IS NOT NULL THEN
+    SELECT * INTO u FROM budget_usage_records WHERE id=e.usage_record_id;
+    IF u.id IS NULL OR ROW(u.research_task_id,u.reservation_id,u.receipt_id,u.created_at,u.is_final,u.outcome)
+     IS DISTINCT FROM ROW(t.id,i.reservation_id,r.id,e.occurred_at,
+      e.event_type='RECONCILED' OR e.new_status<>'UNKNOWN_OUTCOME',
+      CASE WHEN e.event_type='RECONCILED' THEN e.reconciled_outcome
+       WHEN e.new_status='UNKNOWN_OUTCOME' THEN 'UNKNOWN' ELSE e.new_status END) THEN
+     RAISE EXCEPTION 'one exact charge per observation' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+    END IF;
+    IF u.outcome<>'UNKNOWN' AND (u.wall_time_seconds<>0 OR u.gpu_hours<>0 OR u.token_cost<>0) THEN
+     RAISE EXCEPTION 'fake variable consumption is zero' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+    END IF;
+   END IF;
+   prev:=e;
+  END LOOP;
+  IF n<>i.row_version+CASE WHEN EXISTS(SELECT 1 FROM capability_invocation_events
+    WHERE invocation_id=i.id AND sequence=4 AND event_type='RECONCILED') THEN 1 ELSE 0 END
+   OR (SELECT count(*) FROM budget_usage_records WHERE reservation_id=i.reservation_id)<>
+      (SELECT count(*) FROM capability_invocation_events WHERE invocation_id=i.id AND usage_record_id IS NOT NULL) THEN
+   RAISE EXCEPTION 'missing event or extra charge' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ END LOOP;
+ -- Historical counts use admitting receipt revisions, never today's totals.
+ FOR history IN SELECT cr.*,ci.id AS invocation_id,ci.policy_id,ce.event_type,ce.reservation_id
+  FROM research_task_command_receipts cr JOIN capability_invocation_events ce ON ce.receipt_id=cr.id
+  JOIN capability_invocations ci ON ci.id=ce.invocation_id
+  WHERE cr.research_task_id=t.id AND ce.event_type IN ('REQUESTED','STARTED') ORDER BY cr.resulting_row_version LOOP
+  SELECT * INTO policy_row FROM agent_tool_policies WHERE id=history.policy_id;
+  SELECT * INTO i FROM capability_invocations WHERE id=history.invocation_id;
+  SELECT count(*) INTO calls FROM capability_invocations ci JOIN research_task_command_receipts qr ON qr.id=ci.request_receipt_id
+   WHERE ci.research_task_id=t.id AND qr.resulting_row_version<=history.resulting_row_version;
+  SELECT count(*) INTO occupied FROM capability_invocations ci JOIN research_task_command_receipts qr ON qr.id=ci.request_receipt_id
+   WHERE ci.research_task_id=t.id AND qr.resulting_row_version<=history.resulting_row_version AND NOT EXISTS(
+    SELECT 1 FROM budget_usage_records bu JOIN research_task_command_receipts ur ON ur.id=bu.receipt_id
+    WHERE bu.reservation_id=ci.reservation_id AND bu.is_final AND ur.resulting_row_version<=history.resulting_row_version);
+  IF calls>policy_row.max_tool_calls OR occupied>policy_row.max_parallel_invocations THEN
+   RAISE EXCEPTION 'task-wide tool admission caps' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+  END IF;
+  IF history.event_type='STARTED' THEN
+   SELECT * INTO br FROM budget_reservations WHERE id=i.reservation_id;
+   SELECT * INTO b FROM execution_budgets WHERE id=br.budget_id;
+   SELECT min(created_at) INTO origin FROM budget_reservations WHERE research_task_id=t.id;
+   SELECT * INTO c FROM checkpoint_policies WHERE id=t.checkpoint_policy_id;
+   IF history.completed_at>=br.deadline OR history.completed_at>=origin+b.max_wall_time_seconds*interval '1 second'
+    OR t.autonomy_level IN ('A2','A3') OR EXISTS(SELECT 1 FROM budget_usage_records bu
+     JOIN research_task_command_receipts ur ON ur.id=bu.receipt_id WHERE bu.reservation_id=br.id
+      AND ur.resulting_row_version<=history.resulting_row_version)
+    OR EXISTS(SELECT 1 FROM research_task_events se WHERE se.research_task_id=t.id AND se.task_row_version<history.resulting_row_version
+     AND (se.stop_human OR se.stop_policy OR se.stop_budget OR se.stop_repeated_failure OR se.stop_no_improvement)
+     AND NOT (se.event_type='CAPABILITY_REQUESTED' AND se.result_capability_invocation_id=i.id
+      AND se.stop_budget AND NOT (se.stop_human OR se.stop_policy OR se.stop_repeated_failure OR se.stop_no_improvement))) THEN
+    RAISE EXCEPTION 'start deadline or sticky stop' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+   END IF;
+   IF EXISTS(SELECT 1 FROM unnest(c.required_types || ARRAY['plan_review']::text[]) gate
+    WHERE NOT EXISTS(SELECT 1 FROM human_checkpoints h JOIN research_task_command_receipts hr ON hr.id=h.response_receipt_id
+     WHERE h.id=(SELECT hh.id FROM human_checkpoints hh JOIN research_task_command_receipts qr ON qr.id=hh.receipt_id
+      WHERE hh.research_task_id=t.id AND hh.step_id IS NOT DISTINCT FROM i.step_id AND hh.checkpoint_type=gate
+       AND qr.resulting_row_version<history.resulting_row_version ORDER BY hh.created_at DESC,hh.id DESC LIMIT 1)
+      AND h.status='APPROVED' AND hr.resulting_row_version<history.resulting_row_version)) THEN
+    RAISE EXCEPTION 'latest start checkpoint required' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+   END IF;
+   FOREACH k IN ARRAY ARRAY['agent_steps','llm_calls','search_calls','code_iterations','experiment_runs','tree_nodes','gpu_hours','token_cost'] LOOP
+    SELECT coalesce(sum(CASE WHEN bu.id IS NULL THEN (to_jsonb(res)->>k)::numeric ELSE (to_jsonb(bu)->>k)::numeric END),0) INTO total
+     FROM budget_reservations res JOIN research_task_command_receipts qr ON qr.id=res.receipt_id
+     LEFT JOIN (budget_usage_records bu JOIN research_task_command_receipts ur ON ur.id=bu.receipt_id
+      AND ur.resulting_row_version<=history.resulting_row_version) ON bu.reservation_id=res.id AND bu.is_final
+     WHERE res.research_task_id=t.id AND qr.resulting_row_version<=history.resulting_row_version;
+    bound:=(to_jsonb(b)->>('max_'||k))::numeric;
+    IF total>bound THEN
+     RAISE EXCEPTION 'start capacity exceeded' USING ERRCODE='23514', CONSTRAINT='pr301_state';
+    END IF;
+   END LOOP;
+  END IF;
+  -- Current persisted availability/entitlement is only rechecked for fresh admission;
+  -- later disable/revocation cannot invalidate completed historical admissions.
+  IF EXISTS(SELECT 1 FROM research_task_command_receipts WHERE id=history.id AND xmin=pg_current_xact_id()::xid) THEN
+   IF t.status='CANCELLED' OR NOT EXISTS(SELECT 1 FROM agent_availability av JOIN actors a ON a.id=i.agent_actor_id
+     JOIN project_memberships m ON m.actor_id=a.id WHERE av.agent_version_id=i.agent_version_id AND av.status='ACTIVE'
+      AND a.actor_type='AGENT' AND a.retired_at IS NULL AND m.project_id=t.project_id AND m.status='ACTIVE')
+    OR NOT EXISTS(SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id
+      JOIN actor_subject_bindings ab ON ab.actor_id=a.id WHERE a.id=history.actor_id AND a.retired_at IS NULL
+      AND m.project_id=t.project_id AND m.status='ACTIVE' AND ab.status='ACTIVE'
+      AND ab.bound_at<=clock_timestamp() AND (ab.revoked_at IS NULL OR clock_timestamp()<ab.revoked_at)) THEN
+    RAISE EXCEPTION 'current admission entitlement' USING ERRCODE='23514', CONSTRAINT='pr301_scope';
+   END IF;
+  END IF;
+ END LOOP;
+END $$;
+```
+
+### 4.5 Complete forward replacements and retained trigger identities
+
+Names in the §4.3 right column sometimes name triggers, not functions.
+`pr301_task_final` calls `pr301_graph_final_guard()`;
+`pr301_receipt_complete_commit` calls `pr301_receipt_complete()`;
+`pr304_reservation_guard` and `pr304_usage_guard` both call `pr304_child_guard()`.
+There are no delivered functions with those four trigger names. The bodies below
+replace their actual callees in place, retaining trigger OIDs and attachment
+semantics. No DROP/CREATE trigger or redundant wrapper function is needed.
+
+Every original conditional branch is retained. The following preservation map
+uses delivered migration lines, not shifting lines in this document. Changed
+command-set branches include their old cases and add only gateway owners.
+
+| Function | Delivered complete body | Preserved branches and exact limited change |
+| --- | --- | --- |
+| pr301_task_guard | 0078_task_safety_policies.py:322–352 (supersedes 0077:348–372) | DELETE 324; initial state/bundle 325–329; one-write/material 331–334; revision 335; bound bundle 336–338; terminal material 339–340; transitions 341–343; finish 344–345; seal 346–349. All unchanged: status-preserving gateway bumps already fit. Deferred receipt adds command attribution. |
+| pr301_receipt_insert_guard | 0077_research_task_graph.py:507–514 | Fresh task/project/revision 509–511 unchanged; new receipt shape is also checked by §3 CHECK. No command filter existed to remove. |
+| pr304_child_guard | 0078_task_safety_policies.py:354–375 | Mutation denial 357; fresh owners 358–361; table owner cases 362–364 extended only for reservation/usage; observed clock 365–367; scope owner 368–371; cancelled 372–373 extended only for finish. |
+| pr304_validate_safety | 0078_task_safety_policies.py:467–579 | Policy validation/orphans 474–485; unbound/bundle/autonomy 486–495; ordered history 496–499; admission/deadline/origin 500–506; occupancy/depth 507–517; evaluator 518–519; checkpoints 520–526; A2/A3 denial 527–529; post-final 535–537; measured vector 538–542; score 543–546; streak reconstruction 547–558; cap and stop reconstruction 559–576; sticky accumulation 577. Only 559's command set gains request/finish. Reservations/usages are already discovered by receipt ownership at 500/532. Start admission is checked by pr303_validate_gateway without adding a reservation or changing sticky history. |
+| pr301_graph_final_guard | 0078_task_safety_policies.py:584–621 (extends 0077:576–612) | Size limits 589–592; states 593–596; task history 597–602; step history 603–610; sealed inputs 611–618; safety call 619 all unchanged; one gateway call appended before return. |
+| pr301_receipt_complete | 0078_task_safety_policies.py:622–723 (extends 0077:616–662) | Planning/safety mapping 629–632 extended; attribution 633–635; create/seal time 636–645; dependency count 646–650; history 651–652; step attribution/count 653–664; cancel time 665–666; policy/scope counts 668–676; reservation/usage counts 678–680 extended; checkpoint count 682; seal/create 685–688; owner 689–695; explicit stops 696–697; reasons/binding 698–702; response/expiry 703–711; no graph effects/time/terminal rules 712–721 extended only for gateway bookkeeping. New gateway cardinalities follow all preserved branches. |
+
+Exact changes within the delivered branches called out above, all in
+`migrations/versions/0078_task_safety_policies.py`:
+
+| Function / delivered line | Before | After in the complete replacement below |
+| --- | --- | --- |
+| pr304_child_guard:363 | Reservation owners `ARRAY['reserve_task_budget']`; usage owners `ARRAY['settle_task_budget']`. | Reservation owners `ARRAY['reserve_task_budget','request_capability_invocation']`; usage owners `ARRAY['settle_task_budget','finish_capability_invocation']`. Lines 362 and 364 are unchanged. |
+| pr304_child_guard:372 | Cancelled-task predicate `r.command_name<>'settle_task_budget'`. | Predicate `r.command_name NOT IN ('settle_task_budget','finish_capability_invocation')`. Line 373's rejection and diagnostic remain unchanged. |
+| pr301_receipt_complete:712 | The command set contains the six delivered safety commands. | Append `register_agent_tool_policy`, `request_capability_invocation`, `start_capability_invocation`, and `finish_capability_invocation` to that set. Lines 713–718's time and no-graph-effect checks are unchanged and now also apply to these commands. |
+| pr301_receipt_complete:719 | Cancelled-task exceptions `('settle_task_budget','evaluate_task_termination')`. | Exceptions `('settle_task_budget','evaluate_task_termination','finish_capability_invocation')`. Lines 720–721's rejection, diagnostic and closing branch are unchanged. |
+
+All file names above are under `migrations/versions/`. All replacement definitions
+explicitly use invoker rights and the fixed search path, including unchanged
+bodies reproduced here for a complete reviewable replacement.
+
+```sql
+CREATE OR REPLACE FUNCTION pr301_task_guard() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+ IF TG_OP='DELETE' THEN RAISE EXCEPTION 'immutable task' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+ IF TG_OP='INSERT' THEN
+  IF NEW.status<>'CREATED' OR NEW.row_version<>1 OR NEW.plan_sealed_at IS NOT NULL OR
+   NEW.started_at IS NOT NULL OR NEW.finished_at IS NOT NULL OR NEW.current_step_id IS NOT NULL OR
+   num_nonnulls(NEW.budget_policy_id,NEW.termination_policy_id,NEW.checkpoint_policy_id)<>0
+  THEN RAISE EXCEPTION 'invalid initial task' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+ ELSE
+  IF EXISTS(SELECT 1 FROM research_tasks WHERE id=OLD.id AND xmin=pg_current_xact_id()::xid)
+   OR (to_jsonb(NEW)-ARRAY['row_version','status','finished_at','plan_sealed_at','budget_policy_id','termination_policy_id','checkpoint_policy_id'])
+     IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['row_version','status','finished_at','plan_sealed_at','budget_policy_id','termination_policy_id','checkpoint_policy_id'])
+  THEN RAISE EXCEPTION 'immutable task material' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+  IF NEW.row_version<>OLD.row_version+1 THEN RAISE EXCEPTION 'invalid revision' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+  IF OLD.budget_policy_id IS NOT NULL AND ROW(NEW.budget_policy_id,NEW.termination_policy_id,NEW.checkpoint_policy_id)
+   IS DISTINCT FROM ROW(OLD.budget_policy_id,OLD.termination_policy_id,OLD.checkpoint_policy_id)
+  THEN RAISE EXCEPTION 'immutable policy binding' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+  IF OLD.status='CANCELLED' AND to_jsonb(NEW)-'row_version' IS DISTINCT FROM to_jsonb(OLD)-'row_version'
+  THEN RAISE EXCEPTION 'terminal material' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+  IF NOT ((NEW.status=OLD.status) OR (OLD.status='CREATED' AND NEW.status='PLANNING') OR
+   (OLD.status IN ('CREATED','PLANNING') AND NEW.status='CANCELLED'))
+  THEN RAISE EXCEPTION 'invalid state' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+  IF NEW.finished_at IS DISTINCT FROM OLD.finished_at AND NOT (OLD.status<>'CANCELLED' AND NEW.status='CANCELLED')
+  THEN RAISE EXCEPTION 'immutable finish' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+  IF OLD.plan_sealed_at IS NOT NULL AND NEW.plan_sealed_at IS DISTINCT FROM OLD.plan_sealed_at
+  THEN RAISE EXCEPTION 'immutable seal' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+  IF OLD.plan_sealed_at IS NULL AND NEW.plan_sealed_at IS NOT NULL AND NOT (OLD.status='PLANNING' AND NEW.status='PLANNING')
+  THEN RAISE EXCEPTION 'invalid seal' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+ END IF;
+ RETURN NEW;
+END $$;
+```
+
+```sql
+CREATE OR REPLACE FUNCTION pr301_receipt_insert_guard() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM research_tasks WHERE id=NEW.research_task_id AND project_id=NEW.project_id
+  AND row_version=NEW.resulting_row_version AND xmin=pg_current_xact_id()::xid)
+ THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_immutable'; END IF;
+ RETURN NEW;
+END $$;
+```
+
+```sql
+CREATE OR REPLACE FUNCTION pr304_child_guard() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE r research_task_command_receipts%ROWTYPE; t research_tasks%ROWTYPE; now_at timestamptz := clock_timestamp(); allowed text[];
+BEGIN
+ IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'immutable safety history' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+ SELECT * INTO t FROM research_tasks WHERE id=NEW.research_task_id AND xmin=pg_current_xact_id()::xid;
+ SELECT * INTO r FROM research_task_command_receipts WHERE id=NEW.receipt_id AND research_task_id=NEW.research_task_id AND xmin=pg_current_xact_id()::xid;
+ IF t.id IS NULL OR r.id IS NULL OR r.resulting_row_version<>t.row_version
+ THEN RAISE EXCEPTION 'fresh owners required' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+ allowed:=CASE TG_TABLE_NAME WHEN 'execution_budgets' THEN ARRAY['bind_task_policies','request_human_checkpoint']
+ WHEN 'budget_reservations' THEN ARRAY['reserve_task_budget','request_capability_invocation'] WHEN 'budget_usage_records' THEN ARRAY['settle_task_budget','finish_capability_invocation']
+ ELSE ARRAY['bind_task_policies'] END;
+ IF NOT r.command_name=ANY(allowed) OR NEW.created_at IS DISTINCT FROM r.completed_at OR
+   NEW.created_at<transaction_timestamp() OR NEW.created_at>now_at
+ THEN RAISE EXCEPTION 'invalid safety effect' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+ IF TG_TABLE_NAME IN ('checkpoint_policy_dataset_scopes','checkpoint_policy_metric_scopes') THEN
+  IF NOT EXISTS(SELECT 1 FROM checkpoint_policies WHERE id=NEW.checkpoint_policy_id AND research_task_id=t.id AND receipt_id=r.id AND xmin=pg_current_xact_id()::xid)
+  THEN RAISE EXCEPTION 'fresh scope owner required' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+ END IF;
+ IF t.status='CANCELLED' AND r.command_name NOT IN ('settle_task_budget','finish_capability_invocation')
+ THEN RAISE EXCEPTION 'cancelled task' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+ RETURN NEW;
+END $$;
+```
+
+```sql
+CREATE OR REPLACE FUNCTION pr304_validate_safety(p_task uuid) RETURNS void LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE t research_tasks%ROWTYPE; b execution_budgets%ROWTYPE; c checkpoint_policies%ROWTYPE; term termination_policies%ROWTYPE;
+ r record; u record; e record; pol record; k text; total numeric; bound numeric; measured numeric;
+ origin timestamptz; n integer; depth integer; occupancy integer; stopped boolean:=false; budget_stop boolean; failure_stop boolean; progress_stop boolean;
+ history record; fs integer; ns integer; best numeric; val numeric; current_outcome text; current_score numeric;
+BEGIN
+ SELECT * INTO t FROM research_tasks WHERE id=p_task;
+ FOR pol IN SELECT id FROM execution_budgets WHERE research_task_id=p_task LOOP PERFORM pr304_validate_policy(p_task,pol.id,'BUDGET'); END LOOP;
+ FOR pol IN SELECT id FROM termination_policies WHERE research_task_id=p_task LOOP
+  IF pol.id IS DISTINCT FROM t.termination_policy_id THEN RAISE EXCEPTION 'orphan termination policy' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+  PERFORM pr304_validate_policy(p_task,pol.id,'TERMINATION');
+ END LOOP;
+ FOR pol IN SELECT id FROM checkpoint_policies WHERE research_task_id=p_task LOOP
+  IF pol.id IS DISTINCT FROM t.checkpoint_policy_id THEN RAISE EXCEPTION 'orphan checkpoint policy' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+  PERFORM pr304_validate_policy(p_task,pol.id,'CHECKPOINT');
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM execution_budgets x WHERE research_task_id=p_task AND x.id IS DISTINCT FROM t.budget_policy_id
+   AND NOT EXISTS(SELECT 1 FROM human_checkpoints h WHERE h.proposed_budget_id=x.id AND h.receipt_id=x.receipt_id AND h.research_task_id=p_task))
+ THEN RAISE EXCEPTION 'orphan extension budget' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+ IF t.budget_policy_id IS NULL THEN
+  IF EXISTS(SELECT 1 FROM budget_reservations WHERE research_task_id=p_task) OR EXISTS(SELECT 1 FROM human_checkpoints WHERE research_task_id=p_task)
+  THEN RAISE EXCEPTION 'complete bundle required' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+  RETURN;
+ END IF;
+ SELECT * INTO b FROM execution_budgets WHERE id=t.budget_policy_id AND research_task_id=p_task;
+ SELECT * INTO c FROM checkpoint_policies WHERE id=t.checkpoint_policy_id AND research_task_id=p_task;
+ SELECT * INTO term FROM termination_policies WHERE id=t.termination_policy_id AND research_task_id=p_task;
+ IF b.id IS NULL OR c.id IS NULL OR term.id IS NULL THEN RAISE EXCEPTION 'same-task bundle required' USING ERRCODE='23503'; END IF;
+ IF t.autonomy_level>c.maximum_autonomy THEN RAISE EXCEPTION 'autonomy ceiling' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+ FOR history IN SELECT cr.*,te.stop_human,te.stop_policy,te.stop_budget,te.stop_repeated_failure,te.stop_no_improvement,te.stop_success
+  FROM research_task_command_receipts cr JOIN research_task_events te ON te.research_task_id=cr.research_task_id AND te.task_row_version=cr.resulting_row_version
+  WHERE cr.research_task_id=p_task ORDER BY cr.resulting_row_version LOOP
+  budget_stop:=false; failure_stop:=false; progress_stop:=false;
+  SELECT * INTO r FROM budget_reservations WHERE receipt_id=history.id;
+  IF r.id IS NOT NULL THEN
+   IF stopped OR r.budget_id<>b.id OR r.deadline>r.created_at+r.wall_time_seconds*interval '1 second' OR r.deadline<=r.created_at
+   THEN RAISE EXCEPTION 'admission blocked' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+   IF origin IS NULL THEN origin:=r.created_at; END IF;
+   IF r.created_at>=origin+b.max_wall_time_seconds*interval '1 second' OR r.deadline>origin+b.max_wall_time_seconds*interval '1 second'
+   THEN RAISE EXCEPTION 'wall budget exceeded' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+   SELECT count(*) INTO occupancy FROM budget_reservations br JOIN research_task_command_receipts cr ON cr.id=br.receipt_id
+    WHERE br.research_task_id=p_task AND cr.resulting_row_version<=history.resulting_row_version AND NOT EXISTS(
+     SELECT 1 FROM budget_usage_records bu JOIN research_task_command_receipts ur ON ur.id=bu.receipt_id WHERE bu.reservation_id=br.id AND bu.is_final AND ur.resulting_row_version<history.resulting_row_version);
+   depth:=0;
+   IF r.step_id IS NOT NULL THEN
+    WITH RECURSIVE ancestors AS (SELECT id,parent_step_id,0 AS d FROM research_task_steps WHERE id=r.step_id AND research_task_id=p_task
+      UNION ALL SELECT s.id,s.parent_step_id,a.d+1 FROM research_task_steps s JOIN ancestors a ON s.id=a.parent_step_id WHERE s.research_task_id=p_task)
+     SELECT max(d) INTO depth FROM ancestors;
+   END IF;
+   IF depth IS NULL OR r.observed_depth<>depth OR depth>b.max_tree_depth OR r.observed_parallel_branches<>occupancy OR occupancy>b.max_parallel_branches
+   THEN RAISE EXCEPTION 'invalid gauges' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+   IF (r.code_iterations>0 OR r.experiment_runs>0 OR r.tree_nodes>0) AND term.score_metric_version_id IS NULL
+   THEN RAISE EXCEPTION 'comparable evaluator required' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+   IF EXISTS(SELECT 1 FROM unnest(c.required_types || ARRAY['plan_review']::text[] || CASE WHEN r.code_iterations>0 THEN ARRAY['code_risk'] ELSE ARRAY[]::text[] END || CASE WHEN r.experiment_runs>0 THEN ARRAY['experiment_approval'] ELSE ARRAY[]::text[] END) gate
+    WHERE NOT EXISTS(SELECT 1 FROM human_checkpoints h JOIN research_task_command_receipts hr ON hr.id=h.response_receipt_id
+     WHERE h.id=(SELECT hh.id FROM human_checkpoints hh JOIN research_task_command_receipts qr ON qr.id=hh.receipt_id
+       WHERE hh.research_task_id=p_task AND hh.step_id IS NOT DISTINCT FROM r.step_id AND hh.checkpoint_type=gate AND qr.resulting_row_version<history.resulting_row_version
+       ORDER BY hh.created_at DESC,hh.id DESC LIMIT 1)
+     AND h.status='APPROVED' AND hr.resulting_row_version<history.resulting_row_version))
+   THEN RAISE EXCEPTION 'checkpoint required' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+   IF t.autonomy_level IN ('A2','A3') THEN
+    RAISE EXCEPTION 'scientific execution prerequisites unavailable in fake slice' USING ERRCODE='23514',CONSTRAINT='pr301_state';
+   END IF;
+  END IF;
+  SELECT bu.*,br.step_id,br.agent_steps AS reserved_agent_steps,br.llm_calls AS reserved_llm_calls,br.search_calls AS reserved_search_calls,
+   br.code_iterations AS reserved_code_iterations,br.experiment_runs AS reserved_experiment_runs,br.tree_nodes AS reserved_tree_nodes,
+   to_jsonb(br) AS reserved FROM budget_usage_records bu JOIN budget_reservations br ON br.id=bu.reservation_id WHERE bu.receipt_id=history.id INTO u;
+  IF u.id IS NOT NULL THEN
+   IF EXISTS(SELECT 1 FROM budget_usage_records bu JOIN research_task_command_receipts cr ON cr.id=bu.receipt_id
+     WHERE bu.reservation_id=u.reservation_id AND bu.is_final AND cr.resulting_row_version<history.resulting_row_version)
+   THEN RAISE EXCEPTION 'post-final observation' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+   FOREACH k IN ARRAY ARRAY['wall_time_seconds','agent_steps','llm_calls','search_calls','code_iterations','experiment_runs','tree_nodes','gpu_hours','token_cost'] LOOP
+    measured:=(to_jsonb(u)->>k)::numeric; bound:=(u.reserved->>k)::numeric;
+    IF measured>bound OR (k IN ('agent_steps','llm_calls','search_calls','code_iterations','experiment_runs','tree_nodes') AND measured<>bound) OR (u.outcome='UNKNOWN' AND measured<>bound)
+    THEN RAISE EXCEPTION 'invalid measured vector' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+   END LOOP;
+   IF u.outcome='SUCCEEDED' AND u.score IS NULL AND ((u.reserved->>'code_iterations')::numeric>0 OR (u.reserved->>'experiment_runs')::numeric>0 OR (u.reserved->>'tree_nodes')::numeric>0)
+   THEN RAISE EXCEPTION 'comparable iteration score required' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+   IF u.score IS NOT NULL AND (term.evaluator_version IS NULL OR u.evaluator_version<>term.evaluator_version OR u.outcome<>'SUCCEEDED')
+   THEN RAISE EXCEPTION 'incomparable score' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+   fs:=0; ns:=0; best:=NULL;
+   FOR pol IN SELECT bu.* FROM budget_usage_records bu JOIN budget_reservations br ON br.id=bu.reservation_id JOIN research_task_command_receipts cr ON cr.id=bu.receipt_id
+    WHERE bu.research_task_id=p_task AND br.step_id IS NOT DISTINCT FROM u.step_id AND bu.is_final AND cr.resulting_row_version<=history.resulting_row_version ORDER BY cr.resulting_row_version LOOP
+    IF pol.outcome='FAILED' THEN fs:=fs+1; ELSIF pol.outcome='SUCCEEDED' THEN
+     fs:=0;
+     IF pol.score IS NOT NULL THEN
+      IF best IS NULL OR (term.score_direction='MAXIMIZE' AND pol.score>best) OR (term.score_direction='MINIMIZE' AND pol.score<best) THEN best:=pol.score; ns:=0;
+      ELSE ns:=ns+1; END IF;
+     END IF;
+    END IF;
+   END LOOP;
+   IF u.failure_streak<>fs OR u.no_improvement_streak<>ns THEN RAISE EXCEPTION 'counterfeit streak' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+  END IF;
+  IF history.command_name IN ('reserve_task_budget','settle_task_budget','evaluate_task_termination','request_capability_invocation','finish_capability_invocation') THEN
+   FOREACH k IN ARRAY ARRAY['agent_steps','llm_calls','search_calls','code_iterations','experiment_runs','tree_nodes','gpu_hours','token_cost'] LOOP
+    SELECT coalesce(sum(CASE WHEN bu.id IS NULL THEN (to_jsonb(br)->>k)::numeric ELSE (to_jsonb(bu)->>k)::numeric END),0) INTO total
+     FROM budget_reservations br JOIN research_task_command_receipts cr ON cr.id=br.receipt_id LEFT JOIN (
+      budget_usage_records bu JOIN research_task_command_receipts ur ON ur.id=bu.receipt_id AND ur.resulting_row_version<=history.resulting_row_version)
+      ON bu.reservation_id=br.id AND bu.is_final
+     WHERE br.research_task_id=p_task AND cr.resulting_row_version<=history.resulting_row_version;
+    bound:=(to_jsonb(b)->>('max_'||k))::numeric;
+    IF total>bound THEN RAISE EXCEPTION 'budget exceeded' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+    budget_stop:=budget_stop OR (bound>0 AND total>=bound);
+   END LOOP;
+   budget_stop:=budget_stop OR (origin IS NOT NULL AND history.completed_at>=origin+b.max_wall_time_seconds*interval '1 second');
+   SELECT coalesce(bool_or(bu.failure_streak>=term.repeated_failure_threshold),false),coalesce(bool_or(bu.no_improvement_streak>=term.max_no_improvement_iterations),false)
+    INTO failure_stop,progress_stop FROM budget_usage_records bu JOIN research_task_command_receipts cr ON cr.id=bu.receipt_id WHERE bu.research_task_id=p_task AND bu.is_final AND cr.resulting_row_version<=history.resulting_row_version;
+   IF history.stop_budget IS DISTINCT FROM budget_stop OR history.stop_repeated_failure IS DISTINCT FROM failure_stop OR history.stop_no_improvement IS DISTINCT FROM progress_stop
+   THEN RAISE EXCEPTION 'counterfeit stop causes' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+  END IF;
+  stopped:=stopped OR history.stop_human OR history.stop_policy OR history.stop_budget OR history.stop_repeated_failure OR history.stop_no_improvement;
+ END LOOP;
+END $$;
+```
+
+```sql
+CREATE OR REPLACE FUNCTION pr301_graph_final_guard() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE t research_tasks%ROWTYPE; s research_task_steps%ROWTYPE; b record; n integer;
+BEGIN
+ SELECT * INTO t FROM research_tasks WHERE id=NEW.id;
+ SELECT count(*) INTO n FROM research_task_steps WHERE research_task_id=t.id;
+ IF n>256 OR (SELECT count(*) FROM research_task_step_dependencies WHERE research_task_id=t.id)>1024
+ OR ((SELECT count(*) FROM research_task_inputs WHERE research_task_id=t.id)+
+     (SELECT count(*) FROM research_task_step_inputs WHERE research_task_id=t.id))>256
+ THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+ IF (t.status='CREATED' AND n<>0) OR (t.status='PLANNING' AND (n=0 OR EXISTS(
+  SELECT 1 FROM research_task_steps WHERE research_task_id=t.id AND status<>'PENDING')))
+ OR (t.status='CANCELLED' AND EXISTS(SELECT 1 FROM research_task_steps WHERE research_task_id=t.id
+   AND (status<>'CANCELLED' OR finished_at IS DISTINCT FROM t.finished_at))) THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_state'; END IF;
+ IF (SELECT count(*) FROM research_task_events WHERE research_task_id=t.id)<>t.row_version
+ OR (SELECT count(*) FROM research_task_command_receipts WHERE research_task_id=t.id)<>t.row_version
+ OR EXISTS(SELECT 1 FROM generate_series(1,t.row_version) v WHERE NOT EXISTS(
+   SELECT 1 FROM research_task_events WHERE research_task_id=t.id AND sequence=v)
+   OR NOT EXISTS(SELECT 1 FROM research_task_command_receipts WHERE research_task_id=t.id
+     AND resulting_row_version=v)) THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+ FOR s IN SELECT * FROM research_task_steps WHERE research_task_id=t.id LOOP
+  IF (SELECT count(*) FROM research_task_step_events WHERE step_id=s.id AND research_task_id=t.id)<>s.row_version
+  OR NOT EXISTS(SELECT 1 FROM research_task_step_events WHERE step_id=s.id AND research_task_id=t.id
+    AND event_type='PLANNED' AND sequence=1)
+  OR (s.status='CANCELLED' AND NOT EXISTS(SELECT 1 FROM research_task_step_events
+    WHERE step_id=s.id AND research_task_id=t.id AND event_type='CANCELLED' AND sequence=2
+      AND occurred_at=t.finished_at)) THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+ END LOOP;
+ IF t.plan_sealed_at IS NOT NULL THEN
+  FOR b IN SELECT research_question_version_id,hypothesis_version_id,claim_version_id,source_version_id,
+    artifact_version_id,manuscript_version_id,content_hash,hash_scheme FROM research_task_inputs WHERE research_task_id=t.id
+    UNION ALL SELECT research_question_version_id,hypothesis_version_id,claim_version_id,source_version_id,
+    artifact_version_id,manuscript_version_id,content_hash,hash_scheme FROM research_task_step_inputs WHERE research_task_id=t.id
+  LOOP PERFORM pr301_validate_input(t.id,b.research_question_version_id,b.hypothesis_version_id,b.claim_version_id,
+    b.source_version_id,b.artifact_version_id,b.manuscript_version_id,b.content_hash,b.hash_scheme); END LOOP;
+ END IF;
+ PERFORM pr304_validate_safety(NEW.id);
+ PERFORM pr303_validate_gateway(NEW.id);
+ RETURN NULL;
+END $$;
+```
+
+```sql
+CREATE OR REPLACE FUNCTION pr301_receipt_complete() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE r research_task_command_receipts%ROWTYPE; e research_task_events%ROWTYPE; mapped text;
+ expected integer; actual integer; gateway boolean; ci capability_invocations%ROWTYPE; ce capability_invocation_events%ROWTYPE;
+BEGIN
+ SELECT * INTO r FROM research_task_command_receipts WHERE id=NEW.id;
+ SELECT te.* INTO e FROM research_task_receipt_events l JOIN research_task_events te ON te.id=l.event_id
+  WHERE l.receipt_id=r.id;
+ mapped:=CASE r.command_name WHEN 'create_research_task' THEN 'CREATED'
+ WHEN 'create_task_plan' THEN 'PLAN_CREATED' WHEN 'add_task_step' THEN 'STEP_ADDED'
+ WHEN 'add_task_step_dependency' THEN 'DEPENDENCY_ADDED' WHEN 'seal_task_plan' THEN 'PLAN_SEALED'
+ WHEN 'cancel_research_task' THEN 'CANCELLED' WHEN 'bind_task_policies' THEN 'POLICIES_BOUND' WHEN 'reserve_task_budget' THEN 'BUDGET_RESERVED' WHEN 'settle_task_budget' THEN 'BUDGET_SETTLED' WHEN 'evaluate_task_termination' THEN 'TERMINATION_EVALUATED' WHEN 'request_human_checkpoint' THEN 'CHECKPOINT_REQUESTED' WHEN 'respond_human_checkpoint' THEN 'CHECKPOINT_RESPONDED'
+ WHEN 'register_agent_tool_policy' THEN 'TOOL_POLICY_REGISTERED'
+ WHEN 'request_capability_invocation' THEN 'CAPABILITY_REQUESTED'
+ WHEN 'start_capability_invocation' THEN 'CAPABILITY_STARTED'
+ WHEN 'finish_capability_invocation' THEN 'CAPABILITY_FINISHED' END;
+ IF e.id IS NULL OR e.event_type IS DISTINCT FROM mapped OR
+  ROW(e.research_task_id,e.actor_id,e.command_id,e.task_row_version) IS DISTINCT FROM
+  ROW(r.research_task_id,r.actor_id,r.command_id,r.resulting_row_version) THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+ IF mapped='CREATED' AND e.occurred_at IS DISTINCT FROM
+   (SELECT created_at FROM research_tasks WHERE id=r.research_task_id) THEN
+   RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514',
+     CONSTRAINT='pr301_validation';
+ END IF;
+ IF mapped='PLAN_SEALED' AND e.occurred_at IS DISTINCT FROM
+   (SELECT plan_sealed_at FROM research_tasks WHERE id=r.research_task_id) THEN
+   RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514',
+     CONSTRAINT='pr301_validation';
+ END IF;
+ IF mapped='DEPENDENCY_ADDED' AND (SELECT count(*) FROM research_task_step_dependencies
+   WHERE research_task_id=r.research_task_id AND xmin=pg_current_xact_id()::xid)<>1 THEN
+   RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514',
+     CONSTRAINT='pr301_validation';
+ END IF;
+ IF e.sequence>1 AND e.prior_status IS DISTINCT FROM (SELECT new_status FROM research_task_events
+   WHERE research_task_id=r.research_task_id AND sequence=e.sequence-1) THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+ IF EXISTS(SELECT 1 FROM research_task_step_events se LEFT JOIN research_task_receipt_step_events l
+   ON l.step_event_id=se.id WHERE se.research_task_id=r.research_task_id AND se.command_id=r.command_id
+   AND se.actor_id=r.actor_id AND (l.receipt_id IS DISTINCT FROM r.id OR
+     se.task_row_version<>r.resulting_row_version OR se.occurred_at IS DISTINCT FROM e.occurred_at
+     OR se.reason IS DISTINCT FROM e.reason OR
+     se.event_type IS DISTINCT FROM CASE WHEN mapped='CANCELLED' THEN 'CANCELLED' ELSE 'PLANNED' END))
+ THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+ SELECT count(*) INTO actual FROM research_task_receipt_step_events WHERE receipt_id=r.id;
+ expected:=CASE WHEN mapped='PLAN_CREATED' THEN (SELECT count(*) FROM research_task_steps WHERE research_task_id=r.research_task_id)
+ WHEN mapped='STEP_ADDED' THEN 1 WHEN mapped='CANCELLED' THEN (SELECT count(*) FROM research_task_steps WHERE research_task_id=r.research_task_id)
+ ELSE 0 END;
+ IF actual<>expected THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+ IF mapped='CANCELLED' AND e.occurred_at IS DISTINCT FROM (SELECT finished_at FROM research_tasks WHERE id=r.research_task_id)
+ THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
+
+ IF (SELECT count(*) FROM execution_budgets WHERE receipt_id=r.id)<>(CASE r.command_name WHEN 'bind_task_policies' THEN 1 WHEN 'request_human_checkpoint' THEN (SELECT count(*) FROM human_checkpoints WHERE receipt_id=r.id AND checkpoint_type='budget_extension') ELSE 0 END) THEN RAISE EXCEPTION 'wrong safety result count' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+ IF (SELECT count(*) FROM termination_policies WHERE receipt_id=r.id)<>(CASE WHEN r.command_name='bind_task_policies' THEN 1 ELSE 0 END) THEN RAISE EXCEPTION 'wrong safety result count' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+ IF (SELECT count(*) FROM checkpoint_policies WHERE receipt_id=r.id)<>(CASE WHEN r.command_name='bind_task_policies' THEN 1 ELSE 0 END) THEN RAISE EXCEPTION 'wrong safety result count' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+ IF r.command_name<>'bind_task_policies' AND EXISTS(SELECT 1 FROM checkpoint_policy_dataset_scopes WHERE receipt_id=r.id) THEN RAISE EXCEPTION 'extra scope effect' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+ IF r.command_name<>'bind_task_policies' AND EXISTS(SELECT 1 FROM checkpoint_policy_metric_scopes WHERE receipt_id=r.id) THEN RAISE EXCEPTION 'extra scope effect' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+ IF (SELECT count(*) FROM budget_reservations WHERE receipt_id=r.id)<>(CASE WHEN r.command_name IN ('reserve_task_budget','request_capability_invocation') THEN 1 ELSE 0 END) THEN RAISE EXCEPTION 'wrong safety result count' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+ IF (SELECT count(*) FROM budget_usage_records WHERE receipt_id=r.id)<>(CASE WHEN r.command_name IN ('settle_task_budget','finish_capability_invocation') THEN 1 ELSE 0 END) THEN RAISE EXCEPTION 'wrong safety result count' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+ IF (SELECT count(*) FROM human_checkpoints WHERE receipt_id=r.id)<>(CASE WHEN r.command_name='request_human_checkpoint' THEN 1 ELSE 0 END) THEN RAISE EXCEPTION 'wrong safety result count' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+
+
+ IF mapped='PLAN_SEALED' AND EXISTS(SELECT 1 FROM research_task_events WHERE research_task_id=r.research_task_id AND event_type='PLAN_SEALED' AND task_row_version<r.resulting_row_version)
+ THEN RAISE EXCEPTION 'plan already sealed' USING ERRCODE='23514',CONSTRAINT='pr301_immutable'; END IF;
+ IF mapped='CREATED' AND EXISTS(SELECT 1 FROM research_tasks WHERE id=r.research_task_id AND budget_policy_id IS NOT NULL)
+ THEN RAISE EXCEPTION 'creation must be unbound' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+ IF r.command_name IN ('bind_task_policies','respond_human_checkpoint') OR e.stop_human THEN
+  IF NOT EXISTS(SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id JOIN project_role_assignments p ON p.membership_id=m.id
+   JOIN actor_subject_bindings b ON b.actor_id=a.id WHERE a.id=r.actor_id AND a.actor_type='HUMAN' AND a.retired_at IS NULL
+   AND m.project_id=r.project_id AND m.status='ACTIVE' AND p.role='OWNER' AND p.effective_from<=r.completed_at AND (p.effective_until IS NULL OR r.completed_at<p.effective_until)
+   AND b.status='ACTIVE' AND b.bound_at<=r.completed_at AND (b.revoked_at IS NULL OR r.completed_at<b.revoked_at))
+  THEN RAISE EXCEPTION 'Human owner required' USING ERRCODE='23514',CONSTRAINT='pr301_scope'; END IF;
+ END IF;
+ IF (e.stop_human OR e.stop_policy) AND r.command_name<>'evaluate_task_termination'
+ THEN RAISE EXCEPTION 'invalid explicit stop' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+ IF EXISTS(SELECT 1 FROM human_checkpoints h WHERE h.receipt_id=r.id AND h.reason IS DISTINCT FROM e.reason)
+ OR EXISTS(SELECT 1 FROM human_checkpoints h WHERE h.response_receipt_id=r.id AND h.status<>'EXPIRED' AND h.response_reason IS DISTINCT FROM e.reason)
+ THEN RAISE EXCEPTION 'checkpoint reason mismatch' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+ IF r.command_name='bind_task_policies' AND NOT EXISTS(SELECT 1 FROM research_tasks t JOIN execution_budgets b ON b.id=t.budget_policy_id AND b.receipt_id=r.id JOIN termination_policies p ON p.id=t.termination_policy_id AND p.receipt_id=r.id JOIN checkpoint_policies c ON c.id=t.checkpoint_policy_id AND c.receipt_id=r.id WHERE t.id=r.research_task_id)
+ THEN RAISE EXCEPTION 'wrong policy binding' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+ IF r.command_name='respond_human_checkpoint' THEN
+  IF (SELECT count(*) FROM human_checkpoints WHERE response_receipt_id=r.id AND status IN ('APPROVED','REJECTED','MODIFIED'))<>1
+  THEN RAISE EXCEPTION 'wrong response effect' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+ ELSIF r.command_name='evaluate_task_termination' THEN
+  IF EXISTS(SELECT 1 FROM human_checkpoints WHERE research_task_id=r.research_task_id AND
+    ((response_receipt_id=r.id AND status<>'EXPIRED') OR (status='PENDING' AND expires_at<=r.completed_at)))
+  THEN RAISE EXCEPTION 'wrong expiry effects' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+ ELSIF EXISTS(SELECT 1 FROM human_checkpoints WHERE response_receipt_id=r.id)
+ THEN RAISE EXCEPTION 'extra response effect' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+ IF r.command_name IN ('bind_task_policies','reserve_task_budget','settle_task_budget','evaluate_task_termination','request_human_checkpoint','respond_human_checkpoint','register_agent_tool_policy','request_capability_invocation','start_capability_invocation','finish_capability_invocation') THEN
+  IF r.completed_at<transaction_timestamp() OR r.completed_at>clock_timestamp() OR e.occurred_at IS DISTINCT FROM r.completed_at
+   OR EXISTS(SELECT 1 FROM research_task_steps WHERE research_task_id=r.research_task_id AND xmin=pg_current_xact_id()::xid)
+   OR EXISTS(SELECT 1 FROM research_task_inputs WHERE research_task_id=r.research_task_id AND xmin=pg_current_xact_id()::xid)
+   OR EXISTS(SELECT 1 FROM research_task_step_dependencies WHERE research_task_id=r.research_task_id AND xmin=pg_current_xact_id()::xid)
+   OR EXISTS(SELECT 1 FROM research_task_step_inputs WHERE research_task_id=r.research_task_id AND xmin=pg_current_xact_id()::xid)
+  THEN RAISE EXCEPTION 'unrelated safety effect' USING ERRCODE='23514',CONSTRAINT='pr301_validation'; END IF;
+  IF e.prior_status='CANCELLED' AND r.command_name NOT IN ('settle_task_budget','evaluate_task_termination','finish_capability_invocation')
+  THEN RAISE EXCEPTION 'terminal safety effect' USING ERRCODE='23514',CONSTRAINT='pr301_state'; END IF;
+ END IF;
+
+ gateway:=r.command_name IN ('register_agent_tool_policy','request_capability_invocation','start_capability_invocation','finish_capability_invocation');
+ IF ROW(e.result_tool_policy_id,e.result_capability_invocation_id,e.result_capability_event_id)
+  IS DISTINCT FROM ROW(r.result_tool_policy_id,r.result_capability_invocation_id,r.result_capability_event_id) THEN
+  RAISE EXCEPTION 'task event result pointers' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+ END IF;
+ IF (SELECT count(*) FROM agent_tool_policies WHERE receipt_id=r.id)<>
+    CASE WHEN r.command_name='register_agent_tool_policy' THEN 1 ELSE 0 END
+  OR (SELECT count(*) FROM capability_invocations WHERE request_receipt_id=r.id)<>
+    CASE WHEN r.command_name='request_capability_invocation' THEN 1 ELSE 0 END
+  OR (SELECT count(*) FROM capability_invocation_events WHERE receipt_id=r.id)<>
+    CASE WHEN r.command_name IN ('request_capability_invocation','start_capability_invocation','finish_capability_invocation') THEN 1 ELSE 0 END THEN
+  RAISE EXCEPTION 'gateway result cardinality' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+ END IF;
+ IF NOT gateway THEN
+  IF num_nonnulls(r.result_tool_policy_id,r.result_capability_invocation_id,r.result_capability_event_id,r.resulting_invocation_revision)<>0
+   OR EXISTS(SELECT 1 FROM capability_invocation_refs WHERE receipt_id=r.id) THEN
+   RAISE EXCEPTION 'extra gateway effect on old command' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+ ELSE
+  IF EXISTS(SELECT 1 FROM research_task_command_receipts WHERE id=r.id AND xmin=pg_current_xact_id()::xid)
+   AND NOT EXISTS(SELECT 1 FROM actors a JOIN project_memberships m ON m.actor_id=a.id
+    JOIN project_role_assignments pa ON pa.membership_id=m.id JOIN actor_subject_bindings ab ON ab.actor_id=a.id
+    WHERE a.id=r.actor_id AND a.retired_at IS NULL AND m.project_id=r.project_id AND m.status='ACTIVE'
+     AND pa.role IN ('OWNER','RESEARCHER','REVIEWER','APPROVER','VIEWER')
+     AND pa.effective_from<=clock_timestamp() AND (pa.effective_until IS NULL OR clock_timestamp()<pa.effective_until)
+     AND ab.status='ACTIVE' AND ab.bound_at<=clock_timestamp() AND (ab.revoked_at IS NULL OR clock_timestamp()<ab.revoked_at)) THEN
+   RAISE EXCEPTION 'current gateway read entitlement' USING ERRCODE='23514', CONSTRAINT='pr301_scope';
+  END IF;
+  IF e.prior_status IS DISTINCT FROM e.new_status OR e.stop_human OR e.stop_policy
+   OR EXISTS(SELECT 1 FROM research_tasks t WHERE t.id=r.research_task_id AND t.plan_sealed_at IS NOT NULL
+     AND NOT EXISTS(SELECT 1 FROM research_task_events se WHERE se.research_task_id=t.id
+      AND se.event_type='PLAN_SEALED' AND se.occurred_at=t.plan_sealed_at AND se.task_row_version<r.resulting_row_version))
+   OR EXISTS(SELECT 1 FROM research_tasks t JOIN execution_budgets eb ON eb.id=t.budget_policy_id
+      WHERE t.id=r.research_task_id AND eb.receipt_id=r.id) THEN
+   RAISE EXCEPTION 'gateway task intent seal or policy effect' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  IF (SELECT count(*) FROM research_task_events WHERE research_task_id=r.research_task_id
+     AND task_row_version=r.resulting_row_version)<>1
+   OR (SELECT count(*) FROM research_task_receipt_events WHERE receipt_id=r.id)<>1
+   OR EXISTS(SELECT 1 FROM research_task_receipt_step_events WHERE receipt_id=r.id) THEN
+   RAISE EXCEPTION 'one gateway task event and no step events' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+  END IF;
+  IF r.command_name='register_agent_tool_policy' THEN
+   IF NOT EXISTS(SELECT 1 FROM agent_tool_policies p WHERE p.id=r.result_tool_policy_id
+    AND p.registration_task_id=r.research_task_id AND p.project_id=r.project_id AND p.receipt_id=r.id
+    AND p.created_by=r.actor_id AND p.created_at=r.completed_at)
+    OR EXISTS(SELECT 1 FROM capability_invocation_refs WHERE receipt_id=r.id) THEN
+    RAISE EXCEPTION 'policy registration result' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+   END IF;
+  ELSE
+   SELECT * INTO ci FROM capability_invocations WHERE id=r.result_capability_invocation_id;
+   SELECT * INTO ce FROM capability_invocation_events WHERE id=r.result_capability_event_id;
+   IF ci.id IS NULL OR ce.id IS NULL OR ROW(ci.policy_id,ci.research_task_id,ci.project_id,
+     ce.invocation_id,ce.receipt_id,ce.invocation_row_version,ce.actor_id,ce.occurred_at,ce.reason)
+    IS DISTINCT FROM ROW(r.result_tool_policy_id,r.research_task_id,r.project_id,
+     ci.id,r.id,r.resulting_invocation_revision,r.actor_id,r.completed_at,e.reason)
+    OR ce.event_type IS DISTINCT FROM CASE r.command_name WHEN 'request_capability_invocation' THEN 'REQUESTED'
+     WHEN 'start_capability_invocation' THEN 'STARTED' ELSE ce.event_type END
+    OR (r.command_name='finish_capability_invocation' AND ce.event_type NOT IN ('FINISHED','RECONCILED')) THEN
+    RAISE EXCEPTION 'saved gateway result' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+   END IF;
+   IF r.command_name='start_capability_invocation' AND EXISTS(SELECT 1 FROM capability_invocation_refs WHERE receipt_id=r.id)
+    OR EXISTS(SELECT 1 FROM capability_invocation_refs ref WHERE ref.receipt_id=r.id AND
+      (ref.invocation_id<>ci.id OR ref.direction IS DISTINCT FROM
+       CASE WHEN r.command_name='request_capability_invocation' THEN 'INPUT' ELSE 'OUTPUT' END)) THEN
+    RAISE EXCEPTION 'extra gateway reference effect' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+   END IF;
+   IF EXISTS(SELECT 1 FROM budget_reservations br WHERE br.receipt_id=r.id AND
+      ROW(br.id,br.operation_id,br.step_id) IS DISTINCT FROM ROW(ci.reservation_id,ci.id,ci.step_id))
+    OR EXISTS(SELECT 1 FROM budget_usage_records bu WHERE bu.receipt_id=r.id AND
+      ROW(bu.id,bu.reservation_id) IS DISTINCT FROM ROW(ce.usage_record_id,ci.reservation_id)) THEN
+    RAISE EXCEPTION 'extra gateway accounting effect' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+   END IF;
+   -- This check is on the fresh receipt only; replay uses saved event revision,
+   -- not a later invocation projection.
+   IF EXISTS(SELECT 1 FROM research_task_command_receipts WHERE id=r.id AND xmin=pg_current_xact_id()::xid) THEN
+    IF ce.event_type='RECONCILED' THEN
+     IF EXISTS(SELECT 1 FROM capability_invocations WHERE id=ci.id AND xmin=pg_current_xact_id()::xid) THEN
+      RAISE EXCEPTION 'reconciliation cannot rewrite invocation' USING ERRCODE='23514', CONSTRAINT='pr301_immutable';
+     END IF;
+    ELSIF NOT EXISTS(SELECT 1 FROM capability_invocations WHERE id=ci.id AND xmin=pg_current_xact_id()::xid)
+     OR ci.row_version IS DISTINCT FROM ce.invocation_row_version OR ci.status IS DISTINCT FROM ce.new_status THEN
+     RAISE EXCEPTION 'missing invocation write' USING ERRCODE='23514', CONSTRAINT='pr301_validation';
+    END IF;
+   END IF;
+  END IF;
+ END IF;
+ RETURN NULL;
+END $$;
+```
+
+### 4.6 Existing trigger attachment audit
+
+CREATE OR REPLACE changes the callees in place. These are all existing triggers
+whose function body is replaced; none is silently re-pointed to a different
+function. If “re-point” includes replacing its callee, this is the complete list.
+All paths are under `migrations/versions/`.
+
+| Retained trigger | Table and attachment | Existing source | Callee above |
+| --- | --- | --- | --- |
+| pr301_task_guard | research_tasks BEFORE INSERT/UPDATE/DELETE | 0077_research_task_graph.py:373–374 | pr301_task_guard() |
+| pr301_receipt_insert | research_task_command_receipts BEFORE INSERT | 0077_research_task_graph.py:513–514 | pr301_receipt_insert_guard() |
+| pr301_task_final | research_tasks AFTER INSERT/UPDATE, DEFERRABLE INITIALLY DEFERRED | 0077_research_task_graph.py:613–614 | pr301_graph_final_guard() |
+| pr301_receipt_complete_commit | research_task_command_receipts AFTER INSERT, DEFERRABLE INITIALLY DEFERRED | 0077_research_task_graph.py:663–664 | pr301_receipt_complete() |
+| pr304_budget_guard | execution_budgets BEFORE INSERT/UPDATE/DELETE | 0078_task_safety_policies.py:724 | pr304_child_guard() |
+| pr304_termination_guard | termination_policies BEFORE INSERT/UPDATE/DELETE | 0078_task_safety_policies.py:725 | pr304_child_guard() |
+| pr304_checkpoint_policy_guard | checkpoint_policies BEFORE INSERT/UPDATE/DELETE | 0078_task_safety_policies.py:726 | pr304_child_guard() |
+| pr304_dataset_scope_guard | checkpoint_policy_dataset_scopes BEFORE INSERT/UPDATE/DELETE | 0078_task_safety_policies.py:727 | pr304_child_guard() |
+| pr304_metric_scope_guard | checkpoint_policy_metric_scopes BEFORE INSERT/UPDATE/DELETE | 0078_task_safety_policies.py:728 | pr304_child_guard() |
+| pr304_reservation_guard | budget_reservations BEFORE INSERT/UPDATE/DELETE | 0078_task_safety_policies.py:729 | pr304_child_guard() |
+| pr304_usage_guard | budget_usage_records BEFORE INSERT/UPDATE/DELETE | 0078_task_safety_policies.py:730 | pr304_child_guard() |
+
+Conceptual signature review: all pr301_validate_input calls supply exactly the
+nine typed arguments in the delivered order; ArtifactVersion calls supply NULL
+scheme. Both whole-state helpers take one task UUID and return void. The hash
+reconstruction passes a JSONB envelope to pr304_canonical_policy_json and hashes
+its returned text as UTF-8; it requires no extension. Artifact byte_size is a
+nullable bigint (0006_artifact_version.py:42), checked with IS DISTINCT FROM;
+no ArtifactVersion.hash_scheme or nonexistent registry-byte helper is selected.
+Trigger-returning functions remain attached only to triggers. SQL compilation
+and execution are NOT RUN in this documentation task; PostgreSQL parity and
+constraint behavior remain future implementation evidence in §9.1.
+
+The nine new immediate triggers are exactly §4.1. No additional trigger is
+needed by these bodies. pr304_validate_safety is a void helper called once by
+pr301_graph_final_guard, not a trigger; pr303_validate_gateway is likewise called
+once from that guard. The unchanged pr304_checkpoint_guard and all original
+history/link/cycle triggers retain their attachments and mutation denials.
+
 ## 5. Exact lock, transaction, replay and read recipes
 
 Use synchronous PostgreSQL 18 READ COMMITTED writes, autoflush off, existing
@@ -1217,14 +2260,6 @@ matrix, focused commands and external six-shard gate remain in §9.1. The SQL
 parity requirement is part of that matrix, not a passing database result.
 This is still PACK DRAFT pending director review; no implementation gate is passed.
 
-The review follow-up explicitly authorizes one documentation-only commit with
-message "Freeze PR3-03 capability gateway execution pack (documentation only)";
-it supersedes the preceding turn's no-commit instruction. Commit result and
-post-commit Git state are reported outside this file to avoid self-referential
-commit metadata. Any index-lock or sandbox error must be quoted verbatim and
-stops this task. No push or branch creation. No code, migration or test file
-changes; no pytest or database suite execution in this documentation pass.
-
 ## 12. Verification evidence
 
 Evidence below was captured on 2026-10-22 in the existing repository, without
@@ -1757,8 +2792,9 @@ docs/phase3/PR3-03-contract-freeze.md:282:  UNIQUE (invocation_id, sequence),
 
 ### 12.3 New identifier labels and counts
 
-Collective labels cover 246 distinct new names. The exact script below constructs
-the inspectable inventory as set new, counting scoped columns by owning table,
+The recorded 246 figure is an approximate regex count, not a per-identifier
+label proof. The script below constructs a heuristic inventory as set new,
+counting scoped columns by owning table,
 proposed files by full path and DTOs by type. Repeated mentions, SQL built-ins,
 enum literals and repeated DTO argument spellings do not add identifiers.
 
@@ -1826,7 +2862,7 @@ exactly the six quoted JSON inputs in §7.2, asserts byte-for-byte canonical tex
 equality, calls both repository helpers and verifies every recorded digest.
 
 ```sh
-export UV_CACHE_DIR=/private/tmp/researchbase-pr303-uv-cache
+export UV_CACHE_DIR=<any writable dir>
 uv run python - <<'PY'
 import json
 import re
@@ -1883,7 +2919,7 @@ src/researchbase/persistence/task_safety_repository.py:51–74; delivered S1 key
 are src/researchbase/persistence/agent_version_repository.py:78–80. Composing
 those keys before task rows is a required future implementation change.
 
-Run with UV_CACHE_DIR=/private/tmp/researchbase-pr303-uv-cache exported in the
+Run with UV_CACHE_DIR=<any writable dir> exported in the
 process environment only. Exact static commands and observed results:
 
 ```sh
@@ -1930,8 +2966,3 @@ sed -n '/^## /p' docs/phase3/PR3-03-contract-freeze.md
 §1 retains all exclusions and the complete ACCEPTED-AS-RECOMMENDED owner
 decision table dated 2026-10-22; §9.1 retains the full test matrix and gate
 commands. §12 is the final top-level section.
-
-Commit result, real git log -1 --stat and git status --short will be reported
-after the commit attempt outside this document. No old-HEAD log is substituted
-for the required new commit. On any index-lock or sandbox error, quote it
-verbatim and stop; no lock deletion or permission workaround is authorized.
