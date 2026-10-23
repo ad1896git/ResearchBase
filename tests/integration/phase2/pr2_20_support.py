@@ -29,6 +29,160 @@ from tests.integration.phase2.test_pr2_11_r2_persistence import (
 from tests.integration.phase2.test_pr2_13_claim_placement import _draft as _draft
 from tests.integration.phase2.test_pr2_15_decision import decision_env as decision_env
 
+# Exact 0079 -> 0080 exclusions, from migrations/versions/0080_capability_gateway.py.
+# Generated UNIQUE/PRIMARY KEY index names were confirmed on PostgreSQL 18.
+PR2_20_POST_0079_TABLES = frozenset(
+    (
+        "agent_tool_policies",
+        "agent_tool_policy_permissions",
+        "capability_invocations",
+        "capability_invocation_refs",
+        "capability_invocation_events",
+    )
+)
+
+PR2_20_POST_0079_INDEXES = {
+    "agent_tool_policies": (
+        "agent_tool_policies_id_project_id_key",
+        "agent_tool_policies_pkey",
+        "agent_tool_policies_project_id_version_key",
+        "pr303_policy_creator",
+        "pr303_policy_registration",
+        "pr303_policy_registry",
+        "pr303_policy_time",
+    ),
+    "agent_tool_policy_permissions": (
+        "agent_tool_policy_permissions_pkey",
+        "agent_tool_policy_permissions_policy_id_capability_id_capab_key",
+        "pr303_permission_project",
+        "pr303_permission_scope",
+    ),
+    "budget_reservations": ("pr303_reservation_operation_key",),
+    "budget_usage_records": ("pr303_usage_reservation_key",),
+    "capability_invocation_events": (
+        "capability_invocation_events_invocation_id_sequence_key",
+        "capability_invocation_events_pkey",
+        "capability_invocation_events_receipt_id_key",
+        "capability_invocation_events_research_task_id_project_id_id_key",
+        "capability_invocation_events_usage_record_id_key",
+        "pr303_events_actor",
+        "pr303_events_reservation",
+        "pr303_events_scope",
+        "pr303_events_usage",
+    ),
+    "capability_invocation_refs": (
+        "capability_invocation_refs_pkey",
+        "pr303_refs_artifact",
+        "pr303_refs_artifact_target",
+        "pr303_refs_claim",
+        "pr303_refs_claim_target",
+        "pr303_refs_hypothesis",
+        "pr303_refs_hypothesis_target",
+        "pr303_refs_manuscript",
+        "pr303_refs_manuscript_target",
+        "pr303_refs_owner",
+        "pr303_refs_receipt",
+        "pr303_refs_research_question",
+        "pr303_refs_research_question_target",
+        "pr303_refs_scope",
+        "pr303_refs_source",
+        "pr303_refs_source_target",
+    ),
+    "capability_invocations": (
+        "capability_invocations_finish_receipt_id_key",
+        "capability_invocations_pkey",
+        "capability_invocations_request_receipt_id_key",
+        "capability_invocations_research_task_id_id_key",
+        "capability_invocations_research_task_id_id_reservation_id_key",
+        "capability_invocations_research_task_id_project_id_id_key",
+        "capability_invocations_reservation_id_key",
+        "capability_invocations_start_receipt_id_key",
+        "capability_invocations_usage_record_id_key",
+        "pr303_invocation_actor",
+        "pr303_invocation_harness",
+        "pr303_invocation_parameters",
+        "pr303_invocation_policy",
+        "pr303_invocation_project",
+        "pr303_invocation_requester",
+        "pr303_invocation_retry",
+        "pr303_invocation_step",
+        "pr303_invocation_task_time",
+        "pr303_invocation_trace",
+        "pr303_invocation_usage",
+        "pr303_invocation_version",
+    ),
+    "research_task_command_receipts": (
+        "pr303_receipt_event",
+        "pr303_receipt_invocation",
+        "pr303_receipt_policy",
+        "pr303_receipt_scope_key",
+    ),
+    "research_task_events": (
+        "pr303_task_event_capability",
+        "pr303_task_event_invocation",
+        "pr303_task_event_policy",
+    ),
+}
+
+# 0080 also extends existing Phase 3 tables; exclude only its named constraints.
+PR2_20_POST_0079_ADDED_CONSTRAINTS = frozenset(
+    (
+        ("budget_reservations", "pr303_reservation_operation_key"),
+        ("budget_usage_records", "pr303_usage_reservation_key"),
+        ("research_task_command_receipts", "pr303_receipt_scope_key"),
+        ("research_task_command_receipts", "pr303_command_names"),
+        ("research_task_command_receipts", "pr303_receipt_policy_fk"),
+        ("research_task_command_receipts", "pr303_receipt_invocation_fk"),
+        ("research_task_command_receipts", "pr303_receipt_event_fk"),
+        ("research_task_command_receipts", "pr303_receipt_shape"),
+        ("research_task_events", "pr303_task_event_policy_fk"),
+        ("research_task_events", "pr303_task_event_invocation_fk"),
+        ("research_task_events", "pr303_task_event_capability_fk"),
+        ("research_task_events", "pr303_event_names"),
+        ("research_task_events", "pr303_event_states"),
+        ("research_task_events", "pr303_event_reason"),
+        ("research_task_events", "pr303_event_stop_kind"),
+        ("research_task_events", "pr303_task_event_shape"),
+    )
+)
+
+PR2_20_POST_0079_REMOVED_CONSTRAINTS = frozenset(
+    (
+        ("research_task_command_receipts", "pr304_command_names"),
+        ("research_task_events", "pr304_event_names"),
+        ("research_task_events", "pr304_event_states"),
+        ("research_task_events", "pr304_event_reason"),
+        ("research_task_events", "pr304_event_stop_kind"),
+    )
+)
+
+
+def assert_pr2_20_head_catalog_unchanged(before: dict[str, Any], after: dict[str, Any]) -> None:
+    """Allow only the named 0080 delta; retain exact definitions of prior objects."""
+    before_indexes = {tuple(row) for row in before["indexes"]}
+    after_indexes = {tuple(row) for row in after["indexes"]}
+    expected_indexes = {
+        (table, name) for table, names in PR2_20_POST_0079_INDEXES.items() for name in names
+    }
+    # An existing index may neither disappear nor change its definition.
+    assert before_indexes <= after_indexes
+    assert {row[:2] for row in after_indexes - before_indexes} == expected_indexes
+
+    before_constraints = {tuple(row) for row in before["constraints"]}
+    after_constraints = {tuple(row) for row in after["constraints"]}
+    added = after_constraints - before_constraints
+    removed = before_constraints - after_constraints
+    assert {row[:2] for row in removed} == PR2_20_POST_0079_REMOVED_CONSTRAINTS
+    assert not any(row[0] in PR2_20_POST_0079_TABLES for row in before_constraints)
+    assert {row[0] for row in added if row[0] in PR2_20_POST_0079_TABLES} == (
+        PR2_20_POST_0079_TABLES
+    )
+    # Constraints owned by the five new tables are outside the PR2 catalog.
+    # On pre-existing tables, only the exact named 0080 additions are permitted.
+    assert {
+        row[:2] for row in added if row[0] not in PR2_20_POST_0079_TABLES
+    } == PR2_20_POST_0079_ADDED_CONSTRAINTS
+
 
 @contextmanager
 def database() -> Iterator[str]:
