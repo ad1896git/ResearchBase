@@ -1506,3 +1506,37 @@ def test_injected_tool_text_is_inert_and_replay_never_dispatches(monkeypatch):
     assert result.result_summary == payload and result.output_refs == ()
     assert f.service.invoke(request, f.context) == result and len(calls) == 1
     assert f.tables["agent_tool_policies"] == policies and f.artifacts == artifacts
+
+
+def test_exact_cap_start_reads_complete_gateway_provenance(monkeypatch):
+    f = Fixture()
+    budget = f.tables["execution_budgets"][0]
+    spec = BudgetSpec("fake-usd-v1", max_llm_calls=1)
+    budget.update(asdict(spec), content_hash=policy_hash("ExecutionBudgetPolicy", spec))
+    f.install_policy()
+    f.run()
+    original = f.repo.events
+
+    def generic_events(task):
+        return [
+            {key: value for key, value in row.items() if not key.startswith("result_")}
+            for row in original(task)
+        ]
+
+    def generic_receipts(task):
+        raise AssertionError("generic receipt history has no gateway result pointers")
+
+    monkeypatch.setattr(f.repo, "events", generic_events)
+    monkeypatch.setattr(f.repo, "receipt_history", generic_receipts)
+    execute_lifecycle(f, lifecycle(f, start=True))
+    assert f.tables["capability_invocations"][0]["status"] == "RUNNING"
+
+
+def test_request_refs_precede_request_event_in_frozen_write_recipe():
+    f = Fixture()
+    f.install_policy()
+    f.attempt_writes.clear()
+    f.run()
+    order = [table for table, _ in f.attempt_writes]
+    assert order.index("capability_invocations") < order.index("capability_invocation_refs")
+    assert order.index("capability_invocation_refs") < order.index("capability_invocation_events")

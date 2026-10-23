@@ -321,3 +321,37 @@ file artifacts go under pytest `tmp_path`. See [verification evidence](docs/phas
 for exact focused commands and counts. The enclosing check loop owns the full
 suite run. **STOP after PR3-00 evidence.** PR3-01 and ADR-0022 staging require
 separate implementation authorization.
+
+## Phase 3 finite capability gateway (PR3-03)
+
+The gateway supports only `CONTRACT_FAKE`: four Application commands, three
+snapshot queries, retained typed pins, durable receipts and finite in-process echo.
+Human and eligible Agent callers use the same Application boundary. Registration
+requires a Human Owner. Task execution stays disabled; this slice supplies no
+provider, process, network execution, Agent execution identity or scientific promotion.
+
+Use the explicit disposable PostgreSQL 18 administrator selected through
+`RB_TEST_ADMIN_URL` above and PostgreSQL 18 `pg_dump` on `PATH`. Each command below
+is independent; retain its output and exit code separately. Do not use the
+application database. The external check loop owns the full suite and shard runs.
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+mkdir -p tmp/pr3-03
+git diff --check HEAD
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run alembic heads
+uv run pytest -o addopts='' -ra tests/unit/phase3
+uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture
+uv run pytest -o addopts='' -ra --junitxml=tmp/pr3-03/schema.xml tests/integration/phase3/test_pr3_03_schema.py tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_migration.py
+uv run pytest -o addopts='' -ra -s --junitxml=tmp/pr3-03/behavior.xml tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_concurrency.py tests/integration/phase3/test_pr3_03_replay.py
+uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_01_*.py tests/integration/phase3/test_pr3_04_*.py tests/integration/phase3/test_pr3_02_s1_*.py
+```
+
+Captures under `tmp/pr3-03/` are ignored and local-only. The tracked
+[PR3-03 evidence](docs/phase3/PR3-03-evidence.md) records observed results, mapped
+S8 node IDs and review dispositions. Missing required coverage or external
+acceptance evidence keeps the gate open; a passing focused subset alone does not
+establish PR acceptance.

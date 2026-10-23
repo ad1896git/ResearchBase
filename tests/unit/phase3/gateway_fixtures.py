@@ -428,6 +428,9 @@ class Repository:
     def inputs(self, task, *, step=False):
         return []
 
+    def gateway_task_events(self, task):
+        return deepcopy(self.f.tables["research_task_events"])
+
     def events(self, task):
         return deepcopy(self.f.tables["research_task_events"])
 

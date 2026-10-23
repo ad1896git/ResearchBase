@@ -854,6 +854,22 @@ class CapabilityGatewayService(TaskSafetyService):
                     error_code=None,
                 )
                 insert("capability_invocations", invocation)
+                for identity, ref in zip(ids["refs"], args.input_refs, strict=True):
+                    insert(
+                        "capability_invocation_refs",
+                        {
+                            "id": identity,
+                            "project_id": command.project_id,
+                            "research_task_id": task["id"],
+                            "invocation_id": args.invocation_id,
+                            "receipt_id": ids["receipt"],
+                            "direction": "INPUT",
+                            **dict.fromkeys(_INPUT_COLUMNS.values()),
+                            _INPUT_COLUMNS[ref.family]: ref.version_id,
+                            "content_hash": ref.content_hash,
+                            "hash_scheme": ref.hash_scheme,
+                        },
+                    )
                 insert(
                     "capability_invocation_events",
                     {
@@ -875,22 +891,6 @@ class CapabilityGatewayService(TaskSafetyService):
                         "reason": args.reason,
                     },
                 )
-                for identity, ref in zip(ids["refs"], args.input_refs, strict=True):
-                    insert(
-                        "capability_invocation_refs",
-                        {
-                            "id": identity,
-                            "project_id": command.project_id,
-                            "research_task_id": task["id"],
-                            "invocation_id": args.invocation_id,
-                            "receipt_id": ids["receipt"],
-                            "direction": "INPUT",
-                            **dict.fromkeys(_INPUT_COLUMNS.values()),
-                            _INPUT_COLUMNS[ref.family]: ref.version_id,
-                            "content_hash": ref.content_hash,
-                            "hash_scheme": ref.hash_scheme,
-                        },
-                    )
             else:
                 policy = asdict(args.policy)
                 del policy["permissions"]
@@ -1015,23 +1015,21 @@ class CapabilityGatewayService(TaskSafetyService):
         flags = causes(budget, term, rows["budget_reservations"], rows["budget_usage_records"], at)
         request_events = [
             e
-            for e in repo.events(task["id"])
+            for e in repo.gateway_task_events(task["id"])
             if e.get("result_capability_invocation_id") == invocation["id"]
             and e["event_type"] == "CAPABILITY_REQUESTED"
             and e.get("result_capability_event_id") is not None
         ]
         own = request_events[0] if len(request_events) == 1 else None
-        receipt = next(
-            (
-                r
-                for r in repo.receipt_history(task["id"])
-                if r["id"] == invocation["request_receipt_id"]
-            ),
-            None,
+        receipt = (
+            repo.gateway_receipt(command.project_id, invocation["requested_by"], own["command_id"])
+            if own is not None
+            else None
         )
         if not (
             own
             and receipt
+            and receipt["id"] == invocation["request_receipt_id"]
             and receipt["command_name"] == "request_capability_invocation"
             and receipt["command_id"] == own["command_id"]
             and receipt["result_capability_event_id"] == own["result_capability_event_id"]
