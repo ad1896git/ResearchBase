@@ -139,45 +139,47 @@ class ProvenanceQueryService:
     def trace_claim_to_runs(self, claim_version_id: UUID) -> ClaimToRunsTraceDTO:
         with self._uow_factory() as uow:
             uow.begin_formal_read()
-            version = self._require_claim_version(uow, claim_version_id)
-            claim = uow.claims.get(version.claim_id)
-            if claim is None:
-                raise ResearchBaseError(ErrorCode.NOT_FOUND, "claim was not found")
-            relations = sorted(uow.claims.list_evidence(version.id), key=_relation_key)
-            context = self._load_claim_context(uow, relations)
-            closure = self._validator.validate_claim_version_in_uow(uow, version.id, context)
-            paths: list[ClaimEvidencePathDTO] = []
-            for relation in relations:
-                if relation.measurement_id is not None:
-                    measurement = context.measurements.values.get(
-                        UUID(str(relation.measurement_id))
-                    )
+            return self.trace_claim_to_runs_in_uow(uow, claim_version_id)
+
+    def trace_claim_to_runs_in_uow(
+        self, uow: UnitOfWork, claim_version_id: UUID
+    ) -> ClaimToRunsTraceDTO:
+        """Exact retained trace in the caller snapshot; caller scopes dependencies first."""
+        version = self._require_claim_version(uow, claim_version_id)
+        claim = uow.claims.get(version.claim_id)
+        if claim is None:
+            raise ResearchBaseError(ErrorCode.NOT_FOUND, "claim was not found")
+        relations = sorted(uow.claims.list_evidence(version.id), key=_relation_key)
+        context = self._load_claim_context(uow, relations)
+        closure = self._validator.validate_claim_version_in_uow(uow, version.id, context)
+        paths: list[ClaimEvidencePathDTO] = []
+        for relation in relations:
+            if relation.measurement_id is not None:
+                measurement = context.measurements.values.get(UUID(str(relation.measurement_id)))
+                if measurement is not None:
+                    self._append_path(paths, version.id, relation, measurement)
+            elif relation.statistical_result_id is not None:
+                for edge in context.statistical_inputs.values.get(
+                    UUID(str(relation.statistical_result_id)), []
+                ):
+                    measurement = context.measurements.values.get(UUID(str(edge.measurement_id)))
                     if measurement is not None:
-                        self._append_path(paths, version.id, relation, measurement)
-                elif relation.statistical_result_id is not None:
-                    for edge in context.statistical_inputs.values.get(
-                        UUID(str(relation.statistical_result_id)), []
-                    ):
-                        measurement = context.measurements.values.get(
-                            UUID(str(edge.measurement_id))
+                        self._append_path(
+                            paths,
+                            version.id,
+                            relation,
+                            measurement,
+                            edge.input_role,
+                            edge.ordinal,
                         )
-                        if measurement is not None:
-                            self._append_path(
-                                paths,
-                                version.id,
-                                relation,
-                                measurement,
-                                edge.input_role,
-                                edge.ordinal,
-                            )
-            paths.sort(key=_path_key)
-            runs = tuple(
-                self._run_provenance(uow, context.runs.values[key], context)
-                for key in sorted(context.runs.values, key=str)
-            )
-            return ClaimToRunsTraceDTO(
-                str(version.id), str(claim.project_id), runs, tuple(paths), _closure_dto(closure)
-            )
+        paths.sort(key=_path_key)
+        runs = tuple(
+            self._run_provenance(uow, context.runs.values[key], context)
+            for key in sorted(context.runs.values, key=str)
+        )
+        return ClaimToRunsTraceDTO(
+            str(version.id), str(claim.project_id), runs, tuple(paths), _closure_dto(closure)
+        )
 
     @staticmethod
     def _append_path(

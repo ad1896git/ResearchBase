@@ -14,6 +14,7 @@ from sqlalchemy.engine import make_url
 from researchbase.adapters.crossref import CrossrefVerifier
 from researchbase.adapters.metadata_journal import MetadataDispatchJournal
 from researchbase.adapters.openalex import OpenAlexSearchCapability
+from researchbase.agent_runtime.application.canonical_context import CanonicalContextService
 from researchbase.agent_runtime.application.research_task import ResearchTaskService
 from researchbase.agent_runtime.application.task_safety import TaskSafetyService
 from researchbase.application.commands import ApplicationService
@@ -98,6 +99,7 @@ class ServiceBundle:
     strategy_candidates: StrategyCandidatePromotionService | None = None
     research_tasks: ResearchTaskService | None = None
     task_safety: TaskSafetyService | None = None
+    canonical_context: CanonicalContextService | None = None
 
 
 def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> ServiceBundle:
@@ -107,7 +109,7 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
     session_factory = create_session_factory(engine)
 
     def uow_factory() -> SqlAlchemyUnitOfWork:
-        return SqlAlchemyUnitOfWork(session_factory)
+        return SqlAlchemyUnitOfWork(session_factory, context_artifact_store=store)
 
     clock = SystemClock()
     store = ContentAddressedFilesystemArtifactStore(Path(settings.artifact_store_root))
@@ -183,6 +185,7 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
             store,
             scientific_rag,
         ),
+        canonical_context=CanonicalContextService(uow_factory, credentials),
         task_safety=TaskSafetyService(
             research_task_uow_factory(settings.database_url), credentials, store
         ),

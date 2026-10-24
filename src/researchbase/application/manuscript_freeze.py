@@ -110,6 +110,14 @@ class ManuscriptFreezeService:
             self._factory, self._credentials, self._store, governance=governance
         )
 
+    def verify_artifact_in_uow(self, uow, project, identity):
+        """Verify an already scoped exact dependency without opening a transaction."""
+        return self._artifact(uow, project, identity)
+
+    def verify_claim_in_uow(self, uow, project, identity):
+        """Verify an already scoped retained Claim and its complete evidence closure."""
+        return self._claim(uow, project, identity)
+
     @staticmethod
     def _principal(principal: VerifiedPrincipal) -> None:
         if not isinstance(principal, VerifiedPrincipal):
@@ -750,3 +758,24 @@ class ManuscriptFreezeService:
             self.authorize(uow, principal, command.project_id, roles)
             uow.commit()
             return result
+
+
+class ContextDependencyVerifier(ManuscriptFreezeService):
+    """Public same-UoW observer for context reads; owning checks are unchanged.
+
+    The context adapter scopes the complete graph before invoking these checks.
+    This reader never calls a transaction-opening command or query wrapper.
+    """
+
+    def __init__(self, store):
+        def no_transaction():
+            raise AssertionError("context dependency verification requires an existing UoW")
+
+        super().__init__(no_transaction, None, store)
+        self.observations = []
+
+    def reset_observations(self):
+        self.observations.clear()
+
+    def _observe(self, kind, identity, state, **facts):
+        self.observations.append((kind, identity, state, facts))

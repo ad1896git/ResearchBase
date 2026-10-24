@@ -56,16 +56,40 @@ def fail(code, message) -> NoReturn:
     raise ResearchBaseError(code, message)
 
 
-class ResearchTaskService:
-    def __init__(self, factory: TaskUowFactory, credentials: Any, artifact_store: Any = None):
-        self._factory = factory
+def task_input_reference(row):
+    bindings = [(kind, row[col]) for kind, col in _INPUT_COLUMNS.items() if row[col] is not None]
+    if len(bindings) != 1:
+        fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved typed input contradiction")
+    return TaskInput(InputType(bindings[0][0]), bindings[0][1])
+
+
+class TaskContextAdmission:
+    """Read admission and binding checks; no command factory or writer capabilities."""
+
+    def __init__(self, credentials: Any):
         self._credentials = credentials
-        self._verifier = ManuscriptFreezeService(factory, credentials, artifact_store)  # type: ignore[arg-type]
 
     @staticmethod
     def _principal(principal):
         if not isinstance(principal, VerifiedPrincipal):
             fail(ErrorCode.AUTHENTICATION_REQUIRED, "trusted verified principal required")
+
+    def authorize_context_read(self, uow, principal, project, at):
+        """Additive same-UoW admission; use the caller's single snapshot-time sample."""
+        self._principal(principal)
+        return self._authorize(uow.research_tasks, principal, project, at=at)
+
+    def resolve_context_binding(self, uow, project, reference, saved):
+        """Resolve exact saved material through the read adapter, including required bytes."""
+        source = uow.context_reads.source(project, reference)
+        if source is None:
+            fail(ErrorCode.NOT_FOUND, "exact input version unavailable")
+        if (
+            source.reference.content_hash != saved.content_hash
+            or source.reference.hash_scheme != saved.hash_scheme
+        ):
+            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved exact input contradiction")
+        return source
 
     def _authorize(self, repo, principal, project, *, write=False, at=None):
         rows = repo.authority(principal, project)
@@ -91,6 +115,13 @@ class ResearchTaskService:
                 ):
                     return at
         fail(ErrorCode.FORBIDDEN, "current project entitlement unavailable")
+
+
+class ResearchTaskService(TaskContextAdmission):
+    def __init__(self, factory: TaskUowFactory, credentials: Any, artifact_store: Any = None):
+        self._factory = factory
+        self._credentials = credentials
+        self._verifier = ManuscriptFreezeService(factory, credentials, artifact_store)  # type: ignore[arg-type]
 
     @staticmethod
     def _scoped(repo, project, identity):
@@ -160,12 +191,7 @@ class ResearchTaskService:
 
     @staticmethod
     def _reference(row):
-        bindings = [
-            (kind, row[col]) for kind, col in _INPUT_COLUMNS.items() if row[col] is not None
-        ]
-        if len(bindings) != 1:
-            fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved typed input contradiction")
-        return TaskInput(InputType(bindings[0][0]), bindings[0][1])
+        return task_input_reference(row)
 
     def _saved_inputs(self, uow, project, rows):
         return tuple(
