@@ -128,6 +128,8 @@ def test_one_readonly_snapshot_survives_committed_writer(
     monkeypatch,
 ):
     task = create_task(planning, scientific_inputs)
+    bound, _ = bind(planning, task)
+    assert isinstance(bound.arguments, BindPoliciesArguments)
     observed, sessions = [], []
     reached, committed = Event(), Event()
     original = SqlAlchemyContextRepository.task_context
@@ -176,7 +178,7 @@ def test_one_readonly_snapshot_survives_committed_writer(
             planning.command(
                 "cancel_research_task",
                 task,
-                1,
+                2,
                 {"reason": "Concurrent legitimate writer"},
             ),
         )
@@ -192,7 +194,8 @@ def test_one_readonly_snapshot_survives_committed_writer(
                 scope(planning, task),
             )
             writer.result(timeout=10)
-        assert result.task.row_version == result.safety.task_row_version == 1
+        assert result.task.row_version == result.safety.task_row_version == 2
+        assert result.safety.budget_policy_id == bound.arguments.budget_id
         assert result.task.status == "CREATED" and len(result.sources) == 6
         assert len(sessions) == 1
         assert sum("transaction_timestamp()" in sql for sql in observed) == 1
@@ -206,7 +209,7 @@ def test_one_readonly_snapshot_survives_committed_writer(
         event.remove(normal_engine, "before_cursor_execute", capture)
         event.remove(normal_engine, "commit", no_commit)
     fresh = reader(planning).load_for_task(planning.principal, scope(planning, task))
-    assert fresh.task.row_version == fresh.safety.task_row_version == 2
+    assert fresh.task.row_version == fresh.safety.task_row_version == 3
     assert fresh.task.status == "CANCELLED"
 
 
@@ -458,3 +461,136 @@ def test_revoked_principal_and_wrong_step_disclose_no_context(planning, scientif
         with pytest.raises(ResearchBaseError) as caught:
             reader(planning, store=store).load_for_task(principal, request)
         assert caught.value.code == ErrorCode.FORBIDDEN and not store.calls
+
+
+def test_context_reader_completes_under_delivered_writer_exclusion_locks(
+    planning, normal_engine, scientific_inputs
+):
+    task = create_task(planning, scientific_inputs)
+    with planning.factory() as writer:
+        writer.begin_research_task()
+        writer.research_tasks.lock_write(
+            planning.project, planning.principal.actor_id, new_uuid7(), task
+        )
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            result = pool.submit(
+                reader(planning, engine=normal_engine).load_for_task,
+                planning.principal,
+                scope(planning, task),
+            ).result(timeout=3)
+    assert len(result.sources) == 6
+
+
+@pytest.mark.parametrize("kind", tuple(InputType))
+def test_draft_and_live_reference_do_not_enter_context(planning, draft_inputs, kind):
+    request = planning.command(
+        arguments=dict(
+            task_type="OTHER",
+            objective="reject draft",
+            strategy_id="fixed",
+            strategy_version="1",
+            inputs=[{"type": kind, "id": str(draft_inputs[kind])}],
+        )
+    )
+    with pytest.raises(ResearchBaseError) as caught:
+        planning.service.execute(planning.principal, request)
+    assert caught.value.code == ErrorCode.VERSION_NOT_FROZEN
+    with pytest.raises((ValueError, TypeError)):
+        constructor = TaskInput.__call__
+        constructor(kind, draft_inputs[kind], mode="LIVE")
+
+
+def test_enrolled_agent_and_human_use_same_boundary(agents):
+    from tests.integration.phase3.agent_fixtures import enrollment
+
+    from researchbase.agent_runtime.application.context_contracts import ContextRequest
+    from researchbase.agent_runtime.application.contracts import parse_command
+    from researchbase.agent_runtime.application.research_task import ResearchTaskService
+
+    enroll = enrollment(agents)
+    agents.identity.provision_project_agent(enroll)
+    principal = agents.identity.resolve_agent_subject(enroll.arguments.subject)
+    task = new_uuid7()
+    command = parse_command(
+        "create_research_task",
+        dict(
+            project_id=str(agents.project),
+            task_id=str(task),
+            command_id=str(new_uuid7()),
+            expected_row_version=None,
+            arguments=dict(
+                task_type="OTHER",
+                objective="Shared boundary",
+                strategy_id="fixed",
+                strategy_version="1",
+            ),
+        ),
+    )
+    ResearchTaskService(agents.factory, agents.credentials, agents.store).execute(
+        agents.owner, command
+    )
+    service = CanonicalContextService(agents.factory, agents.credentials)
+    request = ContextRequest(project_id=agents.project, task_id=task)
+    human = service.load_for_task(agents.owner, request)
+    agent = service.load_for_task(principal, request)
+    assert human.task == agent.task and human.sources == agent.sources
+    assert not agent.safety.execution_enabled
+
+
+def test_current_pointer_change_preserves_exact_historical_artifact(planning):
+    from tests.integration.phase2.test_pr2_10_binding_contract import _artifact
+
+    first = _artifact(
+        planning.factory,
+        planning.store,
+        planning.principal,
+        planning.project,
+        b"retained history",
+        "other",
+    )
+    task = create_task(planning, {"ARTIFACT_VERSION": first})
+    original = reader(planning).load_for_task(planning.principal, scope(planning, task)).sources[0]
+    app = LegacyApplicationService(planning.factory, SystemClock(), planning.store)
+    context = ExecutionContext(
+        actor_id=planning.principal.actor_id, request_id=new_uuid7(), client_type="test"
+    )
+    app.create_artifact_version(
+        CreateArtifactVersionCommand(
+            ArtifactId(original.owner_id),
+            b"new pointer",
+            None,
+            None,
+            "text/plain",
+            11,
+            None,
+            context,
+        )
+    )
+    historical = (
+        reader(planning).load_for_task(planning.principal, scope(planning, task)).sources[0]
+    )
+    assert isinstance(historical, ArtifactContext)
+    assert (
+        historical.reference == original.reference
+        and historical.verified_bytes == b"retained history"
+    )
+    assert historical.status == "SUPERSEDED"
+
+
+def test_unlinked_literature_source_and_unbound_agent_are_denied(planning, scientific_inputs):
+    from tests.integration.phase3.conftest import LEGACY_UNBOUND_AGENT
+
+    task = planning.create()
+    principal = replace(planning.principal, actor_id=LEGACY_UNBOUND_AGENT)
+    with pytest.raises(ResearchBaseError) as caught:
+        reader(planning).load_for_task(principal, scope(planning, task))
+    assert caught.value.code == ErrorCode.FORBIDDEN
+    # Source identity existence is insufficient without a project link.
+    with planning.factory() as uow:
+        uow.begin_formal_read()
+        with pytest.raises(ResearchBaseError) as caught:
+            uow.context_reads.source(
+                new_uuid7(),
+                TaskInput(InputType.SOURCE_VERSION, scientific_inputs["SOURCE_VERSION"]),
+            )
+    assert caught.value.code == ErrorCode.FORBIDDEN

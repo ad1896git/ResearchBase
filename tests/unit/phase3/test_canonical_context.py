@@ -219,3 +219,60 @@ def test_closed_request_rejects_before_uow(reader):
         reader.service.load_for_task(reader.principal, object())
     assert caught.value.code == ErrorCode.VALIDATION_ERROR
     assert reader.log == []
+
+
+@pytest.mark.parametrize("status", ["STALE", "INVALID", "UNKNOWN", "UNASSESSED"])
+def test_observations_preserve_facts_and_do_not_invent_validity(reader, status):
+    reader.uow.source = replace(
+        reader.uow.source,
+        validity=ValidityObservation(
+            status=status,
+            warnings=(ContextWarning(code=status, source=reader.uow.source.reference.task_input),),
+        ),
+    )
+    result = reader.service.load_for_task(reader.principal, reader.request)
+    assert result.sources[0].question_text == "Retained question"
+    assert result.sources[0].validity.status == status
+    assert result.warnings[0].code == status
+
+
+def test_archived_project_and_historical_source_remain_readable(reader):
+    reader.uow.research_tasks.project_active = lambda _: False
+    reader.uow.source = replace(reader.uow.source, status="SUPERSEDED")
+    assert (
+        reader.service.load_for_task(reader.principal, reader.request).sources[0].status
+        == "SUPERSEDED"
+    )
+
+
+@pytest.mark.parametrize("field", ["binding_status", "membership_status"])
+def test_revoked_entitlement_discloses_no_dependencies(reader, field):
+    reader.authority[field] = "REVOKED"
+    with pytest.raises(ResearchBaseError) as caught:
+        reader.service.load_for_task(reader.principal, reader.request)
+    assert caught.value.code == ErrorCode.FORBIDDEN
+    assert "source" not in reader.log and "context" not in reader.log
+
+
+def test_revoked_credentials_precede_protected_sql(reader):
+    service = CanonicalContextService(
+        lambda: reader.uow, SimpleNamespace(is_valid=lambda *_: False)
+    )
+    with pytest.raises(ResearchBaseError) as caught:
+        service.load_for_task(reader.principal, reader.request)
+    assert caught.value.code == ErrorCode.FORBIDDEN
+    assert "source" not in reader.log and "context" not in reader.log
+
+
+@pytest.mark.parametrize("warning", ["CORRECTED", "RETRACTED"])
+def test_correction_observations_do_not_replace_retained_values(reader, warning):
+    reader.uow.source = replace(
+        reader.uow.source,
+        validity=ValidityObservation(
+            status="UNKNOWN",
+            warnings=(ContextWarning(code=warning, source=reader.uow.source.reference.task_input),),
+        ),
+    )
+    result = reader.service.load_for_task(reader.principal, reader.request)
+    assert result.sources[0].question_text == "Retained question"
+    assert result.sources[0].validity.status == "UNKNOWN" and result.warnings[0].code == warning

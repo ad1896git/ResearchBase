@@ -1,7 +1,13 @@
 """R2 may compose only public same-UoW owning readers after scoped preflight."""
 
 import ast
+from dataclasses import fields
 from pathlib import Path
+
+from researchbase.agent_runtime.application.context_contracts import (
+    CanonicalContext,
+    PromotionContextValidation,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -68,3 +74,52 @@ def test_real_composition_binds_context_store_without_adding_transport_routes():
         source = (ROOT / "src/researchbase" / name).read_text()
         assert "context_artifact_store=store" in source
         assert "canonical_context=CanonicalContextService(uow_factory, credentials)" in source
+
+
+def test_read_services_have_no_transport_vendor_sql_or_write_calls():
+    for name in ("canonical_context", "task_memory", "promotion_context"):
+        tree = ast.parse(
+            (ROOT / f"src/researchbase/agent_runtime/application/{name}.py").read_text()
+        )
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                assert not any(
+                    token in (node.module or "")
+                    for token in (
+                        "sqlalchemy",
+                        "persistence",
+                        "fastapi",
+                        "typer",
+                        "openai",
+                        "anthropic",
+                    )
+                )
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                assert node.func.attr not in {
+                    "commit",
+                    "flush",
+                    "lock_write",
+                    "put_verified",
+                    "execute",
+                    "begin_nested",
+                }
+        assert any(
+            isinstance(n, ast.Attribute) and n.attr == "begin_formal_read" for n in ast.walk(tree)
+        )
+
+
+def test_reviewer_reconstruction_has_no_memory_and_results_grant_no_actions():
+    assert not any(
+        "memory" in field.name or "scratchpad" in field.name for field in fields(CanonicalContext)
+    )
+    for name in (
+        "promotion_enabled",
+        "execution_enabled",
+        "provider_disclosure_granted",
+        "producer_provenance_verified",
+    ):
+        assert (
+            next(f for f in fields(PromotionContextValidation) if f.name == name).default is False
+        )
+    assert vars(CanonicalContext)["__dataclass_params__"].frozen
+    assert vars(PromotionContextValidation)["__dataclass_params__"].frozen
