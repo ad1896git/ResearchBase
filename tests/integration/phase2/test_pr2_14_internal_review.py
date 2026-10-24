@@ -41,9 +41,11 @@ conclusion_env = _conclusion_env
 phase2_database_url = _phase2_database_url
 
 
-def _wait_for_pg_blocker(engine, holder_pid: int, expected_lock: str) -> dict:
+def _wait_for_pg_blocker(
+    engine, holder_pid: int, expected_lock: str, *, timeout: float = 10
+) -> dict:
     """Witness a real backend blocked by this holder, with a bounded deadline."""
-    deadline = monotonic() + 10
+    deadline = monotonic() + timeout
     while monotonic() < deadline:
         with engine.connect() as observer:
             row = (

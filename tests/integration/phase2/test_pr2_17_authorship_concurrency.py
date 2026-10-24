@@ -66,9 +66,9 @@ def test_same_uuid_identical_or_conflicting_create(authorship_env, snapshot, cha
         holder.execute(text("SELECT id FROM publications WHERE id=:id FOR UPDATE"), {"id": env[6]})
         with ThreadPoolExecutor(max_workers=2) as pool:
             a = pool.submit(run, cmd)
-            witness = _wait_for_pg_blocker(env[2], pid, "transactionid")
+            witness = _wait_for_pg_blocker(env[2], pid, "transactionid", timeout=60)
             b = pool.submit(run, other)
-            _wait_for_pg_blocker(env[2], witness["pid"], "advisory")
+            _wait_for_pg_blocker(env[2], witness["pid"], "advisory", timeout=60)
             tx.commit()
             results = [a.result(10), b.result(10)]
         if changed:
@@ -127,7 +127,7 @@ def test_concurrent_late_child_waits_then_is_rejected(authorship_env, normal_rol
 
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(late)
-            _wait_for_pg_blocker(env[2], pid, "transactionid")
+            _wait_for_pg_blocker(env[2], pid, "transactionid", timeout=60)
             tx.commit()
             assert future.result(10) == "P17A1"
         assert _count(env) == (1, 1)
@@ -236,7 +236,7 @@ def test_expiry_during_required_wait_zero_effect(
 
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(run)
-            witness = _wait_for_pg_blocker(env[2], pid, "transactionid")
+            witness = _wait_for_pg_blocker(env[2], pid, "transactionid", timeout=60)
             assert witness["pid"] == trace["pid"]
             _past_expiry(env[2], expiry)
             released = holder.execute(text("SELECT clock_timestamp()")).scalar_one()
@@ -298,7 +298,7 @@ def test_second_actor_wait_rechecks_authority(authorship_env, monkeypatch, kind,
 
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(run)
-            witness = _wait_for_pg_blocker(env[2], pid, "transactionid")
+            witness = _wait_for_pg_blocker(env[2], pid, "transactionid", timeout=60)
             assert checks and checks[0] < expiry
             _past_expiry(env[2], expiry)
             tx.commit()
