@@ -1,6 +1,7 @@
 # PR3-04 acceptance record (documentation only)
 
-Status: **pending full-suite CI result on this PR's head**. This record is written against `origin/main` 8dc9bd2 (after PR #10, the
+Status: **ACCEPTED by the project owner on 2026-10-24**, conditional on the full-suite CI on this PR's head being green
+(the merge waits for that result). This record is written against `origin/main` 8dc9bd2 (after PR #10, the
 PR3-05 read-only slice). It changes no code, migration, dependency or contract.
 
 ## What PR3-04 delivered
@@ -20,15 +21,15 @@ The freeze lists the focused commands below and the full-suite check loop. The c
 - Full suite: the six-shard CI matrix on this PR's head (`.github/workflows/ci.yml`).
 
 ## Result
-- Full-suite CI on this PR's head: **to be filled from the CI run before merge** (exact counts, run id).
+- Full-suite CI on this PR's head: runs `40111940781` (push) and `40111943031` (pull_request) on head `2914208`; the exact counts are
+  recorded in the PR #11 comment and in the merge record. A later head change requires re-running CI.
 - Earlier full-suite evidence on main for the PR3-04 code is recorded in `docs/phase3/PR3-04-evidence.md` (section
   "Review remediation and full-suite verification"). That section records an earlier 13132 passed, 3 failed reviewer rejection, which
   was remediated. It is not the current result and is not used as acceptance evidence here.
 
 ## Open items before the owner may accept PR3-04
-- Two independent director reviews, required by the freeze section 7. Their dispositions must be recorded. Only one automated
-  review (Claude, inside the pipeline) has been run on the code path. Whether two reviews are needed for this acceptance is an owner
-  decision.
+- Two independent director reviews, required by the freeze section 7: **waived by the owner on 2026-10-24**. The acceptance
+  rests on the full-suite CI on this PR's head plus the single automated review inside the pipeline.
 - No open P0 or P1 findings.
 
 ## Not in this acceptance
