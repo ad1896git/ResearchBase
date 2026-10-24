@@ -8,7 +8,7 @@ from researchbase.agent_runtime.application.contracts import CommandResult
 from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
-from researchbase.persistence.research_task_queries import input_version
+from researchbase.persistence.research_task_queries import INPUT_FAMILIES, input_version
 
 SHARE_TABLES = (
     "actor_subject_bindings",
@@ -45,6 +45,14 @@ TABLES = frozenset(
         "research_task_receipt_step_events",
     }
 )
+
+
+TASK_EVENTS_SQL = """
+SELECT id,research_task_id,actor_id,command_id,event_type,sequence,task_row_version,
+       prior_status,new_status,reason,occurred_at,stop_human,stop_policy,stop_budget,
+       stop_repeated_failure,stop_no_improvement,stop_success
+FROM research_task_events WHERE research_task_id=:id ORDER BY sequence
+"""
 
 
 class SqlAlchemyResearchTaskRepository:
@@ -95,10 +103,13 @@ class SqlAlchemyResearchTaskRepository:
         )
 
     def events(self, task, *, step=False):
-        table = "research_task_step_events" if step else "research_task_events"
-        order = "step_id,sequence" if step else "sequence"
+        if not step:
+            # Preserve the planning DTO shape after additive stored-event extensions.
+            return self._many(TASK_EVENTS_SQL, {"id": task})
         return self._many(
-            f"SELECT * FROM {table} WHERE research_task_id=:id ORDER BY {order}", {"id": task}
+            "SELECT * FROM research_task_step_events "
+            "WHERE research_task_id=:id ORDER BY step_id,sequence",
+            {"id": task},
         )
 
     def receipt(self, project, actor, command):
@@ -164,6 +175,63 @@ class SqlAlchemyResearchTaskRepository:
 
     def input_version(self, kind, identity, project):
         return input_version(self._session, kind, identity, project)
+
+    def input_versions(self, refs, project):
+        """Read heterogeneous exact versions in one statement, retaining native SQL types."""
+        refs = tuple(dict.fromkeys(refs))
+        if not refs:
+            return {}
+        families = tuple(dict.fromkeys(kind for kind, _ in refs))
+        params = {"project": project}
+        values = []
+        for index, (kind, identity) in enumerate(refs):
+            params[f"kind_{index}"] = kind
+            params[f"id_{index}"] = identity
+            values.append(f"(CAST(:kind_{index} AS text),CAST(:id_{index} AS uuid))")
+        columns, joins = ["r.kind", "r.id AS requested_id"], []
+        for index, kind in enumerate(families):
+            _, version, parent, fk = INPUT_FAMILIES[kind]
+            v, o = f"v{index}", f"o{index}"
+            scope = (
+                f"EXISTS(SELECT 1 FROM literature_source_project_links l WHERE "
+                f"l.literature_source_id={o}.id AND l.project_id=:project)"
+                if kind == "SOURCE_VERSION"
+                else f"{o}.project_id=:project"
+            )
+            # Mark each v.* segment so duplicate column names never become mapping keys.
+            columns.extend([f"NULL AS rb_batch_start_{index}", f"{v}.*", f"{scope} AS scoped"])
+            if kind == "ARTIFACT_VERSION":
+                columns.extend([f"{o}.project_id", f"{o}.artifact_type"])
+            joins.extend(
+                [
+                    f"LEFT JOIN {version} {v} ON r.kind='{kind}' AND {v}.id=r.id",
+                    f"LEFT JOIN {parent} {o} ON {o}.id={v}.{fk}",
+                ]
+            )
+        result = self._session.execute(
+            text(
+                "SELECT "
+                + ",".join(columns)
+                + " FROM (VALUES "
+                + ",".join(values)
+                + ") AS r(kind,id) "
+                + " ".join(joins)
+            ),
+            params,
+        )
+        names = list(result.keys())
+        starts = [names.index(f"rb_batch_start_{i}") for i in range(len(families))]
+        spans = dict(
+            zip(families, zip(starts, starts[1:] + [len(names)], strict=True), strict=True)
+        )
+        rows = {}
+        for raw in result:
+            kind, identity = raw[0], raw[1]
+            start, end = spans[kind]
+            row = dict(zip(names[start + 1 : end], raw[start + 1 : end], strict=True))
+            if row["id"] is not None:
+                rows[kind, identity] = row
+        return rows
 
     def force_constraints(self):
         self._session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))

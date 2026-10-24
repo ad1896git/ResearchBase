@@ -49,6 +49,10 @@ class SqlAlchemyTaskSafetyRepository(SqlAlchemyResearchTaskRepository):
         return to_utc(super().at())
 
     def lock_write(self, project, actor, command, task, *, after_wait=None):
+        self.lock_prefix(project, actor, command, task, after_wait=after_wait)
+        self.lock_task_rows(task, after_wait=after_wait)
+
+    def lock_prefix(self, project, actor, command, task, *, after_wait=None):
         def fresh():
             if after_wait is not None:
                 after_wait()
@@ -62,6 +66,12 @@ class SqlAlchemyTaskSafetyRepository(SqlAlchemyResearchTaskRepository):
                 text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"), {"key": key}
             )
             fresh()
+
+    def lock_task_rows(self, task, *, after_wait=None):
+        def fresh():
+            if after_wait is not None:
+                after_wait()
+
         self._many("SELECT id FROM research_tasks WHERE id=:id FOR UPDATE", {"id": task})
         fresh()
         self._many(

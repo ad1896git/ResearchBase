@@ -224,7 +224,7 @@ def test_role_loss_replays_but_no_new_write_and_lost_read_denies(authorship_env)
         env[4],
         actor_id=actor,
         deployment_id="test-deployment",
-        subject_value=str(actor.int % 1_000_000),
+        subject_value=str(actor.int),
         credential_id=f"uid:{actor.int}",
     )
     identity.close_project_role(

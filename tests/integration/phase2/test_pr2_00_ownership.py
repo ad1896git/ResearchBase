@@ -57,7 +57,7 @@ def _add_owner(
         {
             "id": binding_id,
             "actor": actor_id,
-            "uid": str(actor_id.int % 1_000_000),
+            "uid": str(actor_id.int),
             "subject_credential": f"uid:{actor_id.int}",
             "digest": "b" * 64,
             "now": now,

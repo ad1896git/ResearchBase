@@ -11,6 +11,14 @@ from sqlalchemy.orm import sessionmaker
 from tests.disposable_postgres import disposable_database
 from tests.integration.phase3.test_pr3_00_bootstrap import _catalog
 
+LEGACY_TASK_EVENTS_SQL = """
+SELECT id,research_task_id,actor_id,command_id,event_type,sequence,task_row_version,
+       prior_status,new_status,reason,occurred_at,
+       false AS stop_human,false AS stop_policy,false AS stop_budget,
+       false AS stop_repeated_failure,false AS stop_no_improvement,false AS stop_success
+FROM research_task_events WHERE research_task_id=:id ORDER BY sequence
+"""
+
 
 @pytest.mark.parametrize("populated", (False, True))
 def test_forward_upgrade_and_refusal(monkeypatch, tmp_path, populated):
@@ -48,7 +56,23 @@ def test_forward_upgrade_and_refusal(monkeypatch, tmp_path, populated):
                 )
                 task, _ = fixture.plan()
                 planning_service.execute(principal, fixture.command("seal_task_plan", task, 2))
-                before_graph = planning_service.get_task_graph(principal, project, task)  # noqa: E501
+                from researchbase.persistence.research_task_repository import (
+                    SqlAlchemyResearchTaskRepository,
+                )
+
+                original_events = SqlAlchemyResearchTaskRepository.events
+
+                def legacy_events(repo, identity, *, step=False):
+                    if step:
+                        return original_events(repo, identity, step=True)
+                    return repo._many(LEGACY_TASK_EVENTS_SQL, {"id": identity})
+
+                # 0077 has no safety flags. Project the six 0078 false defaults only
+                # for this historical read; raw pre/post column equality below still
+                # covers every stored value, and the post-upgrade reader is unpatched.
+                with monkeypatch.context() as legacy:
+                    legacy.setattr(SqlAlchemyResearchTaskRepository, "events", legacy_events)
+                    before_graph = planning_service.get_task_graph(principal, project, task)
             with engine.connect() as conn:
                 columns = {
                     t: [c["name"] for c in inspect(conn).get_columns(t)]
@@ -93,7 +117,7 @@ def test_forward_upgrade_and_refusal(monkeypatch, tmp_path, populated):
                 json.dumps({"before": before, "after": after})
             )  # noqa: E501
             scripts = ScriptDirectory.from_config(cfg)
-            assert scripts.get_heads() == ["0079_agent_identity_versions"]
+            assert scripts.get_heads() == ["0080_capability_gateway"]
             assert (
                 scripts.get_revision("0078_task_safety_policies").down_revision
                 == "0077_research_task_graph"

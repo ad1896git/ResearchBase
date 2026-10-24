@@ -68,7 +68,7 @@ def test_transcript_binding_restart_and_forbidden_promotion(
             author,
             actor_id=aid,
             deployment_id="test-deployment",
-            subject_value=str(aid.int % 1_000_000),
+            subject_value=str(aid.int),
             credential_id=f"uid:{aid.int}",
         )
         credentials = TechnicalCredentials([author, principal])

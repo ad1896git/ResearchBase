@@ -119,6 +119,122 @@ def gates(policy, checkpoints, at, step=None, resources=None):
     return tuple(result)
 
 
+def reservation_gauges(repo, task, rows, step):
+    """Derive gauges from durable task steps and outstanding reservations."""
+    steps = {s["id"]: s for s in repo.steps(task["id"])}
+    depth = 0
+    if step is not None:
+        if step not in steps:
+            fail(ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "same-task step required")
+        node = steps[step]
+        while node["parent_step_id"] is not None:
+            depth += 1
+            node = steps[node["parent_step_id"]]
+    final = {u["reservation_id"] for u in rows["budget_usage_records"] if u["is_final"]}
+    occupancy = 1 + sum(r["id"] not in final for r in rows["budget_reservations"])
+    return depth, occupancy
+
+
+def reservation_values(repo, task, rows, budget, term, policy, args, at, *, ignored_event=None):
+    """Shared PR3-04 admission calculation; caller owns every persistence effect."""
+    flags = causes(budget, term, rows["budget_reservations"], rows["budget_usage_records"], at)
+    if any(
+        any(e.get(k, False) for k in flags)
+        for e in repo.events(task["id"])
+        if ignored_event is None or e["id"] != ignored_event
+    ) or any(flags.values()):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "task stopped")
+    if any(r["operation_id"] == args.operation_id for r in rows["budget_reservations"]):
+        invalid("operation already reserved")
+    if task["autonomy_level"] in ("A2", "A3"):
+        fail(
+            ErrorCode.INVALID_STATE_TRANSITION,
+            "owning scientific execution prerequisites unavailable",
+        )
+    if any(
+        not g.satisfied
+        for g in gates(policy, rows["human_checkpoints"], at, args.step_id, args.resources)
+    ):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "checkpoint required")
+    if (
+        any(
+            getattr(args.resources, k) > 0
+            for k in ("code_iterations", "experiment_runs", "tree_nodes")
+        )
+        and term["score_metric_version_id"] is None
+    ):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "comparable evaluator required")
+    depth, occupancy = reservation_gauges(repo, task, rows, args.step_id)
+    if args.observed_depth != depth or args.observed_parallel_branches != occupancy:
+        invalid("gauge assertion differs from durable state")
+    if depth > budget["max_tree_depth"] or occupancy > budget["max_parallel_branches"]:
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "budget gauge exceeded")
+    consumed, reserved = balances(rows["budget_reservations"], rows["budget_usage_records"])
+    if any(
+        consumed[k] + reserved[k] + getattr(args.resources, k) > budget["max_" + k]
+        for k in ADDITIVE
+    ):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "budget exceeded")
+    origin = min((r["created_at"] for r in rows["budget_reservations"]), default=at)
+    deadline = at + timedelta(seconds=args.deadline_seconds)
+    if at >= origin + timedelta(
+        seconds=budget["max_wall_time_seconds"]
+    ) or deadline > origin + timedelta(seconds=budget["max_wall_time_seconds"]):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "wall budget exceeded")
+    return {
+        "budget_id": budget["id"],
+        "step_id": args.step_id,
+        "operation_id": args.operation_id,
+        **asdict(args.resources),
+        "observed_depth": depth,
+        "observed_parallel_branches": occupancy,
+        "deadline": deadline,
+    }
+
+
+def settlement_values(repo, task, rows, term, args):
+    """Shared settlement validation and streak calculation; no persistence effects."""
+    reservation = next(
+        (r for r in rows["budget_reservations"] if r["id"] == args.reservation_id), None
+    )
+    if not reservation:
+        fail(ErrorCode.NOT_FOUND, "reservation unavailable")
+    if any(
+        u["reservation_id"] == args.reservation_id and u["is_final"]
+        for u in rows["budget_usage_records"]
+    ):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "reservation already final")
+    if (
+        args.outcome == "SUCCEEDED"
+        and args.score is None
+        and any(reservation[k] > 0 for k in ("code_iterations", "experiment_runs", "tree_nodes"))
+    ):
+        fail(ErrorCode.INVALID_STATE_TRANSITION, "comparable iteration score required")
+    settlement(spec(ResourceVector, reservation), args.measured, args.outcome)
+    if args.score is not None and (
+        args.evaluator_version != term["evaluator_version"] or args.outcome != "SUCCEEDED"
+    ):
+        invalid("incomparable evaluator observation")
+    receipts = {r["id"]: r["resulting_row_version"] for r in repo.receipt_history(task["id"])}
+    reservation_steps = {r["id"]: r["step_id"] for r in rows["budget_reservations"]}
+    history = [
+        (u["outcome"], u["score"])
+        for u in sorted(rows["budget_usage_records"], key=lambda u: receipts[u["receipt_id"]])
+        if u["is_final"] and reservation_steps[u["reservation_id"]] == reservation["step_id"]
+    ]
+    fs, ns = streaks(history, args.outcome, args.score, term["score_direction"])
+    return {
+        "reservation_id": reservation["id"],
+        **asdict(args.measured),
+        "outcome": args.outcome,
+        "is_final": args.outcome != "UNKNOWN",
+        "failure_streak": fs,
+        "no_improvement_streak": ns,
+        "score": args.score,
+        "evaluator_version": args.evaluator_version,
+    }
+
+
 class TaskSafetyService(ResearchTaskService):
     def __init__(self, factory, credentials, artifact_store=None, *, consumer_capability=None):
         super().__init__(factory, credentials, artifact_store)
@@ -372,132 +488,15 @@ class TaskSafetyService(ResearchTaskService):
                 }
             elif isinstance(args, ReserveBudgetArguments):
                 assert budget and term and policy
-                if any(any(e.get(k, False) for k in flags) for e in repo.events(task["id"])) or any(
-                    flags.values()
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "task stopped")
-                if any(r["operation_id"] == args.operation_id for r in rows["budget_reservations"]):
-                    invalid("operation already reserved")
-                if task["autonomy_level"] in ("A2", "A3"):
-                    fail(
-                        ErrorCode.INVALID_STATE_TRANSITION,
-                        "owning scientific execution prerequisites unavailable",
-                    )
-                if any(
-                    not g.satisfied
-                    for g in gates(
-                        policy, rows["human_checkpoints"], at, args.step_id, args.resources
-                    )
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "checkpoint required")
-                if (
-                    any(
-                        getattr(args.resources, k) > 0
-                        for k in ("code_iterations", "experiment_runs", "tree_nodes")
-                    )
-                    and term["score_metric_version_id"] is None
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "comparable evaluator required")
-                steps = {s["id"]: s for s in repo.steps(task["id"])}
-                depth = 0
-                if args.step_id is not None:
-                    if args.step_id not in steps:
-                        fail(ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "same-task step required")
-                    node = steps[args.step_id]
-                    while node["parent_step_id"] is not None:
-                        depth += 1
-                        node = steps[node["parent_step_id"]]
-                final = {u["reservation_id"] for u in rows["budget_usage_records"] if u["is_final"]}
-                occupancy = 1 + sum(r["id"] not in final for r in rows["budget_reservations"])
-                if args.observed_depth != depth or args.observed_parallel_branches != occupancy:
-                    invalid("gauge assertion differs from durable state")
-                if depth > budget["max_tree_depth"] or occupancy > budget["max_parallel_branches"]:
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "budget gauge exceeded")
-                consumed, reserved = balances(
-                    rows["budget_reservations"], rows["budget_usage_records"]
-                )
-                if any(
-                    consumed[k] + reserved[k] + getattr(args.resources, k) > budget["max_" + k]
-                    for k in ADDITIVE
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "budget exceeded")
-                origin = min((r["created_at"] for r in rows["budget_reservations"]), default=at)
-                deadline = at + timedelta(seconds=args.deadline_seconds)
-                if at >= origin + timedelta(
-                    seconds=budget["max_wall_time_seconds"]
-                ) or deadline > origin + timedelta(seconds=budget["max_wall_time_seconds"]):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "wall budget exceeded")
-                add(
-                    "budget_reservations",
-                    {
-                        "id": new_uuid7(),
-                        "budget_id": budget["id"],
-                        "step_id": args.step_id,
-                        "operation_id": args.operation_id,
-                        **asdict(args.resources),
-                        "observed_depth": depth,
-                        "observed_parallel_branches": occupancy,
-                        "deadline": deadline,
-                    },
-                )
+                values = reservation_values(repo, task, rows, budget, term, policy, args, at)
+                add("budget_reservations", {"id": new_uuid7(), **values})
                 flags = causes(
                     budget, term, rows["budget_reservations"], rows["budget_usage_records"], at
                 )
             elif isinstance(args, SettleBudgetArguments):
-                reservation = next(
-                    (r for r in rows["budget_reservations"] if r["id"] == args.reservation_id), None
-                )
-                if not reservation:
-                    fail(ErrorCode.NOT_FOUND, "reservation unavailable")
-                if any(
-                    u["reservation_id"] == args.reservation_id and u["is_final"]
-                    for u in rows["budget_usage_records"]
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "reservation already final")
-                if (
-                    args.outcome == "SUCCEEDED"
-                    and args.score is None
-                    and any(
-                        reservation[k] > 0
-                        for k in ("code_iterations", "experiment_runs", "tree_nodes")
-                    )
-                ):
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "comparable iteration score required")
-                settlement(spec(ResourceVector, reservation), args.measured, args.outcome)
                 assert term
-                if args.score is not None and (
-                    args.evaluator_version != term["evaluator_version"]
-                    or args.outcome != "SUCCEEDED"
-                ):
-                    invalid("incomparable evaluator observation")
-                receipts = {
-                    r["id"]: r["resulting_row_version"] for r in repo.receipt_history(task["id"])
-                }
-                reservation_steps = {r["id"]: r["step_id"] for r in rows["budget_reservations"]}
-                history = [
-                    (u["outcome"], u["score"])
-                    for u in sorted(
-                        rows["budget_usage_records"], key=lambda u: receipts[u["receipt_id"]]
-                    )
-                    if u["is_final"]
-                    and reservation_steps[u["reservation_id"]] == reservation["step_id"]
-                ]
-                fs, ns = streaks(history, args.outcome, args.score, term["score_direction"])
-                add(
-                    "budget_usage_records",
-                    {
-                        "id": new_uuid7(),
-                        "reservation_id": reservation["id"],
-                        **asdict(args.measured),
-                        "outcome": args.outcome,
-                        "is_final": args.outcome != "UNKNOWN",
-                        "failure_streak": fs,
-                        "no_improvement_streak": ns,
-                        "score": args.score,
-                        "evaluator_version": args.evaluator_version,
-                        "settled_at": at,
-                    },
-                )
+                values = settlement_values(repo, task, rows, term, args)
+                add("budget_usage_records", {"id": new_uuid7(), **values, "settled_at": at})
                 flags = causes(
                     budget, term, rows["budget_reservations"], rows["budget_usage_records"], at
                 )

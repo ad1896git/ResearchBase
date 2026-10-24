@@ -101,7 +101,8 @@ class ResearchTaskService:
             fail(ErrorCode.FORBIDDEN, "task scope unavailable")
         return row
 
-    def _resolve(self, uow: Any, project, ref: TaskInput, saved=None):
+    def _resolve(self, uow: Any, project, ref: TaskInput, saved=None, *, verifier=None):
+        verifier = self._verifier if verifier is None else verifier
         row = uow.research_tasks.input_version(ref.type, ref.id, project)
         if row is None:
             fail(ErrorCode.NOT_FOUND, "exact input version unavailable")
@@ -135,7 +136,7 @@ class ResearchTaskService:
                     if version is None or version.content_hash != row["content_hash"]:
                         raise ValueError("owning hash mismatch")
                     if ref.type == "CLAIM_VERSION":
-                        _, state = self._verifier._claim(uow, project, ref.id)
+                        _, state = verifier._claim(uow, project, ref.id)
                         warnings = () if state == "VALID" else (state,)
                 elif ref.type == "SOURCE_VERSION":
                     material = _material_from_row(uow.source_version, row)
@@ -143,13 +144,11 @@ class ResearchTaskService:
                         raise ValueError("source hash mismatch")
                     warnings = ("SOURCE_RETRACTED",) if row["version_kind"] == "RETRACTED" else ()
                 elif ref.type == "ARTIFACT_VERSION":
-                    _, state = self._verifier._artifact(uow, project, ref.id)
+                    _, state = verifier._artifact(uow, project, ref.id)
                     warnings = () if state == "VALID" else (state,)
                 else:
                     parent = uow.publication.publication(row["publication_id"], project)
-                    view = self._verifier.verify_in_uow(
-                        uow, project, parent, row, require_current=False
-                    )
+                    view = verifier.verify_in_uow(uow, project, parent, row, require_current=False)
                     warnings = () if view.current_validity == "VALID" else (view.current_validity,)
         except (ValueError, TypeError, KeyError):
             fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "owning input material contradiction")

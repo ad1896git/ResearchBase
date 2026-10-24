@@ -41,6 +41,7 @@ from researchbase.foundation.structured_logging import emit_uow_rollback
 from researchbase.persistence.agent_version_repository import SqlAlchemyAgentRepository
 from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
 from researchbase.persistence.authorship_repository import SqlAlchemyAuthorshipRepository
+from researchbase.persistence.capability_gateway_repository import SqlAlchemyGatewayRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 from researchbase.persistence.discussion_hypothesis_repository import (
     SqlAlchemyDiscussionHypothesisRepository,
@@ -518,6 +519,7 @@ class SqlAlchemyUnitOfWork:
     revision_action: SqlAlchemyRevisionActionRepository
     approval: SqlAlchemyApprovalRepository
     decision: SqlAlchemyDecisionRepository
+    gateway: SqlAlchemyGatewayRepository
     task_safety: SqlAlchemyTaskSafetyRepository
     research_tasks: SqlAlchemyResearchTaskRepository
 
@@ -605,6 +607,7 @@ class SqlAlchemyUnitOfWork:
         self.revision_action = SqlAlchemyRevisionActionRepository(self._session)
         self.decision = SqlAlchemyDecisionRepository(self._session)
         self.research_tasks = SqlAlchemyResearchTaskRepository(self._session)
+        self.gateway = SqlAlchemyGatewayRepository(self._session)
         self.task_safety = SqlAlchemyTaskSafetyRepository(self._session)
         self.agents = SqlAlchemyAgentRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
@@ -630,10 +633,15 @@ class SqlAlchemyUnitOfWork:
         self._research_task_error_normalization = False
         self._agent_error_normalization = True
 
+    def begin_gateway_command(self) -> None:
+        self.begin_research_task()
+        self._gateway_error_normalization = True
+
     def begin_research_task(self) -> None:
         """Configure isolation before the literal first SHARE statement."""
         self._decision_error_normalization = True
         self._research_task_error_normalization = True
+        self._gateway_error_normalization = False
         session = self._require_session()
         session.autoflush = False
         session.connection(
@@ -864,6 +872,15 @@ class SqlAlchemyUnitOfWork:
                     for s in ("40001", "40P01", "55P03", "57014")
                 },
             }
+            if getattr(self, "_gateway_error_normalization", False) and state == "23505":
+                if name in {
+                    "agent_tool_policies_pkey",
+                    "agent_tool_policies_project_id_version_key",
+                    "capability_invocations_pkey",
+                }:
+                    codes["23505"] = ErrorCode.CONCURRENT_MODIFICATION
+                elif name == "research_task_command_receipt_project_id_actor_id_command_i_key":
+                    codes["23505"] = ErrorCode.IDEMPOTENCY_CONFLICT
             code = guards.get(str(name)) or codes.get(str(state))
             if code is not None:
                 return ResearchBaseError(

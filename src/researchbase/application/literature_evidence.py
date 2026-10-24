@@ -54,12 +54,19 @@ def _public(value) -> Any:
 
 
 class LiteratureEvidenceService:
-    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any, store: ArtifactStore):
+    def __init__(
+        self,
+        factory: Callable[[], UnitOfWork],
+        credentials: Any,
+        store: ArtifactStore,
+        *,
+        governance: GovernanceQueryService | None = None,
+    ):
         self._factory = factory
         self._credentials = credentials
         self._store = store
         self._validator = ProvenanceClosureValidator(factory)
-        self._governance = GovernanceQueryService(factory)
+        self._governance = governance if governance is not None else GovernanceQueryService(factory)
 
     def _authorize(self, uow, principal, project, roles):
         uow.literature_search_plan.lock_project(project)

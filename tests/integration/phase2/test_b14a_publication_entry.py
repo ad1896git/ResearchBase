@@ -343,7 +343,7 @@ def test_shared_verified_caller_boundary(b05_env, actor_type):
                 create_actor=False,
             )
     principal = replace(
-        env[3], actor_id=aid, subject_value=str(aid.int % 1_000_000), credential_id=f"uid:{aid.int}"
+        env[3], actor_id=aid, subject_value=str(aid.int), credential_id=f"uid:{aid.int}"
     )
     env[9].principals[aid] = principal
     if actor_type == "HUMAN":

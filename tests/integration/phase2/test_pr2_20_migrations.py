@@ -189,7 +189,7 @@ def test_populated_source_evidence_conclusion_placement_review_decision_head_noo
     catalog = s.catalog(engine)
     s.upgrade(phase2_database_url)
     assert s.manifest(engine, tables) == before
-    assert s.catalog(engine) == catalog
+    s.assert_pr2_20_head_catalog_unchanged(catalog, s.catalog(engine))
     engine.dispose()
     with engine.connect() as conn:
         assert (

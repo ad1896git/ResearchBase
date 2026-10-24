@@ -158,7 +158,7 @@ def grant_context(env, reviewer, *, consume_ready=True) -> dict[str, Any]:
             author,
             actor_id=identity,
             deployment_id="test-deployment",
-            subject_value=str(identity.int % 1_000_000),
+            subject_value=str(identity.int),
             credential_id=f"uid:{identity.int}",
         )
         credentials.principals[identity] = principal

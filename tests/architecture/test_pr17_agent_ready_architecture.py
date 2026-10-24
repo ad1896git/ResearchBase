@@ -97,9 +97,16 @@ def test_application_dtos_are_frozen_dataclasses_without_orm_or_session_dependen
         assert all("Session" not in str(field.type) for field in fields(model))
 
 
-def test_no_agent_runtime_or_workflow_engine_is_present_in_phase1_source() -> None:
+# ADR-0025: exact pack §8 DTOs only.
+PR3_03_ADMITTED_CLASSES = {
+    ("agent_runtime/application/gateway_contracts.py", "AgentExecutionContext"),
+    ("agent_runtime/application/gateway_contracts.py", "AgentToolPolicyRead"),
+}
+
+
+def _forbidden_runtime_classes(source: Path) -> list[tuple[Path, str]]:
     forbidden_classes: list[tuple[Path, str]] = []
-    for path in _python_files(SOURCE):
+    for path in _python_files(source):
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
@@ -114,8 +121,8 @@ def test_no_agent_runtime_or_workflow_engine_is_present_in_phase1_source() -> No
                 "persistence/agent_version_repository.py",
                 "api/agent_routes.py",
             }
-            if path.relative_to(SOURCE).as_posix() in admitted or (
-                path == SOURCE / "persistence/models.py"
+            if path.relative_to(source).as_posix() in admitted or (
+                path == source / "persistence/models.py"
                 and node.name
                 in {
                     "AgentVersionModel",
@@ -125,6 +132,8 @@ def test_no_agent_runtime_or_workflow_engine_is_present_in_phase1_source() -> No
                 }
             ):
                 continue
+            if (path.relative_to(source).as_posix(), node.name) in PR3_03_ADMITTED_CLASSES:
+                continue
             if (
                 "agent" in node.name.lower()
                 or "workflow" in node.name.lower()
@@ -132,6 +141,36 @@ def test_no_agent_runtime_or_workflow_engine_is_present_in_phase1_source() -> No
             ):
                 forbidden_classes.append((path, node.name))
 
-    assert forbidden_classes == []
+    return forbidden_classes
+
+
+def test_unlisted_agent_classes_are_still_rejected(tmp_path: Path) -> None:
+    contracts = tmp_path / "agent_runtime/application/gateway_contracts.py"
+    contracts.parent.mkdir(parents=True)
+    contracts.write_text(
+        "class AgentExecutionContext: pass\n"
+        "class AgentToolPolicyRead: pass\n"
+        "class UnlistedAgent: pass\n"
+    )
+    models = tmp_path / "persistence/models.py"
+    models.parent.mkdir(parents=True)
+    models.write_text(
+        "class AgentToolPoliciesModel: pass\n"
+        "class AgentToolPolicyPermissionsModel: pass\n"
+        "class UnlistedAgentModel: pass\n"
+    )
+    other = tmp_path / "other.py"
+    other.write_text("class AgentExecutionContext: pass\n")
+    assert _forbidden_runtime_classes(tmp_path) == [
+        (contracts, "UnlistedAgent"),
+        (other, "AgentExecutionContext"),
+        (models, "AgentToolPoliciesModel"),
+        (models, "AgentToolPolicyPermissionsModel"),
+        (models, "UnlistedAgentModel"),
+    ]
+
+
+def test_no_agent_runtime_or_workflow_engine_is_present_in_phase1_source() -> None:
+    assert _forbidden_runtime_classes(SOURCE) == []
     assert not (SOURCE / "agent").exists()
     assert not (SOURCE / "workflow").exists()

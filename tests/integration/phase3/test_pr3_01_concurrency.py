@@ -358,7 +358,7 @@ def test_membership_revocation_during_first_share_wait_denies_write(planning):
             request_id=new_uuid7(),
         )
     principal = VerifiedPrincipal(
-        actor, "test-deployment", "OS_UID", str(actor.int % 1_000_000), f"uid:{actor.int}", now
+        actor, "test-deployment", "OS_UID", str(actor.int), f"uid:{actor.int}", now
     )
     command = planning.command()
     with planning.engine.connect() as blocker:

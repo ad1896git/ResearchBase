@@ -87,13 +87,28 @@ class ManuscriptVersionReadback:
 
 
 class ManuscriptFreezeService:
-    def __init__(self, factory: Callable[[], UnitOfWork], credentials: Any, store: Any) -> None:
+    def __init__(
+        self,
+        factory: Callable[[], UnitOfWork],
+        credentials: Any,
+        store: Any,
+        *,
+        governance: GovernanceQueryService | None = None,
+    ) -> None:
         self._factory = factory
         self._credentials = credentials
         self._store = store
-        self._literature = LiteratureEvidenceService(factory, credentials, store)
+        self._literature = LiteratureEvidenceService(
+            factory, credentials, store, governance=governance
+        )
         self._conclusions = ScientificConclusionService(factory, credentials, self._literature)
-        self._governance = GovernanceQueryService(factory)
+        self._governance = governance if governance is not None else GovernanceQueryService(factory)
+
+    def with_governance(self, governance: GovernanceQueryService) -> ManuscriptFreezeService:
+        """Build an independent verifier graph using the caller's governance reader."""
+        return ManuscriptFreezeService(
+            self._factory, self._credentials, self._store, governance=governance
+        )
 
     @staticmethod
     def _principal(principal: VerifiedPrincipal) -> None:

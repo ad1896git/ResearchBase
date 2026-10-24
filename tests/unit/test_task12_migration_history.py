@@ -58,10 +58,11 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
             "migrations/versions/0077_research_task_graph.py",
             "migrations/versions/0078_task_safety_policies.py",
             "migrations/versions/0079_agent_identity_versions.py",
+            "migrations/versions/0080_capability_gateway.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0079_agent_identity_versions"]
+    assert scripts.get_heads() == ["0080_capability_gateway"]
     assert (
         scripts.get_revision("0047_pr2_18_novelty_prior_art").down_revision
         == "0046_pr2_17_authorship"
