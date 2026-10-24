@@ -38,7 +38,9 @@ def composed(monkeypatch, tmp_path):
         "proposed_in_project_id": project,
     }
     uow.source_merge.project_ids_for_proposal.return_value = [project]
-    monkeypatch.setattr(composition, "SqlAlchemyUnitOfWork", lambda factory: uow)
+    monkeypatch.setattr(
+        composition, "SqlAlchemyUnitOfWork", lambda factory, context_artifact_store=None: uow
+    )
     monkeypatch.setattr(
         composition, "literature_search_execution_uow_factory", lambda factory: lambda: uow
     )
