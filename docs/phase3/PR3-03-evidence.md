@@ -6899,3 +6899,431 @@ Final evidence whitespace check: `git diff --check HEAD`, exit code 0. Raw outpu
 
 ```text
 ```
+
+## Prototype P1 batched input validation
+
+### t247 review P2 corrections (historical P1 implementation)
+
+This P1 description and its measurements are superseded by the P2
+batched-governance section below. At the P1 measurement, the quadratic term remained: per-write `fresh()` cadence is unchanged, and
+validation still performs the existing governance reads for each distinct target
+in each pass. A governance batch query was then a follow-up; it was subsequently
+implemented in P2 below.
+
+The governance read wrapper now accepts keyword arguments, sorts their cache-key
+items, and delegates unhashable calls without caching. Command input bindings are
+constructed lazily during ordered resolution, preserving an earlier unknown-version
+error ahead of a later invalid family. Real PostgreSQL parity coverage compares
+all six families in one heterogeneous batch with individual lookups, including
+out-of-scope and unknown references and SOURCE_VERSION/MANUSCRIPT_VERSION schemes.
+The initial parity run exposed artifact owner columns present only in batch rows
+(2 failed, 2 warnings, exit 1); the single-reference artifact projection now returns
+those same owner columns, retaining the prototype's artifact-read reuse.
+
+Correction verification uses separate commands with:
+`DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane128`,
+`RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres`,
+`PGOPTIONS="-c jit=off"`, and `UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`.
+
+| Correction verification command | Exit | Observed result |
+| --- | ---: | --- |
+| `git diff --check HEAD` | 0 | Empty output |
+| `uv run ruff check .` | 0 | `All checks passed!` |
+| `uv run ruff format --check .` | 0 | `914 files already formatted` |
+| `uv run pyright` | 0 | `0 errors, 0 warnings, 0 informations`; newer-version notice |
+| `uv run alembic heads` | 0 | `0080_capability_gateway (head)` |
+| `uv run pytest -o addopts='' -q -rfE tests/unit/phase3` | 0 | `986 passed in 7.99s` |
+| `uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_input_versions.py` | 0 | `2 passed, 2 warnings in 0.93s` |
+| `uv run pytest -o addopts='' -q -rfE "tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]" "tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]"` | 0 | `2 passed, 4 warnings in 78.91s (0:01:18)` |
+| `uv run pytest -o addopts='' -q -rfE tests/architecture tests/unit/architecture` | 0 | `366 passed, 50 warnings in 22.02s` |
+| `uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_replay.py` | 0 | `182 passed, 364 warnings in 363.56s (0:06:03)` |
+
+All correction verification commands above passed. Warnings are the existing
+Alembic `path_separator` deprecation and the Pyright update notice. No command was
+skipped or relabeled from an unrun result. The whole suite and external six-shard
+gate remain NOT RUN here; no overall PR3-03 acceptance is claimed. No commit, push,
+or branch creation was performed. Frozen pack, migrations, `pyproject.toml` and
+`uv.lock` remain unchanged. Final evidence whitespace check: separate
+`git diff --check HEAD`, exit 0, empty output.
+
+
+Historical P1 measurement (superseded by the P2 batched-governance implementation below).
+
+Prototype at base `9f9fcd1`, branch `perf-batch-input-validation`, lane128,
+2026-10-23. No commit, push or branch creation. Frozen pack, migrations,
+`pyproject.toml`, `uv.lock`, shared `governance_queries.py` and the shared
+`ResearchTaskService._resolve` are unchanged. Every per-write `fresh()` call
+remains in place. Gateway request/start admission now uses one native-typed
+batched exact-version query for the saved and command input refs in a pass;
+validation still invokes the original resolver in input order. The artifact
+owner read reuses that pass's joined version/parent row. Existing governance
+target and validity reads are reused only for identical targets within that
+pass; no state survived to another `fresh()`. P1 added no governance query;
+P2 below supersedes that implementation with batched governance reads.
+
+Timing command (run once before and once after, without a profiler):
+
+```sh
+DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane128 RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres PGOPTIONS="-c jit=off" UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache" uv run pytest -o addopts='' -q --durations=0 "tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]" "tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]"
+```
+
+| Case (pytest call duration) | Baseline | Prototype | Reduction |
+| --- | ---: | ---: | ---: |
+| maximum guards | 34.96 s | 25.00 s | 28.5% |
+| maximum permissions / total refs storage | 71.07 s | 50.96 s | 28.3% |
+
+Baseline: exit 0, `2 passed, 4 warnings in 115.81s (0:01:55)`.
+Prototype: exit 0, `2 passed, 4 warnings in 88.47s (0:01:28)`.
+Warnings are the existing Alembic `path_separator` deprecation. These are
+single-run measurements, not a statistical performance guarantee. Baseline
+`uptime` load averages before/after: `3.36 4.11 4.42` / `4.75 4.24 4.41`;
+prototype before/after: `4.49 4.21 4.39` / `7.40 5.03 4.68` (7 users throughout).
+
+Error equivalence:
+`tests/unit/phase3/test_gateway_input_validation.py::test_batched_input_validation_matches_first_per_ref_error`
+checks all 24 permutations of unknown, out-of-scope, not-frozen and bad-hash-scheme
+refs after a valid ref, comparing the first error code and message against
+per-reference `_resolve`. Companion tests cover malformed saved-input ordering,
+per-pass validity refresh, and the repository's one-statement heterogeneous native
+row lookup. Phase 3 unit verification: exit 0, `983 passed in 11.59s`.
+
+Not yet verified: full CI and the external six-shard gate. No overall PR3-03
+acceptance is claimed. The whole test suite is deliberately left to the external
+check loop.
+
+SQL statement counting is separate from the unprofiled timing runs. The
+throwaway `tmp/count_gateway_queries.py` uses SQLAlchemy's
+`before_cursor_execute` Engine event, associating each statement with its active
+`fresh()` and `_validate_input_refs` frames. On the maximum guards case, the
+prototype produced 265 validation passes of 769 SQL statements each:
+`1 + 3 * 256`. The single batch replaces 256 exact-version queries and also
+supplies the 256 artifact owner rows. Each distinct target still uses the
+unchanged existing governance projection: one target-resolution SELECT and two
+validity SELECTs (impact and correction). Thus this prototype does **not** make
+total SQL independent of the number of distinct governance targets; it makes
+version lookup constant and reads each distinct target's validity once per pass.
+Other input families retain their original owning-material/closure checks.
+Full `fresh()` distribution in this run: 21 calls with 4 statements, 262 with
+14, and 264 with 801; 547 calls total. The extra validation pass is initial
+admission outside `fresh()`. Query counting run: exit 0,
+`1 passed, 2 warnings in 67.05s (0:01:07)`.
+
+Focused checks (all use the same environment above and separate commands):
+
+| Command | Exit | Observed output |
+| --- | ---: | --- |
+| `uv run ruff check .` | 0 | `All checks passed!` |
+| `uv run ruff format --check .` | 0 | `913 files already formatted` |
+| `uv run pyright` | 0 | `0 errors, 0 warnings, 0 informations`; newer-version notice |
+| `uv run alembic heads` | 0 | `0080_capability_gateway (head)` |
+| `uv run pytest -o addopts='' -q -rfE tests/unit/phase3` | 0 | `983 passed in 11.59s` |
+| `uv run pytest -o addopts='' -q -rfE tests/architecture tests/unit/architecture` | 0 | `366 passed, 50 warnings in 36.11s` |
+| `uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_schema.py::test_six_input_families_positive_xor_duplicate_scope_freeze_hash` | 0 | `6 passed, 12 warnings in 26.16s` |
+
+Initial development runs exposed an incomplete test double (24 failures), two
+Pyright issues and one Ruff `strict=` omission; these were fixed before the
+passing checks above. The final runs do not waive or hide those earlier results.
+
+Baseline SQL measurement loads only the original gateway class from
+`git show HEAD:src/researchbase/agent_runtime/application/capability_gateway.py`
+into the throwaway script process; repository source files stay untouched.
+The successful event-hook-only baseline run exited 0:
+`1 passed, 2 warnings in 41.30s`. Its full `fresh()` distribution was
+21 calls with 4 statements, 262 with 14, and 264 with 1312; 547 calls total,
+the same cadence as the prototype's measured 547 calls. Thus the full request
+recheck drops from 1312 to 801 statements (511 fewer, 38.9%). The earlier
+profile-assisted baseline count attempt exited 1 after the existing 60-second
+reservation deadline elapsed under instrumentation/load
+(`1 failed, 2 warnings in 69.83s`); it is not a PASS. No deadline or production
+behavior was weakened to obtain the successful measurement.
+
+The separately required maximum-case verification command, with `-q -rfE`
+instead of `--durations=0`, exited 0:
+`2 passed, 4 warnings in 101.59s (0:01:41)`.
+
+The final prototype counter also passed using only the event hook plus active
+frame association: exit 0, `1 passed, 2 warnings in 28.35s`. Its distributions
+were identical to the earlier count: 547 `fresh()` calls (21 × 4, 262 × 14,
+264 × 801 statements), and 265 input-validation passes of 769 statements.
+These counter runtimes are not the performance timings in the table above.
+
+Required guard/Application/replay verification (same environment, separate command):
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_replay.py
+```
+
+Exit 0: `182 passed, 364 warnings in 407.28s (0:06:47)`.
+This includes `test_entitlement_and_saved_replay_after_each_blocking_stage`;
+all existing recheck/replay assertions remain unchanged. The warnings are the
+existing Alembic deprecation (guards 92, Application 126, replay 146).
+Final `git diff --check HEAD` with the same environment: exit 0, empty output.
+All required focused verification commands passed; full CI and the external
+six-shard gate remain **NOT RUN**. No overall acceptance/gate success is declared.
+
+## Prototype P2 batched governance validity
+
+Owner-delegated decision: keep the optimization gateway-local, in
+`src/researchbase/persistence/capability_gateway_validity.py`, exposed through
+`SqlAlchemyGatewayRepository.input_validity_projections`. Shared governance
+functions and `application/governance_queries.py` are unchanged. The gateway
+owns this input-validation performance problem; changing the shared projection
+would broaden the behavioral and review scope without being necessary. No
+schema, migration, frozen pack, dependency, lockfile, or fresh() cadence change
+is needed.
+
+### t250 review corrections and remeasurement (2026-10-23)
+
+Reviewed the interrupted round's partial edits against P2-1..P2-4 and retained
+the deterministic missing-target error, eight-path PostgreSQL parity coverage,
+and public verifier construction. The discovery-error regression now exercises
+the injected governance reader without reaching through private collaborator
+fields. No shallow-copy graph mutation remains in gateway validation.
+The P1 implementation text and 25.00 s / 50.96 s measurements above are historical
+and superseded by P2; the t249 figures below remain the original P2 sample.
+
+The isolated, unprofiled remeasurement used the same environment as the focused
+verification below, with no other task-owned test run active:
+
+```sh
+uv run pytest -o addopts='' -q --durations=0 "tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]" "tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]"
+```
+
+| Case (pytest call duration) | t249 P2 sample | t250 corrected P2 sample |
+| --- | ---: | ---: |
+| maximum guards | 6.13 s | 6.42 s |
+| maximum permissions / total refs storage | 12.29 s | 12.77 s |
+
+Exit 0; raw duration output (setup/teardown excluded from the table):
+
+```text
+============================== slowest durations ===============================
+12.77s call     tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]
+8.51s setup    tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]
+6.78s setup    tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]
+6.42s call     tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]
+0.37s teardown tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]
+0.24s teardown tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]
+2 passed, 4 warnings in 35.10s
+```
+
+These are individual timing samples, not a statistical performance guarantee.
+The two-governance-statement validating fresh() design is unchanged; the
+PostgreSQL nested-input and all-eight-target parity tests both assert exactly
+two statements. Per-write fresh() cadence and test strictness are unchanged.
+
+Every verification command was run separately with
+`DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane128`,
+`RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres`,
+`PGOPTIONS="-c jit=off"`, and `UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`.
+
+| Command | Exit | Observed result |
+| --- | ---: | --- |
+| `git diff --check HEAD` | 0 | Empty output |
+| `uv run ruff check .` | 0 | `All checks passed!` |
+| `uv run ruff format --check .` | 0 | `915 files already formatted` |
+| `uv run pyright` | 0 | `0 errors, 0 warnings, 0 informations`; existing update notice |
+| `uv run alembic heads` | 0 | `0080_capability_gateway (head)` |
+| `uv run pytest -o addopts='' -q -rfE tests/unit/phase3` | 0 | `985 passed in 7.10s` |
+| `uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_input_versions.py` | 0 | `4 passed, 2 warnings in 1.08s` |
+| `uv run pytest -o addopts='' -q -rfE "tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]" "tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]"` | 0 | `2 passed, 4 warnings in 22.63s` |
+| `uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_replay.py` | 0 | `182 passed, 364 warnings in 366.82s (0:06:06)` |
+| `uv run pytest -o addopts='' -q -rfE tests/architecture tests/unit/architecture` | 0 | `366 passed, 50 warnings in 18.70s` |
+
+An initial Ruff run exited 1 with I001 at
+`tests/unit/phase3/test_gateway_input_validation.py:213`; corrected the local
+import order and reran successfully. All other verification commands passed.
+PostgreSQL warnings are the existing Alembic path_separator deprecation.
+No full suite, commit, push or branch creation. No frozen-pack, migration,
+pyproject.toml, uv.lock or governance_queries.py changes. Overall external-loop
+PR acceptance remains outside this focused correction run.
+
+### Existing projection contract (source audit)
+
+- `src/researchbase/application/governance_queries.py:154–157` converts the
+  project/type, resolves existence and scope, then reads validity in the caller's
+  UoW. `src/researchbase/application/governance.py:148–157` normalizes the kind,
+  raises `NOT_FOUND` with `<kind> target not found` for an unresolved target,
+  and `VALIDATION_ERROR` with `governance target belongs to another project`
+  for a different owning project.
+- Resolver ownership paths are in
+  `src/researchbase/persistence/governance_repository.py:173–348`: spec version
+  → spec; snapshot → dataset; artifact version → artifact; run → its project;
+  metric version → metric definition; measurement → run; statistical result →
+  its project; claim version → claim. `_resolved` at lines 350–390 treats an
+  absent row or null owning project as unresolved and constructs the resolved
+  target (including owning content-hash hydration). These hashes are not fields
+  of the validity projection; gateway owning-material verification remains in
+  place before final admission.
+- `src/researchbase/persistence/governance_repository.py:837–857` selects
+  `(assessment_id, conclusion, finding_id, finding_status)` by assessment project
+  and exact impact-target kind/ID, using a LEFT JOIN for the optional finding.
+  Lines 858–867 separately select all corrections by project/kind/ID and append
+  five-field correction marker rows. Persisted enum names are uppercase;
+  the ORM enum codec returns their lowercase semantic values.
+- `src/researchbase/application/governance_queries.py:160–167` collects every
+  correction ID independently, excludes only assessment rows whose finding
+  status is `dismissed`, and retains assessments with no finding. No active
+  assessments means `NOT_ASSESSED`, including corrected-only targets.
+- Lines 169–183 map `no_impact` to `UNAFFECTED` and otherwise select the maximum
+  precedence: `UNAFFECTED < UNKNOWN < REQUIRES_REVIEW < STALE < INVALID`.
+  Corrections do not alter this state.
+- Lines 184–190 return `ValidityProjection(kind, target_id, state, finding_ids,
+  assessment_ids, correction_ids)`: each ID tuple is distinct and sorted by
+  `str(UUID)`; finding IDs omit nulls; finding/assessment IDs include active
+  assessments only; correction IDs include all matching corrections.
+
+### Implementation and equivalence
+
+For a nonempty distinct target set the new persistence read executes one
+parameterized resolver-ownership UNION and one combined impact/correction UNION.
+It returns the existing `ValidityProjection` DTO per pair, with the same
+precedence, filtering, sorting and resolver error codes/messages. Empty sets
+execute no SQL. Deferred errors are internal to ordered gateway validation:
+each error is raised only when the original traversal reaches that target.
+
+A pass-local verifier graph built through `with_governance` first discovers
+nested governance targets using neutral discovery projections. Discovery never
+authorizes a command. The real batched facts then drive a second traversal in
+saved-input/command-input order. This includes dependencies reached through
+claim evidence and manuscript provenance; there is no per-target governance
+fallback. If discovery failed before enumerating a target later reached by real
+validity, validation raises `PROVENANCE_CLOSURE_VIOLATION` with
+`gateway validity target unavailable in discovered snapshot`, rather than a
+`KeyError`. All snapshots and verifier instances expire before the next fresh().
+Non-governance owning reads can repeat during discovery; this optimization
+claims constant governance SQL, not constant total provenance SQL for arbitrary
+graphs. The prior version/Artifact owner batching remains in place.
+
+`tests/integration/phase3/test_pr3_03_input_versions.py` uses real PostgreSQL and
+owning Application commands to cover active assessments, all five conclusions,
+a standalone assessment without a finding, corrections, dismissal, missing and
+out-of-scope targets. All eight `_TARGETS` paths are seeded, including spec,
+dataset, artifact, metric and claim parent ownership and measurement → run;
+the test asserts that its target-kind set equals `_TARGETS`. It compares the
+batched DTOs and resolver errors with
+`validity_projection_in_uow`, and counts exactly two statements for multi-target
+reads. A separate six-family input-validation test reaches nested measurement,
+run and experiment-spec targets and asserts exactly two governance statements.
+The unit refresh test changes validity between passes, verifies a new batch and
+observes STALE on the next pass while the shared verifier remains unchanged.
+
+### SQLAlchemy event-hook measurement (separate from timing)
+
+Throwaway script: `tmp/count_p2_gateway_queries.py`. Its Engine
+`before_cursor_execute` hook associates statements with active gateway
+`fresh()` / `_validate_input_refs` frames; resolver statements are recognized
+from the governance repository frame and the new batch CTE. It uses no profiler.
+The `--before-p2` run loads the initially preserved t247 gateway source from
+`tmp/p2-before-gateway.py` into that process only. Repository files are not
+swapped or reverted. Both runs execute both maximum cases.
+
+Environment for every command in this section and the verification below:
+
+```sh
+export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane128
+export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+export PGOPTIONS="-c jit=off"
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+```
+
+Separate commands:
+
+```sh
+uv run python tmp/count_p2_gateway_queries.py --before-p2
+uv run python tmp/count_p2_gateway_queries.py
+```
+
+Before: exit 0, `2 passed, 4 warnings in 82.65s (0:01:22)`.
+After: exit 0, `2 passed, 4 warnings in 21.99s`.
+Counter runtimes are not benchmark timings. Raw count distributions:
+
+```text
+before:
+  governance_statements_per_fresh: {0: 848, 768: 791}
+  fresh_calls: 1639
+  sql_queries_per_fresh: {4: 63, 14: 785, 801: 791}
+  input_validation_passes: 794
+  sql_queries_per_input_validation: {769: 794}
+after:
+  governance_statements_per_fresh: {0: 848, 2: 791}
+  fresh_calls: 1639
+  sql_queries_per_fresh: {4: 63, 14: 785, 35: 791}
+  input_validation_passes: 794
+  sql_queries_per_input_validation: {3: 794}
+```
+
+Thus input-validating fresh() calls use **two governance statements** instead
+of `3 × 256 = 768`; all 1639 fresh() calls remain present. The other 848 calls
+use zero governance statements in both runs. Each of the 794 input-validation
+passes uses one version query plus the two governance queries. Three initial
+admissions occur outside fresh(), explaining the 794 versus 791 difference.
+
+### Unprofiled before/after timings
+
+Both runs used this separate command with the environment above; no profiler
+or event-hook script was loaded, and neither run overlapped another test run
+owned by this task:
+
+```sh
+uv run pytest -o addopts='' -q --durations=0 "tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]" "tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]"
+```
+
+| Case (pytest call duration) | Before P2 (existing t247/t248 tree) | After P2 | Reduction |
+| --- | ---: | ---: | ---: |
+| maximum guards | 22.55 s | 6.13 s | 72.8% |
+| maximum permissions / total refs storage | 45.30 s | 12.29 s | 72.9% |
+
+Before: exit 0, `2 passed, 4 warnings in 71.81s (0:01:11)`.
+After: exit 0, `2 passed, 4 warnings in 22.58s`.
+These are single samples; the current before measurements are distinct from
+those recorded for the earlier t247 prototype (25.00 s / 50.96 s).
+Setup/teardown are excluded from the call-duration table. The after run's raw
+duration output was:
+
+```text
+12.29s call     tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]
+6.13s call     tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]
+2.01s setup    tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]
+2.01s setup    tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]
+0.07s teardown tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]
+0.06s teardown tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]
+2 passed, 4 warnings in 22.58s
+```
+
+### Focused verification
+
+All commands below were run separately with the environment above. These are
+this P2 run's results, not inherited t247 results.
+
+| Command | Exit | Raw result lines |
+| --- | ---: | --- |
+| `git diff --check HEAD` | 0 | empty output |
+| `uv run ruff check .` | 0 | `All checks passed!` |
+| `uv run ruff format --check .` | 0 | `915 files already formatted` |
+| `uv run pyright` | 0 | `0 errors, 0 warnings, 0 informations`; existing newer-version notice |
+| `uv run alembic heads` | 0 | `0080_capability_gateway (head)` |
+| `uv run pytest -o addopts='' -q -rfE tests/unit/phase3` | 0 | `984 passed in 7.99s` |
+| `uv run pytest -o addopts='' -q -rfE tests/architecture tests/unit/architecture` | 0 | `366 passed, 50 warnings in 19.11s` |
+| `uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_input_versions.py` | 0 | `4 passed, 2 warnings in 1.20s` |
+| `uv run pytest -o addopts='' -q -rfE "tests/integration/phase3/test_pr3_03_guards.py::test_maximum_sets_exactly_once_deferred_guards[maximum]" "tests/integration/phase3/test_pr3_03_schema.py::test_256_257_permissions_and_total_refs_storage[maximum]"` | 0 | `2 passed, 4 warnings in 21.74s` |
+| `uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_replay.py` | 0 | `182 passed, 364 warnings in 335.18s (0:05:35)` |
+
+The warnings are the existing Alembic `path_separator` deprecation. The required
+maximum guard check still asserts one task-final guard, one receipt-completeness
+guard and one gateway validator call. No guard or deadline was weakened.
+Protected-path diff against HEAD was empty for shared governance Application /
+persistence files, the frozen pack, migrations, `pyproject.toml`, and `uv.lock`.
+
+Development failures were corrected before these final passing checks: the old
+per-target-cache unit mock failed after the new projection seam replaced it;
+Pyright initially found four annotation/assignment issues; the architecture
+suite rejected a direct governance-domain import (removed without changing the
+boundary test); the nested-input test initially expected a dataset snapshot that
+its owning fixture does not create (it now checks the actual experiment-spec
+path). Intermediate lint formatting errors were also corrected. These failed
+runs are not PASS evidence.
+
+Whole test suite / external CI / overall PR3-03 acceptance: **NOT RUN** here;
+the external loop owns that verification. No commit, branch creation, or push
+was performed.

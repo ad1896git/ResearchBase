@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict, fields, replace
 from datetime import timedelta
 from decimal import Decimal
+from itertools import chain
 from typing import Any
 
 from researchbase.agent_runtime.application.agent_contracts import (
@@ -62,6 +63,11 @@ from researchbase.agent_runtime.domain.research_task import invalid
 from researchbase.agent_runtime.domain.task_safety import ADDITIVE, ResourceVector, integer
 from researchbase.agent_runtime.domain.tool_policy import PermissionSpec, ToolPolicySpec
 from researchbase.agent_runtime.ports.task_repository import UncertainTaskCommit
+from researchbase.application.governance_queries import (
+    GovernanceQueryService,
+    ValidityProjection,
+    ValidityState,
+)
 from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_bytes
@@ -78,6 +84,44 @@ SAFETY_TABLES = (
     "human_checkpoints",
     "termination_policies",
 )
+
+
+class _InputValidationReads:
+    """Per-pass repository view; nothing is retained across fresh() calls."""
+
+    def __init__(self, owner, **overrides):
+        self._owner = owner
+        self.__dict__.update(overrides)
+
+    def __getattr__(self, name):
+        return getattr(self._owner, name)
+
+
+class _GatewayValiditySnapshot(GovernanceQueryService):
+    """Discover the exact owning traversal, then serve one pass's batched facts."""
+
+    def __init__(self, project):
+        self.project = project
+        self.targets = {}
+        self.projections: dict | None = None
+
+    def validity_projection_in_uow(self, uow, project, kind, identity):
+        assert project == self.project
+        key = (kind, identity)
+        self.targets[key] = None
+        if self.projections is None:
+            # Discovery is never admission evidence. Neutral validity lets the owning
+            # verifier enumerate dependencies even when real validity will reject them.
+            return ValidityProjection(key[0], identity, ValidityState.NOT_ASSESSED, (), (), ())
+        if key not in self.projections:
+            fail(
+                ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "gateway validity target unavailable in discovered snapshot",
+            )
+        value = self.projections[key]
+        if isinstance(value, ResearchBaseError):
+            raise value
+        return value
 
 
 class GatewayAccounting:
@@ -706,6 +750,83 @@ class CapabilityGatewayService(TaskSafetyService):
             fail(ErrorCode.IDEMPOTENCY_CONFLICT, "command material differs from saved request")
         return repo.gateway_result(receipt, replayed=True)
 
+    def _validate_input_refs(self, uow, project, saved_rows, refs):
+        # Preserve saved-input order, then command-input order, including failures.
+        bindings = []
+        reference_error = None
+        for row in saved_rows:
+            try:
+                bindings.append((self._reference(row), row))
+            except ResearchBaseError as exc:
+                reference_error = exc
+                break
+        command_bindings = (
+            (
+                TaskInput(InputType(ref.family), ref.version_id),
+                {"content_hash": ref.content_hash, "hash_scheme": ref.hash_scheme},
+            )
+            for ref in refs
+        )
+        keys = [(ref.type, ref.id) for ref, _ in bindings]
+        if reference_error is None:
+            # Collect raw lookup keys without constructing later bindings before
+            # earlier refs have resolved. Unknown families fail at their own turn.
+            keys.extend((ref.family, ref.version_id) for ref in refs if ref.family in InputType)
+        rows = uow.research_tasks.input_versions(tuple(keys), project) if keys else {}
+
+        def input_version(kind, identity, requested_project):
+            assert requested_project == project
+            return rows.get((kind, identity))
+
+        overrides: dict[str, Any] = {
+            "research_tasks": _InputValidationReads(uow.research_tasks, input_version=input_version)
+        }
+        if hasattr(uow, "manuscript_freeze"):
+
+            def artifact(identity, requested_project):
+                key = ("ARTIFACT_VERSION", identity)
+                if requested_project == project and key in rows:
+                    row = rows[key]
+                    return row if row["scoped"] else None
+                return uow.manuscript_freeze.artifact(identity, requested_project)
+
+            overrides["manuscript_freeze"] = _InputValidationReads(
+                uow.manuscript_freeze, artifact=artifact
+            )
+        view = _InputValidationReads(uow, **overrides)
+        ordered = chain(bindings, command_bindings if reference_error is None else ())
+        collected = []
+        binding_error = None
+        try:
+            collected.extend(ordered)
+        except (ValueError, ResearchBaseError) as exc:
+            binding_error = exc
+        ordered = collected
+        # Construct an independent graph through the owning service's public API.
+        # Neither discovery nor snapshots survive this validation pass.
+        snapshot = _GatewayValiditySnapshot(project)
+        verifier = self._verifier.with_governance(snapshot)
+        for ref, saved in ordered:
+            try:
+                self._resolve(view, project, ref, saved, verifier=verifier)
+            except ResearchBaseError:
+                # Replay the original order with real facts below. A later resolver
+                # error must never jump ahead of an earlier owning-material error.
+                pass
+        snapshot.projections = (
+            uow.gateway.input_validity_projections(
+                project, tuple(snapshot.targets), defer_errors=True
+            )
+            if snapshot.targets
+            else {}
+        )
+        for ref, saved in ordered:
+            self._resolve(view, project, ref, saved, verifier=verifier)
+        if reference_error is not None:
+            raise reference_error
+        if binding_error is not None:
+            raise binding_error
+
     def _once(self, principal, command, context, ids, prepared, preflight_error):
         args = command.arguments
         request = isinstance(args, RequestInvocationArguments)
@@ -1056,16 +1177,12 @@ class CapabilityGatewayService(TaskSafetyService):
             flags["stop_budget"] and not attributable
         ):
             fail(ErrorCode.INVALID_STATE_TRANSITION, "task stopped")
-        self._saved_inputs(
-            uow, command.project_id, repo.inputs(task["id"]) + repo.inputs(task["id"], step=True)
+        self._validate_input_refs(
+            uow,
+            command.project_id,
+            repo.inputs(task["id"]) + repo.inputs(task["id"], step=True),
+            request.input_refs,
         )
-        for ref in request.input_refs:
-            self._resolve(
-                uow,
-                command.project_id,
-                TaskInput(InputType(ref.family), ref.version_id),
-                {"content_hash": ref.content_hash, "hash_scheme": ref.hash_scheme},
-            )
         invocations = repo.task_invocations(command.project_id, task["id"])
         occupied = sum(
             i["status"] in ("REQUESTED", "RUNNING", "UNKNOWN_OUTCOME")
@@ -1495,16 +1612,12 @@ class CapabilityGatewayService(TaskSafetyService):
             ]
             if not parent or parent["status"] not in ("FAILED", "UNKNOWN_OUTCOME") or not final:
                 fail(ErrorCode.INVALID_STATE_TRANSITION, "prior final failure required")
-        self._saved_inputs(
-            uow, command.project_id, repo.inputs(task["id"]) + repo.inputs(task["id"], step=True)
+        self._validate_input_refs(
+            uow,
+            command.project_id,
+            repo.inputs(task["id"]) + repo.inputs(task["id"], step=True),
+            args.input_refs,
         )
-        for ref in args.input_refs:
-            self._resolve(
-                uow,
-                command.project_id,
-                TaskInput(InputType(ref.family), ref.version_id),
-                {"content_hash": ref.content_hash, "hash_scheme": ref.hash_scheme},
-            )
         self._accounting.prepare(
             repo,
             task,

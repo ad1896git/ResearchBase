@@ -130,6 +130,11 @@ class SqlAlchemyGatewayRepository(SqlAlchemyTaskSafetyRepository):
             if "FOR UPDATE" in sql and after_wait is not None:
                 after_wait()
 
+    def input_validity_projections(self, project, targets, *, defer_errors=False):
+        from researchbase.persistence.capability_gateway_validity import validity_projections
+
+        return validity_projections(self._session, project, targets, defer_errors=defer_errors)
+
     def policy(self, project: UUID, identity: UUID) -> StoredToolPolicy | None:
         rows = self._many(POLICY_SQL, {"project": project, "id": identity})
         return cast(StoredToolPolicy, rows[0]) if rows else None

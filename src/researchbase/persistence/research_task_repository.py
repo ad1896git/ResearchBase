@@ -8,7 +8,7 @@ from researchbase.agent_runtime.application.contracts import CommandResult
 from researchbase.persistence.literature_search_plan_repository import (
     SqlAlchemyLiteratureSearchPlanRepository,
 )
-from researchbase.persistence.research_task_queries import input_version
+from researchbase.persistence.research_task_queries import INPUT_FAMILIES, input_version
 
 SHARE_TABLES = (
     "actor_subject_bindings",
@@ -175,6 +175,63 @@ class SqlAlchemyResearchTaskRepository:
 
     def input_version(self, kind, identity, project):
         return input_version(self._session, kind, identity, project)
+
+    def input_versions(self, refs, project):
+        """Read heterogeneous exact versions in one statement, retaining native SQL types."""
+        refs = tuple(dict.fromkeys(refs))
+        if not refs:
+            return {}
+        families = tuple(dict.fromkeys(kind for kind, _ in refs))
+        params = {"project": project}
+        values = []
+        for index, (kind, identity) in enumerate(refs):
+            params[f"kind_{index}"] = kind
+            params[f"id_{index}"] = identity
+            values.append(f"(CAST(:kind_{index} AS text),CAST(:id_{index} AS uuid))")
+        columns, joins = ["r.kind", "r.id AS requested_id"], []
+        for index, kind in enumerate(families):
+            _, version, parent, fk = INPUT_FAMILIES[kind]
+            v, o = f"v{index}", f"o{index}"
+            scope = (
+                f"EXISTS(SELECT 1 FROM literature_source_project_links l WHERE "
+                f"l.literature_source_id={o}.id AND l.project_id=:project)"
+                if kind == "SOURCE_VERSION"
+                else f"{o}.project_id=:project"
+            )
+            # Mark each v.* segment so duplicate column names never become mapping keys.
+            columns.extend([f"NULL AS rb_batch_start_{index}", f"{v}.*", f"{scope} AS scoped"])
+            if kind == "ARTIFACT_VERSION":
+                columns.extend([f"{o}.project_id", f"{o}.artifact_type"])
+            joins.extend(
+                [
+                    f"LEFT JOIN {version} {v} ON r.kind='{kind}' AND {v}.id=r.id",
+                    f"LEFT JOIN {parent} {o} ON {o}.id={v}.{fk}",
+                ]
+            )
+        result = self._session.execute(
+            text(
+                "SELECT "
+                + ",".join(columns)
+                + " FROM (VALUES "
+                + ",".join(values)
+                + ") AS r(kind,id) "
+                + " ".join(joins)
+            ),
+            params,
+        )
+        names = list(result.keys())
+        starts = [names.index(f"rb_batch_start_{i}") for i in range(len(families))]
+        spans = dict(
+            zip(families, zip(starts, starts[1:] + [len(names)], strict=True), strict=True)
+        )
+        rows = {}
+        for raw in result:
+            kind, identity = raw[0], raw[1]
+            start, end = spans[kind]
+            row = dict(zip(names[start + 1 : end], raw[start + 1 : end], strict=True))
+            if row["id"] is not None:
+                rows[kind, identity] = row
+        return rows
 
     def force_constraints(self):
         self._session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))

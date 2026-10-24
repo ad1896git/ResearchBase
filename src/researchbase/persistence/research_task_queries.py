@@ -42,10 +42,11 @@ def input_version(session, kind, identity, project):
         if kind == "SOURCE_VERSION"
         else "o.project_id=:project"
     )
+    owner_columns = ", o.project_id, o.artifact_type" if kind == "ARTIFACT_VERSION" else ""
     row = (
         session.execute(
             text(
-                f"SELECT v.*, {scope} AS scoped FROM {version} v "
+                f"SELECT v.*, {scope} AS scoped{owner_columns} FROM {version} v "
                 f"JOIN {parent} o ON o.id=v.{fk} WHERE v.id=:id"
             ),
             {"id": identity, "project": project},

@@ -419,6 +419,13 @@ class Repository:
     def input_version(self, kind, identity, project):
         return self.artifact_pin(project, identity)
 
+    def input_versions(self, refs, project):
+        return {
+            key: row
+            for key in refs
+            if (row := self.input_version(key[0], key[1], project)) is not None
+        }
+
     def rows(self, table, task):
         return deepcopy(self.f.tables[table])
 
