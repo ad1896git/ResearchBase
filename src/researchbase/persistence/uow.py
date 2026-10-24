@@ -42,6 +42,7 @@ from researchbase.persistence.agent_version_repository import SqlAlchemyAgentRep
 from researchbase.persistence.approval_repository import SqlAlchemyApprovalRepository
 from researchbase.persistence.authorship_repository import SqlAlchemyAuthorshipRepository
 from researchbase.persistence.capability_gateway_repository import SqlAlchemyGatewayRepository
+from researchbase.persistence.context_repository import SqlAlchemyContextRepository
 from researchbase.persistence.decision_repository import SqlAlchemyDecisionRepository
 from researchbase.persistence.discussion_hypothesis_repository import (
     SqlAlchemyDiscussionHypothesisRepository,
@@ -528,9 +529,11 @@ class SqlAlchemyUnitOfWork:
         session_factory: Callable[[], Session] | sessionmaker[Session],
         *,
         pr204_error_normalization: bool = False,
+        context_artifact_store=None,
     ) -> None:
         self._session_factory = session_factory
         self._pr204_error_normalization = pr204_error_normalization
+        self._context_artifact_store = context_artifact_store
         self._publication_entry_error_normalization = False
         self._decision_error_normalization = False
         self._prepare_submission_error_normalization = False
@@ -609,6 +612,9 @@ class SqlAlchemyUnitOfWork:
         self.research_tasks = SqlAlchemyResearchTaskRepository(self._session)
         self.gateway = SqlAlchemyGatewayRepository(self._session)
         self.task_safety = SqlAlchemyTaskSafetyRepository(self._session)
+        self.context_reads = SqlAlchemyContextRepository(
+            self._session, self, self._context_artifact_store
+        )
         self.agents = SqlAlchemyAgentRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)

@@ -197,6 +197,41 @@ The protocols are contracts, not wired adapters/services or PostgreSQL evidence.
 
 ## Evidence and remaining gates
 
+### R2 review corrections
+
+R2 composes the owning readers through public same-UoW entry points:
+`verify_artifact_in_uow`, `verify_claim_in_uow`,
+`trace_claim_to_runs_in_uow`, `source_material_in_uow`, and the existing
+`verify_in_uow`, `build_in_uow` and `validity_projection_in_uow`.
+`ContextDependencyVerifier` collects the existing owning traversal observations;
+its private hook stays inside the owning Application module. The context adapter
+scopes every dependency before invoking those readers, which retain the caller's
+UoW and cannot open a second transaction. Its bounded public dependencies are
+pinned by `tests/architecture/test_pr3_05_readonly_boundaries.py`. No owning hash,
+closure, lifecycle, lock or write contract changes.
+
+`TaskContextAdmission` shares the existing authorization implementation with
+`ResearchTaskService`, without accepting a command factory. Canonical reads use
+its public admission method. Private read-row sequences may be tuples or lists
+(the protocol uses `Sequence` to match delivered adapters); public results remain
+recursively immutable tuples and frozen dataclasses.
+
+Both API and CLI `build_services` composition roots bind their configured local
+ArtifactStore to the UoW and expose `ServiceBundle.canonical_context`. No new
+transport route is added. Artifact-bearing reads through those real composition
+roots are tested, rather than relying on a test-only factory.
+
+Durable R2 coverage is in `tests/unit/phase3/test_canonical_context.py` and
+`tests/integration/phase3/test_pr3_05_context_reads.py`. The latter uses the
+existing explicitly selected disposable PostgreSQL 18 fixture, exercises all six
+families and the real composition roots, and observes the actual reader session,
+SQL and snapshot while a legitimate concurrent writer commits. It also tests
+scope denial before store access, required descendant-byte loss/corruption,
+binding contradictions, validity warnings and non-authorizing safety/expiry.
+The contradictory-binding test fault-injects a read projection; it neither alters
+canonical rows nor bypasses a persistence guard. These R2 checks do not accept
+R3/R4, enable saving, or open the full PR3-05 gate.
+
 R1 names no PostgreSQL test file. Its required scoped static checks plus the
 owner's full static, migration-head, unit and architecture commands are reported
 with current raw output and exit codes in the task response. R4 owns new contract

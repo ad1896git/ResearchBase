@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from researchbase import __version__
 from researchbase.agent_runtime.application.agent_versions import AgentVersionService
+from researchbase.agent_runtime.application.canonical_context import CanonicalContextService
 from researchbase.agent_runtime.application.research_task import ResearchTaskService
 from researchbase.agent_runtime.application.task_safety import TaskSafetyService
 from researchbase.application.commands import ApplicationService
@@ -74,6 +75,7 @@ class ServiceBundle:
     revision_actions: RevisionActionService | None = None
     research_tasks: ResearchTaskService | None = None
     task_safety: TaskSafetyService | None = None
+    canonical_context: CanonicalContextService | None = None
     agents: AgentVersionService | None = None
 
 
@@ -84,7 +86,7 @@ def build_services() -> ServiceBundle:
     session_factory = create_session_factory(engine)
 
     def uow_factory() -> SqlAlchemyUnitOfWork:
-        return SqlAlchemyUnitOfWork(session_factory)
+        return SqlAlchemyUnitOfWork(session_factory, context_artifact_store=store)
 
     clock = SystemClock()
     store = ContentAddressedFilesystemArtifactStore(Path(settings.artifact_store_root))
@@ -119,6 +121,7 @@ def build_services() -> ServiceBundle:
         revision_actions=RevisionActionService(
             uow_factory, credentials, LiteratureEvidenceService(uow_factory, credentials, store)
         ),
+        canonical_context=CanonicalContextService(uow_factory, credentials),
         task_safety=TaskSafetyService(
             research_task_uow_factory(settings.database_url), credentials, store
         ),

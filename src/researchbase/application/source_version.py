@@ -577,3 +577,8 @@ def _require_writer(facts) -> None:
 
 def _error(code: ErrorCode, message: str) -> ResearchBaseError:
     return ResearchBaseError(code, message)
+
+
+def source_material_in_uow(repo, row):
+    """Reconstruct owning hash material after the caller scopes all dependencies."""
+    return _material_from_row(repo, row)
