@@ -7327,3 +7327,23 @@ runs are not PASS evidence.
 Whole test suite / external CI / overall PR3-03 acceptance: **NOT RUN** here;
 the external loop owns that verification. No commit, branch creation, or push
 was performed.
+
+## Final acceptance (2026-10-24)
+
+Status: **ACCEPTED** by the project owner on 2026-10-24, after PR #8 was merged into `main`.
+
+- Merged head: `fb734e6` (merge of PR #8). Code head merged: `c5a91ba`.
+- CI on `c5a91ba`: pull_request run `40073810419` success, push run `40073808655` success, all 12 checks pass. The CI matrix is the six-shard full suite (`.github/workflows/ci.yml`, shards 0 to 5), so this is the remote six-shard gate on the final head.
+- Local six-shard gate on `9f9fcd1`: exit 0, 14179 passed, 66 skipped, 0 failed. This was run before the performance and fixture changes below.
+- Changes after `9f9fcd1`, each with its own verification checks and a Claude review with no open P0 or P1:
+  - `5c770dc`: batched input-reference and governance validity checks inside the gateway. The per-write `fresh()` cadence is unchanged. Governance statements per validating `fresh()` fell from 768 to 2. Prototype and P2 sections are recorded above.
+  - `14145a2`: test fixtures use the full UUID integer for `subject_value` (CI shard 4 unique-violation fix). Test-only.
+  - `c5a91ba`: two phase 3 test principals use the same convention (CI shard 0 entitlement fix). Test-only.
+- Maximum-set timings (single runs, see the P2 section): guards 22.55 s to 6.13 s, storage 45.30 s to 12.29 s.
+
+Known limits, recorded for the record:
+- The per-write recheck still runs once per row, so the cost remains quadratic in input references. A governance batch removed the largest constant factor only. A further reduction would need a contract decision.
+- CI passed on `c5a91ba`, but the margin of the maximum-set cases against the 60 s admission deadline was not measured on CI. Re-check if the runner changes.
+- The local reproduction of the earlier CI-only failures passed on the baseline commit. The shard 4 and shard 0 failures were fixture and test-principal problems, fixed by `14145a2` and `c5a91ba`.
+
+Not in this acceptance: PR3-05 implementation (not authorized) and PR3-16 planning (waits on this acceptance, now satisfied, but not started).
