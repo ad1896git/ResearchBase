@@ -197,6 +197,41 @@ The protocols are contracts, not wired adapters/services or PostgreSQL evidence.
 
 ## Evidence and remaining gates
 
+### R3 read-service composition
+
+`TaskMemoryService.get_task_working_memory` and
+`PromotionContextService.validate_promotion_context` each begin one formal read,
+sample snapshot time once and call R2's `context_in_uow` on that UoW. Required
+canonical reconstruction precedes optional-memory handling. The services accept
+the same trusted principal boundary for Human and Agent callers.
+
+Memory reads check exact-version project scope before the DB byte-size bound or
+store access, then verify the returned bytes against the saved size/hash and the
+closed manifest. Manifest project/task/step locators must match the request.
+Every manifest source is reloaded with its exact saved hash/scheme before bytes
+or notes are returned. Current validity combines the memory artifact and source
+observations; saved trust/validity labels never replace those observations.
+`get_optional_task_working_memory` returns `UnusableMemory` only for a missing
+memory version or unusable local memory content. Scope denial, required canonical
+failures and manifest-source failures propagate even on that optional path.
+
+Promotion validation compares the requested revision and candidate hash, and
+checks the complete selected task/step input basis. Requested basis identities
+are scoped and reloaded even when another comparison has failed; denied sources
+never become partial validation responses. `validated_basis` contains only exact
+matching selected inputs. Missing safety-policy bindings, cancellation, recorded
+stops or unsatisfied task/selected-step checkpoints produce `GATE_UNMET`.
+Runtime activation prerequisites remain visible in the canonical safety read;
+S2 producer provenance remains a separate mandatory unmet failure. An admissible
+context still has all execution, promotion and provider-disclosure flags false.
+
+The bootstrap admission inventory includes exactly the two plan §3 R3 modules;
+its other empty-package and activation guards remain intact. These additions
+enable no save, receipt, migration, lock change, provider or promotion command.
+R3 names only its scoped static checks; PostgreSQL test paths and permanent
+consumer acceptance coverage are allocated under R4. R3 verification does not
+claim R4 or full PR3-05 acceptance.
+
 ### R2 review corrections
 
 R2 composes the owning readers through public same-UoW entry points:
