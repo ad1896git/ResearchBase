@@ -167,7 +167,7 @@ def test_viewer_historical_replay_needs_no_renewed_write_role(planning):
             request_id=new_uuid7(),
         )
     principal = VerifiedPrincipal(
-        actor, "test-deployment", "OS_UID", str(actor.int % 1_000_000), f"uid:{actor.int}", now
+        actor, "test-deployment", "OS_UID", str(actor.int), f"uid:{actor.int}", now
     )
     cmd = planning.command()
     original = planning.service.execute(principal, cmd)
