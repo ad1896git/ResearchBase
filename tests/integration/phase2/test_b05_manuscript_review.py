@@ -439,7 +439,7 @@ def test_transitive_placement_creator_and_agent_cannot_review(b05_env, actor_typ
     principal = replace(
         env[3],
         actor_id=identity,
-        subject_value=str(identity.int % 1_000_000),
+        subject_value=str(identity.int),
         credential_id=f"uid:{identity.int}",
     )
     env[9].principals[identity] = principal

@@ -698,7 +698,7 @@ def test_agent_without_existing_verified_binding_fails_closed(revision_env):
     actor = replace(
         base[3],
         actor_id=identity,
-        subject_value=str(identity.int % 1_000_000),
+        subject_value=str(identity.int),
         credential_id=f"uid:{identity.int}",
     )
     base[-1].principals[identity] = actor
@@ -1205,7 +1205,7 @@ def test_foreign_predecessor_state_is_nondisclosing(revision_env, tmp_path):
     reviewer = replace(
         env[2],
         actor_id=reviewer_id,
-        subject_value=str(reviewer_id.int % 1_000_000),
+        subject_value=str(reviewer_id.int),
         credential_id=f"uid:{reviewer_id.int}",
     )
     base[-1].principals[reviewer_id] = reviewer

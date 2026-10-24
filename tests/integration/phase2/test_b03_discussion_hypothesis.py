@@ -489,7 +489,7 @@ def test_cross_actor_same_request_is_duplicate_not_replay(b03):
         env[3],
         actor_id=aid,
         deployment_id="test-deployment",
-        subject_value=str(aid.int % 1_000_000),
+        subject_value=str(aid.int),
         credential_id=f"uid:{aid.int}",
     )
     fresh = DiscussionHypothesisService(factory, TechnicalCredentials([env[3], other]), store)

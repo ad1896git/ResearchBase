@@ -80,7 +80,7 @@ def _add_member(
         {
             "id": binding_id,
             "actor": actor_id,
-            "uid": str(actor_id.int % 1_000_000),
+            "uid": str(actor_id.int),
             "subject_credential": f"uid:{actor_id.int}",
             "digest": "b" * 64,
             "now": now,
@@ -178,7 +178,7 @@ def novelty_env(phase2_database_url, tmp_path):
         author,
         actor_id=reviewer_id,
         deployment_id="test-deployment",
-        subject_value=str(reviewer_id.int % 1_000_000),
+        subject_value=str(reviewer_id.int),
         credential_id=f"uid:{reviewer_id.int}",
     )
     more = {}
@@ -197,7 +197,7 @@ def novelty_env(phase2_database_url, tmp_path):
             more[role.lower()] = replace(
                 reviewer,
                 actor_id=identity,
-                subject_value=str(identity.int % 1_000_000),
+                subject_value=str(identity.int),
                 credential_id=f"uid:{identity.int}",
             )
     credentials = TechnicalCredentials([author, reviewer, *more.values()])

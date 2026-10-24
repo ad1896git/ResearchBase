@@ -57,7 +57,7 @@ def _actor(env):
     actor = replace(
         env[2],
         actor_id=identity,
-        subject_value=str(identity.int % 1_000_000),
+        subject_value=str(identity.int),
         credential_id=f"uid:{identity.int}",
     )
     base[9].principals[identity] = actor

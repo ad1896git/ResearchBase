@@ -877,7 +877,7 @@ def test_different_independent_actor_cannot_replace_or_impersonate_replay(decisi
     other = replace(
         actor,
         actor_id=other_id,
-        subject_value=str(other_id.int % 1_000_000),
+        subject_value=str(other_id.int),
         credential_id=f"uid:{other_id.int}",
     )
     base[9].principals[other_id] = other

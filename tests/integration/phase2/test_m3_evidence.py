@@ -71,7 +71,7 @@ def m3(phase2_database_url, tmp_path):
         author,
         actor_id=reviewer_id,
         deployment_id="test-deployment",
-        subject_value=str(reviewer_id.int % 1_000_000),
+        subject_value=str(reviewer_id.int),
         credential_id=f"uid:{reviewer_id.int}",
     )
     credentials = TechnicalCredentials([author, reviewer])
