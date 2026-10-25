@@ -243,7 +243,7 @@ All functions use invoker privileges and `SET search_path=pg_catalog,public,pg_t
 
 | Function | Responsibility |
 | --- | --- |
-| `pr302s2_cjson(value jsonb) RETURNS text` | New pure serializer for the Q4 null/bool/integer/string/list/object subset; exact compact UTF-8 canonical representation, sorted object keys, no jsonb::text whitespace. Reject unsupported numeric/type values with the explicit helper diagnostic in Q3.5. It does not decide domain-specific key sets. |
+| `pr302s2_cjson(value jsonb) RETURNS text` | New pure serializer for the Q4 null/bool/integer/string/list/object subset; exact compact UTF-8 canonical representation, sorted object keys, no jsonb::text whitespace. Serialize already-normalized JSONB numbers without numeric rejection; reject SQL NULL and unsupported types with the explicit helper diagnostic in Q3.5. It does not decide domain-specific key sets. |
 | `pr302s2_value_digest(value jsonb) RETURNS text` | New pure SHA-256 of UTF-8 `pr302s2_cjson`; lowercase hex; propagates serializer diagnostics, raises no separate tag. |
 | `pr302s2_input_material(p_execution uuid) RETURNS jsonb` | New read helper: reconstruct Q4 input material from the exact intent and sealed task/selected-step typed rows. Missing scope/pins are explicit diagnostics, never empty successful material. |
 | `pr302s2_preheld() RETURNS void` | Require READ COMMITTED and the granted ordered inventory's SHARE protection; each inserting guard also verifies its applicable advisory keys/row locks already held. Never acquire locks in a trigger. |
@@ -299,7 +299,7 @@ Every explicitly raised new tag has its raising function here. Tags are PostgreS
 | pr302_receipt_guard; pr302_receipt_complete, **S1 cases only** | pr302_provenance | 23514 | PROVENANCE_CLOSURE_VIOLATION | Existing S1 Agent translator; existing version/enrollment checks retained |
 | pr302_immutable (unchanged) | pr302_immutable | 23514 | IMMUTABLE_RECORD | Existing Agent translator, including shared receipt mutation |
 
-FROZEN-PROPOSAL numeric boundary (owner decision, option B): both layers reject unsupported numeric values with the same rule. The Python layer rejects any non-integer or out-of-profile JSON number before conversion to JSONB. The SQL helper `pr302s2_cjson` rejects the same set with `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`; a normal-role direct SQL writer therefore cannot bypass the rule. Passing SQL NULL instead of an explicit JSON value, or another unsupported value to `pr302s2_cjson`, also raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`. The digest helper propagates that diagnostic rather than replacing it with 23514. Closed field-set/scalar validation happens before hashing; duplicate JSON keys must be rejected before jsonb conversion can discard them. Serialization is only for the normalized supported subset, not a change to the general existing serializer's float support. Independent numeric/type rejection vectors must prove Python/SQL parity: the two layers must reject the same inputs, and a PostgreSQL test must compare them as required evidence, not optional coverage.
+FROZEN-PROPOSAL numeric boundary (owner decision, option A): numeric rejection happens only in Python, before conversion to JSONB. The Python layer rejects any non-integer or out-of-profile JSON number before conversion to JSONB and reports the explicit helper diagnostic `pr302s2_value_type`. The SQL helper `pr302s2_cjson` does not reject numbers; it serializes the already-normalized JSONB value. Direct SQL writers see normalized values, and original numeric spelling cannot be enforced in SQL. Passing SQL NULL instead of an explicit JSON value, or an unsupported type to `pr302s2_cjson`, still raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`. The digest helper propagates that diagnostic rather than replacing it with 23514. Closed field-set/scalar validation happens before hashing; duplicate JSON keys must be rejected before jsonb conversion can discard them. Serialization is only for the normalized supported subset, not a change to the general existing serializer's float support. Independent numeric rejection vectors are Python-only; no SQL numeric rejection parity test is required. SQL NULL and unsupported-type helper diagnostic tests remain required.
 
 | Physical constraint/error source | SQLSTATE | Intent translation |
 | --- | --- | --- |
@@ -343,7 +343,7 @@ FROZEN-PROPOSAL independent vector ledger retains r2 IDs to prevent deferred wor
 | V04 | DEFERRED Q4/Q6: question promotion material | | NOT YET COMPUTED |
 | V05 | DEFERRED Q4/Q5: hypothesis/AGENT_POLICY promotion material | | NOT YET COMPUTED |
 | V06 | DEFERRED Q4: normalized caller reason/rationale; intent uses only a server event literal | | NOT YET COMPUTED |
-| V07 | ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic. The SQL helper case is required and must match the Python rejection. Other text/summary rejection cases DEFERRED Q4. | | NOT YET COMPUTED |
+| V07 | ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value (Python-only, explicit helper diagnostic) and SQL NULL helper input (SQL, 22023 diagnostic). The SQL NULL helper case remains required; no SQL numeric rejection parity test is required. Other text/summary rejection cases DEFERRED Q4. | | NOT YET COMPUTED |
 | V08 | ACTIVE: reversed task/selected-step input order, same target under distinct owners, duplicate four-tuple rejection | | NOT YET COMPUTED |
 | V09 | ACTIVE: saved NULL scheme, synthetic NULL hash, empty inputs and absent step; serialization versus DB admission distinction | | NOT YET COMPUTED |
 | V10 | DEFERRED Q4/Q6: candidate ordering/selector/adaptation | | NOT YET COMPUTED |
@@ -413,7 +413,7 @@ Unit filenames below are under `tests/unit/phase3/`; PostgreSQL filenames under 
 
 | ID | Proposed node | Required observation |
 | --- | --- | --- |
-| U1 | test_agent_execution_contracts.py::test_closed_intent_command_and_literal_vectors | Only create accepted, explicit nulls/defaults, strict scalar types, independent active Q4 vectors, helper 22023 parity. |
+| U1 | test_agent_execution_contracts.py::test_closed_intent_command_and_literal_vectors | Only create accepted, explicit nulls/defaults, strict scalar types, independent active Q4 vectors, Python-only numeric rejection and SQL NULL/unsupported-type helper 22023 diagnostics. |
 | U2 | test_agent_execution_contracts.py::test_intent_binding_and_harness_pins | Sealed task/selected-step set ordering/duplicate rejection; retained bytes versus normalized harness digest; unresolved/changed pins. |
 | U3 | test_agent_execution_contracts.py::test_intent_query_and_receipt_shapes | Immutable typed read DTO, safe fields, original event/revision, bounded pages, no promotion/result/controller fields. |
 | L1 | test_agent_execution_repository.py::test_ordered_intent_prefix_and_keys | First Application SQL exact 23-table SHARE; project/command/actor/task/version/execution order; applicable row order; no linked gateway/B02 seam. |
@@ -604,3 +604,28 @@ Changed sentences (old → new):
    New: Independent numeric/type rejection vectors must prove Python/SQL parity: the two layers must reject the same inputs, and a PostgreSQL test must compare them as required evidence, not optional coverage.
 3. Old: ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic.
    New: ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic. The SQL helper case is required and must match the Python rejection.
+
+### Refreeze 2026-10-25 (numeric boundary, option A)
+
+Owner decision (binding): option A. Numeric rejection happens only in Python before JSONB conversion, with the explicit helper diagnostic. SQL `pr302s2_cjson` serializes already-normalized JSONB numbers without rejecting them; SQL NULL and unsupported types still raise `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`. Direct SQL writers see normalized values; original numeric spelling cannot be enforced in SQL. V07 retains its Python-only numeric case; no SQL numeric rejection parity test is required. This decision supersedes the option-B freeze record above, whose old/new quotations are historical only.
+
+Lines changed: Q3.4 line 246; Q3.5 line 302; V07 line 346; U1 line 416; this appended freeze record. All other clauses, values, names, bounds, guards and vectors, including the FROZEN status, remain unchanged.
+
+Changed sentences (old → new; grouped where a replacement spans sentences):
+
+1. Line 246. Old: Reject unsupported numeric/type values with the explicit helper diagnostic in Q3.5.
+   New: Serialize already-normalized JSONB numbers without numeric rejection; reject SQL NULL and unsupported types with the explicit helper diagnostic in Q3.5.
+2. Line 302. Old: FROZEN-PROPOSAL numeric boundary (owner decision, option B): both layers reject unsupported numeric values with the same rule.
+   New: FROZEN-PROPOSAL numeric boundary (owner decision, option A): numeric rejection happens only in Python, before conversion to JSONB.
+3. Line 302. Old: The Python layer rejects any non-integer or out-of-profile JSON number before conversion to JSONB.
+   New: The Python layer rejects any non-integer or out-of-profile JSON number before conversion to JSONB and reports the explicit helper diagnostic `pr302s2_value_type`.
+4. Line 302. Old: The SQL helper `pr302s2_cjson` rejects the same set with `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`; a normal-role direct SQL writer therefore cannot bypass the rule.
+   New: The SQL helper `pr302s2_cjson` does not reject numbers; it serializes the already-normalized JSONB value. Direct SQL writers see normalized values, and original numeric spelling cannot be enforced in SQL.
+5. Line 302. Old: Passing SQL NULL instead of an explicit JSON value, or another unsupported value to `pr302s2_cjson`, also raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`.
+   New: Passing SQL NULL instead of an explicit JSON value, or an unsupported type to `pr302s2_cjson`, still raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`.
+6. Line 302. Old: Independent numeric/type rejection vectors must prove Python/SQL parity: the two layers must reject the same inputs, and a PostgreSQL test must compare them as required evidence, not optional coverage.
+   New: Independent numeric rejection vectors are Python-only; no SQL numeric rejection parity test is required. SQL NULL and unsupported-type helper diagnostic tests remain required.
+7. Line 346. Old: ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic. The SQL helper case is required and must match the Python rejection.
+   New: ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value (Python-only, explicit helper diagnostic) and SQL NULL helper input (SQL, 22023 diagnostic). The SQL NULL helper case remains required; no SQL numeric rejection parity test is required.
+8. Line 416. Old: Only create accepted, explicit nulls/defaults, strict scalar types, independent active Q4 vectors, helper 22023 parity.
+   New: Only create accepted, explicit nulls/defaults, strict scalar types, independent active Q4 vectors, Python-only numeric rejection and SQL NULL/unsupported-type helper 22023 diagnostics.
