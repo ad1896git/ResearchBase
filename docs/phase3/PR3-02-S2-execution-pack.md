@@ -107,8 +107,9 @@ uv run alembic heads
 
 **Goal/dependencies:** implement only the approved four tables, typed receipt additions and forward guard replacements after S0. Preserve one head, accepted migrations and prior results; prove clean/populated upgrade and downgrade refusal (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:35,47–48,193–207,226–233,410,427`). Q1–Q3 determine any gateway/task guard delta.
 **Files:** proposed `migrations/versions/<approved_next_revision>.py`, `src/researchbase/persistence/models.py`; proposed `tests/integration/phase3/test_pr3_02_s2_schema.py`, `test_pr3_02_s2_guards.py`, `test_pr3_02_s2_migration.py`; mechanical current-head consumers only as inventoried in Appendix H.
-**Node-level tests:** M1–M3, D1–D4 (§3.8). Compile all new/replaced functions on an empty disposable PG18 database; validate normal-role inserts and refusals, not only text inventories.
-**Verification/completion:** C plus §4 schema/guard/migration command, exit 0 and real counts; exactly approved schema delta, sole head and unchanged old rows/hashes/receipt results.
+**Node-level tests:** M1–M3, D1–D3 (§3.8). Compile all new/replaced functions on an empty disposable PG18 database; validate normal-role inserts and refusals, not only text inventories.
+**Deferred to stage S2:** D4 Python/PostgreSQL material parity requires the Python material implementation added there.
+**Verification/completion:** C plus M1–M3 and D1–D3 selected by exact node ID from the §4 schema/guard/migration files, exit 0 and real counts; exactly approved schema delta, sole head and unchanged old rows/hashes/receipt results.
 **Two-round estimate/cut:** one DDL/compile pass, one behavioral verification pass after exact SQL is approved; cut no constraints or cases.
 **Risk/stop:** deferred completeness scans duplicated per child, partial receipts or loss of old operation cases. G applies; no SQL authored from minimum-table prose alone.
 
@@ -116,8 +117,9 @@ uv run alembic heads
 
 **Goal/dependencies:** implement execution/promotion values and command/result/query DTOs; preserve S1 values and owning hashes; preflight frozen harness/result bytes with Q4's approved formats (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:147–189,218–224,256–266,373–383`). Depends on S0 and S1's frozen field inventory.
 **Files:** proposed `src/researchbase/agent_runtime/domain/agent_execution.py`, `agent_promotion.py`, `src/researchbase/agent_runtime/application/execution_contracts.py`; narrowly extend `agent_contracts.py` where receipt unions require it; reuse `domain/harness_manifest.py:26–81`. Proposed unit files `test_agent_execution_contracts.py`, `test_agent_promotion_contracts.py` and `execution_vectors.py` under `tests/unit/phase3/`.
-**Node-level tests:** U1–U4; existing `tests/unit/phase3/test_agent_version_contracts.py::test_literal_vectors` and `tests/unit/phase3/test_harness_manifest.py::test_closed_and_byte_hash_distinction` remain regression anchors.
-**Verification/completion:** C and focused unit command in §4; independently specified literal vectors match exactly, unknown fields/literals fail, no existing vector changes.
+**Node-level tests:** U1–U4 and deferred D4 from S1, now that Python material and S1 SQL both exist; existing `tests/unit/phase3/test_agent_version_contracts.py::test_literal_vectors` and `tests/unit/phase3/test_harness_manifest.py::test_closed_and_byte_hash_distinction` remain regression anchors.
+**Deferred to stage S3:** repository unit checks; **to stage S4:** execution service unit checks; **to stage S5:** promotion service unit checks from the combined §4 unit command.
+**Verification/completion:** C, U1–U4 from the two contract unit files and D4 by exact node ID in §4; independently specified literal vectors match exactly, unknown fields/literals fail, no existing vector changes.
 **Two-round estimate/cut:** values/vectors then negative/material tests; no parser framework or schema generalization.
 **Risk/stop:** confusing retained-byte digest, manifest value digest and scientific hash. G applies; unresolved Q4 blocks value/hash implementation.
 
@@ -125,8 +127,9 @@ uv run alembic heads
 
 **Goal/dependencies:** implement typed repository/UoW boundaries using the exact reviewed S2 recipe and formal-read path; prove per-wait freshness and receipt-first replay (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:295–350,385–397`). Depends on S1/S2 and Q2 disposition; reuse UoW setup at `src/researchbase/persistence/uow.py:637–674`.
 **Files:** proposed `src/researchbase/agent_runtime/ports/execution_repository.py`, `src/researchbase/persistence/agent_execution_repository.py`; narrowly extend `ports/agent_repository.py`, `persistence/agent_version_repository.py`, `persistence/uow.py`. Gateway/safety port/repository changes only where Q1/Q2 approve them. Proposed `tests/unit/phase3/test_agent_execution_repository.py`.
-**Node-level tests:** L1–L3 plus PG R1/R2. Record first Application SQL, all key/row waits and read SQL; fakes alone cannot prove database concurrency.
-**Verification/completion:** C, focused repository nodes and PG concurrency command in §4. No locks after protected row locks except those explicitly in the frozen recipe; no nested UoW or second read snapshot.
+**Node-level tests:** L1–L3. Record repository lock/recheck and read SQL traces.
+**Deferred to stage S4:** PG R1 first-Application-SQL and observed wait/recheck evidence requires the execution service. **Deferred to stage S5:** PG R2 requires the promotion service and B02 composition. Fakes alone cannot prove database concurrency.
+**Verification/completion:** C and L1–L3 from the §4 repository unit file; R1 is selected separately at S4 and R1/R2 at S5. The combined concurrency/replay command is deferred to S7. No locks after protected row locks except those explicitly in the frozen recipe; no nested UoW or second read snapshot.
 **Two-round estimate/cut:** storage/lock implementation then traces/races; reuse existing readers instead of generic repository machinery.
 **Risk/stop:** reversing actor/task order or re-entering a public gateway/B02 command; G applies, and Q2 is a predecessor gate.
 
@@ -134,8 +137,9 @@ uv run alembic heads
 
 **Goal/dependencies:** create immutable binding/CREATED history, then the approved lifecycle with real policy/gateway integration; retain failures and partial results (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:91–105,163–169,182–189,218–233`). Requires S1–S3, Q1/Q5 and accepted prerequisite behavior.
 **Files:** proposed `src/researchbase/agent_runtime/application/agent_executions.py`; narrow extensions to `application/capability_gateway.py`, `gateway_contracts.py`, `task_safety.py`, `research_task.py` and matching ports only where Q1/Q2 explicitly require them. Proposed `tests/unit/phase3/test_agent_executions.py`, `tests/integration/phase3/test_pr3_02_s2_execution.py`.
-**Node-level tests:** E1–E4, U2, R1/R2. Include Human controller and bound producing Agent paths, wrong Agent denial, policy/stop/checkpoint/availability denials and positive authorized SUCCEEDED evidence.
-**Verification/completion:** C and execution nodes in §4; timestamps/revisions/events match the contract and rollback leaves no partial execution history. Positive success must use the authorized integration, never forged SQL or a gate bypass (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:77–82,408–410`).
+**Node-level tests:** E1–E4, U2 and deferred R1 from S3. Include Human controller and bound producing Agent paths, wrong Agent denial, policy/stop/checkpoint/availability denials and positive authorized SUCCEEDED evidence.
+**Deferred to stage S5:** R2 promotion/shared-gateway races require the promotion composition added there.
+**Verification/completion:** C, execution service unit checks, E1–E4 and R1 selected by exact node ID in §4; timestamps/revisions/events match the contract and rollback leaves no partial execution history. Positive success must use the authorized integration, never forged SQL or a gate bypass (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:77–82,408–410`).
 **Two-round estimate/cut:** creation/lifecycle then integration/races; estimate depends on Q1's final scope. Cut real providers and orchestration, never required positive execution coverage.
 **Risk/stop:** toggling a boolean instead of defining admission, or treating execution success as scientific evidence. G applies.
 
@@ -143,8 +147,9 @@ uv run alembic heads
 
 **Goal/dependencies:** extract reusable owning validation/DRAFT writes into an internal already-open-UoW seam; verify capture bytes before S2 locks and revalidate DB bindings under locks. Preserve public signatures, B02 replay/duplicates and original hash domains (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:235–252,343–345,385–390`). Requires successful S4 execution plus Q5/Q6.
 **Files:** proposed `src/researchbase/agent_runtime/application/agent_promotions.py`; narrow changes to `src/researchbase/application/strategy_candidate_promotion.py`, owning repository/port and S2 repository. Proposed `tests/unit/phase3/test_agent_promotions.py`, `tests/integration/phase3/test_pr3_02_s2_promotion.py`.
-**Node-level tests:** P1–P4, D3, R2/R3; preserve existing Application-only Agent/B03 denial node `tests/integration/phase3/test_pr3_02_s1_b02_agent.py::test_positive_application_only_agent_g2_and_b03_denial` (`tests/integration/phase3/test_pr3_02_s1_b02_agent.py:31`).
-**Verification/completion:** C and promotion/B02 regressions in §4. Both DRAFT families commit owning admission + promotion + one typed output + receipt together; failure injection after each write stage leaves neither side. Producer/promoter remain distinct (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:98–102,205–207,244–252`).
+**Node-level tests:** P1–P4, D3 and deferred R2 from S3/S4; rerun R1 for the added promotion path; preserve existing Application-only Agent/B03 denial node `tests/integration/phase3/test_pr3_02_s1_b02_agent.py::test_positive_application_only_agent_g2_and_b03_denial` (`tests/integration/phase3/test_pr3_02_s1_b02_agent.py:31`).
+**Deferred to stage S6:** R3 saved-result reconciliation requires the query/reconciliation boundary added there.
+**Verification/completion:** C, promotion service unit checks, promotion/B02 regressions and R1/R2 concurrency nodes in §4. Both DRAFT families commit owning admission + promotion + one typed output + receipt together; failure injection after each write stage leaves neither side. Producer/promoter remain distinct (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:98–102,205–207,244–252`).
 **Two-round estimate/cut:** seam extraction then positive/negative/rollback evidence. Cut additional target families, UI and convenience attach routes.
 **Risk/stop:** nested commit or ArtifactStore I/O inherited from B02 `_write`/`_capture` (`src/researchbase/application/strategy_candidate_promotion.py:404,605–608,758`). G applies; extraction is not permission to rewrite B02's external contract.
 
@@ -152,7 +157,7 @@ uv run alembic heads
 
 **Goal/dependencies:** deliver `get_agent_execution`, `list_task_executions`, `get_agent_promotion`, `list_execution_promotions` and authorized receipt reconciliation with original IDs/events/revisions (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:167–180,347–350,385–397`). Requires S3–S5 and Q5/Q7.
 **Files:** S2 service/repository/contract files above; proposed `tests/integration/phase3/test_pr3_02_s2_replay.py`. PR3-05 `application/promotion_context.py` and its tests only if Q7 explicitly scopes a read extension; otherwise preserve current behavior. No transport route inventory change is selected by this plan.
-**Node-level tests:** R3–R5, U4. Cover stale expected revisions, archive/retirement, revoked read entitlement, changed material, wrong-project disclosure, lost responses and uncertain commits.
+**Node-level tests:** R3–R5, U4 and L3 regression; R3 deferred from S5 is now enabled by reconciliation. Cover stale expected revisions, archive/retirement, revoked read entitlement, changed material, wrong-project disclosure, lost responses and uncertain commits.
 **Verification/completion:** C plus replay nodes; read traces show one coherent lock-free snapshot and no repair/duplicate output. Historical result material is distinct from current projections (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:173–180,347–350,385–390`).
 **Two-round estimate/cut:** projections/reconciliation then isolation/failure checks; cut optional transport additions, not entitlement or saved-result fidelity.
 **Risk/stop:** returning current state as the original result, or silently changing PR3-05's public verdict. G applies.
@@ -161,7 +166,7 @@ uv run alembic heads
 
 **Goal/dependencies:** map every approved obligation to passing nodes, carry exact evidence and unresolved dispositions; do not claim acceptance with missing required evidence or open P0/P1 (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:399–419,432`). Requires all prior gates.
 **Files:** proposed `tests/architecture/test_pr3_02_s2_boundaries.py`, `tests/integration/phase3/execution_fixtures.py`, remaining S2 test files in §3.8 and future `docs/phase3/PR3-02-S2-evidence.md`. These are future allocations only; this task writes none of them.
-**Node-level tests:** all §3.8 rows plus affected historical nodes. Enroll/resolve Agents through Application commands; build captures, policies and artifacts through owning boundaries, using isolated fixtures (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:138–143,407–410`).
+**Node-level tests:** A1, all §3.8 rows plus affected historical nodes. A1 full Human/Agent parity now has all execution, promotion and query boundaries. Enroll/resolve Agents through Application commands; build captures, policies and artifacts through owning boundaries, using isolated fixtures (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:138–143,407–410`).
 **Verification/completion:** all focused §4 commands and C exit 0 with actual counts, PostgreSQL version/role, migration manifests, raw lock/timestamp observations, effect counts and vector results. Attach external-loop full-suite evidence when supplied; absent evidence stays PENDING. No full-suite launch by implementation agent (`docs/proposals/PR3-02_AgentVersion_Execution_Contract_DRAFT.md:412–419`).
 **Two-round estimate/cut:** complete matrix then focused reruns/evidence; CI/review latency excluded. Hand off uncovered nodes rather than deleting acceptance obligations.
 **Risk/stop:** manufactured positive evidence, sleeps mistaken for lock observations, ignored required skips or premature gate success. G applies; stop after separately accepted S2 evidence.
@@ -205,7 +210,9 @@ uv run alembic heads
 
 **INFERRED:** S0 → S1 → S2 → S3 → S4 → S5 → S6 → S7 → external check loop and required independent review → owner acceptance → STOP. No downstream implementation starts without its predecessor evidence; planning completion does not pass S0's implementation gate.
 
-**INFERRED future focused commands**, after authorization and creation of the proposed files. All are NOT RUN here. Record actual counts; no required skip or zero selection is acceptance. Configure `RB_TEST_ADMIN_URL` explicitly for local disposable PG18; fixture-controlled `DATABASE_URL` must name that disposable database. Follow existing plumbing rather than printing credentials (`tests/disposable_postgres.py:1–53`; `tests/integration/phase3/agent_fixtures.py:100`).
+**INFERRED stage allocation:** S0 has documentation/disposition checks only. C applies at S1–S7; at S1 its head check validates the new approved revision, and later stages preserve it. S1 runs M1–M3/D1–D3; S2 adds U1–U4/D4; S3 adds L1–L3; S4 adds execution service unit checks/E1–E4/R1; S5 adds promotion service unit checks/P1–P4/R2 and B02/B03 regressions; S6 adds R3–R5 and PR3-05 compatibility regressions. **Deferred to stage S7:** A1 full Application parity, broad Phase 3 unit and architecture regressions, affected historical nodes, and the complete combined commands below, after all listed files and boundaries exist. Earlier stages select only their allocated existing files or exact §3.8 node IDs, plus affected existing regressions; they do not launch combined commands containing later files/nodes. Deferred checks remain mandatory and cannot be counted as passing at the earlier gate.
+
+**INFERRED future focused commands (complete S7 rerun)**, after authorization and creation of the proposed files. All are NOT RUN here. Record actual counts; no required skip or zero selection is acceptance. Configure `RB_TEST_ADMIN_URL` explicitly for local disposable PG18; fixture-controlled `DATABASE_URL` must name that disposable database. Follow existing plumbing rather than printing credentials (`tests/disposable_postgres.py:1–53`; `tests/integration/phase3/agent_fixtures.py:100`).
 
 ```sh
 export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
@@ -251,3 +258,8 @@ test -s docs/phase3/PR3-02-S2-execution-pack.md && echo pack-present
 
 Results are reported with raw output and exit codes in the planning handoff. Because the new file is untracked, `git diff --check HEAD` alone does not inspect its contents; a separate read-only line-count/trailing-whitespace check covers the file without staging it. Required size: fewer than 400 lines.
 Unit, architecture, PostgreSQL and full-suite tests: **NOT RUN (documentation-only change; no affected executable suites and no test counts)**. All proposed implementation checks remain NOT RUN. Stop after the documentation evidence; implementation requires the separate authorization described above.
+
+## Change log
+
+- P2 — stage checks preceded their dependencies. Allocated runnable checks to their implementing stages; explicitly deferred parity to S2, service checks to S3–S5, promotion races to S5, reconciliation to S6 and complete parity/regressions to S7. All §3.8 checks and §4 commands are retained. Changed allocation span: lines 106–215 (S1–S7 and §4); this log records the correction.
+- Review provenance: `docs/phase3/PR3-02-S2-pack-review.md` is absent from this checkout; this correction uses the P2 finding and Action quoted in the owner task.
