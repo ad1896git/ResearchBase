@@ -299,7 +299,7 @@ Every explicitly raised new tag has its raising function here. Tags are PostgreS
 | pr302_receipt_guard; pr302_receipt_complete, **S1 cases only** | pr302_provenance | 23514 | PROVENANCE_CLOSURE_VIOLATION | Existing S1 Agent translator; existing version/enrollment checks retained |
 | pr302_immutable (unchanged) | pr302_immutable | 23514 | IMMUTABLE_RECORD | Existing Agent translator, including shared receipt mutation |
 
-FROZEN-PROPOSAL pure-helper errors are specified, not left implicit: passing a float/nonintegral JSON number, a numeric representation outside the closed integer profile, SQL NULL instead of an explicit JSON value, or another unsupported value to `pr302s2_cjson` raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`. The digest helper propagates that diagnostic rather than replacing it with 23514. Closed field-set/scalar validation happens before hashing; duplicate JSON keys must be rejected before jsonb conversion can discard them. Serialization is only for the normalized supported subset, not a change to the general existing serializer's float support. Independent numeric/type rejection vectors must prove Python/SQL parity.
+FROZEN-PROPOSAL numeric boundary (owner decision, option B): both layers reject unsupported numeric values with the same rule. The Python layer rejects any non-integer or out-of-profile JSON number before conversion to JSONB. The SQL helper `pr302s2_cjson` rejects the same set with `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`; a normal-role direct SQL writer therefore cannot bypass the rule. Passing SQL NULL instead of an explicit JSON value, or another unsupported value to `pr302s2_cjson`, also raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`. The digest helper propagates that diagnostic rather than replacing it with 23514. Closed field-set/scalar validation happens before hashing; duplicate JSON keys must be rejected before jsonb conversion can discard them. Serialization is only for the normalized supported subset, not a change to the general existing serializer's float support. Independent numeric/type rejection vectors must prove Python/SQL parity: the two layers must reject the same inputs, and a PostgreSQL test must compare them as required evidence, not optional coverage.
 
 | Physical constraint/error source | SQLSTATE | Intent translation |
 | --- | --- | --- |
@@ -343,7 +343,7 @@ FROZEN-PROPOSAL independent vector ledger retains r2 IDs to prevent deferred wor
 | V04 | DEFERRED Q4/Q6: question promotion material | | NOT YET COMPUTED |
 | V05 | DEFERRED Q4/Q5: hypothesis/AGENT_POLICY promotion material | | NOT YET COMPUTED |
 | V06 | DEFERRED Q4: normalized caller reason/rationale; intent uses only a server event literal | | NOT YET COMPUTED |
-| V07 | ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic. Other text/summary rejection cases DEFERRED Q4. | | NOT YET COMPUTED |
+| V07 | ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic. The SQL helper case is required and must match the Python rejection. Other text/summary rejection cases DEFERRED Q4. | | NOT YET COMPUTED |
 | V08 | ACTIVE: reversed task/selected-step input order, same target under distinct owners, duplicate four-tuple rejection | | NOT YET COMPUTED |
 | V09 | ACTIVE: saved NULL scheme, synthetic NULL hash, empty inputs and absent step; serialization versus DB admission distinction | | NOT YET COMPUTED |
 | V10 | DEFERRED Q4/Q6: candidate ordering/selector/adaptation | | NOT YET COMPUTED |
@@ -589,3 +589,18 @@ authorized only for the intent-only scope in section Q1; deferred items remain u
 - Owner approval: Owner approved the freeze of r3 (intent-only S2).
 - Source commit: `27dc60e`.
 - r3 source file line count: 582.
+
+### Refreeze 2026-10-25 (numeric boundary, option B)
+
+Owner decision (binding): option B. Python rejects any non-integer or out-of-profile JSON number before JSONB conversion; SQL `pr302s2_cjson` rejects the same set with `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`, including for a normal-role direct SQL writer. PostgreSQL comparison of both layers' rejection of the same inputs is required evidence.
+
+Lines changed: Q3.5 line 302 (numeric/scalar rejection paragraph); V07 line 346 (required SQL helper parity); this appended freeze record, lines 593–606. No other conflicting sentences were found; the previous Q3.5 already required SQL helper rejection but did not explicitly state the Python pre-conversion rule.
+
+Changed sentences (old → new):
+
+1. Old: FROZEN-PROPOSAL pure-helper errors are specified, not left implicit: passing a float/nonintegral JSON number, a numeric representation outside the closed integer profile, SQL NULL instead of an explicit JSON value, or another unsupported value to `pr302s2_cjson` raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`.
+   New: FROZEN-PROPOSAL numeric boundary (owner decision, option B): both layers reject unsupported numeric values with the same rule. The Python layer rejects any non-integer or out-of-profile JSON number before conversion to JSONB. The SQL helper `pr302s2_cjson` rejects the same set with `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`; a normal-role direct SQL writer therefore cannot bypass the rule. Passing SQL NULL instead of an explicit JSON value, or another unsupported value to `pr302s2_cjson`, also raises `ERRCODE='22023', CONSTRAINT='pr302s2_value_type'`.
+2. Old: Independent numeric/type rejection vectors must prove Python/SQL parity.
+   New: Independent numeric/type rejection vectors must prove Python/SQL parity: the two layers must reject the same inputs, and a PostgreSQL test must compare them as required evidence, not optional coverage.
+3. Old: ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic.
+   New: ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value and SQL NULL helper input; 22023 diagnostic. The SQL helper case is required and must match the Python rejection.
