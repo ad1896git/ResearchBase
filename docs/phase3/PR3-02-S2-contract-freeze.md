@@ -239,6 +239,8 @@ Only the two old receipt CHECKs for operation/result shape are replaced. Their a
 
 #### Q3.4 — FROZEN-PROPOSAL functions, triggers and completeness
 
+Normal application roles get no direct INSERT, UPDATE, DELETE or TRUNCATE on `agent_execution_instances` or `agent_execution_events`, and no EXECUTE on any function that writes them directly. Only the application's owning role/path writes these tables. All S2 intent writes go through the Application command, which takes explicit `SELECT ... FOR UPDATE` on the parent rows in the Q2 protocol before inserting. Database-side verification of the lock mode is NOT provided; the Application guarantees it, and the privilege guard is the database-side protection. Direct normal-role INSERT/UPDATE/DELETE must be rejected by privilege (SQLSTATE `42501`), and the test must assert that rejection.
+
 All functions use invoker privileges and `SET search_path=pg_catalog,public,pg_temp`; no dynamic target SQL, external I/O or advisory acquisition. New trigger functions take no arguments and return trigger. The helper signatures and diagnostic ownership below are exhaustive for the intent proposal; any extra function/trigger or shared-table guard requires review of a revised delta.
 
 | Function | Responsibility |
@@ -246,7 +248,7 @@ All functions use invoker privileges and `SET search_path=pg_catalog,public,pg_t
 | `pr302s2_cjson(value jsonb) RETURNS text` | New pure serializer for the Q4 null/bool/integer/string/list/object subset; exact compact UTF-8 canonical representation, sorted object keys, no jsonb::text whitespace. Serialize already-normalized JSONB numbers without numeric rejection; reject SQL NULL and unsupported types with the explicit helper diagnostic in Q3.5. It does not decide domain-specific key sets. |
 | `pr302s2_value_digest(value jsonb) RETURNS text` | New pure SHA-256 of UTF-8 `pr302s2_cjson`; lowercase hex; propagates serializer diagnostics, raises no separate tag. |
 | `pr302s2_input_material(p_execution uuid) RETURNS jsonb` | New read helper: reconstruct Q4 input material from the exact intent and sealed task/selected-step typed rows. Missing scope/pins are explicit diagnostics, never empty successful material. |
-| `pr302s2_preheld() RETURNS void` | Require READ COMMITTED and the granted ordered inventory's SHARE protection; each inserting guard also verifies its applicable advisory keys/row locks already held. Never acquire locks in a trigger. |
+| `pr302s2_preheld() RETURNS void` | Require READ COMMITTED and the granted ordered inventory's SHARE protection; each inserting guard also verifies its applicable advisory keys already held. Never acquire locks in a trigger. |
 | `pr302s2_execution_guard()` | BEFORE INSERT only: require a fresh create receipt naming NEW.id; preheld locks; exact Q5 caller/Agent equality; sealed PLANNING/PENDING scope and task revision; ACTIVE version/live Agent; exact frozen same-project harness/config/input pins; CREATED/revision 1 and receipt creation time. Do not run a lifecycle transition graph. |
 | `pr302s2_event_guard()` | BEFORE INSERT only: require fresh matching intent/receipt, exact receipt result event ID, caller/time, sequence 1/prior NULL/new CREATED and fixed reason. No late append or use of a historical receipt. |
 | `pr302s2_immutable()` | Reject every UPDATE/DELETE, including no-op, on intent and event rows. |
@@ -423,7 +425,7 @@ Unit filenames below are under `tests/unit/phase3/`; PostgreSQL filenames under 
 | M2 | test_pr3_02_s2_migration.py::test_populated_upgrade_preserves_history | All old IDs/hashes/receipts/trace remain; no backfilled intent, capture link, mode or policy. |
 | M3 | test_pr3_02_s2_migration.py::test_downgrade_refuses_before_change | Empty/populated refusal with no data/catalog/revision change. |
 | G1 | test_pr3_02_s2_schema.py::test_exact_intent_schema_and_scoped_foreign_keys | Two tables/two receipt links only; project/task/step/actor/version/harness scope; explicit digest schemes. |
-| G2 | test_pr3_02_s2_guards.py::test_normal_role_intent_closure_and_receipt_predicates | Reject partial/no-op/update/delete/late history; one receipt-root check; valid HUMAN RESEARCHER and exact Agent create; S1 still HUMAN OWNER-only, both insertion and final checks; each function/tag mapping. |
+| G2 | test_pr3_02_s2_guards.py::test_normal_role_intent_closure_and_receipt_predicates | Assert direct normal-role INSERT/UPDATE/DELETE on both intent tables are rejected by privilege (SQLSTATE 42501); retain partial/no-op/update/delete/late-history guard checks through the owning role/path; one receipt-root check; valid HUMAN RESEARCHER and exact Agent create; S1 still HUMAN OWNER-only, both insertion and final checks; each function/tag mapping. |
 | G3 | test_pr3_02_s2_schema.py::test_python_postgresql_intent_material_parity | Literal inputs/bytes/digests and helper type-error SQLSTATE agree independently; no S1/B02/scientific hash drift. |
 | E1 | test_pr3_02_s2_execution.py::test_created_intent_through_common_application_boundary | Application-enrolled Agent and entitled Human each create CREATED/revision 1 with exact task revision and initial event; zero task/gateway/scientific effects. |
 | E2 | test_pr3_02_s2_execution.py::test_intent_denials_preserve_closed_execution_gate | Wrong caller/scope, stale revision, unfrozen pins, unavailable version; no transition/promotion command and unchanged PR3-01 execution_enabled/PR3-03 behavior. No new autonomy filter; if existing ceiling validated, equality remains allowed. |
@@ -629,3 +631,18 @@ Changed sentences (old → new; grouped where a replacement spans sentences):
    New: ACTIVE intent subset: unknown create key, bool/float task revision, duplicate JSON keys, unsupported cjson numeric value (Python-only, explicit helper diagnostic) and SQL NULL helper input (SQL, 22023 diagnostic). The SQL NULL helper case remains required; no SQL numeric rejection parity test is required.
 8. Line 416. Old: Only create accepted, explicit nulls/defaults, strict scalar types, independent active Q4 vectors, helper 22023 parity.
    New: Only create accepted, explicit nulls/defaults, strict scalar types, independent active Q4 vectors, Python-only numeric rejection and SQL NULL/unsupported-type helper 22023 diagnostics.
+
+### Refreeze 2026-10-25 (Q3.4 privilege guard)
+
+Owner direction (binding): replace database verification of an already-held FOR UPDATE lock with the privilege guard in Q3.4. PostgreSQL triggers cannot observe the lock mode. Owner-supplied PostgreSQL 18.6 probe conclusion: "FOR UPDATE and FOR KEY SHARE are indistinguishable to the holder view." This quotes the conclusion supplied by the owner, not raw probe output or a probe rerun. The Application guarantees the explicit parent-row FOR UPDATE protocol; the privilege guard supplies database-side protection.
+
+Lines changed (original → refrozen): Q3.4 insertion after line 240 → lines 242–243; Q3.4 preheld row line 249 → line 251; G2 line 426 → line 428; this appended freeze record. No vector asserted lock-mode verification, and no sentence required xmax-based or holder-view-based checks, so no vector or such sentence was changed. All other values, names, bounds, guards and vectors, including the FROZEN status, remain unchanged.
+
+Changed sentences (old → new; row text grouped):
+
+1. Q3.4 privilege-guard paragraph. Old: absent.
+   New: Normal application roles get no direct INSERT, UPDATE, DELETE or TRUNCATE on `agent_execution_instances` or `agent_execution_events`, and no EXECUTE on any function that writes them directly. Only the application's owning role/path writes these tables. All S2 intent writes go through the Application command, which takes explicit `SELECT ... FOR UPDATE` on the parent rows in the Q2 protocol before inserting. Database-side verification of the lock mode is NOT provided; the Application guarantees it, and the privilege guard is the database-side protection. Direct normal-role INSERT/UPDATE/DELETE must be rejected by privilege (SQLSTATE `42501`), and the test must assert that rejection.
+2. Q3.4 `pr302s2_preheld` row. Old: Require READ COMMITTED and the granted ordered inventory's SHARE protection; each inserting guard also verifies its applicable advisory keys/row locks already held. Never acquire locks in a trigger.
+   New: Require READ COMMITTED and the granted ordered inventory's SHARE protection; each inserting guard also verifies its applicable advisory keys already held. Never acquire locks in a trigger.
+3. G2 required observation. Old: Reject partial/no-op/update/delete/late history; one receipt-root check; valid HUMAN RESEARCHER and exact Agent create; S1 still HUMAN OWNER-only, both insertion and final checks; each function/tag mapping.
+   New: Assert direct normal-role INSERT/UPDATE/DELETE on both intent tables are rejected by privilege (SQLSTATE 42501); retain partial/no-op/update/delete/late-history guard checks through the owning role/path; one receipt-root check; valid HUMAN RESEARCHER and exact Agent create; S1 still HUMAN OWNER-only, both insertion and final checks; each function/tag mapping.
