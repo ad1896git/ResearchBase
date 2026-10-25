@@ -2661,6 +2661,20 @@ class AgentAvailabilityModel(Base):
 
 class AgentCommandReceiptModel(Base):
     __tablename__ = "agent_command_receipts"
+    __table_args__ = (
+        Index(
+            "pr302s2_receipt_execution_uq",
+            "result_execution_id",
+            unique=True,
+            postgresql_where=text("result_execution_id IS NOT NULL"),
+        ),
+        Index(
+            "pr302s2_receipt_event_uq",
+            "result_execution_event_id",
+            unique=True,
+            postgresql_where=text("result_execution_event_id IS NOT NULL"),
+        ),
+    )
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
     project_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
@@ -2737,6 +2751,30 @@ class AgentCommandReceiptModel(Base):
         PostgreSQLUUID(as_uuid=True),
         ForeignKey(
             "agent_availability_events.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=True,
+    )
+    result_execution_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "agent_execution_instances.id",
+            name="pr302s2_receipt_execution_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=True,
+    )
+    result_execution_event_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "agent_execution_events.id",
+            name="pr302s2_receipt_event_fk",
+            onupdate="NO ACTION",
             ondelete="RESTRICT",
             deferrable=True,
             initially="DEFERRED",
@@ -3354,3 +3392,178 @@ class CapabilityInvocationEventsModel(Base):
     )
     occurred_at = mapped_column(DateTime(timezone=True), nullable=False)
     reason = mapped_column(Text, nullable=False)
+
+
+# PR3-02-S2 inert intent mappings. Migration 0081 owns the guards and DDL.
+
+
+class AgentExecutionInstanceModel(Base):
+    __tablename__ = "agent_execution_instances"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pr302s2_exec_pk"),
+        CheckConstraint(
+            "substring(id::text from 15 for 1) = '7' AND "
+            "substring(id::text from 20 for 1) IN ('8','9','a','b')",
+            name="pr302s2_exec_id_ck",
+        ),
+        CheckConstraint("status = 'CREATED'", name="pr302s2_exec_status_ck"),
+        CheckConstraint("revision = 1", name="pr302s2_exec_revision_ck"),
+        CheckConstraint(
+            "task_revision_at_creation BETWEEN 1 AND 2147483647",
+            name="pr302s2_exec_task_revision_ck",
+        ),
+        CheckConstraint("isfinite(created_at)", name="pr302s2_exec_time_ck"),
+        CheckConstraint(
+            "input_ref_hash ~ '^[0-9a-f]{64}$' AND harness_content_hash ~ '^[0-9a-f]{64}$'",
+            name="pr302s2_exec_hashes_ck",
+        ),
+        CheckConstraint(
+            "input_ref_hash_scheme = 'sha256-cjson-v1' AND harness_hash_scheme = 'sha256-bytes-v1'",
+            name="pr302s2_exec_schemes_ck",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id"],
+            ["research_tasks.id", "research_tasks.project_id"],
+            name="pr302s2_exec_task_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "research_task_step_id"],
+            ["research_task_steps.research_task_id", "research_task_steps.id"],
+            name="pr302s2_exec_step_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        ForeignKeyConstraint(
+            ["agent_version_id", "project_id", "actor_id"],
+            ["agent_versions.id", "agent_versions.project_id", "agent_versions.actor_id"],
+            name="pr302s2_exec_version_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        Index("pr302s2_exec_project_task", "project_id", "research_task_id", "id"),
+        Index("pr302s2_exec_task_step", "research_task_id", "research_task_step_id"),
+        Index("pr302s2_exec_version", "agent_version_id", "project_id", "actor_id"),
+        Index("pr302s2_exec_actor", "actor_id"),
+        Index("pr302s2_exec_harness", "harness_artifact_version_id"),
+    )
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "projects.id",
+            name="pr302s2_exec_project_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        nullable=False,
+    )
+    research_task_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_step_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), nullable=True
+    )
+    task_revision_at_creation: Mapped[int] = mapped_column(Integer, nullable=False)
+    agent_version_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "actors.id",
+            name="pr302s2_exec_actor_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    input_ref_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    input_ref_hash_scheme: Mapped[str] = mapped_column(Text, nullable=False)
+    harness_artifact_version_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "artifact_versions.id",
+            name="pr302s2_exec_harness_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        nullable=False,
+    )
+    harness_content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    harness_hash_scheme: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class AgentExecutionEventModel(Base):
+    __tablename__ = "agent_execution_events"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pr302s2_event_pk"),
+        CheckConstraint(
+            "substring(id::text from 15 for 1) = '7' AND "
+            "substring(id::text from 20 for 1) IN ('8','9','a','b')",
+            name="pr302s2_event_id_ck",
+        ),
+        CheckConstraint(
+            "sequence = 1 AND prior_status IS NULL AND new_status = 'CREATED'",
+            name="pr302s2_event_initial_ck",
+        ),
+        CheckConstraint("isfinite(occurred_at)", name="pr302s2_event_time_ck"),
+        CheckConstraint("reason = 'Execution intent created.'", name="pr302s2_event_reason_ck"),
+        UniqueConstraint("execution_id", name="pr302s2_event_execution_uq"),
+        UniqueConstraint("receipt_id", name="pr302s2_event_receipt_uq"),
+        Index("pr302s2_event_actor", "actor_id"),
+    )
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, nullable=False)
+    execution_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "agent_execution_instances.id",
+            name="pr302s2_event_execution_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        nullable=False,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    prior_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_status: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "actors.id",
+            name="pr302s2_event_actor_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        nullable=False,
+    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    receipt_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey(
+            "agent_command_receipts.id",
+            name="pr302s2_event_receipt_fk",
+            onupdate="NO ACTION",
+            ondelete="RESTRICT",
+            deferrable=False,
+            match="SIMPLE",
+        ),
+        nullable=False,
+    )

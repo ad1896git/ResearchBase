@@ -615,6 +615,11 @@ class SqlAlchemyUnitOfWork:
         self.context_reads = SqlAlchemyContextRepository(
             self._session, self, self._context_artifact_store
         )
+        from researchbase.persistence.agent_execution_repository import (
+            SqlAlchemyExecutionRepository,
+        )
+
+        self.executions = SqlAlchemyExecutionRepository(self._session)
         self.agents = SqlAlchemyAgentRepository(self._session)
         self.approval = SqlAlchemyApprovalRepository(self._session)
         self.authorship = SqlAlchemyAuthorshipRepository(self._session)
@@ -633,6 +638,10 @@ class SqlAlchemyUnitOfWork:
         self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(
             self._require_session(), protected_reads=True
         )
+
+    def begin_execution_intent(self) -> None:
+        self.begin_agent_command()
+        self._intent_error_normalization = True
 
     def begin_agent_command(self) -> None:
         self.begin_research_task()
@@ -830,6 +839,46 @@ class SqlAlchemyUnitOfWork:
         self._b23_error_normalization = True
 
     def _command_database_error(self, exc: DBAPIError) -> ResearchBaseError:
+        if getattr(self, "_intent_error_normalization", False):
+            state = getattr(exc.orig, "sqlstate", None)
+            name = str(getattr(getattr(exc.orig, "diag", None), "constraint_name", None))
+            tags = {
+                "pr302s2_preheld": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "pr302s2_scope": ErrorCode.FORBIDDEN,
+                "pr302s2_state": ErrorCode.INVALID_STATE_TRANSITION,
+                "pr302s2_cas": ErrorCode.CONCURRENT_MODIFICATION,
+                "pr302s2_binding": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                "pr302s2_not_frozen": ErrorCode.VERSION_NOT_FROZEN,
+                "pr302s2_unresolved": ErrorCode.FROZEN_REFERENCE_REQUIRED,
+                "pr302s2_provenance": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "pr302s2_late_history": ErrorCode.IMMUTABLE_RECORD,
+                "pr302s2_completeness": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                "pr302s2_immutable": ErrorCode.IMMUTABLE_RECORD,
+                "pr302s2_exec_status_ck": ErrorCode.INVALID_STATE_TRANSITION,
+                **{
+                    n: ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+                    for n in (
+                        "pr302s2_exec_revision_ck",
+                        "pr302s2_event_initial_ck",
+                        "pr302s2_event_reason_ck",
+                        "pr302s2_receipt_shape_ck",
+                    )
+                },
+            }
+            code = tags.get(name) if state == "23514" else None
+            if state == "22023" and name == "pr302s2_value_type":
+                code = ErrorCode.VALIDATION_ERROR
+            if state == "23505" and name in {
+                "pr302s2_event_execution_uq",
+                "pr302s2_event_receipt_uq",
+                "pr302s2_receipt_execution_uq",
+                "pr302s2_receipt_event_uq",
+            }:
+                code = ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+            if state in {"22P02", "22003", "22007", "22008"}:
+                code = ErrorCode.VALIDATION_ERROR
+            if code is not None:
+                return ResearchBaseError(code, "Intent command rejected")
         if getattr(self, "_agent_error_normalization", False):
             state = getattr(exc.orig, "sqlstate", None)
             name = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
@@ -1351,4 +1400,9 @@ def strategy_candidate_promotion_uow_factory(url: str) -> Callable[[], SqlAlchem
 
 def research_task_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
     """Dedicated pool with startup bounds, so SHARE is the very first SQL."""
+    return search_result_resolution_uow_factory(url)
+
+
+def agent_execution_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
+    """Reuse the accepted startup-timeout factory for the intent write boundary."""
     return search_result_resolution_uow_factory(url)

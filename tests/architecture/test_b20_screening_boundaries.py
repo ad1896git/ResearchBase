@@ -29,9 +29,9 @@ def test_closed_owner_and_import_boundary():
 
 def test_one_forward_migration_owns_only_screening_guards():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0080_capability_gateway"]
+    assert scripts.get_heads() == ["0081_agent_execution_intents"]
     head = scripts.get_revision(scripts.get_heads()[0])
-    assert head.down_revision == "0079_agent_identity_versions"
+    assert head.down_revision == "0080_capability_gateway"
     source = (ROOT / "migrations/versions/0070_b20_screening_basis.py").read_text()
     assert "CREATE OR REPLACE" not in source
     assert "ON DELETE CASCADE" not in source

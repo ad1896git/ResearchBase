@@ -98,6 +98,15 @@ def test_application_dtos_are_frozen_dataclasses_without_orm_or_session_dependen
 
 
 # ADR-0025: exact pack §8 DTOs only.
+PR3_02_S2_ADMITTED_CLASSES = {
+    ("persistence/models.py", "AgentExecutionInstanceModel"),
+    ("persistence/models.py", "AgentExecutionEventModel"),
+    ("agent_runtime/application/agent_executions.py", "AgentExecutionService"),
+    ("agent_runtime/application/execution_contracts.py", "CreateAgentExecution"),
+    ("agent_runtime/application/execution_contracts.py", "GetAgentExecution"),
+    ("agent_runtime/application/execution_contracts.py", "AgentExecutionDTO"),
+    ("agent_runtime/application/execution_contracts.py", "AgentExecutionEventDTO"),
+}
 PR3_03_ADMITTED_CLASSES = {
     ("agent_runtime/application/gateway_contracts.py", "AgentExecutionContext"),
     ("agent_runtime/application/gateway_contracts.py", "AgentToolPolicyRead"),
@@ -132,7 +141,9 @@ def _forbidden_runtime_classes(source: Path) -> list[tuple[Path, str]]:
                 }
             ):
                 continue
-            if (path.relative_to(source).as_posix(), node.name) in PR3_03_ADMITTED_CLASSES:
+            if (path.relative_to(source).as_posix(), node.name) in (
+                PR3_03_ADMITTED_CLASSES | PR3_02_S2_ADMITTED_CLASSES
+            ):
                 continue
             if (
                 "agent" in node.name.lower()

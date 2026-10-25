@@ -253,6 +253,8 @@ class AgentCommandResult:
     resulting_revision: int
     recorded_at: datetime
     replayed: bool
+    result_execution_id: UUID | None = None
+    result_execution_event_id: UUID | None = None
 
 
 class AgentEnrollmentVerifier(Protocol):
