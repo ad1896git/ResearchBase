@@ -9,6 +9,79 @@ from tests.integration.phase3.intent_fixtures import _intent_env as _intent_env
 
 HEAD = "0081_agent_execution_intents"
 
+# Frozen Q3.2/Q3.3 names, independent of the migration's DDL/constants.
+ADDED_CONSTRAINTS = {
+    "agent_execution_instances": """
+        pr302s2_exec_pk pr302s2_exec_project_fk pr302s2_exec_task_fk
+        pr302s2_exec_step_fk pr302s2_exec_version_fk pr302s2_exec_actor_fk
+        pr302s2_exec_harness_fk pr302s2_exec_id_ck pr302s2_exec_status_ck
+        pr302s2_exec_revision_ck pr302s2_exec_task_revision_ck pr302s2_exec_time_ck
+        pr302s2_exec_hashes_ck pr302s2_exec_schemes_ck
+    """.split(),
+    "agent_execution_events": """
+        pr302s2_event_pk pr302s2_event_execution_uq pr302s2_event_receipt_uq
+        pr302s2_event_execution_fk pr302s2_event_actor_fk pr302s2_event_receipt_fk
+        pr302s2_event_id_ck pr302s2_event_initial_ck pr302s2_event_time_ck
+        pr302s2_event_reason_ck
+    """.split(),
+    "agent_command_receipts": """
+        pr302s2_receipt_execution_fk pr302s2_receipt_event_fk
+        pr302s2_receipt_operation_ck pr302s2_receipt_shape_ck
+    """.split(),
+}
+# PostgreSQL 18 also catalogs a named NOT NULL constraint for each required column.
+NOT_NULL_COLUMNS = {
+    "agent_execution_instances": """
+        id project_id research_task_id task_revision_at_creation agent_version_id
+        actor_id status revision created_at input_ref_hash input_ref_hash_scheme
+        harness_artifact_version_id harness_content_hash harness_hash_scheme
+    """.split(),
+    "agent_execution_events": """
+        id execution_id sequence new_status actor_id occurred_at reason receipt_id
+    """.split(),
+}
+ADDED_INDEXES = {
+    "agent_execution_instances": """
+        pr302s2_exec_pk pr302s2_exec_project_task pr302s2_exec_task_step
+        pr302s2_exec_version pr302s2_exec_actor pr302s2_exec_harness
+    """.split(),
+    "agent_execution_events": """
+        pr302s2_event_pk pr302s2_event_execution_uq pr302s2_event_receipt_uq
+        pr302s2_event_actor
+    """.split(),
+    "agent_command_receipts": "pr302s2_receipt_execution_uq pr302s2_receipt_event_uq".split(),
+}
+
+
+def assert_exact_catalog_delta(before, after):
+    expected_constraints = {
+        (table, name) for table, names in ADDED_CONSTRAINTS.items() for name in names
+    } | {
+        (table, f"{table}_{column}_not_null")
+        for table, columns in NOT_NULL_COLUMNS.items()
+        for column in columns
+    }
+    expected_indexes = {(table, name) for table, names in ADDED_INDEXES.items() for name in names}
+    for kind, additions, removals in (
+        (
+            "constraints",
+            expected_constraints,
+            {
+                ("agent_command_receipts", "agent_command_receipts_operation_check"),
+                ("agent_command_receipts", "agent_command_receipts_check"),
+            },
+        ),
+        ("indexes", expected_indexes, set()),
+    ):
+        old = {(table, name): definition for table, name, definition in before[kind]}
+        new = {(table, name): definition for table, name, definition in after[kind]}
+        assert sorted(new.keys() - old.keys()) == sorted(additions), kind
+        assert sorted(old.keys() - new.keys()) == sorted(removals), kind
+        # A correct count/name delta must not hide a changed pre-existing definition.
+        assert {key: new[key] for key in old.keys() & new.keys()} == {
+            key: old[key] for key in old.keys() & new.keys()
+        }, kind
+
 
 @pytest.mark.parametrize(
     "constraint",
@@ -85,7 +158,7 @@ def test_empty_upgrade_and_single_head():
         before = catalog(engine)
         upgrade(url)
         after = catalog(engine)
-        assert len(after["constraints"]) > len(before["constraints"])
+        assert_exact_catalog_delta(before, after)
         with engine.connect() as conn:
             assert (
                 conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD

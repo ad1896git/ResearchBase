@@ -1,5 +1,6 @@
 import json
 import re
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import cast
 
@@ -10,11 +11,148 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from tests.disposable_postgres import disposable_database
 from tests.integration.phase2.pr2_20_support import upgrade
+from tests.integration.phase3.agent_fixtures import enrollment, register
 from tests.integration.phase3.intent_fixtures import _intent_env as _intent_env
-from tests.integration.phase3.intent_fixtures import intent_rows
+from tests.integration.phase3.intent_fixtures import human_researcher, intent_rows
 
+from researchbase.agent_runtime.application.agent_contracts import (
+    AgentCommandResult,
+    ChangeAgentAvailability,
+)
 from researchbase.foundation.ids import new_uuid7
 from researchbase.persistence.agent_execution_repository import SqlAlchemyExecutionRepository
+from researchbase.persistence.agent_version_repository import SqlAlchemyAgentRepository
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["provision_project_agent", "register_agent_version", "change_agent_availability"],
+)
+@pytest.mark.parametrize("stage", ["insertion_researcher", "final_owner_removed"])
+def test_s1_receipts_require_human_owner_at_head(intent_env, operation, stage):
+    env = intent_env
+    caller = human_researcher(env) if stage == "insertion_researcher" else env.owner
+    if operation == "provision_project_agent":
+        command = enrollment(env, caller=caller)
+        pointers = {
+            f"result_{name}_id": new_uuid7()
+            for name in (
+                "binding",
+                "membership",
+                "role_assignment",
+                "binding_event",
+                "membership_event",
+                "role_event",
+            )
+        }
+        pointers["result_actor_id"] = command.arguments.actor_id
+    else:
+        command = replace(register(env, env.provision.arguments.actor_id), caller=caller)
+        if operation == "change_agent_availability":
+            command = replace(
+                command,
+                operation=operation,
+                expected_revision=1,
+                arguments=ChangeAgentAvailability(
+                    env.version_command.arguments.agent_version_id, "DISABLED", "owner probe"
+                ),
+            )
+        pointers = {
+            "result_agent_version_id": command.arguments.agent_version_id,
+            "result_availability_event_id": new_uuid7(),
+        }
+    receipt: dict[str, object] = {
+        field.name: None for field in fields(AgentCommandResult) if field.name.startswith("result_")
+    }
+    receipt.update(
+        id=new_uuid7(),
+        project_id=env.project,
+        caller_actor_id=caller.actor_id,
+        command_id=command.command_id,
+        operation=operation,
+        request_hash=command.request_hash(),
+        hash_scheme="sha256-cjson-v1",
+        resulting_revision=2 if operation == "change_agent_availability" else 1,
+        **pointers,
+    )
+    with Session(env.owning_engine) as session, session.begin():
+        assert session.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0081_agent_execution_intents"
+        )
+        assert session.execute(
+            text(
+                "SELECT current_user=pg_get_userbyid(relowner) FROM pg_class "
+                "WHERE oid='agent_command_receipts'::regclass"
+            )
+        ).scalar_one()
+        repo = SqlAlchemyAgentRepository(session)
+        repo.lock_write(command)
+        roles = repo.many(
+            "SELECT a.actor_type,ro.role FROM actors a "
+            "JOIN project_memberships m ON m.actor_id=a.id "
+            "JOIN project_role_assignments ro ON ro.membership_id=m.id "
+            "WHERE a.id=:actor AND m.project_id=:project AND m.status='ACTIVE' "
+            "AND ro.effective_from<=clock_timestamp() "
+            "AND (ro.effective_until IS NULL OR ro.effective_until>clock_timestamp())",
+            actor=caller.actor_id,
+            project=env.project,
+        )
+        assert roles == [
+            {
+                "actor_type": "HUMAN",
+                "role": "RESEARCHER" if stage == "insertion_researcher" else "OWNER",
+            }
+        ]
+        if stage == "insertion_researcher":
+            with pytest.raises(DBAPIError) as exc:
+                repo.insert("agent_command_receipts", receipt)
+            function, message = "pr302_receipt_guard", "effective HUMAN OWNER required"
+        else:
+            saved = repo.insert("agent_command_receipts", receipt)
+            assert saved["caller_actor_id"] == caller.actor_id
+            closed = session.execute(
+                text(
+                    "UPDATE project_role_assignments SET effective_until=clock_timestamp(), "
+                    "row_version=row_version+1 WHERE actor_id=:actor AND project_id=:project "
+                    "AND role='OWNER' AND effective_until IS NULL RETURNING effective_until"
+                ),
+                {"actor": caller.actor_id, "project": env.project},
+            ).scalar_one()
+            assert closed >= saved["recorded_at"]
+            # Force this receipt root specifically, before unrelated deferred FKs or
+            # the role's CLOSED-event requirement. No partial receipt can commit.
+            with pytest.raises(DBAPIError) as exc:
+                session.execute(text("SET CONSTRAINTS pr302_receipt_complete_commit IMMEDIATE"))
+            function, message = "pr302_receipt_complete", "OWNER unavailable"
+        error = cast(PostgresError, exc.value.orig)
+        assert error.sqlstate == "23514"
+        assert error.diag.constraint_name == "pr302_scope"
+        assert error.diag.message_primary == message
+        assert re.search(
+            rf"^PL/pgSQL function {function}\(\) line \d+ at RAISE$",
+            error.diag.context or "",
+            re.MULTILINE,
+        ), error.diag.context
+        session.rollback()
+    with env.owning_engine.connect() as conn:
+        assert (
+            conn.execute(
+                text("SELECT count(*) FROM agent_command_receipts WHERE id=:id"),
+                {"id": receipt["id"]},
+            ).scalar_one()
+            == 0
+        )
+        if stage == "final_owner_removed":
+            assert (
+                conn.execute(
+                    text(
+                        "SELECT count(*) FROM project_role_assignments WHERE actor_id=:actor "
+                        "AND project_id=:project AND role='OWNER' AND effective_until IS NULL"
+                    ),
+                    {"actor": caller.actor_id, "project": env.project},
+                ).scalar_one()
+                == 1
+            )
 
 
 @pytest.fixture(scope="module", params=["PUBLIC", "normal_role"])
