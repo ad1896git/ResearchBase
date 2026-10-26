@@ -16,15 +16,15 @@ from researchbase.foundation.ids import new_uuid7
 from researchbase.persistence.agent_execution_repository import SqlAlchemyExecutionRepository
 
 
-@pytest.mark.parametrize("grantee", ["PUBLIC", "normal_role"])
-def test_normal_role_cannot_write_intent_tables(grantee):
+@pytest.fixture(scope="module", params=["PUBLIC", "normal_role"])
+def default_granted_intent_tables(request):
     # Both revocation paths must remove privileges that really would be inherited.
     # A role created without these defaults cannot demonstrate a migration REVOKE.
     with disposable_database("researchbase_pr212_test_") as url:
         upgrade(url, "0080_capability_gateway")
         engine = create_engine(url)
         role = "pr302s2_revoke_" + new_uuid7().hex
-        target = "PUBLIC" if grantee == "PUBLIC" else role
+        target = "PUBLIC" if request.param == "PUBLIC" else role
         privileges = ("INSERT", "UPDATE", "DELETE", "TRUNCATE")
         with engine.begin() as conn:
             conn.execute(text(f"CREATE ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOLOGIN"))
@@ -55,22 +55,7 @@ def test_normal_role_cannot_write_intent_tables(grantee):
                         f"TO {role}"
                     )
                 )
-            for table in ("agent_execution_instances", "agent_execution_events"):
-                for operation in privileges:
-                    sql = {
-                        "INSERT": f"INSERT INTO {table} DEFAULT VALUES",
-                        "UPDATE": f"UPDATE {table} SET id=id",
-                        "DELETE": f"DELETE FROM {table}",
-                        "TRUNCATE": f"TRUNCATE {table}",
-                    }[operation]
-                    with pytest.raises(DBAPIError) as exc, engine.begin() as conn:
-                        conn.execute(text(f"SET LOCAL ROLE {role}"))
-                        conn.execute(text(sql))
-                    assert cast(PostgresError, exc.value.orig).sqlstate == "42501", (
-                        grantee,
-                        table,
-                        operation,
-                    )
+            yield engine, role
         finally:
             with engine.begin() as conn:
                 conn.execute(
@@ -82,6 +67,26 @@ def test_normal_role_cannot_write_intent_tables(grantee):
                 conn.execute(text(f"DROP OWNED BY {role}"))
                 conn.execute(text(f"DROP ROLE {role}"))
             engine.dispose()
+
+
+@pytest.mark.parametrize("table", ["agent_execution_instances", "agent_execution_events"])
+@pytest.mark.parametrize("operation", ["INSERT", "UPDATE", "DELETE", "TRUNCATE"])
+def test_normal_role_cannot_write_intent_tables(default_granted_intent_tables, table, operation):
+    engine, role = default_granted_intent_tables
+    sql = {
+        "INSERT": f"INSERT INTO {table} DEFAULT VALUES",
+        "UPDATE": f"UPDATE {table} SET id=id",
+        "DELETE": f"DELETE FROM {table}",
+        "TRUNCATE": f"TRUNCATE {table}",
+    }[operation]
+    with pytest.raises(DBAPIError) as exc, engine.begin() as conn:
+        conn.execute(text(f"SET LOCAL ROLE {role}"))
+        assert conn.execute(text("SELECT current_user")).scalar_one() == role
+        assert conn.execute(
+            text("SELECT NOT rolsuper FROM pg_roles WHERE rolname=current_user")
+        ).scalar_one()
+        conn.execute(text(sql))
+    assert cast(PostgresError, exc.value.orig).sqlstate == "42501"
 
 
 @pytest.mark.parametrize(
@@ -293,34 +298,117 @@ def test_exact_intent_schema_and_scoped_foreign_keys(intent_env):
 
 def test_literal_checks_indexes_and_receipt_deferral(intent_env):
     env = intent_env
+    # Literal PostgreSQL 18 renderings of frozen Q3.3, independent of migration DDL.
+    # Full equality retains every operand/cast, including all three receipt branches.
+    uuid_check = (
+        "CHECK (((SUBSTRING((id)::text FROM 15 FOR 1) = '7'::text) AND "
+        "(SUBSTRING((id)::text FROM 20 FOR 1) = ANY "
+        "(ARRAY['8'::text, '9'::text, 'a'::text, 'b'::text]))))"
+    )
     expected_checks = {
-        "pr302s2_exec_id_ck",
-        "pr302s2_exec_status_ck",
-        "pr302s2_exec_revision_ck",
-        "pr302s2_exec_task_revision_ck",
-        "pr302s2_exec_time_ck",
-        "pr302s2_exec_hashes_ck",
-        "pr302s2_exec_schemes_ck",
-        "pr302s2_event_id_ck",
-        "pr302s2_event_initial_ck",
-        "pr302s2_event_time_ck",
-        "pr302s2_event_reason_ck",
-        "pr302s2_receipt_operation_ck",
-        "pr302s2_receipt_shape_ck",
+        "pr302s2_exec_id_ck": uuid_check,
+        "pr302s2_exec_status_ck": "CHECK ((status = 'CREATED'::text))",
+        "pr302s2_exec_revision_ck": "CHECK ((revision = 1))",
+        "pr302s2_exec_task_revision_ck": (
+            "CHECK (((task_revision_at_creation >= 1) AND "
+            "(task_revision_at_creation <= 2147483647)))"
+        ),
+        "pr302s2_exec_time_ck": "CHECK (isfinite(created_at))",
+        "pr302s2_exec_hashes_ck": (
+            "CHECK (((input_ref_hash ~ '^[0-9a-f]{64}$'::text) AND "
+            "(harness_content_hash ~ '^[0-9a-f]{64}$'::text)))"
+        ),
+        "pr302s2_exec_schemes_ck": (
+            "CHECK (((input_ref_hash_scheme = 'sha256-cjson-v1'::text) AND "
+            "(harness_hash_scheme = 'sha256-bytes-v1'::text)))"
+        ),
+        "pr302s2_event_id_ck": uuid_check,
+        "pr302s2_event_initial_ck": (
+            "CHECK (((sequence = 1) AND (prior_status IS NULL) AND (new_status = 'CREATED'::text)))"
+        ),
+        "pr302s2_event_time_ck": "CHECK (isfinite(occurred_at))",
+        "pr302s2_event_reason_ck": "CHECK ((reason = 'Execution intent created.'::text))",
+        "pr302s2_receipt_operation_ck": (
+            "CHECK ((operation = ANY (ARRAY['provision_project_agent'::text, "
+            "'register_agent_version'::text, 'change_agent_availability'::text, "
+            "'create_agent_execution'::text])))"
+        ),
+        "pr302s2_receipt_shape_ck": (
+            "CHECK ((((operation = 'provision_project_agent'::text) AND "
+            "(num_nonnulls(result_actor_id, result_binding_id, result_membership_id, "
+            "result_role_assignment_id, result_binding_event_id, "
+            "result_membership_event_id, result_role_event_id) = 7) AND "
+            "(result_agent_version_id IS NULL) AND (result_availability_event_id IS NULL) "
+            "AND (result_execution_id IS NULL) AND (result_execution_event_id IS NULL) "
+            "AND (resulting_revision = 1)) OR "
+            "((operation = ANY (ARRAY['register_agent_version'::text, "
+            "'change_agent_availability'::text])) AND "
+            "(num_nonnulls(result_actor_id, result_binding_id, result_membership_id, "
+            "result_role_assignment_id, result_binding_event_id, "
+            "result_membership_event_id, result_role_event_id) = 0) AND "
+            "(result_agent_version_id IS NOT NULL) AND "
+            "(result_availability_event_id IS NOT NULL) AND (result_execution_id IS NULL) "
+            "AND (result_execution_event_id IS NULL) AND "
+            "(((operation = 'register_agent_version'::text) AND (resulting_revision = 1)) "
+            "OR ((operation = 'change_agent_availability'::text) AND "
+            "(resulting_revision >= 2)))) OR "
+            "((operation = 'create_agent_execution'::text) AND "
+            "(num_nonnulls(result_actor_id, result_binding_id, result_membership_id, "
+            "result_role_assignment_id, result_binding_event_id, "
+            "result_membership_event_id, result_role_event_id, result_agent_version_id, "
+            "result_availability_event_id) = 0) AND (result_execution_id IS NOT NULL) "
+            "AND (result_execution_event_id IS NOT NULL) AND (resulting_revision = 1))))"
+        ),
     }
+    # Q3.2: both primary keys, both event UNIQUEs and all eight additional indexes.
     expected_indexes = {
-        "pr302s2_exec_pk",
-        "pr302s2_exec_project_task",
-        "pr302s2_exec_task_step",
-        "pr302s2_exec_version",
-        "pr302s2_exec_actor",
-        "pr302s2_exec_harness",
-        "pr302s2_event_pk",
-        "pr302s2_event_execution_uq",
-        "pr302s2_event_receipt_uq",
-        "pr302s2_event_actor",
-        "pr302s2_receipt_execution_uq",
-        "pr302s2_receipt_event_uq",
+        "pr302s2_exec_pk": (
+            "CREATE UNIQUE INDEX pr302s2_exec_pk ON public.agent_execution_instances "
+            "USING btree (id)"
+        ),
+        "pr302s2_exec_project_task": (
+            "CREATE INDEX pr302s2_exec_project_task ON public.agent_execution_instances "
+            "USING btree (project_id, research_task_id, id)"
+        ),
+        "pr302s2_exec_task_step": (
+            "CREATE INDEX pr302s2_exec_task_step ON public.agent_execution_instances "
+            "USING btree (research_task_id, research_task_step_id)"
+        ),
+        "pr302s2_exec_version": (
+            "CREATE INDEX pr302s2_exec_version ON public.agent_execution_instances "
+            "USING btree (agent_version_id, project_id, actor_id)"
+        ),
+        "pr302s2_exec_actor": (
+            "CREATE INDEX pr302s2_exec_actor ON public.agent_execution_instances "
+            "USING btree (actor_id)"
+        ),
+        "pr302s2_exec_harness": (
+            "CREATE INDEX pr302s2_exec_harness ON public.agent_execution_instances "
+            "USING btree (harness_artifact_version_id)"
+        ),
+        "pr302s2_event_pk": (
+            "CREATE UNIQUE INDEX pr302s2_event_pk ON public.agent_execution_events USING btree (id)"
+        ),
+        "pr302s2_event_execution_uq": (
+            "CREATE UNIQUE INDEX pr302s2_event_execution_uq ON public.agent_execution_events "
+            "USING btree (execution_id)"
+        ),
+        "pr302s2_event_receipt_uq": (
+            "CREATE UNIQUE INDEX pr302s2_event_receipt_uq ON public.agent_execution_events "
+            "USING btree (receipt_id)"
+        ),
+        "pr302s2_event_actor": (
+            "CREATE INDEX pr302s2_event_actor ON public.agent_execution_events "
+            "USING btree (actor_id)"
+        ),
+        "pr302s2_receipt_execution_uq": (
+            "CREATE UNIQUE INDEX pr302s2_receipt_execution_uq ON public.agent_command_receipts "
+            "USING btree (result_execution_id) WHERE (result_execution_id IS NOT NULL)"
+        ),
+        "pr302s2_receipt_event_uq": (
+            "CREATE UNIQUE INDEX pr302s2_receipt_event_uq ON public.agent_command_receipts "
+            "USING btree (result_execution_event_id) WHERE (result_execution_event_id IS NOT NULL)"
+        ),
     }
     with env.owning_engine.connect() as conn:
         checks = conn.execute(
@@ -328,23 +416,16 @@ def test_literal_checks_indexes_and_receipt_deferral(intent_env):
                 "SELECT conname,convalidated,pg_get_constraintdef(oid) FROM pg_constraint WHERE conname LIKE 'pr302s2_%' AND contype='c'"  # noqa: E501
             )
         ).all()
-        assert {r[0] for r in checks} == expected_checks
         assert all(r[1] for r in checks)
-        definitions = {r[0]: r[2] for r in checks}
-        assert "'CREATED'::text" in definitions["pr302s2_exec_status_ck"]
-        assert "(revision = 1)" in definitions["pr302s2_exec_revision_ck"]
-        assert "isfinite(created_at)" in definitions["pr302s2_exec_time_ck"]
-        assert "Execution intent created." in definitions["pr302s2_event_reason_ck"]
-        indexes = (
+        assert {r[0]: r[2] for r in checks} == expected_checks
+        indexes = dict(
             conn.execute(
                 text(
-                    "SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname LIKE 'pr302s2_%'"  # noqa: E501
+                    "SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND indexname LIKE 'pr302s2_%'"  # noqa: E501
                 )
-            )
-            .scalars()
-            .all()
+            ).all()
         )
-        assert set(indexes) == expected_indexes
+        assert indexes == expected_indexes
         fks = conn.execute(
             text(
                 "SELECT conname,condeferrable,condeferred,confupdtype,confdeltype,confmatchtype FROM pg_constraint WHERE conname LIKE 'pr302s2_%' AND contype='f'"  # noqa: E501

@@ -20,6 +20,14 @@ def test_upgrade_refuses_receipt_check_drift(constraint):
         engine = create_engine(url)
         try:
             with engine.begin() as conn:
+                receipt_checks = text(
+                    "SELECT conname,pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid='agent_command_receipts'::regclass AND contype='c'"
+                )
+                baseline_checks = {
+                    name: definition for name, definition in conn.execute(receipt_checks)
+                }
+                assert constraint in baseline_checks
                 conn.execute(
                     text(f"ALTER TABLE agent_command_receipts DROP CONSTRAINT {constraint}")
                 )
@@ -29,7 +37,13 @@ def test_upgrade_refuses_receipt_check_drift(constraint):
                         f"ADD CONSTRAINT {constraint} CHECK (true)"
                     )
                 )
+                drifted_checks = {
+                    name: definition for name, definition in conn.execute(receipt_checks)
+                }
+                assert drifted_checks == {**baseline_checks, constraint: "CHECK (true)"}
+                assert drifted_checks != baseline_checks
             before = catalog(engine)
+            # The frozen migration raises a Python diagnostic, not a SQLSTATE.
             with pytest.raises(
                 RuntimeError,
                 match="^S2 receipt CHECK catalog drift; forward migration refused$",
@@ -37,6 +51,9 @@ def test_upgrade_refuses_receipt_check_drift(constraint):
                 upgrade(url)
             assert catalog(engine) == before
             with engine.connect() as conn:
+                assert {
+                    name: definition for name, definition in conn.execute(receipt_checks)
+                } == drifted_checks
                 assert conn.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one() == ("0080_capability_gateway")

@@ -1,6 +1,255 @@
 # PR3-02-S2 intent implementation evidence
 
-## Review-B remediation — current focused evidence (2026-10-25)
+## B2 intent-review remediation — lane341 (2026-10-25)
+
+Review source: `/Users/fengwang/Documents/ResearchBaseProject/.pipeline/logs/reviews/s2_intent_review_B2.md`.
+The review identifies its actual read-only target as **lane331 / `s2-intent-e`**;
+`s2-intent-B2` is the triage label. The reviewer did not verify that target's
+checked-out branch or rerun commands. This evidence makes no retroactive claim
+to have verified lane331's branch. The remediation and current runs below refer
+only to **lane341 / `s2-intent-fix2`**, based on **s2-freeze at `2c1b059`**,
+plus the uncommitted test/evidence diff. No branch was created and no commit or
+push was performed.
+
+The base already contained both receipt-drift cases, default-grant revoke probes
+and conflicts for all six create-intent argument fields. This revision strengthens
+the drift setup/post-refusal checks, gives each direct-write refusal its own node,
+and replaces name/substring checks with full PostgreSQL definitions for all
+13 CHECKs and 12 indexes. No runtime behavior or frozen contract is changed.
+
+Only the **B2-V** runs in this section may establish current verification.
+Every **B01–B09, PG-I, PG-T, PG-R, PG-N, U-A, H-U, AUDIT, DIFF and RR** run
+retained below predates these B2 fixes and is **historical, not current evidence**.
+In particular H-U, PG-R, PG-N and the comprehensive AUDIT were not rerun for B2.
+Their earlier passes cannot establish current historical-catalog, preview or
+comprehensive-audit coverage. Full suite and external-loop results: **NOT RUN /
+NOT AVAILABLE here**. No full-suite or acceptance-gate success is asserted.
+
+Current verification: **B2-V01–B2-V08 exited 0**. B2-V06 ran **1423 tests**
+and B2-V07 ran **87 tests**, with no failures or skips. The 25 nodes credited
+individually below are a subset of B2-V07, not additional tests. B2-V01 is the
+final evidence-inclusive whitespace check recorded below.
+
+### B2 findings and observed coverage
+
+| Finding | Observed test/evidence | Current run |
+| --- | --- | --- |
+| P1 receipt CHECK drift | Each 0080 baseline CHECK is independently replaced with `CHECK (true)`. The test first proves only that definition changed, then requires the exact `RuntimeError("S2 receipt CHECK catalog drift; forward migration refused")`. The drifted catalog, receipt count and `alembic_version` remain unchanged; neither intent table exists. This migration raises a Python diagnostic, not a SQLSTATE/public ErrorCode; none is invented as evidence. | B2-V07, exit 0; both drift nodes below |
+| P2 effective REVOKEs | Before upgrade, separate fixtures grant default INSERT/UPDATE/DELETE/TRUNCATE to PUBLIC or an explicit normal role. A probe table proves the privileges would be inherited. After upgrade, each operation on each intent table runs as that verified non-superuser role and must raise SQLSTATE **42501**. SELECT is granted so UPDATE refusal cannot be attributed to missing read privilege. The migration's PUBLIC revoke and per-role revoke are both exercised, with 16 separately identified nodes. | B2-V07, exit 0 |
+| P2 CHECK/index definitions | Full equality of `pg_get_constraintdef` against independent literal expectations for all 13 CHECKs, including every branch of the receipt shape. Full equality of `pg_indexes.indexdef` for all 12 indexes: table, btree method, column order, uniqueness and both `IS NOT NULL` predicates. Validation and FK deferral assertions are retained. | B2-V07, exit 0; literal-schema node below |
+| P2 supporting-run attribution | Every older run is explicitly historical and predates B2; H-U/PG-R/PG-N/comprehensive AUDIT receive no current credit. B2-V08 is only the narrower protected-file comparison described by its exact command. | Attribution correction; B2-V08 exit 0 |
+| P3 changed material | The six existing parameter cases independently change expected task revision, harness artifact, AgentVersion, step, execution ID and task ID under the same command key. Both execute and replay require IDEMPOTENCY_CONFLICT, preserve effects/original receipt and allocate no IDs. Revoked credentials require FORBIDDEN before conflict disclosure. These cases were already in `2c1b059` and were rerun here. | B2-V07, exit 0; six replay nodes below |
+| P3 review target | The B2 report's target is lane331 / `s2-intent-e`; the triage label is `s2-intent-B2`. This evidence's target is lane341 / `s2-intent-fix2`, HEAD `2c1b059b34ba58803a0dbf065633ebc94ce96ea3` plus the uncommitted diff. | Read-only git branch/HEAD inspection; no claim to verify lane331's checkout |
+
+### B2 exact credited node IDs
+
+All of these nodes exist and ran in B2-V07, exit code **0**. No collection-only
+run or proposed test is credited.
+
+| Node ID | Run | Exit code |
+| --- | --- | --- |
+| `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_operation_check]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_check]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-INSERT-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-INSERT-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-UPDATE-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-UPDATE-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-DELETE-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-DELETE-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-TRUNCATE-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC-TRUNCATE-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-INSERT-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-INSERT-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-UPDATE-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-UPDATE-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-DELETE-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-DELETE-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-TRUNCATE-agent_execution_instances]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role-TRUNCATE-agent_execution_events]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_literal_checks_indexes_and_receipt_deferral` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[expected_task_revision]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[harness_artifact_version_id]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[agent_version_id]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[research_task_step_id]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[execution_id]` | B2-V07 | 0 |
+| `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[research_task_id]` | B2-V07 | 0 |
+
+### B2 verification commands and raw output
+
+Each command was run separately with the following environment:
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+export DATABASE_URL="postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane341"
+export RB_TEST_ADMIN_URL="postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres"
+export PGOPTIONS="-c jit=off"
+```
+
+The PostgreSQL suites use the existing disposable database fixtures on that
+explicit local cluster; the intent fixture checks PostgreSQL major version 18.
+The normal-role probes additionally assert their current role and non-superuser
+status. B2-V06 reports the existing 50 Alembic warnings; B2-V07 reports 143.
+The final checks below ran after the test edits and formatting/type corrections.
+Only documentation was subsequently updated to record their results.
+
+#### B2-V01
+
+```sh
+git diff --check HEAD
+```
+
+Raw stdout/stderr: empty (zero bytes). Exit code: **0**.
+Repeated after recording this result so the final evidence text is included.
+
+#### B2-V02
+
+```sh
+uv run ruff check .
+```
+
+```text
+All checks passed!
+```
+
+Exit code: **0**.
+
+#### B2-V03
+
+```sh
+uv run ruff format --check .
+```
+
+```text
+948 files already formatted
+```
+
+Exit code: **0**.
+
+#### B2-V04
+
+```sh
+uv run pyright
+```
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+Exit code: **0**.
+
+#### B2-V05
+
+```sh
+uv run alembic heads
+```
+
+```text
+0081_agent_execution_intents (head)
+```
+
+Exit code: **0**.
+
+#### B2-V06
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/unit/phase3 tests/architecture tests/unit/architecture
+```
+
+```text
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 15%]
+........................................................................ [ 20%]
+........................................................................ [ 25%]
+........................................................................ [ 30%]
+........................................................................ [ 35%]
+........................................................................ [ 40%]
+........................................................................ [ 45%]
+........................................................................ [ 50%]
+........................................................................ [ 55%]
+........................................................................ [ 60%]
+........................................................................ [ 65%]
+........................................................................ [ 70%]
+........................................................................ [ 75%]
+........................................................................ [ 80%]
+........................................................................ [ 86%]
+........................................................................ [ 91%]
+........................................................................ [ 96%]
+.......................................................                  [100%]
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane341/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1423 passed, 50 warnings in 27.99s
+```
+
+Exit code: **0**.
+
+#### B2-V07
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_02_s2_intent_*.py
+```
+
+```text
+........................................................................ [ 82%]
+...............                                                          [100%]
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py: 23 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_execution.py: 38 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py: 48 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py: 16 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_replay.py: 18 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane341/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+87 passed, 143 warnings in 66.02s (0:01:06)
+```
+
+Exit code: **0**.
+
+#### B2-V08
+
+```sh
+git diff --exit-code HEAD -- docs/phase3/PR3-02-S2-contract-freeze.md migrations pyproject.toml uv.lock src
+```
+
+Raw stdout/stderr: empty (zero bytes).
+
+Exit code: **0**.
+
+### B2 development runs (superseded, not final verification)
+
+Before the final checks, the drift-only command
+`uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift`
+exited 0: `2 passed, 4 warnings in 2.02s`.
+The focused guard command
+`uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_literal_checks_indexes_and_receipt_deferral`
+exited 0: `17 passed, 6 warnings in 2.99s`. These runs predate the final
+formatting/type corrections and are not substituted for B2-V07.
+
+Initial `uv run ruff format --check .` exited 1 (`1 file would be reformatted,
+947 files already formatted`). `uv run ruff format tests/integration/phase3/test_pr3_02_s2_intent_guards.py`
+then exited 0 (`1 file reformatted`). Initial `uv run pyright` exited 1
+with six type errors from constructing dictionaries directly from SQLAlchemy
+Row sequences in the added migration assertions. Explicit name/definition
+comprehensions corrected them. B2-V03/V04 are the fresh successful final runs;
+the earlier failures are not labeled PASS.
+
+## Historical review-B remediation — predates B2 (2026-10-25)
 
 Lane: `lane340`, existing branch `s2-intent-fix`, baseline HEAD
 `11accb98e9e9aad19ae324b42494178137ed43e1`. No commit, push or branch creation.
@@ -9,13 +258,14 @@ passed the strengthened tests; no runtime or migration change was needed.
 The frozen pack, all migration bytes, `pyproject.toml` and `uv.lock` are unchanged
 against HEAD (B08). This is focused verification, not a full-suite or acceptance gate.
 
-Only B01–B09 below are current final checks. Every PG-I/PG-T/PG-R/PG-N/U-A/H-U/AUDIT/DIFF
+At the time of the lane340 remediation, B01–B09 were its final checks; they are
+historical and predate B2. Every PG-I/PG-T/PG-R/PG-N/U-A/H-U/AUDIT/DIFF
 and RR run retained later in this file **predates these review-B fixes**. PG-R, H-U
 and the old comprehensive AUDIT were **not rerun**; their cells are explicitly historical.
 No earlier counts are added to current counts. Full suite: **NOT RUN by this agent**;
 the external check loop owns that evidence, which is not available in this file.
 
-### Findings and current test observations
+### Historical lane340 findings and test observations
 
 All paths are repository-relative, and every node below ran in B06 or B07 with
 exit code **0**. Parameter suffixes identify actual pytest cases.
@@ -41,7 +291,7 @@ used in those probes. Timeout retry suppression and the three-attempt limit are
 separately exercised through the service with driver-error objects, not pre-tagged
 ResearchBaseError flags.
 
-### Exact credited node IDs
+### Historical lane340 credited node IDs
 
 | Run | Node ID | Exit code |
 | --- | --- | --- |
@@ -73,7 +323,7 @@ ResearchBaseError flags.
 | B07 | `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority[task_row]` | 0 |
 | B07 | `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority[version_row]` | 0 |
 
-### Current final commands and raw stdout/stderr
+### Historical lane340 commands and raw stdout/stderr
 
 Each command was run separately with this exact environment. Disposable database
 fixtures temporarily select their own randomly named databases on the same local
@@ -650,6 +900,13 @@ export PGOPTIONS='-c jit=off'
 ```
 
 ## Historical frozen-item implementation and test allocation
+
+Coverage correction for this historical table: the original PG-I schema node
+checked CHECK/index names and only four partial CHECK definitions; it did not
+prove the full Q3.2/Q3.3 literals. The empty-upgrade node did not exercise drift
+refusal. The original no-default-grant normal-role tests proved permission denial,
+not effective migration REVOKEs. Those original overstatements below receive no
+current credit; B2-V07 and its exact nodes above supply the replacement evidence.
 
 Every run credited in this table predates the review-B fixes. This table is retained for history, not current verification. In particular PG-R, H-U and AUDIT were not rerun in this task and cannot establish current historical-regression, producer-preview or comprehensive protected-bytes coverage. The current, narrower protected-file check is B08 above. Review-B findings supersede the old claims of L2/L3, drift refusal, effective privilege revocation, SQLSTATE retry coverage and complete replay material coverage.
 
