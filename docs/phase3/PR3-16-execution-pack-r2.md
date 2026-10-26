@@ -1,17 +1,18 @@
 # PR3-16 Experiment Search Core execution pack
 
-Planning only, 2026-10-25; revision r2 2026-10-26. The r2 base is `origin/main` at `585e071` (PR #14 merged), on branch `pr316-pack-r2`; the queue base below is r1 history. The owner accepted the draft recommendation for D1–D5 and Q1–Q8 (§1.2, §6). That acceptance records answers only: it does not freeze the pack, admit the schema, or authorize implementation. Inspected queue base: `dc67a9886eb4da1f322be697a67abac1c33a8115`, already checked out on `pr316-pack`. (r1 history) Local `origin/main` resolved, at r1 time, to the older Phase 1 commit `919c220f184242198d2cf4edb46ab9c163744a39`; it is not the queue base. No checkout, branch creation, staging, commit or push is performed. Reconcile the integration ref before a future freeze; do not discard the queue's accepted records by switching to the stale local ref.
+Planning only, 2026-10-25; revision r2 2026-10-26, review B round 7 correction (t322). The initial r2 record names `origin/main` at `585e071` (PR #14 merged) and branch `pr316-pack-r2`; these are historical context, not this revision's checkout. This correction starts at `ba03f96cce6129932a184566acf170147b3cea3d` on the existing branch `fix-pr316-r2`. The owner accepted the draft recommendation for D1–D5 and Q1–Q8 (§1.2, §6). That acceptance records answers only: it does not freeze the pack, admit the schema, or authorize implementation.
 
-Authority: `AGENTS.md`; architecture 01 → 02 → 03 → 08 → Phase 3 specification → Harness 09; then the supplied plan, independent review, draft and accepted seam records. The section structure follows `docs/phase3/PR3-03-implementation-plan.md:15`, `:46`, `:117`, `:655`, `:675`, `:741`.
+**r1 history:** queue base `dc67a9886eb4da1f322be697a67abac1c33a8115` was already checked out on `pr316-pack`; local `origin/main` then resolved to the older Phase 1 commit `919c220f184242198d2cf4edb46ab9c163744a39`. r1 reported no checkout, branch creation, staging, commit or push. The same no-checkout/no-branch/no-staging/no-commit/no-push restriction applies to this correction. Reconcile the live integration ref before a future freeze; neither historical ref is asserted as current.
 
-Citation aliases below expand literally to these files; `P:509`, for example, means that file's line 509, not a new local copy:
+Authority: `AGENTS.md`; architecture 01 → 02 → 03 → 08 → Phase 3 specification → Harness 09; then the repository draft, local historical review, preserved owner answers and accepted seam records. The unavailable original plan is historical context only. The section structure follows `docs/phase3/PR3-03-implementation-plan.md:15`, `:46`, `:117`, `:655`, `:675`, `:741`.
 
-- **P** = `/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane133/docs/phase3/PR3-16-implementation-plan.md` (historical baseline `fb734e6`).
-- **R** = `/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane191/docs/phase3/PR3-16-plan-review.md` (review baseline `d744074`).
+Citation aliases below refer to repository files. Appendix S quotes the local review passages used for G0 and source provenance. The former external plan alias P is retired: its original text is absent from this checkout and local Git history, so original P line contents and completeness against its G0 are **UNVERIFIED**. No current requirement or owner answer relies on an inaccessible P citation.
+
+- **R** = `docs/phase3/PR3-16-plan-review.md` (in-repository historical review, baseline `d744074`; its statements about the unavailable plan are secondary evidence, not verification of the plan itself).
 - **C** = `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md`.
 - **A3** = `docs/architecture/06_Phase3_Development_Specification_v1.1_Harness_Integrated.md`.
 
-Only this file is authored. Proposed files, identifiers, test nodes and future commands below are **PROPOSED / NOT RUN**, unless explicitly identified as existing or measured. This pack neither changes a contract nor supplies missing approval.
+Only `docs/phase3/PR3-16-execution-pack-r2.md` and `docs/phase3/PR3-16-owner-answers-record.md` are authored in this r2 correction. Proposed files, identifiers, test nodes and future commands below are **PROPOSED / NOT RUN**, unless explicitly identified as existing or measured in §5.1. This pack neither changes a contract nor supplies missing approval; accepted answer text is preserved.
 
 ## 1. Verdict and evidence
 
@@ -23,21 +24,21 @@ Proposed persistence is four Entity/Relation/Event pattern instances, subject to
 
 Non-goals: PR3-17 Experiment Manager decisions, SearchDecisionRecord, selection/ranking/scoring, winner or scientific-success designation, execution/promotion, Run creation, workers, cancellation I/O, providers, new dependencies, PR3-05 saving and Phase 4. PR3-16 is “session/node/lineage”; PR3-17 owns decisions (`A3:2568`, `A3:2572`; `C:78`).
 
-Every condition in the plan's G0 is assessed separately (`P:509`):
+This pack's G0 checklist is assessed below using the local draft's prerequisite rule (`C:12`–`C:14`) and the local review's report (`R:93`–`R:104`, quoted in Appendix S). Exact inventory and head maintenance are explicit pack requirements. Exhaustiveness against the unavailable original plan is UNVERIFIED; G0 remains unsatisfied.
 
 | G0 condition | Status | Evidence and remaining work |
 | --- | --- | --- |
-| D1–D5 resolved | OWNER ANSWERED (2026-10-26) | Answered 2026-10-26: draft recommendations accepted in §1.2. The D1 sub-question (unconditional or conditional atomic amendment) stays open for owner confirmation. Each answer still needs its exact freeze text (`C:317`; `P:79`; `R:93`). |
-| Q1–Q8 resolved | OWNER ANSWERED (2026-10-26) | Answered 2026-10-26: draft recommendations accepted in §1.2. The D1 sub-question (unconditional or conditional atomic amendment) stays open for owner confirmation. Details the recommendations leave unspecified (exact names, bytes, bounds) stay OPEN until the freeze step (`P:84`; `R:63`, `R:95`). |
+| D1–D5 resolved | OWNER ANSWERED (2026-10-26) | Answered 2026-10-26: draft recommendations accepted in §1.2. The D1 sub-question (unconditional or conditional atomic amendment) stays open for owner confirmation. Each answer still needs its exact freeze text (`C:317`; `R:93`). |
+| Q1–Q8 resolved | OWNER ANSWERED (2026-10-26) | Answered 2026-10-26: draft recommendations accepted in §1.2. The D1 sub-question (unconditional or conditional atomic amendment) stays open for owner confirmation. Details the recommendations leave unspecified (exact names, bytes, bounds) stay OPEN until the freeze step (`R:63`, `R:95`). |
 | ADR/schema admission | NOT MET | Four-table admission and an ADR are required. Owner answers do not admit the schema. No ADR is drafted in r2; it is the next prerequisite; admission also depends on the complete inventory (Q1) (`C:3`, `C:12`, `C:147`). |
 | Reviewed execution pack | NOT MET | Revision r2 awaits independent review. The earlier plan review has no P0/P1 but explicitly grants no contract approval (`R:40`, `R:100`). |
-| Exact path/test/head-maintenance inventory | NOT MET | §3 and Appendix H propose concrete paths/nodes. Q1/Q2/Q3/Q7 are accepted in principle, but exact names, bytes, counts and the live integration head are produced only in the freeze step (`P:225`, `P:509`; `C:169`). |
-| PR3-03 acceptance evidence reconciled | MET | `docs/phase3/PR3-03-evidence.md:7333` records owner acceptance; `:7335` distinguishes merged `fb734e6` from code head `c5a91ba`; `:7336` records successful CI; `:7349` satisfies the planning prerequisite. This retires `P:10`'s historical discrepancy and addresses `R:13`'s P2. |
-| Implementation separately authorized | NOT MET | This task authorizes only the pack. Draft approval alone does not enable execution (`C:12`); the plan requires separate authorization (`P:502`, `P:509`). Owner freeze approval is necessary but does not itself grant implementation. |
+| Exact path/test/head-maintenance inventory | NOT MET | §3 and Appendix H propose concrete paths/nodes. Q1/Q2/Q3/Q7 are accepted in principle, but exact names, bytes, counts and the live integration head are produced only in the freeze step (`C:16`, `C:169`; `R:66`–`R:73`). |
+| PR3-03 acceptance evidence reconciled | MET | `docs/phase3/PR3-03-evidence.md:7333` records owner acceptance; `:7335` distinguishes merged `fb734e6` from code head `c5a91ba`; `:7336` records successful CI; `:7349` satisfies the planning prerequisite. This retires the historical discrepancy reported at `R:15` and addresses `R:13`'s P2. |
+| Implementation separately authorized | NOT MET | This task authorizes only the two documentation files named above. Draft approval alone does not enable execution (`C:12`); the local review reports the separate authorization requirement (`R:95`, `R:100`). Owner freeze approval is necessary but does not itself grant implementation. |
 
 ### 1.2 Open decisions and proposed resolutions
 
-The supplied sources do not delegate these contract decisions to Claude (`P:73`; `R:91`). On 2026-10-26 the owner accepted the draft recommendation for every row (**OWNER ANSWERED**; each accepted line is quoted verbatim in `docs/phase3/PR3-16-owner-answers-record.md`); no **CLAUDE DECISION** is asserted. Each recommendation is still a proposal until the freeze step writes its exact text. Any answer that narrows scope requires a revised pack before dependent work.
+The supplied sources do not delegate these contract decisions to Claude (`C:12`; `R:91`). On 2026-10-26 the owner accepted the draft recommendation for every row (**OWNER ANSWERED**; each accepted line is quoted verbatim in `docs/phase3/PR3-16-owner-answers-record.md`); no **CLAUDE DECISION** is asserted. Each recommendation is still a proposal until the freeze step writes its exact text. Any answer that narrows scope requires a revised pack before dependent work.
 
 | ID / question | Proposed resolution, reason and sources | Label / disposition |
 | --- | --- | --- |
@@ -46,33 +47,14 @@ The supplied sources do not delegate these contract decisions to Claude (`P:73`;
 | D3 — Allow Human/verified Agent planning; what identity proof applies? | Recommend existing actor-attributed planning through the shared Application boundary with execution disabled. Require current verified identity; answered as current verified identity (actor-only planning proof, Q7); no AgentVersion/availability prerequisite for this planning-only slice. Execution later requires separately delivered concrete PR3-02 execution FK and reviewed admission, never a dummy UUID (`C:113`, `C:207`, `C:323`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
 | D4 — Multiple Runs per node and reuse across nodes? | Recommend multiple distinct Runs and explicit reuse, unique per node/Run. Reuse records lineage, neither a fresh experiment/evidence item nor proof of task-budget attribution; this preserves existing Run ownership Accepted details: same-project links; node/Run ExperimentSpec equality when the node names a version; a repeated fresh link fails and only the original receipt replays (`C:99`, `C:170`, `C:203`, `C:324`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
 | D5 — Optional scientific references and release boundary? | Recommend typed optional exact frozen root/node Hypothesis/ExperimentSpec references, saved owning hashes and bounded reasons; defer objective/scoring structures to PR3-17. Preserve existing errors and no-provider scope. This avoids JSON becoming the semantic core; accepted details: saved owning hash present iff its reference is present, reverified on admission and read; wider spec material staging still needs approval (`C:93`, `C:160`, `C:267`, `C:325`; `A3:1181`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q1 — Complete schema/guard inventory? | Require a reviewed field/type/nullability list, named CHECK/UNIQUE/FK/index inventory, sequence/event literals, receipt result pointers, complete immediate/deferred definitions and old-guard preservation map before admission. Enforce the draft's four immutable tables, same-task/session/project ties and exact effects. Unstated names, bodies and counts remain OPEN; do not copy PR3-03's counts (`P:84`; `C:16`, `C:150`, `C:167`, `C:174`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q2 — DTOs, material, vectors, errors and strategy pinning? | Recommend closed envelopes covering all six commands, all defaults/NULLs and authenticated actor; normalize NFC/lowercase UUIDs before existing canonical hashing. Freeze literal bytes/digests, UUID rules, result cardinality/order and per-command error precedence independently of implementation. Answered: strategy material omitted for this slice, conditional on explicit owner-approved staging (draft line 128); material version 1 (accepted detail); no strategy column is specified; exact vector bytes are not specified by this pack (`P:85`; `C:87`, `C:130`, `C:267`; `A3:1170`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q3 — Who admits/reserves node budget and owns settlement? | Conservative recommendation requires committed same-task/active-budget reservation, `tree_nodes=1`, operation ID = node ID, unused/nonfinal reservation, exact step/search depth and current gates. Deny after stop; retain last-unit gaps/UNKNOWN charges. Accepted (draft line 142): conservative proof only. If no trusted producer can satisfy the proof, require the separately reviewed atomic amendment (caller trust, full vector, depth mapping, stop semantics, receipt effects, settlement owner). Trusted producer/evaluator identity remains OPEN; no nested safety command or new ledger (`P:86`; `C:184`; `src/researchbase/agent_runtime/application/task_safety.py:122`, `:149`, `:160`, `:247`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q4 — Full temporal/state matrix and proof of already-existing work? | Freeze every command/state/ancestor combination, fresh-command repeated terminal requests and post-close authority. Recommend reconciliation with no execution/spend/reopen, while retaining all earlier branches. Answered: closure-time cutoff for post-close links. Accepted details: deny ambiguous cases; the durable proof of already-existing work must be defined before freeze and remains OPEN; no timestamp predicate is invented here (`P:87`; `C:67`, `C:97`, `C:110`, `C:115`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q5 — Duplicate branch meaning and scientific-reference consistency? | Preserve explicit duplicate-ID/link/root constraints and node/Run ExperimentSpec equality. Accepted restriction: do not infer root/node equality, inheritance or a Hypothesis/ExperimentSpec relationship beyond owning-domain rules and the stated frozen-reference checks. Structural constraints now; semantic duplicate detection is staged to a later reviewed contract, and the Phase 3 duplicate-branch obligation stays OPEN. No fingerprint or pair-consistency algorithm is specified; these remain OPEN rather than replacing the required duplicate-branch test with ID-only checks (`P:88`; `C:99`, `C:157`, `C:170`; `A3:2327`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q6 — Read envelopes, ordering, size bounds and corrupt ancestry? | Recommend root-to-node paths, labeled current Run/seal projections and same-snapshot safety projection. Accepted: order by event sequence and Run-link ID; NOT_FOUND for entitled absent targets; referential-integrity failure for corrupt ancestry; provenance-closure failure for saved-hash contradictions, with sanitized envelopes; whole-tree bounds (pagination not chosen). Numeric depth/size limits remain OPEN. All unspecified details remain OPEN; do not import gateway or context limits (`P:89`; `C:119`, `C:162`, `C:261`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q7 — Identity keys, exact lock composition and post-write validation? | Preserve exact 18-table first SHARE, project/command/task prefix, required identity keys before rows, and fresh entitlement/replay/admission after every wait, DML and constraint forcing. Answered: actor-only identity proof. The resulting lock sequence still needs its exact freeze text. Never append keys after row locks or call the broader checkpoint-locking helper implicitly (`P:90`; `C:215`; `docs/phase3/PR3-03-contract-freeze.md:1772`; `src/researchbase/persistence/task_safety_repository.py:86`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-| Q8 — Revision, parent, files/transports and acceptance inventory? | Recommend Application-only scope, no API/CLI routes, and conditional next revision `0081_experiment_search_core` after verified `0080_capability_gateway`; reassign if another approved migration lands first. Appendix H enumerates observed maintenance. PR3-03 evidence discrepancy is resolved, but integration ref, exact revision/file list and release inventory remain OPEN, and the PR3-02-S2 pack on main proposes a competing next migration that must be reconciled first; no revision reservation or new CI success is asserted (`P:91`, `P:221`; `C:34`; `migrations/versions/0080_capability_gateway.py:5`; `docs/phase3/PR3-03-evidence.md:7331`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
-
-### 1.4 Owner answers mapped to observable checks
-
-Every node below is PROPOSED and NOT RUN. A row marked MISSING has no check yet; it must be added at the freeze step, and the answer is not verified until then.
-
-| Answer | Proposed check (node or file) | Status |
-| --- | --- | --- |
-| D1/Q3 conservative admission | S4 `test_experiment_search.py::test_append_matches_frozen_budget_admission`; S8 `test_pr3_16_budget.py::test_cross_session_caps_depth_gaps_and_terminal_no_refund` | Proposed |
-| D2 limited lifecycle, terminal ancestors | S3 `test_experiment_search_contracts.py::test_root_child_depth_and_terminal_ancestor_matrix` (unit doubles only) | DB-level denial MISSING: add `test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database` |
-| D3/Q7 actor-attributed planning, actor-only proof | `tests/architecture/test_pr3_16_boundaries.py::test_human_and_agent_share_application_boundary`; S8 `test_pr3_16_concurrency.py::test_each_wait_refreshes_entitlement_replay_and_expiry` | Proposed |
-| D4 multiple and reused Runs | S5 `test_experiment_search.py::test_run_links_preserve_status_seal_and_scientific_rows`; S8 `test_pr3_16_application.py::test_failed_pruned_negative_and_unexecuted_lineage_retained` | Proposed |
-| D5 typed optional references | Frozen-reference validation MISSING: add `test_pr3_16_application.py::test_unfrozen_or_wrong_version_reference_denied` | MISSING |
-| Q1 complete inventory before admission | S1 `test_pr3_16_schema.py::test_all_frozen_sql_definitions_compile_on_pg18`; S8 `test_pr3_16_guards.py::test_normal_role_scope_cycle_root_and_reservation_attacks` | Proposed; exact inventory OPEN |
-| Q2 strategy omitted | S3 `test_experiment_search_contracts.py::test_closed_envelopes_and_fixed_vectors`; no-strategy-column check MISSING: add to S1 `test_pr3_16_schema.py::test_no_strategy_column` | Partly MISSING |
-| Q4 closure-time cutoff | S5 `test_experiment_search.py::test_closure_blocks_mutations_and_allows_frozen_reconciliation` | Proposed; durable proof check MISSING (proof OPEN) |
-| Q5 structural duplicate constraints | Duplicate ID/link constraint check MISSING: add `test_experiment_search.py::test_duplicate_id_and_link_constraints_enforced` (this is not a semantic duplicate-branch check) | MISSING |
-| Q5 semantic detection | Staged to a later contract; no check in this slice | Staged (no check by design) |
-| Q6 whole-tree bounded reads | S6 `test_experiment_search_queries.py::test_tree_keeps_failed_pruned_negative_and_unexecuted_branches`; S8 `test_pr3_16_application.py::test_recheck_cadence_and_query_work_at_frozen_bounds` | Proposed; numeric bounds OPEN |
-| Q8 Application-only, no transport | No-API/CLI-route check MISSING: add `tests/architecture/test_pr3_16_boundaries.py::test_no_api_or_cli_routes_added` | MISSING |
+| Q1 — Complete schema/guard inventory? | Require a reviewed field/type/nullability list, named CHECK/UNIQUE/FK/index inventory, sequence/event literals, receipt result pointers, complete immediate/deferred definitions and old-guard preservation map before admission. Enforce the draft's four immutable tables, same-task/session/project ties and exact effects. Unstated names, bodies and counts remain OPEN; do not copy PR3-03's counts (`C:16`, `C:150`, `C:167`, `C:174`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
+| Q2 — DTOs, material, vectors, errors and strategy pinning? | Recommend closed envelopes covering all six commands, all defaults/NULLs and authenticated actor; normalize NFC/lowercase UUIDs before existing canonical hashing. Freeze literal bytes/digests, UUID rules, result cardinality/order and per-command error precedence independently of implementation. Answered: strategy material omitted for this slice, conditional on explicit owner-approved staging (draft line 128); material version 1 (accepted detail); no strategy column is specified; exact vector bytes are not specified by this pack (`R:68`; `C:87`, `C:130`, `C:267`; `A3:1170`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
+| Q3 — Who admits/reserves node budget and owns settlement? | Conservative recommendation requires committed same-task/active-budget reservation, `tree_nodes=1`, operation ID = node ID, unused/nonfinal reservation, exact step/search depth and current gates. Deny after stop; retain last-unit gaps/UNKNOWN charges. Accepted (draft line 142): conservative proof only. If no trusted producer can satisfy the proof, require the separately reviewed atomic amendment (caller trust, full vector, depth mapping, stop semantics, receipt effects, settlement owner). Trusted producer/evaluator identity remains OPEN; no nested safety command or new ledger (`R:47`, `R:50`; `C:184`; `src/researchbase/agent_runtime/application/task_safety.py:122`, `:149`, `:160`, `:247`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
+| Q4 — Full temporal/state matrix and proof of already-existing work? | Freeze every command/state/ancestor combination, fresh-command repeated terminal requests and post-close authority. Recommend reconciliation with no execution/spend/reopen, while retaining all earlier branches. Answered: closure-time cutoff for post-close links. Accepted details: deny ambiguous cases; the durable proof of already-existing work must be defined before freeze and remains OPEN; no timestamp predicate is invented here (`R:70`; `C:67`, `C:97`, `C:110`, `C:115`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
+| Q5 — Duplicate branch meaning and scientific-reference consistency? | Preserve explicit duplicate-ID/link/root constraints and node/Run ExperimentSpec equality. Accepted restriction: do not infer root/node equality, inheritance or a Hypothesis/ExperimentSpec relationship beyond owning-domain rules and the stated frozen-reference checks. Structural constraints now; semantic duplicate detection is staged to a later reviewed contract, and the Phase 3 duplicate-branch obligation stays OPEN. No fingerprint or pair-consistency algorithm is specified; these remain OPEN rather than replacing the required duplicate-branch test with ID-only checks (`R:70`, `R:88`; `C:99`, `C:157`, `C:170`; `A3:2327`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
+| Q6 — Read envelopes, ordering, size bounds and corrupt ancestry? | Recommend root-to-node paths, labeled current Run/seal projections and same-snapshot safety projection. Accepted: order by event sequence and Run-link ID; NOT_FOUND for entitled absent targets; referential-integrity failure for corrupt ancestry; provenance-closure failure for saved-hash contradictions, with sanitized envelopes; whole-tree bounds (pagination not chosen). Numeric depth/size limits remain OPEN. All unspecified details remain OPEN; do not import gateway or context limits (`R:72`; `C:119`, `C:162`, `C:261`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
+| Q7 — Identity keys, exact lock composition and post-write validation? | Preserve exact 18-table first SHARE, project/command/task prefix, required identity keys before rows, and fresh entitlement/replay/admission after every wait, DML and constraint forcing. Answered: actor-only identity proof. The resulting lock sequence still needs its exact freeze text. Never append keys after row locks or call the broader checkpoint-locking helper implicitly (`R:48`, `R:51`; `C:215`; `docs/phase3/PR3-03-contract-freeze.md:1772`; `src/researchbase/persistence/task_safety_repository.py:86`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
+| Q8 — Revision, parent, files/transports and acceptance inventory? | Recommend Application-only scope, no API/CLI routes, and conditional next revision `0081_experiment_search_core` after verified `0080_capability_gateway`; reassign if another approved migration lands first. Appendix H enumerates observed maintenance. PR3-03 evidence discrepancy is resolved, but integration ref, exact revision/file list and release inventory remain OPEN, and the PR3-02-S2 pack on main proposes a competing next migration that must be reconciled first; no revision reservation or new CI success is asserted (`R:73`; `C:34`; `migrations/versions/0080_capability_gateway.py:5`; `docs/phase3/PR3-03-evidence.md:7331`). | OWNER ANSWERED — draft recommendation accepted 2026-10-26; freeze text pending |
 
 ### 1.3 Dependencies on accepted seams
 
@@ -93,17 +75,49 @@ Acceptance below is read from records, not measured again or extended to PR3-16.
 | PR3-02-S2 availability | `docs/phase3/PR3-05-readonly-acceptance.md:118`; `C:207` | `docs/phase3/PR3-02-S2-contract-freeze.md` is absent from the r1 base but is not what r2 needs: on the r2 base, `docs/phase3/PR3-02-S2-execution-pack.md` and `PR3-02-S2-pack-review.md` are present (PR #14). They are proposals, and no accepted S2 freeze record is present. The S2 pack proposes a migration named `<approved_next_revision>` (its line 109), which competes for the slot after 0080. Do not infer delivered execution or import a sibling revision. |
 | Scientific ownership / serialization | `src/researchbase/domain/run.py:22`, `:50`, `:99`; `src/researchbase/foundation/canonical_json.py:11`; `C:160` | Run owns status/seal/spec; normalize text before hashing and reverify saved owning hashes on admission/read. |
 
+### 1.4 Owner answers mapped to observable checks
+
+Every search node below is **PROPOSED / NOT RUN**; no owner answer is verified by naming a node. “Proposed” identifies a planned observable assertion, not implemented coverage. **MISSING** identifies a detail without a sufficiently specified check, including the five previously suggested but undefined nodes. The owning step must define the assertions and add every missing node to its command block during future freeze preparation; unresolved MISSING entries block freeze. A frozen test plan still does not verify behavior: implementation and recorded execution evidence require separate authorization. Architecture scans and entitlement/expiry tests do not establish identity verification or the absence of an AgentVersion prerequisite.
+
+| Answer / accepted detail | Owning step and proposed observable check | Status |
+| --- | --- | --- |
+| D1/Q3 conservative admission | S4 `test_experiment_search.py::test_append_matches_frozen_budget_admission`; S8 `test_pr3_16_budget.py::test_cross_session_caps_depth_gaps_and_terminal_no_refund`: wrong reservation/depth/trust or stopped admission denied; charges retained | Proposed / NOT RUN; producer identity OPEN |
+| D2 limited lifecycle, terminal ancestors | S3 `test_experiment_search_contracts.py::test_root_child_depth_and_terminal_ancestor_matrix` (unit doubles only); S8 owns `test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database`, now selected explicitly in S8 | DB assertion definition MISSING / NOT RUN |
+| D3/Q7 current verified Human/Agent identity | S8 must name a behavioral node admitting verified callers and denying an unverified Agent with zero protected effects, through the same Application commands | MISSING / NOT RUN; boundary/wait scans are not substitutes |
+| D3/Q7 actor-only proof; no AgentVersion/availability prerequisite | S8 must name a positive planning node for an otherwise entitled verified Agent with no AgentVersion/availability row, preserving Agent attribution and disabled execution | MISSING / NOT RUN |
+| Q7 wait/write/constraint cadence | S2 `test_experiment_search_repository.py::test_every_blocking_stage_calls_fresh_validation`; S8 `test_pr3_16_concurrency.py::test_each_wait_refreshes_entitlement_replay_and_expiry`: observe fresh checks and replay order after each wait | Proposed / NOT RUN; exact lock sequence OPEN |
+| D4 multiple/reused Runs and duplicate-link replay | S5 `test_experiment_search.py::test_run_links_preserve_status_seal_and_scientific_rows`, `test_duplicate_link_differs_from_original_receipt_replay`; S8 `test_pr3_16_application.py::test_failed_pruned_negative_and_unexecuted_lineage_retained` | Proposed / NOT RUN |
+| D4 same-project links | S5/S8 must name denial checks for a foreign-project Run; no relation, event, receipt or revision effect may survive | MISSING / NOT RUN |
+| D4 node/Run ExperimentSpec equality when the node names a version | S5/S8 must name a mismatch-denial check and matching-version control without inferring a reference when the node has none | MISSING / NOT RUN |
+| D5 typed optional frozen references | S8 owns `test_pr3_16_application.py::test_unfrozen_or_wrong_version_reference_denied`, now selected explicitly in S8 | Assertion definition MISSING / NOT RUN |
+| D5 saved hash present iff its reference is present | S1/S8 must name checks for all presence combinations on each optional root/node reference: reject either mismatched pair; allow both absent or both valid | MISSING / NOT RUN |
+| D5 saved owning hash reverified on admission | S4/S8 must name an exact-version/owning-hash contradiction check that denies admission without effects | MISSING / NOT RUN |
+| D5 saved owning hash reverified on read | S6/S8 must name a persisted-hash contradiction check that rejects the read without repair; Q6 fixes the error class below | MISSING / NOT RUN |
+| Q1 complete inventory before admission | S1 `test_pr3_16_schema.py::test_all_frozen_sql_definitions_compile_on_pg18`; S8 `test_pr3_16_guards.py::test_normal_role_scope_cycle_root_and_reservation_attacks`, `test_immutable_rows_and_receipt_effects_across_flushes` | Proposed / NOT RUN; exact inventory OPEN |
+| Q2 envelopes/material version 1/normalization and strategy omission | S3 `test_experiment_search_contracts.py::test_closed_envelopes_and_fixed_vectors`; S1 owns `test_pr3_16_schema.py::test_no_strategy_column`, now selected explicitly in S1 | No-column assertion definition MISSING / NOT RUN; vectors and staging approval OPEN |
+| Q4 closure-time cutoff and current authority on new reconciliation | S5 `test_experiment_search.py::test_closure_blocks_mutations_and_allows_frozen_reconciliation` must distinguish allowed historical links from ambiguous/new work and denied current authority | Durable-proof check MISSING / NOT RUN (proof OPEN) |
+| Q4 fresh repeated or conflicting terminal commands rejected without effects | S5/S8 must name checks using new command IDs for repeated/conflicting node and session terminal requests; assert unchanged lineage, task revision, receipts and task events, with original-receipt replay as a separate control | MISSING / NOT RUN |
+| Q5 structural duplicate constraints | S5 owns `test_experiment_search.py::test_duplicate_id_and_link_constraints_enforced`, now selected explicitly in S5; duplicate IDs/links fail (not a semantic duplicate-branch check) | Assertion definition MISSING / NOT RUN |
+| Q5 no inferred root/node equality, inheritance or Hypothesis/ExperimentSpec relationship | S5/S8 must name controls allowing otherwise valid independent references under owning-domain rules | MISSING / NOT RUN |
+| Q5 semantic detection | Staged to a later contract; no check in this slice; Phase 3 duplicate-branch obligation remains OPEN | Staged / NOT RUN |
+| Q6 whole-tree bounded reads | S6 `test_experiment_search_queries.py::test_tree_keeps_failed_pruned_negative_and_unexecuted_branches`; S8 `test_pr3_16_application.py::test_recheck_cadence_and_query_work_at_frozen_bounds`: enforce separate node/depth/event/link bounds without silent history truncation | Proposed / NOT RUN; numeric bounds OPEN |
+| Q6 event-sequence and Run-link ID ordering | S6 `test_experiment_search_queries.py::test_scope_hash_and_ordering_follow_frozen_read_contract`: shuffle insertion order, then assert exact event-sequence and Run-link ID order | Proposed / NOT RUN |
+| Q6 NOT_FOUND for entitled absent targets | S6/S8 must name a read-error check asserting NOT_FOUND, with entitled and unauthorized callers distinguished | MISSING / NOT RUN |
+| Q6 referential-integrity failure for corrupt ancestry | S6/S8 must name a read-error check asserting REFERENTIAL_INTEGRITY_ERROR on corrupt ancestry, without repair or foreign ID/SQL disclosure | MISSING / NOT RUN |
+| Q6 provenance-closure failure for saved-hash contradictions | S6/S8 must name a read-error check asserting PROVENANCE_CLOSURE_VIOLATION and a sanitized envelope, without saved-hash repair | MISSING / NOT RUN |
+| Q8 Application-only, no transport | S7 owns `tests/architecture/test_pr3_16_boundaries.py::test_no_api_or_cli_routes_added`, now selected explicitly in S7 | Assertion definition MISSING / NOT RUN |
+
 ## 2. Rules shared by every sub-task
 
 **Authorization rule:** every S1–S8 is not authorized until the owner approves this pack's freeze; separate implementation authorization and every G0 condition must also be satisfied. Future commands are not instructions to execute during this documentation task.
 
 **Architecture rule:** Caller → Application → port/UoW → persistence → PostgreSQL 18; synchronous DB I/O; one command/transaction; no scientific cascade, generic JSON provenance, copied Run truth, external/provider I/O under locks, new dependency or governing Harness change (`AGENTS.md:59`; `C:54`, `C:215`).
 
-**Stop rule G:** document a concrete conflicting pack/source `file:line`, impact and blocked observable check; leave dependent work unstarted and record Deviations. Do not invent semantics to fill OPEN answers. Required missing evidence, zero collection or skips are not PASS; no acceptance with open P0/P1 (`P:158`; `AGENTS.md:126`).
+**Stop rule G:** document a concrete conflicting pack/source `file:line`, impact and blocked observable check; leave dependent work unstarted and record Deviations. Do not invent semantics to fill OPEN answers. Required missing evidence, zero collection or skips are not PASS; no acceptance with open P0/P1 (`C:315`; `AGENTS.md:126`).
 
-**SQL rule L:** named complete multiline SQL definitions and parameterized queries within existing lint limits; preserve frozen bytes and ancestor migrations; no trigger disabling, lint exemption or automatic splitting on semicolons (`P:166`; `docs/phase3/PR3-03-implementation-plan.md:65`).
+**SQL rule L:** named complete multiline SQL definitions and parameterized queries within existing lint limits; preserve frozen bytes and ancestor migrations; no trigger disabling, lint exemption or automatic splitting on semicolons (`docs/phase3/PR3-03-implementation-plan.md:65`).
 
-**Evidence rule E:** each step records exact commands, stdout/stderr, exit codes, actual collected/passed/failed/skipped counts, requirement → node mapping, revision/environment and Deviations. Store future raw captures under ignored `tmp/pr3-16/`; independent review and the external full-suite loop remain required. Historical counts are not current verification (`P:174`, `P:485`).
+**Evidence rule E:** each step records exact commands, stdout/stderr, exit codes, actual collected/passed/failed/skipped counts, requirement → node mapping, revision/environment and Deviations. Store future raw captures under ignored `tmp/pr3-16/`; independent review and the external full-suite loop remain required. Historical counts are not current verification (`C:313`–`C:315`; `AGENTS.md:126`).
 
 **Common future gate C** after each step; run separately and preserve each result:
 
@@ -120,17 +134,19 @@ Future setup: `uv sync --locked --group dev`; explicitly select disposable local
 
 ## 3. Sub-tasks
 
-Follow P's S1–S8 order (`P:213`–`P:498`). In file lists only, **AR** = `src/researchbase/agent_runtime/`, **DB** = `src/researchbase/persistence/`, **U** = `tests/unit/phase3/`, **I** = `tests/integration/phase3/`, **A** = `tests/architecture/`; concatenate prefix and suffix. All new names and tests remain proposals pending Q8. Every step includes C/E and stops under G.
+Follow the proposed S1–S8 order defined in this section. The local historical review identifies this sequencing as a plan proposal (`R:66`–`R:67`); it is not a frozen architecture rule. In file lists only, **AR** = `src/researchbase/agent_runtime/`, **DB** = `src/researchbase/persistence/`, **U** = `tests/unit/phase3/`, **I** = `tests/integration/phase3/`, **A** = `tests/architecture/`; concatenate prefix and suffix. All new names and tests remain proposals pending Q8. Every step includes C/E and stops under G.
 
 ### S1 — Forward schema and compile/compatibility gate
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: proposed `migrations/versions/0081_experiment_search_core.py` (conditional Q8 assignment), `I/search_fixtures.py`, `I/test_pr3_16_schema.py`, `I/test_pr3_16_migration.py`, and Appendix H's exact maintenance inventory. Dependencies: G0, D1/Q1/Q8. Translate only the admitted four-table inventory, support keys and receipt/task-event guard extensions; no Application behavior (`P:213`; `C:147`).
+Files: proposed `migrations/versions/0081_experiment_search_core.py` (conditional Q8 assignment), `I/search_fixtures.py`, `I/test_pr3_16_schema.py`, `I/test_pr3_16_migration.py`, and Appendix H's exact maintenance inventory. Dependencies: G0, D1/Q1/Q8. Translate only the admitted four-table inventory, support keys and receipt/task-event guard extensions; no Application behavior (`C:147`, `C:299`).
 
 ```sh
 uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_16_schema.py::test_all_frozen_sql_definitions_compile_on_pg18 tests/integration/phase3/test_pr3_16_schema.py::test_frozen_columns_keys_indexes_and_no_json_or_cascade
+uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_16_schema.py::test_no_strategy_column
 uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_16_migration.py::test_clean_and_populated_upgrade_preserve_accepted_rows tests/integration/phase3/test_pr3_16_migration.py::test_forward_only_migration_and_single_head
+# Existing regression nodes; r2 focused results are in §5.1; this future gate is NOT RUN.
 uv run pytest -o addopts='' -ra tests/unit/test_ci_migration_head.py::test_ci_migration_head_assertion_matches_repository_head
 ```
 
@@ -140,10 +156,11 @@ Gate: PG18 compiles every frozen body; record actual inventory/count, normal-rol
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: new `AR/ports/search_repository.py`, `DB/experiment_search_repository.py`, `U/test_experiment_search_repository.py`; update `DB/models.py`, `DB/uow.py`; factor existing safety port/adapter only if Q7 freezes that need. Dependencies: S1 and Q7. Implement approved first SHARE/advisory/row/read recipe; no Run/immutable-lineage row locking or implicit checkpoint updates (`P:253`; `C:215`).
+Files: new `AR/ports/search_repository.py`, `DB/experiment_search_repository.py`, `U/test_experiment_search_repository.py`; update `DB/models.py`, `DB/uow.py`; factor existing safety port/adapter only if Q7 freezes that need. Dependencies: S1 and Q7. Implement approved first SHARE/advisory/row/read recipe; no Run/immutable-lineage row locking or implicit checkpoint updates (`R:51`; `C:215`).
 
 ```sh
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_experiment_search_repository.py::test_first_statement_and_complete_lock_order tests/unit/phase3/test_experiment_search_repository.py::test_every_blocking_stage_calls_fresh_validation tests/unit/phase3/test_experiment_search_repository.py::test_immutable_reads_do_not_lock_runs_or_lineage tests/unit/phase3/test_experiment_search_repository.py::test_formal_read_has_one_snapshot_and_no_writes
+# Existing regression nodes; r2 focused results are in §5.1; this future gate is NOT RUN.
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_capability_gateway_repository.py tests/unit/phase3/test_task_safety_transports.py
 ```
 
@@ -153,10 +170,11 @@ Gate: recorded SQL/callback order, no constructor SQL, no ORM/Session leakage, a
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: new `AR/domain/experiment_search.py`, `AR/application/search_contracts.py`, `U/test_experiment_search_contracts.py`. Dependencies: S1–S2; D2/D5/Q2/Q4/Q5/Q6. Implement only frozen fields/defaults, lifecycle predicates and exact-reference material; keep old vectors unchanged (`P:287`; `C:87`, `C:130`).
+Files: new `AR/domain/experiment_search.py`, `AR/application/search_contracts.py`, `U/test_experiment_search_contracts.py`. Dependencies: S1–S2; D2/D5/Q2/Q4/Q5/Q6. Implement only frozen fields/defaults, lifecycle predicates and exact-reference material; keep old vectors unchanged (`C:87`, `C:130`, `C:297`).
 
 ```sh
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_experiment_search_contracts.py::test_closed_envelopes_and_fixed_vectors tests/unit/phase3/test_experiment_search_contracts.py::test_nfc_uuid_defaults_and_reason_bounds tests/unit/phase3/test_experiment_search_contracts.py::test_root_child_depth_and_terminal_ancestor_matrix tests/unit/phase3/test_experiment_search_contracts.py::test_no_score_success_or_execution_semantics
+# Existing regression nodes; r2 focused results are in §5.1; this future gate is NOT RUN.
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_research_task_contracts.py::test_fixed_vectors tests/unit/phase3/test_task_safety_contracts.py::test_fixed_hash_vectors tests/unit/phase3/test_agent_version_contracts.py::test_literal_vectors tests/unit/phase3/test_capability_gateway_contracts.py
 ```
 
@@ -166,10 +184,11 @@ Gate: field/default/normalization/vector matrix maps to passing nodes; literal e
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: new `AR/application/experiment_search.py`, `U/test_experiment_search.py`, `U/search_fixtures.py`; update S2 port/adapter. The separately reviewed atomic amendment (D1) is not in S4's file list, so S4 adds no task-safety files until that amendment is reviewed. Dependencies: S1–S3, D1/Q3. Implement stable-ID retry/replay writer and session/node effects under task CAS; no second ledger, nested safety command or reinterpretation of `FAKE_RESOURCES` (`P:317`; `C:184`).
+Files: new `AR/application/experiment_search.py`, `U/test_experiment_search.py`, `U/search_fixtures.py`; update S2 port/adapter. The separately reviewed atomic amendment (D1) is not in S4's file list, so S4 adds no task-safety files until that amendment is reviewed. Dependencies: S1–S3, D1/Q3. Implement stable-ID retry/replay writer and session/node effects under task CAS; no second ledger, nested safety command or reinterpretation of `FAKE_RESOURCES` (`C:137`, `C:174`, `C:184`).
 
 ```sh
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_experiment_search.py::test_create_session_has_one_receipt_and_no_execution tests/unit/phase3/test_experiment_search.py::test_append_matches_frozen_budget_admission tests/unit/phase3/test_experiment_search.py::test_all_sessions_share_caps_and_sticky_stops tests/unit/phase3/test_experiment_search.py::test_rollback_at_each_write_and_constraint_stage tests/unit/phase3/test_experiment_search.py::test_current_entitlement_and_saved_replay_precede_cas_after_every_wait
+# Existing regression nodes; r2 focused results are in §5.1; this future gate is NOT RUN.
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_task_budget_accounting.py tests/unit/phase3/test_capability_gateway.py::test_request_atomic_effects_exact_vector_refs_and_no_nested_safety tests/unit/phase3/test_capability_gateway.py::test_exact_final_unit_sets_sticky_stop_and_denies_next_request
 ```
 
@@ -179,10 +198,11 @@ Gate: chosen admission semantics, exact one-receipt/event/revision effects, dept
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: S4 Application/unit module and existing search fixtures; S2 port/adapter. Dependencies: S1–S4, D2/D4/Q4/Q5. Add immutable exact Run links and failure/prune/close events; preserve descendants, reasons, input seals and scientific outcomes; no refund or scientific success (`P:354`; `C:64`, `C:99`).
+Files: S4 Application/unit module and existing search fixtures; S2 port/adapter. Dependencies: S1–S4, D2/D4/Q4/Q5. Add immutable exact Run links and failure/prune/close events; preserve descendants, reasons, input seals and scientific outcomes; no refund or scientific success (`C:64`, `C:99`).
 
 ```sh
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_experiment_search.py::test_run_links_preserve_status_seal_and_scientific_rows tests/unit/phase3/test_experiment_search.py::test_failure_without_run_and_prune_retain_descendants tests/unit/phase3/test_experiment_search.py::test_closure_blocks_mutations_and_allows_frozen_reconciliation tests/unit/phase3/test_experiment_search.py::test_duplicate_link_differs_from_original_receipt_replay tests/unit/phase3/test_experiment_search.py::test_uncertain_commit_recovers_original_ids tests/unit/phase3/test_experiment_search.py::test_three_transient_attempts_and_no_timeout_retry
+uv run pytest -o addopts='' -ra tests/unit/phase3/test_experiment_search.py::test_duplicate_id_and_link_constraints_enforced
 ```
 
 Gate: all approved transition/denial/reconciliation cases, any Run status, exact saved results after later links/events, lost-response recovery and unchanged scientific/accounting rows.
@@ -191,10 +211,11 @@ Gate: all approved transition/denial/reconciliation cases, any Run status, exact
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: new `DB/experiment_search_queries.py`, `U/test_experiment_search_queries.py`; update S4 Application, S3 read DTOs and S2 port/adapter. Dependencies: S1–S5, Q6. Use one entitled formal-read UoW for tree, paths, current Run/seal labels and existing safety projection (`P:382`; `C:119`, `C:261`).
+Files: new `DB/experiment_search_queries.py`, `U/test_experiment_search_queries.py`; update S4 Application, S3 read DTOs and S2 port/adapter. Dependencies: S1–S5, Q6. Use one entitled formal-read UoW for tree, paths, current Run/seal labels and existing safety projection (`C:119`, `C:261`).
 
 ```sh
 uv run pytest -o addopts='' -ra tests/unit/phase3/test_experiment_search_queries.py::test_tree_keeps_failed_pruned_negative_and_unexecuted_branches tests/unit/phase3/test_experiment_search_queries.py::test_root_to_node_path_and_exact_links tests/unit/phase3/test_experiment_search_queries.py::test_budget_projection_uses_same_uow tests/unit/phase3/test_experiment_search_queries.py::test_current_run_seal_labels_and_empty_tree tests/unit/phase3/test_experiment_search_queries.py::test_scope_hash_and_ordering_follow_frozen_read_contract
+# Existing regression nodes (not run for r2).
 uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_04_queries.py
 ```
 
@@ -204,11 +225,14 @@ Gate: complete retained lineage, frozen Q6 order/bounds, empty tree without succ
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: new `A/test_pr3_16_boundaries.py`; complete S2–S6 unit files/fixtures. Dependencies: S1–S6. Preserve earlier boundary tests and use a deliberate violation fixture to prove scanner detection (`P:412`; `C:297`).
+Files: new `A/test_pr3_16_boundaries.py`; complete S2–S6 unit files/fixtures. Dependencies: S1–S6. Preserve earlier boundary tests and use a deliberate violation fixture to prove scanner detection (`C:297`, `C:298`).
 
 ```sh
 uv run pytest -o addopts='' -ra tests/architecture/test_pr3_16_boundaries.py::test_human_and_agent_share_application_boundary tests/architecture/test_pr3_16_boundaries.py::test_domain_has_no_orm_transport_provider_dependencies tests/architecture/test_pr3_16_boundaries.py::test_no_execution_promotion_strategy_or_new_dependency tests/architecture/test_pr3_16_boundaries.py::test_boundary_scanner_detects_deliberate_violation
+uv run pytest -o addopts='' -ra tests/architecture/test_pr3_16_boundaries.py::test_no_api_or_cli_routes_added
+# Existing unit regression directory; r2 results are in §5.1; future search additions are NOT RUN.
 uv run pytest -o addopts='' -ra tests/unit/phase3
+# Existing regression nodes; r2 focused results are in §5.1; this future gate is NOT RUN.
 uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture
 ```
 
@@ -218,7 +242,7 @@ Gate: all six commands, three queries and frozen denial/replay/terminal predicat
 
 **Authorization:** not authorized until the owner approves this pack's freeze, gives separate implementation authorization (G0-X), and all G0 conditions are met.
 
-Files: complete S1 schema/migration/fixtures; new `I/test_pr3_16_guards.py`, `I/test_pr3_16_application.py`, `I/test_pr3_16_budget.py`, `I/test_pr3_16_concurrency.py`, `I/test_pr3_16_replay.py`, `I/test_pr3_16_queries.py`, `docs/phase3/PR3-16-evidence.md`. `I/conftest.py` only if frozen fixture registration requires it; README only if Q8 admits it. Dependencies: S1–S7 (`P:440`). Seed scientific rows through owning Application commands; raw SQL attacks use ordinary DML role.
+Files: complete S1 schema/migration/fixtures; new `I/test_pr3_16_guards.py`, `I/test_pr3_16_application.py`, `I/test_pr3_16_budget.py`, `I/test_pr3_16_concurrency.py`, `I/test_pr3_16_replay.py`, `I/test_pr3_16_queries.py`, `docs/phase3/PR3-16-evidence.md`. `I/conftest.py` only if frozen fixture registration requires it; README only if Q8 admits it. Dependencies: S1–S7 (`C:299`–`C:302`). Seed scientific rows through owning Application commands; raw SQL attacks use ordinary DML role.
 
 | Proposed node (prefix `tests/integration/phase3/`) | Observable evidence |
 | --- | --- |
@@ -226,6 +250,8 @@ Files: complete S1 schema/migration/fixtures; new `I/test_pr3_16_guards.py`, `I/
 | `test_pr3_16_guards.py::test_immutable_rows_and_receipt_effects_across_flushes` | Four-table no-op UPDATE/DELETE rejection; missing/extra effects and committed receipt reuse roll back; old guard cases/attachments survive. |
 | `test_pr3_16_application.py::test_all_commands_atomic_and_scientific_rows_unchanged` | Exact revision/receipt/task-event/cardinality; fault at every write; no Run/Measurement/Claim mutation. |
 | `test_pr3_16_application.py::test_failed_pruned_negative_and_unexecuted_lineage_retained` | Retained identities/reasons and D4 multiple/reused Run relations after pruning/closure/reconciliation. |
+| `test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database` | D2: a fresh append beneath a terminal ancestor is denied in real PG18 with zero new node/receipt/event/revision effects; existing descendants remain. Assertion definition MISSING / NOT RUN. |
+| `test_pr3_16_application.py::test_unfrozen_or_wrong_version_reference_denied` | D5: unfrozen or wrong exact scientific references are denied without effects. Assertion definition MISSING / NOT RUN; the separate hash-presence/admission/read checks in §1.4 are still MISSING. |
 | `test_pr3_16_budget.py::test_cross_session_caps_depth_gaps_and_terminal_no_refund` | D1/Q3 depth/evaluator/trust, stop/expiry/gates, charged gaps/UNKNOWN, no refund or invented Run accounting. |
 | `test_pr3_16_concurrency.py::test_observed_lock_order_and_competing_writers` | DB-observed waits; append versus append/stop/cancel/close/settle/revoke. |
 | `test_pr3_16_concurrency.py::test_each_wait_refreshes_entitlement_replay_and_expiry` | Every acquisition/DML/FK wait rechecks; saved replay precedes CAS; DB times prove cross-expiry denial. |
@@ -234,9 +260,12 @@ Files: complete S1 schema/migration/fixtures; new `I/test_pr3_16_guards.py`, `I/
 | `test_pr3_16_application.py::test_recheck_cadence_and_query_work_at_frozen_bounds` | Per-write cadence and query/guard counts at Q6-approved sizes; separately captured unprofiled timings. |
 
 ```sh
+uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database tests/integration/phase3/test_pr3_16_application.py::test_unfrozen_or_wrong_version_reference_denied
 uv run pytest -o addopts='' -ra --junitxml=tmp/pr3-16/schema.xml tests/integration/phase3/test_pr3_16_schema.py tests/integration/phase3/test_pr3_16_guards.py tests/integration/phase3/test_pr3_16_migration.py
 uv run pytest -o addopts='' -ra -s --durations=0 --junitxml=tmp/pr3-16/behavior.xml tests/integration/phase3/test_pr3_16_application.py tests/integration/phase3/test_pr3_16_budget.py tests/integration/phase3/test_pr3_16_concurrency.py tests/integration/phase3/test_pr3_16_replay.py tests/integration/phase3/test_pr3_16_queries.py
+# Existing regression nodes (not run for r2).
 uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_01_replay.py tests/integration/phase3/test_pr3_02_s1_schema.py tests/integration/phase3/test_pr3_04_accounting.py tests/integration/phase3/test_pr3_04_concurrency.py tests/integration/phase3/test_pr3_04_queries.py
+# Existing regression nodes (not run for r2).
 uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_migration.py tests/integration/phase3/test_pr3_03_replay.py tests/integration/phase3/test_pr3_03_input_versions.py
 ```
 
@@ -244,7 +273,7 @@ Gate: actual focused counts, manifests/hash parity, normal-role effects, wait/ba
 
 ## 4. Exact order and progression gates
 
-**G0 → S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8 → external full-suite check + independent review → STOP at PR3-16.** Each predecessor's stated gate plus C/E must pass before its successor. Freeze approval does not substitute for implementation authorization. Open P0/P1 or missing required evidence blocks acceptance (`P:500`; `AGENTS.md:147`).
+**G0 → S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8 → external full-suite check + independent review → STOP at PR3-16.** Each predecessor's stated gate plus C/E must pass before its successor. Freeze approval does not substitute for implementation authorization. Open P0/P1 or missing required evidence blocks acceptance (`C:315`; `AGENTS.md:147`).
 
 ### 4.1 Risks and mitigations
 
@@ -255,11 +284,11 @@ Gate: actual focused counts, manifests/hash parity, normal-role effects, wait/ba
 | Reconciliation becomes new execution or budget bypass | Q4 must define already-existing-work proof; reconcile only exact Run links with current authority, never spend/start/cancel/refund/reopen. Preserve stopped-task denial and charged gaps; shared task accounting spans sessions (`C:67`, `C:184`). |
 | 60-second admission deadline and repeated validation cost | PR3-03's instrumented attempt failed after the 60-second reservation deadline (`docs/phase3/PR3-03-evidence.md:7035`); acceptance preserves quadratic per-row rechecks (`:7345`). Measure SQL work per pass and total passes at Q6-approved bounds; batch exact reads within one pass only. Keep fresh checks, error order and deadlines; separate instrumented counts from unprofiled timings. This is a gateway lesson, not an invented PR3-16 deadline/SLO. |
 | CI runner timing differs from local samples | CI deadline margin was not measured (`docs/phase3/PR3-03-evidence.md:7346`). Capture runner/PG settings and setup/call/teardown times, bounded waiter diagnostics and full-UUID consistent principals. CI is six Ubuntu shards, PG18, 120-minute jobs; JIT attribution remains unverified (`.github/workflows/ci.yml:9`, `:23`, `:70`). Diagnose 57014/timeouts without automatic retry or deadline widening; only 40001/40P01 allow three total fresh attempts (`C:255`). |
-| Head/catalog drift weakens accepted tests | Appendix H changes only current expectations and exact reviewed catalog deltas; historical fixture revisions, definitions and hash manifests stay pinned. Reinspect actual integration head before assignment. Retain both prior command guards and no-op immutability rejection (`C:169`, `C:174`; `P:498`). |
+| Head/catalog drift weakens accepted tests | Appendix H changes only current expectations and exact reviewed catalog deltas; historical fixture revisions, definitions and hash manifests stay pinned. Reinspect actual integration head before assignment. Retain both prior command guards and no-op immutability rejection (`C:169`, `C:174`). |
 
 ## Appendix H — Mechanical head maintenance owned by S1
 
-Measured source head is `0080_capability_gateway` (parent `0079_agent_identity_versions`, `migrations/versions/0080_capability_gateway.py:5`). Conditional next head: **`0081_experiment_search_core`**, `down_revision = "0080_capability_gateway"`, only if 0080 is still sole integration head. No revision is reserved; a prior S2/other migration requires re-parenting and updated inventory. The draft's 0079/“0080+” baseline is historical (`C:34`).
+Measured source head is `0080_capability_gateway` (`migrations/versions/0080_capability_gateway.py:5`); parent `0079_agent_identity_versions` is declared at `migrations/versions/0080_capability_gateway.py:6`. Conditional next head: **`0081_experiment_search_core`**, `down_revision = "0080_capability_gateway"`, only if 0080 is still sole integration head. No revision is reserved; a prior S2/other migration requires re-parenting and updated inventory. The draft's 0079/“0080+” baseline is historical (`C:34`).
 
 Observed references below would change after Q8 freezes the new head. These are exact locations, not permission for global replacement. Q1 must still supply exact schema/support-key/helper/trigger deltas before the inventory can be complete.
 
@@ -281,17 +310,21 @@ Keep pinned: `tests/integration/phase3/gateway_fixtures.py:48` at 0080; `tests/i
 Future H verification after S1's compile gate (plus S1/S7/S8 selections):
 
 ```sh
+# Existing regression nodes; r2 focused results are in §5.1; this future gate is NOT RUN.
 uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture
+# Existing regression nodes (not run for r2 except the CI-head node covered in §5.1).
 uv run pytest -o addopts='' -ra tests/unit/test_ci_migration_head.py tests/unit/test_batch_c_migration_history.py tests/unit/test_task12_migration_history.py tests/unit/phase2/test_pr2_04_r8a_host_topology.py tests/unit/phase2/test_pr2_20_inventory.py tests/unit/phase2/test_pr2_04_static_acceptance.py
+# Existing regression nodes (not run for r2).
 uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_00_bootstrap.py tests/integration/phase3/test_pr3_01_migration.py tests/integration/phase3/test_pr3_04_migration.py tests/integration/phase3/test_pr3_02_s1_migration.py tests/integration/phase3/test_pr3_03_migration.py
+# Existing regression nodes (not run for r2).
 uv run pytest -o addopts='' -ra tests/integration/phase2/test_pr2_03_review_guards.py tests/integration/phase2/test_pr2_04_execution_migration.py tests/integration/phase2/test_pr2_04_migration_coverage.py tests/integration/phase2/test_pr2_15_decision_schema.py tests/integration/phase2/test_revision_action.py tests/integration/phase2/test_pr2_17_authorship_schema.py tests/integration/phase2/test_pr2_20_migrations.py
 ```
 
 ## 5. Verification of this documentation-only task
 
-**Scope (r2):** the table below is the r1 baseline. It was measured on 2026-10-25 against the r1 file `PR3-16-execution-pack.md`, and it has NOT been re-run for r2. The r2 document checks are in §5.1.
+**Scope (r2):** only `docs/phase3/PR3-16-execution-pack-r2.md` and `docs/phase3/PR3-16-owner-answers-record.md` are revised. The table below preserves the r1 baseline measured on 2026-10-25 against `PR3-16-execution-pack.md`; those historical counts are not r2 evidence. Independent r2 checks of both current files and the focused existing tests are recorded in §5.1.
 
-Environment: `export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`. Only this Markdown file is authored; no code, migration, test, contract, ADR or Harness edit. `uv sync --locked --group dev` exited 0 (38 packages resolved, 34 installed into the local environment); dependency definitions stayed unchanged. The following are measured baseline/documentation checks on 2026-10-25, not PR3-16 implementation acceptance. Future S1–S8/H selections above remain NOT RUN.
+**r1-only environment and scope:** `export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`. Only the r1 Markdown pack was authored; no code, migration, test, contract, ADR or Harness edit. r1 recorded `uv sync --locked --group dev` exiting 0 (38 packages resolved, 34 installed into the local environment); dependency definitions stayed unchanged. The following are historical baseline/documentation checks on 2026-10-25, not PR3-16 implementation acceptance. Future S1–S8/H gates remain NOT RUN.
 
 | Exact command | Observed output / result | Exit |
 | --- | --- | --- |
@@ -304,25 +337,37 @@ Environment: `export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`. Only this Markdow
 | `test -s docs/phase3/PR3-16-execution-pack.md && echo pack-present` | `pack-present` | 0 |
 | `git diff --no-index --check /dev/null docs/phase3/PR3-16-execution-pack.md` | Empty stdout/stderr; no whitespace diagnostics. Exit 1 denotes the new-file difference, not an exit-0 test. | 1 |
 
-The extra no-index inspection covers this untracked file, which `git diff --check HEAD` alone omits. No staging was performed. Final handoff repeats the required checks with raw output/exit codes; scope inspection must show only this new Markdown file.
+**r1-only handoff note (historical):** the extra no-index inspection covered the then-untracked r1 pack, which `git diff --check HEAD` alone omitted. No staging was performed. The instruction that the final handoff repeat required checks and show only that new Markdown file belonged to r1. r2 covers both tracked files named above and reports its own results in §5.1.
 
 PostgreSQL/migration behavior suites are NOT RUN: this documentation change touches no executable/database suite. No PR3-16 implementation test can be run before it exists. The whole suite belongs to the external check loop; its output is not available in this authoring task and no result is assumed.
 
-### 5.1 r2 document checks (run 2026-10-26)
+### 5.1 r2 review B round 7 checks (t322, 2026-10-26)
 
-Run against `docs/phase3/PR3-16-execution-pack-r2.md` (untracked; no staging). Raw results:
+Run against both tracked files, with no staging, commit, push or branch creation. The task started from clean HEAD `ba03f96cce6129932a184566acf170147b3cea3d` on `fix-pr316-r2`. The commands below are current r2 evidence only; they do not execute the proposed search nodes or authorize any future gate.
+
+Every `uv` command in this table was invoked with the exact prefix `UV_CACHE_DIR="$PWD/tmp/t322-uv-cache"`. The first invocation created the ignored `.venv` with CPython 3.12.15 and installed 34 locked packages; dependency definitions were unchanged.
 
 | Exact command | Observed output / result | Exit |
 | --- | --- | --- |
-| `test -s docs/phase3/PR3-16-execution-pack-r2.md && echo pack-present` | `pack-present` | 0 |
-| `git diff --no-index --check /dev/null docs/phase3/PR3-16-execution-pack-r2.md` | Empty stdout/stderr; no whitespace diagnostics. Exit 1 is the new-file difference, not a failure. | 1 |
-| `git diff --check` (tracked files only) | Empty; the r2 file is untracked and is not covered by this command | 0 |
+| `uv run --locked ruff check .` | `All checks passed!` | 0 |
+| `uv run --locked ruff format --check .` | `931 files already formatted` | 0 |
+| `uv run --locked pyright` | `0 errors, 0 warnings, 0 informations`; available-version notice v1.1.411 → v1.1.414; no upgrade performed | 0 |
+| `uv run --locked alembic heads` | `0080_capability_gateway (head)` | 0 |
+| `uv run --locked pytest -o addopts='' -q tests/unit/phase3 tests/architecture tests/unit/architecture tests/unit/test_ci_migration_head.py` | `1399 passed, 51 warnings in 31.29s`; all 51 warnings are Alembic `path_separator` deprecations; no failures or skips reported | 0 |
+| `test -s docs/phase3/PR3-16-execution-pack-r2.md` | Empty stdout/stderr | 0 |
+| `test -s docs/phase3/PR3-16-owner-answers-record.md` | Empty stdout/stderr | 0 |
+| `git diff --no-index --check /dev/null docs/phase3/PR3-16-execution-pack-r2.md` | Empty stdout/stderr; no whitespace diagnostics. Exit 1 records the file difference against `/dev/null`, not an exit-0 check. | 1 |
+| `git diff --no-index --check /dev/null docs/phase3/PR3-16-owner-answers-record.md` | Empty stdout/stderr; no whitespace diagnostics. Exit 1 records the file difference against `/dev/null`, not an exit-0 check. | 1 |
+| `git diff --check HEAD` | Empty stdout/stderr | 0 |
 
-Not run for r2: ruff, pyright, alembic heads and pytest. The document change touches no executable, and the r1 results in §5 are not evidence for r2.
+The read-only content comparison against `git show HEAD:docs/phase3/PR3-16-owner-answers-record.md` confirmed all 13 accepted table rows and all 13 recommendation paragraphs unchanged. A document audit found all five previously omitted nodes in their owning-step shell blocks and matched all three Appendix S excerpts exactly to the cited local lines. These are document checks only; the proposed nodes remain NOT RUN. Only the two authorized Markdown paths appear in the tracked diff.
+
+PostgreSQL/integration/migration behavior suites: **NOT RUN**, zero suites invoked; neither Markdown change touches database behavior. `alembic heads` inspects the source revision graph only. New search nodes: **NOT RUN**, not implemented. Whole-suite run: **NOT RUN** by this author; the external loop's output remains **UNVERIFIED / not yet supplied**. No CI result, freeze, schema admission or implementation authorization is claimed.
 
 ## 6. Owner answers recorded and remaining steps
 
 **Owner answers (2026-10-26), in the accepted draft wording (record file).** These are answers, not open choices. Only the items marked OPEN below are still open.
+
 - D1/Q3: conservative committed-reservation proof or deny for this storage slice. Draft line 44: "Make atomic admission a separately reviewed amendment before activation." Draft line 142: require the separately reviewed atomic amendment when no trusted producer can satisfy the proof. Whether the amendment is unconditional or conditional is for owner confirmation at freeze. Trusted producer identity is OPEN.
 - D2: limited append-only lifecycle.
 - D3: actor-attributed planning with execution disabled; no AgentVersion/availability prerequisite for this planning-only slice.
@@ -338,13 +383,61 @@ Not run for r2: ruff, pyright, alembic heads and pytest. The document change tou
 - Q8: Application-only scope, conditional `0081_experiment_search_core`. The integration head and file list are OPEN.
 
 **Still required before any implementation can be authorized, in this order:**
+
 1. Freeze inventory (Q1, Q2, Q6, Q8): exact names, types, bodies, vectors, bounds and the live integration head, generated from the live repository. Admission depends on this.
 2. Trusted producer/evaluator identity (Q3) and the durable already-existing-work proof (Q4), defined and reviewed before freeze.
 3. Explicit owner staging approval for omitting strategy material (Q2, draft line 128).
 4. Owner confirmation whether the atomic amendment is unconditional or conditional (D1, draft lines 44 and 142).
 5. ADR draft (may start earlier) and admission of the four tables (G0-A), after item 1.
-6. Before freeze: disposition both earlier independent reviews (RA, RB) and rewrite the answer-dependent tests and authorization wording.
+6. Before freeze: disposition both earlier independent reviews (RA, RB), define every MISSING assertion in §1.4 and add its exact node to its owning step's command block. The five previously named missing nodes are now selected in S1/S5/S7/S8, but their assertion definitions and execution remain MISSING / NOT RUN. Rewrite answer-dependent tests and authorization wording without changing accepted answers.
 7. Independent review of r2, which is in progress.
 8. Explicit owner approval of the freeze. Implementation then needs a separate authorization (G0-X).
 
 Status: REVISION r2. Owner answers recorded in §1.2 and §6. Awaiting the items above. No implementation authorized.
+
+## Appendix S — Repository source excerpts and provenance limits
+
+The external P/R filesystem dependencies have been removed. R now names the tracked local review. P is unavailable in this repository; its original lines remain **UNVERIFIED** and are not represented as verbatim quotations. The following are exact excerpts from accessible repository sources, with original line numbers. The review's account of P is secondary evidence only. This pack's current G0 requirements are stated explicitly in §1.1; owner answers are preserved in the companion record, not inferred from a plan or review.
+
+`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:12–14`:
+
+```text
+Read §§3–5 for the proposed interface, tables and transaction recipe. Owner
+choices in §8 must be resolved in an ADR and a reviewed execution pack before
+implementation. Approval of this draft alone does not enable execution.
+```
+
+`docs/phase3/PR3-16-plan-review.md:93–104`:
+
+```text
+Open questions are clearly separated from requirements: plan lines 71–95 label
+all D1–D5 and Q1–Q8 **OPEN**, identify inferred questions, and forbid filling gaps
+from the plan. G0 at line 509 requires their resolution, ADR/schema admission, a
+reviewed execution pack and separate implementation authorization. This follows
+`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:12` and its decision table
+at line 317. No owner decision was resolved by this review.
+
+The plan **only plans implementation**. Lines 35–38, 158–164, 208–211 and
+502–505 explicitly withhold implementation authority. Future command listings
+and proposed gates are not executed evidence. PASS here means no P0/P1 in this
+documentation review, not contract approval, PR acceptance or permission to
+implement PR3-16/17.
+```
+
+`docs/phase3/PR3-16-plan-review.md:63–73`:
+
+```text
+Details added by the plan, rather than frozen by the draft, are explicitly
+identified and remain proposals or owner questions:
+
+- Module/fixture/test filenames and node IDs, S1–S8 sequencing, two-round
+  estimates, common gates and evidence organization (plan 24–29, 174–211).
+- Full constraint/helper/index inventory, exact DTO/vector/error precedence,
+  strategy pinning, and any atomic accounting amendment (plan 84–86).
+- Historical reconciliation cutoff proof, duplicate-branch semantics and
+  consistency between optional version references (plan 87–88).
+- Pagination/size bounds, corrupt-ancestry handling, AgentVersion lock/proof
+  composition, revision assignment and transport/release inventory (plan 89–91).
+```
+
+These quotations preserve the historical review's wording, including its historical OPEN/PASS statements. They do not override the later accepted owner answers or assert a current review PASS. Original draft-to-answer quotation fidelity is UNVERIFIED in t322 because the external answers draft was not accessed; preservation of the existing record is checked against this task's Git baseline in §5.1.

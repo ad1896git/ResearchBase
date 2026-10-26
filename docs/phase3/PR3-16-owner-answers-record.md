@@ -6,6 +6,8 @@
 
 **Scope.** This record accepts answers only. It does not freeze the pack, admit the schema, or authorize implementation.
 
+**t322 source-verification limit.** Work is confined to this repository. The external answers draft has not been accessed in this correction, so original draft-to-record quotation fidelity is **UNVERIFIED** here. The accepted table and all thirteen recommendation paragraphs below are preserved from the task's Git baseline; no answer is reinterpreted. Current checks for both this record and the pack are recorded in [execution pack §5.1](PR3-16-execution-pack-r2.md#51-r2-review-b-round-7-checks-t322-2026-10-26).
+
 | Item | Draft location | Accepted in one line | Note |
 | --- | --- | --- | --- |
 | D1 | draft line 44 | Admit the four tables; conservative proof or deny; atomic amendment as a separately reviewed amendment before activation (draft line 44) | Draft line 44 (unconditional): make atomic admission a separately reviewed amendment before activation. Draft line 142 (Q3) adds: require it when no trusted producer can satisfy the proof. Whether the two combine into one rule is for owner confirmation at freeze. |
@@ -75,3 +77,9 @@
 ### Q8
 
 **Proposed answer — INFERRED:** Recommend Application-only scope and the conditional revision, never reservation of 0081. Recheck integration head/ref and freeze exact paths/tests/catalog deltas after all answers. Preserve historical fixture pins, including review B's omitted locations; disposition both reviews and rewrite answer-dependent tests/authorization wording before pack freeze (`RB:50–57`; `RA:21–46`).
+
+## r2 review B round 7 coverage status (t322)
+
+The accepted answers above are unchanged. [Execution pack §1.4](PR3-16-execution-pack-r2.md#14-owner-answers-mapped-to-observable-checks) now separates proposed assertions from **MISSING / NOT RUN** coverage. In particular, verified identity and actor-only planning need behavioral checks; an architecture scan or expiry refresh does not prove either. Same-project/ExperimentSpec Run links, saved-hash presence and admission/read validation, fresh repeated/conflicting terminal-command denial, and the three Q6 read-error classes are explicitly MISSING. Q6 event-sequence/Run-link ordering is mapped to the proposed S6 read-contract node.
+
+The five previously named missing nodes now have owners and explicit future command selections: no strategy column (S1), duplicate IDs/links (S5), no API/CLI routes (S7), terminal-ancestor denial and unfrozen/wrong-version rejection (S8). Their assertion definitions remain MISSING and their execution is NOT RUN. Future freeze preparation must name and schedule every other missing check before freeze review; no freeze or implementation is authorized by this record.
