@@ -37,7 +37,7 @@ def outcome(env, command):
         return exc.code
 
 
-@pytest.mark.parametrize("wait", ["first_share", "second_key", "task_row", "version_row"])
+@pytest.mark.parametrize("wait", ["first_share", "second_key", "task_row", "availability_row"])
 def test_observed_wait_rechecks_intent_authority(intent_env, monkeypatch, wait):
     env = intent_env
     import threading
