@@ -49,14 +49,23 @@ class AgentExecutionService:
         if not repo.live_agent(version["actor_id"], command.project_id):
             fail(ErrorCode.FORBIDDEN, "live intended Agent required")
 
-    def _binding(self, repo, command):
-        args = command.arguments
-        version = repo.version(args.agent_version_id)
-        task = repo.task(args.research_task_id)
-        for row in (version, task):
-            if row is not None and row["project_id"] != command.project_id:
+    def _version(self, repo, command):
+        version = repo.version(command.arguments.agent_version_id)
+        if version is not None and version["project_id"] != command.project_id:
+            fail(ErrorCode.FORBIDDEN, "intent project mismatch")
+        if version is None:
+            task = repo.task(command.arguments.research_task_id)
+            if task is not None and task["project_id"] != command.project_id:
                 fail(ErrorCode.FORBIDDEN, "intent project mismatch")
-        if version is None or task is None:
+            fail(ErrorCode.NOT_FOUND, "intent parent absent")
+        return version
+
+    def _binding(self, repo, command, version):
+        args = command.arguments
+        task = repo.task(args.research_task_id)
+        if task is not None and task["project_id"] != command.project_id:
+            fail(ErrorCode.FORBIDDEN, "intent project mismatch")
+        if task is None:
             fail(ErrorCode.NOT_FOUND, "intent parent absent")
         if args.research_task_step_id is not None:
             step = next(
@@ -77,7 +86,7 @@ class AgentExecutionService:
             )
         if task["row_version"] != args.expected_task_revision:
             fail(ErrorCode.CONCURRENT_MODIFICATION, "task revision changed")
-        return version, task
+        return task
 
     def _frozen(self, repo, identity, project):
         row = repo.configuration(identity)
@@ -98,8 +107,9 @@ class AgentExecutionService:
             saved = repo.receipt(command)
             if saved:
                 return None
-            version, task = self._binding(repo, command)
+            version = self._version(repo, command)
             self._write(repo, command, version)
+            task = self._binding(repo, command, version)
             harness = self._frozen(
                 repo, command.arguments.harness_artifact_version_id, command.project_id
             )
@@ -217,10 +227,11 @@ class AgentExecutionService:
             saved = self._saved(repo, command)
             if saved is not None:
                 return saved
+            version = self._version(repo, command)
+            self._write(repo, command, version)
             if preflight_error is not None:
                 raise preflight_error
-            version, task = self._binding(repo, command)
-            self._write(repo, command, version)
+            task = self._binding(repo, command, version)
             if preflight is None:
                 fail(ErrorCode.FROZEN_REFERENCE_REQUIRED, "intent preflight unavailable")
             harness_hash, configuration_hash, inputs = preflight

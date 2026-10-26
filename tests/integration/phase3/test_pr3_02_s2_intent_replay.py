@@ -95,6 +95,49 @@ def test_saved_intent_after_loss_and_uncertain_commit(intent_env, monkeypatch):
     assert env.intents.replay(env.intent) == result
 
 
+def test_saved_intent_replays_after_caller_loses_write_authority(intent_env):
+    from researchbase.application.phase2_identity import AssignProjectRole, CloseProjectRole
+
+    env = intent_env
+    principal = human_researcher(env)
+    command = replace(env.intent, caller=principal)
+    result = env.intents.execute(command)
+    with env.owning_engine.connect() as conn:
+        role_id = conn.execute(
+            text(
+                "SELECT id FROM project_role_assignments "
+                "WHERE actor_id=:actor AND project_id=:project AND role='RESEARCHER'"
+            ),
+            {"actor": principal.actor_id, "project": env.project},
+        ).scalar_one()
+    env.identity.assign_project_role(
+        AssignProjectRole(
+            env.owner, env.project, principal.actor_id, "VIEWER", "read only", new_uuid7()
+        )
+    )
+    env.identity.close_project_role(
+        CloseProjectRole(env.owner, env.project, role_id, "lost write authority", new_uuid7())
+    )
+    env.planning.service.execute(
+        env.owner,
+        env.planning.command(
+            "cancel_research_task", command.arguments.research_task_id, 3, {"reason": "done"}
+        ),
+    )
+    before = effect_counts(env)
+    assert env.intents.execute(command) == replace(result, replayed=True)
+    assert env.intents.replay(command) == replace(result, replayed=True)
+    new_command = replace(
+        command,
+        command_id=new_uuid7(),
+        arguments=replace(command.arguments, execution_id=new_uuid7()),
+    )
+    with pytest.raises(ResearchBaseError) as exc:
+        env.intents.execute(new_command)
+    assert exc.value.code == ErrorCode.FORBIDDEN
+    assert effect_counts(env) == before
+
+
 @pytest.mark.parametrize(
     "material_field",
     [

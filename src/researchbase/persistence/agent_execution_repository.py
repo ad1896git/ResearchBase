@@ -54,8 +54,6 @@ class SqlAlchemyExecutionRepository(SqlAlchemyAgentRepository):
         for step in sorted(self.steps(args.research_task_id), key=lambda s: str(s["id"])):
             self.many("SELECT id FROM research_task_steps WHERE id=:id FOR UPDATE", id=step["id"])
             after_wait()
-        self.many("SELECT id FROM agent_versions WHERE id=:id FOR UPDATE", id=args.agent_version_id)
-        after_wait()
         self.many(
             "SELECT agent_version_id FROM agent_availability WHERE agent_version_id=:id FOR UPDATE",
             id=args.agent_version_id,

@@ -4736,3 +4736,312 @@ for name in selected:
 ## Completion boundary
 
 Current-source commands have the raw exit codes shown above; deliberately removed guards are expected failures, never normal-suite PASS. Unrun historical H-U/PG-R/PG-N/audit commands receive no current credit. Full suite: **NOT RUN by this agent**; the external loop owns that evidence. No external-loop result, independent B4 re-review, owner acceptance or gate success is asserted. No commit, push, branch creation, protected-file edit or runtime implementation is performed.
+
+## t320 — owner-authorized S2 intent-stability correction (2026-10-26)
+
+Historical first-handoff evidence, before the reviewer follow-up. The earlier task ended with the verbatim instruction: "Work only inside this repository. Do not commit, push, or create branches." That instruction governed the first handoff. The reviewer follow-up now expressly authorizes the corrective branch and local commit with the required trailer; no push or PR is authorized. Current verification and Git attribution are recorded separately below. Historical evidence preceding t320 remains unchanged.
+
+Prerequisites checked before editing, all satisfied:
+- PR #16 state MERGED, mergedAt 2026-10-26T11:29:51Z, final PR head 196d24d5ed7d3100fc1a18931efef8891a84a3e6.
+- `RB_PR=16; RB_BASE=$(gh pr view "$RB_PR" --repo ad1896git/ResearchBase --json mergeCommit --jq .mergeCommit.oid)` exited 0 and returned f0fd6a36346c9f75fd178d1154475348485d8942.
+- `gh pr checks "$RB_PR" --repo ad1896git/ResearchBase` exited 0. Both reported runs had all six checks (0)..(5) pass: 40305351678 and 40305357108; none pending, skipped or failed.
+- Initial `git status --porcelain` exited 0 with empty output; `git rev-parse HEAD` exited 0 with f0fd6a36346c9f75fd178d1154475348485d8942, equal to RB_BASE. Both findings were confirmed in that tree before edits: agent_versions FOR UPDATE plus after_wait, and _binding before _write in both admission paths.
+- `psql --version` exited 0: psql (PostgreSQL) 18.6 (Homebrew). The explicitly selected localhost:5432 postgres admin database returned PostgreSQL 18.6 (Homebrew) on aarch64-apple-darwin27.0.0; current_user=researchbase; current_database=postgres; rolcreatedb=t; rolsuper=t. Fixtures create/drop random disposable databases, never the owner's research database.
+- No new P0/P1 was discovered within the correction scope. Independent review remains pending.
+
+Changes: remove only the extra immutable-version row lock and its callback; retain the version advisory key and availability FOR UPDATE with fresh checks. Split immutable version lookup from task/step/CAS checks and admit the caller first in both preflight and the write transaction. Saved receipt replay still precedes new-write admission. Fresh write authority also precedes propagation of a deferred preflight error. Existing error codes/messages remain literal unchanged values.
+
+Affected regressions: L1/L2 lock ordering and every remaining wait; VIEWER with stale task, cancelled task or cancelled step in preflight and isolated transaction admission, including write-authority loss after a failed preflight; real PostgreSQL VIEWER/non-bound Agent stale/cancelled denials with zero effects; identical receipt replay after Human RESEARCHER becomes VIEWER and task cancellation; existing Human/exact-Agent atomic creation and rollback tests. R1's historical parameter name `version_row` is retained, but its holder, observed query and acquisition callback now all target `agent_availability.agent_version_id FOR UPDATE`.
+
+The frozen-ID-to-actual-node mapping at the earlier "Frozen-ID to actual-node mapping" section remains the approved naming disposition; frozen contracts are unchanged. L1/L2 map to the existing repository unit file, E1/E2/E3 to test_pr3_02_s2_intent_execution.py, R1/R2 to test_pr3_02_s2_intent_concurrency.py, and R3/R4/R5 to test_pr3_02_s2_intent_replay.py. The newly added lost-write-authority replay node is test_saved_intent_replays_after_caller_loses_write_authority. No aliases or duplicate tests were added.
+
+Tested revision: HEAD/RB_BASE f0fd6a36346c9f75fd178d1154475348485d8942 plus the six uncommitted source/test changes. Final-source SHA-256 manifest digest excluding this evidence file: `919dd321ac44578f2d9ec06290085ee2b123e261ad71da68822c88b057df08f6`. Manifest algorithm: sorted tracked path bytes, then NUL, then SHA-256 hex of file bytes, then newline, concatenated and SHA-256 hashed. This pins the actual tested worktree without creating a commit or index tree. The same digest is checked after verification. No code changes occur during the final-source runs below.
+
+Every command below inherits:
+```sh
+export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_s2corr
+export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
+export PGOPTIONS="-c jit=off"
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+```
+Cwd: /Users/fengwang/ResearchBase-runtime/.pipeline/work/s2-correction.
+Counts from overlapping runs are not summed. Preliminary runs before the final deferred-preflight ordering change are not final-source evidence: repository tests 16 passed, Phase 3 unit 1056 passed, architecture 373 passed/50 warnings, intent PostgreSQL 102 passed/173 warnings, and passing static checks. The final repository probe passed 19 tests. A read-only manifest probe attempted unavailable bare `python` and exited 127; it was corrected to `uv run python`. The earlier intent run's tool output was truncated by transport; the original full capture was recorded directly without transport truncation. At reviewer request, the retained results below omit repeated fixture migration/command logs and pytest progress; exact commands, exits, counts, warnings and the four wait observations are preserved. No preliminary result is substituted for a required final-source run.
+
+### t320 first-handoff command results (historical tested source)
+
+Command: `git diff --exit-code f0fd6a36346c9f75fd178d1154475348485d8942 -- migrations pyproject.toml uv.lock docs/phase3/PR3-02-S2-contract-freeze.md`
+
+```text
+
+EXIT_CODE=0
+```
+
+Command: `uv sync --locked --group dev`
+
+```text
+Resolved 38 packages in 3ms
+Checked 34 packages in 0.86ms
+
+EXIT_CODE=0
+```
+
+Command: `git diff --check f0fd6a36346c9f75fd178d1154475348485d8942`
+
+```text
+
+EXIT_CODE=0
+```
+
+Command: `uv run ruff format --check .`
+
+```text
+948 files already formatted
+
+EXIT_CODE=0
+```
+
+Command: `uv run ruff check .`
+
+```text
+All checks passed!
+
+EXIT_CODE=0
+```
+
+Command: `uv run alembic heads`
+
+```text
+0081_agent_execution_intents (head)
+
+EXIT_CODE=0
+```
+
+Command: `uv run pyright`
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+
+EXIT_CODE=0
+```
+
+Command: `uv run pytest -o addopts='' -ra tests/unit/phase3`
+
+```text
+collected 1059 items
+============================= 1059 passed in 9.52s =============================
+
+EXIT_CODE=0
+```
+
+Command: `uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_05_promotion_validation.py`
+
+```text
+collected 2 items
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_05_promotion_validation.py::test_candidate_basis_revision_gates_and_missing_s2[RESEARCH_QUESTION_VERSION]
+tests/integration/phase3/test_pr3_05_promotion_validation.py::test_candidate_basis_revision_gates_and_missing_s2[RESEARCH_QUESTION_VERSION]
+  /Users/fengwang/ResearchBase-runtime/.pipeline/work/s2-correction/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 2 passed, 2 warnings in 1.28s =========================
+
+EXIT_CODE=0
+```
+
+Command: `uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture`
+
+```text
+collected 373 items
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/ResearchBase-runtime/.pipeline/work/s2-correction/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 373 passed, 50 warnings in 21.86s =======================
+
+EXIT_CODE=0
+```
+
+Command: `uv run pytest -o addopts='' -ra -s tests/integration/phase3/test_pr3_02_s2_intent_*.py`
+
+```text
+INTENT_PG_IDENTITY 18.6 (Homebrew) researchbase researchbase_pr212_test_2ef491686f874e96b055d01c7baaca61
+collected 102 items
+wait evidence first_share {'xact_start': datetime.datetime(2026, 10, 26, 7, 36, 59, 377247, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query_start': datetime.datetime(2026, 10, 26, 7, 36, 59, 377296, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'observed_at': datetime.datetime(2026, 10, 26, 7, 36, 59, 384912, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query': 'LOCK TABLE actor_subject_bindings, actors, artifact_versions, artifacts, claim_versions, claims, hypothesis_versions, hypotheses, literature_source_project_links, literature_sources, manuscript_versions, project_membership_events, project_memberships, project_role_assignments, projects, publications, research_question_versions, research_questions, source_versions, strategy_candidate_captures, strategy_candidate_sources, strategy_hypothesis_admissions, strategy_question_admissions IN SHARE MODE', 'expiry_at': datetime.datetime(2026, 10, 26, 7, 37, 0, 65691, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_wait_started_at': datetime.datetime(2026, 10, 26, 7, 36, 59, 384912, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_acquired_at': datetime.datetime(2026, 10, 26, 7, 37, 0, 68584, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'authorization_checked_at': datetime.datetime(2026, 10, 26, 11, 37, 0, 70347, tzinfo=datetime.timezone.utc)} effects {'agent_execution_instances': 0, 'agent_execution_events': 0, 'agent_command_receipts': 2, 'research_tasks': 1, 'research_task_steps': 2, 'research_task_events': 3, 'research_task_command_receipts': 3, 'budget_reservations': 0, 'budget_usage_records': 0, 'capability_invocations': 0, 'strategy_candidate_captures': 0, 'artifacts': 2, 'artifact_versions': 2}
+wait evidence second_key {'xact_start': datetime.datetime(2026, 10, 26, 7, 37, 0, 985141, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query_start': datetime.datetime(2026, 10, 26, 7, 37, 0, 990500, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'observed_at': datetime.datetime(2026, 10, 26, 7, 37, 0, 992181, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query': 'SELECT pg_advisory_xact_lock(hashtextextended($1,0))', 'expiry_at': datetime.datetime(2026, 10, 26, 7, 37, 1, 674909, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_wait_started_at': datetime.datetime(2026, 10, 26, 7, 37, 0, 992181, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_acquired_at': datetime.datetime(2026, 10, 26, 7, 37, 1, 682368, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'authorization_checked_at': datetime.datetime(2026, 10, 26, 11, 37, 1, 683795, tzinfo=datetime.timezone.utc)} effects {'agent_execution_instances': 0, 'agent_execution_events': 0, 'agent_command_receipts': 2, 'research_tasks': 1, 'research_task_steps': 2, 'research_task_events': 3, 'research_task_command_receipts': 3, 'budget_reservations': 0, 'budget_usage_records': 0, 'capability_invocations': 0, 'strategy_candidate_captures': 0, 'artifacts': 2, 'artifact_versions': 2}
+wait evidence task_row {'xact_start': datetime.datetime(2026, 10, 26, 7, 37, 2, 736081, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query_start': datetime.datetime(2026, 10, 26, 7, 37, 2, 743552, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'observed_at': datetime.datetime(2026, 10, 26, 7, 37, 2, 745624, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query': 'SELECT id FROM research_tasks WHERE id=$1 FOR UPDATE', 'expiry_at': datetime.datetime(2026, 10, 26, 7, 37, 3, 425881, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_wait_started_at': datetime.datetime(2026, 10, 26, 7, 37, 2, 745624, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_acquired_at': datetime.datetime(2026, 10, 26, 7, 37, 3, 429505, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'authorization_checked_at': datetime.datetime(2026, 10, 26, 11, 37, 3, 431233, tzinfo=datetime.timezone.utc)} effects {'agent_execution_instances': 0, 'agent_execution_events': 0, 'agent_command_receipts': 2, 'research_tasks': 1, 'research_task_steps': 2, 'research_task_events': 3, 'research_task_command_receipts': 3, 'budget_reservations': 0, 'budget_usage_records': 0, 'capability_invocations': 0, 'strategy_candidate_captures': 0, 'artifacts': 2, 'artifact_versions': 2}
+wait evidence version_row {'xact_start': datetime.datetime(2026, 10, 26, 7, 37, 4, 353438, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query_start': datetime.datetime(2026, 10, 26, 7, 37, 4, 360493, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'observed_at': datetime.datetime(2026, 10, 26, 7, 37, 4, 362923, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'query': 'SELECT agent_version_id FROM agent_availability WHERE agent_version_id=$1 FOR UPDATE', 'expiry_at': datetime.datetime(2026, 10, 26, 7, 37, 5, 44031, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_wait_started_at': datetime.datetime(2026, 10, 26, 7, 37, 4, 362923, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'lock_acquired_at': datetime.datetime(2026, 10, 26, 7, 37, 5, 55817, tzinfo=zoneinfo.ZoneInfo(key='America/New_York')), 'authorization_checked_at': datetime.datetime(2026, 10, 26, 11, 37, 5, 57590, tzinfo=datetime.timezone.utc)} effects {'agent_execution_instances': 0, 'agent_execution_events': 0, 'agent_command_receipts': 2, 'research_tasks': 1, 'research_task_steps': 2, 'research_task_events': 3, 'research_task_command_receipts': 3, 'budget_reservations': 0, 'budget_usage_records': 0, 'capability_invocations': 0, 'strategy_candidate_captures': 0, 'artifacts': 2, 'artifact_versions': 2}
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py: 23 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_execution.py: 46 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py: 62 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py: 16 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_replay.py: 26 warnings
+  /Users/fengwang/ResearchBase-runtime/.pipeline/work/s2-correction/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 102 passed, 173 warnings in 91.68s (0:01:31) =================
+
+EXIT_CODE=0
+```
+
+Command: `uv run pytest -o addopts='' -ra tests/integration/phase2/test_b02_*.py tests/integration/phase2/test_b03_*.py`
+
+```text
+collected 155 items
+=============================== warnings summary ===============================
+tests/integration/phase2/test_b02_identity_boundary.py: 8 warnings
+tests/integration/phase2/test_b02_strategy_admission.py: 26 warnings
+tests/integration/phase2/test_b02_strategy_capture.py: 18 warnings
+tests/integration/phase2/test_b02_strategy_concurrency.py: 62 warnings
+tests/integration/phase2/test_b02_strategy_replay.py: 31 warnings
+tests/integration/phase2/test_b02_strategy_schema.py: 53 warnings
+tests/integration/phase2/test_b03_discussion_hypothesis.py: 98 warnings
+tests/integration/phase2/test_b03_discussion_hypothesis_guards.py: 64 warnings
+  /Users/fengwang/ResearchBase-runtime/.pipeline/work/s2-correction/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================ 155 passed, 360 warnings in 148.89s (0:02:28) =================
+
+EXIT_CODE=0
+```
+
+Command: `uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_01_*.py tests/integration/phase3/test_pr3_02_s1_*.py tests/integration/phase3/test_pr3_03_*.py tests/integration/phase3/test_pr3_04_*.py`
+
+```text
+collected 561 items
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_01_application.py: 2 warnings
+tests/integration/phase3/test_pr3_01_migration.py: 11 warnings
+tests/integration/phase3/test_pr3_02_s1_application.py: 14 warnings
+tests/integration/phase3/test_pr3_02_s1_b02_agent.py: 1 warning
+tests/integration/phase3/test_pr3_02_s1_concurrency.py: 7 warnings
+tests/integration/phase3/test_pr3_02_s1_identity.py: 19 warnings
+tests/integration/phase3/test_pr3_02_s1_migration.py: 8 warnings
+tests/integration/phase3/test_pr3_02_s1_replay.py: 10 warnings
+tests/integration/phase3/test_pr3_02_s1_schema.py: 21 warnings
+tests/integration/phase3/test_pr3_03_application.py: 126 warnings
+tests/integration/phase3/test_pr3_03_concurrency.py: 46 warnings
+tests/integration/phase3/test_pr3_03_guards.py: 92 warnings
+tests/integration/phase3/test_pr3_03_migration.py: 8 warnings
+tests/integration/phase3/test_pr3_03_replay.py: 146 warnings
+tests/integration/phase3/test_pr3_03_schema.py: 28 warnings
+tests/integration/phase3/test_pr3_04_migration.py: 9 warnings
+  /Users/fengwang/ResearchBase-runtime/.pipeline/work/s2-correction/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================ 561 passed, 548 warnings in 480.67s (0:08:00) =================
+
+EXIT_CODE=0
+```
+
+### t320 reviewer follow-up (2026-10-26)
+
+- P1: the required branch `pr3-02-s2-correction` was already active at the start of this follow-up, at merge base `f0fd6a36346c9f75fd178d1154475348485d8942`. It is retained. A local commit with `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>` is now explicitly authorized. No push or PR.
+- P2 error precedence: preserve the original absent-version plus foreign-project task outcome, FORBIDDEN / `intent project mismatch`. Only the missing-version path performs the project-scope lookup before NOT_FOUND; no task state, step or CAS check moves ahead of caller admission. Four unit cases cover same/foreign project in preflight and isolated write-transaction admission, exact messages and zero effects.
+- P2 evidence size: condensed only the t320 append as requested, retaining every original command, exit, pytest count/summary, warning and actual wait observation; all pre-t320 historical evidence is unchanged.
+- P2 large-run evidence: the two original exit-0 records remain explicitly above: PR3-01/S1/03/04 selected compatibility, 561 passed / 548 warnings; B02/B03, 155 passed / 360 warnings. They describe the first-handoff source fingerprint, not new executions of the review correction. The follow-up check below covers the corrected version-lookup path.
+
+Full-suite, final-code CI, independent re-review and owner acceptance remain pending. No claim of full S2 or Phase 3 completion.
+
+### t320 follow-up verification result
+
+The owner's exact chained check ran against merge base `f0fd6a36346c9f75fd178d1154475348485d8942` plus this worktree and exited **0**. It executed **1,538 passed, 223 warnings**, no skips or failures: 1,063 Phase 3 unit + 373 architecture + 102 intent integration cases. The four extra unit cases pin the restored error precedence. The separate repository probe also passed all 23 cases (exit 0).
+
+Current tested-source manifest, using the earlier documented algorithm and excluding this evidence file: `555a17289a489960324087e22e4a2e03185edc4fc97b2a45552f6bddbbf22cd9`. No executable files changed after the run. This manifest is a fallback observation, **not** the requested Git tree/commit evidence.
+
+Exact requested command:
+
+```sh
+export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_s2corr RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres PGOPTIONS="-c jit=off" UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"; uv sync --locked --group dev && uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run alembic heads && uv run pytest -o addopts="" -q -rfE tests/unit/phase3 tests/architecture tests/unit/architecture tests/integration/phase3/test_pr3_02_s2_intent_*.py
+```
+
+Output (pytest progress dots omitted; summaries and warnings retained):
+
+```text
+Resolved 38 packages in 14ms
+Checked 34 packages in 1ms
+All checks passed!
+948 files already formatted
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+0081_agent_execution_intents (head)
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py: 23 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_execution.py: 46 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py: 62 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py: 16 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_replay.py: 26 warnings
+  /Users/fengwang/ResearchBase-runtime/.pipeline/work/s2-correction/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1538 passed, 223 warnings in 124.02s (0:02:04)
+
+EXIT_CODE=0
+```
+
+
+## Correction t320 final results (commit 55c91fd, 2026-10-26)
+
+Scope of this section: the code tree is the one at commit `55c91fd`. The evidence file was amended after the runs, so the commit SHA changes; no code, test or protected path differs. Parent: `f0fd6a3` (merged PR #16). Database: disposable `researchbase_s2corr`, PG 18.6.
+
+Raw scope and protected-path results (run 2026-10-26 on `55c91fd`):
+
+```
+$ git diff --stat f0fd6a3 55c91fd
+ docs/phase3/PR3-02-S2-intent-evidence.md           | 300 +++++++++++++++++++++
+ .../agent_runtime/application/agent_executions.py  |  31 ++-
+ .../persistence/agent_execution_repository.py      |   2 -
+ .../phase3/test_pr3_02_s2_intent_concurrency.py    |  11 +-
+ .../phase3/test_pr3_02_s2_intent_execution.py      |  39 ++-
+ .../phase3/test_pr3_02_s2_intent_replay.py         |  43 +++
+ .../unit/phase3/test_agent_execution_repository.py |  80 +++++-
+ 7 files changed, 475 insertions(+), 31 deletions(-)
+
+$ git diff --exit-code f0fd6a3 55c91fd -- migrations pyproject.toml uv.lock docs/phase3/PR3-02-S2-contract-freeze.md
+(no output)   exit=0
+```
+
+Section 5 command results (raw log: `~/ResearchBase-runtime/.pipeline/logs/t320_section5.txt`):
+
+| Command (§5) | Exit | Result (from the log) |
+| --- | --- | --- |
+| `git diff --check f0fd6a3` | 0 | no summary line; exit code is the result |
+| `uv run ruff check .` | 0 | All checks passed! |
+| `uv run ruff format --check .` | 0 | no summary line; exit code is the result |
+| `uv run pyright` | 0 | 0 errors, 0 warnings, 0 informations |
+| `uv run alembic heads` | 0 | 0081_agent_execution_intents (head) |
+| `uv run pytest -o addopts= -q -rfE tests/unit/phase3` | 0 | 1063 passed in 7.56s |
+| `uv run pytest -o addopts= -q -rfE tests/architecture tests/unit/architecture` | 0 | 373 passed, 50 warnings in 21.37s |
+| `uv run pytest -o addopts= -q -rfE tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py tests/integration/phase3/test_pr3_02_s2_intent_database_errors.py tests/integration/phase3/test_pr3_02_s2_intent_execution.py tests/integration/phase3/test_pr3_02_s2_intent_guards.py tests/integration/phase3/test_pr3_02_s2_intent_migration.py tests/integration/phase3/test_pr3_02_s2_intent_replay.py` | 0 | 102 passed, 173 warnings in 95.09s (0:01:35) |
+| `uv run pytest -o addopts= -q -rfE tests/integration/phase3/test_pr3_01_application.py tests/integration/phase3/test_pr3_01_concurrency.py tests/integration/phase3/test_pr3_01_migration.py tests/integration/phase3/test_pr3_01_replay.py tests/integration/phase3/test_pr3_01_schema.py tests/integration/phase3/test_pr3_02_s1_application.py tests/integration/phase3/test_pr3_02_s1_b02_agent.py tests/integration/phase3/test_pr3_02_s1_concurrency.py tests/integration/phase3/test_pr3_02_s1_identity.py tests/integration/phase3/test_pr3_02_s1_migration.py tests/integration/phase3/test_pr3_02_s1_replay.py tests/integration/phase3/test_pr3_02_s1_schema.py tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_concurrency.py tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_input_versions.py tests/integration/phase3/test_pr3_03_migration.py tests/integration/phase3/test_pr3_03_replay.py tests/integration/phase3/test_pr3_03_schema.py tests/integration/phase3/test_pr3_04_accounting.py tests/integration/phase3/test_pr3_04_application.py tests/integration/phase3/test_pr3_04_concurrency.py tests/integration/phase3/test_pr3_04_fake_consumer.py tests/integration/phase3/test_pr3_04_guards.py tests/integration/phase3/test_pr3_04_migration.py tests/integration/phase3/test_pr3_04_queries.py tests/integration/phase3/test_pr3_04_replay.py tests/integration/phase3/test_pr3_04_schema.py` | 0 | 561 passed, 548 warnings in 493.15s (0:08:13) |
+| `uv run pytest -o addopts= -q -rfE tests/integration/phase2/test_b02_identity_boundary.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b02_strategy_concurrency.py tests/integration/phase2/test_b02_strategy_replay.py tests/integration/phase2/test_b02_strategy_schema.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py` | 0 | 155 passed, 360 warnings in 156.90s (0:02:36) |
+| `uv run pytest -o addopts= -q -rfE tests/integration/phase3/test_pr3_05_promotion_validation.py` | 0 | 2 passed, 2 warnings in 1.15s |
+| `uv run ruff format --check .` | 0 | 948 files already formatted (rerun 2026-10-26) |
+| `git diff --check f0fd6a3` | 0 | empty output (rerun 2026-10-26) |

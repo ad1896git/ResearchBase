@@ -59,7 +59,8 @@ def test_observed_wait_rechecks_intent_authority(intent_env, monkeypatch, wait):
             if wait == "second_key"
             else statement.startswith("SELECT id FROM research_tasks") and "FOR UPDATE" in statement
             if wait == "task_row"
-            else statement.startswith("SELECT id FROM agent_versions") and "FOR UPDATE" in statement
+            else statement.startswith("SELECT agent_version_id FROM agent_availability")
+            and "FOR UPDATE" in statement
         )
         if selected:
             acquired_at.append(conn.execute(text("SELECT clock_timestamp()")).scalar_one())
@@ -78,16 +79,18 @@ def test_observed_wait_rechecks_intent_authority(intent_env, monkeypatch, wait):
             )
             pattern = "SELECT pg_advisory_xact_lock%"
         else:
-            table = "research_tasks" if wait == "task_row" else "agent_versions"
+            table = "research_tasks" if wait == "task_row" else "agent_availability"
+            column = "id" if wait == "task_row" else "agent_version_id"
             identity = (
                 env.intent.arguments.research_task_id
                 if wait == "task_row"
                 else env.intent.arguments.agent_version_id
             )
             holder.execute(
-                text(f"SELECT id FROM {table} WHERE id=:id FOR UPDATE"), {"id": identity}
+                text(f"SELECT {column} FROM {table} WHERE {column}=:id FOR UPDATE"),
+                {"id": identity},
             )
-            pattern = f"SELECT id FROM {table}%FOR UPDATE"
+            pattern = f"SELECT {column} FROM {table}%FOR UPDATE"
         expiry = holder.execute(text("SELECT clock_timestamp()+interval '0.7 second'")).scalar_one()
 
         def valid(principal, at):
