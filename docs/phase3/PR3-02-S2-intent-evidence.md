@@ -5043,5 +5043,31 @@ Section 5 command results (raw log: `~/ResearchBase-runtime/.pipeline/logs/t320_
 | `uv run pytest -o addopts= -q -rfE tests/integration/phase3/test_pr3_01_application.py tests/integration/phase3/test_pr3_01_concurrency.py tests/integration/phase3/test_pr3_01_migration.py tests/integration/phase3/test_pr3_01_replay.py tests/integration/phase3/test_pr3_01_schema.py tests/integration/phase3/test_pr3_02_s1_application.py tests/integration/phase3/test_pr3_02_s1_b02_agent.py tests/integration/phase3/test_pr3_02_s1_concurrency.py tests/integration/phase3/test_pr3_02_s1_identity.py tests/integration/phase3/test_pr3_02_s1_migration.py tests/integration/phase3/test_pr3_02_s1_replay.py tests/integration/phase3/test_pr3_02_s1_schema.py tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_concurrency.py tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_input_versions.py tests/integration/phase3/test_pr3_03_migration.py tests/integration/phase3/test_pr3_03_replay.py tests/integration/phase3/test_pr3_03_schema.py tests/integration/phase3/test_pr3_04_accounting.py tests/integration/phase3/test_pr3_04_application.py tests/integration/phase3/test_pr3_04_concurrency.py tests/integration/phase3/test_pr3_04_fake_consumer.py tests/integration/phase3/test_pr3_04_guards.py tests/integration/phase3/test_pr3_04_migration.py tests/integration/phase3/test_pr3_04_queries.py tests/integration/phase3/test_pr3_04_replay.py tests/integration/phase3/test_pr3_04_schema.py` | 0 | 561 passed, 548 warnings in 493.15s (0:08:13) |
 | `uv run pytest -o addopts= -q -rfE tests/integration/phase2/test_b02_identity_boundary.py tests/integration/phase2/test_b02_strategy_admission.py tests/integration/phase2/test_b02_strategy_capture.py tests/integration/phase2/test_b02_strategy_concurrency.py tests/integration/phase2/test_b02_strategy_replay.py tests/integration/phase2/test_b02_strategy_schema.py tests/integration/phase2/test_b03_discussion_hypothesis.py tests/integration/phase2/test_b03_discussion_hypothesis_guards.py` | 0 | 155 passed, 360 warnings in 156.90s (0:02:36) |
 | `uv run pytest -o addopts= -q -rfE tests/integration/phase3/test_pr3_05_promotion_validation.py` | 0 | 2 passed, 2 warnings in 1.15s |
-| `uv run ruff format --check .` | 0 | 948 files already formatted (rerun 2026-10-26) |
+| `uv run ruff format --check .` | 0 | 948 files already formatted (rerun on bd7730d, see below) |
 | `git diff --check f0fd6a3` | 0 | empty output (rerun 2026-10-26) |
+
+## Verification of the code commit bd7730d (2026-10-26)
+
+This block verifies code commit `bd7730d`, the parent of the commit that adds it. The code, tests and migrations at `bd7730d` are unchanged from `55c91fd`. Raw output of the four checks, run on `bd7730d`:
+
+```
+HEAD=bd7730dd5971fedddb013652d0688d1a1fcdfa93
+$ git diff --stat f0fd6a3 HEAD
+ docs/phase3/PR3-02-S2-intent-evidence.md           | 309 +++++++++++++++++++++
+ .../agent_runtime/application/agent_executions.py  |  31 ++-
+ .../persistence/agent_execution_repository.py      |   2 -
+ .../phase3/test_pr3_02_s2_intent_concurrency.py    |  11 +-
+ .../phase3/test_pr3_02_s2_intent_execution.py      |  39 ++-
+ .../phase3/test_pr3_02_s2_intent_replay.py         |  43 +++
+ .../unit/phase3/test_agent_execution_repository.py |  80 +++++-
+ 7 files changed, 484 insertions(+), 31 deletions(-)
+$ git diff --exit-code f0fd6a3 HEAD -- migrations pyproject.toml uv.lock docs/phase3/PR3-02-S2-contract-freeze.md
+exit=0
+$ git diff --check f0fd6a3 HEAD
+exit=0
+$ uv run ruff format --check .
+948 files already formatted
+exit=0
+```
+
+The section 5 table above was run on the same code tree (`55c91fd` = `bd7730d` for `src`, `tests` and `migrations`). Its first `ruff format --check` capture printed no summary line; the rerun above is the result.
