@@ -232,6 +232,7 @@ def test_fresh_checks_after_each_wait(intent_protocol, monkeypatch):
     for start, end in zip(waits, [*waits[1:], commit], strict=True):
         interval = observations[start + 1 : end]
         kinds = [kind for kind, _ in interval]
+        assert {"authority", "clock", "credential"} <= set(kinds), observations[start:end]
         assert kinds.index("authority") < kinds.index("clock") < kinds.index("credential")
         checked_at = next(value for kind, value in interval if kind == "credential")
         assert checked_at == next(value for kind, value in interval if kind == "clock")

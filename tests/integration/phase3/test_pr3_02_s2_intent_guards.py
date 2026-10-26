@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import cast
 
@@ -93,6 +94,7 @@ def test_normal_role_cannot_write_intent_tables(default_granted_intent_tables, t
     "case,tag",
     [
         ("prefix", "pr302s2_preheld"),
+        ("isolation", "pr302s2_preheld"),
         ("advisory", "pr302s2_preheld"),
         ("missing_receipt", "pr302s2_completeness"),
         ("actor", "pr302s2_scope"),
@@ -152,6 +154,8 @@ def test_named_insertion_and_receipt_guards(intent_env, case, tag):
         intent["harness_artifact_version_id"] = draft.id
 
     with pytest.raises(DBAPIError) as exc, Session(env.owning_engine) as session, session.begin():
+        if case == "isolation":
+            session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
         repo = SqlAlchemyExecutionRepository(session)
         if case != "prefix":
             if case == "advisory":
@@ -183,7 +187,32 @@ def test_named_insertion_and_receipt_guards(intent_env, case, tag):
             session.execute(text("SET CONSTRAINTS pr302_receipt_complete_commit IMMEDIATE"))
         repo.force_constraints()
     assert cast(PostgresError, exc.value.orig).sqlstate == "23514"
-    assert cast(PostgresError, exc.value.orig).diag.constraint_name == tag
+    diagnostic = cast(PostgresError, exc.value.orig).diag
+    assert diagnostic.constraint_name == tag
+    # Shared tags alone cannot identify which protection actually rejected the write.
+    # In particular, the receipt root also raises cas, and the receipt insertion
+    # guard raises preheld after the SHARE/isolation helper has returned.
+    function, message = {
+        "prefix": ("pr302s2_preheld", "intent SHARE protection absent"),
+        "isolation": ("pr302s2_preheld", "intent isolation"),
+        "advisory": ("pr302_receipt_guard", "intent command protection absent"),
+        "missing_receipt": ("pr302s2_execution_guard", "intent receipt missing"),
+        "actor": ("pr302s2_execution_guard", "exact live Agent required"),
+        "state": ("pr302s2_execution_guard", "intent state"),
+        "cas": ("pr302s2_execution_guard", "task revision"),
+        "binding": ("pr302s2_execution_guard", "intent scope binding"),
+        "not_frozen": ("pr302s2_execution_guard", "pin not frozen"),
+        "hash": ("pr302s2_execution_guard", "intent material contradiction"),
+        "event": ("pr302s2_event_guard", "initial intent event contradiction"),
+        "partial": ("pr302_receipt_complete", "intent closure incomplete"),
+        "request_hash": ("pr302_receipt_complete", "intent digest contradiction"),
+    }[case]
+    assert diagnostic.message_primary == message
+    assert re.search(
+        rf"^PL/pgSQL function {function}\(\) line \d+ at RAISE$",
+        diagnostic.context or "",
+        re.MULTILINE,
+    ), diagnostic.context
 
 
 @pytest.mark.parametrize("table", ["agent_execution_instances", "agent_execution_events"])

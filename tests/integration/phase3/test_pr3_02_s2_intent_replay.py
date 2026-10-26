@@ -1,4 +1,5 @@
 from dataclasses import replace
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import text
@@ -13,6 +14,67 @@ from researchbase.agent_runtime.application.execution_contracts import (
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.ids import new_uuid7
 from researchbase.persistence.agent_execution_repository import SqlAlchemyExecutionRepository
+
+
+@pytest.mark.parametrize("failure", ["unavailable", "mismatch"])
+def test_saved_replay_precedes_retained_byte_failure(intent_env, monkeypatch, failure):
+    env = intent_env
+    result = env.intents.execute(env.intent)
+    before = effect_counts(env)
+    broken_open = Mock(
+        side_effect=FileNotFoundError("retained bytes unavailable")
+        if failure == "unavailable"
+        else None,
+        return_value=b"wrong retained bytes",
+    )
+    monkeypatch.setattr(env.store, "open", broken_open)
+    assert env.intents.execute(env.intent) == replace(result, replayed=True)
+    assert env.intents.replay(env.intent) == replace(result, replayed=True)
+    broken_open.assert_not_called()
+
+    # A new command with the same pins proves the injected byte failure is active.
+    new_command = replace(
+        env.intent,
+        command_id=new_uuid7(),
+        arguments=replace(env.intent.arguments, execution_id=new_uuid7()),
+    )
+    with pytest.raises(ResearchBaseError) as exc:
+        env.intents.execute(new_command)
+    assert exc.value.code == (
+        ErrorCode.FROZEN_REFERENCE_REQUIRED
+        if failure == "unavailable"
+        else ErrorCode.PROVENANCE_CLOSURE_VIOLATION
+    )
+    broken_open.assert_called_once()
+    assert effect_counts(env) == before
+
+
+def test_receipt_committed_during_failed_byte_preflight_is_replayed(intent_env, monkeypatch):
+    env = intent_env
+    open_bytes = env.store.open
+    saved = []
+
+    def commit_then_mismatch(locator):
+        # Deterministic interleaving: the outer snapshot saw no receipt; another
+        # command completes before its ArtifactStore read fails, outside write locks.
+        monkeypatch.setattr(env.store, "open", open_bytes)
+        saved.append(env.intents.execute(env.intent))
+        return b"wrong retained bytes"
+
+    before = effect_counts(env)
+    monkeypatch.setattr(env.store, "open", commit_then_mismatch)
+    result = env.intents.execute(env.intent)
+    assert len(saved) == 1
+    assert result == replace(saved[0], replayed=True)
+    after = effect_counts(env)
+    assert after == {
+        table: count
+        + (
+            table
+            in {"agent_command_receipts", "agent_execution_instances", "agent_execution_events"}
+        )
+        for table, count in before.items()
+    }
 
 
 def test_saved_intent_after_loss_and_uncertain_commit(intent_env, monkeypatch):
