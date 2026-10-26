@@ -1,5 +1,5 @@
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -18,6 +18,7 @@ from researchbase.agent_runtime.application.execution_contracts import (
 from researchbase.agent_runtime.domain.harness_manifest import HarnessManifest
 from researchbase.domain.phase2_identity import VerifiedPrincipal
 from researchbase.foundation.artifact_store import ArtifactStore
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_bytes
 from researchbase.foundation.ids import new_uuid7
 from researchbase.persistence.agent_execution_repository import (
@@ -210,6 +211,8 @@ def intent_protocol():
         sessions=sessions,
         factory=factory,
         external=external,
+        rows=rows,
+        authority=authority,
     )
 
 
@@ -227,7 +230,7 @@ def test_fresh_checks_after_each_wait(intent_protocol, monkeypatch):
     observations = env.observations
     waits = [i for i, (kind, _) in enumerate(observations) if kind == "wait"]
     commit = next(i for i, (kind, _) in enumerate(observations) if kind == "commit")
-    assert len(waits) == 18  # prefix, project + five keys, seven rows, three writes, constraints
+    assert len(waits) == 17  # prefix, project + five keys, six rows, three writes, constraints
     checks = []
     for start, end in zip(waits, [*waits[1:], commit], strict=True):
         interval = observations[start + 1 : end]
@@ -247,6 +250,78 @@ def test_fresh_checks_after_each_wait(intent_protocol, monkeypatch):
         "pins.verify",
     ]
     assert all(i < waits[0] for i, _ in external_calls)
+
+
+@pytest.mark.parametrize("admission", ["preflight", "write_transaction", "preflight_error"])
+@pytest.mark.parametrize("task_error", ["stale", "cancelled", "step"])
+def test_viewer_gets_forbidden_before_state_error(
+    intent_protocol, monkeypatch, admission, task_error
+):
+    env = intent_protocol
+    env.authority["role"] = "VIEWER"
+    if task_error == "stale":
+        env.command = replace(
+            env.command, arguments=replace(env.command.arguments, expected_task_revision=2)
+        )
+    elif task_error == "cancelled":
+        env.rows["research_tasks"][0]["status"] = "CANCELLED"
+    else:
+        env.rows["research_task_steps"][0]["status"] = "CANCELLED"
+    if admission == "write_transaction":
+        # Isolate transaction admission instead of forwarding a preflight denial.
+        monkeypatch.setattr(env.service, "_preflight", lambda command: None)
+    elif admission == "preflight_error":
+        original = env.service._preflight
+
+        def preflight(command):
+            env.authority["role"] = "OWNER"
+            try:
+                return original(command)
+            finally:
+                env.authority["role"] = "VIEWER"
+
+        monkeypatch.setattr(env.service, "_preflight", preflight)
+    with pytest.raises(ResearchBaseError) as exc:
+        env.service.execute(env.command)
+    assert exc.value.code == ErrorCode.FORBIDDEN
+    assert exc.value.message == "intent caller required"
+    assert all(
+        not env.rows[table]
+        for table in (
+            "agent_command_receipts",
+            "agent_execution_instances",
+            "agent_execution_events",
+        )
+    )
+    assert not any(kind == "commit" for kind, _ in env.observations)
+
+
+@pytest.mark.parametrize("admission", ["preflight", "write_transaction"])
+@pytest.mark.parametrize("foreign_task", [False, True])
+def test_absent_version_preserves_project_scope_precedence(
+    intent_protocol, monkeypatch, admission, foreign_task
+):
+    env = intent_protocol
+    env.rows["agent_versions"].clear()
+    if foreign_task:
+        env.rows["research_tasks"][0]["project_id"] = new_uuid7()
+    if admission == "write_transaction":
+        monkeypatch.setattr(env.service, "_preflight", lambda command: None)
+    with pytest.raises(ResearchBaseError) as exc:
+        env.service.execute(env.command)
+    assert exc.value.code == (ErrorCode.FORBIDDEN if foreign_task else ErrorCode.NOT_FOUND)
+    assert exc.value.message == (
+        "intent project mismatch" if foreign_task else "intent parent absent"
+    )
+    assert all(
+        not env.rows[table]
+        for table in (
+            "agent_command_receipts",
+            "agent_execution_instances",
+            "agent_execution_events",
+        )
+    )
+    assert not any(kind == "commit" for kind, _ in env.observations)
 
 
 @pytest.mark.parametrize("operation", ["replay", "get", "list"])
@@ -334,7 +409,6 @@ def test_ordered_intent_prefix_and_keys(monkeypatch):
         "SELECT id FROM actors WHERE id=:id FOR UPDATE",
         "SELECT id FROM research_tasks WHERE id=:id FOR UPDATE",
         "SELECT id FROM research_task_steps WHERE id=:id FOR UPDATE",
-        "SELECT id FROM agent_versions WHERE id=:id FOR UPDATE",
         "SELECT agent_version_id FROM agent_availability WHERE agent_version_id=:id FOR UPDATE",
         "SELECT id FROM agent_execution_instances WHERE id=:id FOR UPDATE",
     ]

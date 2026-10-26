@@ -60,24 +60,39 @@ def test_researcher_and_exact_agent_use_common_boundary(intent_env, caller):
 
 
 @pytest.mark.parametrize(
-    "case,code",
+    "case,code,task_condition",
     [
-        ("stale", ErrorCode.CONCURRENT_MODIFICATION),
-        ("unsealed", ErrorCode.INVALID_STATE_TRANSITION),
-        ("unavailable", ErrorCode.INVALID_STATE_TRANSITION),
-        ("viewer", ErrorCode.FORBIDDEN),
-        ("other_agent", ErrorCode.FORBIDDEN),
-        ("untrusted", ErrorCode.AUTHENTICATION_REQUIRED),
-        ("pins", ErrorCode.FROZEN_REFERENCE_REQUIRED),
-        ("bytes", ErrorCode.PROVENANCE_CLOSURE_VIOLATION),
-        ("scope", ErrorCode.FORBIDDEN),
-        ("unfrozen", ErrorCode.VERSION_NOT_FROZEN),
+        ("stale", ErrorCode.CONCURRENT_MODIFICATION, "current"),
+        ("unsealed", ErrorCode.INVALID_STATE_TRANSITION, "current"),
+        ("unavailable", ErrorCode.INVALID_STATE_TRANSITION, "current"),
+        ("viewer", ErrorCode.FORBIDDEN, "current"),
+        ("other_agent", ErrorCode.FORBIDDEN, "current"),
+        ("viewer", ErrorCode.FORBIDDEN, "stale"),
+        ("other_agent", ErrorCode.FORBIDDEN, "stale"),
+        ("viewer", ErrorCode.FORBIDDEN, "cancelled"),
+        ("other_agent", ErrorCode.FORBIDDEN, "cancelled"),
+        ("untrusted", ErrorCode.AUTHENTICATION_REQUIRED, "current"),
+        ("pins", ErrorCode.FROZEN_REFERENCE_REQUIRED, "current"),
+        ("bytes", ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "current"),
+        ("scope", ErrorCode.FORBIDDEN, "current"),
+        ("unfrozen", ErrorCode.VERSION_NOT_FROZEN, "current"),
     ],
 )
-def test_intent_denials_preserve_closed_execution_gate(intent_env, case, code, monkeypatch):
+def test_intent_denials_preserve_closed_execution_gate(
+    intent_env, case, code, monkeypatch, task_condition
+):
     env = intent_env
     command = env.intent
     service = env.intents
+    if task_condition == "stale":
+        command = replace(command, arguments=replace(command.arguments, expected_task_revision=2))
+    elif task_condition == "cancelled":
+        env.planning.service.execute(
+            env.owner,
+            env.planning.command(
+                "cancel_research_task", command.arguments.research_task_id, 3, {"reason": "done"}
+            ),
+        )
     if case == "stale":
         command = replace(command, arguments=replace(command.arguments, expected_task_revision=2))
     if case == "unsealed":
