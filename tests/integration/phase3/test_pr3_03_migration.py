@@ -3,6 +3,7 @@
 import hashlib
 import json
 from dataclasses import replace
+from datetime import timedelta
 
 import pytest
 from alembic import command
@@ -174,7 +175,7 @@ def test_populated_0079_preserves_rows_receipts_triggers_and_refuses_downgrade(a
     print("retained trigger OIDs/attachments", len(triggers), "legacy result replays=3 UPDATE=0")
 
 
-def test_all_original_planning_safety_s1_saved_results_after_upgrade(agents):
+def test_all_original_planning_safety_s1_saved_results_after_upgrade(agents, monkeypatch):
     from dataclasses import asdict
 
     from tests.integration.phase3.conftest import PlanningFixture
@@ -186,6 +187,7 @@ def test_all_original_planning_safety_s1_saved_results_after_upgrade(agents):
     from researchbase.agent_runtime.application.task_safety import TaskSafetyService
     from researchbase.agent_runtime.services.fake_consumer import TrustedFakeConsumer
     from researchbase.foundation.ids import new_uuid7
+    from researchbase.persistence.task_safety_repository import SqlAlchemyTaskSafetyRepository
 
     a = agents
     p = PlanningFixture(
@@ -328,7 +330,17 @@ def test_all_original_planning_safety_s1_saved_results_after_upgrade(agents):
     identities.append((disabled, a.service.execute(disabled)))
     before = _rows(a.engine)
     before_graph = p.service.get_task_graph(a.owner, a.project, task)
+    with a.engine.connect() as conn:
+        reserved_at = conn.execute(
+            text("SELECT created_at FROM budget_reservations WHERE research_task_id=:task"),
+            {"task": safety_task},
+        ).scalar_one()
+    # snapshot_at() reads transaction_timestamp(); migration time must not consume budget.
+    snapshot_at = reserved_at + timedelta(seconds=1)
+    monkeypatch.setattr(SqlAlchemyTaskSafetyRepository, "snapshot_at", lambda self: snapshot_at)
     before_safety = svc.get_task_safety(a.owner, a.project, safety_task)
+    assert before_safety.elapsed_wall_seconds == 1
+    assert before_safety.remaining.wall_time_seconds == 1799
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", a.url.replace("%", "%%"))
     command.upgrade(config, "0080_capability_gateway")
@@ -387,10 +399,7 @@ def test_all_original_planning_safety_s1_saved_results_after_upgrade(agents):
         assert replay == replace(old, replayed=True)
     assert p.service.get_task_graph(a.owner, a.project, task) == before_graph
     after_safety = svc.get_task_safety(a.owner, a.project, safety_task)
-    assert (
-        replace(after_safety, elapsed_wall_seconds=before_safety.elapsed_wall_seconds)
-        == before_safety
-    )
+    assert after_safety == before_safety
     after_replay = _rows(a.engine)
     replay_writes = sum(len(set(replay_rows[t]) ^ set(after_replay[t])) for t in replay_rows)
     assert replay_writes == 0
