@@ -6,7 +6,7 @@
 
 **Scope.** This record accepts answers only. It does not freeze the pack, admit the schema, or authorize implementation.
 
-**t322 source-verification limit.** Work is confined to this repository. The external answers draft has not been accessed in this correction, so original draft-to-record quotation fidelity is **UNVERIFIED** here. The accepted table and all thirteen recommendation paragraphs below are preserved from the task's Git baseline; no answer is reinterpreted. Current checks for both this record and the pack are recorded in [execution pack §5.1](PR3-16-execution-pack-r2.md#51-r2-review-b-round-7-checks-t322-2026-10-26).
+**t322 source-verification limit.** Work is confined to this repository. The external answers draft has not been accessed in this correction, so original draft-to-record quotation fidelity is **UNVERIFIED** here. The accepted table and all thirteen recommendation paragraphs below are preserved from the task's Git baseline; no answer is reinterpreted. Historical t322 checks for this record and the pack are recorded in [execution pack §5.1](PR3-16-execution-pack-r2.md#51-r2-review-b-round-7-checks-t322-2026-10-26).
 
 | Item | Draft location | Accepted in one line | Note |
 | --- | --- | --- | --- |
@@ -83,3 +83,11 @@
 The accepted answers above are unchanged. [Execution pack §1.4](PR3-16-execution-pack-r2.md#14-owner-answers-mapped-to-observable-checks) now separates proposed assertions from **MISSING / NOT RUN** coverage. In particular, verified identity and actor-only planning need behavioral checks; an architecture scan or expiry refresh does not prove either. Same-project/ExperimentSpec Run links, saved-hash presence and admission/read validation, fresh repeated/conflicting terminal-command denial, and the three Q6 read-error classes are explicitly MISSING. Q6 event-sequence/Run-link ordering is mapped to the proposed S6 read-contract node.
 
 The five previously named missing nodes now have owners and explicit future command selections: no strategy column (S1), duplicate IDs/links (S5), no API/CLI routes (S7), terminal-ancestor denial and unfrozen/wrong-version rejection (S8). Their assertion definitions remain MISSING and their execution is NOT RUN. Future freeze preparation must name and schedule every other missing check before freeze review; no freeze or implementation is authorized by this record.
+
+## t324 review B round 8 and ADR review A corrections
+
+The 13 answer rows and 13 recommendation paragraphs above retain their baseline wording. [Execution pack §5.2](PR3-16-execution-pack-r2.md#52-t324-document-corrections-and-focused-verification-2026-10-26) records the exact comparison against `cde62c66bdf00a9f64aa47e0579e1f3c152576f0`, focused checks and their evidence limits. The external answers draft remains unaccessed; original quotation fidelity is UNVERIFIED.
+
+Pack §1.4 now maps the Q1 RESTRICT FKs, no-op mutation rejection, single root, reservation uniqueness and exact command effects. Database checks for unique event sequence and one terminal event per node and per session are explicitly **MISSING / NOT RUN**. Q8 also maps to S1's proposed forward-only migration/single-head check; competing revision reconciliation stays OPEN.
+
+[ADR-0026](../architecture/adr/ADR-0026-pr3-16-experiment-search-core.md) restores the D2/D3/Q3 qualifiers and D4's distinction between reuse and proof of task-budget attribution. Its undecided list now includes Q5 fingerprint/pair consistency and Q8 reconciliation with PR3-02-S2. The ADR remains PROPOSED; no owner answer, freeze, schema admission or implementation authorization changes.

@@ -1,6 +1,6 @@
 # PR3-16 Experiment Search Core execution pack
 
-Planning only, 2026-10-25; revision r2 2026-10-26, review B round 7 correction (t322). The initial r2 record names `origin/main` at `585e071` (PR #14 merged) and branch `pr316-pack-r2`; these are historical context, not this revision's checkout. This correction starts at `ba03f96cce6129932a184566acf170147b3cea3d` on the existing branch `fix-pr316-r2`. The owner accepted the draft recommendation for D1–D5 and Q1–Q8 (§1.2, §6). That acceptance records answers only: it does not freeze the pack, admit the schema, or authorize implementation.
+Planning only, 2026-10-25; revision r2 2026-10-26, review B round 8 and ADR review A correction (t324). The initial r2 record names `origin/main` at `585e071` (PR #14 merged) and branch `pr316-pack-r2`; these are historical context, not this revision's checkout. The t322 correction started at `ba03f96cce6129932a184566acf170147b3cea3d` on `fix-pr316-r2`. This t324 correction starts at `cde62c66bdf00a9f64aa47e0579e1f3c152576f0` (the local `pr316-pack-r2` ref) on the existing branch `fix/p2-pr316`. The owner accepted the draft recommendation for D1–D5 and Q1–Q8 (§1.2, §6). That acceptance records answers only: it does not freeze the pack, admit the schema, or authorize implementation.
 
 **r1 history:** queue base `dc67a9886eb4da1f322be697a67abac1c33a8115` was already checked out on `pr316-pack`; local `origin/main` then resolved to the older Phase 1 commit `919c220f184242198d2cf4edb46ab9c163744a39`. r1 reported no checkout, branch creation, staging, commit or push. The same no-checkout/no-branch/no-staging/no-commit/no-push restriction applies to this correction. Reconcile the live integration ref before a future freeze; neither historical ref is asserted as current.
 
@@ -12,7 +12,7 @@ Citation aliases below refer to repository files. Appendix S quotes the local re
 - **C** = `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md`.
 - **A3** = `docs/architecture/06_Phase3_Development_Specification_v1.1_Harness_Integrated.md`.
 
-Only `docs/phase3/PR3-16-execution-pack-r2.md` and `docs/phase3/PR3-16-owner-answers-record.md` are authored in this r2 correction. Proposed files, identifiers, test nodes and future commands below are **PROPOSED / NOT RUN**, unless explicitly identified as existing or measured in §5.1. This pack neither changes a contract nor supplies missing approval; accepted answer text is preserved.
+Only `docs/phase3/PR3-16-execution-pack-r2.md`, `docs/phase3/PR3-16-owner-answers-record.md` and `docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md` are revised in this t324 correction. Proposed files, identifiers, test nodes and future commands below are **PROPOSED / NOT RUN**, unless explicitly identified as existing or measured in §5.1 (t322) or §5.2 (t324). This pack neither changes a contract nor supplies missing approval; accepted answer text is preserved.
 
 ## 1. Verdict and evidence
 
@@ -30,11 +30,11 @@ This pack's G0 checklist is assessed below using the local draft's prerequisite 
 | --- | --- | --- |
 | D1–D5 resolved | OWNER ANSWERED (2026-10-26) | Answered 2026-10-26: draft recommendations accepted in §1.2. The D1 sub-question (unconditional or conditional atomic amendment) stays open for owner confirmation. Each answer still needs its exact freeze text (`C:317`; `R:93`). |
 | Q1–Q8 resolved | OWNER ANSWERED (2026-10-26) | Answered 2026-10-26: draft recommendations accepted in §1.2. The D1 sub-question (unconditional or conditional atomic amendment) stays open for owner confirmation. Details the recommendations leave unspecified (exact names, bytes, bounds) stay OPEN until the freeze step (`R:63`, `R:95`). |
-| ADR/schema admission | NOT MET | Four-table admission and an ADR are required. Owner answers do not admit the schema. No ADR is drafted in r2; it is the next prerequisite; admission also depends on the complete inventory (Q1) (`C:3`, `C:12`, `C:147`). |
+| ADR/schema admission | NOT MET | Four-table admission and an ADR are required. Owner answers do not admit the schema. `docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md` is PROPOSED; it grants no admission, which still depends on the complete inventory (Q1) (`C:3`, `C:12`, `C:147`). |
 | Reviewed execution pack | NOT MET | Revision r2 awaits independent review. The earlier plan review has no P0/P1 but explicitly grants no contract approval (`R:40`, `R:100`). |
 | Exact path/test/head-maintenance inventory | NOT MET | §3 and Appendix H propose concrete paths/nodes. Q1/Q2/Q3/Q7 are accepted in principle, but exact names, bytes, counts and the live integration head are produced only in the freeze step (`C:16`, `C:169`; `R:66`–`R:73`). |
 | PR3-03 acceptance evidence reconciled | MET | `docs/phase3/PR3-03-evidence.md:7333` records owner acceptance; `:7335` distinguishes merged `fb734e6` from code head `c5a91ba`; `:7336` records successful CI; `:7349` satisfies the planning prerequisite. This retires the historical discrepancy reported at `R:15` and addresses `R:13`'s P2. |
-| Implementation separately authorized | NOT MET | This task authorizes only the two documentation files named above. Draft approval alone does not enable execution (`C:12`); the local review reports the separate authorization requirement (`R:95`, `R:100`). Owner freeze approval is necessary but does not itself grant implementation. |
+| Implementation separately authorized | NOT MET | This task authorizes only the three documentation files named above. Draft approval alone does not enable execution (`C:12`); the local review reports the separate authorization requirement (`R:95`, `R:100`). Owner freeze approval is necessary but does not itself grant implementation. |
 
 ### 1.2 Open decisions and proposed resolutions
 
@@ -94,6 +94,14 @@ Every search node below is **PROPOSED / NOT RUN**; no owner answer is verified b
 | D5 saved owning hash reverified on admission | S4/S8 must name an exact-version/owning-hash contradiction check that denies admission without effects | MISSING / NOT RUN |
 | D5 saved owning hash reverified on read | S6/S8 must name a persisted-hash contradiction check that rejects the read without repair; Q6 fixes the error class below | MISSING / NOT RUN |
 | Q1 complete inventory before admission | S1 `test_pr3_16_schema.py::test_all_frozen_sql_definitions_compile_on_pg18`; S8 `test_pr3_16_guards.py::test_normal_role_scope_cycle_root_and_reservation_attacks`, `test_immutable_rows_and_receipt_effects_across_flushes` | Proposed / NOT RUN; exact inventory OPEN |
+| Q1 RESTRICT foreign keys | S1 `test_pr3_16_schema.py::test_frozen_columns_keys_indexes_and_no_json_or_cascade`: inspect every admitted FK and require RESTRICT deletion semantics | Proposed / NOT RUN; exact FK inventory OPEN |
+| Q1 no-op UPDATE/DELETE rejection | S8 `test_pr3_16_guards.py::test_immutable_rows_and_receipt_effects_across_flushes`: ordinary-role attempts against each of the four immutable tables fail without changing history | Proposed / NOT RUN |
+| Q1 one root | S8 `test_pr3_16_guards.py::test_normal_role_scope_cycle_root_and_reservation_attacks`: reject a second root in the same session at the database boundary | Proposed / NOT RUN |
+| Q1 unique event sequence | S1/S8 must name a database guard check rejecting a duplicate event sequence in its frozen uniqueness scope; the read-ordering check does not prove uniqueness | MISSING / NOT RUN; exact key definition OPEN |
+| Q1 unique reservation use | S8 `test_pr3_16_guards.py::test_normal_role_scope_cycle_root_and_reservation_attacks`: reject reuse of a reservation at the database boundary, with no extra node or lineage effects | Proposed / NOT RUN |
+| Q1 at most one terminal event per node | S1/S8 must name an ordinary-role database guard check rejecting a second terminal event for the same node, including a different terminal kind, without persisting the extra event | MISSING / NOT RUN; database enforcement is separate from Q4 command checks |
+| Q1 at most one terminal event per session | S1/S8 must name an ordinary-role database guard check rejecting a second terminal event for the same session, including a different terminal kind, without persisting the extra event | MISSING / NOT RUN; database enforcement is separate from Q4 command checks |
+| Q1 one revision, receipt and task event per command | S8 `test_pr3_16_application.py::test_all_commands_atomic_and_scientific_rows_unchanged`: assert exactly one of each for each fresh successful command plus its declared lineage effects; S8 `test_pr3_16_guards.py::test_immutable_rows_and_receipt_effects_across_flushes` rejects missing/extra effects | Proposed / NOT RUN |
 | Q2 envelopes/material version 1/normalization and strategy omission | S3 `test_experiment_search_contracts.py::test_closed_envelopes_and_fixed_vectors`; S1 owns `test_pr3_16_schema.py::test_no_strategy_column`, now selected explicitly in S1 | No-column assertion definition MISSING / NOT RUN; vectors and staging approval OPEN |
 | Q4 closure-time cutoff and current authority on new reconciliation | S5 `test_experiment_search.py::test_closure_blocks_mutations_and_allows_frozen_reconciliation` must distinguish allowed historical links from ambiguous/new work and denied current authority | Durable-proof check MISSING / NOT RUN (proof OPEN) |
 | Q4 fresh repeated or conflicting terminal commands rejected without effects | S5/S8 must name checks using new command IDs for repeated/conflicting node and session terminal requests; assert unchanged lineage, task revision, receipts and task events, with original-receipt replay as a separate control | MISSING / NOT RUN |
@@ -106,6 +114,7 @@ Every search node below is **PROPOSED / NOT RUN**; no owner answer is verified b
 | Q6 referential-integrity failure for corrupt ancestry | S6/S8 must name a read-error check asserting REFERENTIAL_INTEGRITY_ERROR on corrupt ancestry, without repair or foreign ID/SQL disclosure | MISSING / NOT RUN |
 | Q6 provenance-closure failure for saved-hash contradictions | S6/S8 must name a read-error check asserting PROVENANCE_CLOSURE_VIOLATION and a sanitized envelope, without saved-hash repair | MISSING / NOT RUN |
 | Q8 Application-only, no transport | S7 owns `tests/architecture/test_pr3_16_boundaries.py::test_no_api_or_cli_routes_added`, now selected explicitly in S7 | Assertion definition MISSING / NOT RUN |
+| Q8 conditional 0081 / single head | S1 `test_pr3_16_migration.py::test_forward_only_migration_and_single_head`: require one forward-only head with the frozen revision/parent; 0081 after 0080 is conditional on the rechecked integration head and reconciliation of the competing PR3-02-S2 proposal | Proposed / NOT RUN; revision/ref reconciliation OPEN |
 
 ## 2. Rules shared by every sub-task
 
@@ -322,7 +331,7 @@ uv run pytest -o addopts='' -ra tests/integration/phase2/test_pr2_03_review_guar
 
 ## 5. Verification of this documentation-only task
 
-**Scope (r2):** only `docs/phase3/PR3-16-execution-pack-r2.md` and `docs/phase3/PR3-16-owner-answers-record.md` are revised. The table below preserves the r1 baseline measured on 2026-10-25 against `PR3-16-execution-pack.md`; those historical counts are not r2 evidence. Independent r2 checks of both current files and the focused existing tests are recorded in §5.1.
+**Scope:** t322 revised the pack and owner-answers record; t324 also revises ADR-0026. The table below preserves the r1 baseline measured on 2026-10-25 against `docs/phase3/PR3-16-execution-pack.md`; that r1 artifact is absent from this checkout, so its baseline cannot be re-inspected here. Those historical counts are not r2 evidence. Historical t322 checks are in §5.1; current t324 checks are in §5.2.
 
 **r1-only environment and scope:** `export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`. Only the r1 Markdown pack was authored; no code, migration, test, contract, ADR or Harness edit. r1 recorded `uv sync --locked --group dev` exiting 0 (38 packages resolved, 34 installed into the local environment); dependency definitions stayed unchanged. The following are historical baseline/documentation checks on 2026-10-25, not PR3-16 implementation acceptance. Future S1–S8/H gates remain NOT RUN.
 
@@ -337,13 +346,13 @@ uv run pytest -o addopts='' -ra tests/integration/phase2/test_pr2_03_review_guar
 | `test -s docs/phase3/PR3-16-execution-pack.md && echo pack-present` | `pack-present` | 0 |
 | `git diff --no-index --check /dev/null docs/phase3/PR3-16-execution-pack.md` | Empty stdout/stderr; no whitespace diagnostics. Exit 1 denotes the new-file difference, not an exit-0 test. | 1 |
 
-**r1-only handoff note (historical):** the extra no-index inspection covered the then-untracked r1 pack, which `git diff --check HEAD` alone omitted. No staging was performed. The instruction that the final handoff repeat required checks and show only that new Markdown file belonged to r1. r2 covers both tracked files named above and reports its own results in §5.1.
+**r1-only handoff note (historical):** the extra no-index inspection covered the then-untracked r1 pack, which `git diff --check HEAD` alone omitted. No staging was performed. The instruction that the final handoff repeat required checks and show only that new Markdown file belonged to r1. t322 covered its two tracked files and reported results in §5.1; t324 covers all three permitted files in §5.2.
 
 PostgreSQL/migration behavior suites are NOT RUN: this documentation change touches no executable/database suite. No PR3-16 implementation test can be run before it exists. The whole suite belongs to the external check loop; its output is not available in this authoring task and no result is assumed.
 
 ### 5.1 r2 review B round 7 checks (t322, 2026-10-26)
 
-Run against both tracked files, with no staging, commit, push or branch creation. The task started from clean HEAD `ba03f96cce6129932a184566acf170147b3cea3d` on `fix-pr316-r2`. The commands below are current r2 evidence only; they do not execute the proposed search nodes or authorize any future gate.
+Run against both tracked files, with no staging, commit, push or branch creation. The task started from clean HEAD `ba03f96cce6129932a184566acf170147b3cea3d` on `fix-pr316-r2`. The commands below are historical t322 evidence only; they do not execute the proposed search nodes or authorize any future gate. No checked blob hashes were recorded, and the pack was edited afterward to include the results. Its final bytes are therefore not established by these whitespace checks. Whitespace checks must be rerun on the final bytes after every further edit; §5.2 records t324 verification separately.
 
 Every `uv` command in this table was invoked with the exact prefix `UV_CACHE_DIR="$PWD/tmp/t322-uv-cache"`. The first invocation created the ignored `.venv` with CPython 3.12.15 and installed 34 locked packages; dependency definitions were unchanged.
 
@@ -360,9 +369,128 @@ Every `uv` command in this table was invoked with the exact prefix `UV_CACHE_DIR
 | `git diff --no-index --check /dev/null docs/phase3/PR3-16-owner-answers-record.md` | Empty stdout/stderr; no whitespace diagnostics. Exit 1 records the file difference against `/dev/null`, not an exit-0 check. | 1 |
 | `git diff --check HEAD` | Empty stdout/stderr | 0 |
 
-The read-only content comparison against `git show HEAD:docs/phase3/PR3-16-owner-answers-record.md` confirmed all 13 accepted table rows and all 13 recommendation paragraphs unchanged. A document audit found all five previously omitted nodes in their owning-step shell blocks and matched all three Appendix S excerpts exactly to the cited local lines. These are document checks only; the proposed nodes remain NOT RUN. Only the two authorized Markdown paths appear in the tracked diff.
+**UNVERIFIED historical document-audit claims:** t322 reported unchanged answer rows/recommendation paragraphs against its HEAD, five previously omitted nodes present in owning-step shell blocks, three exact Appendix S excerpts, and only two authorized paths in its tracked diff. No exact commands, stdout/stderr or exit codes were retained for those claims, so they are not verified evidence. The reproducible t324 audit in §5.2 checks the current documents against its explicit baseline; it does not retroactively verify t322. Proposed search nodes remain NOT RUN.
 
 PostgreSQL/integration/migration behavior suites: **NOT RUN**, zero suites invoked; neither Markdown change touches database behavior. `alembic heads` inspects the source revision graph only. New search nodes: **NOT RUN**, not implemented. Whole-suite run: **NOT RUN** by this author; the external loop's output remains **UNVERIFIED / not yet supplied**. No CI result, freeze, schema admission or implementation authorization is claimed.
+
+### 5.2 t324 document corrections and focused verification (2026-10-26)
+
+Baseline: clean `cde62c66bdf00a9f64aa47e0579e1f3c152576f0`, also the local `pr316-pack-r2` ref, on the existing `fix/p2-pr316` branch. Only the three permitted Markdown files changed. No branch creation, staging, commit, push, freeze, schema admission or implementation authorization occurred.
+
+All `uv` commands below used the exact prefix `UV_CACHE_DIR="$PWD/tmp/t324-uv-cache"`. The first invocation created the ignored `.venv` using CPython 3.12.15, built the local package and installed 34 locked packages. Dependency definitions were unchanged. Results are documentation-task regressions, not evidence for unimplemented search behavior.
+
+| Exact command (with the prefix above for `uv`) | Observed output / result | Exit |
+| --- | --- | --- |
+| `uv run --locked ruff check .` | `All checks passed!` after the environment setup described above | 0 |
+| `uv run --locked ruff format --check .` | `931 files already formatted` | 0 |
+| `uv run --locked pyright` | `0 errors, 0 warnings, 0 informations`; available-version notice v1.1.411 → v1.1.414; no upgrade performed | 0 |
+| `uv run --locked alembic heads` | `0080_capability_gateway (head)` | 0 |
+| `uv run --locked pytest -o addopts='' -q tests/unit/phase3 tests/architecture tests/unit/architecture tests/unit/test_ci_migration_head.py` | `1399 passed, 51 warnings in 33.10s`; 0 failed, 0 skipped; all 51 warnings are Alembic `path_separator` deprecations | 0 |
+| `git diff --check HEAD` | Empty stdout/stderr | 0 |
+| `git diff --no-index --check /dev/null docs/phase3/PR3-16-execution-pack-r2.md` | Empty stdout/stderr; no whitespace diagnostics; exit 1 denotes the file difference | 1 |
+| `git diff --no-index --check /dev/null docs/phase3/PR3-16-owner-answers-record.md` | Empty stdout/stderr; no whitespace diagnostics; exit 1 denotes the file difference | 1 |
+| `git diff --no-index --check /dev/null docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md` | Empty stdout/stderr; no whitespace diagnostics; exit 1 denotes the file difference | 1 |
+
+**Final-byte rule:** this pack contains its own evidence and was edited after the static/test runs. Whitespace checks must be rerun after the final edit. The four whitespace commands above and the document audit below were repeated after this evidence text was added; any subsequent edit requires another final-byte run. The t322 results without blob hashes cannot establish the current bytes.
+
+Exact read-only document-audit command (exit **0**, empty stderr):
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+import re
+import subprocess
+
+base = "cde62c66bdf00a9f64aa47e0579e1f3c152576f0"
+pack_path = "docs/phase3/PR3-16-execution-pack-r2.md"
+record_path = "docs/phase3/PR3-16-owner-answers-record.md"
+adr_path = "docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md"
+allowed = sorted([pack_path, record_path, adr_path])
+
+def git(*args):
+    return subprocess.check_output(["git", *args], text=True)
+
+assert git("rev-parse", "HEAD").strip() == base
+record = Path(record_path).read_text()
+original = git("show", f"{base}:{record_path}")
+rows = r"^\| [DQ]\d \|.*$"
+paragraphs = r"^\*\*Proposed answer — INFERRED:\*\*.*$"
+for label, pattern in [("Answer rows", rows), ("Recommendation paragraphs", paragraphs)]:
+    before = re.findall(pattern, original, re.M)
+    after = re.findall(pattern, record, re.M)
+    assert len(before) == len(after) == 13 and before == after, label
+    print(f"{label}: 13 unchanged")
+
+pack = Path(pack_path).read_text()
+original_pack = git("show", f"{base}:{pack_path}")
+def answers(text):
+    return text.split("### 1.2 ", 1)[1].split("### 1.3 ", 1)[0]
+assert answers(pack) == answers(original_pack)
+print("Pack section 1.2: unchanged")
+
+nodes = [
+    ("S1", "tests/integration/phase3/test_pr3_16_schema.py::test_no_strategy_column"),
+    ("S5", "tests/unit/phase3/test_experiment_search.py::test_duplicate_id_and_link_constraints_enforced"),
+    ("S7", "tests/architecture/test_pr3_16_boundaries.py::test_no_api_or_cli_routes_added"),
+    ("S8", "tests/integration/phase3/test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database"),
+    ("S8", "tests/integration/phase3/test_pr3_16_application.py::test_unfrozen_or_wrong_version_reference_denied"),
+]
+for step, node in nodes:
+    section = pack.split(f"### {step} — ", 1)[1]
+    section = re.split(r"\n(?:### S\d|## 4\.)", section, maxsplit=1)[0]
+    blocks = re.findall(r"```sh\n(.*?)\n```", section, re.S)
+    assert any(node in block.split() for block in blocks), node
+print("Previously omitted nodes in owning-step shell blocks: 5/5")
+
+appendix = pack.split("\n## Appendix S — ", 1)[1]
+excerpts = re.findall(r"`([^\n`]+):(\d+)–(\d+)`:\n\n```text\n(.*?)\n```", appendix, re.S)
+assert len(excerpts) == 3
+for path, first, last, quote in excerpts:
+    lines = Path(path).read_text().splitlines()
+    assert quote == "\n".join(lines[int(first) - 1:int(last)]), path
+print("Appendix S exact excerpts: 3/3")
+
+assert not Path("docs/phase3/PR3-16-execution-pack.md").exists()
+print("r1 artifact: absent")
+assert sorted(git("diff", "--name-only", base).splitlines()) == allowed
+assert git("ls-files", "--others", "--exclude-standard") == ""
+assert all("accepted".upper() not in Path(path).read_text() for path in allowed)
+assert "Status: PROPOSED — not accepted. Owner acceptance pending." in Path(adr_path).read_text()
+print("Tracked diff: exactly 3 permitted paths; untracked nonignored files: 0")
+print("ADR status: PROPOSED; prohibited uppercase token: absent")
+PY
+```
+
+Observed stdout:
+
+```text
+Answer rows: 13 unchanged
+Recommendation paragraphs: 13 unchanged
+Pack section 1.2: unchanged
+Previously omitted nodes in owning-step shell blocks: 5/5
+Appendix S exact excerpts: 3/3
+r1 artifact: absent
+Tracked diff: exactly 3 permitted paths; untracked nonignored files: 0
+ADR status: PROPOSED; prohibited uppercase token: absent
+```
+
+`git diff --name-only HEAD` (exit **0**, empty stderr) returned:
+
+```text
+docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md
+docs/phase3/PR3-16-execution-pack-r2.md
+docs/phase3/PR3-16-owner-answers-record.md
+```
+
+`git status --porcelain` (exit **0**, empty stderr) returned:
+
+```text
+ M docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md
+ M docs/phase3/PR3-16-execution-pack-r2.md
+ M docs/phase3/PR3-16-owner-answers-record.md
+```
+
+PostgreSQL/integration/migration behavior suites: **NOT RUN**, zero suites invoked because only documentation changed and no database behavior is touched. `alembic heads` inspected the source graph only. Proposed search nodes remain **NOT RUN**. The whole suite was **NOT RUN** by this author; the external loop's output is pending and **UNVERIFIED**.
 
 ## 6. Owner answers recorded and remaining steps
 
@@ -388,7 +516,7 @@ PostgreSQL/integration/migration behavior suites: **NOT RUN**, zero suites invok
 2. Trusted producer/evaluator identity (Q3) and the durable already-existing-work proof (Q4), defined and reviewed before freeze.
 3. Explicit owner staging approval for omitting strategy material (Q2, draft line 128).
 4. Owner confirmation whether the atomic amendment is unconditional or conditional (D1, draft lines 44 and 142).
-5. ADR draft (may start earlier) and admission of the four tables (G0-A), after item 1.
+5. Review the PROPOSED ADR-0026 draft and obtain admission of the four tables (G0-A), after item 1. The draft supplies no admission.
 6. Before freeze: disposition both earlier independent reviews (RA, RB), define every MISSING assertion in §1.4 and add its exact node to its owning step's command block. The five previously named missing nodes are now selected in S1/S5/S7/S8, but their assertion definitions and execution remain MISSING / NOT RUN. Rewrite answer-dependent tests and authorization wording without changing accepted answers.
 7. Independent review of r2, which is in progress.
 8. Explicit owner approval of the freeze. Implementation then needs a separate authorization (G0-X).
@@ -440,4 +568,4 @@ identified and remain proposals or owner questions:
   composition, revision assignment and transport/release inventory (plan 89–91).
 ```
 
-These quotations preserve the historical review's wording, including its historical OPEN/PASS statements. They do not override the later accepted owner answers or assert a current review PASS. Original draft-to-answer quotation fidelity is UNVERIFIED in t322 because the external answers draft was not accessed; preservation of the existing record is checked against this task's Git baseline in §5.1.
+These quotations preserve the historical review's wording, including its historical OPEN/PASS statements. They do not override the later accepted owner answers or assert a current review PASS. Original draft-to-answer quotation fidelity is UNVERIFIED in t322 because the external answers draft was not accessed; original quotation fidelity remains UNVERIFIED in t324 as well. Preservation of the repository record against t324's explicit Git baseline is checked in §5.2.
