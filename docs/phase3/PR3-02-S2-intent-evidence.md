@@ -5071,3 +5071,48 @@ exit=0
 ```
 
 The section 5 table above was run on the same code tree (`55c91fd` = `bd7730d` for `src`, `tests` and `migrations`). Its first `ruff format --check` capture printed no summary line; the rerun above is the result.
+
+## Evidence cleanup after merge of PR #17 (2026-10-26)
+
+Scope: evidence completion and one test-parameter rename. No production code changed.
+
+### Code difference between 55c91fd and bd7730d (raw output)
+
+```
+$ git diff --exit-code 55c91fd bd7730d -- src tests migrations
+exit=0
+```
+
+The code, tests and migrations of the correction are therefore identical in `55c91fd` and `bd7730d`. The section 5 results above apply to that code.
+
+### Parameter rename
+
+`test_observed_wait_rechecks_intent_authority[version_row]` is now `[availability_row]`. The test body is unchanged: the `else` branch already waited on `agent_availability`. Earlier raw outputs in this file keep the old name because they are historical records.
+
+Verbose run of `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py` on this branch (exit 0, `11 passed`):
+
+```
+test_observed_wait_rechecks_intent_authority[first_share] PASSED
+test_observed_wait_rechecks_intent_authority[second_key] PASSED
+test_observed_wait_rechecks_intent_authority[task_row] PASSED
+test_observed_wait_rechecks_intent_authority[availability_row] PASSED
+test_membership_revocation_during_first_share_wait PASSED
+test_availability_change_at_existing_s1_writer_wait PASSED
+test_same_command_revision_and_existing_writer_races PASSED
+test_unchanged_task_writer_coexistence PASSED
+test_unchanged_phase2_writer_coexistence PASSED
+test_unchanged_gateway_writer_coexistence PASSED
+```
+
+Lint on the changed file: `uv run ruff check` → `All checks passed!` (exit 0); `uv run ruff format --check` → `1 file already formatted` (exit 0).
+
+### Node IDs added by the correction commit `bd7730d`
+
+Covered by the section 5 run above (unit phase3 1063 passed; integration S2 intent 102 passed):
+
+- `tests/unit/phase3/test_agent_execution_repository.py::test_fresh_checks_after_each_wait` (updated for the removed lock)
+- `tests/unit/phase3/test_agent_execution_repository.py::test_viewer_gets_forbidden_before_state_error` (new)
+- `tests/unit/phase3/test_agent_execution_repository.py::test_absent_version_preserves_project_scope_precedence` (new)
+- `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_intent_denials_preserve_closed_execution_gate` (new)
+- `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_saved_intent_replays_after_caller_loses_write_authority` (new)
+- `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority[first_share|second_key|task_row|availability_row]` (updated)
