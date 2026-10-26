@@ -33,7 +33,18 @@ def test_saved_intent_after_loss_and_uncertain_commit(intent_env, monkeypatch):
     assert env.intents.replay(env.intent) == result
 
 
-def test_current_entitlement_precedes_intent_disclosure(intent_env, monkeypatch):
+@pytest.mark.parametrize(
+    "material_field",
+    [
+        "expected_task_revision",
+        "harness_artifact_version_id",
+        "agent_version_id",
+        "research_task_step_id",
+        "execution_id",
+        "research_task_id",
+    ],
+)
+def test_current_entitlement_precedes_intent_disclosure(intent_env, monkeypatch, material_field):
     env = intent_env
     result = env.intents.execute(env.intent)
     env.service.execute(
@@ -61,14 +72,33 @@ def test_current_entitlement_precedes_intent_disclosure(intent_env, monkeypatch)
     before = effect_counts(env)
     assert env.intents.execute(env.intent) == replace(result, replayed=True)
     assert env.intents.replay(env.intent) == replace(result, replayed=True)
-    changed = replace(env.intent, arguments=replace(env.intent.arguments, expected_task_revision=4))
-    with pytest.raises(ResearchBaseError) as exc:
-        env.intents.execute(changed)
-    assert exc.value.code == ErrorCode.IDEMPOTENCY_CONFLICT
+    changed = replace(
+        env.intent,
+        arguments=replace(
+            env.intent.arguments,
+            **{material_field: 4 if material_field == "expected_task_revision" else new_uuid7()},
+        ),
+    )
+    assert changed.command_id == env.intent.command_id
+    assert changed.request_hash() != env.intent.request_hash()
+
+    def no_new_id():
+        raise AssertionError("changed-material replay must not allocate IDs")
+
+    monkeypatch.setattr(
+        "researchbase.agent_runtime.application.agent_executions.new_uuid7", no_new_id
+    )
+    for entrypoint in (env.intents.execute, env.intents.replay):
+        with pytest.raises(ResearchBaseError) as exc:
+            entrypoint(changed)
+        assert exc.value.code == ErrorCode.IDEMPOTENCY_CONFLICT
+        assert effect_counts(env) == before
+        assert env.intents.replay(env.intent) == replace(result, replayed=True)
     monkeypatch.setattr(env.credentials, "is_valid", lambda principal, at: False)
-    with pytest.raises(ResearchBaseError) as exc:
-        env.intents.execute(changed)
-    assert exc.value.code == ErrorCode.FORBIDDEN
+    for entrypoint in (env.intents.execute, env.intents.replay):
+        with pytest.raises(ResearchBaseError) as exc:
+            entrypoint(changed)
+        assert exc.value.code == ErrorCode.FORBIDDEN
     assert effect_counts(env) == before
 
 

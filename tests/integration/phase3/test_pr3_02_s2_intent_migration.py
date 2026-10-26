@@ -10,6 +10,54 @@ from tests.integration.phase3.intent_fixtures import _intent_env as _intent_env
 HEAD = "0081_agent_execution_intents"
 
 
+@pytest.mark.parametrize(
+    "constraint",
+    ["agent_command_receipts_operation_check", "agent_command_receipts_check"],
+)
+def test_upgrade_refuses_receipt_check_drift(constraint):
+    with disposable_database("researchbase_pr212_test_") as url:
+        upgrade(url, "0080_capability_gateway")
+        engine = create_engine(url)
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(f"ALTER TABLE agent_command_receipts DROP CONSTRAINT {constraint}")
+                )
+                conn.execute(
+                    text(
+                        "ALTER TABLE agent_command_receipts "
+                        f"ADD CONSTRAINT {constraint} CHECK (true)"
+                    )
+                )
+            before = catalog(engine)
+            with pytest.raises(
+                RuntimeError,
+                match="^S2 receipt CHECK catalog drift; forward migration refused$",
+            ):
+                upgrade(url)
+            assert catalog(engine) == before
+            with engine.connect() as conn:
+                assert conn.execute(
+                    text("SELECT version_num FROM alembic_version")
+                ).scalar_one() == ("0080_capability_gateway")
+                assert (
+                    conn.execute(text("SELECT count(*) FROM agent_command_receipts")).scalar_one()
+                    == 0
+                )
+                assert (
+                    conn.execute(
+                        text("SELECT to_regclass('agent_execution_instances')")
+                    ).scalar_one()
+                    is None
+                )
+                assert (
+                    conn.execute(text("SELECT to_regclass('agent_execution_events')")).scalar_one()
+                    is None
+                )
+        finally:
+            engine.dispose()
+
+
 def test_empty_upgrade_and_single_head():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
     assert scripts.get_heads() == [HEAD]

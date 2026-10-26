@@ -1,5 +1,551 @@
 # PR3-02-S2 intent implementation evidence
 
+## Review-B remediation — current focused evidence (2026-10-25)
+
+Lane: `lane340`, existing branch `s2-intent-fix`, baseline HEAD
+`11accb98e9e9aad19ae324b42494178137ed43e1`. No commit, push or branch creation.
+The changes are test code and this evidence file. Existing production behavior
+passed the strengthened tests; no runtime or migration change was needed.
+The frozen pack, all migration bytes, `pyproject.toml` and `uv.lock` are unchanged
+against HEAD (B08). This is focused verification, not a full-suite or acceptance gate.
+
+Only B01–B09 below are current final checks. Every PG-I/PG-T/PG-R/PG-N/U-A/H-U/AUDIT/DIFF
+and RR run retained later in this file **predates these review-B fixes**. PG-R, H-U
+and the old comprehensive AUDIT were **not rerun**; their cells are explicitly historical.
+No earlier counts are added to current counts. Full suite: **NOT RUN by this agent**;
+the external check loop owns that evidence, which is not available in this file.
+
+### Findings and current test observations
+
+All paths are repository-relative, and every node below ran in B06 or B07 with
+exit code **0**. Parameter suffixes identify actual pytest cases.
+
+| Finding | Observation | Current run |
+| --- | --- | --- |
+| P1-1 / L2 | Real service/UoW/repository flow with deterministic SQL-session/port doubles observes 18 possible blocking boundaries: SHARE prefix, project and five advisory keys, seven row locks, three inserts and constraint forcing. Each interval has a new authority read, advancing clock read and credential check before the next wait/commit. Both ArtifactStore reads and the executable-pin verifier finish before the first lock. Network/process entry points are fail-fast sentinels. | B06, exit 0 |
+| P1-1 / L3 | Replay, get and list each open one session/transaction/REPEATABLE READ READ ONLY connection, disable autoflush and issue only nonlocking SELECTs, without ORM writes/flush/commit or a second session. These are unit protocol observations; B07's existing coherent-snapshot test supplies real PostgreSQL snapshot evidence. | B06 and B07, exit 0 |
+| P1-2 / drift | Independently replace each of the two baseline receipt CHECK definitions at 0080. Upgrade must raise exactly `S2 receipt CHECK catalog drift; forward migration refused`; catalog, receipt count and Alembic revision remain unchanged and neither intent table exists. The migration uses this Python RuntimeError diagnostic, not a SQLSTATE/public ErrorCode. | B07, exit 0 |
+| P1-2 / privileges | Two default-grant sources: PUBLIC and an explicit ordinary role. A pre-upgrade probe table proves all four write privileges would be inherited. After 0081, direct INSERT/UPDATE/DELETE/TRUNCATE on each intent table raises SQLSTATE 42501 (16 assertions across two cases). SELECT is granted separately so UPDATE cannot fail merely for lacking read privilege. | B07, exit 0 |
+| P2-2 | Real PostgreSQL stale REPEATABLE READ update (40001), observed two-transaction deadlock (40P01), blocked row update with lock_timeout (55P03), and pg_sleep with statement_timeout (57014). Actual DBAPI exceptions pass through intent UoW rollback/normalization to CONCURRENT_MODIFICATION; only the first two have retryable_pr302=True. Unit cases pass psycopg exceptions through the same UoW and service retry loop: three fresh transactions versus one, stable ID-allocation dictionary, rollback/close on every attempt. | B06 and B07, exit 0 |
+| P2-3 | Same command identity, each of the six argument fields changed independently. Both execute and replay reject with IDEMPOTENCY_CONFLICT, preserve counts/original receipt and allocate no IDs. Revoked credentials return FORBIDDEN before conflict disclosure. | B07, exit 0 |
+| P2-1 | Earlier runs explicitly marked as predating these fixes, including PG-R/H-U/AUDIT cells. Current protected-file comparison is B08; no claim that it reruns the broader old AUDIT. | This attribution correction; B08 exit 0 |
+| P3-1 | Historical PG-T wording corrected to “captured raw output”. | Documentation correction |
+
+L2/L3 use deterministic doubles for scheduling and time; they are not evidence
+of physical lock waiting or database isolation. The existing PostgreSQL concurrency
+and snapshot cases also ran in B07. The new real-error probes use disposable test
+tables, then pass captured exceptions through an intent UoW. They do not claim a
+real 40001 inside the READ COMMITTED create-intent transaction or a complete
+canonical intent retry driven by a real deadlock. No synthetic RAISE SQLSTATE is
+used in those probes. Timeout retry suppression and the three-attempt limit are
+separately exercised through the service with driver-error objects, not pre-tagged
+ResearchBaseError flags.
+
+### Exact credited node IDs
+
+| Run | Node ID | Exit code |
+| --- | --- | --- |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_fresh_checks_after_each_wait` | 0 |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[replay]` | 0 |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[get]` | 0 |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[list]` | 0 |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_bounded_whole_transaction_retry_and_no_timeout_retry[40001-3]` | 0 |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_bounded_whole_transaction_retry_and_no_timeout_retry[40P01-3]` | 0 |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_bounded_whole_transaction_retry_and_no_timeout_retry[55P03-1]` | 0 |
+| B06 | `tests/unit/phase3/test_agent_execution_repository.py::test_bounded_whole_transaction_retry_and_no_timeout_retry[57014-1]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_operation_check]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_check]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_database_errors.py::test_real_postgresql_failure_normalizes_intent_retryability[40001]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_database_errors.py::test_real_postgresql_failure_normalizes_intent_retryability[40P01]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_database_errors.py::test_real_postgresql_failure_normalizes_intent_retryability[55P03]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_database_errors.py::test_real_postgresql_failure_normalizes_intent_retryability[57014]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[expected_task_revision]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[harness_artifact_version_id]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[agent_version_id]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[research_task_step_id]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[execution_id]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure[research_task_id]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_queries_are_coherent_bounded_snapshots` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority[first_share]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority[second_key]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority[task_row]` | 0 |
+| B07 | `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority[version_row]` | 0 |
+
+### Current final commands and raw stdout/stderr
+
+Each command was run separately with this exact environment. Disposable database
+fixtures temporarily select their own randomly named databases on the same local
+cluster; no SQLite is used. B09 identifies PostgreSQL 18.6, role researchbase, port
+5432. B07 includes a non-superuser ordinary role for direct privilege refusals.
+
+```sh
+export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
+export DATABASE_URL="postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase_lane340"
+export RB_TEST_ADMIN_URL="postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres"
+export PGOPTIONS="-c jit=off"
+```
+
+Final B06: 1423 passed, 50 warnings; B07: 73 passed, 143 warnings. Neither run
+reported failures or skips. Warnings are the existing Alembic path_separator
+deprecation; pyright also prints its existing newer-version notice.
+
+#### B01
+
+```sh
+git diff --check HEAD
+```
+
+Raw stdout/stderr: empty (zero bytes). Exit code: **0**.
+Run after writing the current evidence, then repeated after adding this result.
+
+#### B02
+
+```sh
+uv run ruff check .
+```
+
+```text
+All checks passed!
+```
+
+Exit code: **0**.
+
+#### B03
+
+```sh
+uv run ruff format --check .
+```
+
+```text
+948 files already formatted
+```
+
+Exit code: **0**.
+
+#### B04
+
+```sh
+uv run pyright
+```
+
+```text
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+```
+
+Exit code: **0**.
+
+#### B05
+
+```sh
+uv run alembic heads
+```
+
+```text
+0081_agent_execution_intents (head)
+```
+
+Exit code: **0**.
+
+#### B06
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/unit/phase3 tests/architecture tests/unit/architecture
+```
+
+```text
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 15%]
+........................................................................ [ 20%]
+........................................................................ [ 25%]
+........................................................................ [ 30%]
+........................................................................ [ 35%]
+........................................................................ [ 40%]
+........................................................................ [ 45%]
+........................................................................ [ 50%]
+........................................................................ [ 55%]
+........................................................................ [ 60%]
+........................................................................ [ 65%]
+........................................................................ [ 70%]
+........................................................................ [ 75%]
+........................................................................ [ 80%]
+........................................................................ [ 86%]
+........................................................................ [ 91%]
+........................................................................ [ 96%]
+.......................................................                  [100%]
+=============================== warnings summary ===============================
+tests/architecture/test_b02_strategy_promotion_boundaries.py: 1 warning
+tests/architecture/test_b04_boundaries.py: 1 warning
+tests/architecture/test_b05_review_boundaries.py: 1 warning
+tests/architecture/test_b15_package_boundaries.py: 1 warning
+tests/architecture/test_b20_screening_boundaries.py: 1 warning
+tests/architecture/test_basic_approval.py: 1 warning
+tests/architecture/test_pr2_19_boundaries.py: 43 warnings
+tests/architecture/test_pr3_02_s1_boundaries.py: 1 warning
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1423 passed, 50 warnings in 30.06s
+```
+
+Exit code: **0**.
+
+#### B07
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_02_s2_intent_*.py
+```
+
+```text
+........................................................................ [ 98%]
+.                                                                        [100%]
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py: 23 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_execution.py: 38 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py: 48 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py: 16 warnings
+tests/integration/phase3/test_pr3_02_s2_intent_replay.py: 18 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+73 passed, 143 warnings in 68.79s (0:01:08)
+```
+
+Exit code: **0**.
+
+#### B08
+
+```sh
+git diff --exit-code HEAD -- docs/phase3/PR3-02-S2-contract-freeze.md migrations pyproject.toml uv.lock
+```
+
+Raw stdout/stderr: empty (zero bytes).
+
+Exit code: **0**.
+
+#### B09
+
+```sh
+uv run python - <<'PY'
+import os
+from sqlalchemy import create_engine, text
+engine = create_engine(os.environ["RB_TEST_ADMIN_URL"])
+with engine.connect() as conn:
+    print(conn.execute(text("SELECT current_setting('server_version'),current_user,current_database(),current_setting('port')")).one())
+engine.dispose()
+PY
+```
+
+```text
+('18.6 (Homebrew)', 'researchbase', 'postgres', '5432')
+```
+
+Exit code: **0**.
+
+### Negative mutation probes (expected failures, not passing test runs)
+
+The disposable script `tmp/pr3-02-review-b-mutations.py` patches imported functions
+in memory only. It does not edit production source or accepted migration bytes.
+Each command below ran with the same environment. Exit 1 is the expected result
+of deliberately removing a guard, demonstrating that the credited test detects
+its loss. These failures are not added to B06/B07 counts. The script and captures
+are local ignored support files; the durable observations are recorded here.
+
+#### Mutation: fresh
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py fresh
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/unit/phase3/test_agent_execution_repository.py:235: ValueError: 'authority' is not in list
+=========================== short test summary info ============================
+FAILED tests/unit/phase3/test_agent_execution_repository.py::test_fresh_checks_after_each_wait
+1 failed in 0.05s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: external
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py external
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/unit/phase3/test_agent_execution_repository.py:186: AssertionError: ArtifactStore.open I/O while intent write locks are held
+=========================== short test summary info ============================
+FAILED tests/unit/phase3/test_agent_execution_repository.py::test_fresh_checks_after_each_wait
+1 failed in 0.05s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: readonly
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py readonly
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:949: AssertionError: expected call not found.
+=========================== short test summary info ============================
+FAILED tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[get]
+1 failed in 0.07s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: autoflush
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py autoflush
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/unit/phase3/test_agent_execution_repository.py:290: AssertionError: assert True is False
+=========================== short test summary info ============================
+FAILED tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[get]
+1 failed in 0.06s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: lock
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py lock
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/unit/phase3/test_agent_execution_repository.py:295: assert not True
+=========================== short test summary info ============================
+FAILED tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[get]
+1 failed in 0.06s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: write
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py write
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:910: AssertionError: Expected 'flush' to not have been called. Called 1 times.
+=========================== short test summary info ============================
+FAILED tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[get]
+1 failed in 0.06s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: second_session
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py second_session
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/unittest/mock.py:960: AssertionError: Expected 'mock' to be called once. Called 2 times.
+=========================== short test summary info ============================
+FAILED tests/unit/phase3/test_agent_execution_repository.py::test_formal_read_has_one_readonly_snapshot[get]
+1 failed in 0.06s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: catalog_drift
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py catalog_drift
+```
+
+```text
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/integration/phase3/test_pr3_02_s2_intent_migration.py:33: Failed: DID NOT RAISE <class 'RuntimeError'>
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/integration/phase3/test_pr3_02_s2_intent_migration.py:33: Failed: DID NOT RAISE <class 'RuntimeError'>
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_operation_check]
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_operation_check]
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_check]
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_check]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_operation_check]
+FAILED tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_check]
+2 failed, 4 warnings in 1.93s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: public_revoke
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py public_revoke
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/integration/phase3/test_pr3_02_s2_intent_guards.py:69: AssertionError: ('PUBLIC', 'agent_execution_instances', 'INSERT')
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC]
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC]
+1 failed, 2 warnings in 1.01s
+```
+
+Exit code: **1**, expected mutant failure.
+
+#### Mutation: role_revoke
+
+```sh
+uv run python tmp/pr3-02-review-b-mutations.py role_revoke
+```
+
+```text
+F                                                                        [100%]
+=================================== FAILURES ===================================
+/Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/tests/integration/phase3/test_pr3_02_s2_intent_guards.py:69: AssertionError: ('normal_role', 'agent_execution_instances', 'INSERT')
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role]
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role]
+1 failed, 2 warnings in 1.01s
+```
+
+Exit code: **1**, expected mutant failure.
+
+### Intermediate focused runs and corrections
+
+These runs preceded final B02–B09 and are not used to inflate their counts.
+L2/L3 were run before their node IDs were added to this file. The initial targeted
+Ruff check exited 1 for three E501 line-length violations and one B905 missing
+explicit zip strictness; these were corrected before B02/B03. The early pyright
+check exited 0 (0 errors, 0 warnings, 0 informations). Initial formatting changed
+the five touched Python files, exit 0.
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/unit/phase3/test_agent_execution_repository.py
+```
+
+```text
+Using CPython 3.12.15
+Creating virtual environment at: .venv
+   Building researchbase @ file:///Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340
+Downloading pygments (1.2MiB)
+Downloading psycopg-binary (4.5MiB)
+Downloading sqlalchemy (2.1MiB)
+Downloading pyright (5.9MiB)
+Downloading ruff (11.5MiB)
+Downloading pydantic-core (1.9MiB)
+ Downloaded pygments
+ Downloaded pydantic-core
+ Downloaded sqlalchemy
+ Downloaded psycopg-binary
+      Built researchbase @ file:///Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340
+ Downloaded pyright
+ Downloaded ruff
+Installed 34 packages in 104ms
+.......                                                                  [100%]
+7 passed in 1.14s
+```
+
+Exit code: **0**.
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables
+```
+
+```text
+....                                                                     [100%]
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_operation_check]
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_operation_check]
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_check]
+tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift[agent_command_receipts_check]
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC]
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[PUBLIC]
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role]
+tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables[normal_role]
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+4 passed, 8 warnings in 3.65s
+```
+
+Exit code: **0**.
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/unit/phase3/test_agent_execution_repository.py tests/integration/phase3/test_pr3_02_s2_intent_database_errors.py
+```
+
+```text
+..............                                                           [100%]
+14 passed in 2.13s
+```
+
+Exit code: **0**.
+
+```sh
+uv run pytest -o addopts='' -q -rfE tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure
+```
+
+```text
+......                                                                   [100%]
+=============================== warnings summary ===============================
+tests/integration/phase3/test_pr3_02_s2_intent_replay.py: 12 warnings
+  /Users/fengwang/Documents/ResearchBaseProject/.pipeline/work/lane340/.venv/lib/python3.12/site-packages/alembic/config.py:604: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+6 passed, 12 warnings in 5.57s
+```
+
+Exit code: **0**.
+
+---
+
+## Historical implementation and earlier reviewer evidence — predates review-B fixes
+
 Baseline: `75d559a` (2026-10-25). Intent-only implementation; this is focused verification evidence, not owner acceptance or a full-suite gate claim.
 
 ## Exact file allocation before implementation
@@ -13,7 +559,7 @@ Baseline: `75d559a` (2026-10-25). Intent-only implementation; this is focused ve
 - Q5 receipt result: `src/researchbase/agent_runtime/application/agent_contracts.py`
 - Q2/Q3.5 UoW: `src/researchbase/persistence/uow.py`
 - U1–U3: `tests/unit/phase3/test_agent_execution_contracts.py`
-- L1–L3: `tests/unit/phase3/test_agent_execution_repository.py`
+- Historical allocation proposed L1–L3 in `tests/unit/phase3/test_agent_execution_repository.py`; only L1 existed in these historical runs. L2/L3 were added and run in review-B remediation above.
 - A1: `tests/architecture/test_pr3_02_s2_boundaries.py`
 - Intent fixtures: `tests/integration/phase3/intent_fixtures.py`
 - M1–M3: `tests/integration/phase3/test_pr3_02_s2_intent_migration.py`
@@ -74,7 +620,7 @@ Every PostgreSQL assertion below is attributed to a run:
 - **PG-I**: required 68-test intent command, raw output below. Disposable PostgreSQL
   18 databases, owning Application connection plus the existing non-superuser S1
   role for direct privilege checks. No required test was skipped.
-- **PG-T**: the two separately repeated temporal nodes, with uncaptured raw output
+- **PG-T**: the two separately repeated temporal nodes, with captured raw output
   below: PostgreSQL 18.6 (Homebrew), owning role `researchbase`, port 5432,
   explicitly selected local cluster; random database names and DB timestamps are
   printed. `xact_start` is transaction start; `observed_at` records an actual lock
@@ -103,7 +649,9 @@ export RB_TEST_ADMIN_URL='postgresql+psycopg://researchbase:researchbase@localho
 export PGOPTIONS='-c jit=off'
 ```
 
-## Frozen-item implementation and exact test allocation
+## Historical frozen-item implementation and test allocation
+
+Every run credited in this table predates the review-B fixes. This table is retained for history, not current verification. In particular PG-R, H-U and AUDIT were not rerun in this task and cannot establish current historical-regression, producer-preview or comprehensive protected-bytes coverage. The current, narrower protected-file check is B08 above. Review-B findings supersede the old claims of L2/L3, drift refusal, effective privilege revocation, SQLSTATE retry coverage and complete replay material coverage.
 
 Node IDs below are repository-relative. Parameterized base nodes identify every
 parameter unless an exact parameter is given.
@@ -111,7 +659,7 @@ parameter unless an exact parameter is given.
 | Frozen item | Implemented surface | Evidence / exact node IDs |
 | --- | --- | --- |
 | Q1 CREATED-only, revision 1, sealed PLANNING/current task revision, optional same-task PENDING step | Closed CreateAgentExecution/ExecutionCommand; AgentExecutionService | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_created_intent_through_common_application_boundary`, `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_intent_denials_preserve_closed_execution_gate`, `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_selected_step_and_typed_inputs_preserve_both_owners` |
-| Q1 three effects only; unchanged task/step revision/state, closed gate, no policy required | receipt → intent → initial event; no task/gateway/scientific writes | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_researcher_and_exact_agent_use_common_boundary`, `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_intent_failure_rolls_back_all_three_effects`; AUDIT |
+| Q1 three effects only; unchanged task/step revision/state, closed gate, no policy required | receipt → intent → initial event; no task/gateway/scientific writes | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_researcher_and_exact_agent_use_common_boundary`, `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_intent_failure_rolls_back_all_three_effects`; AUDIT (earlier-round only) |
 | Q2 exact ordered 23-table SHARE, project/command/actor/task/version/execution keys; actor/task/step/version/availability/intent row locks | SqlAlchemyExecutionRepository.lock_write; explicit SELECT FOR UPDATE, including immutable AgentVersion | U-A: `tests/unit/phase3/test_agent_execution_repository.py::test_ordered_intent_prefix_and_keys`; PG-I/PG-T: `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_observed_wait_rechecks_intent_authority` |
 | Q2 fresh authority/time after each wait and before commit; live credential/member/availability denial | Post-wait READ callbacks; final write authorization | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_membership_revocation_during_first_share_wait`, `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_availability_change_at_existing_s1_writer_wait`; PG-T first_share and second_key temporal nodes |
 | Q2 READ COMMITTED, autoflush off, startup lock/statement timeouts | Existing startup-timeout factory reused by agent_execution_uow_factory | PG-I real command/guard runs; U-A ordered lock node; `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_named_insertion_and_receipt_guards` |
@@ -119,24 +667,24 @@ parameter unless an exact parameter is given.
 | Q2 at most three 40001/40P01 retries; no automatic timeout retry; uncertain-commit reconciliation | Existing Agent UoW normalization extended before generic fallbacks | U-A: `tests/unit/phase3/test_agent_execution_repository.py::test_bounded_whole_transaction_retry_and_no_timeout_retry`; PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_saved_intent_after_loss_and_uncertain_commit` |
 | Q2 actual coexistence with accepted writers, no changed gateway/task/B02 wrapper | Independent accepted S1, task, gateway-policy and Phase 2 source commands | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_same_command_revision_and_existing_writer_races`, `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_availability_change_at_existing_s1_writer_wait`, `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_unchanged_task_writer_coexistence`, `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_unchanged_gateway_writer_coexistence`, `tests/integration/phase3/test_pr3_02_s2_intent_concurrency.py::test_unchanged_phase2_writer_coexistence`; no deadlock-freedom claim |
 | Q3.1 exact columns, nullability, no defaults, finite instants, explicit schemes | Migration 0081 and inert internal models; typed DTOs | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_exact_intent_schema_and_scoped_foreign_keys`, `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_literal_checks_indexes_and_receipt_deferral`; U-A: `tests/architecture/test_pr3_02_s2_boundaries.py::test_inert_persistence_metadata_matches_intent_values` |
-| Q3.2 all 15 named keys/FKs, same-project/task/step/version/Agent scope, two deferred receipt FKs and eight additional indexes | Exact frozen intent DDL | PG-I: same two schema nodes; PG-R: `tests/integration/phase2/test_pr2_20_migrations.py::test_populated_source_evidence_conclusion_placement_review_decision_head_noop`; PG-N catalog |
+| Q3.2 all 15 named keys/FKs, same-project/task/step/version/Agent scope, two deferred receipt FKs and eight additional indexes | Exact frozen intent DDL | PG-I: same two schema nodes; PG-R (earlier-round only): `tests/integration/phase2/test_pr2_20_migrations.py::test_populated_source_evidence_conclusion_placement_review_decision_head_noop`; PG-N catalog |
 | Q3.3 all 12 listed CHECKs and exact receipt shape; actual baseline CHECK names/definitions checked before replacement | BASELINE_CHECKS drift refusal; only two old receipt CHECKs replaced | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_empty_upgrade_and_single_head`, `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_literal_checks_indexes_and_receipt_deferral`, `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_named_insertion_and_receipt_guards` |
 | Q3.4 cjson/value_digest helpers, Python-only numeric rejection, SQL NULL diagnostic | Pure normalized JSONB serializer; no SQL numeric spelling rejection | U-A: `tests/unit/phase3/test_agent_execution_contracts.py::test_closed_intent_command_and_literal_vectors`; PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_python_postgresql_intent_material_parity` |
 | Q3.4 input_material exact typed sealed pins; no fabricated empty success for missing intent | Exact task/selected-step typed readers; frozen scope/hash validation | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_unresolved_input_material_diagnostic`, `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_named_insertion_and_receipt_guards`; `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_selected_step_and_typed_inputs_preserve_both_owners` |
 | Q3.4 preheld and insertion guards; initial event literal/caller/time and three-row closure | Seven S2 helpers/guards; two forward S1 function replacements; four new triggers | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_named_insertion_and_receipt_guards`, `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_historical_receipt_cannot_attach_new_history`; `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_created_intent_through_common_application_boundary` |
 | Q3.4 privilege refreeze: normal role has no direct INSERT/UPDATE/DELETE/TRUNCATE | No grants on intent tables; revoke PUBLIC and any explicit/default non-owner grants found at upgrade | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_normal_role_cannot_write_intent_tables` (eight SQLSTATE 42501 cases). No xmax/holder-view lock-mode verification |
 | Q3.4 immutable UPDATE/DELETE, including no-op; no late history | pr302s2_immutable and freshness guards | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_owning_role_immutable_including_noop`, `tests/integration/phase3/test_pr3_02_s2_intent_guards.py::test_historical_receipt_cannot_attach_new_history` |
-| Q3.4 preserve S1 HUMAN OWNER insertion/final behavior; staged S2 HUMAN RESEARCHER/exact Agent | Early operation dispatch before either S1 OWNER predicate | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_populated_upgrade_preserves_history` exercises all three S1 operations at 0081; `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_researcher_and_exact_agent_use_common_boundary`; PG-R S1 suites |
-| Q3.5 exact SQLSTATE/tag translation; no new public ErrorCode or foreign-service trigger | Intent normalization precedes generic Agent fallback | U-A: `tests/unit/phase3/test_agent_execution_repository.py::test_intent_diagnostics_are_translated_by_exact_state_and_tag`; PG-I direct named-guard diagnostics and Application denial nodes; AUDIT |
-| Q3 forward-only clean/populated upgrade; one head; no fabricated history; downgrade refuses before changes, even empty | One child migration; catalog/name drift check before DDL | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_empty_upgrade_and_single_head`, `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_populated_upgrade_preserves_history`, `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_downgrade_refuses_before_change`; PG-R historical head/catalog nodes |
+| Q3.4 preserve S1 HUMAN OWNER insertion/final behavior; staged S2 HUMAN RESEARCHER/exact Agent | Early operation dispatch before either S1 OWNER predicate | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_populated_upgrade_preserves_history` exercises all three S1 operations at 0081; `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_researcher_and_exact_agent_use_common_boundary`; PG-R (earlier-round only) S1 suites |
+| Q3.5 exact SQLSTATE/tag translation; no new public ErrorCode or foreign-service trigger | Intent normalization precedes generic Agent fallback | U-A: `tests/unit/phase3/test_agent_execution_repository.py::test_intent_diagnostics_are_translated_by_exact_state_and_tag`; PG-I direct named-guard diagnostics and Application denial nodes; AUDIT (earlier-round only) |
+| Q3 forward-only clean/populated upgrade; one head; no fabricated history; downgrade refuses before changes, even empty | One child migration; catalog/name drift check before DDL | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_empty_upgrade_and_single_head`, `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_populated_upgrade_preserves_history`, `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_downgrade_refuses_before_change`; PG-R (earlier-round only) historical head/catalog nodes |
 | Q4 eight-key envelope/six-key arguments, explicit nulls, strict scalar/UUID/revision types, duplicate/unknown JSON key rejection | Separate closed intent contracts and parser; list-of-pairs is not an arguments object | U-A: `tests/unit/phase3/test_agent_execution_contracts.py::test_create_parser_closed_fields_and_envelope`, `tests/unit/phase3/test_agent_execution_contracts.py::test_strict_revision`, `tests/unit/phase3/test_agent_execution_contracts.py::test_closed_intent_command_and_literal_vectors` |
 | Q4 V01/V07/V08/V09/V13/V14/V18 independent fixtures, input sorting/duplicates, NULL hash versus DB admission, byte/value distinction | Standard-library vector builder and literal JSON; source identity checked; S1 serializer/fixtures unchanged | U-A: `tests/unit/phase3/test_agent_execution_contracts.py::test_independent_vector_source_identity`, `tests/unit/phase3/test_agent_execution_contracts.py::test_intent_binding_and_harness_pins`, `tests/unit/phase3/test_agent_execution_contracts.py::test_harness_byte_value_hashes_and_ordinal_pins`, existing S1/B02/scientific unit fixtures; PG-I material parity and selected-step input node |
 | Q4 actual retained harness/config bytes verified before write locks; frozen project/config/input pins rechecked inside; executable pin intake fails closed when unconfigured | _preflight, immutable binding tuple, local configured pin resolver, DenyAgentVerifier default | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_intent_denials_preserve_closed_execution_gate[pins-FROZEN_REFERENCE_REQUIRED]`, `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_selected_step_and_typed_inputs_preserve_both_owners`; U-A harness node. Test resolver intake is not a claim of production Agent/provider verifier deployment |
 | Q5 Human OWNER/RESEARCHER and exact enrolled Agent common Application boundary; other/revoked/untrusted caller denied before disclosure | VerifiedPrincipal plus durable current READ and S2 intent caller | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_researcher_and_exact_agent_use_common_boundary`, `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_intent_denials_preserve_closed_execution_gate`; `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure`, `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_other_caller_cannot_replay_receipt` |
 | Q5 original receipt/IDs/time/history on exact replay after retire/archive/cancel/revision advance; changed material conflicts; no new IDs | Saved receipt check before new-write admission/byte failure; no UUID allocation on replay | PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_execution.py::test_created_intent_through_common_application_boundary` installs a UUID-allocation failure sentinel for replay; `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_current_entitlement_precedes_intent_disclosure`, `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_saved_intent_after_loss_and_uncertain_commit` |
 | Q5 bounded ordered get/list/reconciliation in one REPEATABLE READ READ ONLY snapshot, immutable saved task revision | begin_formal_read; cursor/limit 1..100/default 50; no write/advisory/SHARE lock path | U-A: `tests/unit/phase3/test_agent_execution_contracts.py::test_intent_query_and_receipt_shapes`; PG-I: `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_queries_are_coherent_bounded_snapshots`, `tests/integration/phase3/test_pr3_02_s2_intent_replay.py::test_other_caller_cannot_replay_receipt` |
-| Q6/Q7 intent is not producer provenance; existing preview denial retained | No producer linkage or preview change | AUDIT; PG-R: `tests/integration/phase3/test_pr3_05_promotion_validation.py` |
-| §4 A1 Application/Domain boundaries and exact inert metadata; Appendix H mechanical head/catalog maintenance | No new transport, framework, runtime dependency or generic provenance reference | U-A: `tests/architecture/test_pr3_02_s2_boundaries.py::test_intent_only_application_boundary`, `tests/architecture/test_pr3_02_s2_boundaries.py::test_inert_persistence_metadata_matches_intent_values`; H-U and PG-R; AUDIT |
+| Q6/Q7 intent is not producer provenance; existing preview denial retained | No producer linkage or preview change | AUDIT (earlier-round only); PG-R (earlier-round only): `tests/integration/phase3/test_pr3_05_promotion_validation.py` |
+| §4 A1 Application/Domain boundaries and exact inert metadata; Appendix H mechanical head/catalog maintenance | No new transport, framework, runtime dependency or generic provenance reference | U-A: `tests/architecture/test_pr3_02_s2_boundaries.py::test_intent_only_application_boundary`, `tests/architecture/test_pr3_02_s2_boundaries.py::test_inert_persistence_metadata_matches_intent_values`; H-U (earlier-round only) and PG-R (earlier-round only); AUDIT (earlier-round only) |
 
 
 ## Deferred inventory: every §2 row remains absent
@@ -898,8 +1446,8 @@ output and exit code 0.
 
 ## Reviewer remediation and fresh verification (2026-10-25)
 
-This section supersedes the prior implementation run for the reviewed working
-copy. Each RR command below is run separately, with its own complete captured
+This section records an earlier reviewer remediation. All RR runs below predate
+the review-B fixes and are historical only; they do not supersede the current B runs above. Each RR command below is run separately, with its own complete captured
 stdout/stderr and exit code. No chained command status or truncated output is
 used. The original runs above remain historical evidence; their counts are not
 added to these repeated runs.

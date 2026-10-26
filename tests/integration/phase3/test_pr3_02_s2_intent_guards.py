@@ -4,9 +4,11 @@ from typing import cast
 
 import pytest
 from psycopg import Error as PostgresError
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
+from tests.disposable_postgres import disposable_database
+from tests.integration.phase2.pr2_20_support import upgrade
 from tests.integration.phase3.intent_fixtures import _intent_env as _intent_env
 from tests.integration.phase3.intent_fixtures import intent_rows
 
@@ -14,20 +16,72 @@ from researchbase.foundation.ids import new_uuid7
 from researchbase.persistence.agent_execution_repository import SqlAlchemyExecutionRepository
 
 
-@pytest.mark.parametrize("table", ["agent_execution_instances", "agent_execution_events"])
-@pytest.mark.parametrize("operation", ["INSERT", "UPDATE", "DELETE", "TRUNCATE"])
-def test_normal_role_cannot_write_intent_tables(intent_env, table, operation):
-    env = intent_env
-    # This is the existing ordinary S1 role, created before the forward migration.
-    sql = {
-        "INSERT": f"INSERT INTO {table} DEFAULT VALUES",
-        "UPDATE": f"UPDATE {table} SET id=id",
-        "DELETE": f"DELETE FROM {table}",
-        "TRUNCATE": f"TRUNCATE {table}",
-    }[operation]
-    with pytest.raises(DBAPIError) as exc, env.engine.begin() as conn:
-        conn.execute(text(sql))
-    assert cast(PostgresError, exc.value.orig).sqlstate == "42501"
+@pytest.mark.parametrize("grantee", ["PUBLIC", "normal_role"])
+def test_normal_role_cannot_write_intent_tables(grantee):
+    # Both revocation paths must remove privileges that really would be inherited.
+    # A role created without these defaults cannot demonstrate a migration REVOKE.
+    with disposable_database("researchbase_pr212_test_") as url:
+        upgrade(url, "0080_capability_gateway")
+        engine = create_engine(url)
+        role = "pr302s2_revoke_" + new_uuid7().hex
+        target = "PUBLIC" if grantee == "PUBLIC" else role
+        privileges = ("INSERT", "UPDATE", "DELETE", "TRUNCATE")
+        with engine.begin() as conn:
+            conn.execute(text(f"CREATE ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOLOGIN"))
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
+                conn.execute(
+                    text(
+                        "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                        f"GRANT INSERT,UPDATE,DELETE,TRUNCATE ON TABLES TO {target}"
+                    )
+                )
+                conn.execute(text("CREATE TABLE intent_privilege_probe (id integer)"))
+                for privilege in privileges:
+                    assert conn.execute(
+                        text(
+                            "SELECT has_table_privilege(:role, "
+                            "'intent_privilege_probe', :privilege)"
+                        ),
+                        {"role": role, "privilege": privilege},
+                    ).scalar_one()
+                conn.execute(text("DROP TABLE intent_privilege_probe"))
+            upgrade(url)
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "GRANT SELECT ON agent_execution_instances,agent_execution_events "
+                        f"TO {role}"
+                    )
+                )
+            for table in ("agent_execution_instances", "agent_execution_events"):
+                for operation in privileges:
+                    sql = {
+                        "INSERT": f"INSERT INTO {table} DEFAULT VALUES",
+                        "UPDATE": f"UPDATE {table} SET id=id",
+                        "DELETE": f"DELETE FROM {table}",
+                        "TRUNCATE": f"TRUNCATE {table}",
+                    }[operation]
+                    with pytest.raises(DBAPIError) as exc, engine.begin() as conn:
+                        conn.execute(text(f"SET LOCAL ROLE {role}"))
+                        conn.execute(text(sql))
+                    assert cast(PostgresError, exc.value.orig).sqlstate == "42501", (
+                        grantee,
+                        table,
+                        operation,
+                    )
+        finally:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                        f"REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON TABLES FROM {target}"
+                    )
+                )
+                conn.execute(text(f"DROP OWNED BY {role}"))
+                conn.execute(text(f"DROP ROLE {role}"))
+            engine.dispose()
 
 
 @pytest.mark.parametrize(
