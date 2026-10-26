@@ -34,7 +34,9 @@ def test_clean_and_populated_upgrade_and_downgrade_refusal(monkeypatch, tmp_path
             assert len(after) == len(before) + 10
             if populated:
                 assert service.get(principal, project, plan) == readback
-            assert ScriptDirectory.from_config(config).get_heads() == ["0080_capability_gateway"]
+            assert ScriptDirectory.from_config(config).get_heads() == [
+                "0081_agent_execution_intents"
+            ]
             revision = ScriptDirectory.from_config(config).get_revision("0077_research_task_graph")
             assert revision is not None and revision.down_revision == "0076_agent_runtime_bootstrap"
             catalog = _catalog(url)

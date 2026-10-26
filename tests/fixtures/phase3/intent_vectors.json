@@ -1,0 +1,144 @@
+{
+  "V01": {
+    "value": {
+      "type": "AgentCommandMaterial",
+      "material_version": 1,
+      "operation": "create_agent_execution",
+      "project_id": "01900000-0000-7000-8000-000000000001",
+      "caller_actor_id": "01900000-0000-7000-8000-000000000002",
+      "command_id": "01900000-0000-7000-8000-000000000003",
+      "expected_revision": null,
+      "arguments": {
+        "execution_id": "01900000-0000-7000-8000-000000000004",
+        "agent_version_id": "01900000-0000-7000-8000-000000000005",
+        "research_task_id": "01900000-0000-7000-8000-000000000006",
+        "harness_artifact_version_id": "01900000-0000-7000-8000-000000000007",
+        "research_task_step_id": null,
+        "expected_task_revision": 1
+      }
+    },
+    "utf8": "{\"arguments\":{\"agent_version_id\":\"01900000-0000-7000-8000-000000000005\",\"execution_id\":\"01900000-0000-7000-8000-000000000004\",\"expected_task_revision\":1,\"harness_artifact_version_id\":\"01900000-0000-7000-8000-000000000007\",\"research_task_id\":\"01900000-0000-7000-8000-000000000006\",\"research_task_step_id\":null},\"caller_actor_id\":\"01900000-0000-7000-8000-000000000002\",\"command_id\":\"01900000-0000-7000-8000-000000000003\",\"expected_revision\":null,\"material_version\":1,\"operation\":\"create_agent_execution\",\"project_id\":\"01900000-0000-7000-8000-000000000001\",\"type\":\"AgentCommandMaterial\"}",
+    "sha256": "aca0d9bdc9cea1de0b42ff15657629f6e3a6a1127e140a78f2f9a7d8eeceb3ed"
+  },
+  "V08_V09": {
+    "value": {
+      "type": "AgentExecutionInputs",
+      "material_version": 1,
+      "project_id": "01900000-0000-7000-8000-000000000001",
+      "research_task_id": "01900000-0000-7000-8000-000000000006",
+      "research_task_step_id": "01900000-0000-7000-8000-000000000007",
+      "inputs": [
+        {
+          "owner_kind": "STEP",
+          "owner_id": "01900000-0000-7000-8000-000000000007",
+          "target_kind": "ARTIFACT_VERSION",
+          "target_id": "01900000-0000-7000-8000-000000000008",
+          "content_hash": null,
+          "hash_scheme": null
+        },
+        {
+          "owner_kind": "TASK",
+          "owner_id": "01900000-0000-7000-8000-000000000006",
+          "target_kind": "ARTIFACT_VERSION",
+          "target_id": "01900000-0000-7000-8000-000000000008",
+          "content_hash": null,
+          "hash_scheme": null
+        }
+      ]
+    },
+    "utf8": "{\"inputs\":[{\"content_hash\":null,\"hash_scheme\":null,\"owner_id\":\"01900000-0000-7000-8000-000000000007\",\"owner_kind\":\"STEP\",\"target_id\":\"01900000-0000-7000-8000-000000000008\",\"target_kind\":\"ARTIFACT_VERSION\"},{\"content_hash\":null,\"hash_scheme\":null,\"owner_id\":\"01900000-0000-7000-8000-000000000006\",\"owner_kind\":\"TASK\",\"target_id\":\"01900000-0000-7000-8000-000000000008\",\"target_kind\":\"ARTIFACT_VERSION\"}],\"material_version\":1,\"project_id\":\"01900000-0000-7000-8000-000000000001\",\"research_task_id\":\"01900000-0000-7000-8000-000000000006\",\"research_task_step_id\":\"01900000-0000-7000-8000-000000000007\",\"type\":\"AgentExecutionInputs\"}",
+    "sha256": "0f51e4d55f3f50a07f555cf3507109d95ecec09ee739f925993c6f185ca2921d"
+  },
+  "V09_empty": {
+    "value": {
+      "type": "AgentExecutionInputs",
+      "material_version": 1,
+      "project_id": "01900000-0000-7000-8000-000000000001",
+      "research_task_id": "01900000-0000-7000-8000-000000000006",
+      "research_task_step_id": null,
+      "inputs": []
+    },
+    "utf8": "{\"inputs\":[],\"material_version\":1,\"project_id\":\"01900000-0000-7000-8000-000000000001\",\"research_task_id\":\"01900000-0000-7000-8000-000000000006\",\"research_task_step_id\":null,\"type\":\"AgentExecutionInputs\"}",
+    "sha256": "13ac2a6d9fe780ebd19fced4f2e275505a2772443d78ac2ea6de2ce297f85ba6"
+  },
+  "V13_unicode": {
+    "value": {
+      "étude": "研究",
+      "null": null,
+      "bool": true,
+      "integer": 1
+    },
+    "utf8": "{\"bool\":true,\"integer\":1,\"null\":null,\"étude\":\"研究\"}",
+    "sha256": "9c8e7df4716d7dd0c1bbb6020cd7d86c9044262c3ef8229e1d79dbd52a32153b"
+  },
+  "V13_harness_compact": {
+    "value": {
+      "schema_version": 1,
+      "researchbase_revision": "rev1",
+      "agent_runtime_revision": "runtime1",
+      "model_profile_id": "model1",
+      "prompt_template_version": "prompt1",
+      "agents_md_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "strategy_id": "strategy1",
+      "strategy_revision": "strategyrev1",
+      "skills": [],
+      "plugins": [],
+      "adapters": [],
+      "hooks": [],
+      "mcp_capabilities": [],
+      "reference_libraries": []
+    },
+    "utf8": "{\"adapters\":[],\"agent_runtime_revision\":\"runtime1\",\"agents_md_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"config_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"hooks\":[],\"mcp_capabilities\":[],\"model_profile_id\":\"model1\",\"plugins\":[],\"prompt_template_version\":\"prompt1\",\"reference_libraries\":[],\"researchbase_revision\":\"rev1\",\"schema_version\":1,\"skills\":[],\"strategy_id\":\"strategy1\",\"strategy_revision\":\"strategyrev1\"}",
+    "sha256": "86f2771b79fb7957aed5184ed42504e9bb82565959897624293b41c77de58887",
+    "retained_utf8": "{\"adapters\":[],\"agent_runtime_revision\":\"runtime1\",\"agents_md_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"config_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"hooks\":[],\"mcp_capabilities\":[],\"model_profile_id\":\"model1\",\"plugins\":[],\"prompt_template_version\":\"prompt1\",\"reference_libraries\":[],\"researchbase_revision\":\"rev1\",\"schema_version\":1,\"skills\":[],\"strategy_id\":\"strategy1\",\"strategy_revision\":\"strategyrev1\"}",
+    "retained_sha256": "86f2771b79fb7957aed5184ed42504e9bb82565959897624293b41c77de58887"
+  },
+  "V13_harness_spaced": {
+    "value": {
+      "schema_version": 1,
+      "researchbase_revision": "rev1",
+      "agent_runtime_revision": "runtime1",
+      "model_profile_id": "model1",
+      "prompt_template_version": "prompt1",
+      "agents_md_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "strategy_id": "strategy1",
+      "strategy_revision": "strategyrev1",
+      "skills": [],
+      "plugins": [],
+      "adapters": [],
+      "hooks": [],
+      "mcp_capabilities": [],
+      "reference_libraries": []
+    },
+    "utf8": "{\"adapters\":[],\"agent_runtime_revision\":\"runtime1\",\"agents_md_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"config_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"hooks\":[],\"mcp_capabilities\":[],\"model_profile_id\":\"model1\",\"plugins\":[],\"prompt_template_version\":\"prompt1\",\"reference_libraries\":[],\"researchbase_revision\":\"rev1\",\"schema_version\":1,\"skills\":[],\"strategy_id\":\"strategy1\",\"strategy_revision\":\"strategyrev1\"}",
+    "sha256": "86f2771b79fb7957aed5184ed42504e9bb82565959897624293b41c77de58887",
+    "retained_utf8": "{\n  \"adapters\": [],\n  \"agent_runtime_revision\": \"runtime1\",\n  \"agents_md_sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"config_sha256\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\n  \"hooks\": [],\n  \"mcp_capabilities\": [],\n  \"model_profile_id\": \"model1\",\n  \"plugins\": [],\n  \"prompt_template_version\": \"prompt1\",\n  \"reference_libraries\": [],\n  \"researchbase_revision\": \"rev1\",\n  \"schema_version\": 1,\n  \"skills\": [],\n  \"strategy_id\": \"strategy1\",\n  \"strategy_revision\": \"strategyrev1\"\n}",
+    "retained_sha256": "f6aa6637c7c2b116cfc0f6c7df2dde18b7f920d0117ac4587a336d904114b287"
+  },
+  "V14_changed_pin": {
+    "value": {
+      "schema_version": 1,
+      "researchbase_revision": "rev1",
+      "agent_runtime_revision": "runtime1",
+      "model_profile_id": "model2",
+      "prompt_template_version": "prompt1",
+      "agents_md_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "strategy_id": "strategy1",
+      "strategy_revision": "strategyrev1",
+      "skills": [],
+      "plugins": [],
+      "adapters": [],
+      "hooks": [],
+      "mcp_capabilities": [],
+      "reference_libraries": []
+    },
+    "utf8": "{\"adapters\":[],\"agent_runtime_revision\":\"runtime1\",\"agents_md_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"config_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"hooks\":[],\"mcp_capabilities\":[],\"model_profile_id\":\"model2\",\"plugins\":[],\"prompt_template_version\":\"prompt1\",\"reference_libraries\":[],\"researchbase_revision\":\"rev1\",\"schema_version\":1,\"skills\":[],\"strategy_id\":\"strategy1\",\"strategy_revision\":\"strategyrev1\"}",
+    "sha256": "bc182bac58afe0e109be9df476ee192563b372ac55e7205b4b8093d3ac7d59ce",
+    "retained_utf8": "{\"adapters\":[],\"agent_runtime_revision\":\"runtime1\",\"agents_md_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"config_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"hooks\":[],\"mcp_capabilities\":[],\"model_profile_id\":\"model2\",\"plugins\":[],\"prompt_template_version\":\"prompt1\",\"reference_libraries\":[],\"researchbase_revision\":\"rev1\",\"schema_version\":1,\"skills\":[],\"strategy_id\":\"strategy1\",\"strategy_revision\":\"strategyrev1\"}",
+    "retained_sha256": "bc182bac58afe0e109be9df476ee192563b372ac55e7205b4b8093d3ac7d59ce"
+  },
+  "source_sha256": "d43ef1059440d2fdf2f71a5d2296d6d21b4a44ac69dd28a44cbf2aa98802e93d"
+}

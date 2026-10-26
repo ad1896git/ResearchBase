@@ -202,6 +202,11 @@ def test_scanner_allows_application_dtos_and_foundation(tmp_path: Path) -> None:
 def test_bootstrap_initializers_stay_empty_and_import_without_activation(tmp_path: Path) -> None:
     packages = []
     admitted_planning_files = {
+        # Owner-frozen PR3-02-S2 Q1/Q4/Q5: CREATED intents and reads only.
+        "agent_runtime/domain/agent_execution.py",
+        "agent_runtime/application/execution_contracts.py",
+        "agent_runtime/application/agent_executions.py",
+        "agent_runtime/ports/execution_repository.py",
         "agent_runtime/domain/research_task.py",
         "agent_runtime/domain/task_step.py",
         "agent_runtime/domain/task_graph.py",

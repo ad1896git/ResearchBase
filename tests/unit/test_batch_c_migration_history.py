@@ -40,6 +40,7 @@ def test_batch_c_linear_history_and_frozen_lane_sql():
         "0078_task_safety_policies",
         "0079_agent_identity_versions",
         "0080_capability_gateway",
+        "0081_agent_execution_intents",
     )
     assert scripts.get_heads() == [chain[-1]]
     for parent, child in zip(chain, chain[1:], strict=False):

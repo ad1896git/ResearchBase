@@ -29,7 +29,7 @@ from tests.integration.phase2.test_pr2_11_r2_persistence import (
 from tests.integration.phase2.test_pr2_13_claim_placement import _draft as _draft
 from tests.integration.phase2.test_pr2_15_decision import decision_env as decision_env
 
-# Exact 0079 -> 0080 exclusions, from migrations/versions/0080_capability_gateway.py.
+# Exact 0079 -> 0081 additions, from migrations/versions/0080_capability_gateway.py.
 # Generated UNIQUE/PRIMARY KEY index names were confirmed on PostgreSQL 18.
 PR2_20_POST_0079_TABLES = frozenset(
     (
@@ -38,10 +38,27 @@ PR2_20_POST_0079_TABLES = frozenset(
         "capability_invocations",
         "capability_invocation_refs",
         "capability_invocation_events",
+        "agent_execution_instances",
+        "agent_execution_events",
     )
 )
 
 PR2_20_POST_0079_INDEXES = {
+    "agent_execution_instances": (
+        "pr302s2_exec_pk",
+        "pr302s2_exec_project_task",
+        "pr302s2_exec_task_step",
+        "pr302s2_exec_version",
+        "pr302s2_exec_actor",
+        "pr302s2_exec_harness",
+    ),
+    "agent_execution_events": (
+        "pr302s2_event_pk",
+        "pr302s2_event_execution_uq",
+        "pr302s2_event_receipt_uq",
+        "pr302s2_event_actor",
+    ),
+    "agent_command_receipts": ("pr302s2_receipt_execution_uq", "pr302s2_receipt_event_uq"),
     "agent_tool_policies": (
         "agent_tool_policies_id_project_id_key",
         "agent_tool_policies_pkey",
@@ -127,6 +144,10 @@ PR2_20_POST_0079_INDEXES = {
 # 0080 also extends existing Phase 3 tables; exclude only its named constraints.
 PR2_20_POST_0079_ADDED_CONSTRAINTS = frozenset(
     (
+        ("agent_command_receipts", "pr302s2_receipt_operation_ck"),
+        ("agent_command_receipts", "pr302s2_receipt_shape_ck"),
+        ("agent_command_receipts", "pr302s2_receipt_execution_fk"),
+        ("agent_command_receipts", "pr302s2_receipt_event_fk"),
         ("budget_reservations", "pr303_reservation_operation_key"),
         ("budget_usage_records", "pr303_usage_reservation_key"),
         ("research_task_command_receipts", "pr303_receipt_scope_key"),
@@ -148,6 +169,8 @@ PR2_20_POST_0079_ADDED_CONSTRAINTS = frozenset(
 
 PR2_20_POST_0079_REMOVED_CONSTRAINTS = frozenset(
     (
+        ("agent_command_receipts", "agent_command_receipts_operation_check"),
+        ("agent_command_receipts", "agent_command_receipts_check"),
         ("research_task_command_receipts", "pr304_command_names"),
         ("research_task_events", "pr304_event_names"),
         ("research_task_events", "pr304_event_states"),
@@ -158,7 +181,7 @@ PR2_20_POST_0079_REMOVED_CONSTRAINTS = frozenset(
 
 
 def assert_pr2_20_head_catalog_unchanged(before: dict[str, Any], after: dict[str, Any]) -> None:
-    """Allow only the named 0080 delta; retain exact definitions of prior objects."""
+    """Allow only the named 0080/0081 delta; retain exact definitions of prior objects."""
     before_indexes = {tuple(row) for row in before["indexes"]}
     after_indexes = {tuple(row) for row in after["indexes"]}
     expected_indexes = {
@@ -177,8 +200,72 @@ def assert_pr2_20_head_catalog_unchanged(before: dict[str, Any], after: dict[str
     assert {row[0] for row in added if row[0] in PR2_20_POST_0079_TABLES} == (
         PR2_20_POST_0079_TABLES
     )
-    # Constraints owned by the five new tables are outside the PR2 catalog.
-    # On pre-existing tables, only the exact named 0080 additions are permitted.
+    intent_constraints = {
+        "agent_execution_instances": {
+            "pr302s2_exec_pk",
+            "pr302s2_exec_project_fk",
+            "pr302s2_exec_task_fk",
+            "pr302s2_exec_step_fk",
+            "pr302s2_exec_version_fk",
+            "pr302s2_exec_actor_fk",
+            "pr302s2_exec_harness_fk",
+            "pr302s2_exec_id_ck",
+            "pr302s2_exec_status_ck",
+            "pr302s2_exec_revision_ck",
+            "pr302s2_exec_task_revision_ck",
+            "pr302s2_exec_time_ck",
+            "pr302s2_exec_hashes_ck",
+            "pr302s2_exec_schemes_ck",
+        },
+        "agent_execution_events": {
+            "pr302s2_event_pk",
+            "pr302s2_event_execution_uq",
+            "pr302s2_event_receipt_uq",
+            "pr302s2_event_execution_fk",
+            "pr302s2_event_actor_fk",
+            "pr302s2_event_receipt_fk",
+            "pr302s2_event_id_ck",
+            "pr302s2_event_initial_ck",
+            "pr302s2_event_time_ck",
+            "pr302s2_event_reason_ck",
+        },
+    }
+    # PostgreSQL 18 represents each NOT NULL as a pg_constraint row. These
+    # exact generated identifiers were confirmed by the intent catalog probe.
+    not_null_columns = {
+        "agent_execution_instances": (
+            "id",
+            "project_id",
+            "research_task_id",
+            "task_revision_at_creation",
+            "agent_version_id",
+            "actor_id",
+            "status",
+            "revision",
+            "created_at",
+            "input_ref_hash",
+            "input_ref_hash_scheme",
+            "harness_artifact_version_id",
+            "harness_content_hash",
+            "harness_hash_scheme",
+        ),
+        "agent_execution_events": (
+            "id",
+            "execution_id",
+            "sequence",
+            "new_status",
+            "actor_id",
+            "occurred_at",
+            "reason",
+            "receipt_id",
+        ),
+    }
+    for table, columns in not_null_columns.items():
+        intent_constraints[table].update(f"{table}_{column}_not_null" for column in columns)
+    for table, names in intent_constraints.items():
+        assert {row[1] for row in added if row[0] == table} == names
+    # Constraints owned by the seven new tables are outside the PR2 catalog.
+    # On pre-existing tables, only the exact named 0080/0081 additions are permitted.
     assert {
         row[:2] for row in added if row[0] not in PR2_20_POST_0079_TABLES
     } == PR2_20_POST_0079_ADDED_CONSTRAINTS

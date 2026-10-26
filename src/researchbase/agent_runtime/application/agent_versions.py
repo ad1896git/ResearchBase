@@ -26,6 +26,35 @@ def fail(code, message) -> NoReturn:
     raise ResearchBaseError(code, message)
 
 
+def authorize_agent_project(repo, caller, project, credentials, *, write=False):
+    """Check current project entitlement at a fresh database time."""
+    if type(caller) is not VerifiedPrincipal:
+        fail(ErrorCode.AUTHENTICATION_REQUIRED, "trusted principal required")
+    rows = repo.authority(caller, project)
+    active = repo.project_active(project)
+    at = repo.at()
+    try:
+        live = caller.verified_at <= at and credentials.is_valid(caller, at)
+    except Exception:
+        live = False
+    for row in rows:
+        if (
+            live
+            and (not write or (active and repo.human(caller.actor_id)))
+            and row["role"]
+            in ({"OWNER"} if write else {"OWNER", "RESEARCHER", "REVIEWER", "APPROVER", "VIEWER"})
+            and row["retired_at"] is None
+            and row["binding_status"] == "ACTIVE"
+            and row["membership_status"] == "ACTIVE"
+            and row["effective_from"] <= at
+            and (row["effective_until"] is None or at < row["effective_until"])
+            and row["bound_at"] <= at
+            and (row["revoked_at"] is None or at < row["revoked_at"])
+        ):
+            return at
+    fail(ErrorCode.FORBIDDEN, "current project entitlement unavailable")
+
+
 class AgentVersionService:
     def __init__(
         self,
@@ -43,35 +72,7 @@ class AgentVersionService:
         self._enrollment = enrollment_verifier or DenyAgentVerifier()
 
     def _authorize(self, repo, caller, project, *, write=False):
-        if type(caller) is not VerifiedPrincipal:
-            fail(ErrorCode.AUTHENTICATION_REQUIRED, "trusted principal required")
-        rows = repo.authority(caller, project)
-        active = repo.project_active(project)
-        at = repo.at()
-        try:
-            live = caller.verified_at <= at and self._credentials.is_valid(caller, at)
-        except Exception:
-            live = False
-        for row in rows:
-            if (
-                live
-                and (not write or (active and repo.human(caller.actor_id)))
-                and row["role"]
-                in (
-                    {"OWNER"}
-                    if write
-                    else {"OWNER", "RESEARCHER", "REVIEWER", "APPROVER", "VIEWER"}
-                )
-                and row["retired_at"] is None
-                and row["binding_status"] == "ACTIVE"
-                and row["membership_status"] == "ACTIVE"
-                and row["effective_from"] <= at
-                and (row["effective_until"] is None or at < row["effective_until"])
-                and row["bound_at"] <= at
-                and (row["revoked_at"] is None or at < row["revoked_at"])
-            ):
-                return at
-        fail(ErrorCode.FORBIDDEN, "current project entitlement unavailable")
+        return authorize_agent_project(repo, caller, project, self._credentials, write=write)
 
     def _proof(self, command, repo, identity_repo):
         args = command.arguments

@@ -35,9 +35,9 @@ def test_r8a_actual_migration_graph_and_frozen_bytes():
             hashlib.sha256((root / name).read_bytes()).digest() == hashlib.sha256(original).digest()
         )
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0080_capability_gateway"]
+    assert scripts.get_heads() == ["0081_agent_execution_intents"]
     head = scripts.get_revision(scripts.get_heads()[0])
-    assert head.down_revision == "0079_agent_identity_versions"
+    assert head.down_revision == "0080_capability_gateway"
 
 
 @pytest.mark.parametrize(
