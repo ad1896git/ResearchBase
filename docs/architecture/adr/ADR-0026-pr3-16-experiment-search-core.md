@@ -1,6 +1,6 @@
 # ADR-0026 — PR3-16 Experiment Search Core
 
-Status: PROPOSED — not accepted. Owner acceptance pending.
+Status: ACCEPTED — owner approved 2026-10-26 (decision recorded in the owner answers record).
 
 ## Context
 
