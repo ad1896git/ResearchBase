@@ -1,4 +1,4 @@
-# PR3-16 create/append envelopes, lifecycle and reads — t335
+# PR3-16 create/append envelopes, lifecycle and reads — t336
 
 This supplies owner item 4, coordinated with items 1–3 in
 [the reduced SQL design](PR3-16-ddl-guards-events.md). It replaces the prior
@@ -12,11 +12,13 @@ The proposed command slice contains only `create_search_session` and
 `append_search_node`, whose lifecycle matrices are complete. Link, failure,
 prune and close are outside the slice until their full matrices are resolved and
 reviewed. L08–L10 remain OWNER; no default permission or denial implements them.
-D1 remains a separate prerequisite for production node admission.
+Decision 1 still admits all four tables, including `experiment_search_node_runs`;
+no command writes that relation in this slice. D1 remains a separate prerequisite
+for production node admission.
 
-Task t335 baseline: `819b8338fd678b4b3b3bad453cb3ee4655f0b02c`, shared by
-`design-pr316` and the supplied `design/dec5` worktree. No checkout, branch creation,
-commit or push. Only the two authorized design files change.
+Task t336 baseline: `56abdbe` on the supplied `design/a3-fix` checkout; the task
+names `design-pr316`. No checkout, branch creation, commit or push. Changes are
+confined to `docs/phase3/design/`.
 
 `RESOLVED` means a specified contract within the stated scope; `OWNER` marks an
 unsettled choice or a deferred artifact dependent on it; `MISSING` is absent
@@ -26,7 +28,7 @@ vectors and lifecycle/read rows. Proposed test nodes are never executed coverage
 Review navigation: [two command envelopes](#q2-closed-request-and-result-contract),
 [two literal vectors](#literal-vectors-for-the-reduced-slice),
 [remaining owner questions](#audit-of-the-remaining-owner-questions),
-[current verification](#verification-record--t335).
+[current verification](#verification-record--t336).
 
 ## Q2 closed request and result contract
 
@@ -320,9 +322,10 @@ root_hypothesis_version_id, root_hypothesis_content_hash,
 root_experiment_spec_version_id, root_experiment_spec_content_hash, created_by,
 created_at, status), nodes, run_links, events and task_safety. Nodes carry the
 SQL node fields except receipt_id plus derived status. This reduced slice emits
-`run_links=[]`; no Run-link storage or writer is proposed. The broader historical
-read obligation remains deferred with that storage. Events carry every SQL event
-field. Collection values are arrays, including []; nullable refs/hashes stay null.
+`run_links=[]`: the admitted `experiment_search_node_runs` table has no command
+writer and its INSERT guard rejects rows. The broader historical Run-link read
+obligation remains deferred with the link command, not with table admission.
+Events carry every SQL event field. Collection values are arrays, including []; nullable refs/hashes stay null.
 All timestamps serialize UTC RFC3339, UUIDs lower-case, no current/latest reference.
 Derived status is explicitly a current-snapshot value, never historical saved
 scientific truth. task_safety embeds the existing TaskSafetyRead
@@ -342,23 +345,24 @@ errors use the Q2 error shape, no SQL/foreign IDs. Empty tree has [], never succ
 
 | ID | Status | Read decision / sources | Check |
 | --- | --- | --- | --- |
-| R01 | RESOLVED | Reduced whole-tree/root-to-node shapes and order above; same-snapshot safety; no silent truncation. Run-link/history projections remain outside this slice with their storage. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:119–128,261–265; docs/phase3/PR3-16-execution-pack-r2.md:520; docs/phase3/PR3-16-owner-decisions-2026-10-27.md:11. | MISSING: create/append tree, root-to-target, empty-tree and same-UoW safety checks |
-| R02 | RESOLVED | Initial approved task node/depth/parallel caps are 10/3/1; depth root=0. Parallel=1 is reservation occupancy, never number of historical children, roots, links or simultaneous read requests. All sessions share task accounting. docs/phase3/PR3-16-execution-pack-r2.md:504; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:74–76; `src/researchbase/agent_runtime/application/task_safety.py:122–135`. | MISSING: `tests/integration/phase3/test_pr3_16_application.py::test_recheck_cadence_and_query_work_at_frozen_bounds` |
+| R01 | RESOLVED | Reduced whole-tree/root-to-node shapes and order above; same-snapshot safety; no silent truncation. The Run-link table is admitted without a command writer; historical Run-link projections await the excluded link command. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:119–128,261–265; docs/phase3/PR3-16-execution-pack-r2.md:520; docs/phase3/PR3-16-owner-decisions-2026-10-27.md:11. | MISSING: create/append tree, root-to-target, empty-tree and same-UoW safety checks |
+| R02 | OWNER | **Established:** initial approved node/depth/parallel caps are 10/3/1; root depth is 0 and sessions share task accounting. **Question:** what does “parallel branches” mean for search admission and reads? **Options:** (1) task-wide reservation occupancy, with no bound on historical siblings or concurrent read requests; (2) nonterminal frontier-node count, with owner-defined session/task scope and history/read treatment. **Recommendation:** option 1 for owner review because the existing TaskSafety path accounts for reservation occupancy; that analogy does not settle search semantics. Until answered, no parallel-branch predicate or assertion is selected. docs/phase3/PR3-16-execution-pack-r2.md:504; docs/phase3/PR3-16-design-closeout.md:194–204; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:74–76; `src/researchbase/agent_runtime/application/task_safety.py:122–135`. | MISSING: owner-approved meaning and exact boundary assertions before `tests/integration/phase3/test_pr3_16_application.py::test_recheck_cadence_and_query_work_at_frozen_bounds` can establish parallel conformance |
 | R03 | RESOLVED | Review proposal under docs/phase3/PR3-16-owner-decisions-2026-10-27.md:12: initial per-session whole-tree limits of **20 Run-link rows and 42 search-event rows**. These are pipeline sizing selections awaiting review/S8 measurement, not frozen owner-approved literals. The frozen 10/3/1 answer at docs/phase3/PR3-16-execution-pack-r2.md:504 is unchanged. In this reduced slice there are no Run-link rows and at most 11 creation events for 10 nodes; the proposed ceilings grant no additional write scope. | MISSING: `tests/integration/phase3/test_pr3_16_application.py::test_recheck_cadence_and_query_work_at_frozen_bounds` and exact event/link boundary checks; S8 measurements |
 | R04 | OWNER | **Exact question:** on node/depth/event/link overflow, approve whole-request failure with existing VALIDATION_ERROR and `Search read limit exceeded.` (details=null), including legitimate larger-budget/reconciliation history, or select another existing error/access policy? Recommend no partial result, pagination, deletion or new write cap; history remains stored. Scope is the whole session for tree, returned path+target links/events for lineage; budget query imposes no tree count bound. No source settles this overflow code or access policy. | MISSING: bound/overflow/no-truncation and historical accessibility checks; docs/phase3/PR3-16-execution-pack-r2.md:520; `docs/phase3/PR3-16-freeze-inventory.md:292` |
 | R05 | MISSING | Search formal-read implementation, corrupt ancestry/hash/error tests, scalar/array type assertions and concurrent-writer snapshot evidence. Current docs specify behavior; no search query file exists. | MISSING: `tests/unit/phase3/test_experiment_search_repository.py::test_formal_read_has_one_snapshot_and_no_writes`; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:302 |
 
 R03 supplies proposed limits for review under the later owner decision. It neither
 replaces nor amends a frozen owner answer. The 20/42 values are not capacity
-evidence and do not authorize the excluded commands or their storage. No DDL
-CHECK enforces a read limit. R04 still blocks read activation; measure query work
-and history growth at S8.
+evidence and do not authorize the excluded commands. Four-table admission comes
+from decision 1, independently of these read limits. No DDL CHECK enforces a read
+limit. R02 and R04 still block read activation; measure query work and history
+growth at S8.
 
 | ID | Status | Remaining acceptance requirement | Check |
 | --- | --- | --- | --- |
 | C01 | MISSING | Both in-slice search envelope/result/error and PostgreSQL adversarial/multi-flush tests, plus independent Q2 review before implementation. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:10,18; docs/phase3/PR3-16-execution-pack-r2.md:185,190,260–269. | MISSING: listed proposed nodes are absent; existing regression results below are not search coverage |
 
-**Disposition counts: RESOLVED 15; OWNER 12; MISSING 3 (30 rows).**
+**Disposition counts: RESOLVED 14; OWNER 13; MISSING 3 (30 rows).**
 
 ## Audit of the remaining owner questions
 
@@ -370,6 +374,10 @@ and history growth at S8.
   L08–L10 above. Decision 5 (`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:11`)
   removes their dependent commands; it does not select an answer. There are no
   fail-closed placeholder implementations for them.
+- **R02 remains OWNER.** The closeout explicitly reserves the meaning of
+  parallel branches to the owner (`docs/phase3/PR3-16-design-closeout.md:194–204`).
+  The 10/3/1 numbers and the existing reservation accounting do not supply that
+  answer. Its question, options and recommendation above remain pending.
 - **R03 is a review proposal.** The later instruction to supply event/link limits
   (`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:12`) supports authoring those
   numbers, without replacing the earlier frozen answer at
@@ -381,7 +389,10 @@ and history growth at S8.
   lifecycle and read OWNER items. R04's alternatives preserve all history and
   do not choose pagination, truncation, deletion or a new write cap.
 
-## Verification record — t335
+## Historical verification record — t335
+
+The following record describes t335 only, including its then-current three-table
+design. Its counts, scope audit and SQL hash do not verify the t336 edits.
 
 The t334 six-command SQL/vector probes recorded in the prior revision are
 historical evidence only and do not verify this reduced design. Their ignored
@@ -489,3 +500,150 @@ The final document audit rechecks that digest after evidence-only edits.
 `git diff --check`: empty stdout/stderr, exit **0**. Final scope is exactly the two
 authorized files; HEAD remains `819b8338fd678b4b3b3bad453cb3ee4655f0b02c`. No commit,
 push, branch creation, implementation or gate acceptance is claimed.
+
+## Verification record — t336
+
+All commands ran in the supplied `design/a3-fix` checkout at `56abdbe`.
+Only four Markdown files under `docs/phase3/design/` changed; no branch,
+commit, push, implementation or migration was created. The inherited
+`RB_TEST_ADMIN_URL` selected the local disposable PostgreSQL cluster; no
+application database was migrated. The whole suite was **NOT RUN**; the loop's
+later output remains separate evidence.
+
+Every `uv` command used the exact prefix
+`UV_CACHE_DIR="$PWD/tmp/t336/uv-cache"`. Initial environment setup used
+`UV_CACHE_DIR="$PWD/.uv-cache" uv sync --locked` (exit 0: 38 packages resolved,
+34 installed); that new cache was moved to the ignored `tmp/t336/uv-cache`
+before checks. Dependency definitions are unchanged.
+
+| Exact command after the check prefix | Observed output / result | Exit |
+| --- | --- | --- |
+| `uv run --locked ruff check .` | `All checks passed!` | 0 |
+| `uv run --locked ruff format --check .` | `948 files already formatted` | 0 |
+| `uv run --locked pyright` | `0 errors, 0 warnings, 0 informations`; available-version notice only | 0 |
+| `uv run --locked alembic heads` | `0081_agent_execution_intents (head)` | 0 |
+| `uv run --locked pytest -o addopts= -q tests/unit/phase3 tests/architecture tests/unit/architecture tests/unit/foundation tests/unit/test_ci_migration_head.py` | `1509 passed, 51 warnings in 30.98s`; 0 failures/skips | 0 |
+| `uv run --locked pytest -o addopts= -q tests/integration/phase3/test_pr3_01_schema.py tests/integration/phase3/test_pr3_01_replay.py tests/integration/phase3/test_pr3_04_guards.py tests/integration/phase3/test_pr3_04_accounting.py tests/integration/phase3/test_pr3_03_migration.py tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_02_s2_intent_migration.py tests/integration/phase3/test_pr3_02_s2_intent_guards.py` | `275 passed, 180 warnings in 112.42s (0:01:52)`; 0 failures/skips | 0 |
+| `git diff --check` | Empty stdout/stderr | 0 |
+
+The warnings are existing Alembic `path_separator` deprecations. These are
+focused regressions of the referenced task/safety/gateway/identity seams, not
+implementation evidence for the absent PR3-16 Application or migration suites.
+
+The final document audit checks counts by ledger/numbered/trace entry, not by
+keyword occurrences or hypothetical test cases:
+
+| Changed file | RESOLVED | OWNER | MISSING |
+| --- | ---: | ---: | ---: |
+| PR3-16-ddl-guards-events.md | 9 | 1 | 2 |
+| PR3-16-envelopes-lifecycle-reads.md | 14 | 13 | 3 |
+| PR3-16-lock-composition.md | 4 | 2 | 1 |
+| PR3-16-duplicate-revision-assertions.md | 4 | 3 | 15 |
+| Total (four changed files) | 31 | 19 | 21 |
+
+The audit also verified exact restoration of the Run-link CREATE TABLE,
+constraint and index declarations from pre-reduction revision `819b833`,
+R02's OWNER/question/options/recommendation, exactly four allowed changed paths
+and zero untracked nonignored files. The unchanged D1 amendment's separate
+14/10/10 entries are not included in the changed-file total. No OWNER or
+MISSING implementation/review obligation is cleared by these document checks.
+
+The SQL probe below exited **0** on PostgreSQL **18.6 (Homebrew)**,
+port **5432**, system ID `7696072587520791948`. The fixture created and dropped
+`researchbase_pr212_test_13c8cf5d47de4d39ab700789bb06ecb2`.
+Observed results: **10 SQL blocks, 4 tables, 16 new functions, 16 new triggers**;
+only existing `pr301_receipt_complete()` changed among `pr30*` functions;
+exactly two search commands; **2/2** SQL/Python digest matches. The restored
+relation has **9 columns, 20 constraints (5 RESTRICT FKs), 9 indexes** and the
+Run/project support key. Both INSERT and TRUNCATE rejection probes passed
+(**2/2**), leaving zero relation rows. These probes used the admin connection
+with guards enabled; they do not establish ordinary-role privilege coverage,
+all immutable mutation paths, full guard behavior or resolution of Q7/R02.
+
+Exact probe command:
+
+```sh
+UV_CACHE_DIR="$PWD/tmp/t336/uv-cache" uv run --locked python - <<'AUDIT'
+from pathlib import Path
+import hashlib, json, logging, re
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import DBAPIError
+from researchbase.foundation.hashing import sha256_canonical_json
+from tests.disposable_postgres import disposable_database
+from tests.integration.phase2.pr2_20_support import upgrade
+
+logging.disable(logging.INFO)
+ddl = Path('docs/phase3/design/PR3-16-ddl-guards-events.md').read_text()
+env = Path('docs/phase3/design/PR3-16-envelopes-lifecycle-reads.md').read_text()
+blocks = re.findall(r'```sql\n(.*?)\n```', ddl, re.S)
+vectors = []
+for body in re.findall(r'### V0[12] — (.*?)(?=\n### |\n## |\Z)', env, re.S):
+    material = json.loads(re.findall(r'```json\n(.*?)\n```', body, re.S)[1])
+    digest = re.search(r'request_hash = ([0-9a-f]{64})', body)[1]
+    assert sha256_canonical_json(material) == digest
+    vectors.append((material, digest))
+with disposable_database('researchbase_pr212_test_') as url:
+    upgrade(url, '0081_agent_execution_intents')
+    engine = create_engine(url)
+    try:
+        with engine.begin() as conn:
+            print('PostgreSQL:', conn.execute(text('SHOW server_version')).scalar_one())
+            function_query = text("SELECT p.oid::regprocedure::text,pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname LIKE 'pr30%'")
+            before = dict(conn.execute(function_query).all())
+            with conn.connection.driver_connection.cursor() as cursor:
+                for block in blocks:
+                    cursor.execute(block)
+            after = dict(conn.execute(function_query).all())
+            changed = [name for name in before if before[name] != after[name]]
+            assert changed == ['pr301_receipt_complete()'], changed
+            print('Changed existing pr30* bodies:', changed)
+            for material, digest in vectors:
+                assert conn.execute(text('SELECT pr302s2_value_digest(CAST(:value AS jsonb))'), {'value': json.dumps(material)}).scalar_one() == digest
+            assert len(vectors) == 2
+            print('SQL/Python digest parity: 2/2')
+            command_check = conn.execute(text("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='pr316_command_names'")).scalar_one()
+            search_commands = {v for v in re.findall(r"'([^']+)'", command_check) if re.search(r'(?:^|_)search_', v)}
+            assert search_commands == {'create_search_session', 'append_search_node'}, search_commands
+            tables = conn.execute(text("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'experiment_search_%'")).scalar_one()
+            functions = conn.execute(text("SELECT count(*) FROM pg_proc WHERE proname LIKE 'pr316_%'")).scalar_one()
+            triggers = conn.execute(text("SELECT count(*) FROM pg_trigger WHERE tgname LIKE 'pr316_%'")).scalar_one()
+            assert (len(blocks), tables, functions, triggers) == (10, 4, 16, 16)
+            print('SQL compiled: 10 blocks, 4 tables, 16 new functions, 16 new triggers; command catalog: exactly create/append')
+            columns = conn.execute(text("SELECT column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='experiment_search_node_runs' ORDER BY ordinal_position")).all()
+            expected_columns = ['id', 'project_id', 'research_task_id', 'search_session_id', 'node_id', 'run_id', 'created_by', 'created_at', 'receipt_id']
+            assert [row[0] for row in columns] == expected_columns
+            assert all(row[1] == ('timestamp with time zone' if row[0] == 'created_at' else 'uuid') and row[2] == 'NO' for row in columns)
+            constraints = conn.execute(text("SELECT conname,contype,confdeltype FROM pg_constraint WHERE conrelid='experiment_search_node_runs'::regclass")).all()
+            expected_constraints = set(re.findall(r'ADD CONSTRAINT (pr316_link_\w+)', ddl)) | {f'pr316_link_{name}_nn' for name in expected_columns}
+            assert {row[0] for row in constraints} == expected_constraints
+            assert len(constraints) == 20
+            assert sum(row[1] == 'f' and row[2] == 'r' for row in constraints) == 5
+            indexes = set(conn.execute(text("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='experiment_search_node_runs'")).scalars())
+            expected_indexes = set(re.findall(r'CREATE INDEX (pr316_link_\w+)', ddl)) | {'pr316_link_pk', 'pr316_link_receipt_uq', 'pr316_link_scope_uq', 'pr316_link_pair_uq'}
+            assert indexes == expected_indexes and len(indexes) == 9
+            assert conn.execute(text("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='runs'::regclass AND conname='pr316_run_project_uq'")).scalar_one() == 'UNIQUE (id, project_id)'
+            print('Run-link catalog: 9 columns, 20 constraints (5 RESTRICT FKs), 9 indexes; Run/project support key present')
+            for sql, constraint in [
+                ('INSERT INTO experiment_search_node_runs DEFAULT VALUES', 'pr316_no_link_writer'),
+                ('TRUNCATE experiment_search_node_runs', 'pr316_immutable'),
+            ]:
+                try:
+                    with conn.begin_nested():
+                        conn.execute(text(sql))
+                except DBAPIError as error:
+                    assert error.orig.sqlstate == '23514'
+                    assert error.orig.diag.constraint_name == constraint
+                else:
+                    raise AssertionError(sql)
+            assert conn.execute(text('SELECT count(*) FROM experiment_search_node_runs')).scalar_one() == 0
+            print('INSERT/TRUNCATE rejection probes: 2/2; Run-link rows: 0 (admin connection, guards enabled)')
+            print('SQL fence SHA256:', hashlib.sha256('\n'.join(blocks).encode()).hexdigest())
+    finally:
+        engine.dispose()
+AUDIT
+```
+
+SQL-fence SHA256:
+`e6adcd861e99b32957986b3fdd846c65dd2dcaf3be32f11f523b153662f6e2f2`.
+Final-byte verification rechecks this digest and `git diff --check` after
+evidence edits; earlier t335 evidence above is historical only.

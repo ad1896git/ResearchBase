@@ -1,18 +1,21 @@
-# PR3-16 create/append DDL, guards, events and receipts — t335
+# PR3-16 four-table DDL with create/append guards, events and receipts — t336
 
-Design for review, not implementation or gate acceptance. Owner decision 5
-(docs/phase3/PR3-16-owner-decisions-2026-10-27.md:11) limits this slice to
-`create_search_session` and `append_search_node`. Link, failure, prune and close
-are excluded entirely until their lifecycle matrices are complete. Their SQL
-branches, catalog entries, events and result pointers are removed. The broader
-four-table requirement remains deferred in the authoritative pack; the reduced
-proposal has only session, node and creation-event tables, with no Run relation.
-No existing database objects are removed by this documentation change.
+Design for review, not implementation or gate acceptance. Owner decision 1
+admits all four tables to this design: `experiment_search_sessions`,
+`experiment_search_nodes`, `experiment_search_node_runs` and
+`experiment_search_events`. Decision 5 removes only the link, failure, prune and
+close commands until their lifecycle matrices are complete; the command slice
+contains only `create_search_session` and `append_search_node`
+(docs/phase3/PR3-16-owner-decisions-2026-10-27.md:7–11).
+The Run-link table is admitted with its columns, constraints and indexes, but
+**no command writes to it in this slice**. No link event, receipt result pointer
+or partial link lifecycle is enabled. Ordinary-role INSERT is rejected at the
+table boundary; immutable UPDATE/DELETE/TRUNCATE guards still apply.
 
-Task t335 baseline: `819b8338fd678b4b3b3bad453cb3ee4655f0b02c`, shared by
-`design-pr316` and the supplied `design/dec5` worktree. No checkout, branch creation,
-commit or push. Existing migration head is `0081_agent_execution_intents`;
-`0082_experiment_search_core` remains a proposal, not an installed migration.
+Task t336 baseline: `56abdbe` on the supplied `design/a3-fix` checkout; the task
+names `design-pr316`. No checkout, branch creation, commit or push. Existing
+migration head is `0081_agent_execution_intents`; `0082_experiment_search_core`
+remains a proposal, not an installed migration. Only design documentation changes.
 
 `RESOLVED` means a supplied design within this reduced scope, not tested
 implementation. `OWNER` marks an unsettled choice or an artifact dependent on it;
@@ -23,7 +26,7 @@ the supplied SQL must not be treated as a complete identity guard.
 See [the two-envelope contract](PR3-16-envelopes-lifecycle-reads.md),
 [SQL bodies](#guard-execution-and-full-sql-bodies),
 [old-object manifest](#old-function-replacement-list-and-unchanged-manifest) and
-[current verification](#verification-record--t335).
+[current verification](#verification-record--t336).
 
 ## Disposition and source-to-check ledger
 
@@ -31,18 +34,18 @@ See [the two-envelope contract](PR3-16-envelopes-lifecycle-reads.md),
 | --- | --- | --- | --- |
 | D01 | RESOLVED | Create-only session columns, paired hashes and scope FKs below. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:91–93,152,158–164; UUID/time/hash/FK declaration pattern migrations/versions/0081_agent_execution_intents.py:13–29,42–63. | MISSING: `tests/integration/phase3/test_pr3_16_schema.py::test_frozen_columns_keys_indexes_and_no_json_or_cascade` |
 | D02 | RESOLVED | Append-only node columns, exact parent/depth, branch/reason, reservation and frozen refs; D1 activation remains separate. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:98,104,153,184–201; migrations/versions/0081_agent_execution_intents.py:57–67. | MISSING: same schema node; `tests/integration/phase3/test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database` |
-| D03 | OWNER | Run-relation design removed from this slice with link; L08–L10 and transaction-origin proof must be settled before reconsideration. No Run table/support key/link guards are proposed here. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:11; companion L08–L10. | MISSING: reviewed complete lifecycle matrix before any relation contract |
+| D03 | RESOLVED | Admitted Run-relation columns, concrete same-task/session/node/project/Run FKs, pair uniqueness and indexes restored below. No command writes this table in the reduced slice; its INSERT guard admits no rows. Link lifecycle L08–L10 remains OWNER. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:7,11; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:154,157–172. | MISSING: exact relation catalog, no-writer and immutable-history checks |
 | D04 | RESOLVED | Reduced events: two creation literals and two task literals, with shape/reason/sequence and creation uniqueness. No terminal or link event catalog entries. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:100–110,155,170–182; `migrations/versions/0077_research_task_graph.py:204–237`; migrations/versions/0081_agent_execution_intents.py:30–40,64–67. | MISSING: schema node and multi-flush cardinality checks |
-| D05 | RESOLVED | Named PK/CHECK/UNIQUE/FK/index inventory for three tables only; no old Run support key, JSON/status/strategy columns or terminal/link indexes. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:157–172; `migrations/versions/0080_capability_gateway.py:10–27`; migrations/versions/0081_agent_execution_intents.py:42–103. | MISSING: schema node; `tests/integration/phase3/test_pr3_16_schema.py::test_no_strategy_column` |
+| D05 | RESOLVED | Named PK/CHECK/UNIQUE/FK/index inventory for all four tables, including the required Run/project support key and relation indexes; no JSON/status/strategy columns or terminal-event indexes. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:157–172; `migrations/versions/0080_capability_gateway.py:10–27`; migrations/versions/0081_agent_execution_intents.py:42–103. | MISSING: schema node; `tests/integration/phase3/test_pr3_16_schema.py::test_no_strategy_column` |
 | D06 | RESOLVED | Three receipt pointers for create/append, reduced old CHECK extension and one-revision/one-task-event effect contract. No Run-link pointer. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:127–143,174–182; `migrations/versions/0077_research_task_graph.py:179–198,272–281`; migrations/versions/0081_agent_execution_intents.py:41,55–56,68–94. | MISSING: `tests/unit/phase3/test_experiment_search.py::test_uncertain_commit_recovers_original_ids` |
-| D07 | OWNER | Create/append guard bodies and attachments supplied below, but Q7 identity-slot composition remains OWNER (PR3-16-lock-composition.md:9). The hard-coded Agent-key choice is removed; this partial preheld guard does not establish full lock coverage. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:13; docs/phase3/PR3-16-design-closeout.md:210–237. | MISSING: reviewed per-caller identity trace and guard; normal-role multi-flush tests |
+| D07 | OWNER | Create/append guard bodies and attachments supplied below, but Q7 identity-slot composition remains OWNER (PR3-16-lock-composition.md, Per-caller trace). The hard-coded Agent-key choice is removed; this partial preheld guard does not establish full lock coverage. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:13; docs/phase3/PR3-16-design-closeout.md:210–237. | MISSING: reviewed per-caller identity trace and guard; normal-role multi-flush tests |
 | D08 | RESOLVED | Exact replacement list remains one inherited function, adding only two search CASE branches plus completeness validation; all 0081-specific functions, triggers and agent receipts are preserved. migrations/versions/0081_agent_execution_intents.py:113–151,217–221,347,376,432,583–586; `migrations/versions/0080_capability_gateway.py:2762`. | MISSING: catalog before/after body diff for search migration; baseline `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift` |
 | D09 | RESOLVED | SQL mirrors existing canonical serializer only for the Q2 integer/string/null subset; no new search object content hash. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:130–135; `src/researchbase/foundation/canonical_json.py:11–26`; `src/researchbase/foundation/hashing.py:33–35`; migrations/versions/0081_agent_execution_intents.py:113–134. | Existing `tests/unit/foundation/test_canonical_json.py::test_sha256_cjson_v1_golden_vector_is_stable`; MISSING: search SQL/Python vector parity |
 | D10 | RESOLVED | Production node admission explicitly fails until separate D1 amendment; no user-controlled trust flag, fake producer, refunds or settlement. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14; docs/phase3/PR3-16-execution-pack-r2.md:499,502; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184–205. | MISSING: production deny, valid conservative-proof and charged-gap tests |
 | D11 | MISSING | Outside this slice: durable Run transaction-origin proof remains absent. No post-close link command or denial default is retained. docs/phase3/PR3-16-execution-pack-r2.md:503; `src/researchbase/application/commands.py:1519`. | MISSING: durable proof and strict earlier/equal/later tests; never count this as eligible coverage |
 | D12 | MISSING | Independent review, normal-role hostile SQL/effect tests and F1 acceptance. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:18; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:12–14,299–311. SQL compilation alone is insufficient. | MISSING: PR3-16 migration/guard/application suites |
 
-**Disposition counts: RESOLVED 8; OWNER 2; MISSING 2 (12 rows).**
+**Disposition counts: RESOLVED 9; OWNER 1; MISSING 2 (12 rows).**
 
 ## Exact declarations and installation order
 
@@ -56,8 +59,9 @@ same-name indexes. FKs use MATCH SIMPLE (the PostgreSQL default), ON UPDATE NO
 ACTION and ON DELETE RESTRICT. Only receipt-to-result FKs are deferred. Nullable
 composite FKs are paired with CHECKs so NULL cannot bypass a required result.
 
-Existing task/budget/reservation/receipt support keys are reused. No Run support
-key is added. A future migration must compare the old definitions to the exact
+Existing task/budget/reservation/receipt support keys are reused. The only new
+old-table support key is `pr316_run_project_uq` on `runs(id,project_id)` for the
+admitted relation's concrete same-project Run FK. A future migration must compare the old definitions to the exact
 0081 catalog and refuse drift (migrations/versions/0081_agent_execution_intents.py:591–605).
 No accepted migration is edited. The SQL is a reviewable partial design with
 Q7 still OWNER, not implementation authorization or a claim of complete guards.
@@ -161,6 +165,39 @@ ALTER TABLE experiment_search_nodes ADD CONSTRAINT pr316_node_experiment_spec_fk
 ALTER TABLE experiment_search_nodes ADD CONSTRAINT pr316_node_experiment_spec_pair_ck CHECK ((experiment_spec_version_id IS NULL AND experiment_spec_content_hash IS NULL) OR (experiment_spec_version_id IS NOT NULL AND experiment_spec_content_hash IS NOT NULL AND experiment_spec_content_hash ~ '^[0-9a-f]{64}$'));
 ```
 
+### `experiment_search_node_runs`
+
+Admitted storage with no command writer in this slice. These declarations do not
+activate `link_search_node_run`; its complete lifecycle contract remains OWNER.
+
+
+
+```sql
+ALTER TABLE runs ADD CONSTRAINT pr316_run_project_uq UNIQUE (id,project_id);
+CREATE TABLE experiment_search_node_runs (
+  id uuid CONSTRAINT pr316_link_id_nn NOT NULL,
+  project_id uuid CONSTRAINT pr316_link_project_id_nn NOT NULL,
+  research_task_id uuid CONSTRAINT pr316_link_research_task_id_nn NOT NULL,
+  search_session_id uuid CONSTRAINT pr316_link_search_session_id_nn NOT NULL,
+  node_id uuid CONSTRAINT pr316_link_node_id_nn NOT NULL,
+  run_id uuid CONSTRAINT pr316_link_run_id_nn NOT NULL,
+  created_by uuid CONSTRAINT pr316_link_created_by_nn NOT NULL,
+  created_at timestamptz CONSTRAINT pr316_link_created_at_nn NOT NULL,
+  receipt_id uuid CONSTRAINT pr316_link_receipt_id_nn NOT NULL
+);
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_pk PRIMARY KEY (id);
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_id_ck CHECK (pr316_uuid7(id));
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_time_ck CHECK (isfinite(created_at));
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_receipt_uq UNIQUE (receipt_id);
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_actor_fk FOREIGN KEY (created_by) REFERENCES actors(id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_receipt_fk FOREIGN KEY (research_task_id,receipt_id) REFERENCES research_task_command_receipts(research_task_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_scope_uq UNIQUE (research_task_id,search_session_id,node_id,id);
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_pair_uq UNIQUE (search_session_id,node_id,run_id);
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_session_fk FOREIGN KEY (research_task_id,project_id,search_session_id) REFERENCES experiment_search_sessions(research_task_id,project_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_node_fk FOREIGN KEY (research_task_id,search_session_id,node_id) REFERENCES experiment_search_nodes(research_task_id,search_session_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
+ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_run_fk FOREIGN KEY (run_id,project_id) REFERENCES runs(id,project_id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
+```
+
 ### `experiment_search_events`
 
 
@@ -211,6 +248,11 @@ CREATE INDEX pr316_node_order ON experiment_search_nodes(search_session_id,depth
 CREATE INDEX pr316_node_hypothesis ON experiment_search_nodes(hypothesis_version_id);
 CREATE INDEX pr316_node_spec ON experiment_search_nodes(experiment_spec_version_id);
 CREATE INDEX pr316_node_reservation ON experiment_search_nodes(research_task_id,reservation_id,id);
+CREATE INDEX pr316_link_session_project ON experiment_search_node_runs(research_task_id,project_id,search_session_id);
+CREATE INDEX pr316_link_run ON experiment_search_node_runs(run_id,project_id);
+CREATE INDEX pr316_link_order ON experiment_search_node_runs(node_id,id);
+CREATE INDEX pr316_link_actor ON experiment_search_node_runs(created_by);
+CREATE INDEX pr316_link_receipt ON experiment_search_node_runs(research_task_id,receipt_id);
 CREATE INDEX pr316_event_node ON experiment_search_events(research_task_id,search_session_id,node_id);
 CREATE INDEX pr316_session_actor ON experiment_search_sessions(created_by);
 CREATE INDEX pr316_session_receipt ON experiment_search_sessions(research_task_id,receipt_id);
@@ -229,13 +271,13 @@ Sequence is contiguous and session-local, starting at 1; task-event sequence
 remains task revision. A session may have no root; once nodes exist, exactly one
 root and immutable committed parents make the graph a tree.
 
-| Command | Search event | Task event | New session/node/event rows | Reason |
+| Command | Search event | Task event | New session/node/link/event rows | Reason |
 | --- | --- | --- | --- | --- |
-| create_search_session | SESSION_CREATED | SEARCH_SESSION_CREATED | 1/0/1 | `Search session created.` |
-| append_search_node | NODE_APPENDED | SEARCH_NODE_APPENDED | 0/1/1 | exact normalized mutation_reason |
+| create_search_session | SESSION_CREATED | SEARCH_SESSION_CREATED | 1/0/0/1 | `Search session created.` |
+| append_search_node | NODE_APPENDED | SEARCH_NODE_APPENDED | 0/1/0/1 | exact normalized mutation_reason |
 
 Each command adds one task receipt, task event and receipt-event link. All step,
-safety, gateway and scientific effects are zero; task status/seal/policies/stop
+Run-link, safety, gateway and scientific effects are zero; task status/seal/policies/stop
 causes are unchanged, and revision advances once.
 
 The new nullable UUID receipt pointers are result_search_session_id and
@@ -326,6 +368,7 @@ checks remain MISSING; D07 also retains the unresolved Q7 identity composition.
 | New body | Source of the mechanism (file:line) |
 | --- | --- |
 | pr316_uuid7, pr316_reason, pr316_command_event | `migrations/versions/0081_agent_execution_intents.py:57–67`; `src/researchbase/agent_runtime/domain/research_task.py:70–84`; `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:93–105,177–179` |
+| pr316_link_write_disabled | Owner decisions 1 and 5 admit the relation but no command writer; table-level rejection supplies no link-command lifecycle default. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:7,11 |
 | pr316_immutable | `migrations/versions/0081_agent_execution_intents.py:217–220`; `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:157` |
 | pr316_preheld | Catalog lock inspection pattern `migrations/versions/0081_agent_execution_intents.py:135–149,398–402`; exact search 18-table set `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:215–234`; project key `migrations/versions/0019_phase2_bootstrap_membership.py:66–69`; identity-slot composition remains OWNER (D07) |
 | pr316_live, pr316_receipt_insert | Current actor/membership/binding proof and server timestamp pattern `migrations/versions/0081_agent_execution_intents.py:376–403,448–461`; task freshness `migrations/versions/0080_capability_gateway.py:2252–2271` |
@@ -354,9 +397,12 @@ and schedule/run completeness checks. Committed receipts never accept children.
 
 Generic INSERT guards perform immediate structural, scope, reference and lifecycle
 checks; the receipt validator reconstructs Q2 material and exact result sets at
-constraint time. Every new child also has a deferred trigger so adding an extra
-child after an earlier force cannot escape receipt completeness. The old receipt
-validator calls the new validator for **all** commands, rejecting search effects
+constraint time. Every child writable by create/append also has a deferred trigger
+so adding an extra child after an earlier force cannot escape receipt completeness. The
+Run-link table rejects every INSERT immediately, so it has no command-specific
+INSERT or deferred effect path; a later reviewed link contract must replace that
+barrier together with its events, receipt pointers and complete guards. The old
+receipt validator calls the new validator for **all** commands, rejecting search effects
 on old commands. The Application callback excludes `xmin=pg_current_xact_id()::xid`
 from committed replay, rechecks authority after every wait/DML/constraint force,
 and compares its saved normalized request hash to the same reconstructed material.
@@ -611,6 +657,13 @@ BEGIN
  END CASE;
  IF e.event_type<>expected_kind THEN
   RAISE EXCEPTION 'search event kind' USING ERRCODE='23514',CONSTRAINT='pr316_completeness'; END IF;
+END $$;
+
+CREATE FUNCTION pr316_link_write_disabled() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
+BEGIN
+ RAISE EXCEPTION 'No Run-link writer in this slice'
+ USING ERRCODE='23514',CONSTRAINT='pr316_no_link_writer';
 END $$;
 
 CREATE FUNCTION pr316_lineage_insert() RETURNS trigger
@@ -976,6 +1029,9 @@ CREATE CONSTRAINT TRIGGER pr316_session_complete AFTER INSERT ON experiment_sear
 CREATE TRIGGER pr316_node_insert BEFORE INSERT ON experiment_search_nodes FOR EACH ROW EXECUTE FUNCTION pr316_lineage_insert();
 CREATE TRIGGER pr316_node_immutable BEFORE UPDATE OR DELETE ON experiment_search_nodes FOR EACH ROW EXECUTE FUNCTION pr316_immutable();
 CREATE CONSTRAINT TRIGGER pr316_node_complete AFTER INSERT ON experiment_search_nodes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pr316_effect_complete();
+CREATE TRIGGER pr316_link_insert_disabled BEFORE INSERT ON experiment_search_node_runs FOR EACH ROW EXECUTE FUNCTION pr316_link_write_disabled();
+CREATE TRIGGER pr316_link_immutable BEFORE UPDATE OR DELETE ON experiment_search_node_runs FOR EACH ROW EXECUTE FUNCTION pr316_immutable();
+CREATE TRIGGER pr316_link_no_truncate BEFORE TRUNCATE ON experiment_search_node_runs FOR EACH STATEMENT EXECUTE FUNCTION pr316_immutable();
 CREATE TRIGGER pr316_event_insert BEFORE INSERT ON experiment_search_events FOR EACH ROW EXECUTE FUNCTION pr316_lineage_insert();
 CREATE TRIGGER pr316_event_immutable BEFORE UPDATE OR DELETE ON experiment_search_events FOR EACH ROW EXECUTE FUNCTION pr316_immutable();
 CREATE CONSTRAINT TRIGGER pr316_event_complete AFTER INSERT ON experiment_search_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pr316_effect_complete();
@@ -985,10 +1041,10 @@ CREATE TRIGGER pr316_event_no_truncate BEFORE TRUNCATE ON experiment_search_even
 CREATE TRIGGER pr316_receipt_insert BEFORE INSERT ON research_task_command_receipts FOR EACH ROW EXECUTE FUNCTION pr316_receipt_insert();
 ```
 
-## Verification record — t335
+## Verification record — t336
 
-The t334 six-command compilation/probe results belong to the prior revision.
-They do not verify this reduced SQL or resolve D07. Current focused verification
-is recorded after the final audit in
-[the companion](PR3-16-envelopes-lifecycle-reads.md#verification-record--t335).
+The t334 and t335 SQL probes are historical evidence for their respective
+revisions. They do not verify the restored four-table design or resolve D07.
+Current focused verification is recorded in
+[the companion](PR3-16-envelopes-lifecycle-reads.md#verification-record--t336).
 No implementation, migration, gate acceptance or full-suite result is claimed.
