@@ -1,56 +1,48 @@
-# PR3-16 complete DDL, guards, events and receipts — t334
+# PR3-16 create/append DDL, guards, events and receipts — t335
 
-Design for review, not an implementation or gate acceptance. This replaces t328's
-claim that pipeline-owned declarations were undeterminable. The owner explicitly
-assigns complete SQL and event/receipt design to the pipeline (docs/phase3/PR3-16-owner-decisions-2026-10-27.md:7–10).
-Names and literals introduced here are **design selections derived from the cited
-requirements**, not claims that an older source already contained those names.
-Only this file and the Q2 companion are rewritten.
+Design for review, not implementation or gate acceptance. Owner decision 5
+(docs/phase3/PR3-16-owner-decisions-2026-10-27.md:11) limits this slice to
+`create_search_session` and `append_search_node`. Link, failure, prune and close
+are excluded entirely until their lifecycle matrices are complete. Their SQL
+branches, catalog entries, events and result pointers are removed. The broader
+four-table requirement remains deferred in the authoritative pack; the reduced
+proposal has only session, node and creation-event tables, with no Run relation.
+No existing database objects are removed by this documentation change.
 
-Baseline: `c5b81a127ef45f1b4ec918e1bdb6c7c774b699df`; actual branch
-`design/fix-items-1-4`; requested branch `design-pr316` resolves to that same HEAD.
-`git log --oneline --left-right HEAD...design-pr316` is empty: no history divergence.
-**Commit pending**: the original task explicitly says “Do not commit, push, or
-create branches”; this review permits recording the pending commit. No checkout,
-branch creation, staging, commit or push was performed. The worktree edits remain
-on the actual branch; this records the mismatch rather than claiming a checkout.
-Existing head is `0081_agent_execution_intents`;
-`0082_experiment_search_core` remains the reviewed-design proposal, not a migration.
-Sources: docs/phase3/PR3-16-owner-decisions-2026-10-27.md:17; migrations/versions/0081_agent_execution_intents.py:7–8.
+Task t335 baseline: `819b8338fd678b4b3b3bad453cb3ee4655f0b02c`, shared by
+`design-pr316` and the supplied `design/dec5` worktree. No checkout, branch creation,
+commit or push. Existing migration head is `0081_agent_execution_intents`;
+`0082_experiment_search_core` remains a proposal, not an installed migration.
 
-`RESOLVED` means a concrete design is supplied, not implemented coverage. `OWNER`
-is reserved for a substantive choice no source settles. `MISSING` means absent
-implementation, proof or check. Only the ID-bearing ledger rows below count;
-SQL/narrative/verification tables do not add dispositions. Each resolved row names
-an existing test node or explicitly says MISSING. Items 1–3 are delivered here;
-Q2 is in [the companion](PR3-16-envelopes-lifecycle-reads.md).
+`RESOLVED` means a supplied design within this reduced scope, not tested
+implementation. `OWNER` marks an unsettled choice or an artifact dependent on it;
+`MISSING` means absent proof, implementation or checks. Only ID-bearing ledger
+rows count. D07 remains OWNER because Q7's identity-slot composition is unresolved;
+the supplied SQL must not be treated as a complete identity guard.
 
-Review navigation: [raw commands, exits and database identities](#verification-record--review-correction),
-[complete guard SQL](#guard-execution-and-full-sql-bodies),
-[complete old replacement body](#old-function-replacement-list-and-unchanged-manifest),
-[literal vectors](PR3-16-envelopes-lifecycle-reads.md#six-literal-vectors).
-The untruncated per-file patches, small sequential diff parts and copied probe
-sources are supplied in the local [review index](../../../tmp/t334-review/README.md).
-They are ignored review artifacts; only the two requested Markdown files change.
+See [the two-envelope contract](PR3-16-envelopes-lifecycle-reads.md),
+[SQL bodies](#guard-execution-and-full-sql-bodies),
+[old-object manifest](#old-function-replacement-list-and-unchanged-manifest) and
+[current verification](#verification-record--t335).
 
 ## Disposition and source-to-check ledger
 
 | ID | Status | Delivered requirement and sources (repository file:line) | Check |
 | --- | --- | --- | --- |
-| D01 | RESOLVED | Complete session columns, paired hashes and scope FKs below. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:91–93,152,158–164; UUID/time/hash/FK declaration pattern migrations/versions/0081_agent_execution_intents.py:13–29,42–63. | MISSING: `tests/integration/phase3/test_pr3_16_schema.py::test_frozen_columns_keys_indexes_and_no_json_or_cascade` |
-| D02 | RESOLVED | Complete node columns, exact parent/depth, branch/reason, reservation and frozen refs. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:98,104,153,184–201; migrations/versions/0081_agent_execution_intents.py:57–67. | MISSING: same schema node; `tests/integration/phase3/test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database` |
-| D03 | RESOLVED | Complete Run relation; multiple Runs/reuse; no copied Run truth. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:61–65,99,154,167–172; docs/phase3/PR3-16-execution-pack-r2.md:513. | MISSING: schema node; `tests/unit/phase3/test_experiment_search.py::test_run_links_preserve_status_seal_and_scientific_rows` |
-| D04 | RESOLVED | Complete events, eight lineage literals, six task literals, shape/reason/sequence, uniqueness and terminal guards. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:100–110,155,170–182; `migrations/versions/0077_research_task_graph.py:204–237`; migrations/versions/0081_agent_execution_intents.py:30–40,64–67. | MISSING: schema node and multi-flush cardinality checks |
-| D05 | RESOLVED | Explicit named PK/CHECK/UNIQUE/FK/index inventory and one old support key; no JSON/status/strategy columns. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:157–172; `migrations/versions/0080_capability_gateway.py:10–27`; migrations/versions/0081_agent_execution_intents.py:42–103. | MISSING: schema node; `tests/integration/phase3/test_pr3_16_schema.py::test_no_strategy_column` |
-| D06 | RESOLVED | Four receipt pointers, complete old CHECK extension, one-revision/one-task-event effect contract. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:127–143,174–182; `migrations/versions/0077_research_task_graph.py:179–198,272–281`; migrations/versions/0081_agent_execution_intents.py:41,55–56,68–94. | MISSING: `tests/unit/phase3/test_experiment_search.py::test_uncertain_commit_recovers_original_ids` |
-| D07 | RESOLVED | Full immediate/deferred bodies and attachments below, including own-transaction exclusion from replay and committed-history rejection. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:180–182,247–259; migrations/versions/0081_agent_execution_intents.py:347–374,432–447. | MISSING: `tests/integration/phase3/test_pr3_16_schema.py::test_all_frozen_sql_definitions_compile_on_pg18` plus hostile normal-role multi-flush tests |
-| D08 | RESOLVED | Exact replacement list is one inherited function; preserve every 0081-specific function, trigger and agent receipt. migrations/versions/0081_agent_execution_intents.py:113–151,217–221,347,376,432,583–586; `migrations/versions/0080_capability_gateway.py:2762`. | MISSING: catalog before/after body diff for search migration; baseline `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift` |
+| D01 | RESOLVED | Create-only session columns, paired hashes and scope FKs below. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:91–93,152,158–164; UUID/time/hash/FK declaration pattern migrations/versions/0081_agent_execution_intents.py:13–29,42–63. | MISSING: `tests/integration/phase3/test_pr3_16_schema.py::test_frozen_columns_keys_indexes_and_no_json_or_cascade` |
+| D02 | RESOLVED | Append-only node columns, exact parent/depth, branch/reason, reservation and frozen refs; D1 activation remains separate. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:98,104,153,184–201; migrations/versions/0081_agent_execution_intents.py:57–67. | MISSING: same schema node; `tests/integration/phase3/test_pr3_16_application.py::test_terminal_ancestor_blocks_child_in_database` |
+| D03 | OWNER | Run-relation design removed from this slice with link; L08–L10 and transaction-origin proof must be settled before reconsideration. No Run table/support key/link guards are proposed here. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:11; companion L08–L10. | MISSING: reviewed complete lifecycle matrix before any relation contract |
+| D04 | RESOLVED | Reduced events: two creation literals and two task literals, with shape/reason/sequence and creation uniqueness. No terminal or link event catalog entries. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:100–110,155,170–182; `migrations/versions/0077_research_task_graph.py:204–237`; migrations/versions/0081_agent_execution_intents.py:30–40,64–67. | MISSING: schema node and multi-flush cardinality checks |
+| D05 | RESOLVED | Named PK/CHECK/UNIQUE/FK/index inventory for three tables only; no old Run support key, JSON/status/strategy columns or terminal/link indexes. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:157–172; `migrations/versions/0080_capability_gateway.py:10–27`; migrations/versions/0081_agent_execution_intents.py:42–103. | MISSING: schema node; `tests/integration/phase3/test_pr3_16_schema.py::test_no_strategy_column` |
+| D06 | RESOLVED | Three receipt pointers for create/append, reduced old CHECK extension and one-revision/one-task-event effect contract. No Run-link pointer. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:127–143,174–182; `migrations/versions/0077_research_task_graph.py:179–198,272–281`; migrations/versions/0081_agent_execution_intents.py:41,55–56,68–94. | MISSING: `tests/unit/phase3/test_experiment_search.py::test_uncertain_commit_recovers_original_ids` |
+| D07 | OWNER | Create/append guard bodies and attachments supplied below, but Q7 identity-slot composition remains OWNER (PR3-16-lock-composition.md:9). The hard-coded Agent-key choice is removed; this partial preheld guard does not establish full lock coverage. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:13; docs/phase3/PR3-16-design-closeout.md:210–237. | MISSING: reviewed per-caller identity trace and guard; normal-role multi-flush tests |
+| D08 | RESOLVED | Exact replacement list remains one inherited function, adding only two search CASE branches plus completeness validation; all 0081-specific functions, triggers and agent receipts are preserved. migrations/versions/0081_agent_execution_intents.py:113–151,217–221,347,376,432,583–586; `migrations/versions/0080_capability_gateway.py:2762`. | MISSING: catalog before/after body diff for search migration; baseline `tests/integration/phase3/test_pr3_02_s2_intent_migration.py::test_upgrade_refuses_receipt_check_drift` |
 | D09 | RESOLVED | SQL mirrors existing canonical serializer only for the Q2 integer/string/null subset; no new search object content hash. docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:130–135; `src/researchbase/foundation/canonical_json.py:11–26`; `src/researchbase/foundation/hashing.py:33–35`; migrations/versions/0081_agent_execution_intents.py:113–134. | Existing `tests/unit/foundation/test_canonical_json.py::test_sha256_cjson_v1_golden_vector_is_stable`; MISSING: search SQL/Python vector parity |
 | D10 | RESOLVED | Production node admission explicitly fails until separate D1 amendment; no user-controlled trust flag, fake producer, refunds or settlement. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14; docs/phase3/PR3-16-execution-pack-r2.md:499,502; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184–205. | MISSING: production deny, valid conservative-proof and charged-gap tests |
-| D11 | MISSING | Every post-close link remains denied: Run transaction-origin proof is absent. Owner cutoff docs/phase3/PR3-16-execution-pack-r2.md:503; application time `src/researchbase/application/commands.py:1519`; DB field `migrations/versions/0008_run_core.py:41`. | MISSING: durable proof and strict earlier/equal/later tests; never count this as eligible coverage |
+| D11 | MISSING | Outside this slice: durable Run transaction-origin proof remains absent. No post-close link command or denial default is retained. docs/phase3/PR3-16-execution-pack-r2.md:503; `src/researchbase/application/commands.py:1519`. | MISSING: durable proof and strict earlier/equal/later tests; never count this as eligible coverage |
 | D12 | MISSING | Independent review, normal-role hostile SQL/effect tests and F1 acceptance. docs/phase3/PR3-16-owner-decisions-2026-10-27.md:18; docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:12–14,299–311. SQL compilation alone is insufficient. | MISSING: PR3-16 migration/guard/application suites |
 
-**Disposition counts: RESOLVED 10; OWNER 0; MISSING 2 (12 rows).**
+**Disposition counts: RESOLVED 8; OWNER 2; MISSING 2 (12 rows).**
 
 ## Exact declarations and installation order
 
@@ -64,16 +56,11 @@ same-name indexes. FKs use MATCH SIMPLE (the PostgreSQL default), ON UPDATE NO
 ACTION and ON DELETE RESTRICT. Only receipt-to-result FKs are deferred. Nullable
 composite FKs are paired with CHECKs so NULL cannot bypass a required result.
 
-The single old-table support key is `pr316_run_project_uq`; existing task/budget/
-reservation/receipt support keys are reused, not duplicated. Before applying a
-future migration, compare the old definitions to the exact 0081 catalog; refuse
-drift rather than dropping arbitrary checks or using IF NOT EXISTS. Pattern:
-migrations/versions/0081_agent_execution_intents.py:591–605. Do not edit any accepted
-migration. Verification executes these SQL blocks over 0081 in disposable local
-PostgreSQL 18 test databases, then drops those databases. No application database
-is migrated and no migration file is created. “Compiled” below means PostgreSQL
-accepted every declaration/function/trigger; the separate probe executes the
-listed guard paths. Neither claim implies complete PR3-16 runtime coverage.
+Existing task/budget/reservation/receipt support keys are reused. No Run support
+key is added. A future migration must compare the old definitions to the exact
+0081 catalog and refuse drift (migrations/versions/0081_agent_execution_intents.py:591–605).
+No accepted migration is edited. The SQL is a reviewable partial design with
+Q7 still OWNER, not implementation authorization or a claim of complete guards.
 
 UUIDv7 and finite UTC instants follow migrations/versions/0081_agent_execution_intents.py:57–67. Reasons use the existing Python
 NFC/nonblank/no-trim behavior (`src/researchbase/agent_runtime/domain/research_task.py:70–79`),
@@ -96,16 +83,8 @@ CREATE FUNCTION pr316_command_event(v text) RETURNS text
 LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,public,pg_temp AS $$
  SELECT CASE v
  WHEN 'create_search_session' THEN 'SEARCH_SESSION_CREATED'
- WHEN 'append_search_node' THEN 'SEARCH_NODE_APPENDED'
- WHEN 'link_search_node_run' THEN 'SEARCH_RUN_LINKED'
- WHEN 'record_search_node_failure' THEN 'SEARCH_NODE_FAILED'
- WHEN 'prune_search_node' THEN 'SEARCH_NODE_PRUNED'
- WHEN 'close_search_session' THEN 'SEARCH_SESSION_CLOSED' END
+ WHEN 'append_search_node' THEN 'SEARCH_NODE_APPENDED' END
 $$;
-```
-
-```sql
-ALTER TABLE runs ADD CONSTRAINT pr316_run_project_uq UNIQUE (id,project_id);
 ```
 
 ### `experiment_search_sessions`
@@ -182,34 +161,6 @@ ALTER TABLE experiment_search_nodes ADD CONSTRAINT pr316_node_experiment_spec_fk
 ALTER TABLE experiment_search_nodes ADD CONSTRAINT pr316_node_experiment_spec_pair_ck CHECK ((experiment_spec_version_id IS NULL AND experiment_spec_content_hash IS NULL) OR (experiment_spec_version_id IS NOT NULL AND experiment_spec_content_hash IS NOT NULL AND experiment_spec_content_hash ~ '^[0-9a-f]{64}$'));
 ```
 
-### `experiment_search_node_runs`
-
-
-```sql
-CREATE TABLE experiment_search_node_runs (
-  id uuid CONSTRAINT pr316_link_id_nn NOT NULL,
-  project_id uuid CONSTRAINT pr316_link_project_id_nn NOT NULL,
-  research_task_id uuid CONSTRAINT pr316_link_research_task_id_nn NOT NULL,
-  search_session_id uuid CONSTRAINT pr316_link_search_session_id_nn NOT NULL,
-  node_id uuid CONSTRAINT pr316_link_node_id_nn NOT NULL,
-  run_id uuid CONSTRAINT pr316_link_run_id_nn NOT NULL,
-  created_by uuid CONSTRAINT pr316_link_created_by_nn NOT NULL,
-  created_at timestamptz CONSTRAINT pr316_link_created_at_nn NOT NULL,
-  receipt_id uuid CONSTRAINT pr316_link_receipt_id_nn NOT NULL
-);
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_pk PRIMARY KEY (id);
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_id_ck CHECK (pr316_uuid7(id));
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_time_ck CHECK (isfinite(created_at));
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_receipt_uq UNIQUE (receipt_id);
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_actor_fk FOREIGN KEY (created_by) REFERENCES actors(id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_receipt_fk FOREIGN KEY (research_task_id,receipt_id) REFERENCES research_task_command_receipts(research_task_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_scope_uq UNIQUE (research_task_id,search_session_id,node_id,id);
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_pair_uq UNIQUE (search_session_id,node_id,run_id);
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_session_fk FOREIGN KEY (research_task_id,project_id,search_session_id) REFERENCES experiment_search_sessions(research_task_id,project_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_node_fk FOREIGN KEY (research_task_id,search_session_id,node_id) REFERENCES experiment_search_nodes(research_task_id,search_session_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
-ALTER TABLE experiment_search_node_runs ADD CONSTRAINT pr316_link_run_fk FOREIGN KEY (run_id,project_id) REFERENCES runs(id,project_id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
-```
-
 ### `experiment_search_events`
 
 
@@ -219,7 +170,6 @@ CREATE TABLE experiment_search_events (
   research_task_id uuid CONSTRAINT pr316_event_research_task_id_nn NOT NULL,
   search_session_id uuid CONSTRAINT pr316_event_search_session_id_nn NOT NULL,
   node_id uuid NULL,
-  run_link_id uuid NULL,
   sequence integer CONSTRAINT pr316_event_sequence_nn NOT NULL,
   event_type text CONSTRAINT pr316_event_event_type_nn NOT NULL,
   reason text CONSTRAINT pr316_event_reason_nn NOT NULL,
@@ -236,12 +186,11 @@ ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_receipt_fk FOREI
 ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_scope_uq UNIQUE (research_task_id,search_session_id,id);
 ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_sequence_uq UNIQUE (search_session_id,sequence);
 ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_sequence_ck CHECK (sequence>=1);
-ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_kind_ck CHECK (event_type IN ('SESSION_CREATED','NODE_APPENDED','RUN_LINKED','NODE_FAILED','NODE_PRUNED','SESSION_CANCELLED','SESSION_EXHAUSTED','SESSION_TERMINATED_BUDGET'));
+ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_kind_ck CHECK (event_type IN ('SESSION_CREATED','NODE_APPENDED'));
 ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_reason_ck CHECK (pr316_reason(reason));
-ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_shape_ck CHECK ((event_type IN ('SESSION_CREATED','SESSION_CANCELLED','SESSION_EXHAUSTED','SESSION_TERMINATED_BUDGET') AND node_id IS NULL AND run_link_id IS NULL) OR (event_type IN ('NODE_APPENDED','NODE_FAILED','NODE_PRUNED') AND node_id IS NOT NULL AND run_link_id IS NULL) OR (event_type='RUN_LINKED' AND node_id IS NOT NULL AND run_link_id IS NOT NULL));
+ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_shape_ck CHECK ((event_type='SESSION_CREATED' AND node_id IS NULL) OR (event_type='NODE_APPENDED' AND node_id IS NOT NULL));
 ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_session_fk FOREIGN KEY (research_task_id,search_session_id) REFERENCES experiment_search_sessions(research_task_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
 ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_node_fk FOREIGN KEY (research_task_id,search_session_id,node_id) REFERENCES experiment_search_nodes(research_task_id,search_session_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
-ALTER TABLE experiment_search_events ADD CONSTRAINT pr316_event_link_fk FOREIGN KEY (research_task_id,search_session_id,node_id,run_link_id) REFERENCES experiment_search_node_runs(research_task_id,search_session_id,node_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT NOT DEFERRABLE;
 ```
 
 ### Indexes
@@ -252,9 +201,6 @@ Every referencing tuple has a leading-prefix index (PK/UNIQUE or explicit below)
 CREATE UNIQUE INDEX pr316_node_one_root ON experiment_search_nodes(search_session_id) WHERE parent_node_id IS NULL;
 CREATE UNIQUE INDEX pr316_event_one_creation ON experiment_search_events(search_session_id) WHERE event_type='SESSION_CREATED';
 CREATE UNIQUE INDEX pr316_event_one_node_creation ON experiment_search_events(node_id) WHERE event_type='NODE_APPENDED';
-CREATE UNIQUE INDEX pr316_event_one_link ON experiment_search_events(run_link_id) WHERE run_link_id IS NOT NULL;
-CREATE UNIQUE INDEX pr316_event_one_node_terminal ON experiment_search_events(node_id) WHERE event_type IN ('NODE_FAILED','NODE_PRUNED');
-CREATE UNIQUE INDEX pr316_event_one_session_terminal ON experiment_search_events(search_session_id) WHERE event_type IN ('SESSION_CANCELLED','SESSION_EXHAUSTED','SESSION_TERMINATED_BUDGET');
 CREATE INDEX pr316_session_task_project ON experiment_search_sessions(research_task_id,project_id);
 CREATE INDEX pr316_session_budget ON experiment_search_sessions(research_task_id,budget_id);
 CREATE INDEX pr316_session_project ON experiment_search_sessions(project_id,id);
@@ -265,58 +211,42 @@ CREATE INDEX pr316_node_order ON experiment_search_nodes(search_session_id,depth
 CREATE INDEX pr316_node_hypothesis ON experiment_search_nodes(hypothesis_version_id);
 CREATE INDEX pr316_node_spec ON experiment_search_nodes(experiment_spec_version_id);
 CREATE INDEX pr316_node_reservation ON experiment_search_nodes(research_task_id,reservation_id,id);
-CREATE INDEX pr316_link_session_project ON experiment_search_node_runs(research_task_id,project_id,search_session_id);
-CREATE INDEX pr316_link_run ON experiment_search_node_runs(run_id,project_id);
-CREATE INDEX pr316_link_order ON experiment_search_node_runs(node_id,id);
-CREATE INDEX pr316_event_node ON experiment_search_events(research_task_id,search_session_id,node_id,run_link_id);
+CREATE INDEX pr316_event_node ON experiment_search_events(research_task_id,search_session_id,node_id);
 CREATE INDEX pr316_session_actor ON experiment_search_sessions(created_by);
 CREATE INDEX pr316_session_receipt ON experiment_search_sessions(research_task_id,receipt_id);
 CREATE INDEX pr316_node_actor ON experiment_search_nodes(created_by);
 CREATE INDEX pr316_node_receipt ON experiment_search_nodes(research_task_id,receipt_id);
-CREATE INDEX pr316_link_actor ON experiment_search_node_runs(created_by);
-CREATE INDEX pr316_link_receipt ON experiment_search_node_runs(research_task_id,receipt_id);
 CREATE INDEX pr316_event_actor ON experiment_search_events(actor_id);
 CREATE INDEX pr316_event_receipt ON experiment_search_events(research_task_id,receipt_id);
 ```
 
 ## Event and receipt shape
 
-Session projection is ACTIVE until exactly one SESSION_CANCELLED,
-SESSION_EXHAUSTED or SESSION_TERMINATED_BUDGET event. Node projection is PROPOSED
-until NODE_FAILED or NODE_PRUNED. Event sequence is a contiguous **session-local**
-integer starting at 1; it is not the task revision. A task event's sequence remains
-its task revision. A session may have no root; once nodes exist, exactly one root
-and immutable committed parents make the graph a tree.
+Within this reduced slice, sessions project ACTIVE and nodes PROPOSED. Only
+SESSION_CREATED and NODE_APPENDED exist in the proposed event catalog. Terminal
+state writers are excluded, not represented as deny-by-default commands.
+Sequence is contiguous and session-local, starting at 1; task-event sequence
+remains task revision. A session may have no root; once nodes exist, exactly one
+root and immutable committed parents make the graph a tree.
 
-| Command | Search event | Task event | New session/node/link/event rows | Reason |
+| Command | Search event | Task event | New session/node/event rows | Reason |
 | --- | --- | --- | --- | --- |
-| create_search_session | SESSION_CREATED | SEARCH_SESSION_CREATED | 1/0/0/1 | `Search session created.` |
-| append_search_node | NODE_APPENDED | SEARCH_NODE_APPENDED | 0/1/0/1 | exact normalized mutation_reason |
-| link_search_node_run | RUN_LINKED | SEARCH_RUN_LINKED | 0/0/1/1 | `Run linked to search node.` |
-| record_search_node_failure | NODE_FAILED | SEARCH_NODE_FAILED | 0/0/0/1 | exact normalized reason |
-| prune_search_node | NODE_PRUNED | SEARCH_NODE_PRUNED | 0/0/0/1 | exact normalized reason |
-| close_search_session | SESSION_CANCELLED / SESSION_EXHAUSTED / SESSION_TERMINATED_BUDGET | SEARCH_SESSION_CLOSED | 0/0/0/1 | exact normalized reason |
+| create_search_session | SESSION_CREATED | SEARCH_SESSION_CREATED | 1/0/1 | `Search session created.` |
+| append_search_node | NODE_APPENDED | SEARCH_NODE_APPENDED | 0/1/1 | exact normalized mutation_reason |
 
-Every command adds exactly one task receipt, task event and receipt-event link;
-all step-event, safety-policy/reservation/usage/checkpoint and gateway effects are
-zero. Task status, seal, policies and stop causes are unchanged; revision advances
-once. Search closure does not cancel the task. TERMINATED_BUDGET requires an
-**earlier durable task event** with stop_budget=true; computed exhaustion alone
-is not that evidence. Search events never assert new task stop flags.
+Each command adds one task receipt, task event and receipt-event link. All step,
+safety, gateway and scientific effects are zero; task status/seal/policies/stop
+causes are unchanged, and revision advances once.
 
-Receipt existing fields remain exactly the 0077/0080 shape. New nullable UUID
-pointers are result_search_session_id (all six), result_search_node_id (append,
-link, failure, prune), result_search_run_link_id (link only), result_search_event_id
-(all six). These identify affected context as well as created objects; there is
-no second receipt table or stored JSON result. Every old command has four NULLs.
-Replay reconstructs results from these FKs plus existing research_task_receipt_events.
-Only `replayed` changes on exact replay; no new ID, timestamp, revision or effect.
+The new nullable UUID receipt pointers are result_search_session_id and
+result_search_event_id for both commands, and result_search_node_id for append
+only. Old commands have three NULLs. Replay reconstructs results through these
+FKs and existing research_task_receipt_events; only `replayed` changes.
 
 The search receipt BEFORE trigger assigns completed_at=transaction_timestamp();
-all its search rows and task event use that same value. It supplies durable search
-closure time without claiming that runs.created_at has the same provenance.
-Server generates receipt/link/search-event/task-event UUIDv7 before DML; session
-and node UUIDv7 come from the closed request. IDs are never derived from a hash.
+its search rows and task event share that value. Server-generated receipt and
+event IDs use UUIDv7; session/node UUIDv7 come from the closed request. There is
+no closure-time or Run transaction-origin implementation in this slice.
 
 ### Existing receipt and task-event CHECK extensions
 
@@ -330,8 +260,8 @@ Source: `migrations/versions/0080_capability_gateway.py:730–924`.
 Search events have their own `pr316_task_event_states` branch admitting only
 CREATED/PLANNING tasks. The legacy safety/gateway branch retains CANCELLED for
 its existing bookkeeping. `pr316_live` independently rejects fresh search writes
-on CANCELLED tasks; entitled replay creates no new event. The catalog CHECK is
-probed below with all six search types and positive controls. **MISSING:**
+on CANCELLED tasks for create/append only; entitled replay creates no event.
+This does not answer any L08–L10 cell for excluded commands. **MISSING:**
 `tests/integration/phase3/test_pr3_16_schema.py::test_cancelled_task_search_events_rejected`
 must additionally exercise normal-role hostile inserts with all guards active.
 
@@ -343,12 +273,12 @@ ALTER TABLE research_task_events DROP CONSTRAINT pr303_event_names,
 ALTER TABLE research_task_command_receipts ADD CONSTRAINT pr316_command_names CHECK (command_name IN (
   'create_research_task','create_task_plan','add_task_step','add_task_step_dependency','seal_task_plan','cancel_research_task',
   'bind_task_policies','reserve_task_budget','settle_task_budget','evaluate_task_termination','request_human_checkpoint','respond_human_checkpoint',
-  'register_agent_tool_policy','request_capability_invocation','start_capability_invocation','finish_capability_invocation','create_search_session','append_search_node','link_search_node_run','record_search_node_failure','prune_search_node','close_search_session'));
+  'register_agent_tool_policy','request_capability_invocation','start_capability_invocation','finish_capability_invocation','create_search_session','append_search_node'));
 ALTER TABLE research_task_events
   ADD CONSTRAINT pr316_task_event_names CHECK (event_type IN (
     'CREATED','PLAN_CREATED','STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED','CANCELLED',
     'POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED',
-    'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED','CAPABILITY_FINISHED','SEARCH_SESSION_CREATED','SEARCH_NODE_APPENDED','SEARCH_RUN_LINKED','SEARCH_NODE_FAILED','SEARCH_NODE_PRUNED','SEARCH_SESSION_CLOSED')),
+    'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED','CAPABILITY_FINISHED','SEARCH_SESSION_CREATED','SEARCH_NODE_APPENDED')),
   ADD CONSTRAINT pr316_task_event_states CHECK (
     (event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED') OR
     (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = 'PLANNING') OR
@@ -357,37 +287,32 @@ ALTER TABLE research_task_events
     (event_type IN ('POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED',
       'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED','CAPABILITY_FINISHED')
       AND prior_status IN ('CREATED','PLANNING','CANCELLED') AND new_status = prior_status) OR
-    (event_type IN ('SEARCH_SESSION_CREATED','SEARCH_NODE_APPENDED','SEARCH_RUN_LINKED',
-      'SEARCH_NODE_FAILED','SEARCH_NODE_PRUNED','SEARCH_SESSION_CLOSED')
+    (event_type IN ('SEARCH_SESSION_CREATED','SEARCH_NODE_APPENDED')
       AND prior_status IN ('CREATED','PLANNING') AND new_status = prior_status)),
   ADD CONSTRAINT pr316_task_event_reason CHECK (CASE WHEN event_type IN (
     'CANCELLED','POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED',
-    'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED','CAPABILITY_FINISHED','SEARCH_SESSION_CREATED','SEARCH_NODE_APPENDED','SEARCH_RUN_LINKED','SEARCH_NODE_FAILED','SEARCH_NODE_PRUNED','SEARCH_SESSION_CLOSED')
+    'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED','CAPABILITY_FINISHED','SEARCH_SESSION_CREATED','SEARCH_NODE_APPENDED')
     THEN reason IS NOT NULL AND length(btrim(reason)) BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED ELSE reason IS NULL END);
 
 ALTER TABLE research_task_command_receipts
  ADD COLUMN result_search_session_id uuid NULL,
  ADD COLUMN result_search_node_id uuid NULL,
- ADD COLUMN result_search_run_link_id uuid NULL,
  ADD COLUMN result_search_event_id uuid NULL,
  ADD CONSTRAINT pr316_receipt_session_fk FOREIGN KEY (research_task_id,project_id,result_search_session_id)
  REFERENCES experiment_search_sessions(research_task_id,project_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
  ADD CONSTRAINT pr316_receipt_node_fk FOREIGN KEY (research_task_id,result_search_session_id,result_search_node_id)
  REFERENCES experiment_search_nodes(research_task_id,search_session_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
- ADD CONSTRAINT pr316_receipt_link_fk FOREIGN KEY (research_task_id,result_search_session_id,result_search_node_id,result_search_run_link_id)
- REFERENCES experiment_search_node_runs(research_task_id,search_session_id,node_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
  ADD CONSTRAINT pr316_receipt_event_fk FOREIGN KEY (research_task_id,result_search_session_id,result_search_event_id)
  REFERENCES experiment_search_events(research_task_id,search_session_id,id) ON UPDATE NO ACTION ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
  ADD CONSTRAINT pr316_receipt_shape_ck CHECK (
- (pr316_command_event(command_name) IS NULL AND num_nonnulls(result_search_session_id,result_search_node_id,result_search_run_link_id,result_search_event_id)=0)
+ (pr316_command_event(command_name) IS NULL AND num_nonnulls(result_search_session_id,result_search_node_id,result_search_event_id)=0)
  OR (pr316_command_event(command_name) IS NOT NULL
  AND result_search_session_id IS NOT NULL AND result_search_event_id IS NOT NULL
  AND resulting_row_version>=2
- AND ((command_name IN ('create_search_session','close_search_session') AND result_search_node_id IS NULL AND result_search_run_link_id IS NULL)
- OR (command_name IN ('append_search_node','record_search_node_failure','prune_search_node') AND result_search_node_id IS NOT NULL AND result_search_run_link_id IS NULL)
- OR (command_name='link_search_node_run' AND result_search_node_id IS NOT NULL AND result_search_run_link_id IS NOT NULL))));
+ AND ((command_name='create_search_session' AND result_search_node_id IS NULL)
+ OR (command_name='append_search_node' AND result_search_node_id IS NOT NULL))));
 CREATE INDEX pr316_receipt_session ON research_task_command_receipts(research_task_id,project_id,result_search_session_id);
-CREATE INDEX pr316_receipt_node ON research_task_command_receipts(research_task_id,result_search_session_id,result_search_node_id,result_search_run_link_id);
+CREATE INDEX pr316_receipt_node ON research_task_command_receipts(research_task_id,result_search_session_id,result_search_node_id);
 CREATE INDEX pr316_receipt_event_scope ON research_task_command_receipts(research_task_id,result_search_session_id,result_search_event_id);
 CREATE UNIQUE INDEX pr316_receipt_event_uq ON research_task_command_receipts(result_search_event_id) WHERE result_search_event_id IS NOT NULL;
 ```
@@ -396,18 +321,18 @@ CREATE UNIQUE INDEX pr316_receipt_event_uq ON research_task_command_receipts(res
 
 The body-level derivation map is explicit; the SQL below is the new design, while
 these sources establish the reused mechanisms. All search-specific behavior
-checks remain MISSING (D07); compilation and the smoke probe below are narrower.
+checks remain MISSING; D07 also retains the unresolved Q7 identity composition.
 
 | New body | Source of the mechanism (file:line) |
 | --- | --- |
 | pr316_uuid7, pr316_reason, pr316_command_event | `migrations/versions/0081_agent_execution_intents.py:57–67`; `src/researchbase/agent_runtime/domain/research_task.py:70–84`; `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:93–105,177–179` |
 | pr316_immutable | `migrations/versions/0081_agent_execution_intents.py:217–220`; `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:157` |
-| pr316_preheld | Catalog lock inspection pattern `migrations/versions/0081_agent_execution_intents.py:135–149,398–402`; exact search 18-table set `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:215–234`; project key `migrations/versions/0019_phase2_bootstrap_membership.py:66–69`; actor key `src/researchbase/persistence/agent_version_repository.py:77` |
-| pr316_live, pr316_receipt_insert | Current actor/membership/binding proof and server timestamp pattern `migrations/versions/0081_agent_execution_intents.py:376–403,448–461`; task freshness `migrations/versions/0080_capability_gateway.py:2252–2271`; transaction-time decision `docs/phase3/PR3-16-execution-pack-r2.md:503` |
+| pr316_preheld | Catalog lock inspection pattern `migrations/versions/0081_agent_execution_intents.py:135–149,398–402`; exact search 18-table set `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:215–234`; project key `migrations/versions/0019_phase2_bootstrap_membership.py:66–69`; identity-slot composition remains OWNER (D07) |
+| pr316_live, pr316_receipt_insert | Current actor/membership/binding proof and server timestamp pattern `migrations/versions/0081_agent_execution_intents.py:376–403,448–461`; task freshness `migrations/versions/0080_capability_gateway.py:2252–2271` |
 | pr316_refs | Frozen/project/hash checks `migrations/versions/0077_research_task_graph.py:425–470`; exact ExperimentSpec owning edge `migrations/versions/0004_experiment_spec.py:18–65`; saved pairs `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:160–164` |
 | pr316_chain | Existing ancestry enforcement `migrations/versions/0077_research_task_graph.py:297–345`; immutable existing-parent/depth rule `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:56–60,108–110` |
 | pr316_admission, pr316_node_proof | Existing balances/causes/gates/depth `src/researchbase/agent_runtime/application/task_safety.py:42–192`; safety guard `migrations/versions/0080_capability_gateway.py:2338–2653`; conservative proof `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184–205`; activation denial `docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14` |
-| pr316_state, pr316_lineage_insert | Draft command/lifecycle/effect contract `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:95–110,170–182`; fresh result/pointer pattern `migrations/versions/0081_agent_execution_intents.py:347–374`; Q4 exclusions are the companion's L07–L10 |
+| pr316_state, pr316_lineage_insert | Draft command/lifecycle/effect contract `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:95–110,170–182`; fresh result/pointer pattern `migrations/versions/0081_agent_execution_intents.py:347–374`; only create/append are in scope; no L07–L10 command branch exists |
 | pr316_validate_receipt, pr316_effect_complete | Freshness/result closure/hash reconstruction `migrations/versions/0081_agent_execution_intents.py:432–505`; exact old-command effects `migrations/versions/0080_capability_gateway.py:2762–3295`; deferred trigger `migrations/versions/0077_research_task_graph.py:663–665` |
 
 The Application still owns the draft's first 18-table SHARE, project/command/task
@@ -415,12 +340,14 @@ advisory order, task/step row locks, fresh authentication/read/replay/write chec
 and constraint forcing (`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:215–265`).
 The SQL verifies preheld locks; it acquires no advisory locks and cannot prove
 historical acquisition order. The actor-only identity slot remains a separate
-Q7 review dependency; the proposed Agent actor key is checked here without adding
-AgentVersion/availability or execution admission. Current credential validation
+Q7 OWNER dependency (D07). No Human/Agent identity-slot choice is encoded here.
+The preheld SQL checks only the established common prefix and is incomplete until
+that identity composition is reviewed; it must not be treated as an approved
+identity default. No AgentVersion/availability or execution prerequisite is added. Current credential validation
 is Application-owned; SQL checks persisted membership/binding proof only.
 
 Insert order: task revision → receipt (returned transaction timestamp) → created
-session/node/link if any → search event → task event → receipt-event relation →
+session/node if any → search event → task event → receipt-event relation →
 SET CONSTRAINTS ALL IMMEDIATE → fresh entitlement/material/admission check → commit.
 Once constraints have been forced, additional writes still run immediate guards
 and schedule/run completeness checks. Committed receipts never accept children.
@@ -439,9 +366,9 @@ Production node insertion ends with an unconditional missing-prerequisite error
 after validating the conservative proof. Removing it requires the separately
 reviewed D1 amendment; there is no configuration/session-variable/test-role bypass.
 The candidate positive append vector defines the independent Q2 bytes/result
-contract and does not claim current production admission. Post-close links also
-fail closed until durable Run transaction-origin proof exists. Other unresolved
-Q4 cases are explicitly denied by the bodies, as identified in the companion.
+contract and does not claim current production admission. This D1 prerequisite is
+a separate binding decision, not a default for L08–L10. No excluded command is
+implemented by the bodies below.
 
 
 ```sql
@@ -471,9 +398,7 @@ BEGIN
  keys:=ARRAY['researchbase-project:'||r.project_id,
   'pr301:command:'||r.project_id||':'||r.actor_id||':'||r.command_id,
   'pr301:task:'||r.research_task_id];
- IF EXISTS(SELECT 1 FROM actors WHERE id=r.actor_id AND actor_type='AGENT') THEN
-  keys:=array_append(keys,'pr302:actor:'||r.actor_id);
- END IF;
+ -- Q7 identity-slot composition is OWNER; no per-caller identity key chosen here.
  FOREACH k IN ARRAY keys LOOP
   h:=hashtextextended(k,0);
   IF NOT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='advisory'
@@ -508,7 +433,7 @@ BEGIN
   RAISE EXCEPTION 'fresh task required' USING ERRCODE='23514',CONSTRAINT='pr316_completeness';
  END IF;
  IF EXISTS(SELECT 1 FROM research_tasks WHERE id=r.research_task_id AND status='CANCELLED') THEN
-  RAISE EXCEPTION 'terminal task cell excluded' USING ERRCODE='23514',CONSTRAINT='pr316_state';
+  RAISE EXCEPTION 'create/append require nonterminal task' USING ERRCODE='23514',CONSTRAINT='pr316_state';
  END IF;
 END $$;
 
@@ -554,7 +479,7 @@ BEGIN
  END IF;
 END $$;
 
-CREATE FUNCTION pr316_chain(p_task uuid,p_session uuid,p_node uuid,p_no_terminal boolean) RETURNS integer
+CREATE FUNCTION pr316_chain(p_task uuid,p_session uuid,p_node uuid) RETURNS integer
 LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE cur uuid:=p_node; seen uuid[]:=ARRAY[]::uuid[]; n experiment_search_nodes%ROWTYPE;
  expected integer; first_depth integer;
@@ -568,9 +493,6 @@ BEGIN
   IF first_depth IS NULL THEN first_depth:=n.depth; expected:=n.depth; END IF;
   IF n.depth<>expected OR (n.parent_node_id IS NULL AND n.depth<>0) THEN
    RAISE EXCEPTION 'ancestry depth' USING ERRCODE='23514',CONSTRAINT='pr316_reference'; END IF;
-  IF p_no_terminal AND EXISTS(SELECT 1 FROM experiment_search_events WHERE node_id=n.id
-   AND event_type IN ('NODE_FAILED','NODE_PRUNED')) THEN
-   RAISE EXCEPTION 'terminal branch' USING ERRCODE='23514',CONSTRAINT='pr316_state'; END IF;
   EXIT WHEN n.parent_node_id IS NULL;
   expected:=expected-1; cur:=n.parent_node_id;
  END LOOP;
@@ -656,19 +578,14 @@ END $$;
 CREATE FUNCTION pr316_state(r research_task_command_receipts,e experiment_search_events) RETURNS void
 LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE s experiment_search_sessions%ROWTYPE; n experiment_search_nodes%ROWTYPE;
- l experiment_search_node_runs%ROWTYPE; expected_kind text; closed boolean;
+ expected_kind text;
 BEGIN
  SELECT * INTO s FROM experiment_search_sessions WHERE id=r.result_search_session_id;
  IF s.id IS NULL OR ROW(s.research_task_id,s.project_id) IS DISTINCT FROM ROW(r.research_task_id,r.project_id) THEN
   RAISE EXCEPTION 'session scope' USING ERRCODE='23514',CONSTRAINT='pr316_reference'; END IF;
- IF ROW(e.research_task_id,e.search_session_id,e.node_id,e.run_link_id,e.actor_id,e.receipt_id,e.occurred_at)
- IS DISTINCT FROM ROW(r.research_task_id,s.id,r.result_search_node_id,r.result_search_run_link_id,r.actor_id,r.id,r.completed_at) THEN
+ IF ROW(e.research_task_id,e.search_session_id,e.node_id,e.actor_id,e.receipt_id,e.occurred_at)
+ IS DISTINCT FROM ROW(r.research_task_id,s.id,r.result_search_node_id,r.actor_id,r.id,r.completed_at) THEN
   RAISE EXCEPTION 'search event pointers' USING ERRCODE='23514',CONSTRAINT='pr316_completeness'; END IF;
- SELECT EXISTS(SELECT 1 FROM experiment_search_events WHERE search_session_id=s.id AND receipt_id<>r.id
- AND event_type IN ('SESSION_CANCELLED','SESSION_EXHAUSTED','SESSION_TERMINATED_BUDGET')) INTO closed;
- IF closed THEN
-  -- No supported Run transaction-origin proof: also deny every post-close link.
-  RAISE EXCEPTION 'closed search or missing reconciliation proof' USING ERRCODE='23514',CONSTRAINT='pr316_state'; END IF;
  PERFORM pr316_refs(r.project_id,s.root_hypothesis_version_id,s.root_hypothesis_content_hash,
  s.root_experiment_spec_version_id,s.root_experiment_spec_content_hash);
  IF r.result_search_node_id IS NOT NULL THEN
@@ -687,36 +604,9 @@ BEGIN
  WHEN 'append_search_node' THEN
   expected_kind:='NODE_APPENDED';
   IF n.receipt_id<>r.id OR e.reason<>n.mutation_reason
-   OR n.depth<>pr316_chain(r.research_task_id,s.id,n.parent_node_id,true)+1 THEN
+   OR n.depth<>pr316_chain(r.research_task_id,s.id,n.parent_node_id)+1 THEN
    RAISE EXCEPTION 'append shape' USING ERRCODE='23514',CONSTRAINT='pr316_validation'; END IF;
   PERFORM pr316_node_proof(n);
- WHEN 'link_search_node_run' THEN
-  expected_kind:='RUN_LINKED';
-  SELECT * INTO l FROM experiment_search_node_runs WHERE id=r.result_search_run_link_id;
-  IF l.id IS NULL OR l.receipt_id<>r.id OR e.reason<>'Run linked to search node.'
-   OR NOT EXISTS(SELECT 1 FROM runs rr WHERE rr.id=l.run_id AND rr.project_id=r.project_id
-    AND (n.experiment_spec_version_id IS NULL OR n.experiment_spec_version_id=rr.experiment_spec_version_id)) THEN
-   RAISE EXCEPTION 'Run link scope/spec' USING ERRCODE='23514',CONSTRAINT='pr316_reference'; END IF;
-  -- Terminal-target/ancestor link permission awaits Q4; fail closed meanwhile.
-  PERFORM pr316_chain(r.research_task_id,s.id,n.id,true);
-  -- Unspecified stopped/checkpoint-blocked bookkeeping is excluded pending Q4.
-  PERFORM pr316_admission(r.research_task_id,NULL,false,false);
- WHEN 'record_search_node_failure','prune_search_node' THEN
-  expected_kind:=CASE r.command_name WHEN 'record_search_node_failure' THEN 'NODE_FAILED' ELSE 'NODE_PRUNED' END;
-  IF EXISTS(SELECT 1 FROM experiment_search_events WHERE node_id=n.id AND receipt_id<>r.id
-   AND event_type IN ('NODE_FAILED','NODE_PRUNED')) THEN
-   RAISE EXCEPTION 'node already terminal' USING ERRCODE='23514',CONSTRAINT='pr316_state'; END IF;
-  -- A terminal ancestor does not implicitly terminate its retained children.
-  PERFORM pr316_chain(r.research_task_id,s.id,n.id,false);
-  PERFORM pr316_admission(r.research_task_id,NULL,false,false);
- WHEN 'close_search_session' THEN
-  expected_kind:=e.event_type;
-  IF e.event_type NOT IN ('SESSION_CANCELLED','SESSION_EXHAUSTED','SESSION_TERMINATED_BUDGET') THEN
-   RAISE EXCEPTION 'closure kind' USING ERRCODE='23514',CONSTRAINT='pr316_validation'; END IF;
-  IF e.event_type='SESSION_TERMINATED_BUDGET' AND NOT EXISTS(SELECT 1 FROM research_task_events
-   WHERE research_task_id=r.research_task_id AND stop_budget AND task_row_version<r.resulting_row_version
-   AND xmin<>pg_current_xact_id()::xid) THEN
-   RAISE EXCEPTION 'durable budget stop required' USING ERRCODE='23514',CONSTRAINT='pr316_state'; END IF;
  ELSE RAISE EXCEPTION 'unknown search command' USING ERRCODE='23514',CONSTRAINT='pr316_validation';
  END CASE;
  IF e.event_type<>expected_kind THEN
@@ -726,7 +616,7 @@ END $$;
 CREATE FUNCTION pr316_lineage_insert() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE r research_task_command_receipts%ROWTYPE; s experiment_search_sessions%ROWTYPE;
- n experiment_search_nodes%ROWTYPE; next_sequence integer;
+ next_sequence integer;
 BEGIN
  SELECT * INTO r FROM research_task_command_receipts WHERE id=NEW.receipt_id
  AND research_task_id=NEW.research_task_id AND xmin=pg_current_xact_id()::xid;
@@ -753,9 +643,7 @@ BEGIN
   ELSE
    SELECT * INTO s FROM experiment_search_sessions WHERE id=NEW.search_session_id
     AND research_task_id=r.research_task_id AND xmin<>pg_current_xact_id()::xid;
-   IF s.id IS NULL OR s.id IS DISTINCT FROM r.result_search_session_id OR s.project_id<>r.project_id
-    OR EXISTS(SELECT 1 FROM experiment_search_events WHERE search_session_id=s.id
-     AND event_type IN ('SESSION_CANCELLED','SESSION_EXHAUSTED','SESSION_TERMINATED_BUDGET')) THEN
+   IF s.id IS NULL OR s.id IS DISTINCT FROM r.result_search_session_id OR s.project_id<>r.project_id THEN
     RAISE EXCEPTION 'session unavailable' USING ERRCODE='23514',CONSTRAINT='pr316_state'; END IF;
    IF TG_TABLE_NAME='experiment_search_nodes' THEN
     IF r.command_name<>'append_search_node' OR NEW.id IS DISTINCT FROM r.result_search_node_id
@@ -763,21 +651,11 @@ BEGIN
       WHERE id=NEW.parent_node_id AND research_task_id=r.research_task_id AND search_session_id=s.id
        AND xmin<>pg_current_xact_id()::xid)) THEN
      RAISE EXCEPTION 'existing parent/node result' USING ERRCODE='23514',CONSTRAINT='pr316_reference'; END IF;
-    IF NEW.depth<>pr316_chain(r.research_task_id,s.id,NEW.parent_node_id,true)+1 THEN
+    IF NEW.depth<>pr316_chain(r.research_task_id,s.id,NEW.parent_node_id)+1 THEN
      RAISE EXCEPTION 'child depth' USING ERRCODE='23514',CONSTRAINT='pr316_validation'; END IF;
     PERFORM pr316_refs(r.project_id,NEW.hypothesis_version_id,NEW.hypothesis_content_hash,
      NEW.experiment_spec_version_id,NEW.experiment_spec_content_hash);
     PERFORM pr316_node_proof(NEW);
-   ELSE
-    IF r.command_name<>'link_search_node_run' OR NEW.id IS DISTINCT FROM r.result_search_run_link_id
-     OR NEW.node_id IS DISTINCT FROM r.result_search_node_id OR NEW.project_id<>r.project_id THEN
-     RAISE EXCEPTION 'link result mismatch' USING ERRCODE='23514',CONSTRAINT='pr316_completeness'; END IF;
-    SELECT * INTO n FROM experiment_search_nodes WHERE id=NEW.node_id AND research_task_id=r.research_task_id
-     AND search_session_id=s.id AND xmin<>pg_current_xact_id()::xid;
-    IF n.id IS NULL OR NOT EXISTS(SELECT 1 FROM runs WHERE id=NEW.run_id AND project_id=r.project_id
-     AND (n.experiment_spec_version_id IS NULL OR experiment_spec_version_id=n.experiment_spec_version_id)) THEN
-     RAISE EXCEPTION 'Run/node scope or spec' USING ERRCODE='23514',CONSTRAINT='pr316_reference'; END IF;
-    PERFORM pr316_chain(r.research_task_id,s.id,n.id,true);
    END IF;
   END IF;
  END IF;
@@ -788,8 +666,8 @@ CREATE FUNCTION pr316_validate_receipt(p_receipt uuid) RETURNS void
 LANGUAGE plpgsql SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE r research_task_command_receipts%ROWTYPE; e experiment_search_events%ROWTYPE;
  s experiment_search_sessions%ROWTYPE; n experiment_search_nodes%ROWTYPE;
- l experiment_search_node_runs%ROWTYPE; te research_task_events%ROWTYPE;
- args jsonb; material jsonb; wanted_s integer:=0; wanted_n integer:=0; wanted_l integer:=0;
+ te research_task_events%ROWTYPE;
+ args jsonb; material jsonb; wanted_s integer:=0; wanted_n integer:=0;
  search_command boolean;
 BEGIN
  SELECT * INTO r FROM research_task_command_receipts WHERE id=p_receipt;
@@ -798,11 +676,9 @@ BEGIN
  IF search_command THEN
   wanted_s:=(r.command_name='create_search_session')::integer;
   wanted_n:=(r.command_name='append_search_node')::integer;
-  wanted_l:=(r.command_name='link_search_node_run')::integer;
  END IF;
  IF (SELECT count(*) FROM experiment_search_sessions WHERE receipt_id=r.id)<>wanted_s
  OR (SELECT count(*) FROM experiment_search_nodes WHERE receipt_id=r.id)<>wanted_n
- OR (SELECT count(*) FROM experiment_search_node_runs WHERE receipt_id=r.id)<>wanted_l
  OR (SELECT count(*) FROM experiment_search_events WHERE receipt_id=r.id)<>search_command::integer THEN
   RAISE EXCEPTION 'exact search effects' USING ERRCODE='23514',CONSTRAINT='pr316_completeness'; END IF;
  IF NOT search_command THEN RETURN; END IF;
@@ -812,12 +688,10 @@ BEGIN
  PERFORM pr316_live(r);
  SELECT * INTO s FROM experiment_search_sessions WHERE id=r.result_search_session_id;
  SELECT * INTO n FROM experiment_search_nodes WHERE id=r.result_search_node_id;
- SELECT * INTO l FROM experiment_search_node_runs WHERE id=r.result_search_run_link_id;
  SELECT * INTO e FROM experiment_search_events WHERE id=r.result_search_event_id AND receipt_id=r.id;
  IF e.id IS NULL OR NOT EXISTS(SELECT 1 FROM experiment_search_events WHERE id=e.id AND xmin=pg_current_xact_id()::xid)
  OR (wanted_s=1 AND NOT EXISTS(SELECT 1 FROM experiment_search_sessions WHERE id=s.id AND receipt_id=r.id AND xmin=pg_current_xact_id()::xid))
- OR (wanted_n=1 AND NOT EXISTS(SELECT 1 FROM experiment_search_nodes WHERE id=n.id AND receipt_id=r.id AND xmin=pg_current_xact_id()::xid))
- OR (wanted_l=1 AND NOT EXISTS(SELECT 1 FROM experiment_search_node_runs WHERE id=l.id AND receipt_id=r.id AND xmin=pg_current_xact_id()::xid)) THEN
+ OR (wanted_n=1 AND NOT EXISTS(SELECT 1 FROM experiment_search_nodes WHERE id=n.id AND receipt_id=r.id AND xmin=pg_current_xact_id()::xid)) THEN
   RAISE EXCEPTION 'fresh result set' USING ERRCODE='23514',CONSTRAINT='pr316_completeness'; END IF;
  IF (SELECT count(*) FROM experiment_search_events WHERE search_session_id=s.id)<>e.sequence
  OR EXISTS(SELECT 1 FROM generate_series(1,e.sequence) seq WHERE NOT EXISTS(
@@ -847,12 +721,6 @@ BEGIN
   args:=jsonb_build_object('session_id',s.id::text,'node_id',n.id::text,'parent_node_id',n.parent_node_id::text,
    'branch_kind',n.branch_kind,'mutation_reason',n.mutation_reason,'hypothesis_version_id',n.hypothesis_version_id::text,
    'experiment_spec_version_id',n.experiment_spec_version_id::text,'reservation_id',n.reservation_id::text);
- WHEN 'link_search_node_run' THEN
-  args:=jsonb_build_object('session_id',s.id::text,'node_id',n.id::text,'run_id',l.run_id::text);
- WHEN 'record_search_node_failure','prune_search_node' THEN
-  args:=jsonb_build_object('session_id',s.id::text,'node_id',n.id::text,'reason',e.reason);
- WHEN 'close_search_session' THEN
-  args:=jsonb_build_object('session_id',s.id::text,'reason',e.reason,'close_kind',substring(e.event_type from 9));
  END CASE;
  material:=jsonb_build_object('type','ExperimentSearchCommand','material_version',1,'command_name',r.command_name,
   'project_id',r.project_id::text,'actor_id',r.actor_id::text,'command_id',r.command_id::text,
@@ -872,7 +740,7 @@ END $$;
 ## Old-function replacement list and unchanged manifest
 
 **Replace exactly one existing function:** `pr301_receipt_complete()` as installed
-by `migrations/versions/0080_capability_gateway.py:2762–3295`. Add six CASE branches
+by `migrations/versions/0080_capability_gateway.py:2762–3295`. Add two CASE branches
 and the final `PERFORM pr316_validate_receipt(r.id)`; retain every other statement.
 Its existing deferred trigger `pr301_receipt_complete_commit` remains attached
 (`migrations/versions/0077_research_task_graph.py:663–665`). Full replacement follows.
@@ -891,8 +759,8 @@ pr301_graph_final_guard, pr304_child_guard, pr304_validate_policy,
 pr304_validate_safety, and every pr303 function/trigger. In particular, graph final
 still validates safety and gateway history. No Run/scientific guard is replaced.
 No old trigger, table, column or index is dropped. The only old CHECK drops and
-support-key addition are enumerated above. No new persisted JSON/hash/status or
-D1 accounting objects are introduced. TRUNCATE is rejected by the four statement triggers below; future normal-role
+CHECK additions are enumerated above. No new persisted JSON/hash/status or
+D1 accounting objects are introduced. TRUNCATE is rejected by the three statement triggers below; future normal-role
 grants must also exclude it, following 0081's PUBLIC-and-existing-role
 revocation pattern (`migrations/versions/0081_agent_execution_intents.py:587,606–620`).
 
@@ -915,11 +783,7 @@ BEGIN
  WHEN 'start_capability_invocation' THEN 'CAPABILITY_STARTED'
  WHEN 'finish_capability_invocation' THEN 'CAPABILITY_FINISHED'
  WHEN 'create_search_session' THEN 'SEARCH_SESSION_CREATED'
- WHEN 'append_search_node' THEN 'SEARCH_NODE_APPENDED'
- WHEN 'link_search_node_run' THEN 'SEARCH_RUN_LINKED'
- WHEN 'record_search_node_failure' THEN 'SEARCH_NODE_FAILED'
- WHEN 'prune_search_node' THEN 'SEARCH_NODE_PRUNED'
- WHEN 'close_search_session' THEN 'SEARCH_SESSION_CLOSED' END;
+ WHEN 'append_search_node' THEN 'SEARCH_NODE_APPENDED' END;
  IF e.id IS NULL OR e.event_type IS DISTINCT FROM mapped OR
   ROW(e.research_task_id,e.actor_id,e.command_id,e.task_row_version) IS DISTINCT FROM
   ROW(r.research_task_id,r.actor_id,r.command_id,r.resulting_row_version) THEN RAISE EXCEPTION 'planning guard rejected write' USING ERRCODE='23514', CONSTRAINT='pr301_validation'; END IF;
@@ -1112,317 +976,19 @@ CREATE CONSTRAINT TRIGGER pr316_session_complete AFTER INSERT ON experiment_sear
 CREATE TRIGGER pr316_node_insert BEFORE INSERT ON experiment_search_nodes FOR EACH ROW EXECUTE FUNCTION pr316_lineage_insert();
 CREATE TRIGGER pr316_node_immutable BEFORE UPDATE OR DELETE ON experiment_search_nodes FOR EACH ROW EXECUTE FUNCTION pr316_immutable();
 CREATE CONSTRAINT TRIGGER pr316_node_complete AFTER INSERT ON experiment_search_nodes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pr316_effect_complete();
-CREATE TRIGGER pr316_link_insert BEFORE INSERT ON experiment_search_node_runs FOR EACH ROW EXECUTE FUNCTION pr316_lineage_insert();
-CREATE TRIGGER pr316_link_immutable BEFORE UPDATE OR DELETE ON experiment_search_node_runs FOR EACH ROW EXECUTE FUNCTION pr316_immutable();
-CREATE CONSTRAINT TRIGGER pr316_link_complete AFTER INSERT ON experiment_search_node_runs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pr316_effect_complete();
 CREATE TRIGGER pr316_event_insert BEFORE INSERT ON experiment_search_events FOR EACH ROW EXECUTE FUNCTION pr316_lineage_insert();
 CREATE TRIGGER pr316_event_immutable BEFORE UPDATE OR DELETE ON experiment_search_events FOR EACH ROW EXECUTE FUNCTION pr316_immutable();
 CREATE CONSTRAINT TRIGGER pr316_event_complete AFTER INSERT ON experiment_search_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pr316_effect_complete();
 CREATE TRIGGER pr316_session_no_truncate BEFORE TRUNCATE ON experiment_search_sessions FOR EACH STATEMENT EXECUTE FUNCTION pr316_immutable();
 CREATE TRIGGER pr316_node_no_truncate BEFORE TRUNCATE ON experiment_search_nodes FOR EACH STATEMENT EXECUTE FUNCTION pr316_immutable();
-CREATE TRIGGER pr316_link_no_truncate BEFORE TRUNCATE ON experiment_search_node_runs FOR EACH STATEMENT EXECUTE FUNCTION pr316_immutable();
 CREATE TRIGGER pr316_event_no_truncate BEFORE TRUNCATE ON experiment_search_events FOR EACH STATEMENT EXECUTE FUNCTION pr316_immutable();
 CREATE TRIGGER pr316_receipt_insert BEFORE INSERT ON research_task_command_receipts FOR EACH ROW EXECUTE FUNCTION pr316_receipt_insert();
 ```
 
-## Verification record — review correction
+## Verification record — t335
 
-Recorded on 2026-10-27 against the combined, uncommitted two-file worktree at
-`c5b81a127ef45f1b4ec918e1bdb6c7c774b699df`. **Commit pending**; no post-commit
-verification is claimed. The original task prohibits committing, pushing and
-branch creation. Both named branches resolve to the same commit; the checkout
-remains `design/fix-items-1-4`. This record replaces the earlier unsupported summary.
-
-The commands below are exact, including environment prefixes and pytest options.
-`tmp/t334-review/run.py` records each child process's unmodified stdout/stderr and
-return code in the named `.log`/`.json` pair. Displayed result lines are verbatim
-excerpts; complete output, commands, database inventory and probe source are in
-[the review index](../../../tmp/t334-review/README.md). All scratch products are
-ignored and inside this repository; they add no tracked implementation or tests.
-
-**Which run covers these documents?** `tmp/t334-final-audit.py` reads **both final
-Markdown files**: it extracts every SQL fence, checks all six literal
-request/material/result blocks against the repository canonical-hash code, checks
-all disposition/check cells, and installs the complete SQL over 0081 in a fresh
-PG18 database. SQL/Python digest parity runs in that same database, using existing
-`pr302s2_value_digest`. `tmp/t334_design_probe.py` reads the DDL Markdown directly
-and executes session creation/closure, rollback and immutability paths in a
-second fresh PG18 database; it also evaluates the installed catalog CHECK with
-six CANCELLED negatives, twelve live search controls and ten legacy CANCELLED
-controls in a temporary relation. No canonical trigger is disabled. These probes
-use the existing administrative fixture, not normal-role adversarial acceptance.
-
-The 1,509 unit/architecture and 275 PostgreSQL tests are **existing regression
-coverage** of the cited patterns; they do not read either new design document or
-prove PR3-16 implementation. The architecture selection includes database tests;
-its read-only connection observer records actual database names/server versions.
-Static tools check the repository code/configuration; they are not Markdown
-semantic checks. `true` tests only the requested check command's exit status.
-
-**Static checks — no database connection:**
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked ruff check .
-All checks passed!
-RAW_EXIT: 0
-```
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked ruff format --check .
-948 files already formatted
-RAW_EXIT: 0
-```
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked pyright
-0 errors, 0 warnings, 0 informations
-WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
-Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
-RAW_EXIT: 0
-```
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked alembic heads
-0081_agent_execution_intents (head)
-RAW_EXIT: 0
-```
-
-**Focused unit/architecture regression:**
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked pytest -o addopts= -q --capture=tee-sys -p tmp.t334_database_trace tests/unit/phase3 tests/architecture tests/unit/architecture tests/unit/foundation tests/unit/test_ci_migration_head.py
-1509 passed, 51 warnings in 27.94s
-RAW_EXIT: 0
-```
-
-Database: local PostgreSQL 18.6 (`server_version_num=180006`, localhost:5432),
-15 disposable test databases plus `postgres` for create/drop administration.
-Every actual name is in the [database inventory](#verification-database-inventory).
-The 51 warnings are existing Alembic `path_separator` deprecations. This selection
-was rerun with the observer because ordinary capture did not identify each DB.
-
-**Focused PostgreSQL regression:**
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked pytest -o addopts= -q --capture=tee-sys tests/integration/phase3/test_pr3_01_schema.py tests/integration/phase3/test_pr3_01_replay.py tests/integration/phase3/test_pr3_04_guards.py tests/integration/phase3/test_pr3_04_accounting.py tests/integration/phase3/test_pr3_03_migration.py tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_02_s2_intent_migration.py tests/integration/phase3/test_pr3_02_s2_intent_guards.py
-275 passed, 180 warnings in 98.07s (0:01:38)
-RAW_EXIT: 0
-```
-
-Database: 87 separately created/dropped `researchbase_pr212_test_*` databases on
-the same local PostgreSQL 18 cluster (port 5432, system ID 7696072587520791948),
-listed individually below and in the raw log. `postgres` is only the create/drop
-administration connection. All 87 creation names match the 87 drop names. The
-180 warnings are existing Alembic `path_separator` deprecations.
-
-**Document SQL guard execution and independent CHECK probe:**
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked pytest -o addopts= -q --capture=tee-sys tmp/t334_design_probe.py
-GUARD_PROBE_DATABASE: researchbase_pr212_test_599daa4e9cc746258d37e23cf21d049a
-PostgreSQL: 18.6 (Homebrew)
-Catalog CHECK probe: 6/6 CANCELLED search events rejected (23514); 12/12 live search controls accepted; 10/10 legacy CANCELLED controls accepted
-Guard execution probe: create/close accepted; repeated close, no-op UPDATE, DELETE, TRUNCATE and missing-event writes rejected; rollback revision/count assertions passed
-1 passed, 3 warnings in 1.63s
-RAW_EXIT: 0
-```
-
-The named disposable database is created, migrated through 0081, extended with
-this document's SQL, probed, then dropped. The three warnings comprise two Alembic
-deprecations and an unknown `integration` marker from a helper import outside the
-usual tests/conftest.py discovery. No test failed or was skipped.
-
-**PG18 compilation, old-body delta and 6/6 digest parity:**
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked python tmp/t334-final-audit.py
-PR3-16-ddl-guards-events.md {'MISSING': 2, 'RESOLVED': 10} 12 rows; every RESOLVED row names a check
-PR3-16-envelopes-lifecycle-reads.md {'MISSING': 3, 'OWNER': 4, 'RESOLVED': 17} 24 rows; every RESOLVED row names a check
-Independent literal request/default/NFC/digest/result audit: 6/6
-COMPILE_AND_PARITY_DATABASE: researchbase_pr212_test_2ef50ff6112144b28e9f7e37902e13a2
-PostgreSQL: 18.6 (Homebrew)
-Changed existing pr30* bodies: pr301_receipt_complete
-SQL/Python request digest parity: 6/6
-Design SQL compiled: 4 tables, 15 new functions, 17 new triggers
-Tracked scope: exactly the two authorized files; HEAD unchanged
-RAW_EXIT: 0
-```
-
-That explicitly named database is separate from the guard probe and is dropped
-at exit. “Compiled” means all SQL fences were accepted by PostgreSQL; it does not
-mean every function branch executed. The reported six digests are request hashes
-computed by `src/researchbase/foundation/canonical_json.py:11–26` and
-`src/researchbase/foundation/hashing.py:33–35`, compared with existing 0081 SQL
-`migrations/versions/0081_agent_execution_intents.py:113–134`. No result or search
-object digest was invented. No application database receives the proposed DDL.
-
-**Requested check, branch reconciliation and whitespace:**
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" true
-(stdout/stderr empty)
-RAW_EXIT: 0
-```
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" git branch --show-current
-design/fix-items-1-4
-RAW_EXIT: 0
-```
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" git rev-parse HEAD design-pr316
-c5b81a127ef45f1b4ec918e1bdb6c7c774b699df
-c5b81a127ef45f1b4ec918e1bdb6c7c774b699df
-RAW_EXIT: 0
-```
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" git log --oneline --left-right HEAD...design-pr316
-(stdout/stderr empty)
-RAW_EXIT: 0
-```
-
-```text
-$ PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" git diff --check
-(stdout/stderr empty)
-RAW_EXIT: 0
-```
-
-Evidence prose and source-audit explanations were added after the executable
-probes. Final document-only validation compares the SQL with the compiled SQL
-and rechecks all six literal vectors, dispositions and two-file scope:
-
-```sh
-PYTHONPATH="$PWD" UV_CACHE_DIR="$PWD/tmp/t334-uv-cache" uv run --locked python tmp/t334-final-audit.py --static-only
-```
-
-Its raw output is supplied in `tmp/t334-review/final-document-audit.log`.
-`git diff --check` and HEAD/scope are rechecked after the final prose edit.
-The full suite was **NOT RUN** by this author; the loop's subsequent full-suite
-output remains its own evidence. No missing PR3-16 test becomes coverage because
-these regressions/probes pass. Normal-role hostile/concurrency acceptance,
-independent F1/Q2 review, D1 activation and post-close transaction proof remain
-MISSING; this is a design delivery, not release-gate acceptance.
-
-## Verification database inventory
-
-These are the actual database identities from the raw command outputs above.
-Unit/architecture's read-only SQLAlchemy observer records connections without
-issuing SQL or printing credentials. PostgreSQL regression's existing fixture
-records each create/drop. The administrative database is `postgres`; none of
-these is an application database. The two direct-document probe database names
-are printed in their individual result blocks above.
-
-Unit/architecture connection output (15 test databases and admin):
-
-```text
-DATABASE_USED: name=postgres host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_3472bad00fdc4467a24684480c796909 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_55f19841ea8c4925a64a47a4838f5ec9 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_8cdffc1b51c54354ac50248a5c511944 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_bc3cefb3b7f94afeb5782ead9912d547 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_34404922660147109cf4f593a7ca5a77 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_c07b184b204148068a086024adcca0c1 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_11980e7a54554f5a9168f9cc73a9764b host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr210_test_7ca1a910e9124c04b8390a47ff14896c host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_a88b91cc726f477cb921f017c2d7bc23 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_cc0e48101e7c4f31bd8dbf9f94db3cff host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_57a66dbe52d84be286d29a3f9457f266 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_bcb8758df8064757aa8f79d55b894b44 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_49290411e14243dbb1f6a0ec82f616c4 host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_0708205a2c8c420d88a2e7f97997502f host=localhost port=5432 server_version_num=180006
-DATABASE_USED: name=researchbase_pr211_r2_test_0ca82fc9f98c4f089b39bdc1ec91ce2e host=localhost port=5432 server_version_num=180006
-```
-
-PostgreSQL regression creation output (87 names, each also dropped in that log):
-
-```text
-DISPOSABLE_CREATED: researchbase_pr212_test_9f1cbbbf096d4885ab2e794c4cf56d7b
-DISPOSABLE_CREATED: researchbase_pr212_test_0658cf1dc4674baeb17644c3cd8cf3b5
-DISPOSABLE_CREATED: researchbase_pr212_test_ded259e8eea447d2b9a1cbdf73577ecf
-DISPOSABLE_CREATED: researchbase_pr212_test_0c1c10cfce5046b8bb6f4c2edf2f40e7
-DISPOSABLE_CREATED: researchbase_pr212_test_0cf4500c50bc48358969a49f6c38ade0
-DISPOSABLE_CREATED: researchbase_pr212_test_d54cb36918224aac858b2be8507de4a2
-DISPOSABLE_CREATED: researchbase_pr212_test_7707232f0d2d4ebfaaaa807214b11899
-DISPOSABLE_CREATED: researchbase_pr212_test_c2da9e68921640be9a28def9da0ceb99
-DISPOSABLE_CREATED: researchbase_pr212_test_7d6ae19cdd314b79ab14d14df54059e7
-DISPOSABLE_CREATED: researchbase_pr212_test_f6dd9f5fd95d457db0dec0ec9f2ed8c7
-DISPOSABLE_CREATED: researchbase_pr212_test_d4f0557cc88e4265a02789a2297c10d7
-DISPOSABLE_CREATED: researchbase_pr212_test_8b23f40b596d4f83ab29ee5eff662d0d
-DISPOSABLE_CREATED: researchbase_pr212_test_ac13822623df46658b7ff90a838120d9
-DISPOSABLE_CREATED: researchbase_pr212_test_a8df2f8de840445096ba6a57fe0ce0fa
-DISPOSABLE_CREATED: researchbase_pr212_test_bf262cda1f6740b9be1a6191d86e6610
-DISPOSABLE_CREATED: researchbase_pr212_test_4af9b9a306614d968732cb48338c337a
-DISPOSABLE_CREATED: researchbase_pr212_test_e59e45dea7e94f3cac9626e94618bb73
-DISPOSABLE_CREATED: researchbase_pr212_test_adb4b740f8f3481d800bbd7d57ed1830
-DISPOSABLE_CREATED: researchbase_pr212_test_9fb6b59be3ae4f908ce91a6aac9505e8
-DISPOSABLE_CREATED: researchbase_pr212_test_16aee0901e194519a3b5340f3d457fa1
-DISPOSABLE_CREATED: researchbase_pr212_test_9e1b5ea56a9741c1aab58d9c0b1dd30f
-DISPOSABLE_CREATED: researchbase_pr212_test_df557620b9674872add5dde289045917
-DISPOSABLE_CREATED: researchbase_pr212_test_b753e358970046729533ab05ede30a4e
-DISPOSABLE_CREATED: researchbase_pr212_test_31149fc8b91447f49fe2e1027a774e51
-DISPOSABLE_CREATED: researchbase_pr212_test_88899e5d00bd42a986e2b6f154769f07
-DISPOSABLE_CREATED: researchbase_pr212_test_e1ae74d6dabf446bb10bbb7077503c7a
-DISPOSABLE_CREATED: researchbase_pr212_test_ec84526c06dc46d28bdfb996ddb16a6f
-DISPOSABLE_CREATED: researchbase_pr212_test_11e44f1a661a499ab65a82829de6aa33
-DISPOSABLE_CREATED: researchbase_pr212_test_304b7be4350e4eb38cdff15f821f8542
-DISPOSABLE_CREATED: researchbase_pr212_test_b07cabdf259145af9de1d0dbc9ad6cb1
-DISPOSABLE_CREATED: researchbase_pr212_test_8cd0594f3d734895be06c5c4afffe411
-DISPOSABLE_CREATED: researchbase_pr212_test_759d72c88b6a4f2ab533b884fefd402a
-DISPOSABLE_CREATED: researchbase_pr212_test_d73af4af656544619572cd67e990b833
-DISPOSABLE_CREATED: researchbase_pr212_test_cf24bd93b65c4b32ab22e3caf7441237
-DISPOSABLE_CREATED: researchbase_pr212_test_1d27d25a78db489d8318253b42efee1d
-DISPOSABLE_CREATED: researchbase_pr212_test_72cb44d35ca64e3b8cb625f80c481adb
-DISPOSABLE_CREATED: researchbase_pr212_test_342111689f4c4b6dad39b42a5ad014e4
-DISPOSABLE_CREATED: researchbase_pr212_test_0de95d08be6a4137b16b365bcb309d73
-DISPOSABLE_CREATED: researchbase_pr212_test_5888ae70fa434ba5bf8c4fe5996ea9f4
-DISPOSABLE_CREATED: researchbase_pr212_test_3e5979fae7e5442194e18e1e5648f222
-DISPOSABLE_CREATED: researchbase_pr212_test_e65113257e0b45008ec219b16c916f3d
-DISPOSABLE_CREATED: researchbase_pr212_test_f0548cb645b544faae80bf47178ac315
-DISPOSABLE_CREATED: researchbase_pr212_test_df94ebae0dfc4da6b760675041b0b41e
-DISPOSABLE_CREATED: researchbase_pr212_test_512229f2e4304a5884a4a2f6591b9a81
-DISPOSABLE_CREATED: researchbase_pr212_test_02aad52327db43b8b4f52e4da4582df4
-DISPOSABLE_CREATED: researchbase_pr212_test_543c9bb92b6c4419b6d8827552bc9062
-DISPOSABLE_CREATED: researchbase_pr212_test_eff8379433a94a9395464a083fac45ba
-DISPOSABLE_CREATED: researchbase_pr212_test_77546aed296241a8a0d80e314ac427fd
-DISPOSABLE_CREATED: researchbase_pr212_test_51ff9d9493c744ab8b300265291edf0a
-DISPOSABLE_CREATED: researchbase_pr212_test_96edf337aa4e48fdb5674fcea083d95a
-DISPOSABLE_CREATED: researchbase_pr212_test_b9183a3280714d33b35302f566fa800a
-DISPOSABLE_CREATED: researchbase_pr212_test_bf37c6bbcae24364911a5b782d58d9d5
-DISPOSABLE_CREATED: researchbase_pr212_test_5043b501e9c74bd0b5bb53044d2cb587
-DISPOSABLE_CREATED: researchbase_pr212_test_23338927c1f14a21878d939a74a0b115
-DISPOSABLE_CREATED: researchbase_pr212_test_551ed69e57014cbf8eef3fb53fa73f52
-DISPOSABLE_CREATED: researchbase_pr212_test_3523fb40ab0c465d9d2fc4b64ff2d8e8
-DISPOSABLE_CREATED: researchbase_pr212_test_595a99852b134fcfac34438a0f481232
-DISPOSABLE_CREATED: researchbase_pr212_test_1311706498684e6fbabcfe8ab1f87c2b
-DISPOSABLE_CREATED: researchbase_pr212_test_7fbe90b245a542238af2b5f6f5f4f1e7
-DISPOSABLE_CREATED: researchbase_pr212_test_9654b64e78784f909347c6d75da76349
-DISPOSABLE_CREATED: researchbase_pr212_test_fbe209cf612c42fb99ab7eaa4ceec9f7
-DISPOSABLE_CREATED: researchbase_pr212_test_8b3b9c705f5a4893b237c53703a06087
-DISPOSABLE_CREATED: researchbase_pr212_test_36fc4530c5a24d19bb2b14fd6e5c21be
-DISPOSABLE_CREATED: researchbase_pr212_test_890307af23b34078b2b474ef84582471
-DISPOSABLE_CREATED: researchbase_pr212_test_11b53531bbf3457398885c90af1694f1
-DISPOSABLE_CREATED: researchbase_pr212_test_f3d066b6954a486ba02dd429c5f9d177
-DISPOSABLE_CREATED: researchbase_pr212_test_b61424424afb486aa14cba5450494edc
-DISPOSABLE_CREATED: researchbase_pr212_test_2b553d03a36e4594a577710885f6746e
-DISPOSABLE_CREATED: researchbase_pr212_test_9ab65c773b86447a8bd7bc81b61148b8
-DISPOSABLE_CREATED: researchbase_pr212_test_ac1f86c13a3448c0bfb92dc29f92d1a2
-DISPOSABLE_CREATED: researchbase_pr212_test_0566bfa169124ad5bc9681424fb2448d
-DISPOSABLE_CREATED: researchbase_pr212_test_6b9d6d9ef72b4b9cb3bc675fa00a48c7
-DISPOSABLE_CREATED: researchbase_pr212_test_f82423a4b2c54269bfaafc17961ebf6f
-DISPOSABLE_CREATED: researchbase_pr212_test_bca40927fba446578620b7b6b7583fe3
-DISPOSABLE_CREATED: researchbase_pr212_test_a4468824f8b54353939126b27a649337
-DISPOSABLE_CREATED: researchbase_pr212_test_38039afba2a34b209e64522374869204
-DISPOSABLE_CREATED: researchbase_pr212_test_517b4420b5ef44f89a65f565a6346ad4
-DISPOSABLE_CREATED: researchbase_pr212_test_012574417cf44d6e8b09276497e896fc
-DISPOSABLE_CREATED: researchbase_pr212_test_0f30282aff2043639b078f2be17ca942
-DISPOSABLE_CREATED: researchbase_pr212_test_866d61250e91482daa984be3452b40ee
-DISPOSABLE_CREATED: researchbase_pr212_test_90d4935fadb646b6bf764a6490a150b3
-DISPOSABLE_CREATED: researchbase_pr212_test_d793e788504943bebf0027aeeed59def
-DISPOSABLE_CREATED: researchbase_pr212_test_6bf8dbb368da4a8898a0cbc4c699f3aa
-DISPOSABLE_CREATED: researchbase_pr212_test_54289990d46040c2ac31ed207a7d12e1
-DISPOSABLE_CREATED: researchbase_pr212_test_d2e0fa6bfb4942a0b936ba0bc03888f2
-DISPOSABLE_CREATED: researchbase_pr212_test_7a83dc0b6f664725a335e0af7ed66ba9
-DISPOSABLE_CREATED: researchbase_pr212_test_14275b865e8f43f3a4e13a8ecee863bf
-```
+The t334 six-command compilation/probe results belong to the prior revision.
+They do not verify this reduced SQL or resolve D07. Current focused verification
+is recorded after the final audit in
+[the companion](PR3-16-envelopes-lifecycle-reads.md#verification-record--t335).
+No implementation, migration, gate acceptance or full-suite result is claimed.
