@@ -1,8 +1,15 @@
 name: CI
 
 on:
+  # Documentation-only changes skip this workflow. A change that touches any other file still runs it all.
   push:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
 
 jobs:
   checks:
