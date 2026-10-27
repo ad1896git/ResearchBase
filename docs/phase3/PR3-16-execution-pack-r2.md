@@ -494,6 +494,17 @@ PostgreSQL/integration/migration behavior suites: **NOT RUN**, zero suites invok
 
 ## 6. Owner answers recorded and remaining steps
 
+**Owner decisions, 2026-10-26 (approved as recommended):**
+- A1 ADR-0026 accepted. A2 pack r2 frozen as the answers below. A3 G0-X granted for the freeze-inventory step (F1) only; S1 starts only after F1 is reviewed. A4 push and PR approved (pack PR #19). A5 flake fix approved (PR #20).
+- D1 (B6): the atomic amendment is unconditional before activation (draft line 44).
+- Q2 (B7): strategy material omitted with explicit owner-approved staging.
+- D5 (B11): wider spec-material staging is not approved; it stays open.
+- Q3 (B8): a trusted producer is a registered consumer capability that calls the TaskSafetyService reservation path. TrustedFakeConsumer is test-only. No production producer exists, so production node admission is denied until the amendment in D1 is reviewed.
+- Q4 (B9): a Run is already-existing iff its created_at (database transaction timestamp) is strictly earlier than the closure event's transaction timestamp, read in one snapshot. Equal or undeterminable means deny.
+- Q6 (B10): initial read bounds equal the existing budget caps in safety_contracts.py BudgetSpec (nodes 10, depth 3, parallel branches 1). They are measured and revised at S8. No other numbers are introduced.
+
+**Freeze status:** FROZEN r2 with the decisions above. Exact inventory (Q1), literal vectors (Q2) and the live integration head (Q8) are generated in step F1 from the live repository and must pass review before S1.
+
 **Owner answers (2026-10-26), in the accepted draft wording (record file).** These are answers, not open choices. Only the items marked OPEN below are still open.
 
 - D1/Q3: conservative committed-reservation proof or deny for this storage slice. Draft line 44: "Make atomic admission a separately reviewed amendment before activation." Draft line 142: require the separately reviewed atomic amendment when no trusted producer can satisfy the proof. Whether the amendment is unconditional or conditional is for owner confirmation at freeze. Trusted producer identity is OPEN.
@@ -521,7 +532,7 @@ PostgreSQL/integration/migration behavior suites: **NOT RUN**, zero suites invok
 7. Independent review of r2, which is in progress.
 8. Explicit owner approval of the freeze. Implementation then needs a separate authorization (G0-X).
 
-Status: REVISION r2. Owner answers recorded in §1.2 and §6. Awaiting the items above. No implementation authorized.
+Status: FROZEN r2 (owner approved 2026-10-26). F1 pending. Owner answers recorded in §1.2 and §6. Awaiting the items above. No implementation authorized.
 
 ## Appendix S — Repository source excerpts and provenance limits
 
