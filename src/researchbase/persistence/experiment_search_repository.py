@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from researchbase.agent_runtime.ports.gateway_repository import StoredTaskEvent
 from researchbase.agent_runtime.ports.search_repository import (
     FreshSearchValidation,
-    SearchCallerKind,
+    SearchCallerKindSource,
     SearchStorageStage,
     StoredExperimentSpecReference,
     StoredHypothesisReference,
@@ -31,6 +31,7 @@ from researchbase.agent_runtime.ports.search_repository import (
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.time import to_utc
+from researchbase.persistence.experiment_search_queries import SqlAlchemyExperimentSearchQueries
 from researchbase.persistence.research_task_repository import SHARE_SQL
 from researchbase.persistence.task_safety_repository import (
     SAFETY_TABLES,
@@ -68,6 +69,13 @@ class SqlAlchemyExperimentSearchRepository:
         self._after_stage: FreshSearchValidation | None = None
         self._notifying = False
         self._started = False
+        self._queries = SqlAlchemyExperimentSearchQueries(session)
+
+    def search_session(self, identity):
+        return self._queries.search_session(identity)
+
+    def retained_history(self, session):
+        return self._queries.retained_history(session)
 
     def _many(self, sql: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
         return [
@@ -103,7 +111,7 @@ class SqlAlchemyExperimentSearchRepository:
         command: UUID,
         task: UUID,
         *,
-        caller_kind: SearchCallerKind,
+        caller_kind: SearchCallerKindSource,
         after_stage: FreshSearchValidation,
         hypothesis_versions: tuple[UUID, ...] = (),
         experiment_spec_versions: tuple[UUID, ...] = (),
@@ -115,7 +123,7 @@ class SqlAlchemyExperimentSearchRepository:
         """
         if self._started or self._notifying:
             raise RuntimeError("search lock sequence may run only once per UoW")
-        if caller_kind not in ("HUMAN", "AGENT"):
+        if not callable(caller_kind) and caller_kind not in ("HUMAN", "AGENT"):
             raise ValueError("unsupported caller kind")
         if not callable(after_stage):
             raise TypeError("Application validation callback required")
@@ -125,13 +133,16 @@ class SqlAlchemyExperimentSearchRepository:
         self._after_stage = after_stage
         self._session.execute(text(SHARE_SQL))
         self._notify(SearchStorageStage("share"))
+        kind = caller_kind() if callable(caller_kind) else caller_kind
+        if kind not in ("HUMAN", "AGENT"):
+            raise ValueError("unsupported caller kind")
         self._session.execute(text("SELECT rb_phase2_lock_project(:id)"), {"id": project})
         self._notify(SearchStorageStage("project", "projects", project))
         keys = [
             ("command_key", f"pr301:command:{project}:{actor}:{command}"),
             ("task_key", f"pr301:task:{task}"),
         ]
-        if caller_kind == "AGENT":
+        if kind == "AGENT":
             keys.append(("actor_key", f"pr302:actor:{actor}"))
         for operation, key in keys:
             self._session.execute(
