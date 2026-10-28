@@ -162,7 +162,16 @@ class StoredSearchWriteRows:
     experiment_specs: tuple[StoredExperimentSpecReference, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class StoredSearchHistory:
+    nodes: tuple[StoredSearchNode, ...]
+    events: tuple[StoredSearchEvent, ...]
+    run_links: tuple[StoredSearchNodeRun, ...]
+
+
 class SearchRepository(Protocol):
+    def search_session(self, identity: UUID) -> StoredSearchSession | None: ...
+    def retained_history(self, session: UUID) -> StoredSearchHistory: ...
     def lock_write(
         self,
         project: UUID,

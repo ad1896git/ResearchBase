@@ -31,6 +31,7 @@ from researchbase.agent_runtime.ports.search_repository import (
 )
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.time import to_utc
+from researchbase.persistence.experiment_search_queries import SqlAlchemyExperimentSearchQueries
 from researchbase.persistence.research_task_repository import SHARE_SQL
 from researchbase.persistence.task_safety_repository import (
     SAFETY_TABLES,
@@ -68,6 +69,13 @@ class SqlAlchemyExperimentSearchRepository:
         self._after_stage: FreshSearchValidation | None = None
         self._notifying = False
         self._started = False
+        self._queries = SqlAlchemyExperimentSearchQueries(session)
+
+    def search_session(self, identity):
+        return self._queries.search_session(identity)
+
+    def retained_history(self, session):
+        return self._queries.retained_history(session)
 
     def _many(self, sql: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
         return [

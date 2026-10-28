@@ -1,4 +1,4 @@
-"""Bounded planning session creation through one Application transaction.
+"""Bounded planning commands and formal reads through one Application transaction.
 
 Composition supplies the existing trusted, bounded, no-I/O CredentialVerifier.
 This service does not adapt disk/network credential providers or activate nodes.
@@ -11,18 +11,34 @@ from inspect import iscoroutine, iscoroutinefunction
 from typing import Any, cast
 
 from researchbase.agent_runtime.application.research_task import TaskContextAdmission, fail
+from researchbase.agent_runtime.application.safety_contracts import TaskSafetyRead
 from researchbase.agent_runtime.application.search_contracts import (
+    BranchLineageRead,
+    BranchLineageRequest,
     CreateSearchArguments,
+    ExperimentSearchTreeRead,
+    SearchBudgetRead,
     SearchCommand,
     SearchCommandResult,
+    SearchEventRead,
+    SearchNodeRead,
+    SearchObjectiveRead,
+    SearchReadRequest,
+    SearchSessionRead,
 )
 from researchbase.agent_runtime.application.task_safety import (
     balances,
     causes,
     gates,
+    safety_projection,
     verify_saved_policies,
 )
-from researchbase.agent_runtime.domain.experiment_search import ExactReference
+from researchbase.agent_runtime.domain.experiment_search import (
+    BranchKind,
+    ExactReference,
+    ObjectiveDefinition,
+    search_profile_allowed,
+)
 from researchbase.agent_runtime.domain.research_task import invalid
 from researchbase.agent_runtime.domain.task_safety import ADDITIVE
 from researchbase.agent_runtime.ports.search_repository import (
@@ -115,6 +131,203 @@ class ExperimentSearchService(TaskContextAdmission):
         super().__init__(_Credentials(credentials))
         self._factory = factory
 
+    def get_experiment_search_tree(
+        self, principal, request: SearchReadRequest
+    ) -> ExperimentSearchTreeRead:
+        return cast(ExperimentSearchTreeRead, self._read(principal, request, "tree"))
+
+    def get_branch_lineage(self, principal, request: BranchLineageRequest) -> BranchLineageRead:
+        return cast(BranchLineageRead, self._read(principal, request, "lineage"))
+
+    def get_search_budget(self, principal, request: SearchReadRequest) -> SearchBudgetRead:
+        return cast(SearchBudgetRead, self._read(principal, request, "budget"))
+
+    def _read(self, principal, request, mode):
+        try:
+            self._principal(principal)
+            kind = BranchLineageRequest if mode == "lineage" else SearchReadRequest
+            if type(request) is not kind:
+                invalid("matching typed search read required")
+            with self._factory() as uow:
+                uow.begin_formal_read()
+                repo = uow.experiment_search
+                at = repo.snapshot_at()
+                self._authorize(repo, principal, request.project_id, at=at)
+                kinds = {r["actor_type"] for r in repo.authority(principal, request.project_id)}
+                if len(kinds) != 1 or not kinds <= {"HUMAN", "AGENT"}:
+                    fail(ErrorCode.FORBIDDEN, "supported verified caller required")
+                task = repo.task(request.task_id)
+                if task is None or task["project_id"] != request.project_id:
+                    fail(ErrorCode.NOT_FOUND, "search target unavailable")
+                session = repo.search_session(request.session_id)
+                if session is None or (session["project_id"], session["research_task_id"]) != (
+                    request.project_id,
+                    request.task_id,
+                ):
+                    fail(ErrorCode.NOT_FOUND, "search target unavailable")
+                self._saved_references(uow, request.project_id, session, root=True)
+                safety = cast(TaskSafetyRead, safety_projection(repo, task, at, history=False))
+                if not any(
+                    row["id"] == session["budget_id"] and row["research_task_id"] == request.task_id
+                    for row in repo.rows("execution_budgets", request.task_id)
+                ):
+                    fail(ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "saved search budget unavailable")
+                if mode == "budget":
+                    return SearchBudgetRead(session["id"], task["id"], session["budget_id"], safety)
+                history = repo.retained_history(session["id"])
+                nodes, events = self._retained(uow, request, session, history, mode=mode)
+                # The immutable owning text is copied exactly; no normalization/hash.
+                goal = ObjectiveDefinition(task["id"], task["objective"])
+                view = SearchSessionRead(
+                    session["id"],
+                    session["project_id"],
+                    session["research_task_id"],
+                    session["budget_id"],
+                    session["root_hypothesis_version_id"],
+                    session["root_hypothesis_content_hash"],
+                    session["root_experiment_spec_version_id"],
+                    session["root_experiment_spec_content_hash"],
+                    session["created_by"],
+                    session["created_at"],
+                    "ACTIVE",
+                    SearchObjectiveRead("RESEARCH_TASK", goal.research_task_id, goal.text),
+                )
+                if mode == "lineage":
+                    return BranchLineageRead(view, nodes, (), events, safety)
+                return ExperimentSearchTreeRead(view, nodes, (), events, safety)
+        except ResearchBaseError as exc:
+            raise ResearchBaseError(exc.code, _MESSAGES[exc.code]) from None
+        except (KeyError, TypeError, ValueError):
+            raise ResearchBaseError(
+                ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                _MESSAGES[ErrorCode.REFERENTIAL_INTEGRITY_ERROR],
+            ) from None
+
+    def _saved_references(self, uow, project, row, *, root=False):
+        prefix = "root_" if root else ""
+        for name, hypothesis in (("hypothesis", True), ("experiment_spec", False)):
+            identity = row[prefix + name + "_version_id"]
+            digest = row[prefix + name + "_content_hash"]
+            if (identity is None) != (digest is None):
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved search hash presence")
+            try:
+                actual = self._reference(uow, project, identity, hypothesis=hypothesis)
+            except ResearchBaseError as exc:
+                if exc.code in {ErrorCode.NOT_FOUND, ErrorCode.FORBIDDEN}:
+                    fail(
+                        ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "saved search reference unavailable"
+                    )
+                raise
+            if actual != digest:
+                fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "saved search hash contradiction")
+
+    def _retained(self, uow, request, session, history, *, mode):
+        def integrity(condition):
+            if not condition:
+                fail(ErrorCode.REFERENTIAL_INTEGRITY_ERROR, "retained search history contradiction")
+
+        nodes, events = history.nodes, history.events
+        if not search_profile_allowed(
+            nodes=len(nodes) if mode == "tree" else 0,
+            depth=0,
+            events=len(events) if mode == "tree" else 0,
+            run_links=len(history.run_links),
+        ):
+            fail(ErrorCode.VALIDATION_ERROR, "Search read limit exceeded.")
+        for row in (*nodes, *events, *history.run_links):
+            integrity(
+                row["research_task_id"] == request.task_id
+                and row["search_session_id"] == request.session_id
+            )
+        by_id = {n["id"]: n for n in nodes}
+        integrity(len(by_id) == len(nodes))
+        if mode == "lineage" and request.node_id not in by_id:
+            fail(ErrorCode.NOT_FOUND, "search target unavailable")
+        # Check the whole saved ancestry, even when returning a single path.
+        paths = {}
+        for node in nodes:
+            path, seen = [], set()
+            current = node
+            while True:
+                integrity(current["id"] not in seen)
+                seen.add(current["id"])
+                path.append(current)
+                parent = current["parent_node_id"]
+                if parent is None:
+                    break
+                integrity(parent in by_id)
+                current = by_id[parent]
+            path.reverse()
+            integrity(all(type(n["depth"]) is int and n["depth"] == i for i, n in enumerate(path)))
+            paths[node["id"]] = path
+        integrity(not nodes or sum(n["parent_node_id"] is None for n in nodes) == 1)
+        ordered = sorted(nodes, key=lambda n: (n["depth"], n["id"]))
+        selected = paths[request.node_id] if mode == "lineage" else ordered
+        ordered_events = sorted(events, key=lambda e: (e["sequence"], e["id"]))
+        selected_events = (
+            [e for e in ordered_events if e["node_id"] == request.node_id]
+            if mode == "lineage"
+            else ordered_events
+        )
+        if not search_profile_allowed(
+            nodes=len(selected),
+            depth=max((n["depth"] for n in selected), default=0),
+            events=len(selected_events),
+            run_links=len(history.run_links),
+        ):
+            fail(ErrorCode.VALIDATION_ERROR, "Search read limit exceeded.")
+        integrity([e["sequence"] for e in ordered_events] == list(range(1, len(events) + 1)))
+        integrity(len({e["id"] for e in events}) == len(events))
+        integrity(len(events) == len(nodes) + 1)
+        integrity(bool(ordered_events))
+        created = ordered_events[0]
+        integrity(
+            created["event_type"] == "SESSION_CREATED"
+            and created["node_id"] is None
+            and created["receipt_id"] == session["receipt_id"]
+            and created["actor_id"] == session["created_by"]
+            and created["occurred_at"] == session["created_at"]
+        )
+        seen_nodes = set()
+        for event in ordered_events[1:]:
+            integrity(event["event_type"] == "NODE_APPENDED")
+            identity = event["node_id"]
+            integrity(identity in by_id and identity not in seen_nodes)
+            node = by_id[identity]
+            integrity(node["parent_node_id"] is None or node["parent_node_id"] in seen_nodes)
+            integrity(
+                event["receipt_id"] == node["receipt_id"]
+                and event["actor_id"] == node["created_by"]
+                and event["occurred_at"] == node["created_at"]
+            )
+            seen_nodes.add(identity)
+        reservations = {
+            r["id"]: r for r in uow.experiment_search.rows("budget_reservations", request.task_id)
+        }
+        reservation_ids = set()
+        for node in nodes:
+            integrity(node["branch_kind"] in set(BranchKind))
+            reservation = reservations.get(node["reservation_id"])
+            integrity(reservation is not None)
+            assert reservation is not None
+            integrity(
+                reservation["research_task_id"] == request.task_id
+                and reservation["budget_id"] == session["budget_id"]
+                and reservation["operation_id"] == node["id"]
+                and reservation["id"] not in reservation_ids
+            )
+            reservation_ids.add(reservation["id"])
+            self._saved_references(uow, request.project_id, node)
+        return (
+            tuple(
+                SearchNodeRead(
+                    **{k: v for k, v in n.items() if k != "receipt_id"}, status="PROPOSED"
+                )
+                for n in selected
+            ),
+            tuple(SearchEventRead(**e) for e in selected_events),
+        )
+
     def create_search_session(self, principal, command: SearchCommand) -> SearchCommandResult:
         try:
             return self._create(principal, command)
@@ -194,7 +407,7 @@ class ExperimentSearchService(TaskContextAdmission):
             return self._saved(uow, receipt, command, command.request_hash(principal.actor_id))
 
     @staticmethod
-    def _reference(uow, project, identity, *, hypothesis):
+    def _resolve_reference(uow, project, identity, *, hypothesis):
         if identity is None:
             return None
         repo = uow.experiment_search
@@ -207,12 +420,23 @@ class ExperimentSearchService(TaskContextAdmission):
             fail(ErrorCode.NOT_FOUND, "exact search reference unavailable")
         if row["project_id"] != project:
             fail(ErrorCode.FORBIDDEN, "search reference scope unavailable")
+        return row
+
+    @staticmethod
+    def _reference_frozen(row):
+        if row is None:
+            return
         if (
             row["status"] not in {"FROZEN", "SUPERSEDED"}
             or row["frozen_at"] is None
             or row["content_hash"] is None
         ):
             fail(ErrorCode.VERSION_NOT_FROZEN, "historically frozen search reference required")
+
+    @staticmethod
+    def _reference_hash(uow, identity, row, *, hypothesis):
+        if row is None:
+            return None
         try:
             # Owning constructors verify canonical material, without Artifact I/O.
             owner = uow.hypotheses if hypothesis else uow.experiment_specs
@@ -223,6 +447,13 @@ class ExperimentSearchService(TaskContextAdmission):
         except (ValueError, TypeError, KeyError):
             fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "owning search hash contradiction")
         return row["content_hash"]
+
+    @classmethod
+    def _reference(cls, uow, project, identity, *, hypothesis):
+        # Reads retain their existing per-reference validation and public codes.
+        row = cls._resolve_reference(uow, project, identity, hypothesis=hypothesis)
+        cls._reference_frozen(row)
+        return cls._reference_hash(uow, identity, row, hypothesis=hypothesis)
 
     @staticmethod
     def _admission(repo, task, at):
@@ -291,31 +522,42 @@ class ExperimentSearchService(TaskContextAdmission):
                     fail(ErrorCode.NOT_FOUND, "task not found")
                 if task["project_id"] != command.project_id:
                     fail(ErrorCode.FORBIDDEN, "task scope unavailable")
+                # Resolve every supplied reference before any CAS/structural,
+                # frozen-status or hash failure can mask absence/foreign scope.
+                references = tuple(
+                    (
+                        identity,
+                        hypothesis,
+                        self._resolve_reference(
+                            uow, command.project_id, identity, hypothesis=hypothesis
+                        ),
+                    )
+                    for identity, hypothesis in (
+                        (args.root_hypothesis_version_id, True),
+                        (args.root_experiment_spec_version_id, False),
+                    )
+                )
                 expected = command.expected_row_version + int(progress.task_updated)
                 if task["row_version"] != expected:
                     fail(ErrorCode.CONCURRENT_MODIFICATION, "stale task revision")
-                if task["status"] not in {"CREATED", "PLANNING"}:
-                    fail(ErrorCode.INVALID_STATE_TRANSITION, "nonterminal search task required")
                 material = {k: v for k, v in task.items() if k != "row_version"}
                 if pinned_task is not None and material != pinned_task:
                     fail(ErrorCode.CONCURRENT_MODIFICATION, "task binding changed")
                 pinned_task = material
-                self._admission(repo, task, at)
-                hashes = (
-                    self._reference(
-                        uow, command.project_id, args.root_hypothesis_version_id, hypothesis=True
-                    ),
-                    self._reference(
-                        uow,
-                        command.project_id,
-                        args.root_experiment_spec_version_id,
-                        hypothesis=False,
-                    ),
+                self._own_effects(uow, command, progress, receipt_id, principal.actor_id)
+                # All frozen statuses precede every owning/saved hash comparison.
+                for _, _, row in references:
+                    self._reference_frozen(row)
+                hashes = tuple(
+                    self._reference_hash(uow, identity, row, hypothesis=hypothesis)
+                    for identity, hypothesis, row in references
                 )
                 if pinned_hashes is not None and pinned_hashes != hashes:
                     fail(ErrorCode.PROVENANCE_CLOSURE_VIOLATION, "search reference hash changed")
                 pinned_hashes = hashes
-                self._own_effects(uow, command, progress, receipt_id, principal.actor_id)
+                if task["status"] not in {"CREATED", "PLANNING"}:
+                    fail(ErrorCode.INVALID_STATE_TRANSITION, "nonterminal search task required")
+                self._admission(repo, task, at)
 
             def kind_source() -> SearchCallerKind:
                 assert caller_kind is not None

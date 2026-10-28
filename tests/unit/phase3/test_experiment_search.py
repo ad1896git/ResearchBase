@@ -337,6 +337,196 @@ def test_exact_owning_references(hypothesis, control):
         assert f.tables["experiment_search_sessions"][0][col] == "a" * 64
 
 
+@pytest.mark.parametrize(
+    ("control", "expected"),
+    [
+        ("absent", ErrorCode.NOT_FOUND),
+        ("draft", ErrorCode.VERSION_NOT_FROZEN),
+        ("hash", ErrorCode.PROVENANCE_CLOSURE_VIOLATION),
+    ],
+)
+def test_fresh_reference_errors_precede_terminal_task(control, expected):
+    f = Fixture()
+    f.task_row["status"] = "CANCELLED"
+    identity = new_uuid7()
+    if control != "absent":
+        f.references[identity] = dict(
+            id=identity,
+            project_id=f.project,
+            status="DRAFT" if control == "draft" else "FROZEN",
+            frozen_at=NOW,
+            content_hash="a" * 64,
+        )
+        f.owners[identity] = SimpleNamespace(content_hash="b" * 64)
+    command = f.command(arguments=CreateSearchArguments(new_uuid7(), identity, None))
+    before = deepcopy((f.task_row, f.tables))
+    with pytest.raises(ResearchBaseError) as error:
+        f.run(command)
+    assert error.value.code == expected
+    assert (f.task_row, f.tables) == before and f.writes == []
+
+
+def test_committed_replay_precedes_terminal_task_and_missing_reference():
+    f = Fixture()
+    identity = new_uuid7()
+    f.references[identity] = dict(
+        id=identity, project_id=f.project, status="FROZEN", frozen_at=NOW, content_hash="a" * 64
+    )
+    f.owners[identity] = SimpleNamespace(content_hash="a" * 64)
+    command = f.command(arguments=CreateSearchArguments(new_uuid7(), identity, None))
+    result = f.run(command)
+    f.task_row["status"] = "CANCELLED"
+    f.references.clear()
+    f.writes.clear()
+    before = deepcopy((f.task_row, f.tables))
+    assert f.run(command) == replace(
+        result, command_result=replace(result.command_result, replayed=True)
+    )
+    assert (f.task_row, f.tables) == before and f.writes == []
+
+
+@pytest.mark.parametrize("kind", ["HUMAN", "AGENT"])
+@pytest.mark.parametrize(
+    ("stale", "hypothesis", "spec", "lower_failure", "expected"),
+    [
+        (True, "absent", "valid", None, ErrorCode.NOT_FOUND),
+        (True, "foreign", "valid", None, ErrorCode.FORBIDDEN),
+        (True, "valid", "absent", None, ErrorCode.NOT_FOUND),
+        (True, "valid", "foreign", None, ErrorCode.FORBIDDEN),
+        (False, "draft", "absent", None, ErrorCode.NOT_FOUND),
+        (False, "draft", "foreign", None, ErrorCode.FORBIDDEN),
+        (False, "hash", "draft", None, ErrorCode.VERSION_NOT_FROZEN),
+        (True, "valid", "valid", None, ErrorCode.CONCURRENT_MODIFICATION),
+        (True, "draft", "hash", None, ErrorCode.CONCURRENT_MODIFICATION),
+        (False, "valid", "absent", "lifecycle", ErrorCode.NOT_FOUND),
+        (False, "foreign", "valid", "safety", ErrorCode.FORBIDDEN),
+        (False, "valid", "draft", "lifecycle", ErrorCode.VERSION_NOT_FROZEN),
+        (False, "draft", "hash", "safety", ErrorCode.VERSION_NOT_FROZEN),
+        (False, "hash", "valid", "lifecycle", ErrorCode.PROVENANCE_CLOSURE_VIOLATION),
+        (False, "valid", "hash", "safety", ErrorCode.PROVENANCE_CLOSURE_VIOLATION),
+        (False, "valid", "valid", "lifecycle", ErrorCode.INVALID_STATE_TRANSITION),
+        (False, "valid", "valid", "safety", ErrorCode.INVALID_STATE_TRANSITION),
+    ],
+)
+def test_fresh_validation_precedence_matrix(kind, stale, hypothesis, spec, lower_failure, expected):
+    f = Fixture()
+    f.actor_type = kind
+    identities = (new_uuid7(), new_uuid7())
+    for identity, control in zip(identities, (hypothesis, spec), strict=True):
+        if control != "absent":
+            f.references[identity] = dict(
+                id=identity,
+                project_id=new_uuid7() if control == "foreign" else f.project,
+                status="DRAFT" if control == "draft" else "FROZEN",
+                frozen_at=NOW,
+                content_hash="a" * 64,
+            )
+            f.owners[identity] = SimpleNamespace(
+                content_hash=("b" if control == "hash" else "a") * 64
+            )
+    f.task_row["row_version"] += int(stale)
+    if lower_failure == "lifecycle":
+        f.task_row["status"] = "CANCELLED"
+    elif lower_failure == "safety":
+        f.tables["human_checkpoints"][0]["status"] = "REJECTED"
+    command = f.command(arguments=CreateSearchArguments(new_uuid7(), *identities))
+    before = deepcopy((f.task_row, f.tables))
+    with pytest.raises(ResearchBaseError) as exc:
+        f.run(command)
+    assert exc.value.code == expected and exc.value.details is None
+    assert (f.task_row, f.tables) == before
+    assert f.writes == [] and f.commits == 0 and f.rollbacks == 1
+    assert [entry for entry in f.trace if isinstance(entry, tuple) and entry[0] == "stage"] == [
+        ("stage", "share")
+    ]
+
+
+@pytest.mark.parametrize("stage_name", ["task_row", "insert:experiment_search_sessions", "final"])
+@pytest.mark.parametrize(
+    ("stale", "hypothesis", "spec", "expected"),
+    [
+        (True, "valid", "absent", ErrorCode.NOT_FOUND),
+        (True, "valid", "foreign", ErrorCode.FORBIDDEN),
+        (False, "draft", "absent", ErrorCode.NOT_FOUND),
+        (False, "draft", "foreign", ErrorCode.FORBIDDEN),
+        (False, "hash", "draft", ErrorCode.VERSION_NOT_FROZEN),
+        (True, "valid", "valid", ErrorCode.CONCURRENT_MODIFICATION),
+    ],
+)
+def test_fresh_precedence_rechecked_at_callbacks(stage_name, stale, hypothesis, spec, expected):
+    f = Fixture()
+    identities = (new_uuid7(), new_uuid7())
+    for identity in identities:
+        f.references[identity] = dict(
+            id=identity, project_id=f.project, status="FROZEN", frozen_at=NOW, content_hash="a" * 64
+        )
+        f.owners[identity] = SimpleNamespace(content_hash="a" * 64)
+    command = f.command(arguments=CreateSearchArguments(new_uuid7(), *identities))
+    before = deepcopy((f.task_row, f.tables))
+    reached = []
+
+    def change(stage):
+        if label(stage) != stage_name:
+            return
+        reached.append(len(f.writes))
+        f.task_row["row_version"] += 10 * int(stale)
+        for identity, control in zip(identities, (hypothesis, spec), strict=True):
+            if control == "absent":
+                del f.references[identity]
+            elif control == "foreign":
+                f.references[identity]["project_id"] = new_uuid7()
+            elif control == "draft":
+                f.references[identity]["status"] = "DRAFT"
+            elif control == "hash":
+                f.owners[identity].content_hash = "b" * 64
+
+    f.hook = change
+    with pytest.raises(ResearchBaseError) as exc:
+        f.run(command)
+    assert exc.value.code == expected and exc.value.details is None
+    assert reached == [len(f.writes)]  # No effects after the failing callback.
+    assert (f.task_row, f.tables) == before and f.commits == 0 and f.rollbacks == 1
+
+
+@pytest.mark.parametrize("kind", ["HUMAN", "AGENT"])
+@pytest.mark.parametrize("outcome", ["replay", "conflict", "revoked"])
+def test_replay_priority_ignores_mutable_references_cas_and_lifecycle(kind, outcome):
+    f = Fixture()
+    f.actor_type = kind
+    identities = (new_uuid7(), new_uuid7())
+    for identity in identities:
+        f.references[identity] = dict(
+            id=identity, project_id=f.project, status="FROZEN", frozen_at=NOW, content_hash="a" * 64
+        )
+        f.owners[identity] = SimpleNamespace(content_hash="a" * 64)
+    command = f.command(arguments=CreateSearchArguments(new_uuid7(), *identities))
+    result = f.run(command)
+    f.references.clear()
+    f.owners.clear()
+    f.task_row.update(status="CANCELLED", row_version=999)
+    f.tables["human_checkpoints"][0]["status"] = "REJECTED"
+    f.role, f.active = "VIEWER", False
+    f.valid = outcome != "revoked"
+    f.writes.clear()
+    f.trace.clear()
+    before = deepcopy((f.task_row, f.tables))
+    if outcome == "conflict":
+        command = replace(command, expected_row_version=2)
+    if outcome == "replay":
+        assert f.run(command) == replace(
+            result, command_result=replace(result.command_result, replayed=True)
+        )
+    else:
+        with pytest.raises(ResearchBaseError) as exc:
+            f.run(command)
+        assert exc.value.code == (
+            ErrorCode.FORBIDDEN if outcome == "revoked" else ErrorCode.IDEMPOTENCY_CONFLICT
+        )
+        assert exc.value.details is None
+    assert "task_read" not in f.trace
+    assert (f.task_row, f.tables) == before and f.writes == [] and f.commits == 1
+
+
 def test_own_effect_callbacks_keep_post_revision_and_never_replay_own_receipt():
     f = Fixture()
     observed = []

@@ -1,10 +1,12 @@
 """Closed create/append search command material, independent of transports."""
 
 from dataclasses import dataclass, fields
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from researchbase.agent_runtime.application.contracts import CommandResult, enum_value, json_value
+from researchbase.agent_runtime.application.safety_contracts import TaskSafetyRead
 from researchbase.agent_runtime.domain.experiment_search import BranchKind
 from researchbase.agent_runtime.domain.research_task import exact_uuid, invalid, text_value
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
@@ -192,3 +194,131 @@ class SearchCommandResult:
         exact_uuid(self.search_event_id, stable=True)
         if self.node_id is not None:
             exact_uuid(self.node_id, stable=True)
+
+
+@dataclass(frozen=True, slots=True)
+class SearchReadRequest:
+    project_id: UUID
+    task_id: UUID
+    session_id: UUID
+
+    def __post_init__(self) -> None:
+        exact_uuid(self.project_id)
+        exact_uuid(self.task_id, stable=True)
+        exact_uuid(self.session_id, stable=True)
+
+
+@dataclass(frozen=True, slots=True)
+class BranchLineageRequest(SearchReadRequest):
+    node_id: UUID
+
+    def __post_init__(self) -> None:
+        SearchReadRequest.__post_init__(self)
+        exact_uuid(self.node_id, stable=True)
+
+
+def parse_search_read(name: str, data: dict) -> SearchReadRequest:
+    kind = {
+        "get_experiment_search_tree": SearchReadRequest,
+        "get_branch_lineage": BranchLineageRequest,
+        "get_search_budget": SearchReadRequest,
+    }.get(name)
+    if kind is None or type(data) is not dict or set(data) != {f.name for f in fields(kind)}:
+        invalid("unknown or missing read fields")
+    values = {}
+    for key, value in data.items():
+        if type(value) is UUID:
+            values[key] = value
+            continue
+        if type(value) is not str or len(value) != 36:
+            invalid("canonical UUID required")
+        try:
+            identity = UUID(value)
+        except ValueError:
+            invalid("canonical UUID required")
+        if str(identity) != value.lower():
+            invalid("canonical UUID required")
+        values[key] = identity
+    return kind(**values)
+
+
+@dataclass(frozen=True, slots=True)
+class SearchObjectiveRead:
+    source: Literal["RESEARCH_TASK"]
+    research_task_id: UUID
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class SearchSessionRead:
+    id: UUID
+    project_id: UUID
+    task_id: UUID
+    budget_id: UUID
+    root_hypothesis_version_id: UUID | None
+    root_hypothesis_content_hash: str | None
+    root_experiment_spec_version_id: UUID | None
+    root_experiment_spec_content_hash: str | None
+    created_by: UUID
+    created_at: datetime
+    status: Literal["ACTIVE"]
+    objective_definition: SearchObjectiveRead
+
+
+@dataclass(frozen=True, slots=True)
+class SearchNodeRead:
+    id: UUID
+    research_task_id: UUID
+    search_session_id: UUID
+    parent_node_id: UUID | None
+    depth: int
+    branch_kind: str
+    mutation_reason: str
+    hypothesis_version_id: UUID | None
+    hypothesis_content_hash: str | None
+    experiment_spec_version_id: UUID | None
+    experiment_spec_content_hash: str | None
+    reservation_id: UUID
+    created_by: UUID
+    created_at: datetime
+    status: Literal["PROPOSED"]
+
+
+@dataclass(frozen=True, slots=True)
+class SearchEventRead:
+    id: UUID
+    research_task_id: UUID
+    search_session_id: UUID
+    node_id: UUID | None
+    sequence: int
+    event_type: str
+    reason: str
+    actor_id: UUID
+    occurred_at: datetime
+    receipt_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentSearchTreeRead:
+    session: SearchSessionRead
+    nodes: tuple[SearchNodeRead, ...]
+    run_links: tuple[()]
+    events: tuple[SearchEventRead, ...]
+    task_safety: TaskSafetyRead
+
+
+@dataclass(frozen=True, slots=True)
+class BranchLineageRead:
+    session: SearchSessionRead
+    path: tuple[SearchNodeRead, ...]
+    run_links: tuple[()]
+    events: tuple[SearchEventRead, ...]
+    task_safety: TaskSafetyRead
+
+
+@dataclass(frozen=True, slots=True)
+class SearchBudgetRead:
+    session_id: UUID
+    task_id: UUID
+    budget_id: UUID
+    task_safety: TaskSafetyRead
