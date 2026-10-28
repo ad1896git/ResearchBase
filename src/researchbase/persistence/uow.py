@@ -931,6 +931,23 @@ class SqlAlchemyUnitOfWork:
                 "pr301_scope": ErrorCode.FORBIDDEN,
                 "pr301_provenance": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
             }
+            if getattr(self, "_search_command", False):
+                # S4 uses the admitted 0082 guards in the existing planning UoW.
+                # Preserve their semantic codes when a forced check rejects DML.
+                guards.update(
+                    {
+                        "pr316_validation": ErrorCode.VALIDATION_ERROR,
+                        "pr316_preheld": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                        "pr316_scope": ErrorCode.FORBIDDEN,
+                        "pr316_state": ErrorCode.INVALID_STATE_TRANSITION,
+                        "pr316_not_frozen": ErrorCode.VERSION_NOT_FROZEN,
+                        "pr316_provenance": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                        "pr316_completeness": ErrorCode.PROVENANCE_CLOSURE_VIOLATION,
+                        "pr316_reference": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
+                        "pr316_immutable": ErrorCode.IMMUTABLE_RECORD,
+                        "pr316_activation": ErrorCode.INVALID_STATE_TRANSITION,
+                    }
+                )
             codes = {
                 "23503": ErrorCode.REFERENTIAL_INTEGRITY_ERROR,
                 "23514": ErrorCode.VALIDATION_ERROR,

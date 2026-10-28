@@ -14,6 +14,9 @@ from uuid import UUID
 from researchbase.agent_runtime.ports.task_repository import TaskUnitOfWork
 
 SearchCallerKind = Literal["HUMAN", "AGENT"]
+# A principal has no actor kind. Application may resolve it from current authority
+# in the first post-SHARE callback, without issuing SQL before the lock prefix.
+SearchCallerKindSource = SearchCallerKind | Callable[[], SearchCallerKind]
 
 
 class StoredSearchSession(TypedDict):
@@ -167,7 +170,7 @@ class SearchRepository(Protocol):
         command: UUID,
         task: UUID,
         *,
-        caller_kind: SearchCallerKind,
+        caller_kind: SearchCallerKindSource,
         after_stage: FreshSearchValidation,
         hypothesis_versions: tuple[UUID, ...] = (),
         experiment_spec_versions: tuple[UUID, ...] = (),
