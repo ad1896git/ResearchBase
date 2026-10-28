@@ -52,6 +52,6 @@ def test_no_approval_effect_surface():
 
 def test_single_forward_revision():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0081_agent_execution_intents"]
+    assert scripts.get_heads() == ["0082_experiment_search_core"]
     head = scripts.get_revision(scripts.get_heads()[0])
-    assert head.down_revision == "0080_capability_gateway"
+    assert head.down_revision == "0081_agent_execution_intents"

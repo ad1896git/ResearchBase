@@ -54,7 +54,7 @@ def test_empty_upgrade_and_refusal(monkeypatch):
                 )
             command.upgrade(config, "0079_agent_identity_versions")
             assert ScriptDirectory.from_config(config).get_heads() == [
-                "0081_agent_execution_intents"
+                "0082_experiment_search_core"
             ]
             with pytest.raises(RuntimeError, match="forward-only"):
                 command.downgrade(config, "0078_task_safety_policies")

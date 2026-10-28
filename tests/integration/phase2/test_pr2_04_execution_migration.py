@@ -70,7 +70,7 @@ def test_pr2_04_upgrade_adds_exact_tables_and_unique_head(
         )
         assert set(inspect(connection).get_table_names()) >= TABLES
         assert ScriptDirectory.from_config(_alembic(phase2_database_url)).get_heads() == [
-            "0081_agent_execution_intents"
+            "0082_experiment_search_core"
         ]
         pr204_trace.record(
             current_revision=connection.execute(

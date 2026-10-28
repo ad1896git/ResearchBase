@@ -98,7 +98,7 @@ def _save(tmp_path: Path, label: str, catalog: str, rows: dict[str, list[str]]) 
 
 def test_single_head_and_exact_parent() -> None:
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0081_agent_execution_intents"]
+    assert scripts.get_heads() == ["0082_experiment_search_core"]
     revision = scripts.get_revision(REVISION)
     assert revision is not None and revision.down_revision == PARENT
 
