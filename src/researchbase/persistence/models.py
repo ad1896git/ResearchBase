@@ -484,6 +484,7 @@ class MetricDefinitionVersionModel(Base):
 class RunModel(Base):
     __tablename__ = "runs"
     __table_args__ = (
+        UniqueConstraint("id", "project_id", name="pr316_run_project_uq"),
         CheckConstraint(
             "status IN ('PLANNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED')",
             name="ck_runs_status",
@@ -1746,6 +1747,72 @@ class ResearchTaskStepInputsModel(Base):
 class ResearchTaskCommandReceiptsModel(Base):
     __tablename__ = "research_task_command_receipts"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "result_search_session_id"],
+            [
+                "experiment_search_sessions.research_task_id",
+                "experiment_search_sessions.project_id",
+                "experiment_search_sessions.id",
+            ],
+            name="pr316_receipt_session_fk",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "result_search_session_id", "result_search_node_id"],
+            [
+                "experiment_search_nodes.research_task_id",
+                "experiment_search_nodes.search_session_id",
+                "experiment_search_nodes.id",
+            ],
+            name="pr316_receipt_node_fk",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "result_search_session_id", "result_search_event_id"],
+            [
+                "experiment_search_events.research_task_id",
+                "experiment_search_events.search_session_id",
+                "experiment_search_events.id",
+            ],
+            name="pr316_receipt_event_fk",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        CheckConstraint(
+            "(pr316_command_event(command_name) IS NULL AND "
+            "num_nonnulls(result_search_session_id,result_search_node_id,result_search_event_id)=0)"
+            " OR (pr316_command_event(command_name) IS NOT NULL AND result_search_session_id "
+            "IS NOT NULL AND result_search_event_id IS NOT NULL AND resulting_row_version>=2 "
+            "AND ((command_name= 'create_search_session' AND result_search_node_id IS NULL) "
+            "OR (command_name= 'append_search_node' AND result_search_node_id IS NOT NULL)))",
+            name="pr316_receipt_shape_ck",
+        ),
+        Index(
+            "pr316_receipt_session", "research_task_id", "project_id", "result_search_session_id"
+        ),
+        Index(
+            "pr316_receipt_node",
+            "research_task_id",
+            "result_search_session_id",
+            "result_search_node_id",
+        ),
+        Index(
+            "pr316_receipt_event_scope",
+            "research_task_id",
+            "result_search_session_id",
+            "result_search_event_id",
+        ),
+        Index(
+            "pr316_receipt_event_uq",
+            "result_search_event_id",
+            unique=True,
+            postgresql_where=text("result_search_event_id IS NOT NULL"),
+        ),
         Index("pr303_receipt_policy", "result_tool_policy_id", "project_id"),
         Index(
             "pr303_receipt_invocation",
@@ -1776,13 +1843,15 @@ class ResearchTaskCommandReceiptsModel(Base):
         Index("pr301_receipts_project_time", "project_id", "completed_at", "id"),
         UniqueConstraint("research_task_id", "project_id", "id", name="pr303_receipt_scope_key"),
         CheckConstraint(
-            "command_name IN ( 'create_research_task','create_task_plan','add_task_step',"
-            "'add_task_step_dependency','seal_task_plan','cancel_research_task', "
-            "'bind_task_policies','reserve_task_budget','settle_task_budget',"
-            "'evaluate_task_termination','request_human_checkpoint','respond_human_checkpoint',"
-            " 'register_agent_tool_policy','request_capability_invocation',"
-            "'start_capability_invocation','finish_capability_invocation')",
-            name="pr303_command_names",
+            "command_name IN ( 'create_research_task' , 'create_task_plan' , 'add_task_step' "
+            ", 'add_task_step_dependency' , 'seal_task_plan' , 'cancel_research_task' , "
+            "'bind_task_policies' , 'reserve_task_budget' , 'settle_task_budget' , "
+            "'evaluate_task_termination' , 'request_human_checkpoint' , "
+            "'respond_human_checkpoint' , 'register_agent_tool_policy' , "
+            "'request_capability_invocation' , 'start_capability_invocation' , "
+            "'finish_capability_invocation' , 'create_search_session' , 'append_search_node' "
+            ")",
+            name="pr316_command_names",
         ),
         ForeignKeyConstraint(
             ["result_tool_policy_id", "project_id"],
@@ -1852,6 +1921,10 @@ class ResearchTaskCommandReceiptsModel(Base):
     result_capability_event_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
     resulting_invocation_revision = mapped_column(Integer, nullable=True)
 
+    result_search_session_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    result_search_node_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    result_search_event_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+
 
 class ResearchTaskEventsModel(Base):
     __tablename__ = "research_task_events"
@@ -1908,34 +1981,38 @@ class ResearchTaskEventsModel(Base):
             name="pr303_task_event_capability_fk",
         ),
         CheckConstraint(
-            "event_type IN ( 'CREATED','PLAN_CREATED','STEP_ADDED','DEPENDENCY_ADDED',"
-            "'PLAN_SEALED','CANCELLED', 'POLICIES_BOUND','BUDGET_RESERVED','BUDGET_SETTLED',"
-            "'TERMINATION_EVALUATED','CHECKPOINT_REQUESTED','CHECKPOINT_RESPONDED', "
-            "'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED','CAPABILITY_STARTED',"
-            "'CAPABILITY_FINISHED')",
-            name="pr303_event_names",
+            "event_type IN ( 'CREATED' , 'PLAN_CREATED' , 'STEP_ADDED' , 'DEPENDENCY_ADDED' ,"
+            " 'PLAN_SEALED' , 'CANCELLED' , 'POLICIES_BOUND' , 'BUDGET_RESERVED' , "
+            "'BUDGET_SETTLED' , 'TERMINATION_EVALUATED' , 'CHECKPOINT_REQUESTED' , "
+            "'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' , 'CAPABILITY_REQUESTED' , "
+            "'CAPABILITY_STARTED' , 'CAPABILITY_FINISHED' , 'SEARCH_SESSION_CREATED' , "
+            "'SEARCH_NODE_APPENDED' )",
+            name="pr316_task_event_names",
         ),
         CheckConstraint(
-            "(event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED') OR "
-            "(event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = "
-            "'PLANNING') OR (event_type IN ('STEP_ADDED','DEPENDENCY_ADDED','PLAN_SEALED') AND "
-            "prior_status = 'PLANNING' AND new_status = 'PLANNING') OR (event_type = "
-            "'CANCELLED' AND prior_status IN ('CREATED','PLANNING') AND new_status = "
-            "'CANCELLED') OR (event_type IN ('POLICIES_BOUND','BUDGET_RESERVED',"
-            "'BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED',"
-            "'CHECKPOINT_RESPONDED', 'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED',"
-            "'CAPABILITY_STARTED','CAPABILITY_FINISHED') AND prior_status IN ('CREATED',"
-            "'PLANNING','CANCELLED') AND new_status = prior_status)",
-            name="pr303_event_states",
+            "(event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED' ) OR"
+            " (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = "
+            "'PLANNING' ) OR (event_type IN ( 'STEP_ADDED' , 'DEPENDENCY_ADDED' , "
+            "'PLAN_SEALED' ) AND prior_status = 'PLANNING' AND new_status = 'PLANNING' ) OR "
+            "(event_type = 'CANCELLED' AND prior_status IN ( 'CREATED' , 'PLANNING' ) AND "
+            "new_status = 'CANCELLED' ) OR (event_type IN ( 'POLICIES_BOUND' , "
+            "'BUDGET_RESERVED' , 'BUDGET_SETTLED' , 'TERMINATION_EVALUATED' , "
+            "'CHECKPOINT_REQUESTED' , 'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' , "
+            "'CAPABILITY_REQUESTED' , 'CAPABILITY_STARTED' , 'CAPABILITY_FINISHED' ) AND "
+            "prior_status IN ( 'CREATED' , 'PLANNING' , 'CANCELLED' ) AND new_status = "
+            "prior_status) OR (event_type IN ( 'SEARCH_SESSION_CREATED' , "
+            "'SEARCH_NODE_APPENDED' ) AND prior_status IN ( 'CREATED' , 'PLANNING' ) AND "
+            "new_status = prior_status)",
+            name="pr316_task_event_states",
         ),
         CheckConstraint(
-            "CASE WHEN event_type IN ( 'CANCELLED','POLICIES_BOUND','BUDGET_RESERVED',"
-            "'BUDGET_SETTLED','TERMINATION_EVALUATED','CHECKPOINT_REQUESTED',"
-            "'CHECKPOINT_RESPONDED', 'TOOL_POLICY_REGISTERED','CAPABILITY_REQUESTED',"
-            "'CAPABILITY_STARTED','CAPABILITY_FINISHED') THEN reason IS NOT NULL AND "
-            "length(btrim(reason)) BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED ELSE reason "
-            "IS NULL END",
-            name="pr303_event_reason",
+            "CASE WHEN event_type IN ( 'CANCELLED' , 'POLICIES_BOUND' , 'BUDGET_RESERVED' , "
+            "'BUDGET_SETTLED' , 'TERMINATION_EVALUATED' , 'CHECKPOINT_REQUESTED' , "
+            "'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' , 'CAPABILITY_REQUESTED' , "
+            "'CAPABILITY_STARTED' , 'CAPABILITY_FINISHED' , 'SEARCH_SESSION_CREATED' , "
+            "'SEARCH_NODE_APPENDED' ) THEN reason IS NOT NULL AND length(btrim(reason)) "
+            "BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED ELSE reason IS NULL END",
+            name="pr316_task_event_reason",
         ),
         CheckConstraint(
             "event_type IN ( 'BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED',"
@@ -3567,3 +3644,372 @@ class AgentExecutionEventModel(Base):
         ),
         nullable=False,
     )
+
+
+class ExperimentSearchSessionModel(Base):
+    __tablename__ = "experiment_search_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "(root_experiment_spec_version_id IS NULL AND root_experiment_spec_content_hash "
+            "IS NULL) OR (root_experiment_spec_version_id IS NOT NULL AND "
+            "root_experiment_spec_content_hash IS NOT NULL AND "
+            "root_experiment_spec_content_hash ~ '^[0-9a-f]{64}$' )",
+            name="pr316_session_experiment_spec_pair_ck",
+        ),
+        PrimaryKeyConstraint("id", name="pr316_session_pk"),
+        CheckConstraint("pr316_uuid7(id)", name="pr316_session_id_ck"),
+        CheckConstraint("isfinite(created_at)", name="pr316_session_time_ck"),
+        UniqueConstraint("receipt_id", name="pr316_session_receipt_uq"),
+        ForeignKeyConstraint(
+            ["created_by"],
+            ["actors.id"],
+            name="pr316_session_actor_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            name="pr316_session_receipt_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        UniqueConstraint("research_task_id", "id", name="pr316_session_scope_uq"),
+        UniqueConstraint("research_task_id", "project_id", "id", name="pr316_session_project_uq"),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id"],
+            ["research_tasks.id", "research_tasks.project_id"],
+            name="pr316_session_task_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "budget_id"],
+            ["execution_budgets.research_task_id", "execution_budgets.id"],
+            name="pr316_session_budget_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["root_hypothesis_version_id"],
+            ["hypothesis_versions.id"],
+            name="pr316_session_hypothesis_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        CheckConstraint(
+            "(root_hypothesis_version_id IS NULL AND root_hypothesis_content_hash IS NULL) OR"
+            " (root_hypothesis_version_id IS NOT NULL AND root_hypothesis_content_hash IS NOT"
+            " NULL AND root_hypothesis_content_hash ~ '^[0-9a-f]{64}$' )",
+            name="pr316_session_hypothesis_pair_ck",
+        ),
+        ForeignKeyConstraint(
+            ["root_experiment_spec_version_id"],
+            ["experiment_spec_versions.id"],
+            name="pr316_session_experiment_spec_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        Index("pr316_session_task_project", "research_task_id", "project_id"),
+        Index("pr316_session_budget", "research_task_id", "budget_id"),
+        Index("pr316_session_project", "project_id", "id"),
+        Index("pr316_session_hypothesis", "root_hypothesis_version_id"),
+        Index("pr316_session_spec", "root_experiment_spec_version_id"),
+        Index("pr316_session_actor", "created_by"),
+        Index("pr316_session_receipt", "research_task_id", "receipt_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    project_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    budget_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    root_hypothesis_version_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    root_hypothesis_content_hash = mapped_column(Text, nullable=True)
+    root_experiment_spec_version_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    root_experiment_spec_content_hash = mapped_column(Text, nullable=True)
+    created_by = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+
+
+class ExperimentSearchNodeModel(Base):
+    __tablename__ = "experiment_search_nodes"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pr316_node_pk"),
+        CheckConstraint("pr316_uuid7(id)", name="pr316_node_id_ck"),
+        CheckConstraint("isfinite(created_at)", name="pr316_node_time_ck"),
+        UniqueConstraint("receipt_id", name="pr316_node_receipt_uq"),
+        ForeignKeyConstraint(
+            ["created_by"],
+            ["actors.id"],
+            name="pr316_node_actor_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            name="pr316_node_receipt_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        UniqueConstraint("research_task_id", "search_session_id", "id", name="pr316_node_scope_uq"),
+        ForeignKeyConstraint(
+            ["research_task_id", "search_session_id"],
+            ["experiment_search_sessions.research_task_id", "experiment_search_sessions.id"],
+            name="pr316_node_session_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "search_session_id", "parent_node_id"],
+            [
+                "experiment_search_nodes.research_task_id",
+                "experiment_search_nodes.search_session_id",
+                "experiment_search_nodes.id",
+            ],
+            name="pr316_node_parent_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "reservation_id", "id"],
+            [
+                "budget_reservations.research_task_id",
+                "budget_reservations.id",
+                "budget_reservations.operation_id",
+            ],
+            name="pr316_node_reservation_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        UniqueConstraint("reservation_id", name="pr316_node_reservation_uq"),
+        CheckConstraint(
+            "(parent_node_id IS NULL AND depth=0) OR (parent_node_id IS NOT NULL AND "
+            "parent_node_id<>id AND depth>0)",
+            name="pr316_node_depth_ck",
+        ),
+        CheckConstraint(
+            "branch_kind IN ( 'NEW_DIRECTION' , 'REFINEMENT' , 'ABLATION' , 'BASELINE' , "
+            "'SCALE_UP' , 'DEBUG' , 'REPLICATION' )",
+            name="pr316_node_branch_ck",
+        ),
+        CheckConstraint("pr316_reason(mutation_reason)", name="pr316_node_reason_ck"),
+        ForeignKeyConstraint(
+            ["hypothesis_version_id"],
+            ["hypothesis_versions.id"],
+            name="pr316_node_hypothesis_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        CheckConstraint(
+            "(hypothesis_version_id IS NULL AND hypothesis_content_hash IS NULL) OR "
+            "(hypothesis_version_id IS NOT NULL AND hypothesis_content_hash IS NOT NULL AND "
+            "hypothesis_content_hash ~ '^[0-9a-f]{64}$' )",
+            name="pr316_node_hypothesis_pair_ck",
+        ),
+        ForeignKeyConstraint(
+            ["experiment_spec_version_id"],
+            ["experiment_spec_versions.id"],
+            name="pr316_node_experiment_spec_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        CheckConstraint(
+            "(experiment_spec_version_id IS NULL AND experiment_spec_content_hash IS NULL) OR"
+            " (experiment_spec_version_id IS NOT NULL AND experiment_spec_content_hash IS NOT"
+            " NULL AND experiment_spec_content_hash ~ '^[0-9a-f]{64}$' )",
+            name="pr316_node_experiment_spec_pair_ck",
+        ),
+        Index(
+            "pr316_node_one_root",
+            "search_session_id",
+            unique=True,
+            postgresql_where=text("parent_node_id IS NULL"),
+        ),
+        Index("pr316_node_parent", "research_task_id", "search_session_id", "parent_node_id"),
+        Index("pr316_node_order", "search_session_id", "depth", "id"),
+        Index("pr316_node_hypothesis", "hypothesis_version_id"),
+        Index("pr316_node_spec", "experiment_spec_version_id"),
+        Index("pr316_node_reservation", "research_task_id", "reservation_id", "id"),
+        Index("pr316_node_actor", "created_by"),
+        Index("pr316_node_receipt", "research_task_id", "receipt_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    search_session_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    parent_node_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    depth = mapped_column(Integer, nullable=False)
+    branch_kind = mapped_column(Text, nullable=False)
+    mutation_reason = mapped_column(Text, nullable=False)
+    hypothesis_version_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    hypothesis_content_hash = mapped_column(Text, nullable=True)
+    experiment_spec_version_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    experiment_spec_content_hash = mapped_column(Text, nullable=True)
+    reservation_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    created_by = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+
+
+class ExperimentSearchNodeRunModel(Base):
+    __tablename__ = "experiment_search_node_runs"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pr316_link_pk"),
+        CheckConstraint("pr316_uuid7(id)", name="pr316_link_id_ck"),
+        CheckConstraint("isfinite(created_at)", name="pr316_link_time_ck"),
+        UniqueConstraint("receipt_id", name="pr316_link_receipt_uq"),
+        ForeignKeyConstraint(
+            ["created_by"],
+            ["actors.id"],
+            name="pr316_link_actor_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            name="pr316_link_receipt_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        UniqueConstraint(
+            "research_task_id", "search_session_id", "node_id", "id", name="pr316_link_scope_uq"
+        ),
+        UniqueConstraint("search_session_id", "node_id", "run_id", name="pr316_link_pair_uq"),
+        ForeignKeyConstraint(
+            ["research_task_id", "project_id", "search_session_id"],
+            [
+                "experiment_search_sessions.research_task_id",
+                "experiment_search_sessions.project_id",
+                "experiment_search_sessions.id",
+            ],
+            name="pr316_link_session_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "search_session_id", "node_id"],
+            [
+                "experiment_search_nodes.research_task_id",
+                "experiment_search_nodes.search_session_id",
+                "experiment_search_nodes.id",
+            ],
+            name="pr316_link_node_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["run_id", "project_id"],
+            ["runs.id", "runs.project_id"],
+            name="pr316_link_run_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        Index("pr316_link_session_project", "research_task_id", "project_id", "search_session_id"),
+        Index("pr316_link_run", "run_id", "project_id"),
+        Index("pr316_link_order", "node_id", "id"),
+        Index("pr316_link_actor", "created_by"),
+        Index("pr316_link_receipt", "research_task_id", "receipt_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    project_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    search_session_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    node_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    run_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    created_by = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+
+
+class ExperimentSearchEventModel(Base):
+    __tablename__ = "experiment_search_events"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pr316_event_pk"),
+        CheckConstraint("pr316_uuid7(id)", name="pr316_event_id_ck"),
+        CheckConstraint("isfinite(occurred_at)", name="pr316_event_time_ck"),
+        UniqueConstraint("receipt_id", name="pr316_event_receipt_uq"),
+        ForeignKeyConstraint(
+            ["actor_id"],
+            ["actors.id"],
+            name="pr316_event_actor_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "receipt_id"],
+            [
+                "research_task_command_receipts.research_task_id",
+                "research_task_command_receipts.id",
+            ],
+            name="pr316_event_receipt_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        UniqueConstraint(
+            "research_task_id", "search_session_id", "id", name="pr316_event_scope_uq"
+        ),
+        UniqueConstraint("search_session_id", "sequence", name="pr316_event_sequence_uq"),
+        CheckConstraint("sequence>=1", name="pr316_event_sequence_ck"),
+        CheckConstraint(
+            "event_type IN ( 'SESSION_CREATED' , 'NODE_APPENDED' )", name="pr316_event_kind_ck"
+        ),
+        CheckConstraint("pr316_reason(reason)", name="pr316_event_reason_ck"),
+        CheckConstraint(
+            "(event_type= 'SESSION_CREATED' AND node_id IS NULL) OR (event_type= "
+            "'NODE_APPENDED' AND node_id IS NOT NULL)",
+            name="pr316_event_shape_ck",
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "search_session_id"],
+            ["experiment_search_sessions.research_task_id", "experiment_search_sessions.id"],
+            name="pr316_event_session_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        ForeignKeyConstraint(
+            ["research_task_id", "search_session_id", "node_id"],
+            [
+                "experiment_search_nodes.research_task_id",
+                "experiment_search_nodes.search_session_id",
+                "experiment_search_nodes.id",
+            ],
+            name="pr316_event_node_fk",
+            ondelete="RESTRICT",
+            deferrable=False,
+        ),
+        Index(
+            "pr316_event_one_creation",
+            "search_session_id",
+            unique=True,
+            postgresql_where=text("event_type= 'SESSION_CREATED'"),
+        ),
+        Index(
+            "pr316_event_one_node_creation",
+            "node_id",
+            unique=True,
+            postgresql_where=text("event_type= 'NODE_APPENDED'"),
+        ),
+        Index("pr316_event_node", "research_task_id", "search_session_id", "node_id"),
+        Index("pr316_event_actor", "actor_id"),
+        Index("pr316_event_receipt", "research_task_id", "receipt_id"),
+    )
+    id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    research_task_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    search_session_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    node_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
+    sequence = mapped_column(Integer, nullable=False)
+    event_type = mapped_column(Text, nullable=False)
+    reason = mapped_column(Text, nullable=False)
+    actor_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    occurred_at = mapped_column(DateTime(timezone=True), nullable=False)
+    receipt_id = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)

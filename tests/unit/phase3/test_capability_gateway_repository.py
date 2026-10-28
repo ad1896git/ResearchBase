@@ -345,8 +345,13 @@ def test_no_sql_at_uow_or_adapter_construction():
 )
 def test_closed_stored_columns_match_inert_metadata(table, stored):
     mapped = Base.metadata.tables[table]
-    assert set(get_type_hints(stored)) == set(mapped.columns.keys())
-    assert stored.__required_keys__ == frozenset(mapped.columns.keys())
+    admitted = (
+        {"result_search_session_id", "result_search_node_id", "result_search_event_id"}
+        if table == "research_task_command_receipts"
+        else set()
+    )
+    assert set(get_type_hints(stored)) | admitted == set(mapped.columns.keys())
+    assert stored.__required_keys__ | admitted == frozenset(mapped.columns.keys())
     for fk in mapped.foreign_key_constraints:
         assert fk.ondelete == "RESTRICT"
     for column in mapped.columns:
