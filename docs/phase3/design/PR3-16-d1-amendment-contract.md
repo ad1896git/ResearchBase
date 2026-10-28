@@ -1,416 +1,424 @@
-# PR3-16 D1 atomic node-budget amendment — contract draft
+# PR3-16 D1 — proposed paired bearing evaluation contract
 
-Status: PROPOSED
+Status: **PROPOSED; activation blocked** pending commander review and the specific
+proofs below. This replaces the 2026-10-27 question-only draft; historical versions
+remain in version control. It is not a code authorization or an empirical result.
+Authority: [ADR-0026](../../architecture/adr/ADR-0026-pr3-16-experiment-search-core.md),
+[ADR-0029](../../architecture/adr/ADR-0029-pr3-16-minimal-storage-scope.md),
+[ADR-0027](../../architecture/adr/ADR-0027-pr3-16-d1-node-budget-amendment.md),
+[PR3-04 contract](../PR3-04-contract-freeze.md), and
+[PR3-16 execution pack](../PR3-16-execution-pack-r2.md). The selections below are
+proposed, not independent approval or evidence that existing code implements them.
 
-Date: 2026-10-27. Scope: closeout item 8 only. Companion:
-[ADR-0027](../../architecture/adr/ADR-0027-pr3-16-d1-node-budget-amendment.md).
-This draft schedules no implementation and does not authorize production admission.
+## O01 — producer and authority
 
-Disposition counts: **RESOLVED 14; OWNER 10; MISSING 10**. Counts cover C01–C14,
-O01–O10 and M01–M10, once each. RESOLVED means a source establishes the stated
-requirement or existing behavior, not that the amendment is approved or tested.
-OWNER identifies an unanswered decision for the project owner and architecture
-review. MISSING means no executable D1 check exists for the stated obligation;
-describing an assertion supplies neither a test nor coverage.
+Select a dedicated in-process ResearchBase core bearing-evaluation consumer, composed
+at the Application root with an identity-only, nonserializable capability; never accept
+a caller-provided identity, flag, GUC or remote credential as proof. The composition
+owner registers exactly this implementation and evaluator digest at process startup,
+performs bounded no-I/O capability identity and enabled-generation checks at admission
+and settlement, and revokes by disabling that generation under the same coordination
+used for fresh writes. The service operator owns restart/recovery and revocation; the
+Application owns accounting. Missing registration, unsupported verifier, revoked or
+mismatched generation denies. Current `FakeConsumerCapability` and
+`TaskSafetyService._trusted` are fake-only, not production proof
+([port](../../../src/researchbase/agent_runtime/ports/task_safety_repository.py),
+[service](../../../src/researchbase/agent_runtime/application/task_safety.py)).
+Concrete composition, coordination and authorized operator identity do not exist yet:
+the implementation slice must establish and test them before activation, without a
+new credential registry or third-party state owner.
 
-## Source-established contract boundary
+## O02 — evidence and pure arithmetic
 
-### C01 — RESOLVED — delivery authority and precedence
+Inputs are a frozen labeled sample set, a frozen baseline prediction set, a frozen
+candidate prediction set and a frozen protocol, plus exact evaluator implementation
+and metric version. Use exact same-project frozen `ArtifactVersion` IDs and content
+hashes for immutable bytes, `DatasetSnapshot` identity for the dataset,
+`MetricDefinitionVersion` for the accuracy definition, and where applicable exact existing
+`RunDatasetInput`/`RunArtifactInput` and sealed `Run` identities as provenance for
+already-produced evidence. They do not execute or create a Run. See
+[artifact](../../../src/researchbase/domain/artifact.py),
+[dataset snapshot](../../../src/researchbase/domain/evidence.py),
+[experiment](../../../src/researchbase/domain/experiment.py),
+[run](../../../src/researchbase/domain/run.py),
+[metric](../../../src/researchbase/domain/metric.py), and
+[measurement](../../../src/researchbase/domain/measurement.py). Verify frozen status,
+project/scope, content hash and bytes; locator alone is not identity. Exact split and
+group membership, vocabulary, IDs and label/prediction values must match the protocol;
+reject duplicate, missing, extra, unknown, inconsistent or overlapping IDs/groups.
+No data-dependent inference of a split or alignment by row order is allowed.
 
-The owner selected a separate contract and PROPOSED ADR now, with no implementation
-scheduled and production node admission denied until that contract is approved.
-The atomic amendment remains unconditional before activation. The later explicit
-answers override historical conditional/open wording in ADR-0026 and the pack;
-ADR-0026 remains ACCEPTED. This document does not amend those answers or declare
-closeout item 8 fully resolved. Sources:
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:3`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14`,
-`docs/phase3/PR3-16-execution-pack-r2.md:499`,
-`docs/phase3/PR3-16-design-closeout.md:15`,
-`docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md:3`.
+For N > 0, count integer correct predictions for each model; score is candidate
+correct/N minus baseline correct/N, rounded once to six decimal places using
+ROUND_HALF_EVEN. Emit counts, both accuracies, delta, confusion matrices and per-class
+precision/recall and macro averages; explicitly represent undefined denominators as
+unavailable, never zero. Tie is zero, worse is negative. The existing safety score is
+this delta, direction MAXIMIZE, bound to the same frozen metric/evaluator/protocol and
+comparison scope; `streaks` compares successive scores within existing step scope,
+first score establishes best, ties/worse increment no-improvement, improvements reset
+it. This does not select a search node or prove generalization. Invalid evidence has
+no score and no scientific output; before admission it has zero effects, and after
+admission deterministic invalidity settles FAILED with no score and admitted counters
+retained. Crash/uncertain completion is UNKNOWN at full reservation, never invented
+success; one later final settlement may reconcile it. `settlement` and `streaks` are
+specified in [task_safety.py](../../../src/researchbase/agent_runtime/domain/task_safety.py);
+closed outcomes and six-place score are in
+[safety_contracts.py](../../../src/researchbase/agent_runtime/application/safety_contracts.py).
 
-### C02 — RESOLVED — accounting ownership and scientific boundary
+**Specific provenance blocker:** existing node and usage rows do not provide a typed,
+durable, enforceable binding of all four artifacts, dataset snapshot, metric, evaluator
+and optional source Runs to the reservation and score. A content-addressed protocol
+manifest can encode the closed references, but its exact canonical owner and typed
+link to both admission and settlement are not established by current source. Propose
+an architecture-reviewed exact ArtifactVersion reference using an existing typed
+input/relation if it can enforce these links; otherwise request a narrowly scoped
+architecture decision for indispensable storage. Do not treat a hash in reason text,
+an arbitrary JSON object, or an optional Run link as that proof. This blocks contract
+completion and activation until resolved; no new table is approved here.
 
-Every session of a task shares existing PR3-04 accounting; there is no search
-balance, counter reset or separate ledger. Human and Agent use Application →
-port/UoW → persistence → PostgreSQL. Search keeps failed/pruned history and exact
-Run links; it cannot create, execute, cancel or change a Run or establish scientific
-validity. PR3-17 selection/scoring and execution/promotion remain excluded. Sources:
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:54`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:61`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:74`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:78`.
+## O03 — finite resources, pricing and attributable measurements
 
-### C03 — RESOLVED — conservative storage proof remains the baseline
+Select a CPU-only, local content-addressed ArtifactStore path. No network, accelerator,
+subprocess, model API or provider is permitted by this registration. The engineering
+profile is at most 100,000 evaluation rows, 100,000 groups, 64 classes, 256 UTF-8 bytes
+per sample/group ID, 64 bytes per class, and four artifacts of at most 16 MiB each.
+These are admission ceilings, not dataset facts. Enforce bytes before decode/parse,
+then row/field bounds; also cap output at two 64-by-64 integer confusion matrices plus
+64 per-class rows per model. Select strict UTF-8 CSV with exact headers
+`sample_id,group_id,split,label` and `sample_id,prediction` for the two prediction
+files; quoted fields follow Python CSV rules, extra/missing fields and NUL reject.
+Protocol is a closed version-1 value with `evaluation_split`, ordered unique `classes`
+and unique `{group_id,split}` entries; reject unknown fields and split/group overlap.
+Require exact declared evaluation groups and all sample IDs, independent of row order.
+This is an artifact byte format, not a new canonical schema. Exact refs still require O02.
 
-An append requires a previously committed same-task reservation under the active
-budget, `tree_nodes=1`, operation identity equal to node ID, unused by another node
-and not finally settled. `observed_depth` must equal both actual search depth and
-the reservation's task-step ancestor depth; NULL step permits only root depth zero.
-Current clock/deadline, checkpoints, task stop and caps still apply. If proof fails,
-deny. This is the storage rule to be explicitly amended, not an atomic API already
-available. Sources:
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:194`.
+| ResourceVector dimension | Reservation and final measurement rule |
+| --- | --- |
+| `wall_time_seconds` | Integer W derived below; final consumer value is ceiling of monotonic elapsed seconds from owning admission-command entry through evaluator completion, including waits, artifact reads, hash/parse/evaluation and internal retries. Settlement commit latency is observed separately below. |
+| `agent_steps` | Exactly 1 for this admitted core evaluation operation; retain 1 on every outcome, including failure/cancel/prune/UNKNOWN. Recovery and settlement are bookkeeping, not another admitted operation. |
+| `llm_calls` | Exactly 0: this path has no model client; a model call is a capability violation, not an unpriced fallback. |
+| `search_calls` | Exactly 0: local artifact lookup is not literature/provider search; no search client is composed. |
+| `code_iterations` | Exactly 0: executing this frozen evaluator is not modifying or iterating code. |
+| `experiment_runs` | Exactly 0: no Run is created/executed; source prediction Runs are immutable inputs. |
+| `tree_nodes` | Exactly 1, the node admitted in this transaction, retained on all outcomes. |
+| `gpu_hours` | Exactly `0.000000`, conditional on CPU-only composition with no GPU library/device path; accelerator demand denies this registration. |
+| `token_cost` | Exactly `0.000000` USD of token charges: no token-producing API exists in this path. This says nothing about CPU, disk, database or host charges. |
 
-### C04 — RESOLVED — the committed-reservation gap is real
+Thus the complete vector is `(W,1,0,0,0,0,1,0.000000,0.000000)` in domain field order,
+not FAKE_RESOURCES. Counter measurements equal their admitted values per `settlement`;
+monitor actual forbidden call/device counters and require all zero. Bind `pricing_basis`
+to `bearing-local-cpu-v1:<deployment-profile-sha256>` (within the existing 512-character
+limit), currency USD. The frozen deployment profile must state CPU/host, disk read,
+storage and PG billing units/rates, or explicit included/prepaid status with evidence.
+Those non-token costs are not expressible in `token_cost`; do not relabel them or claim
+zero external cost. If the task requires a dollar cap covering them, this vector cannot
+provide it: activation is blocked pending an approved accounting decision. Artifact
+reads remain real I/O, metered as bytes/read count and attributed to reservation ID.
 
-PR3-04 admits equality with an additive cap and records the resulting stop in that
-reservation's event. A later storage append must deny after stop, even if the
-reservation is charged. It can therefore leave a charged reservation without a
-node. A new append after stop is not reconciliation; gaps are not refunded.
-Sources: `docs/phase3/PR3-04-contract-freeze.md:567`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:189`.
+Codex implementing stage 1/3 must produce the actual evaluator's benchmark evidence:
+implementation/hash, machine/OS/Python, CPU quota, ArtifactStore backing path/type,
+input/output bytes/counts/hashes, PG version/config, lock/statement timeouts, load,
+per-phase monotonic timings and process peak RSS, with all nine measured dimensions.
+Run both maximum-row and maximum-byte/identifier distributions, invalid/late failures,
+replay, settlement and competing lock waits; repeat at least 30 times per profile
+(30 is a minimum repeatability check, not a statistical latency guarantee). Let
+T_max be the largest end-to-end admitted duration and J_max the largest additional
+measured scheduler/I/O/PG delay under the selected deployment load envelope. Set
+`W = ceil(T_max + J_max)`; reject a nonpositive/unmeasured W. Bound admission waits
+by this same deadline, and check remaining time after each wait, read and evaluation
+chunk. Freeze the load envelope and measured J_max, rather than an unexplained
+constant margin. Deadline is the earlier of command-entry UTC + W and the task's
+existing origin + max_wall_time_seconds; deny if there is insufficient measured
+remaining work allowance. It must also satisfy reservation.created_at < deadline <=
+reservation.created_at + W. No fresh work after deadline. Wall observation uses
+monotonic time, DB deadline/entitlement checks use current DB time, never caller time.
+Meter file bytes and each phase against the same reservation/consumer generation.
+The final usage row is frozen before its own commit: record actual admission/settlement
+commit latency and total reservation lifetime in attributed operational telemetry, not
+as an invented future duration in that row. W includes those benchmarked overheads;
+if exact inclusive post-commit accounting is indispensable, current usage types cannot
+express it and activation requires an explicit owning-accounting decision.
+Overrun or lost observation cannot be settled with a fabricated capped measurement:
+retain UNKNOWN/full reservation, record actual overrun in operational telemetry and
+invoke existing trusted policy-stop handling. Later final settlement must still obey
+`measured <= reserved`; no new refund or over-bound accounting rule is approved here.
 
-### C05 — RESOLVED — trust definition and present implementation limit
+Local feasibility evidence, 2026-10-28: an inline standard-library CPython 3.12.15
+reference calculation on macOS 27.0 arm64 read four temporary synthetic files, verified
+SHA256, parsed CSV/protocol, checked exact ID/group/vocabulary alignment, counted both
+confusions and per-class precision/recall, and computed Decimal delta. Five repetitions
+at N=100,000/C=64 used bytes `(14184401,6684391,6684391,10000385)` and took
+0.556467500–0.584273417 seconds; N=25,000 with 255-byte UTF-8 IDs used
+`(13146121,6471111,6471111,7300385)` and took 0.221890625–0.233306959 seconds.
+For reproduction, IDs were prefix `s`/`g` + six-digit row index + repeated `é`
+(28 or 124 copies); labels were str(i % 64), CSV used LF, and protocol JSON used
+compact separators with ensure_ascii=False. Wrong predictions were str((i+1) % 64)
+on rows i % 4 == 0 (baseline) or i % 8 == 0 (candidate).
+Process peak RSS was 506,937,344 bytes, including synthetic generation. Baseline was
+constructed correct on 3/4 rows and candidate on 7/8, so actual counted pairs were
+`(75000,87500)` and `(18750,21875)`, delta `0.125000`. These synthetic stress fixtures
+show arithmetic feasibility only; they are neither bearing research nor the deployed
+evaluator benchmark. They do not establish W, cold-read latency, full 16-MiB malformed
+parsing behavior, maximum memory, or production throughput.
 
-A trusted producer is a registered consumer capability calling the TaskSafetyService
-reservation path. TrustedFakeConsumer is test-only; no production producer exists.
-The current service accepts an injected `FakeConsumerCapability` and checks object
-identity. A public flag, actor type, evaluator string or possession of a reservation
-ID does not supply that capability. These existing checks do not define a production
-registration mechanism. Sources:
-`docs/phase3/PR3-16-execution-pack-r2.md:502`,
-`src/researchbase/agent_runtime/application/task_safety.py:238`,
-`docs/phase3/PR3-04-contract-freeze.md:611`.
+**Precise unavailable facts blocking numeric W/activation:** there is no implemented
+production evaluator/composition or selected deployment CPU quota, ArtifactStore backing
+service and its latency/cancellation behavior, PG wait/load envelope, or billing rate
+schedule in this repository/direction. The current synchronous [ArtifactStore port](../../../src/researchbase/foundation/artifact_store.py)
+does not promise bounded I/O latency or a bounded-size read; `open()` reads all bytes.
+The concrete consumer therefore needs a bounded local read adapter that rejects after
+16 MiB + 1 bytes without allocating unbounded content; metadata byte_size alone is
+not proof. Implementing that adapter belongs to the separately authorized code slice. Codex must obtain and measure these facts on the
+selected deployment and attach the above evidence before stage-3 activation; if they
+remain unavailable, report each missing fact and keep admission denied. A hard wall
+upper bound cannot be inferred from a cached local arithmetic timing. No dataset or
+training job is needed to obtain synthetic engineering measurements.
 
-### C06 — RESOLVED — full vector shape, not a selected node vector
+## O04–O05 — depth, occupancy and lifetime
 
-Existing `ResourceVector` requires `wall_time_seconds`, `agent_steps`, `llm_calls`,
-`search_calls`, `code_iterations`, `experiment_runs`, `tree_nodes`, `gpu_hours` and
-`token_cost`; no dimension is omitted. Reservation wall time is positive; count
-fields are nonnegative integers and GPU/cost use exact finite nonnegative six-place
-decimals. Adapter GPU/cost conversion rounds up under the existing accounting contract.
-Only `tree_nodes=1` is selected for the conservative node proof. Neither zeroes for
-the other dimensions nor a node deadline follow from that selection. The gateway's
-fake vector has `tree_nodes=0` and cannot be reused as node spend. Sources:
-`docs/phase3/PR3-04-contract-freeze.md:544`,
-`docs/phase3/PR3-04-contract-freeze.md:775`,
-`docs/phase3/PR3-04-contract-freeze.md:777`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184`,
-`docs/phase3/PR3-03-contract-freeze.md:1802`,
-`docs/phase3/PR3-16-execution-pack-r2.md:45`.
+Root maps to NULL step or a same-task root step at depth zero; each non-root node
+requires a same-task step whose parent chain depth equals node depth, with the parent
+node's mapped step as its immediate parent. No synthetic steps are created. Restrict
+comparison to the same step and frozen binding; reject cross-task, depth, protocol,
+operation or reservation mismatches. `operation_id = node_id`, one reservation per
+node. Task-wide outstanding reservations, including UNKNOWN until final settlement,
+occupy the parallel limit; never infer occupancy from siblings. Perform bounded
+metadata/value validation before admission; content I/O and evaluation only after commit,
+outside locks and transaction. Failure or process loss retains the reservation;
+recovery reuses original IDs and must not evaluate twice concurrently.
 
-### C07 — RESOLVED — shared charges, gauges and bounds
+## O06–O08 — atomic effects, stop and settlement
 
-For each additive dimension, existing charged amount plus proposed amount must
-not exceed the active budget's cap. Charge is final measured usage if present,
-otherwise the full reservation. Wall time is database elapsed time from the first
-reservation, including Human waits. Depth and parallelism are gauges, not additive
-costs. Current reservation depth comes from task-step ancestors; occupancy is one
-plus all not-final task reservations, including UNKNOWN. Search root depth is zero
-and child depth is parent plus one. The approved initial read bounds are 10 nodes,
-depth 3 and parallel branches 1, matching existing BudgetSpec defaults; they do not
-define a node resource vector or a new meaning for search parallel branches.
-Sources: `docs/phase3/PR3-04-contract-freeze.md:530`,
-`docs/phase3/PR3-04-contract-freeze.md:555`,
-`src/researchbase/agent_runtime/application/task_safety.py:122`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:58`,
-`docs/phase3/PR3-16-execution-pack-r2.md:504`,
-`docs/phase3/PR3-16-design-closeout.md:194`.
+Add `admit_bearing_evaluation_v2` with closed typed arguments: project/task/command,
+expected task revision, session/node/parent and existing append fields, exact step,
+operation, reservation, frozen evidence binding, full resource vector, deadline and
+reason. Material type `BearingEvaluationCommand`, material_version 2, identifies this family, includes authenticated
+actor and every input/default/NULL, canonical UUIDs and exact decimals; generated
+timestamps and projections are excluded. Freeze independent literal bytes/digest and
+result vectors before implementation. Keep existing `ExperimentSearchCommand` and
+`SafetyCommand` v1 bytes and replay unchanged. Result contains original reservation,
+node, search event, task event, receipt and resulting revision IDs/values.
 
-### C08 — RESOLVED — evaluator binding is required, not supplied
+One transaction creates exactly one reservation, one PROPOSED node, one search event,
+one task event, one receipt and its task-event association, and increments task
+revision once; it creates no usage, step event, Run, Measurement or Claim. Each effect
+must reference the same task, operation and fresh receipt; any missing/extra effect or
+constraint failure rolls back all. Entitlement precedes committed receipt replay;
+changed material conflicts. For fresh writes recheck authority, CAS, checkpoint,
+capability, deadline and stops after waits and forced constraints, excluding own
+uncommitted receipt. Prior sticky or derived stop always denies. Capture pre-command
+charged totals under the task lock; only if they were strictly below every applicable
+positive cap and this reservation alone reaches an additive cap may the node commit
+with the single task event's budget-stop flag. A pre-existing stop or competing stop
+never qualifies. Session remains open; no implicit closure or later admission.
 
-Positive node/code/run charges require a comparable evaluator. Existing
-`TerminationSpec` binds `score_metric_version_id`, `score_direction` and
-`evaluator_version` together; direction is MAXIMIZE or MINIMIZE. The metric must
-pass the owning domain's scope and frozen-version checks. Successful settlement
-of a positively charged node/code/run iteration requires a score; a provided score
-requires the policy's exact evaluator version and SUCCEEDED outcome. This defines
-validation, not the production evaluator's algorithm or identity. Sources:
-`src/researchbase/agent_runtime/application/task_safety.py:159`,
-`src/researchbase/agent_runtime/application/safety_contracts.py:139`,
-`src/researchbase/agent_runtime/application/task_safety.py:460`,
-`src/researchbase/agent_runtime/application/task_safety.py:207`.
+A separate trusted `settle_bearing_evaluation_v2` command attributes its observation
+to the original reservation, exact binding and consumer generation. It creates one
+usage record, one task event, one receipt and association, and one task revision; no
+node/search event or scientific record. Existing finality and outcome rules apply:
+UNKNOWN retains worst case, at most one final reconciliation, no post-final score.
+Recovery owner replays original command IDs after uncertain commit; no duplicate
+charge or silent refund. Current safety public commands stay available under their
+existing guards; callers cannot use them to spoof this consumer's score.
 
-### C09 — RESOLVED — progress and failure semantics
+## O09 — closed forward-migration manifest and preservation
 
-Existing failure history is per logical task step (NULL is the task-level step),
-ordered by receipt revision. FAILED increments consecutive failures; SUCCEEDED
-resets them; CANCELLED/PRUNED retain them and UNKNOWN does not advance them.
-Comparable successful iterations alone update progress: the first score establishes
-the baseline, strict improvement resets no-improvement, ties/worse increment it.
-Comparisons do not cross steps, metrics or evaluators. Scores are operational, never
-Measurements. Optional minimum-progress, duplicate, confidence and success
-evaluators stay disabled pending their own approved contracts. Sources:
-`docs/phase3/PR3-04-contract-freeze.md:574`,
-`docs/phase3/PR3-04-contract-freeze.md:45`,
-`src/researchbase/agent_runtime/application/safety_contracts.py:117`.
+`uv run alembic heads` now completes with sole head `0082_experiment_search_core`;
+its parent is `0081_agent_execution_intents`. Recheck at dispatch, allocate the next
+forward revision after 0082, and abort on drift. Do not modify 0078/0080/0081/0082.
+This manifest is the complete proposed accounting/command delta; O02's unresolved
+provenance storage is NOT silently included. If its resolution needs another column,
+constraint, relation or grant, amend/review this manifest before implementation.
 
-### C10 — RESOLVED — stop and execution gates remain binding
+Exact source owners: [0077 DDL/guards](../../../migrations/versions/0077_research_task_graph.py),
+[0078 DDL/GUARDS/FINAL_GUARDS](../../../migrations/versions/0078_task_safety_policies.py),
+[0080 EXTENSION_03_SQL/EXTENSION_08_SQL and PR304_CHILD_GUARD_SQL/PR304_VALIDATE_SAFETY_SQL](../../../migrations/versions/0080_capability_gateway.py),
+[0081 DDL/FUNCTIONS](../../../migrations/versions/0081_agent_execution_intents.py),
+and [0082 SCALAR_FUNCTIONS/RECEIPTS/GUARDS/RECEIPT_COMPLETE/TRIGGERS](../../../migrations/versions/0082_experiment_search_core.py).
+0081 changes execution-intent guards, not the safety/receipt functions below; 0082
+replaces only inherited `pr301_receipt_complete()`. Never reconstruct current guards
+from 0078 alone: 0080 adds gateway branches that must survive. Current-source SHA256:
 
-Stops are sticky historical OR of all recorded causes, with priority Human, policy,
-budget, repeated failure, no improvement, success; success remains disabled in the
-existing slice. Newly recorded termination is a successful event/receipt, not an
-exception that erases the stop. Subsequent admission denies. Current reservation
-code denies A2/A3 because owning execution prerequisites are unavailable. Verified
-actor-only planning requires no AgentVersion/availability, but is not production
-resource trust or execution authority. Sources:
-`docs/phase3/PR3-04-contract-freeze.md:586`,
-`src/researchbase/agent_runtime/application/task_safety.py:149`,
-`docs/phase3/PR3-16-execution-pack-r2.md:512`,
-`docs/phase3/PR3-16-execution-pack-r2.md:502`.
+| Migration | SHA256 |
+| --- | --- |
+| 0078 | `7c312389444e9edfea89f10c472462b7d2ca9c739a951c905d09140058b8c255` |
+| 0080 | `b1ef6a678620acb27282eb68d08c658e7bfaad85f591ca93f298545007326561` |
+| 0081 | `142c7a9061785a971d7043667041cf5368be24e38069c59900640d13c2259e52` |
+| 0082 | `0166bdc1e30c9c3963c9655b6cfd7fed1cdcd0e6822a39a666de2fb7adb52470` |
 
-### C11 — RESOLVED — settlement preserves admitted counters
+Replace exactly these nine function bodies, preserving signature, owner, ACL,
+SECURITY INVOKER and search_path; old-command branches retain token-equivalent SQL:
 
-Existing trusted settlement owns accounting. Final measurements cannot exceed the
-reservation; admitted integer counters, including tree nodes, cannot be refunded.
-Variable time/GPU/cost may reconcile down only with trusted evidence. UNKNOWN
-retains the entire vector and occupancy without advancing final streaks; at most
-one final settlement follows, with no further observations after final. Settlement
-after stop/cancellation is bookkeeping and cannot clear a stop. PR3-16 failure,
-pruning, closure or Run linkage supplies no settlement/refund. Sources:
-`docs/phase3/PR3-04-contract-freeze.md:530`,
-`docs/phase3/PR3-04-contract-freeze.md:544`,
-`docs/phase3/PR3-04-contract-freeze.md:567`,
-`docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md:39`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:203`.
+| Function | Only permitted new branch/effect |
+| --- | --- |
+| `pr316_command_event(text)` | Map admission to `BEARING_EVALUATION_ADMITTED`; settlement stays outside search mapping. Existing two mappings unchanged. |
+| `pr316_receipt_insert()` | New commands get UUIDv7, transaction timestamp and current authority checks; settlement uses the new authority helper to allow recovery on CANCELLED tasks. |
+| `pr316_node_proof(experiment_search_nodes)` | Dispatch only the new command to fresh same-transaction reservation proof; old committed-xmin proof and unconditional `pr316_activation` denial remain literal. |
+| `pr316_state(research_task_command_receipts,experiment_search_events)` | New admission requires `NODE_APPENDED`, same node/parent/depth/reason, and the new proof; old create/append cases unchanged. |
+| `pr316_lineage_insert()` | Permit only new admission alongside old append in the node branch, with all existing fresh receipt/parent/scope checks and new proof; no settlement lineage effects. |
+| `pr316_validate_receipt(uuid)` | Dispatch the two new commands to v2 validation before the old path; preserve old search effect counts and material reconstruction. |
+| `pr304_child_guard()` | Add admission only to reservation allowlist and settlement only to usage/CANCELLED recovery allowlists; retain all 0080 gateway and immutable/fresh-owner checks. |
+| `pr304_validate_safety(uuid)` | Include the two names in stop recomputation; retain history order, gauges, score/finality/counter math and all old checks. Retain A2/A3 execution denial: initial v2 admission supports A0/A1 only. |
+| `pr301_receipt_complete()` | Map admission/settlement to `BEARING_EVALUATION_ADMITTED`/`BEARING_EVALUATION_SETTLED`; reservation/usage counts respectively 1/0 and 0/1, no other safety/gateway effects; extend timestamp/unrelated-effect and CANCELLED-settlement checks, then v2 completeness. |
 
-### C12 — RESOLVED — atomic composition must preserve the command boundary
+Add exactly four validators (no DML ownership, all SECURITY INVOKER, fixed
+`search_path=pg_catalog,public,pg_temp`; enabled is SQL STABLE, the other three
+PL/pgSQL VOLATILE): `pr316d1_enabled() RETURNS boolean`,
+`pr316d1_authority(research_task_command_receipts) RETURNS void`,
+`pr316d1_admission(experiment_search_nodes) RETURNS void`, and
+`pr316d1_validate_receipt(uuid) RETURNS void`. Enabled returns literal false in stage 2;
+stage 3 alone may replace it with true after authorized Application wiring and genuine
+positive tests. No caller GUC/role bypass. Authority repeats current `pr316_live`
+entitlement/preheld/fresh-task checks, allowing CANCELLED only for settlement.
+Admission proves same-xmin receipt/reservation/node, O04 mapping, exact vector/binding,
+pre-command stop-free prefix and deadline/checkpoints, then own-last-unit stop; it
+never calls the old post-reservation `pr316_admission` which denies at equality.
+V2 receipt validation reconstructs material_version 2 and all result pointers, forces
+O06–O08's exact counts/no extra effects and invokes authority at deferred completion;
+it also requires enabled=true. O02 prevents implementing its evidence proof prematurely.
 
-One Application command owns one synchronous transaction; failure rolls its effects
-back. A nested public `reserve_task_budget` command is prohibited. The accepted
-gateway has an internal in-UoW accounting composition that reuses safety rules
-without another transaction, revision or receipt. It demonstrates a composition
-pattern only: its fake trust, resource vector and lock helper do not constitute the
-D1 node contract. Sources:
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:198`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:215`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:251`,
-`docs/phase3/PR3-03-contract-freeze.md:1778`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:13`.
+Replace exactly seven CHECK constraints (drop/add same name, validated immediately):
 
-### C13 — RESOLVED — receipt/replay and concurrency obligations
+| Table.constraint | New predicate branch, old rows unchanged |
+| --- | --- |
+| `research_task_command_receipts.pr316_command_names` | Add exactly the two v2 command names. |
+| `research_task_command_receipts.research_task_command_receipts_material_version_check` | Version 2 iff either new command; all historical commands require 1. Hash scheme remains `sha256-cjson-v1`. |
+| `research_task_command_receipts.pr316_receipt_shape_ck` | Admission has all three search result pointers; settlement has none; retain original create/append/other shapes. |
+| `research_task_events.pr316_task_event_names` | Add exactly the two BEARING event names. |
+| `research_task_events.pr316_task_event_states` | Admission preserves CREATED/PLANNING status; settlement preserves CREATED/PLANNING/CANCELLED status. |
+| `research_task_events.pr316_task_event_reason` | Both require the existing nonblank NFC reason bound 1..8192. |
+| `research_task_events.pr303_event_stop_kind` | Permit new events' derived stop flags; v2 validator requires admission only own-budget stop, settlement existing derived flags, no human/policy/success flags. |
 
-The storage append has one node and search event, one task revision increment,
-receipt and task event/result link, using existing receipt tables. Current safety
-reservation has one reservation and its own declared command effects. Combining
-those requires an explicit amendment; neither existing shape silently permits
-extra effects. Current entitlement precedes committed receipt replay, which
-precedes fresh write/state/stop/expiry/CAS checks. Equal material recovers original
-IDs with no effects; different material conflicts. Own uncommitted effects cannot
-replay. Retain fresh validation after waits, writes and forced constraints and the
-shared task coordination across sessions. Sources:
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:174`,
-`docs/phase3/PR3-04-contract-freeze.md:660`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:137`,
-`docs/phase3/PR3-16-execution-pack-r2.md:56`,
-`docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md:43`.
+No other new/replaced/dropped catalog objects: zero tables, columns, indexes, triggers,
+FKs, UNIQUEs, NOT NULLs or other constraints. Specifically preserve every definition,
+enabled flag, timing and deferrability of the 16 0082 triggers, `pr301_receipt_complete_commit`,
+`pr301_task_final`, and `pr304_reservation_guard`/`pr304_usage_guard`. Preserve
+`pr316_uuid7`, `pr316_reason`, `pr316_immutable`, `pr316_preheld`, `pr316_live`,
+`pr316_refs`, `pr316_chain`, `pr316_admission`, `pr316_link_write_disabled`,
+`pr316_effect_complete`, `pr301_task_guard`, `pr301_graph_final_guard`,
+`pr301_receipt_insert_guard`, `pr304_validate_policy`, all 0080 gateway validators,
+all 0081 intent guards and every remaining baseline function. The unchanged set is
+exactly the complete 0082 catalog minus the nine functions and seven CHECKs above;
+verify it with 0082 `CATALOG` plus the richer `catalog_snapshot` in
+[search fixtures](../../../tests/integration/phase3/search_fixtures.py) and the exact
+[upgrade delta assertions](../../../tests/integration/phase3/test_pr3_16_migration.py).
+This includes all four search tables' constraints and RESTRICT FKs, receipt FKs,
+reservation/usage finality and uniqueness, `pr304_event_stop_slice`, and the link-write
+denial. No schema expansion follows from naming helper functions.
 
-### C14 — RESOLVED — compatibility and approval boundary
+Privileges: no GRANT/REVOKE/owner/default-privilege change on ANY existing object;
+retain both PUBLIC and explicit role ACLs byte-for-byte, including 0082's revoked
+search-table DML and all legacy command/table grants. New helpers have ordinary
+invoker function EXECUTE only (PUBLIC plus owner, no SECURITY DEFINER or table grant);
+assert effective ACLs explicitly, refusing unexpected deployment default grants.
+The migration owner may create/replace these validators; an ordinary writer cannot
+replace/enable them. No deployment writer role is supplied: retain denial if the
+configured Application principal lacks existing INSERT/SELECT privileges. Test-only
+roles/grants in search_fixtures are not production provisioning. Any necessary new
+production grant must be separately named and reviewed; this manifest authorizes none.
+A principal with existing table privileges still needs every guard and Application check.
 
-The amendment must preserve old PR3-04 commands/vectors and scientific history;
-no new ledger or unreviewed canonical schema is authorized. Exact inventory,
-literal vectors and independent review precede implementation authorization.
-This draft does not assign a migration revision, alter the other closeout items,
-freeze F1 or accept ADR-0027. Sources:
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:321`,
-`AGENTS.md:49`, `AGENTS.md:164`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:3`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:18`.
+Upgrade compares pristine/populated 0082 and forward catalogs: exactly 9 changed + 4
+new functions, 7 changed CHECKs, no other delta; compare old-function tokens after
+removing only declared new branches and replay old literal vectors. Compare raw old
+rows/hashes/seals/ACLs unchanged, and run ordinary-role partial/extra-effect attacks.
+Forward migration is transactional; any failure rolls back to 0082. Once applied,
+no downgrade (0082 itself is forward-only): before any v2 use an approved forward
+repair restores these nine bodies and seven predicates and drops the four helpers,
+without data changes. After any v2 use preserve their rows/replay and add a forward
+repair that first disables new admissions; never restore predicates that reject
+historical v2 rows, delete receipts, or refund reservations. Recheck independent
+acceptance after repair. This exact manifest cannot authorize unresolved O02 storage.
 
-## Decisions required for an approvable atomic amendment
+## O10 — staged acceptance and evidence
 
-### O01 — OWNER — production producer and trust composition
+1. Pure concrete parser/evaluator tests: exact paired arithmetic, class imbalance,
+   tie/worse/improvement, rounding, invalid/oversized evidence and deterministic output;
+   no activation or empirical performance claim.
+2. Forward migration with denied activation: inspect sole head, complete catalog and
+   unchanged old branches/ACLs; real PG18 negative SQL attacks and migration upgrade.
+3. Wire atomic consumer and settlement only after separate authorization: real PG18
+   positive/denial tests for exact effects and rollback at every flush, changed-material
+   conflicts, lost-response replay, entitlement/revocation/checkpoint waits, cross-task
+   references, occupancy and UNKNOWN recovery, concurrent last-unit/prior-stop races,
+   settlement attribution and no extra effects. Independent v1 and v2 literal vectors
+   and old-row/scientific-hash/Run-seal preservation are mandatory.
+4. Run focused and CI regressions, measure worst-case evaluator and full read responses,
+   and obtain independent review and commander acceptance with no open P0/P1. No
+   ranking or search selection is implied. Current reads remain 10 nodes, depth 3,
+   11 events and zero links; later writers first establish compatible measured complete
+   response bounds. Future D1 implementation tests are NOT RUN by this proposal; local arithmetic
+   observations in O03 are not implementation acceptance.
 
-**Question:** which registered production consumer will call the TaskSafetyService
-reservation path, and how are its registration, injected authority and revocation
-validated inside the owning command's UoW? **Options:** review a concrete producer
-and internal composition contract; or leave production admission denied while that
-contract is unavailable. **Recommendation:** specify that contract before approval,
-preserving object/capability trust and public denial; do not promote the fake or
-call a public reservation command from another command. Sources:
-`docs/phase3/PR3-16-execution-pack-r2.md:502`,
-`docs/phase3/PR3-16-execution-pack-r2.md:52`,
-`docs/phase3/PR3-03-contract-freeze.md:1778`.
+Open blockers are the durable exact provenance binding, production composition and
+revocation coordination, and deployment-specific measured resource/pricing profile.
+Resolve these with concrete evidence before declaring the contract complete or enabling
+admission; absence of an actual dataset is not a reason to invent one.
 
-### O02 — OWNER — evaluator identity, observations and meaning of success
 
-**Question:** what exact frozen metric, direction, immutable evaluator version,
-input provenance, computation and comparable observation define a node iteration,
-and when can it truthfully be settled SUCCEEDED? **Options:** supply a reviewed
-node evaluator compatible with C08–C09; or retain denial of positive node admission.
-**Recommendation:** supply the evaluator contract and independent observation
-vectors before approval. Node insertion alone does not supply a comparable score;
-do not synthesize a constant score, a metric UUID or an evaluator version, use the
-test evaluator as production, or enable deferred PR3-17 scoring. Sources:
-`docs/phase3/PR3-16-design-closeout.md:258`,
-`docs/phase3/PR3-16-freeze-inventory.md:255`,
-`docs/phase3/PR3-04-contract-freeze.md:577`,
-`tests/integration/phase3/test_pr3_04_accounting.py:138`.
+## Verification observed 2026-10-28
 
-### O03 — OWNER — full resource vector and deadline
+All uv commands below used `UV_CACHE_DIR=/tmp/rb-d1362-uv UV_PYTHON_DOWNLOADS=never`.
+`uv sync --locked --group dev` completed: resolved 38, prepared/installed 34 packages.
+These are baseline checks for a documents-only change, not D1 implementation acceptance.
 
-**Question:** what operation does the node reservation cover, and what attributable
-worst-case value or derivation supplies every C06 dimension, pricing basis and
-deadline? **Options:** review the complete bounded producer vector and conversion
-rules; or deny admission when an upper bound cannot be established.
-**Recommendation:** retain the required node charge and specify every remaining
-dimension explicitly with evidence. Existing defaults are policy caps, not node
-spend; no zero-fill, fake price, gateway duration or new search deadline is chosen.
-Sources: `docs/phase3/PR3-16-execution-pack-r2.md:52`,
-`docs/phase3/PR3-04-contract-freeze.md:527`,
-`docs/phase3/PR3-04-contract-freeze.md:539`,
-`docs/phase3/PR3-16-execution-pack-r2.md:294`.
+| Exact command after the uv environment prefix | Completed output / exit |
+| --- | --- |
+| `uv run ruff check .` | All checks passed; exit 0. |
+| `uv run ruff format --check .` | 969 files already formatted; exit 0. |
+| `uv run pyright` | 0 errors, 0 warnings, 0 informations; exit 0 (separate version notice). |
+| `uv run alembic heads` | `0082_experiment_search_core (head)`; exit 0. |
+| `uv run pytest -o addopts='' -q tests/unit/phase3/test_task_safety_contracts.py tests/unit/phase3/test_task_safety_policies.py tests/unit/phase3/test_experiment_search_contracts.py` | 120 passed in 0.24s; exit 0. |
+| `uv run pytest -o addopts='' -q tests/architecture/test_pr3_16_boundaries.py` | 5 passed in 4.28s; exit 0. |
+| `.venv/bin/python -u -m pytest -o addopts='' -q tests/architecture/test_pr3_16_boundaries.py tests/architecture/test_pr3_03_boundaries.py tests/architecture/test_pr3_00_boundaries.py` (direct interpreter, no uv prefix) | 78 passed in 4.98s; exit 0; includes the five D1 checks above. |
+| `uv run pytest -o addopts='' -q tests/unit/phase3/test_task_budget_accounting.py` | 1 collection error in 0.16s, zero tests executed; exit 2. |
+| `uv run pytest -o addopts='' -q tests/unit/architecture/test_pr12_guard.py tests/unit/architecture/test_pr14_guard.py` | 2 collection errors in 0.15s, zero tests executed; exit 2. |
+| `uv run pytest -o addopts='' -q tests/integration/phase3/test_pr3_04_migration.py tests/integration/phase3/test_pr3_16_migration.py` | conftest import failed, zero PG tests executed; exit 4. |
 
-### O04 — OWNER — node-to-step depth and comparison scope
+All three failing commands report macOS `library load mig callout failed` rejecting
+`pydantic_core/_pydantic_core.cpython-312-darwin.so`'s code signature. A direct psycopg
+preflight also fails native-library loading, including Homebrew libpq. These are
+observed environment blockers, not PASS or database evidence. No PG connection or
+server-version result was obtained. Earlier broad unit/architecture attempts yielded
+no completed result; the bounded commands above are the usable
+results. Whole suite was not run; the external loop owns it. D1 activation remains denied.
 
-**Question:** which same-task step corresponds to a root/child node, and does the
-atomic path retain the exact step/search depth equality or introduce a separately
-reviewed node-aware derivation? How are same-step progress histories preserved
-across sessions? **Options:** retain the equality proof with an explicit mapping;
-or approve a node-aware rule with explicit compatibility for old reservations and
-streaks. **Recommendation:** retain equality until a reviewed mapping establishes
-the alternative. Do not invent steps, infer ancestry equality from matching depth,
-or silently change the meaning of `observed_depth`. Sources:
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184`,
-`src/researchbase/agent_runtime/application/task_safety.py:122`,
-`docs/phase3/PR3-04-contract-freeze.md:574`.
+`python3 /Users/fengwang/ResearchBase-runtime/.pipeline/bin/check_d1_362_docs.py` and
+`git diff --check HEAD` pass after this revision. The supplied script checks scope,
+net lines, literal ADR status and whitespace only; its “No code tests run” message
+describes that script, not the independent commands recorded above.
 
-### O05 — OWNER — parallel occupancy and settlement timing
+## Stage 1 — closed pure evaluator gate, separate from activation
 
-**Question:** how does a live node operation map to existing not-final reservation
-occupancy, and when can the trusted producer release that occupancy by final
-settlement? **Options:** retain reservation occupancy with an explicit node-operation
-lifetime; or review an amendment to gauge derivation without changing old accounting
-silently. **Recommendation:** retain the existing gauge pending a concrete lifetime
-contract. The approved parallel bound does not establish that roots, all stored
-nodes or Run links count as parallel branches. Sources:
-`docs/phase3/PR3-04-contract-freeze.md:562`,
-`docs/phase3/PR3-16-design-closeout.md:194`,
-`docs/phase3/PR3-16-execution-pack-r2.md:52`.
+The first source slice takes already-decoded in-memory values: ordered unique class
+vocabulary, exact evaluation split name, complete group-to-split declarations,
+labeled sample records (sample_id, group_id, split, label), and baseline/candidate
+prediction records (sample_id, prediction). Labels and predictions are class strings.
+All labeled records must belong to the selected evaluation split; prediction ID sets
+must equal the labeled ID set exactly, with no duplicates. Every used group must be
+declared in that split, every declared evaluation group must be represented, and
+no group may belong to multiple splits. Non-evaluation group declarations may be
+retained to check declared separation; this does not prove actual training behavior.
+No row-order alignment or implicit normalization/inference is allowed. Enforce O03's
+100000-row/group, 64-class, 256-UTF8-byte ID and 64-byte class ceilings on these values.
+Artifact byte decoding, frozen canonical provenance binding and CPU/deployment profile
+are later boundaries, not silently claimed by this in-memory evaluator.
 
-### O06 — OWNER — atomic receipt effects and command identity
+For both models, compute integer confusion counts over the same labeled rows.
+Accuracy is exact correct/N; operational score is candidate accuracy minus baseline
+accuracy, rendered once to six decimal places ROUND_HALF_EVEN. Compute per-class
+precision TP/(TP+FP), recall TP/(TP+FN), F1 2TP/(2TP+FP+FN). A zero denominator yields
+None/unavailable for that metric; F1 is calculated directly from counts, not from
+rounded precision/recall. Each macro average is unavailable if any declared-class
+component of that metric is unavailable; otherwise its exact arithmetic mean over
+all declared classes is rendered once. Never silently omit a class or replace an
+undefined denominator with zero. Preserve ordered class identity and integer counts.
 
-**Question:** which reviewed command envelope owns reservation plus node admission,
-what exact receipt/event/result pointers and guards prove all-or-none effects, and
-how does it coexist with the conservative append envelope? **Options:** separately
-define an atomic command contract while preserving the storage command; or review
-an explicitly versioned extension with compatibility and replay rules.
-**Recommendation:** specify the combined effect manifest first, using existing
-receipt/accounting families and one owning transaction/revision/receipt/task event.
-Reservation plus node plus search event is the candidate composition for review;
-no command name, new event literal, SQL identifier or result layout is assigned.
-Sources: `docs/phase3/PR3-16-execution-pack-r2.md:52`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:174`,
-`docs/phase3/PR3-03-contract-freeze.md:1778`,
-`docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md:326`.
-
-### O07 — OWNER — equality, stop ordering and session closure
-
-**Question:** how does atomic admission distinguish a prior stop from the stop
-caused by its own last-unit reservation, while preserving post-wait validation?
-Does budget stop only block later work, or also produce an explicit session closure
-effect? **Options:** review admission of the node with its last-unit charge and
-durable task stop, with session closure remaining an explicit command; or review
-an additional closure effect and its exact receipt/lifecycle implications.
-**Recommendation:** the former, subject to review of the complete stop/effect
-matrix. Preserve denial for prior stops and the existing conservative gap rule;
-do not import the gateway's special start exception or treat all stops as ignorable.
-Sources: `docs/phase3/PR3-04-contract-freeze.md:567`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:102`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:189`,
-`docs/phase3/PR3-03-contract-freeze.md:1817`,
-`docs/phase3/PR3-16-execution-pack-r2.md:52`.
-
-### O08 — OWNER — attributable settlement owner and recovery
-
-**Question:** which registered consumer owns node reservation settlement, what
-evidence establishes completion/UNKNOWN/final reconciliation, and how is ownership
-recovered after a crash or lost response? **Options:** assign a reviewed trusted
-consumer to the existing settlement path; or retain charges and denied production
-admission pending that assignment. **Recommendation:** specify responsibility and
-evidence without granting PR3-16 terminal commands settlement authority. Preserve
-integer charges, one final record and sticky stops; an existing Run link alone
-cannot prove execution under the reservation. Sources:
-`docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md:39`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:201`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:203`,
-`docs/phase3/PR3-04-contract-freeze.md:530`.
-
-### O09 — OWNER — lock, guard and compatibility delta
-
-**Question:** what exact per-caller coordination, post-write callbacks, changed and
-unchanged guard bodies, privilege restrictions and receipt recovery mapping admit
-the combined effects without weakening existing 0081 or safety behavior?
-**Options:** review a complete D1 delta against the related Q1/Q2/Q7 designs; or
-leave atomic admission unavailable. **Recommendation:** require the explicit delta,
-preserving old command hashes/effects and historical reservations, with no new
-ledger or implicit gateway lock composition. Migration identity and any forward
-compatibility/rollback procedure remain unassigned here. Sources:
-`docs/phase3/PR3-16-execution-pack-r2.md:50`,
-`docs/phase3/PR3-16-execution-pack-r2.md:56`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:8`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:321`.
-
-### O10 — OWNER — approval and evidence disposition
-
-**Question:** after O01–O09 are answered, does the owner and architecture review
-approve the complete separate contract and ADR with independent assertion/vector
-review? **Options:** review that complete package before any separate implementation
-authorization; or keep it PROPOSED with production admission denied.
-**Recommendation:** keep the present draft PROPOSED until those decisions and
-reviews exist. Approval is not supplied by baseline regressions or by drafting an
-ADR. No implementation date, PR assignment or activation is scheduled. Sources:
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:18`,
-`docs/phase3/PR3-16-execution-pack-r2.md:533`.
-
-## Missing D1 checks
-
-These are assertion requirements for review, not invented test names or an execution
-schedule. The existing safety tests cover the earlier accounting contract; they
-cannot establish atomic node behavior. All rows are NOT RUN for D1.
-
-| Item | Status | Absent check and required observable evidence | Sources |
-| --- | --- | --- | --- |
-| M01 | MISSING | The proposed `tests/integration/phase3/test_pr3_16_budget.py::test_cross_session_caps_depth_gaps_and_terminal_no_refund` is absent. It must prove conservative proof/denial, shared caps, depth, charged gaps and no terminal refund; it cannot prove the atomic amendment. | `docs/phase3/PR3-16-design-closeout.md:274`, `docs/phase3/PR3-16-freeze-inventory.md:294`. |
-| M02 | MISSING | Atomic admission, rollback and uncertain-commit recovery: establish the approved complete effect set, no partial new reservation/node/history, and original-ID recovery without a second charge. Count actual rows, revision and receipts across failures at each persistence stage. Exact atomic effect expectations depend on O06. | `docs/phase3/PR3-16-execution-pack-r2.md:52`, `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:137`, `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:251`. |
-| M03 | MISSING | Production trust and evaluator admission: positive control only for the approved registration/evaluator; reject forged public trust, missing/incomparable evaluator, unscoped/unfrozen metric and unverified callers with no effects. No production identity/vector fixture is approved. | `docs/phase3/PR3-16-execution-pack-r2.md:502`, `docs/phase3/PR3-16-execution-pack-r2.md:86`, `src/researchbase/agent_runtime/application/task_safety.py:159`, `src/researchbase/agent_runtime/application/task_safety.py:460`. |
-| M04 | MISSING | Full node-vector and deadline checks: independently specified literals, every additive dimension below/equal/above cap, exact decimal conversion, UNKNOWN retention and deadline/wall-clock denial. O03 must supply the operation-specific expected values; fake gateway constants are not a fixture. | `docs/phase3/PR3-16-freeze-inventory.md:255`, `docs/phase3/PR3-04-contract-freeze.md:530`, `docs/phase3/PR3-04-contract-freeze.md:544`, `docs/phase3/PR3-04-contract-freeze.md:555`. |
-| M05 | MISSING | Atomic depth/occupancy mapping: root/child and NULL/non-NULL step controls, wrong task/depth/operation/reservation rejection, cross-session totals and UNKNOWN occupancy. Expectations await O04–O05; equal numeric depth is not proof of an unspecified node-to-step mapping. | `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184`, `src/researchbase/agent_runtime/application/task_safety.py:122`. |
-| M06 | MISSING | Atomic stop races: actual PostgreSQL competing last-unit admissions, stop/admission and checkpoint expiry/revocation waits; fresh post-wait checks, sticky causes and exact approved equality/closure effects. Prior stop must still deny, including for a charged gap. O07 and O09 must settle the combined trace. | `docs/phase3/PR3-16-execution-pack-r2.md:56`, `docs/phase3/PR3-04-contract-freeze.md:567`, `docs/phase3/PR3-04-contract-freeze.md:1005`. |
-| M07 | MISSING | Node evaluator/settlement end-to-end checks: attributable success score, first/tie/worse/improvement, step isolation, missing/mismatched observations, failure/prune/cancel counters, UNKNOWN then one final reconciliation, no post-final observation and no reset after stop. O02/O08 must supply actual observation provenance and recovery assertions. | `docs/phase3/PR3-04-contract-freeze.md:530`, `docs/phase3/PR3-04-contract-freeze.md:574`, `docs/phase3/PR3-16-execution-pack-r2.md:52`. |
-| M08 | MISSING | Ordinary-role SQL attacks on the combined effect set: missing/extra effects, old receipt reuse, duplicate reservation/operation use, multiple flushes and immutable history mutation. Existing safety guards do not prove a future D1 guard delta or its PostgreSQL compilation. | `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:174`, `docs/phase3/PR3-04-contract-freeze.md:620`, `docs/phase3/PR3-16-owner-decisions-2026-10-27.md:8`. |
-| M09 | MISSING | Compatibility across the future amendment: unchanged old safety/gateway vectors and accepted guards, preserved historical receipts, scientific hashes/Run seals and retained failed/pruned lineage. Existing tests can supply baseline regressions, but no amendment or upgrade exists to compare. | `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:64`, `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:321`, `docs/phase3/PR3-16-execution-pack-r2.md:296`. |
-| M10 | MISSING | Atomic command material/results/errors: independent literal input/bytes/digest/result vectors, equal versus changed-material replay, current read entitlement before replay, fresh authority/CAS/stop denial and multi-failure precedence. O06 must define the envelope; no new literal or pytest identifier is asserted here. | `docs/phase3/PR3-16-execution-pack-r2.md:51`, `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:130`, `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:137`, `docs/phase3/PR3-16-owner-decisions-2026-10-27.md:10`. |
-
-## Verification record
-
-Measured on 2026-10-27 with CPython 3.12.15 and pytest 8.4.2 on Darwin. The provided
-lane checkout's HEAD and `design-pr316` both resolve to
-`20b718f2e60e4e4e33b4e9567eb2f1065e272b9b`; no branch was created or changed.
-Only the two deliverable Markdown files are added. No code, migration, test,
-dependency definition or owner decision changes. Results below are existing
-baseline regressions, not D1 acceptance; static tools do not validate this proposed
-contract's semantics.
-
-Each `uv` command below used the exact prefix
-`UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"`.
-
-| Command (with the stated prefix for `uv`) | Observed result | Exit |
-| --- | --- | --- |
-| `uv sync --locked --group dev` | Resolved 38 packages; prepared and installed 34 | 0 |
-| `uv run ruff check .` | `All checks passed!` | 0 |
-| `uv run ruff format --check .` | `948 files already formatted` | 0 |
-| `uv run pyright` | `0 errors, 0 warnings, 0 informations`; separate available-version notice v1.1.411 → v1.1.414 | 0 |
-| `uv run pytest -o addopts='' -ra tests/unit/phase3 tests/architecture tests/unit/architecture` | Collected 1436; **1436 passed**, 0 failed/errors/skipped; 50 Alembic `path_separator` deprecation warnings; 34.20s | 0 |
-| `git diff --exit-code design-pr316 HEAD` | No output; checkout commit tree equals requested base | 0 |
-| `git diff --check` | No output | 0 |
-| `git diff --no-index --check -- /dev/null docs/phase3/design/PR3-16-d1-amendment-contract.md` | No whitespace diagnostics; exit 1 denotes the new-file difference | 1 |
-| `git diff --no-index --check -- /dev/null docs/architecture/adr/ADR-0027-pr3-16-d1-node-budget-amendment.md` | No whitespace diagnostics; exit 1 denotes the new-file difference | 1 |
-
-The extra no-index checks include the untracked deliverables, which ordinary
-`git diff --check` does not inspect. A read-only citation/disposition audit checked
-163 file:line references for existing files and nonblank in-range lines, confirmed
-the stated counts and a question/options/recommendation for every OWNER item.
-That mechanical audit does not establish semantic correctness or review approval.
-The cited proposed search budget test is absent, and the repository search found
-no PR3-16/search implementation or test file under `src` or `tests`.
-
-PostgreSQL suites: **NOT RUN (0 invoked)**. These two proposed documents change no
-database behavior or PostgreSQL suite; no D1 implementation exists to exercise.
-In particular, existing PostgreSQL accounting/evaluator tests are cited as source,
-not reported as executed in this task. Whole suite: **NOT RUN** by this task; the
-external loop owns that run and its output is not available here. D1 checks
-M01–M10 remain MISSING / NOT RUN, and independent review/approval remains pending.
+The Stage 1 gate requires independent literal/golden cases for improvement/tie/worse,
+class imbalance, absent classes, zero denominators, ordering/alignment, malformed and
+oversized values, declared group overlap and exact rounding ties. Domain is pure and
+has no ORM/transport/provider/filesystem dependencies. Source tests must distinguish
+observed accuracy from generalization/significance and unknown-fault discovery.
+No PG/deployment benchmark is needed to claim ONLY this pure behavior. Full O03
+end-to-end measurements, typed provenance and the reviewed forward guard manifest
+remain necessary before enabling a production consumer or writing any node.
