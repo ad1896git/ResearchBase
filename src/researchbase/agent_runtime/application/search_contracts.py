@@ -129,27 +129,40 @@ def parse_search_command(name: str, data: dict) -> SearchCommand:
         kind = _ARGUMENTS[name]
         if not isinstance(raw, dict) or set(raw) - {f.name for f in fields(kind)}:
             invalid("unknown argument fields")
+        # Validate all ordinary syntax before reporting scientific selectors. The
+        # optional reference placeholders never escape this decoder.
+        project_id = uuid(data["project_id"])
+        command_id = uuid(data["command_id"])
+        task_id = uuid(data["task_id"])
         args = dict(raw)
-        for key in args:
-            if key.endswith("_id") and args[key] is not None:
-                if key in {
-                    "root_hypothesis_version_id",
-                    "root_experiment_spec_version_id",
-                    "hypothesis_version_id",
-                    "experiment_spec_version_id",
-                } and args[key] in ("current", "latest"):
-                    raise ResearchBaseError(
-                        ErrorCode.FROZEN_REFERENCE_REQUIRED, "exact frozen reference required"
-                    )
-                args[key] = uuid(args[key])
-        return SearchCommand(
-            uuid(data["project_id"]),
-            uuid(data["command_id"]),
-            uuid(data["task_id"]),
+        selectors = []
+        scientific_fields = {
+            "root_hypothesis_version_id",
+            "root_experiment_spec_version_id",
+            "hypothesis_version_id",
+            "experiment_spec_version_id",
+        }
+        for field in fields(kind):
+            key = field.name
+            if key in args and key.endswith("_id") and args[key] is not None:
+                if key in scientific_fields and args[key] in ("current", "latest"):
+                    selectors.append(key)
+                    args[key] = None
+                else:
+                    args[key] = uuid(args[key])
+        command = SearchCommand(
+            project_id,
+            command_id,
+            task_id,
             data["expected_row_version"],
             name,
             kind(**args),
         )
+        if selectors:
+            raise ResearchBaseError(
+                ErrorCode.FROZEN_REFERENCE_REQUIRED, "exact frozen reference required"
+            )
+        return command
     except (TypeError, KeyError):
         invalid("invalid command fields")
 

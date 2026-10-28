@@ -160,6 +160,68 @@ def test_scientific_reference_selector_error(name, original, field, selector):
     assert exc.value.code == ErrorCode.VALIDATION_ERROR
 
 
+@pytest.mark.parametrize(
+    ("name", "original", "field"),
+    [
+        ("create_search_session", CREATE, "root_hypothesis_version_id"),
+        ("create_search_session", CREATE, "root_experiment_spec_version_id"),
+        ("append_search_node", APPEND, "hypothesis_version_id"),
+        ("append_search_node", APPEND, "experiment_spec_version_id"),
+    ],
+)
+@pytest.mark.parametrize("selector", ["current", "latest"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_selector_precedence_over_all_ordinary_syntax(name, original, field, selector, reverse):
+    cases = []
+    for key in ("project_id", "command_id", "task_id"):
+        cases.append(("envelope", key, "bad"))
+    cases.extend(
+        [
+            ("envelope", "expected_row_version", 0),
+            ("envelope", "extra", 1),
+            ("envelope_delete", "command_id", None),
+            ("argument", "session_id", "bad"),
+            ("argument", "extra", 1),
+            ("argument_delete", "session_id", None),
+        ]
+    )
+    if name == "append_search_node":
+        cases.extend(
+            [
+                ("argument", "node_id", "bad"),
+                ("argument", "reservation_id", "bad"),
+                ("argument", "parent_node_id", "bad"),
+                ("argument", "branch_kind", "unknown"),
+                ("argument", "mutation_reason", " "),
+                ("argument_delete", "mutation_reason", None),
+            ]
+        )
+    other = next(
+        f
+        for f in (
+            ("root_hypothesis_version_id", "root_experiment_spec_version_id")
+            if name == "create_search_session"
+            else ("hypothesis_version_id", "experiment_spec_version_id")
+        )
+        if f != field
+    )
+    cases.append(("argument", other, "bad"))
+    for location, key, value in cases:
+        raw = deepcopy(original)
+        raw["arguments"][field] = selector
+        target = raw["arguments"] if location.startswith("argument") else raw
+        if location.endswith("delete"):
+            del target[key]
+        else:
+            target[key] = value
+        if reverse:
+            raw["arguments"] = dict(reversed(list(raw["arguments"].items())))
+            raw = dict(reversed(list(raw.items())))
+        with pytest.raises(ResearchBaseError) as exc:
+            parse_search_command(name, raw)
+        assert exc.value.code == ErrorCode.VALIDATION_ERROR, (location, key, reverse)
+
+
 def test_nfc_uuid_defaults_and_reason_bounds():
     cmd = parse_search_command("append_search_node", APPEND)
     assert cmd.material(ACTOR)["arguments"]["mutation_reason"] == "Café baseline"
