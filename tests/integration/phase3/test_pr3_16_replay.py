@@ -5,9 +5,9 @@ from dataclasses import replace
 
 import pytest
 from sqlalchemy import text
-from tests.integration.phase3.search_fixtures import _search_env as _search_env
 from tests.integration.phase3.test_pr3_03_concurrency import ADVISORY_SQL, observed_wait
 from tests.integration.phase3.test_pr3_16_application import assert_create_effects, snapshot
+from tests.integration.phase3.test_pr3_16_concurrency import _search_env as _search_env
 from tests.integration.phase3.test_pr3_16_concurrency import credentials
 from tests.unit.phase3.test_experiment_search import pg_command
 

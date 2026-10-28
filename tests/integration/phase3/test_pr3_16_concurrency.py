@@ -10,16 +10,25 @@ case proves replay immediately after real SHARE/project waits.
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from threading import Event, get_ident
 from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import sessionmaker
+from tests.disposable_postgres import disposable_database
 from tests.integration.phase2.pr2_20_support import upgrade
-from tests.integration.phase3.agent_fixtures import enrollment
+from tests.integration.phase2.test_pr2_01_source_identity import _authorized_service
+from tests.integration.phase3.agent_fixtures import (
+    Credentials as IdentityCredentials,
+)
+from tests.integration.phase3.agent_fixtures import (
+    EnrollmentVerifier,
+    SubjectCredentials,
+    enrollment,
+)
 from tests.integration.phase3.conftest import Credentials, PlanningFixture
-from tests.integration.phase3.search_fixtures import _search_env as _search_env
 from tests.integration.phase3.test_pr3_03_concurrency import ADVISORY_SQL, observed_wait
 from tests.integration.phase3.test_pr3_04_application import approve, bind
 from tests.integration.phase3.test_pr3_16_application import (
@@ -29,9 +38,19 @@ from tests.integration.phase3.test_pr3_16_application import (
 )
 from tests.unit.phase3.test_experiment_search import pg_command
 
+from researchbase.agent_runtime.application.agent_versions import AgentVersionService
 from researchbase.agent_runtime.application.experiment_search import ExperimentSearchService
 from researchbase.agent_runtime.application.research_task import ResearchTaskService
-from researchbase.application.phase2_identity import AssignProjectRole, CloseProjectRole
+from researchbase.application.phase2_identity import (
+    AssignProjectRole,
+    CloseProjectRole,
+    Phase2IdentityService,
+    ProvisionActor,
+    ProvisioningAttestation,
+    VerifiedSubject,
+)
+from researchbase.domain.phase2_identity import VerifiedPrincipal
+from researchbase.foundation.artifact_store import ContentAddressedFilesystemArtifactStore
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.ids import new_uuid7
 from researchbase.persistence.experiment_search_repository import (
@@ -45,50 +64,152 @@ OPERATIONS = dict(
 )
 
 
-@pytest.fixture
-def agent_search_env(agents):
-    """Reuse enrolled Agent/ordinary-role UoW; no AgentVersion or execution."""
-    source = agents
-    enrolled = enrollment(source)
-    source.service.execute(enrolled)
-    principal = source.identity.resolve_agent_subject(enrolled.arguments.subject)
-    upgrade(source.url, "0082_experiment_search_core")
-    with source.engine.connect() as conn:
-        role = conn.execute(text("SELECT current_user")).scalar_one()
-    admin = create_engine(source.url)
-    try:
-        with admin.begin() as conn:
-            conn.execute(text(f'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{role}"'))
-            conn.execute(
-                text(
-                    "GRANT SELECT,INSERT ON experiment_search_sessions,experiment_search_events,"
-                    f'experiment_search_nodes,experiment_search_node_runs TO "{role}"'
-                )
+@pytest.fixture(name="search_env", scope="module")
+def _search_env(tmp_path_factory):
+    """Create task authority through Application commands, with empty search history."""
+    with disposable_database("researchbase_pr212_test_") as url:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setenv("DATABASE_URL", url)
+            admin, _, _, principal, project = _authorized_service(
+                url, migration_revision="0081_agent_execution_intents"
             )
-        owner = PlanningFixture(
-            source.engine,
-            source.factory,
-            ResearchTaskService(source.factory, Credentials(), source.store),
-            source.owner,
-            source.project,
-            source.url,
-            source.store,
+        role = "pr316_" + new_uuid7().hex
+        engine = None
+        try:
+            upgrade(url, "0082_experiment_search_core")
+            with admin.begin() as conn:
+                conn.execute(
+                    text(f"CREATE ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOLOGIN")
+                )
+                conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {role}"))
+                conn.execute(
+                    text(
+                        "GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public "
+                        f"TO {role}"
+                    )
+                )
+            engine = create_engine(
+                url,
+                connect_args={
+                    "options": f"-c role={role} -c lock_timeout=10s -c statement_timeout=30s"
+                },
+            )
+            sessions = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+
+            def factory():
+                return SqlAlchemyUnitOfWork(sessions)
+
+            store = ContentAddressedFilesystemArtifactStore(tmp_path_factory.mktemp("search-cas"))
+            p = PlanningFixture(
+                engine,
+                factory,
+                ResearchTaskService(factory, Credentials(), store),
+                principal,
+                project,
+                url,
+                store,
+            )
+            task = p.create()
+            bind(p, task)
+            approve(p, task, 2)
+            yield SimpleNamespace(engine=engine, admin=admin, url=url, p=p, task=task, role=role)
+        finally:
+            if engine is not None:
+                engine.dispose()
+            with admin.begin() as conn:
+                conn.execute(text(f"DROP OWNED BY {role}"))
+                conn.execute(text(f"DROP ROLE IF EXISTS {role}"))
+            admin.dispose()
+
+
+@pytest.fixture
+def agent_search_env(search_env):
+    """Provision Human operator and Agent through public commands under the DML role."""
+    source = search_env
+    owner = source.p
+    trusted = IdentityCredentials()
+    verifier = EnrollmentVerifier()
+    identity = Phase2IdentityService(
+        owner.factory,
+        nonce_issuer=trusted,
+        operator_policy=trusted,
+        credential_verifier=trusted,
+        subject_credential_verifier=SubjectCredentials(),
+        attestation_verifier=trusted,
+        agent_enrollment_verifier=verifier,
+        agent_mtls_resolver=trusted,
+    )
+    # An external verified deployment operator attests provisioning; the durable
+    # Human operator used for Agent enrollment is created by the owning command.
+    witness = VerifiedPrincipal(
+        new_uuid7(),
+        owner.principal.deployment_id,
+        "MTLS_URI",
+        f"spiffe://test/provisioners/{new_uuid7()}",
+        "test-provisioner",
+        datetime.now(UTC),
+    )
+    actor = new_uuid7()
+    subject = VerifiedSubject(
+        owner.principal.deployment_id,
+        "MTLS_URI",
+        f"spiffe://test/operators/{actor}",
+        f"test-operator-{actor}",
+    )
+    identity.provision_actor(
+        ProvisionActor(
+            owner.principal,
+            subject,
+            actor,
+            "S8 Human operator",
+            ProvisioningAttestation(
+                actor,
+                subject.deployment_id,
+                subject.subject_kind,
+                subject.subject_value,
+                subject.credential_id,
+                witness,
+                "a" * 64,
+                "test-only:operator-attestation",
+                "Provision S8 Human operator",
+            ),
+            new_uuid7(),
         )
-        task = owner.create()
-        bind(owner, task)
-        approve(owner, task, 2)
-        frozen_references(owner)
-        p = replace(owner, principal=principal)
-        yield SimpleNamespace(
-            engine=source.engine,
-            p=p,
-            task=task,
-            identity=source.identity,
-            owner=source.owner,
-            role=role,
-        )
-    finally:
-        admin.dispose()
+    )
+    operator = VerifiedPrincipal(
+        actor,
+        subject.deployment_id,
+        subject.subject_kind,
+        subject.subject_value,
+        subject.credential_id,
+        datetime.now(UTC),
+    )
+    intake = SimpleNamespace(
+        owner=owner.principal,
+        project=owner.project,
+        operator=operator,
+        verifier=verifier,
+    )
+    enrolled = enrollment(intake)
+    AgentVersionService(
+        owner.factory,
+        trusted,
+        identity=identity,
+        enrollment_verifier=verifier,
+    ).execute(enrolled)
+    principal = identity.resolve_agent_subject(enrolled.arguments.subject)
+    task = owner.create()
+    bind(owner, task)
+    approve(owner, task, 2)
+    frozen_references(owner)
+    return SimpleNamespace(
+        engine=source.engine,
+        p=replace(owner, principal=principal),
+        task=task,
+        identity=identity,
+        owner=owner.principal,
+        role=source.role,
+    )
 
 
 class BoundedCredentials:
