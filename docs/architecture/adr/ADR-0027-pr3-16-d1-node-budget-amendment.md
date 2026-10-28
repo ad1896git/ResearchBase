@@ -63,3 +63,13 @@ explicit Stage 1 bounds/undefined-value rules in the companion contract must be
 closed before its source implementation; O01/O03/O04/O09 activation dependencies
 remain blocking for subsequent production slices. Local probe fixtures establish
 computation behavior only, never an empirical bearing diagnosis improvement.
+
+### Commander Stage 1 authorization — 2026-10-28
+
+After independent cold review PASS/no P0/P1 at `1cf17316`, the commander accepts only
+the separately scoped pure Stage 1 in-memory numerical/value contract and authorizes
+its implementation plus unit/architecture tests. The review's P2 cross-reference is
+corrected: end-to-end ArtifactStore/PG/resource proof belongs to Stage 3, not Stage 1.
+The owner delegated this decision. ADR-0027's production amendment stays PROPOSED;
+no Artifact I/O, canonical provenance binding, migration, capability registration,
+budget mutation or node activation is authorized by this acceptance.

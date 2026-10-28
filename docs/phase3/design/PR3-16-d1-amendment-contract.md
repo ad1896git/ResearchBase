@@ -115,7 +115,7 @@ zero external cost. If the task requires a dollar cap covering them, this vector
 provide it: activation is blocked pending an approved accounting decision. Artifact
 reads remain real I/O, metered as bytes/read count and attributed to reservation ID.
 
-Codex implementing stage 1/3 must produce the actual evaluator's benchmark evidence:
+Codex implementing stage 3 must produce the actual evaluator's benchmark evidence:
 implementation/hash, machine/OS/Python, CPU quota, ArtifactStore backing path/type,
 input/output bytes/counts/hashes, PG version/config, lock/statement timeouts, load,
 per-phase monotonic timings and process peak RSS, with all nine measured dimensions.
