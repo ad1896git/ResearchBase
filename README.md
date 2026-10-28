@@ -103,6 +103,19 @@ uv run pyright
 git diff --check
 ```
 
+For a quick local CI configuration check, run the static commands above and:
+
+```bash
+uv run pytest -o addopts='' -ra tests/unit/test_ci_migration_head.py
+```
+
+Run the relevant focused PostgreSQL integration tests for each feature slice against a
+disposable PostgreSQL 18 instance, in addition to those quick checks. Keep local commits
+local while iterating, and push reviewed, stable feature slices. Pull requests targeting
+`main` run the full Linux CI gate; a push to `main` also runs it. CI skips changes limited
+to Markdown files under `docs/` and the root `README.md`. Each of the six CI test shards
+uses its own PostgreSQL service and applies migrations independently.
+
 Run the full test suite against the development PostgreSQL database:
 
 ```bash
