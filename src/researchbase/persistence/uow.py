@@ -48,6 +48,9 @@ from researchbase.persistence.discussion_hypothesis_repository import (
     SqlAlchemyDiscussionHypothesisRepository,
 )
 from researchbase.persistence.discussion_repository import SqlAlchemyDiscussionRepository
+from researchbase.persistence.experiment_search_repository import (
+    SqlAlchemyExperimentSearchRepository,
+)
 from researchbase.persistence.governance_repository import SqlAlchemyGovernanceRepository
 from researchbase.persistence.internal_review_repository import SqlAlchemyInternalReviewRepository
 from researchbase.persistence.literature_evidence_repository import (
@@ -523,6 +526,7 @@ class SqlAlchemyUnitOfWork:
     gateway: SqlAlchemyGatewayRepository
     task_safety: SqlAlchemyTaskSafetyRepository
     research_tasks: SqlAlchemyResearchTaskRepository
+    experiment_search: SqlAlchemyExperimentSearchRepository
 
     def __init__(
         self,
@@ -552,8 +556,10 @@ class SqlAlchemyUnitOfWork:
         self._session: Session | None = None
 
         self._committed = False
+        self._search_command = False
 
     def __enter__(self) -> SqlAlchemyUnitOfWork:
+        self._search_command = False
         self._publication_entry_error_normalization = False
         self._decision_error_normalization = False
         self._prepare_submission_error_normalization = False
@@ -612,6 +618,7 @@ class SqlAlchemyUnitOfWork:
         self.research_tasks = SqlAlchemyResearchTaskRepository(self._session)
         self.gateway = SqlAlchemyGatewayRepository(self._session)
         self.task_safety = SqlAlchemyTaskSafetyRepository(self._session)
+        self.experiment_search = SqlAlchemyExperimentSearchRepository(self._session)
         self.context_reads = SqlAlchemyContextRepository(
             self._session, self, self._context_artifact_store
         )
@@ -651,6 +658,11 @@ class SqlAlchemyUnitOfWork:
     def begin_gateway_command(self) -> None:
         self.begin_research_task()
         self._gateway_error_normalization = True
+
+    def begin_experiment_search(self) -> None:
+        """Configure the existing writer transaction without executing SQL."""
+        self.begin_research_task()
+        self._search_command = True
 
     def begin_research_task(self) -> None:
         """Configure isolation before the literal first SHARE statement."""
@@ -712,6 +724,8 @@ class SqlAlchemyUnitOfWork:
 
     def commit(self) -> None:
         try:
+            if self._search_command:
+                self.experiment_search.before_commit()
             self._require_session().commit()
         except DBAPIError as exc:
             if self._decision_error_normalization:

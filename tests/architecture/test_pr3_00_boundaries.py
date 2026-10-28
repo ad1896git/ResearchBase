@@ -230,6 +230,7 @@ def test_bootstrap_initializers_stay_empty_and_import_without_activation(tmp_pat
         "agent_runtime/application/routing.py",  # ADR-0025: frozen pack §8.
         "agent_runtime/ports/capability_gateway.py",  # ADR-0025: frozen pack §8.
         "agent_runtime/ports/gateway_repository.py",  # ADR-0025: frozen pack §8.
+        "agent_runtime/ports/search_repository.py",  # ADR-0029: bounded S2 storage port.
         # Owner-approved PR3-05 read-only plan §3 R1; contracts only, no activation.
         "agent_runtime/application/context_contracts.py",
         "agent_runtime/domain/task_memory.py",
