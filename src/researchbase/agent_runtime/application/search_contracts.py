@@ -7,6 +7,7 @@ from uuid import UUID
 from researchbase.agent_runtime.application.contracts import CommandResult, enum_value, json_value
 from researchbase.agent_runtime.domain.experiment_search import BranchKind
 from researchbase.agent_runtime.domain.research_task import exact_uuid, invalid, text_value
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.hashing import sha256_canonical_json
 
 
@@ -131,6 +132,15 @@ def parse_search_command(name: str, data: dict) -> SearchCommand:
         args = dict(raw)
         for key in args:
             if key.endswith("_id") and args[key] is not None:
+                if key in {
+                    "root_hypothesis_version_id",
+                    "root_experiment_spec_version_id",
+                    "hypothesis_version_id",
+                    "experiment_spec_version_id",
+                } and args[key] in ("current", "latest"):
+                    raise ResearchBaseError(
+                        ErrorCode.FROZEN_REFERENCE_REQUIRED, "exact frozen reference required"
+                    )
                 args[key] = uuid(args[key])
         return SearchCommand(
             uuid(data["project_id"]),

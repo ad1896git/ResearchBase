@@ -16,7 +16,7 @@ from researchbase.agent_runtime.domain.experiment_search import (
     search_profile_allowed,
 )
 from researchbase.foundation.canonical_json import canonical_json_bytes
-from researchbase.foundation.errors import ResearchBaseError
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 
 def uid(n):
@@ -129,6 +129,35 @@ def test_closed_envelopes_and_fixed_vectors():
         del bad["expected_row_version"]
         with pytest.raises(ResearchBaseError):
             parse_search_command(name, bad)
+
+
+@pytest.mark.parametrize(
+    ("name", "original", "field"),
+    [
+        ("create_search_session", CREATE, "root_hypothesis_version_id"),
+        ("create_search_session", CREATE, "root_experiment_spec_version_id"),
+        ("append_search_node", APPEND, "hypothesis_version_id"),
+        ("append_search_node", APPEND, "experiment_spec_version_id"),
+    ],
+)
+@pytest.mark.parametrize("selector", ["current", "latest"])
+def test_scientific_reference_selector_error(name, original, field, selector):
+    raw = deepcopy(original)
+    raw["arguments"][field] = selector
+    with pytest.raises(ResearchBaseError) as exc:
+        parse_search_command(name, raw)
+    assert exc.value.code == ErrorCode.FROZEN_REFERENCE_REQUIRED
+
+    raw["arguments"]["unknown"] = 1
+    with pytest.raises(ResearchBaseError) as exc:
+        parse_search_command(name, raw)
+    assert exc.value.code == ErrorCode.VALIDATION_ERROR
+
+    del raw["arguments"]["unknown"]
+    raw["arguments"][field] = "not-a-uuid"
+    with pytest.raises(ResearchBaseError) as exc:
+        parse_search_command(name, raw)
+    assert exc.value.code == ErrorCode.VALIDATION_ERROR
 
 
 def test_nfc_uuid_defaults_and_reason_bounds():
