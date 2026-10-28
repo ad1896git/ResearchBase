@@ -1,6 +1,6 @@
 # ADR-0029 — PR3-16 minimal storage scope
 
-Status: PROPOSED — 2026-10-27. No implementation authorization.
+Status: ACCEPTED — commander decision after independent review, 2026-10-27.
 
 ## Context and decision
 
@@ -67,3 +67,18 @@ scope, no-op mutation rejection, effect cardinality, old-row preservation and on
 forward head. Later behavior tests cover immutable goal projection, exact replay,
 Human/Agent admission, fresh checks and response boundaries. Missing tests are NOT
 RUN. A design review or documentation-only CI skip is never implementation PASS.
+
+## Bounded S1 admission
+
+Commander records acceptance after focused review PASS/no P0–P3 on `a3ac0e8`;
+owner delegated approvals and requested simplification. The preceding decision
+clauses are unchanged from that reviewed subject. For **S1 only**, freeze the
+existing four-table SQL inventory in `docs/phase3/design/PR3-16-ddl-guards-events.md`
+at integration `13fc58a`, with the exact actor-key clarification in clause 2;
+no objective schema additions. This closes the bounded S1 inventory/authorization
+gate, not every historical F1/full-PR obligation. Assign
+`0082_experiment_search_core` after `0081_agent_execution_intents`, rechecked against
+the sole source head and current integration before dispatch. S1 is authorized
+for that migration, real-PG18 constraint/migration tests and current-head maintenance
+only. All required checks and independent code review must pass before landing;
+no repository/services/queries, D1 activation, merge or phase acceptance is implied.
