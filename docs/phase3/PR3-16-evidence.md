@@ -37,7 +37,7 @@ The five [architecture test nodes](../../tests/architecture/test_pr3_16_boundari
 
 Captured waits observed SHARE, project, command, task and Agent actor keys through `pg_locks`, `pg_stat_activity` and blocking PIDs; competing CAS writers; same-key exact replay, hash conflict and own-xmin exclusion; expiry and entitlement checks after observed waits; and recovery after actual commit followed by lost-response injection. Real database deadlock and lock timeout were separated from injected SQLSTATE classification probes. Retries were bounded, without timeout retry or deadline widening.
 
-As of **2026-10-28**, [PR 28](https://github.com/ad1896git/ResearchBase/pull/28) had static SUCCESS and six Linux test shards still RUNNING. Final seven-job acceptance and merge are **PENDING**, not PASS; the commander will finalize after actual results. This document task triggers no cloud run.
+Cloud acceptance on **2026-10-28**: [PR 28](https://github.com/ad1896git/ResearchBase/pull/28) passed the static job and all six Linux test shards at `91fe951f1cb038dde9b55bbd2bdead3c7f4969c9`, and merged as `3d51fcf45689dc8b4e206bcc04dd93594be311a4`. This closes the bounded code/test slice only; the unfulfilled obligations below remain open. This evidence-only change is covered by the existing docs-Markdown CI exclusion; skipped CI is not reported as a test PASS.
 
 ## Unfulfilled obligations
 
