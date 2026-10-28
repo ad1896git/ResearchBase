@@ -3,16 +3,38 @@ name: CI
 on:
   # Only docs Markdown and the root README skip CI; scripts and governing files still run all shards.
   push:
+    branches: [main]
     paths-ignore:
       - 'docs/**/*.md'
       - 'README.md'
   pull_request:
+    branches: [main]
     paths-ignore:
       - 'docs/**/*.md'
       - 'README.md'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name != 'pull_request' && github.run_id || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pyright
+
   checks:
+    needs: static
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -66,9 +88,6 @@ jobs:
           echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
       - run: pg_dump --version
       - run: uv sync --locked --group dev
-      - run: uv run ruff format --check .
-      - run: uv run ruff check .
-      - run: uv run pyright
       - run: uv run alembic upgrade head
       - run: test "$(uv run alembic current | tail -n 1)" = "0082_experiment_search_core (head)"
       - name: Run deterministic pytest file shard
