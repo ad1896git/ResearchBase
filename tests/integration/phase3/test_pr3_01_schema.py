@@ -5,6 +5,7 @@ from time import monotonic
 
 import pytest
 from sqlalchemy import inspect, text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from tests.integration.phase3.conftest import raw_plan
@@ -74,9 +75,20 @@ def test_exact_catalog_and_two_final_checks(planning):
                 c["type"].__class__.__name__ in {"JSON", "JSONB"}
                 for c in inspect(conn).get_columns(table)
             )
-            assert set(Base.metadata.tables[table].columns.keys()) == {
-                c["name"] for c in inspect(conn).get_columns(table)
-            }
+            columns = inspect(conn).get_columns(table)
+            admitted = (
+                {"result_search_session_id", "result_search_node_id", "result_search_event_id"}
+                if table == "research_task_command_receipts"
+                else set()
+            )
+            assert {c["name"] for c in columns} == (
+                set(Base.metadata.tables[table].columns.keys()) | admitted
+            )
+            for column in columns:
+                if column["name"] in admitted:
+                    assert isinstance(column["type"], UUID)
+                    assert column["nullable"] is True
+                    assert column["default"] is None
         fk = next(
             f
             for f in inspect(conn).get_foreign_keys("research_tasks")

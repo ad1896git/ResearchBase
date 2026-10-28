@@ -29,7 +29,7 @@ from tests.integration.phase2.test_pr2_11_r2_persistence import (
 from tests.integration.phase2.test_pr2_13_claim_placement import _draft as _draft
 from tests.integration.phase2.test_pr2_15_decision import decision_env as decision_env
 
-# Exact 0079 -> 0081 additions, from migrations/versions/0080_capability_gateway.py.
+# Exact 0079 -> 0082 additions, from migrations/versions/0080_capability_gateway.py.
 # Generated UNIQUE/PRIMARY KEY index names were confirmed on PostgreSQL 18.
 PR2_20_POST_0079_TABLES = frozenset(
     (
@@ -180,8 +180,212 @@ PR2_20_POST_0079_REMOVED_CONSTRAINTS = frozenset(
 )
 
 
+# Exact admitted 0082 additions; no wildcard exclusions from accepted catalogs.
+PR316_POST_0081_CONSTRAINTS = {
+    "experiment_search_events": [
+        "pr316_event_pk",
+        "pr316_event_id_ck",
+        "pr316_event_time_ck",
+        "pr316_event_receipt_uq",
+        "pr316_event_actor_fk",
+        "pr316_event_receipt_fk",
+        "pr316_event_scope_uq",
+        "pr316_event_sequence_uq",
+        "pr316_event_sequence_ck",
+        "pr316_event_kind_ck",
+        "pr316_event_reason_ck",
+        "pr316_event_shape_ck",
+        "pr316_event_session_fk",
+        "pr316_event_node_fk",
+        "pr316_event_id_nn",
+        "pr316_event_research_task_id_nn",
+        "pr316_event_search_session_id_nn",
+        "pr316_event_sequence_nn",
+        "pr316_event_event_type_nn",
+        "pr316_event_reason_nn",
+        "pr316_event_actor_id_nn",
+        "pr316_event_occurred_at_nn",
+        "pr316_event_receipt_id_nn",
+        "pr316_event_complete",
+    ],
+    "experiment_search_node_runs": [
+        "pr316_link_pk",
+        "pr316_link_id_ck",
+        "pr316_link_time_ck",
+        "pr316_link_receipt_uq",
+        "pr316_link_actor_fk",
+        "pr316_link_receipt_fk",
+        "pr316_link_scope_uq",
+        "pr316_link_pair_uq",
+        "pr316_link_session_fk",
+        "pr316_link_node_fk",
+        "pr316_link_run_fk",
+        "pr316_link_id_nn",
+        "pr316_link_project_id_nn",
+        "pr316_link_research_task_id_nn",
+        "pr316_link_search_session_id_nn",
+        "pr316_link_node_id_nn",
+        "pr316_link_run_id_nn",
+        "pr316_link_created_by_nn",
+        "pr316_link_created_at_nn",
+        "pr316_link_receipt_id_nn",
+    ],
+    "experiment_search_nodes": [
+        "pr316_node_pk",
+        "pr316_node_id_ck",
+        "pr316_node_time_ck",
+        "pr316_node_receipt_uq",
+        "pr316_node_actor_fk",
+        "pr316_node_receipt_fk",
+        "pr316_node_scope_uq",
+        "pr316_node_session_fk",
+        "pr316_node_parent_fk",
+        "pr316_node_reservation_fk",
+        "pr316_node_reservation_uq",
+        "pr316_node_depth_ck",
+        "pr316_node_branch_ck",
+        "pr316_node_reason_ck",
+        "pr316_node_hypothesis_fk",
+        "pr316_node_hypothesis_pair_ck",
+        "pr316_node_experiment_spec_fk",
+        "pr316_node_experiment_spec_pair_ck",
+        "pr316_node_id_nn",
+        "pr316_node_research_task_id_nn",
+        "pr316_node_search_session_id_nn",
+        "pr316_node_depth_nn",
+        "pr316_node_branch_kind_nn",
+        "pr316_node_mutation_reason_nn",
+        "pr316_node_reservation_id_nn",
+        "pr316_node_created_by_nn",
+        "pr316_node_created_at_nn",
+        "pr316_node_receipt_id_nn",
+        "pr316_node_complete",
+    ],
+    "experiment_search_sessions": [
+        "pr316_session_pk",
+        "pr316_session_id_ck",
+        "pr316_session_time_ck",
+        "pr316_session_receipt_uq",
+        "pr316_session_actor_fk",
+        "pr316_session_receipt_fk",
+        "pr316_session_scope_uq",
+        "pr316_session_project_uq",
+        "pr316_session_task_fk",
+        "pr316_session_budget_fk",
+        "pr316_session_hypothesis_fk",
+        "pr316_session_hypothesis_pair_ck",
+        "pr316_session_experiment_spec_fk",
+        "pr316_session_experiment_spec_pair_ck",
+        "pr316_session_id_nn",
+        "pr316_session_project_id_nn",
+        "pr316_session_research_task_id_nn",
+        "pr316_session_budget_id_nn",
+        "pr316_session_created_by_nn",
+        "pr316_session_created_at_nn",
+        "pr316_session_receipt_id_nn",
+        "pr316_session_complete",
+    ],
+    "research_task_command_receipts": [
+        "pr316_command_names",
+        "pr316_receipt_session_fk",
+        "pr316_receipt_node_fk",
+        "pr316_receipt_event_fk",
+        "pr316_receipt_shape_ck",
+    ],
+    "research_task_events": [
+        "pr316_task_event_names",
+        "pr316_task_event_states",
+        "pr316_task_event_reason",
+    ],
+    "runs": ["pr316_run_project_uq"],
+}
+PR316_POST_0081_INDEXES = {
+    "experiment_search_events": [
+        "pr316_event_pk",
+        "pr316_event_receipt_uq",
+        "pr316_event_scope_uq",
+        "pr316_event_sequence_uq",
+        "pr316_event_one_creation",
+        "pr316_event_one_node_creation",
+        "pr316_event_node",
+        "pr316_event_actor",
+        "pr316_event_receipt",
+    ],
+    "experiment_search_node_runs": [
+        "pr316_link_pk",
+        "pr316_link_receipt_uq",
+        "pr316_link_scope_uq",
+        "pr316_link_pair_uq",
+        "pr316_link_session_project",
+        "pr316_link_run",
+        "pr316_link_order",
+        "pr316_link_actor",
+        "pr316_link_receipt",
+    ],
+    "experiment_search_nodes": [
+        "pr316_node_pk",
+        "pr316_node_receipt_uq",
+        "pr316_node_scope_uq",
+        "pr316_node_reservation_uq",
+        "pr316_node_one_root",
+        "pr316_node_parent",
+        "pr316_node_order",
+        "pr316_node_hypothesis",
+        "pr316_node_spec",
+        "pr316_node_reservation",
+        "pr316_node_actor",
+        "pr316_node_receipt",
+    ],
+    "experiment_search_sessions": [
+        "pr316_session_pk",
+        "pr316_session_receipt_uq",
+        "pr316_session_scope_uq",
+        "pr316_session_project_uq",
+        "pr316_session_task_project",
+        "pr316_session_budget",
+        "pr316_session_project",
+        "pr316_session_hypothesis",
+        "pr316_session_spec",
+        "pr316_session_actor",
+        "pr316_session_receipt",
+    ],
+    "research_task_command_receipts": [
+        "pr316_receipt_session",
+        "pr316_receipt_node",
+        "pr316_receipt_event_scope",
+        "pr316_receipt_event_uq",
+    ],
+    "runs": ["pr316_run_project_uq"],
+}
+PR316_TABLES = frozenset(
+    (
+        "experiment_search_sessions",
+        "experiment_search_nodes",
+        "experiment_search_node_runs",
+        "experiment_search_events",
+    )
+)
+PR2_20_POST_0079_TABLES = PR2_20_POST_0079_TABLES | PR316_TABLES
+for _table, _indexes in PR316_POST_0081_INDEXES.items():
+    PR2_20_POST_0079_INDEXES[_table] = PR2_20_POST_0079_INDEXES.get(_table, ()) + tuple(_indexes)
+PR2_20_POST_0079_ADDED_CONSTRAINTS = (
+    PR2_20_POST_0079_ADDED_CONSTRAINTS
+    - {
+        ("research_task_command_receipts", "pr303_command_names"),
+        ("research_task_events", "pr303_event_names"),
+        ("research_task_events", "pr303_event_states"),
+        ("research_task_events", "pr303_event_reason"),
+    }
+) | {
+    (table, name)
+    for table, names in PR316_POST_0081_CONSTRAINTS.items()
+    if table not in PR316_TABLES
+    for name in names
+}
+
+
 def assert_pr2_20_head_catalog_unchanged(before: dict[str, Any], after: dict[str, Any]) -> None:
-    """Allow only the named 0080/0081 delta; retain exact definitions of prior objects."""
+    """Allow only the named 0080/0081/0082 delta; retain exact definitions of prior objects."""
     before_indexes = {tuple(row) for row in before["indexes"]}
     after_indexes = {tuple(row) for row in after["indexes"]}
     expected_indexes = {
@@ -262,10 +466,13 @@ def assert_pr2_20_head_catalog_unchanged(before: dict[str, Any], after: dict[str
     }
     for table, columns in not_null_columns.items():
         intent_constraints[table].update(f"{table}_{column}_not_null" for column in columns)
+    intent_constraints.update(
+        {table: set(PR316_POST_0081_CONSTRAINTS[table]) for table in PR316_TABLES}
+    )
     for table, names in intent_constraints.items():
         assert {row[1] for row in added if row[0] == table} == names
-    # Constraints owned by the seven new tables are outside the PR2 catalog.
-    # On pre-existing tables, only the exact named 0080/0081 additions are permitted.
+    # Constraints owned by the eleven new tables are outside the PR2 catalog.
+    # On pre-existing tables, only the exact named 0080/0081/0082 additions are permitted.
     assert {
         row[:2] for row in added if row[0] not in PR2_20_POST_0079_TABLES
     } == PR2_20_POST_0079_ADDED_CONSTRAINTS

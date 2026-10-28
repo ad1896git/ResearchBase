@@ -620,6 +620,13 @@ def check_expression(source, start):
 
 def test_receipt_and_task_event_full_check_and_fk_catalog(planning):
     section = PACK.read_text().split("## 3. Constrained", 1)[1].split("## 4.", 1)[0]
+    search_ddl = Path("docs/phase3/design/PR3-16-ddl-guards-events.md").read_text()
+    renamed = {
+        "pr303_command_names": "pr316_command_names",
+        "pr303_event_names": "pr316_task_event_names",
+        "pr303_event_states": "pr316_task_event_states",
+        "pr303_event_reason": "pr316_task_event_reason",
+    }
     with planning.engine.begin() as conn:
         conn.execute(text(TEMP_RECEIPT_CHECKS_SQL))
         conn.execute(text(TEMP_EVENT_CHECKS_SQL))
@@ -629,7 +636,25 @@ def test_receipt_and_task_event_full_check_and_fk_catalog(planning):
             receipt = name in {"pr303_command_names", "pr303_receipt_shape"}
             table = "research_task_command_receipts" if receipt else "research_task_events"
             temporary = "expected_receipt_checks" if receipt else "expected_event_checks"
-            expression = check_expression(section, match.end())
+            live_name = renamed.get(name, name)
+            if name in renamed:
+                definitions = list(
+                    re.finditer(r"ADD CONSTRAINT " + live_name + r" CHECK \(", search_ddl)
+                )
+                assert len(definitions) == 1
+                expression = check_expression(search_ddl, definitions[0].end())
+                assert (
+                    conn.execute(
+                        text(
+                            "SELECT count(*) FROM pg_constraint "
+                            "WHERE conrelid=CAST(:table AS regclass) AND conname=:name"
+                        ),
+                        {"table": table, "name": name},
+                    ).scalar_one()
+                    == 0
+                )
+            else:
+                expression = check_expression(section, match.end())
             conn.execute(
                 text(
                     ADD_EXPECTED_CHECK_SQL.format(
@@ -644,7 +669,7 @@ def test_receipt_and_task_event_full_check_and_fk_catalog(planning):
                 SELECT pg_get_constraintdef(oid) FROM pg_constraint
                 WHERE conrelid=CAST(:table AS regclass) AND conname=:name
             """),
-                {"table": table, "name": name},
+                {"table": table, "name": live_name},
             ).scalar_one()
             expected = conn.execute(
                 text("""

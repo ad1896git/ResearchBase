@@ -150,13 +150,14 @@ def test_upgrade_refuses_receipt_check_drift(constraint):
 
 def test_empty_upgrade_and_single_head():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == ["0082_experiment_search_core"]
+    assert scripts.get_revision("0082_experiment_search_core").down_revision == HEAD
     assert scripts.get_revision(HEAD).down_revision == "0080_capability_gateway"
     with disposable_database("researchbase_pr212_test_") as url:
         upgrade(url, "0080_capability_gateway")
         engine = create_engine(url)
         before = catalog(engine)
-        upgrade(url)
+        upgrade(url, HEAD)
         after = catalog(engine)
         assert_exact_catalog_delta(before, after)
         with engine.connect() as conn:
@@ -212,7 +213,7 @@ def test_populated_upgrade_preserves_history(agents):
 
     try:
         before = snapshot()
-        upgrade(agents.url)
+        upgrade(agents.url, HEAD)
         assert snapshot() == before
         with owning.connect() as conn:
             assert (
@@ -256,4 +257,6 @@ def test_downgrade_refuses_before_change(intent_env, populated, monkeypatch):
             conn.execute(text("SELECT count(*) FROM agent_execution_instances")).scalar_one()
             == count
         )
-        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0082_experiment_search_core"
+        )

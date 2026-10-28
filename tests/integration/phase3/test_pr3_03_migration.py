@@ -75,7 +75,7 @@ def test_empty_base_upgrade_and_downgrade_refusal(monkeypatch):
                     conn.execute(text("SHOW server_encoding")).scalar_one(),
                 )
             check_refusal(url, engine, cfg)
-            assert ScriptDirectory.from_config(cfg).get_heads() == ["0081_agent_execution_intents"]
+            assert ScriptDirectory.from_config(cfg).get_heads() == ["0082_experiment_search_core"]
         finally:
             engine.dispose()
 
