@@ -437,7 +437,7 @@ acceptance after repair. This proposed manifest does not authorize implementatio
 **候选迁移边界：** 在实际 PR32 合并及唯一 head 新核对后才分配前向 revision；不修改 0083 文件及其历史定义；经授权的候选前向迁移替换参考 DB 上现有函数体以激活。候选分支及产物标识、源闭包和迁移集合须经独立审查，部署系统仅允许已记录的隔离主机、DB、writer 与 CAS 绑定运行，生产发布流程显式拒绝该候选 revision/产物。迁移执行前独立核实目标 DB 的不可混淆身份、当前唯一 head、角色及权限，迁移事务自身也须核对同一目标和绑定，任一不符即中止；精确 DB 身份只是防误操作检查，权限和受保护 provisioning 才提供授权证据。禁止通过调用方参数、GUC、临时 ALTER、禁 trigger 或直接写 v2 已提交效果绕过。已应用的参考 revision 与 source hash 冻结并保留其分支、DB 和历史，不合并 main 或生产升级线；生产另以届时 main 唯一 head 和实际生产事实授权 migration/guard delta，不携带参考身份或依赖参考 preflight，须独立真实 PG 验收，参考 gate 证明不自动转移。
 参考支持范围限定为单主机、本地文件系统的可靠共享POSIX advisory lock及稳定inode、每namespace一个合作consumer进程；不得由fork worker继承authority。网络文件系统、多主机、独立mount锁视图、不可信同UID代码或绕过Application的直接数据库写入均不在该信任模型内。操作员必须记录实际拓扑、隔离及所有组合根的绑定事实；不支持或无法核实则拒绝。租约、路径与hash本身不能建立这些事实。
 
-注册须核验固定加载 callable 与实际依赖闭包、owner hash 绑定，核验独占租约和实际 DB↔CAS 跨组合根绑定；无注册、不可支持拓扑或失效均 deny。commit 与 revoke 持同一进程互斥直至实际 commit 返回或失败清理；receipt 首先按现有认证/读取权限及原 key/material 重放，未知 commit 先查询已决事务 receipt。无可信完成观察保持 UNKNOWN/full，旧 generation 不赋权。
+注册须核验固定加载 callable 与实际依赖闭包、owner hash 绑定，核验独占租约和实际 DB↔CAS 跨组合根绑定；无注册、不可支持拓扑或失效均 deny。 已注册consumer必须在整个注册生存期连续持有同一稳定inode上的独占POSIX租约，包括所有在途提交及失败清理，直至撤销并完成在途工作后才可释放；不得仅在注册时检查或中途释放后重取。租约丢失、替换或所有权不确定立即fail-closed撤销并禁止新工作；已有提交按下述commit/revoke排序及receipt恢复规则处理，无可信完成观察仍保持UNKNOWN/full。commit 与 revoke 持同一进程互斥直至实际 commit 返回或失败清理；receipt 首先按现有认证/读取权限及原 key/material 重放，未知 commit 先查询已决事务 receipt。无可信完成观察保持 UNKNOWN/full，旧 generation 不赋权。
 
 **具体候选机制和指挥官核验方法**
 
