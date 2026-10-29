@@ -1,6 +1,6 @@
 # PR3-16 D1 — proposed paired bearing evaluation contract
 
-Status: **PROPOSED; activation blocked** pending commander review and the specific
+Status: **PROPOSED for production; production activation blocked** pending commander review and the specific
 proofs below. This replaces the 2026-10-27 question-only draft; historical versions
 remain in version control. It is not a code authorization or an empirical result.
 Authority: [ADR-0026](../../architecture/adr/ADR-0026-pr3-16-experiment-search-core.md),
@@ -8,7 +8,7 @@ Authority: [ADR-0026](../../architecture/adr/ADR-0026-pr3-16-experiment-search-c
 [ADR-0027](../../architecture/adr/ADR-0027-pr3-16-d1-node-budget-amendment.md),
 [PR3-04 contract](../PR3-04-contract-freeze.md), and
 [PR3-16 execution pack](../PR3-16-execution-pack-r2.md). The selections below are
-proposed, not independent approval or evidence that existing code implements them.
+proposed, not independent approval or evidence that existing code implements them. The separately accepted limited reference-only policy in O03 and O09 is subject to exact document diff review before publication; it authorizes no provisioning, implementation, revision allocation, migration apply, reference activation or production. Separate commander stage gates and actual facts are required, without duplicate user permission.
 
 ## O01 — producer and authority
 
@@ -128,6 +128,10 @@ below are activation blockers.
 
 ## O03 — finite resources, pricing and attributable measurements
 
+**隔离 bootstrap 例外：** O03 的实测 W 和实测剩余阶段余量仍是生产强制条件。仅在经单独授权、实际受保护 provision 的精确隔离参考部署，操作员可预先记录正整数验证 deadline W_ref、各阶段最小剩余时间、输入/输出与并发上限、CPU/内存/磁盘/PG 消耗和账单上限、锁与语句超时、总运行数及停止阈值；值由实际环境负责人根据可供应的隔离资源选定并签名或受保护记录，不能在本决议中虚构。W_ref 同时用于 reservation 的 wall_time_seconds 和 deadline_seconds；事务 epoch、task origin cap、等待消耗和超时拒绝照常适用，绝不裁剪。此处阶段余量是操作员硬停止条件，非测量结论。操作员记录须清楚标识参考用途；生产 profile 验证器拒绝参考配置，调用者不能选择或升级模式，不增加 metadata 权威标志。
+每次运行实际观察全部九维，含禁止能力的实际计数；完整记录真实 wall、读取次数/字节和 commit 延迟，禁止裁剪或伪造上限内观察。超限、无法观察、期限不足、环境/来源/绑定/租约变化、锁丢失、错误权限、预算或账单阈值触及即停止新工作并撤销注册；事务未提交则回滚，已提交且超限、无法表示或无可信完整观察时保持 UNKNOWN 和全额 reservation，不重评估、不退款。若实际观察无法按现有结算规则表示，保持 UNKNOWN，记录真实观察并升级会计决议；不得用截断值结算。非 token 的 CPU/磁盘/PG 成本按可验证费率或 included/prepaid 证据单独计账；需要任务内美元总上限且现有 vector 无法表达时阻断，另作会计决议。
+授权来源是实际操作员、受保护安装及受限部署/数据库权限的综合证明，非配置值。验证只走真实 consumer、真实事务与前向门控，不用 TrustedFakeConsumer。隔离 profile 不可作为生产 profile；生产仍按 O03 实测公式 `W = ceil(T_max + J_max)`、实际剩余余量及生产事实验收。所有原有 v1 合同、两个独立 reason、deadline 精确规则及 legacy 行为保持；task-event reason 可以不同于 node mutation/search-event reason，后两者相等，不引入旧 RECON374 reason 相等要求。
+
 Select a CPU-only, local content-addressed ArtifactStore path. No network, accelerator,
 subprocess, model API or provider is permitted by this registration. The engineering
 profile is at most 100,000 evaluation rows, 100,000 groups, 64 classes, 256 UTF-8 bytes
@@ -214,7 +218,7 @@ does not promise bounded I/O latency or a bounded-size read; `open()` reads all 
 The concrete consumer therefore needs a bounded local read adapter that rejects after
 16 MiB + 1 bytes without allocating unbounded content; metadata byte_size alone is
 not proof. Implementing that adapter belongs to the separately authorized code slice. Codex must obtain and measure these facts on the
-selected deployment and attach the above evidence before stage-3 activation; if they
+selected production deployment and attach the above evidence before production stage-3 activation; the separately gated reference-only exception is defined in O03 and O09. For production, if they
 remain unavailable, report each missing fact and keep admission denied. A hard wall
 upper bound cannot be inferred from a cached local arithmetic timing. No dataset or
 training job is needed to obtain synthetic engineering measurements.
@@ -358,7 +362,7 @@ PL/pgSQL VOLATILE): `pr316d1_enabled() RETURNS boolean`,
 `pr316d1_admission(experiment_search_nodes) RETURNS void`, and
 `pr316d1_validate_receipt(uuid) RETURNS void`. Enabled returns literal false in stage 2;
 stage 3 alone may replace it with true after authorized Application wiring and genuine
-positive tests. No caller GUC/role bypass. Authority repeats current `pr316_live`
+positive tests. Production remains subject to the measured profile and production gates; the separately gated reference-only exception is defined in O03 and O09. No caller GUC/role bypass. Authority repeats current `pr316_live`
 entitlement/preheld/fresh-task checks, allowing CANCELLED only for settlement.
 Admission proves same-xmin receipt/reservation/node, O04 mapping, exact vector/binding,
 pre-command stop-free prefix and deadline/checkpoints, O02 DB metadata/hash identity
@@ -428,6 +432,43 @@ repair that first disables new admissions; never restore predicates that reject
 historical v2 rows, delete receipts, or refund reservations. Recheck independent
 acceptance after repair. This proposed manifest does not authorize implementation.
 
+### Reference-only candidate migration boundary
+
+**候选迁移边界：** 在实际 PR32 合并及唯一 head 新核对后才分配前向 revision；不修改 0083 文件及其历史定义；经授权的候选前向迁移替换参考 DB 上现有函数体以激活。候选分支及产物标识、源闭包和迁移集合须经独立审查，部署系统仅允许已记录的隔离主机、DB、writer 与 CAS 绑定运行，生产发布流程显式拒绝该候选 revision/产物。迁移执行前独立核实目标 DB 的不可混淆身份、当前唯一 head、角色及权限，迁移事务自身也须核对同一目标和绑定，任一不符即中止；精确 DB 身份只是防误操作检查，权限和受保护 provisioning 才提供授权证据。禁止通过调用方参数、GUC、临时 ALTER、禁 trigger 或直接写 v2 已提交效果绕过。已应用的参考 revision 与 source hash 冻结并保留其分支、DB 和历史，不合并 main 或生产升级线；生产另以届时 main 唯一 head 和实际生产事实授权 migration/guard delta，不携带参考身份或依赖参考 preflight，须独立真实 PG 验收，参考 gate 证明不自动转移。
+参考支持范围限定为单主机、本地文件系统的可靠共享POSIX advisory lock及稳定inode、每namespace一个合作consumer进程；不得由fork worker继承authority。网络文件系统、多主机、独立mount锁视图、不可信同UID代码或绕过Application的直接数据库写入均不在该信任模型内。操作员必须记录实际拓扑、隔离及所有组合根的绑定事实；不支持或无法核实则拒绝。租约、路径与hash本身不能建立这些事实。
+
+注册须核验固定加载 callable 与实际依赖闭包、owner hash 绑定，核验独占租约和实际 DB↔CAS 跨组合根绑定；无注册、不可支持拓扑或失效均 deny。commit 与 revoke 持同一进程互斥直至实际 commit 返回或失败清理；receipt 首先按现有认证/读取权限及原 key/material 重放，未知 commit 先查询已决事务 receipt。无可信完成观察保持 UNKNOWN/full，旧 generation 不赋权。
+
+**具体候选机制和指挥官核验方法**
+
+候选仅在 PR32 实际合并后，以实际合并的 0083 和重新核实的唯一 head 为基线，审查一个未发布的参考专用前向 revision。其同一迁移事务在任何 DDL 前 fail closed：核对受保护操作员事先批准且独立提供的精确身份记录，包括服务器/集群稳定身份、端点与端口、数据库名及 DB 标识、环境/部署身份、唯一当前 Alembic revision、连接 `session_user`/`current_user`、迁移角色及函数 owner；核对目标 DB 与 CAS 根、namespace、物理存储及组合根的一对一绑定、安装来源和独占租约。核验采用下文固定只读方法；实际环境所有者和 DBA 提供具体预期值与最小读取权限并经审查；缺字段、不可验证、歧义、不匹配、权限不足或绑定变化一律回滚拒绝。身份比较是事故防护，不是授权；受保护 provisioning、明确批准和仅可在参考环境使用的受限迁移角色共同提供授权。不能把未提供的 ID、凭据或 provision 写成既有事实。
+
+迁移角色须可作为现有函数 owner 执行替换（或由受保护的 owner 角色执行），且不向普通应用 writer 授予函数所有权、DDL、角色切换或绕过 guard 的权限；部署凭据、网络和发布控制须实际限制该角色只能用于核准参考 DB。执行前检查 `public.pr316d1_enabled()` 的 OID、零参数 boolean 签名、owner、ACL、语言、volatility、security、search_path 和其他属性与已审查 0083 基线一致，以及原函数体为 false；不符即拒绝。唯一允许的激活 DDL 模式为：
+
+```sql
+CREATE OR REPLACE FUNCTION public.pr316d1_enabled() RETURNS boolean
+LANGUAGE sql STABLE SECURITY INVOKER
+SET search_path = pg_catalog, public, pg_temp AS 'SELECT true';
+```
+
+在同事务中复核原 OID、签名、owner、ACL、search_path 和全部其他函数属性未变，函数体仅从 false 变 true；否则抛错回滚。须验证实际目录属性和调用权限，不假定 SQL 文本自动保留所有属性。0083 的 deferred receipt validation 经现有 `pr316d1_validate_receipt` 调用该同一 helper，先完成既有 authority、binding、digest、安全与 deadline 等检查，再通过最后的 enabled 检查；不新增 helper 或调用链。此数据库门只解除最后的 disabled 拒绝，真实 Application command、port/adapter、注册和 verifier 及其所有检查仍必需，不能单凭 true 赋予应用信任。审查须覆盖精确 SQL、目录前后快照、权限、调用图及错误目标拒绝，真实 PG 测试证明。
+
+候选 revision 一旦在参考 DB 应用，其 source hash、revision 和证据冻结，绝不为生产重写；保留该参考分支、DB 和迁移历史，候选分支/revision 不合并 main，也不进入生产升级线。最终生产激活另以届时实际 main 唯一 head 和实际生产事实为基线，另行授权并设计生产 migration 和 guard delta；不得把参考身份或配置写入生产迁移，也不能让生产升级链依赖参考专用 preflight。生产变更须独立真实 PG 验收，参考通过不自动转移 gate 证明。
+
+尚缺的具体决策是：环境所有者/DBA 必须选定可验证的集群与 DB 稳定身份字段及读取方法、受限迁移角色的 owner 执行方式与部署隔离控制，以及 DB-CAS 绑定/租约的验证方法和实际值；资源所有者须提供验证限额与计费事实。政策可在这些事实尚未提供时获审，但任何未满足的 preflight 都禁止执行；不能以此声称已有 provision 或执行授权。
+
+**具体核验方法**
+
+固定数据库核验方法为 PostgreSQL18 内置只读接口：pg_control_system().system_identifier，加 current_database()、pg_database 的 oid/datdba、inet_server_addr()/inet_server_port()、session_user/current_user，以及 public.pr316d1_enabled() 的 pg_proc OID/owner/ACL/全部属性。实际参考值由操作员 provision 后记录，不复用现测试库的值。迁移连接本身须在同一事务、任何DDL前读取并匹配这些字段，独立预检连接仅为补充；不具备读取权限则拒绝，由DBA先明确批准最小只读权限，不自动提权。相关查询已仅在现有admin/trust测试库验证可用，不构成参考授权证明。
+
+角色边界：独立受保护的迁移登录角色，按批准方式在迁移连接切换到函数owner角色；普通Application writer不是函数owner，无DDL、superuser、CREATEROLE/CREATEDB/REPLICATION/BYPASSRLS及切换owner权限。角色实际名称/OID、认证方式、授权和受控凭据由真实provisioning产生；不得把现有researchbase超级用户和trust连接作为实现。
+
+文件系统/安装及DB↔CAS绑定的实地核验在迁移事务前完成，并冻结经操作员批准的绑定记录；整个DDL事务及实际COMMIT持有独占租约。事务内只核对同一DB连接上的身份/目录及内存中的冻结绑定，不临时做文件读取、hash或重新选择namespace。任何失效在允许新Application工作前拒绝注册。路径、摘要、inode或DB身份只是核验数据，授权仍来自受保护的真实操作员/部署权限。
+
+依赖门控：BEFORE_CODING 须合同接受、基础参考基础设施身份与认证 provision 及接口审查；另有明确代码授权后核心实现方可开始，默认拒绝；不要求编码前完整安装 consumer 证明或预先分配 revision。BEFORE_MIGRATION_CODING 须核实实际基线及唯一 head、批准 revision 分配并完成依 head 的维护清单审查，另行授权迁移编码；不要求完整安装 consumer 证明；核心代码可先于分配，迁移代码不可。BEFORE_ACTIVATION_APPLY 须实现冻结，并取得实际加载来源/闭包 hash、安装、租约行为、DB-CAS 绑定证明及完整候选专属 preflight 的独立审查，另行明确授权。角色和 DB preflight 方法设计可在编码前审查；实际完整候选证据只能在代码存在后审查。缺任一条件即拒绝，任何审查或授权均不自动升级其他权限。真实 30 次测量是最终生产 profile 前置条件。
+
+参考专用revision及部署产物不进入main/生产升级线；通用消费者代码只能在之后另经审核的生产包中按冻结来源筛选复用，不连带携入参考revision/preflight。任何新的生产迁移和实际生产部署均重新核对适用head/事实并独立验收。
+
 ## O10 — staged acceptance and evidence
 
 1. Pure concrete parser/evaluator tests: exact paired arithmetic, class imbalance,
@@ -457,7 +498,7 @@ acceptance after repair. This proposed manifest does not authorize implementatio
 
 Open activation blockers are implementation and verification of this binding, trusted
 production composition and registration/revocation coordination, recovery ownership,
-and a deployment-specific measured resource/pricing profile.
+and a deployment-specific measured resource/pricing profile. These remain mandatory for production; the separately gated reference-only exception is defined in O03 and O09.
 Resolve these with concrete evidence before accepting a Stage2 contract or enabling
 admission; absence of an actual dataset is not a reason to invent one.
 
