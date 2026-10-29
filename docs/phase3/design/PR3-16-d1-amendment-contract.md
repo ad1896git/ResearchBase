@@ -273,6 +273,21 @@ reservation and owners. Both use `BearingEvaluationCommand`, version 2,
 returns original IDs/results and never repeats effects; changed material conflicts.
 Independent literal bytes, digests and result vectors are prerequisites to code.
 
+Proposed closed result DTO (not new receipt columns): `task_id: UUID`,
+`resulting_row_version: integer`, `replayed: boolean`, `receipt_id: UUID`,
+`task_event_id: UUID`, `reservation_id: UUID`, `usage_record_id: UUID | NULL`,
+`search_session_id: UUID | NULL`, `search_node_id: UUID | NULL`,
+`search_event_id: UUID | NULL`. Admission returns reservation and all three search
+pointers, with NULL usage; settlement returns reservation and usage with all three
+search pointers NULL. Receipt ID and resulting revision are from the receipt; search
+pointers are its existing result columns, task event comes from the receipt/event
+association, and reservation or usage comes from its unique receipt-linked effect.
+The settlement reservation comes through the usage FK. No new catalog columns are
+implied. Fresh and replay results retain these IDs and revision; only `replayed`
+changes from false to true. The task event's `stop_budget` is a durable event field,
+not a result DTO member: on admission it is true exactly for the permitted own-last-unit
+case, otherwise false. See [literal proposed vectors](PR3-16-bearing-v2-material-vectors.md).
+
 One transaction creates exactly one reservation, one PROPOSED node, one `NODE_APPENDED` search event,
 one `BEARING_EVALUATION_ADMITTED` task event, one receipt and its task-event association, and increments task
 revision once; it creates no usage, step event, Run, Measurement or Claim. Each effect
