@@ -189,3 +189,53 @@ def test_open_replacement_with_owned_inode_invalidates_before_close(
         os.fstat(opened[0])
     with pytest.raises(OSError):
         os.fstat(lease._fd)
+
+
+@pytest.mark.parametrize("unsupported", ["platform", "machine", "pointer_width"])
+def test_unsupported_platform_or_abi_denies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unsupported: str
+) -> None:
+    from researchbase.foundation import local_bearing_registration as registration
+
+    path = tmp_path / "lease"
+    path.touch()
+    if unsupported == "platform":
+        monkeypatch.setattr(registration.sys, "platform", "unsupported")
+    elif unsupported == "machine":
+        monkeypatch.setattr(registration.platform, "machine", lambda: "unsupported")
+    else:
+        actual_sizeof = registration.ctypes.sizeof
+        monkeypatch.setattr(
+            registration.ctypes,
+            "sizeof",
+            lambda value: 4 if value is registration.ctypes.c_void_p else actual_sizeof(value),
+        )
+    with pytest.raises(LeaseError, match="unsupported"):
+        acquire_lease(path)
+
+
+@pytest.mark.parametrize("operation", ["acquire", "check"])
+def test_kernel_query_error_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    import errno
+
+    from researchbase.foundation import local_bearing_registration as registration
+
+    path = tmp_path / "lease"
+    path.touch()
+    lease = acquire_lease(path) if operation == "check" else None
+
+    def query_error(*args: object) -> bytes:
+        raise OSError(errno.EIO, "injected kernel query error")
+
+    with monkeypatch.context() as context:
+        context.setattr(registration.fcntl, "fcntl", query_error)
+        if lease is None:
+            with pytest.raises(LeaseError):
+                acquire_lease(path)
+        else:
+            assert lease.check() is False
+            assert lease.check() is False
+    with acquire_lease(path) as replacement:
+        assert replacement.check() is True
