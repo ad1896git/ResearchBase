@@ -152,3 +152,26 @@ def test_pure_deterministic_no_activation():
         result.__setattr__("sample_count", 9)
     assert not hasattr(result, "significance")
     assert not hasattr(result, "new_fault")
+
+
+def test_delta_uses_exact_counts_before_rounding():
+    p, rows, b, c = case(("a",) * 6, ("a",) + ("b",) * 5, ("a",) * 2 + ("b",) * 4)
+    result = evaluate(p, rows, b, c)
+    assert (result.baseline.accuracy, result.candidate.accuracy, result.accuracy_delta) == (
+        "0.166667",
+        "0.333333",
+        "0.166667",
+    )
+    assert evaluate(p, rows, c, b).accuracy_delta == "-0.166667"
+
+
+def test_tables_align_by_sample_id_independent_of_order():
+    p, rows, b, c = case(("a", "a", "b", "b"), ("a", "b", "a", "b"), ("a", "a", "a", "b"))
+    result = evaluate(p, rows[::-1], (b[2], b[0], b[3], b[1]), (c[1], c[3], c[0], c[2]))
+    assert result.baseline.confusion == ((1, 1), (1, 1))
+    assert result.candidate.confusion == ((2, 0), (1, 1))
+    assert (result.baseline.correct, result.candidate.correct, result.accuracy_delta) == (
+        2,
+        3,
+        "0.250000",
+    )
