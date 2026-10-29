@@ -233,6 +233,7 @@ def test_bootstrap_initializers_stay_empty_and_import_without_activation(tmp_pat
         "agent_runtime/ports/search_repository.py",  # ADR-0029: bounded S2 storage port.
         "agent_runtime/domain/experiment_search.py",  # PR3-16 S3 pure contracts.
         "agent_runtime/domain/bearing_evaluation.py",  # D1 Stage 1 pure evaluator.
+        "agent_runtime/application/bearing_evidence.py",  # D1 Stage 1b pure codec.
         "agent_runtime/application/search_contracts.py",  # PR3-16 S3/S6 closed contracts.
         "agent_runtime/application/experiment_search.py",  # PR3-16 bounded S4/S6 boundary.
         # Owner-approved PR3-05 read-only plan §3 R1; contracts only, no activation.
