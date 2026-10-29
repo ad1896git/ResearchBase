@@ -536,3 +536,12 @@ observed accuracy from generalization/significance and unknown-fault discovery.
 No PG/deployment benchmark is needed to claim ONLY this pure behavior. Full O03
 end-to-end measurements, typed provenance and the reviewed forward guard manifest
 remain necessary before enabling a production consumer or writing any node.
+
+
+## Commander Stage 1b authorization — bounded evidence bytes, 2026-10-28
+
+Separately authorize a pure Application-layer codec for four supplied in-memory byte strings (labels, baseline predictions, candidate predictions, protocol), each at most 16 MiB, and a closed immutable tuple of four expected lowercase SHA256 digests. Reject oversize/type/hash mismatch before decode or parse. Verify exact bytes before strict UTF-8 decoding; no BOM, no normalization or inferred alignment. This is no file/network I/O, no admission, no canonical state or trust credential.
+
+CSV uses Python csv strict parsing with exact ordered headers from O03, exact row widths, nonempty data and at most 100000 rows per table. Header duplicates/extra/missing fields and blank data rows reject. Protocol byte profile v1 has exactly three JSON keys: evaluation_split (string), classes (array of strings), groups (array of objects with exactly group_id and split strings). No version member is present; this paragraph names the artifact format. Reject duplicate JSON keys at every level, unknown keys, non-finite constants, malformed UTF-8/JSON/CSV, invalid types and depth/decoder errors with sanitized VALIDATION_ERROR. Reuse Stage1 Protocol/Group/LabeledSample/Prediction and evaluate for exact class/ID/group bounds and arithmetic; no duplicated metric implementation.
+
+A closed immutable expected-hash value and internal evaluate_bytes entrypoint may return existing Evaluation only. Real ArtifactStore reads, bounded read adapter, production composition, accounting/SQL/node admission and empirical research remain separately blocked. The owner delegated this narrow code authorization; the production ADR remains PROPOSED. No SQL guard scaffolding is authorized by this codec scope.
