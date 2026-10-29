@@ -139,3 +139,53 @@ def test_query_requires_actual_owner_pid(tmp_path: Path) -> None:
     with acquire_lease(path) as lease:
         assert _owned_lock(lease._fd, os.getpid()) is True
         assert _owned_lock(lease._fd, os.getpid() + 1) is False
+
+
+def test_reused_fd_preserves_other_file_and_lease(tmp_path: Path) -> None:
+    path = tmp_path / "lease"
+    other = tmp_path / "other"
+    path.touch()
+    other.touch()
+    lease = acquire_lease(path)
+    os.close(lease._fd)
+    other_fd = os.open(other, os.O_RDWR)
+    assert other_fd == lease._fd
+    assert lease.check() is False
+    assert os.fstat(other_fd).st_ino == other.stat().st_ino
+    os.close(other_fd)
+
+    lease = acquire_lease(path)
+    os.close(lease._fd)
+    with acquire_lease(other) as other_lease:
+        assert other_lease._fd == lease._fd
+        assert lease.check() is False
+        assert other_lease.check() is True
+
+
+def test_open_replacement_with_owned_inode_invalidates_before_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "lease"
+    candidate = tmp_path / "candidate"
+    path.touch()
+    candidate.touch()
+    lease = acquire_lease(path)
+    real_open = os.open
+    opened: list[int] = []
+
+    def racing_open(name: object, flags: int, *args: object, **kwargs: object) -> int:
+        candidate.unlink()
+        os.link(path, candidate)
+        fd = real_open(name, flags, *args, **kwargs)  # type: ignore[arg-type]
+        opened.append(fd)
+        return fd
+
+    monkeypatch.setattr(os, "open", racing_open)
+    with pytest.raises(LeaseError):
+        acquire_lease(candidate)
+    assert lease.check() is False
+    assert lease.check() is False
+    with pytest.raises(OSError):
+        os.fstat(opened[0])
+    with pytest.raises(OSError):
+        os.fstat(lease._fd)

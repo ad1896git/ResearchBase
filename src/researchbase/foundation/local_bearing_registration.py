@@ -4,7 +4,9 @@ The operator supplies a stable inode and reliable shared POSIX record locks.
 Closing *any* descriptor for the inode in the owning process releases its locks.
 Cooperative callers must leave the module's descriptor and locks alone. Direct
 close/reuse and manual same-PID relocking can hide a gap and are outside this
-API's continuity guarantee. This is coordination, not consumer authority or a
+API's continuity guarantee. A path replacement race that opens an already owned
+inode invalidates that existing lease before closing the unexpected descriptor.
+This is coordination, not consumer authority or a
 DB/CAS binding. Hold the lease through cleanup; concurrent threads are unsupported.
 """
 
@@ -46,7 +48,7 @@ class _DarwinFlock(ctypes.Structure):
 
 
 # Process-local coordination only, not a source of authority.
-_owners: set[tuple[int, int, int]] = set()
+_owners: dict[tuple[int, int], LocalLease | None] = {}
 
 
 def _layout() -> type[_LinuxFlock] | type[_DarwinFlock]:
@@ -119,10 +121,11 @@ class LocalLease:
         """Release in the owner; a fork child only closes its inherited fd."""
         if not self._closed:
             self._closed = True
-            if os.getpid() == self._pid:
-                _owners.discard((self._pid, *self._identity))
+            if _owners.get(self._identity) is self:
+                del _owners[self._identity]
             try:
-                os.close(self._fd)
+                if _identity(os.fstat(self._fd)) == self._identity:
+                    os.close(self._fd)
             except OSError:
                 pass
 
@@ -137,24 +140,28 @@ def acquire_lease(path: Path) -> LocalLease:
     """Acquire a nonblocking exclusive lease on an existing regular file."""
     _layout()
     fd = -1
-    key: tuple[int, int, int] | None = None
+    key: tuple[int, int] | None = None
     try:
         path = path.absolute()
         info = os.stat(path, follow_symlinks=False)
         identity = _identity(info)
         if not _valid(info, identity):
             raise LeaseError("lease file is not a linked regular file")
-        candidate = (os.getpid(), *identity)
-        if candidate in _owners:
+        if identity in _owners:
             raise LeaseError("lease already held in this process")
-        key = candidate
-        _owners.add(key)
+        key = identity
+        _owners[key] = None
         flags = os.O_RDWR | os.O_NONBLOCK | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
         fd = os.open(path, flags)
-        if not _valid(os.fstat(fd), identity):
+        opened = os.fstat(fd)
+        if not _valid(opened, identity):
+            affected = _owners.get(_identity(opened))
+            if affected is not None:
+                affected.close()
             raise LeaseError("lease file changed")
         fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         lease = LocalLease(path, fd, identity)
+        _owners[key] = lease
         if not lease.check():
             fd = -1
             raise LeaseError("lease could not be verified")
@@ -167,4 +174,4 @@ def acquire_lease(path: Path) -> LocalLease:
         if fd != -1:
             os.close(fd)
         if key is not None:
-            _owners.discard(key)
+            _owners.pop(key, None)

@@ -1,6 +1,8 @@
 import multiprocessing as mp
 import os
+import signal
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +82,24 @@ def test_owner_death_releases(tmp_path: Path) -> None:
         parent.close()
 
 
+def _reap_child(pid: int) -> None:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        result, status = os.waitpid(pid, os.WNOHANG)
+        if result:
+            assert os.waitstatus_to_exitcode(status) == 0
+            return
+        time.sleep(0.01)
+    os.kill(pid, signal.SIGKILL)
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        result, _ = os.waitpid(pid, os.WNOHANG)
+        if result:
+            pytest.fail("child timed out and was killed")
+        time.sleep(0.01)
+    pytest.fail("killed child could not be reaped within deadline")
+
+
 def test_fork_child_cannot_unlock_parent(tmp_path: Path) -> None:
     path = tmp_path / "lease"
     path.touch()
@@ -105,7 +125,7 @@ def test_fork_child_cannot_unlock_parent(tmp_path: Path) -> None:
             assert lease.check()
         finally:
             os.close(read_fd)
-            os.waitpid(pid, 0)
+            _reap_child(pid)
 
 
 def test_lock_loss_then_other_owner_fails_closed(tmp_path: Path) -> None:
@@ -127,6 +147,51 @@ def test_lock_loss_then_other_owner_fails_closed(tmp_path: Path) -> None:
     finally:
         parent.send(None)
         process.join(10)
+        if process.is_alive():
+            process.kill()
+            process.join(10)
+        parent.close()
+        lease.close()
+
+
+def test_fork_inherited_descriptor_blocks_new_lease_until_closed(tmp_path: Path) -> None:
+    path = tmp_path / "lease"
+    path.touch()
+    lease = acquire_lease(path)
+    ctx = mp.get_context("fork")
+    parent, child = ctx.Pipe()
+
+    def child_work() -> None:
+        parent.close()
+        child.send(lease.check())
+        child.recv()
+        try:
+            acquire_lease(path)
+        except LeaseError:
+            child.send(True)
+        else:
+            child.send(False)
+        lease.close()
+        with acquire_lease(path) as own:
+            lease.close()
+            child.send(own.check())
+            child.recv()
+        child.close()
+
+    process = ctx.Process(target=child_work)
+    process.start()
+    child.close()
+    try:
+        assert parent.poll(10) and parent.recv() is False
+        lease.close()
+        parent.send(None)
+        assert parent.poll(10) and parent.recv() is True
+        assert parent.poll(10) and parent.recv() is True
+        assert not _run(path)
+        parent.send(None)
+        process.join(10)
+        assert process.exitcode == 0
+    finally:
         if process.is_alive():
             process.kill()
             process.join(10)
