@@ -30,23 +30,61 @@ new credential registry or third-party state owner.
 
 ## O02 — evidence and pure arithmetic
 
-Inputs are a frozen labeled sample set, a frozen baseline prediction set, a frozen
-candidate prediction set and a frozen protocol, plus exact evaluator implementation
-and metric version. Use exact same-project frozen `ArtifactVersion` IDs and content
-hashes for immutable bytes, `DatasetSnapshot` identity for the dataset,
-`MetricDefinitionVersion` for the accuracy definition, and where applicable exact existing
-`RunDatasetInput`/`RunArtifactInput` and sealed `Run` identities as provenance for
-already-produced evidence. They do not execute or create a Run. See
-[artifact](../../../src/researchbase/domain/artifact.py),
-[dataset snapshot](../../../src/researchbase/domain/evidence.py),
-[experiment](../../../src/researchbase/domain/experiment.py),
-[run](../../../src/researchbase/domain/run.py),
-[metric](../../../src/researchbase/domain/metric.py), and
-[measurement](../../../src/researchbase/domain/measurement.py). Verify frozen status,
-project/scope, content hash and bytes; locator alone is not identity. Exact split and
-group membership, vocabulary, IDs and label/prediction values must match the protocol;
-reject duplicate, missing, extra, unknown, inconsistent or overlapping IDs/groups.
-No data-dependent inference of a split or alignment by row order is allowed.
+Inputs are frozen labeled samples, baseline and candidate predictions, protocol and
+exact evaluator implementation, dataset snapshot and metric version. The following
+nullable UUID columns on immutable `budget_reservations` are the proposed binding:
+
+| Column | RESTRICT FK target | Role |
+| --- | --- | --- |
+| `labels_artifact_version_id` | `artifact_versions.id` | labels |
+| `baseline_predictions_artifact_version_id` | `artifact_versions.id` | baseline predictions |
+| `candidate_predictions_artifact_version_id` | `artifact_versions.id` | candidate predictions |
+| `protocol_artifact_version_id` | `artifact_versions.id` | protocol |
+| `evaluator_artifact_version_id` | `artifact_versions.id` | evaluator implementation/package manifest |
+| `dataset_snapshot_id` | `dataset_snapshots.id` | dataset |
+| `metric_definition_version_id` | `metric_definition_versions.id` | score definition |
+
+Also add nullable UUID `consumer_generation`, durable attribution only, never an
+authority credential. Legacy reservations have all eight columns NULL; v2 reservations
+have all eight non-NULL. Enforce both shape and command ownership at deferred completion,
+including direct SQL. The existing immutable reservation guard prevents UPDATE/DELETE;
+usage inherits the tuple through its existing reservation FK, without copied binding.
+Legacy settlement cannot settle a v2 reservation, including UNKNOWN reconciliation.
+No source Run columns: an association cannot prove production of prediction bytes, and
+this operation does not execute a Run. No new table or generic JSON semantic core.
+
+At admission resolve each artifact through `artifact_versions.artifact_id` to
+`artifacts.project_id`, require the task project, `status = 'FROZEN'`, nonnull
+`frozen_at` and `content_hash`, and match the material hash to that stored canonical
+hash using DB metadata only. Admission performs no ArtifactStore reads or byte-hash
+verification; stored metadata does not prove bytes were read.
+Resolve metric through `metric_definition_versions.metric_definition_id` to
+`metric_definitions.project_id`; require the same project, `status = 'FROZEN'`,
+nonnull `frozen_at` and `content_hash`, verify the owner's hash and require the
+actual definition and policy metric to describe this score. Resolve snapshot through
+`dataset_snapshots.dataset_id` to `datasets.project_id`, require the same project and
+verify its `manifest_hash` and `content_hash` under the existing owner contract.
+DatasetSnapshot is immutable and has no status or FROZEN field. Owner hashes retain
+their existing definitions: ArtifactVersion hashes exact bytes; snapshot content hash
+covers its manifest hash and selection definition. Material references those hashes;
+it does not redefine them. Metric/snapshot owner-hash checks use their canonical DB
+fields, without content I/O. Admission also compares the evaluator hash with the
+registered composed implementation digest through bounded no-I/O checks; a matching
+digest alone does not establish trust. Recheck metadata and exact binding after
+waits and at deferred completion, never by reading bytes under DB locks.
+
+Only after admission commits does the consumer read the referenced ArtifactStore
+bytes and verify their exact-byte hashes against the admitted canonical hashes,
+outside DB transactions/locks and before parsing or evaluation. A deterministic
+byte-hash mismatch is FAILED with no score, settled by the separate attributed
+settlement command with admitted counters retained; it cannot roll back or refund
+admission. Uncertain completion remains UNKNOWN at full reservation. Metadata/hash
+denial before admission commits instead rolls back all admission effects. Settlement
+rechecks DB binding/hash identity and trusted attribution; it performs no byte I/O
+and does not turn admission metadata into proof of prior byte verification.
+After byte verification, exact split/group membership, vocabulary, IDs and values must match the protocol;
+reject duplicates, missing, extra, unknown, inconsistent or overlapping IDs/groups.
+No inference of split or alignment by row order is allowed.
 
 For N > 0, count integer correct predictions for each model; score is candidate
 correct/N minus baseline correct/N, rounded once to six decimal places using
@@ -65,16 +103,28 @@ specified in [task_safety.py](../../../src/researchbase/agent_runtime/domain/tas
 closed outcomes and six-place score are in
 [safety_contracts.py](../../../src/researchbase/agent_runtime/application/safety_contracts.py).
 
-**Specific provenance blocker:** existing node and usage rows do not provide a typed,
-durable, enforceable binding of all four artifacts, dataset snapshot, metric, evaluator
-and optional source Runs to the reservation and score. A content-addressed protocol
-manifest can encode the closed references, but its exact canonical owner and typed
-link to both admission and settlement are not established by current source. Propose
-an architecture-reviewed exact ArtifactVersion reference using an existing typed
-input/relation if it can enforce these links; otherwise request a narrowly scoped
-architecture decision for indispensable storage. Do not treat a hash in reason text,
-an arbitrary JSON object, or an optional Run link as that proof. This blocks contract
-completion and activation until resolved; no new table is approved here.
+For v2 reservations freeze comparison identity to task and step plus the
+exact dataset, labels, baseline predictions, protocol, evaluator and metric IDs and
+owner hashes (including both snapshot hashes). Candidate predictions vary. First v2
+admission rejects any pre-existing legacy usage with a nonnull score in that same
+step; subsequent v2 admissions and settlements must match the fixed comparison
+identity. Reciprocally, fresh legacy settlement (`settle_task_budget` or
+`finish_capability_invocation`) must reject a nonnull score if the same task/step has
+any v2-owned reservation, even admitted/in-flight, UNKNOWN or finally settled with
+no score. This applies even when the legacy reservation predates v2 admission.
+Match nullable `step_id` with `IS NOT DISTINCT FROM`, including the NULL root scope.
+No-score legacy accounting remains available for legacy reservations under all
+existing outcome/vector/finality rules; legacy commands never settle v2 reservations.
+Steps without v2 reservations retain original legacy settlement behavior.
+
+Serialize both first v2 admission and legacy settlement under the existing task lock
+and lock order; reread ownership and scored history after every wait and recheck at
+deferred completion, including ordinary-role SQL. If legacy scored settlement wins,
+v2 admission denies; if v2 admission wins, legacy scored settlement denies. A denial
+rolls back that command's entire effect manifest. Do not repartition history or
+change original v1 material/replay. Preserve existing streak ordering and mathematics. Typed schema
+support alone does not enable admission; trusted composition and the remaining proofs
+below are activation blockers.
 
 ## O03 — finite resources, pricing and attributable measurements
 
@@ -99,7 +149,7 @@ This is an artifact byte format, not a new canonical schema. Exact refs still re
 | `llm_calls` | Exactly 0: this path has no model client; a model call is a capability violation, not an unpriced fallback. |
 | `search_calls` | Exactly 0: local artifact lookup is not literature/provider search; no search client is composed. |
 | `code_iterations` | Exactly 0: executing this frozen evaluator is not modifying or iterating code. |
-| `experiment_runs` | Exactly 0: no Run is created/executed; source prediction Runs are immutable inputs. |
+| `experiment_runs` | Exactly 0: no Run is created/executed; no source Run is asserted. |
 | `tree_nodes` | Exactly 1, the node admitted in this transaction, retained on all outcomes. |
 | `gpu_hours` | Exactly `0.000000`, conditional on CPU-only composition with no GPU library/device path; accelerator demand denies this registration. |
 | `token_cost` | Exactly `0.000000` USD of token charges: no token-producing API exists in this path. This says nothing about CPU, disk, database or host charges. |
@@ -183,8 +233,11 @@ comparison to the same step and frozen binding; reject cross-task, depth, protoc
 operation or reservation mismatches. `operation_id = node_id`, one reservation per
 node. Task-wide outstanding reservations, including UNKNOWN until final settlement,
 occupy the parallel limit; never infer occupancy from siblings. Perform bounded
-metadata/value validation before admission; content I/O and evaluation only after commit,
-outside locks and transaction. Failure or process loss retains the reservation;
+DB metadata/value and bounded no-I/O registered evaluator digest validation before
+admission commits; ArtifactStore reads and byte-hash verification only after commit,
+outside locks and transaction, before parsing/evaluation, as specified in O02.
+Deterministic mismatch settles FAILED without score or counter refund; uncertain
+completion remains UNKNOWN at full reservation. Failure or process loss retains the reservation;
 recovery reuses original IDs and must not evaluate twice concurrently.
 
 ## O06–O08 — atomic effects, stop and settlement
@@ -199,8 +252,44 @@ result vectors before implementation. Keep existing `ExperimentSearchCommand` an
 `SafetyCommand` v1 bytes and replay unchanged. Result contains original reservation,
 node, search event, task event, receipt and resulting revision IDs/values.
 
-One transaction creates exactly one reservation, one PROPOSED node, one search event,
-one task event, one receipt and its task-event association, and increments task
+The closed material envelope has exactly `type`, `material_version`, `command_name`,
+`project_id`, authenticated `actor_id`, `command_id`, `task_id`,
+`expected_row_version`, and `arguments`. Admission arguments are exactly `session_id`,
+`node_id`, `branch_kind`, `mutation_reason`, `reservation_id`, `parent_node_id`,
+`hypothesis_version_id`, `experiment_spec_version_id`, `step_id`, `operation_id`,
+`resources`, `observed_depth`, `observed_parallel_branches`, `deadline_seconds`,
+`reason`, all seven binding IDs, `consumer_generation`, and owner hashes named
+`labels_content_hash`, `baseline_predictions_content_hash`,
+`candidate_predictions_content_hash`, `protocol_content_hash`, `evaluator_content_hash`,
+`dataset_manifest_hash`, `dataset_content_hash`, `metric_content_hash`. `resources`
+contains exactly the nine O03 vector fields. Include every NULL/default explicitly;
+`operation_id = node_id`. Settlement arguments are exactly `reservation_id`, the
+same seven IDs, generation and eight hashes, `measured` (the same nine fields),
+`outcome`, `score`, `evaluator_version`, and `reason`. The closed observation is
+those settlement fields; score and evaluator version are both NULL when no score.
+Reject unknown fields and any binding/generation/hash mismatch against the original
+reservation and owners. Both use `BearingEvaluationCommand`, version 2,
+`sha256-cjson-v1`, canonical UUIDs and existing exact decimal serialization. Replay
+returns original IDs/results and never repeats effects; changed material conflicts.
+Independent literal bytes, digests and result vectors are prerequisites to code.
+
+Proposed closed result DTO (not new receipt columns): `task_id: UUID`,
+`resulting_row_version: integer`, `replayed: boolean`, `receipt_id: UUID`,
+`task_event_id: UUID`, `reservation_id: UUID`, `usage_record_id: UUID | NULL`,
+`search_session_id: UUID | NULL`, `search_node_id: UUID | NULL`,
+`search_event_id: UUID | NULL`. Admission returns reservation and all three search
+pointers, with NULL usage; settlement returns reservation and usage with all three
+search pointers NULL. Receipt ID and resulting revision are from the receipt; search
+pointers are its existing result columns, task event comes from the receipt/event
+association, and reservation or usage comes from its unique receipt-linked effect.
+The settlement reservation comes through the usage FK. No new catalog columns are
+implied. Fresh and replay results retain these IDs and revision; only `replayed`
+changes from false to true. The task event's `stop_budget` is a durable event field,
+not a result DTO member: on admission it is true exactly for the permitted own-last-unit
+case, otherwise false. See [literal proposed vectors](PR3-16-bearing-v2-material-vectors.md).
+
+One transaction creates exactly one reservation, one PROPOSED node, one `NODE_APPENDED` search event,
+one `BEARING_EVALUATION_ADMITTED` task event, one receipt and its task-event association, and increments task
 revision once; it creates no usage, step event, Run, Measurement or Claim. Each effect
 must reference the same task, operation and fresh receipt; any missing/extra effect or
 constraint failure rolls back all. Entitlement precedes committed receipt replay;
@@ -214,21 +303,25 @@ never qualifies. Session remains open; no implicit closure or later admission.
 
 A separate trusted `settle_bearing_evaluation_v2` command attributes its observation
 to the original reservation, exact binding and consumer generation. It creates one
-usage record, one task event, one receipt and association, and one task revision; no
-node/search event or scientific record. Existing finality and outcome rules apply:
+usage record, one `BEARING_EVALUATION_SETTLED` task event, one receipt and one
+receipt/task-event association, and increments task revision once; the original
+reservation is unchanged. Neither command creates steps, step events, sessions, Run
+links, Runs, Measurements, Claims or Artifacts. Settlement creates no node/search event. Existing finality and outcome rules apply:
 UNKNOWN retains worst case, at most one final reconciliation, no post-final score.
 Recovery owner replays original command IDs after uncertain commit; no duplicate
-charge or silent refund. Current safety public commands stay available under their
-existing guards; callers cannot use them to spoof this consumer's score.
+charge or silent refund. Legacy safety commands retain v1 material/results/replay
+and existing guards, with only O02's narrow reciprocal ownership/score restriction:
+they cannot settle a v2 reservation, or add a legacy score to a step with any v2
+reservation. No-score legacy accounting still obeys existing rules.
 
 ## O09 — closed forward-migration manifest and preservation
 
-`uv run alembic heads` now completes with sole head `0082_experiment_search_core`;
-its parent is `0081_agent_execution_intents`. Recheck at dispatch, allocate the next
+The historical `uv run alembic heads` observation below reported sole head
+`0082_experiment_search_core`; its source parent is `0081_agent_execution_intents`.
+It is not a new execution result for this draft. Recheck at dispatch, allocate the next
 forward revision after 0082, and abort on drift. Do not modify 0078/0080/0081/0082.
-This manifest is the complete proposed accounting/command delta; O02's unresolved
-provenance storage is NOT silently included. If its resolution needs another column,
-constraint, relation or grant, amend/review this manifest before implementation.
+This manifest includes the O02 binding and is the complete proposed catalog delta.
+Recheck the dispatch head before allocating any revision; this document reserves none.
 
 Exact source owners: [0077 DDL/guards](../../../migrations/versions/0077_research_task_graph.py),
 [0078 DDL/GUARDS/FINAL_GUARDS](../../../migrations/versions/0078_task_safety_policies.py),
@@ -247,7 +340,9 @@ from 0078 alone: 0080 adds gateway branches that must survive. Current-source SH
 | 0082 | `0166bdc1e30c9c3963c9655b6cfd7fed1cdcd0e6822a39a666de2fb7adb52470` |
 
 Replace exactly these nine function bodies, preserving signature, owner, ACL,
-SECURITY INVOKER and search_path; old-command branches retain token-equivalent SQL:
+SECURITY INVOKER and search_path; old-command branches retain token-equivalent SQL
+except the explicitly declared reciprocal ownership/score checks below. These do
+not alter original v1 material, results or committed replay:
 
 | Function | Only permitted new branch/effect |
 | --- | --- |
@@ -257,8 +352,8 @@ SECURITY INVOKER and search_path; old-command branches retain token-equivalent S
 | `pr316_state(research_task_command_receipts,experiment_search_events)` | New admission requires `NODE_APPENDED`, same node/parent/depth/reason, and the new proof; old create/append cases unchanged. |
 | `pr316_lineage_insert()` | Permit only new admission alongside old append in the node branch, with all existing fresh receipt/parent/scope checks and new proof; no settlement lineage effects. |
 | `pr316_validate_receipt(uuid)` | Dispatch the two new commands to v2 validation before the old path; preserve old search effect counts and material reconstruction. |
-| `pr304_child_guard()` | Add admission only to reservation allowlist and settlement only to usage/CANCELLED recovery allowlists; retain all 0080 gateway and immutable/fresh-owner checks. |
-| `pr304_validate_safety(uuid)` | Include the two names in stop recomputation; retain history order, gauges, score/finality/counter math and all old checks. Retain A2/A3 execution denial: initial v2 admission supports A0/A1 only. |
+| `pr304_child_guard()` | Add admission only to reservation allowlist and settlement only to usage/CANCELLED recovery allowlists. Enforce all-null legacy versus complete-v2 command ownership; reject either legacy usage command targeting v2, including UNKNOWN reconciliation. For fresh legacy usage with nonnull score, reject any v2 reservation in the same task/step under O02, including in-flight work. Retain all 0080 gateway and immutable/fresh-owner checks. |
+| `pr304_validate_safety(uuid)` | Include the two names in stop recomputation. At deferred completion recheck ownership and O02's reciprocal exclusion for fresh legacy usage with nonnull score, and reject v2 admission against legacy scored history, under the existing task lock and after waits. Do not apply a new replay/material contract to historical legacy rows. Retain history order, gauges, score/finality/counter math and all old checks. Retain A2/A3 execution denial: initial v2 admission supports A0/A1 only. |
 | `pr301_receipt_complete()` | Map admission/settlement to `BEARING_EVALUATION_ADMITTED`/`BEARING_EVALUATION_SETTLED`; reservation/usage counts respectively 1/0 and 0/1, no other safety/gateway effects; extend timestamp/unrelated-effect and CANCELLED-settlement checks, then v2 completeness. |
 
 Add exactly four validators (no DML ownership, all SECURITY INVOKER, fixed
@@ -271,11 +366,14 @@ stage 3 alone may replace it with true after authorized Application wiring and g
 positive tests. No caller GUC/role bypass. Authority repeats current `pr316_live`
 entitlement/preheld/fresh-task checks, allowing CANCELLED only for settlement.
 Admission proves same-xmin receipt/reservation/node, O04 mapping, exact vector/binding,
-pre-command stop-free prefix and deadline/checkpoints, then own-last-unit stop; it
+pre-command stop-free prefix and deadline/checkpoints, O02 DB metadata/hash identity
+and no legacy scored history in the same task/step, then own-last-unit stop; it
 never calls the old post-reservation `pr316_admission` which denies at equality.
 V2 receipt validation reconstructs material_version 2 and all result pointers, forces
 O06–O08's exact counts/no extra effects and invokes authority at deferred completion;
-it also requires enabled=true. O02 prevents implementing its evidence proof prematurely.
+it also requires enabled=true. The v2 proof enforces O02 binding, shape, ownership
+and comparison identity using DB metadata only; none of these validators reads or
+byte-verifies ArtifactStore content.
 
 Replace exactly seven CHECK constraints (drop/add same name, validated immediately):
 
@@ -289,8 +387,12 @@ Replace exactly seven CHECK constraints (drop/add same name, validated immediate
 | `research_task_events.pr316_task_event_reason` | Both require the existing nonblank NFC reason bound 1..8192. |
 | `research_task_events.pr303_event_stop_kind` | Permit new events' derived stop flags; v2 validator requires admission only own-budget stop, settlement existing derived flags, no human/policy/success flags. |
 
-No other new/replaced/dropped catalog objects: zero tables, columns, indexes, triggers,
-FKs, UNIQUEs, NOT NULLs or other constraints. Specifically preserve every definition,
+Add exactly the eight nullable reservation columns in O02, seven RESTRICT FKs to
+the listed targets, and a validated all-null-or-all-nonnull shape CHECK; v2 deferred
+validation additionally enforces command ownership, same-project/frozen/hash checks,
+and reciprocal legacy ownership/score exclusion via the two amended `pr304` bodies
+above. No other new/replaced/dropped catalog objects:
+zero tables, indexes, triggers, UNIQUEs, NOT NULLs or other constraints. Specifically preserve every definition,
 enabled flag, timing and deferrability of the 16 0082 triggers, `pr301_receipt_complete_commit`,
 `pr301_task_final`, and `pr304_reservation_guard`/`pr304_usage_guard`. Preserve
 `pr316_uuid7`, `pr316_reason`, `pr316_immutable`, `pr316_preheld`, `pr316_live`,
@@ -298,7 +400,7 @@ enabled flag, timing and deferrability of the 16 0082 triggers, `pr301_receipt_c
 `pr316_effect_complete`, `pr301_task_guard`, `pr301_graph_final_guard`,
 `pr301_receipt_insert_guard`, `pr304_validate_policy`, all 0080 gateway validators,
 all 0081 intent guards and every remaining baseline function. The unchanged set is
-exactly the complete 0082 catalog minus the nine functions and seven CHECKs above;
+the complete 0082 catalog except the nine functions and seven CHECKs above, plus the specified reservation additions;
 verify it with 0082 `CATALOG` plus the richer `catalog_snapshot` in
 [search fixtures](../../../tests/integration/phase3/search_fixtures.py) and the exact
 [upgrade delta assertions](../../../tests/integration/phase3/test_pr3_16_migration.py).
@@ -319,16 +421,17 @@ production grant must be separately named and reviewed; this manifest authorizes
 A principal with existing table privileges still needs every guard and Application check.
 
 Upgrade compares pristine/populated 0082 and forward catalogs: exactly 9 changed + 4
-new functions, 7 changed CHECKs, no other delta; compare old-function tokens after
+new functions, 7 changed CHECKs, 8 nullable columns, 7 RESTRICT FKs and one
+shape CHECK, no other delta; compare old-function tokens after
 removing only declared new branches and replay old literal vectors. Compare raw old
 rows/hashes/seals/ACLs unchanged, and run ordinary-role partial/extra-effect attacks.
 Forward migration is transactional; any failure rolls back to 0082. Once applied,
 no downgrade (0082 itself is forward-only): before any v2 use an approved forward
-repair restores these nine bodies and seven predicates and drops the four helpers,
+repair restores these nine bodies and seven predicates and drops the four helpers and unused binding columns/constraints,
 without data changes. After any v2 use preserve their rows/replay and add a forward
 repair that first disables new admissions; never restore predicates that reject
 historical v2 rows, delete receipts, or refund reservations. Recheck independent
-acceptance after repair. This exact manifest cannot authorize unresolved O02 storage.
+acceptance after repair. This proposed manifest does not authorize implementation.
 
 ## O10 — staged acceptance and evidence
 
@@ -342,7 +445,14 @@ acceptance after repair. This exact manifest cannot authorize unresolved O02 sto
    conflicts, lost-response replay, entitlement/revocation/checkpoint waits, cross-task
    references, occupancy and UNKNOWN recovery, concurrent last-unit/prior-stop races,
    settlement attribution and no extra effects. Independent v1 and v2 literal vectors
-   and old-row/scientific-hash/Run-seal preservation are mandatory.
+   and old-row/scientific-hash/Run-seal preservation are mandatory. Prove metadata-only
+   admission with zero ArtifactStore reads under locks, post-commit byte verification
+   before parsing/evaluation, deterministic mismatch FAILED/no-score with admitted
+   counters retained, and uncertain completion UNKNOWN. Prove both serialized orders
+   of legacy scored settlement versus first v2 admission, including an older in-flight
+   legacy reservation, NULL step scope, forced constraints and post-wait rereads;
+   denied commands have zero committed effects. Prove no-score legacy accounting
+   remains available and steps without v2 reservations preserve legacy behavior/replay.
 4. Run focused and CI regressions, measure worst-case evaluator and full read responses,
    and obtain independent review and commander acceptance with no open P0/P1. No
    ranking or search selection is implied. Current reads remain 10 nodes, depth 3,
@@ -350,13 +460,17 @@ acceptance after repair. This exact manifest cannot authorize unresolved O02 sto
    response bounds. Future D1 implementation tests are NOT RUN by this proposal; local arithmetic
    observations in O03 are not implementation acceptance.
 
-Open blockers are the durable exact provenance binding, production composition and
-revocation coordination, and deployment-specific measured resource/pricing profile.
-Resolve these with concrete evidence before declaring the contract complete or enabling
+Open activation blockers are implementation and verification of this binding, trusted
+production composition and registration/revocation coordination, recovery ownership,
+and a deployment-specific measured resource/pricing profile.
+Resolve these with concrete evidence before accepting a Stage2 contract or enabling
 admission; absence of an actual dataset is not a reason to invent one.
 
 
-## Verification observed 2026-10-28
+## Historical verification observed 2026-10-28
+
+The following earlier observations are preserved as historical evidence, not checks
+run for D1-BIND366 or passing gates for this revised proposal.
 
 All uv commands below used `UV_CACHE_DIR=/tmp/rb-d1362-uv UV_PYTHON_DOWNLOADS=never`.
 `uv sync --locked --group dev` completed: resolved 38, prepared/installed 34 packages.
@@ -422,3 +536,12 @@ observed accuracy from generalization/significance and unknown-fault discovery.
 No PG/deployment benchmark is needed to claim ONLY this pure behavior. Full O03
 end-to-end measurements, typed provenance and the reviewed forward guard manifest
 remain necessary before enabling a production consumer or writing any node.
+
+
+## Commander Stage 1b authorization — bounded evidence bytes, 2026-10-28
+
+Separately authorize a pure Application-layer codec for four supplied in-memory byte strings (labels, baseline predictions, candidate predictions, protocol), each at most 16 MiB, and a closed immutable tuple of four expected lowercase SHA256 digests. Reject oversize/type/hash mismatch before decode or parse. Verify exact bytes before strict UTF-8 decoding; no BOM, no normalization or inferred alignment. This is no file/network I/O, no admission, no canonical state or trust credential.
+
+CSV uses Python csv strict parsing with exact ordered headers from O03, exact row widths, nonempty data and at most 100000 rows per table. Header duplicates/extra/missing fields and blank data rows reject. Protocol byte profile v1 has exactly three JSON keys: evaluation_split (string), classes (array of strings), groups (array of objects with exactly group_id and split strings). No version member is present; this paragraph names the artifact format. Reject duplicate JSON keys at every level, unknown keys, non-finite constants, malformed UTF-8/JSON/CSV, invalid types and depth/decoder errors with sanitized VALIDATION_ERROR. Reuse Stage1 Protocol/Group/LabeledSample/Prediction and evaluate for exact class/ID/group bounds and arithmetic; no duplicated metric implementation.
+
+A closed immutable expected-hash value and internal evaluate_bytes entrypoint may return existing Evaluation only. Real ArtifactStore reads, bounded read adapter, production composition, accounting/SQL/node admission and empirical research remain separately blocked. The owner delegated this narrow code authorization; the production ADR remains PROPOSED. No SQL guard scaffolding is authorized by this codec scope.
