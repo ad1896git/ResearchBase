@@ -218,7 +218,8 @@ def test_clean_and_populated_upgrade_preserve_accepted_rows(agents, populated):
 
 def test_forward_only_migration_and_single_head(monkeypatch):
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == ["0083_bearing_evaluation_guards"]
+    assert scripts.get_revision("0083_bearing_evaluation_guards").down_revision == HEAD
     assert scripts.get_revision(HEAD).down_revision == PARENT
     with disposable_database("researchbase_pr212_test_") as url:
         upgrade(url, HEAD)

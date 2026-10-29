@@ -150,8 +150,12 @@ def test_upgrade_refuses_receipt_check_drift(constraint):
 
 def test_empty_upgrade_and_single_head():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0082_experiment_search_core"]
+    assert scripts.get_heads() == ["0083_bearing_evaluation_guards"]
     assert scripts.get_revision("0082_experiment_search_core").down_revision == HEAD
+    assert (
+        scripts.get_revision("0083_bearing_evaluation_guards").down_revision
+        == "0082_experiment_search_core"
+    )
     assert scripts.get_revision(HEAD).down_revision == "0080_capability_gateway"
     with disposable_database("researchbase_pr212_test_") as url:
         upgrade(url, "0080_capability_gateway")
@@ -258,5 +262,5 @@ def test_downgrade_refuses_before_change(intent_env, populated, monkeypatch):
             == count
         )
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0082_experiment_search_core"
+            "0083_bearing_evaluation_guards"
         )

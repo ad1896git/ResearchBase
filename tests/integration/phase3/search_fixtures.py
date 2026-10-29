@@ -164,6 +164,11 @@ def create_rows(
 
 @pytest.fixture(name="search_env", scope="module")
 def _search_env(tmp_path_factory):
+    yield from search_environment(tmp_path_factory)
+
+
+def search_environment(tmp_path_factory, *, revision=HEAD):
+    """Isolated support for later upgrades; historical fixtures retain HEAD=0082."""
     with disposable_database("researchbase_pr212_test_") as url:
         with pytest.MonkeyPatch.context() as patch:
             patch.setenv("DATABASE_URL", url)
@@ -171,7 +176,7 @@ def _search_env(tmp_path_factory):
         role = "pr316_" + new_uuid7().hex
         engine = None
         try:
-            upgrade(url, HEAD)
+            upgrade(url, revision)
             with admin.begin() as conn:
                 conn.execute(
                     text(f"CREATE ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOLOGIN")

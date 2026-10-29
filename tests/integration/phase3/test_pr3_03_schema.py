@@ -655,6 +655,35 @@ def test_receipt_and_task_event_full_check_and_fk_catalog(planning):
                 )
             else:
                 expression = check_expression(section, match.end())
+            if name == "pr303_command_names":
+                expression = (
+                    f"({expression}) OR command_name IN "
+                    "('admit_bearing_evaluation_v2','settle_bearing_evaluation_v2')"
+                )
+            elif name == "pr303_event_names":
+                expression = (
+                    f"({expression}) OR event_type IN "
+                    "('BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED')"
+                )
+            elif name == "pr303_event_states":
+                expression = (
+                    f"({expression}) OR (event_type='BEARING_EVALUATION_ADMITTED' "
+                    "AND prior_status IN ('CREATED','PLANNING') AND new_status=prior_status) OR "
+                    "(event_type='BEARING_EVALUATION_SETTLED' AND prior_status IN "
+                    "('CREATED','PLANNING','CANCELLED') AND new_status=prior_status)"
+                )
+            elif name == "pr303_event_reason":
+                expression = (
+                    "(event_type NOT IN ('BEARING_EVALUATION_ADMITTED',"
+                    f"'BEARING_EVALUATION_SETTLED') AND ({expression})) OR "
+                    "(event_type IN ('BEARING_EVALUATION_ADMITTED',"
+                    "'BEARING_EVALUATION_SETTLED') AND reason IS NOT NULL AND pr316_reason(reason))"
+                )
+            elif name == "pr303_event_stop_kind":
+                expression = (
+                    f"({expression}) OR event_type IN "
+                    "('BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED')"
+                )
             conn.execute(
                 text(
                     ADD_EXPECTED_CHECK_SQL.format(

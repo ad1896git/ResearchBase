@@ -77,7 +77,7 @@ def test_s1_receipts_require_human_owner_at_head(intent_env, operation, stage):
     )
     with Session(env.owning_engine) as session, session.begin():
         assert session.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0082_experiment_search_core"
+            "0083_bearing_evaluation_guards"
         )
         assert session.execute(
             text(
