@@ -2,7 +2,6 @@
 
 import csv
 import hashlib
-import io
 import json
 import re
 from dataclasses import dataclass
@@ -115,7 +114,7 @@ def _csv_projection(text: str, width: int) -> tuple[str, list[list[str]]]:
 
 def _table(data: bytes, header: list[str]) -> list[list[str]]:
     syntax, records = _csv_projection(_decode(data), len(header))
-    reader = csv.reader(io.StringIO(syntax, newline=""), strict=True)
+    reader = csv.reader(syntax.splitlines(keepends=True), strict=True)
     rows: list[list[str]] = []
     for index, (shape, row) in enumerate(zip(reader, records, strict=True)):
         if len(shape) != len(header) or len(row) != len(header):
