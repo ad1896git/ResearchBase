@@ -566,4 +566,9 @@ Distinct reason ownership is intentional: v2 admission reason is the associated 
 
 Name the new validated shape CHECK `pr316d1_reservation_binding_shape_ck`; name the seven new RESTRICT FKs `pr316d1_labels_av_fk`, `pr316d1_baseline_predictions_av_fk`, `pr316d1_candidate_predictions_av_fk`, `pr316d1_protocol_av_fk`, `pr316d1_evaluator_av_fk`, `pr316d1_dataset_snapshot_fk`, `pr316d1_metric_version_fk`. Their targets and all-null legacy/complete-v2 ownership are exactly O02. Current-profile score bounds/outcome pairs and material fields follow the accepted pure v2 contracts; frozen references remain canonical metadata, not a proof of byte reads, actual evaluation or trust.
 
-This stage proves disabled admission, forward catalog compatibility, typed binding ownership and byte reconstruction. It does not prove a production capability, measured deployment allowance, real positive Application admission, pricing, end-to-end performance or full PR3-16 completion. Those remain separately blocked; do not invent them or weaken existing guards.
+This stage must prove disabled admission, forward catalog compatibility, typed binding ownership and byte reconstruction. It does not prove a production capability, measured deployment allowance, real positive Application admission, pricing, end-to-end performance or full PR3-16 completion. Those remain separately blocked; do not invent them or weaken existing guards.
+
+
+### Commander Stage 2 implementation authorization — 2026-10-28
+
+After independent read-only review PASS/no P0/P1 at8cbc9afb34a0c71699fc84f9ee9bce1740e2ba36, accept only the selected disabled Stage2 contract and authorize one forward migration, matching ORM columns, real-PG18 upgrade/catalog/negative/legacy-regression tests and exact current-head maintenance. The prospective-evidence P2 is corrected above. Sole0082 was rechecked before allocating `0083_bearing_evaluation_guards` after `0082_experiment_search_core`. No code/PG completion, positive production admission, role grant, service/registry wiring or full ADR acceptance is implied. All checks and independent final source review remain required before publication.
