@@ -23,14 +23,33 @@ durable task stop and no implicit session closure. Preserve sticky stops, UNKNOW
 charges, current entitlement after waits, and original receipt replay. ADR-0026 and
 ADR-0029 remain controlling except for the specifically proposed guard amendment.
 
-Existing `ArtifactVersion`, dataset snapshot, metric and Run input models are candidate
-provenance owners, but the source does not establish a durable typed binding from a
-search node/reservation and its settlement to all paired inputs, protocol and evaluator.
-The contract identifies this as an activation blocker, not an invitation to store
-unvalidated arbitrary JSON or create an unapproved canonical table. The deployment's
-bounded resource/pricing profile and production capability composition are also not
-present in source; activation requires measured evidence and an explicit owner before
-any production claim. No dataset or performance result is supplied by this decision.
+Propose one immutable typed provenance tuple on the existing reservation: five
+`ArtifactVersion` roles, one `DatasetSnapshot`, one `MetricDefinitionVersion`, and
+one consumer-generation UUID for attribution only. Seven nullable RESTRICT FKs and
+one nullable UUID distinguish all-null legacy reservations from complete v2 bindings.
+Usage inherits the tuple through its existing reservation FK; legacy settlement must
+not settle v2 reservations. Source Runs are omitted: evaluation consumes supplied
+predictions and association would not prove their production. No new table or truth
+owner is proposed. The companion contract specifies checks, material and catalog delta.
+
+Admission validates typed identity, project, frozen state and stored canonical hashes
+using DB metadata only, plus bounded no-I/O registered evaluator digest checks.
+Stored metadata does not prove bytes were read. After admission commits, outside DB
+locks and before parsing/evaluation, the consumer reads ArtifactStore bytes and
+verifies their byte hashes. Deterministic mismatch settles FAILED with no score and
+admitted counters retained; uncertain completion remains UNKNOWN. Metadata denial
+before admission commits has zero effects. Stage 1 remains purely in memory.
+
+Under the existing task lock, first v2 admission rejects legacy scored history in
+the same step. Reciprocally, fresh legacy settlement rejects a nonnull score if that
+step has any v2-owned reservation, including admitted/in-flight work. Recheck after
+waits and at deferred completion so either ordering prevents mixed comparisons.
+No-score legacy accounting remains available under existing rules, and legacy
+settlement in steps without v2 reservations retains its behavior and v1 replay.
+
+Production composition, registration/revocation and recovery coordination, and the
+deployment resource/pricing profile still require concrete evidence and separate
+acceptance before activation. No dataset or performance result is supplied here.
 
 ## Staging and compatibility
 
