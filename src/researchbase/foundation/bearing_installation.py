@@ -843,12 +843,15 @@ def _bootstrap_modules(files: set[Path], interpreter: Path) -> None:
         if name.split(".", 1)[0] not in sys.stdlib_module_names:
             raise InstallationError(f"preloaded non-bootstrap module: {name}")
         path = getattr(module, "__file__", None)
-        if (
-            type(path) is not str
-            or stdlib not in Path(path).parents
-            or "site-packages" in Path(path).parts
-            or "dist-packages" in Path(path).parts
-        ):
+        relative = Path(*name.split("."))
+        # A stdlib name under an arbitrary inventoried runtime subdirectory is
+        # still application code. Bind the bootstrap name to its fixed layout.
+        source_locations = (stdlib / relative.with_suffix(".py"), stdlib / relative / "__init__.py")
+        native_locations = tuple(
+            stdlib / "lib-dynload" / (name + suffix)
+            for suffix in importlib.machinery.EXTENSION_SUFFIXES
+        )
+        if type(path) is not str or Path(path) not in (*source_locations, *native_locations):
             raise InstallationError(f"preloaded non-bootstrap module: {name}")
 
 

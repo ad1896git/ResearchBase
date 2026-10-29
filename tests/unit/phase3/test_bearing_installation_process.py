@@ -86,6 +86,21 @@ if scenario == "preloaded-stdlib":
     else:
         raise AssertionError("non-bootstrap stdlib accepted")
     sys.exit(0)
+if scenario == "shadow-stdlib":
+    # A real inventoried runtime file with an allowlisted stdlib name must not
+    # become bootstrap code merely because the import path is under lib.
+    sys.path.insert(0, str(lib / "vendor"))
+    del sys.modules["pickle"]
+    import pickle
+    assert pickle.SHADOW_BOOTSTRAP_MARKER is True
+    try:
+        bi.prepare_installation(**kw)
+    except bi.InstallationError as exc:
+        assert "preloaded non-bootstrap module: pickle" in str(exc), str(exc)
+        print("REJECT shadow stdlib", exc)
+    else:
+        raise AssertionError("shadow stdlib accepted as bootstrap")
+    sys.exit(0)
 if scenario == "fifo":
     original = os.open
     record = records / "manifest.json"
@@ -307,6 +322,11 @@ def installation():
         interpreter = runtime / "bin" / "python3.12"
         shutil.copy2(Path(sys.executable).resolve(), interpreter)
         shutil.copytree(Path(sys.base_prefix) / "lib", runtime / "lib", symlinks=False)
+        vendor = (
+            runtime / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "vendor"
+        )
+        vendor.mkdir(mode=0o700)
+        (vendor / "pickle.py").write_text("SHADOW_BOOTSTRAP_MARKER = True\n")
         source = base / "source"
         source.mkdir(mode=0o700)
         project_src = project / "src"
@@ -435,6 +455,7 @@ def installation():
         "positive",
         "stale",
         "preloaded-stdlib",
+        "shadow-stdlib",
         "path-hook",
         "path-traversal",
         "fifo",
