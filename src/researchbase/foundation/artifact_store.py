@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
+import stat
 import tempfile
 from pathlib import Path
 from typing import Protocol
@@ -26,6 +28,14 @@ class ArtifactStore(Protocol):
 
     def verify(self, identity: str) -> bool:
         """Verify stored bytes against their content identity."""
+        ...
+
+
+class BoundedArtifactReader(Protocol):
+    """Read and verify an artifact within a caller-supplied byte limit."""
+
+    def open_bounded(self, identity: str, *, max_bytes: int) -> bytes:
+        """Return verified bytes bounded by ``max_bytes``."""
         ...
 
 
@@ -82,6 +92,42 @@ class ContentAddressedFilesystemArtifactStore:
 
     def open(self, identity: str) -> bytes:
         return self._path_for(identity).read_bytes()
+
+    def open_bounded(self, identity: str, *, max_bytes: int) -> bytes:
+        if type(identity) is not str:
+            raise ValueError("identity must be a SHA-256 digest")
+        if type(max_bytes) is not int or not 1 <= max_bytes <= 16777216:
+            raise ValueError("invalid byte limit")
+        expected = self._normalise_identity(identity)
+        path = self._path_for(expected)
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except OSError as exc:
+            if exc.errno == errno.ELOOP:
+                raise ValueError("artifact is not a regular file") from None
+            raise
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError("artifact is not a regular file")
+            if info.st_size > max_bytes:
+                raise ValueError("artifact exceeds byte limit")
+            chunks: list[bytes] = []
+            remaining = max_bytes + 1
+            while remaining:
+                chunk = os.read(fd, remaining)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            content = b"".join(chunks)
+            if len(content) > max_bytes:
+                raise ValueError("artifact exceeds byte limit")
+            if hashlib.sha256(content).hexdigest() != expected.removeprefix("sha256:"):
+                raise ValueError("artifact failed verification")
+            return content
+        finally:
+            os.close(fd)
 
     def exists(self, identity: str) -> bool:
         return self._path_for(identity).is_file()
