@@ -92,3 +92,8 @@ corrected: end-to-end ArtifactStore/PG/resource proof belongs to Stage 3, not St
 The owner delegated this decision. ADR-0027's production amendment stays PROPOSED;
 no Artifact I/O, canonical provenance binding, migration, capability registration,
 budget mutation or node activation is authorized by this acceptance.
+
+
+### Separately reviewable Stage 2 selection — 2026-10-28
+
+The commander selects the exact disabled O09 catalog slice for separate review before code authorization; production remains PROPOSED. New v2 deadline_seconds equals reserved W and is reconstructed from that immutable field; exact transaction-epoch deadline must fit the existing earliest-reservation task origin cap, otherwise deny without clipping. Registered remaining-phase allowance is a later mandatory Application check, not guessed from W. Preserve the two independent existing reason owners: accounting task-event reason and node/search mutation reason may differ for v2 only, validated by a new early v2 dispatch; all legacy checks remain unchanged. No extra storage is needed and all eight frozen serializer/result examples retain their meaning. No enablement, new table, production grant or service wiring belongs to this slice. See the companion Stage2 section for exact named constraints and acceptance boundary.
