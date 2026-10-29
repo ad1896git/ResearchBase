@@ -1,13 +1,23 @@
 """Closed installation metadata. Parsing these records does not confer authority.
 
-Filesystem and callable verification are a separate, not yet implemented step.
+Evidence produced by verification is process-local and is not a capability.
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib.machinery
 import json
+import marshal
+import os
 import re
+import socket
+import stat
+import sys
+import time
+import types
+import typing
+import zipimport
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -299,6 +309,8 @@ def _roots(value: object, limits: Limits, interpreter_size: int) -> tuple[Approv
         )
     if len({r.label for r in roots}) != len(roots):
         raise _error("duplicate root label")
+    if len({(r.device, r.inode) for r in roots}) != len(roots):
+        raise _error("duplicate root identity")
     for i, root in enumerate(roots):
         for other in roots[:i]:
             if (
@@ -430,3 +442,426 @@ def _artifact_digest(manifest: DeploymentManifest) -> str:
         entries,
     ]
     return hashlib.sha256(_encode(material).encode("utf-8")).hexdigest()
+
+
+class VerifiedInstallation:
+    """Process-local observation, not a registration, entitlement or capability."""
+
+    __slots__ = ("__function", "__code", "__pid", "__files", "__bytes", "__elapsed")
+
+    def __new__(cls) -> VerifiedInstallation:
+        raise TypeError("installation evidence is issued by verification")
+
+    def __reduce_ex__(self, protocol: int) -> object:
+        raise TypeError("installation evidence cannot be serialized")
+
+    @property
+    def measurements(self) -> tuple[int, int, float]:
+        if self.__pid != os.getpid():
+            raise InstallationError("installation evidence belongs to another process")
+        return self.__files, self.__bytes, self.__elapsed
+
+
+def _stat_key(info: os.stat_result) -> tuple[int, int, int, int, int, int, int, int]:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_size,
+        info.st_uid,
+        info.st_mode,
+        info.st_nlink,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _safe_directory(path: Path, uid: int) -> os.stat_result:
+    """Check each ancestor without following links, through the filesystem root."""
+    for part in (path, *path.parents):
+        info = os.lstat(part)
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, uid) or info.st_mode & 0o7022:
+            raise InstallationError(f"unsafe directory: {part}")
+    return os.lstat(path)
+
+
+class _Observation:
+    def __init__(self) -> None:
+        self.start = time.monotonic()
+        self.seconds = 120
+        self.max_file = _CEILINGS[3]
+        self.max_total = _CEILINGS[2]
+        self.total = 0
+        self.files = 0
+        self.max_files = _CEILINGS[1]
+
+    def check_time(self) -> None:
+        if time.monotonic() - self.start > self.seconds:
+            raise InstallationError("verification timeout")
+
+    def read(
+        self, path: Path, cap: int, *, record: bool = False
+    ) -> tuple[bytes | None, os.stat_result, str]:
+        self.check_time()
+        before = os.lstat(path)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise InstallationError(f"not a singly linked regular file: {path}")
+        if before.st_size > cap:
+            raise InstallationError("file size limit")
+        if not record and (
+            self.files >= self.max_files or self.total + before.st_size > self.max_total
+        ):
+            raise InstallationError("inventory limit")
+        flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+        fd = os.open(path, flags)
+        try:
+            opened = os.fstat(fd)
+            if _stat_key(before) != _stat_key(opened):
+                raise InstallationError("file changed before read")
+            digest = hashlib.sha256()
+            chunks: list[bytes] = []
+            size = 0
+            while True:
+                self.check_time()
+                chunk = os.read(fd, min(1024 * 1024, cap + 1 - size))
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > cap:
+                    raise InstallationError("file size limit")
+                digest.update(chunk)
+                if record:
+                    chunks.append(chunk)
+            if (
+                size != opened.st_size
+                or _stat_key(os.fstat(fd)) != _stat_key(opened)
+                or _stat_key(os.lstat(path)) != _stat_key(opened)
+            ):
+                raise InstallationError("file changed during read")
+        finally:
+            os.close(fd)
+        if not record:
+            self.files += 1
+            self.total += size
+            if self.files > self.max_files or self.total > self.max_total:
+                raise InstallationError("inventory limit")
+        self.check_time()
+        return (b"".join(chunks) if record else None, opened, digest.hexdigest())
+
+
+def _matches_file(info: os.stat_result, digest: str, expected: FileIdentity, uid: int) -> None:
+    if info.st_uid not in (0, uid) or info.st_mode & 0o7022:
+        raise InstallationError("unsafe file ownership or mode")
+    actual = (
+        info.st_dev,
+        info.st_ino,
+        info.st_size,
+        digest,
+        info.st_uid,
+        stat.S_IMODE(info.st_mode),
+    )
+    if actual != (
+        expected.device,
+        expected.inode,
+        expected.size,
+        expected.sha256,
+        expected.owner_uid,
+        expected.mode,
+    ):
+        raise InstallationError("file identity mismatch")
+
+
+def _inventory(root: ApprovedRoot, uid: int, obs: _Observation) -> set[Path]:
+    info = _safe_directory(root.path, uid)
+    if (info.st_dev, info.st_ino, info.st_uid, stat.S_IMODE(info.st_mode)) != (
+        root.device,
+        root.inode,
+        root.owner_uid,
+        root.mode,
+    ):
+        raise InstallationError("root identity mismatch")
+    expected = {f.relative_path: f for f in root.files}
+    seen: set[str] = set()
+    directories: list[tuple[Path, tuple[int, int, int, int, int, int, int, int]]] = []
+    stack = [root.path]
+    while stack:
+        obs.check_time()
+        directory = stack.pop()
+        if len(directories) >= obs.max_files:
+            raise InstallationError("inventory directory limit")
+        before = _safe_directory(directory, uid)
+        directories.append((directory, _stat_key(before)))
+        with os.scandir(directory) as iterator:
+            for entry in iterator:
+                obs.check_time()
+                path = directory / entry.name
+                entry_info = entry.stat(follow_symlinks=False)
+                if stat.S_ISDIR(entry_info.st_mode):
+                    stack.append(path)
+                elif stat.S_ISREG(entry_info.st_mode):
+                    relative = path.relative_to(root.path).as_posix()
+                    item = expected.get(relative)
+                    if item is None:
+                        raise InstallationError("unexpected inventory file")
+                    _, actual, digest = obs.read(path, obs.max_file)
+                    _matches_file(actual, digest, item.identity, uid)
+                    seen.add(relative)
+                else:
+                    raise InstallationError("unsupported inventory entry")
+    if seen != set(expected):
+        raise InstallationError("missing inventory file")
+    for directory, before in directories:
+        obs.check_time()
+        if _stat_key(os.lstat(directory)) != before:
+            raise InstallationError("inventory directory changed")
+    return {root.path / relative for relative in seen}
+
+
+def _within(path: Path, roots: tuple[ApprovedRoot, ...]) -> bool:
+    return any(path == root.path or root.path in path.parents for root in roots)
+
+
+def _imports(
+    roots: tuple[ApprovedRoot, ...], files: set[Path], fixed_callable: types.FunctionType
+) -> None:
+    machinery = importlib.machinery
+    if sys.meta_path != [machinery.BuiltinImporter, machinery.FrozenImporter, machinery.PathFinder]:
+        raise InstallationError("unsupported import hooks")
+    hooks = sys.path_hooks
+    template = machinery.FileFinder.path_hook(
+        (machinery.ExtensionFileLoader, machinery.EXTENSION_SUFFIXES),
+        (machinery.SourceFileLoader, machinery.SOURCE_SUFFIXES),
+        (machinery.SourcelessFileLoader, machinery.BYTECODE_SUFFIXES),
+    )
+    if (
+        len(hooks) != 2
+        or hooks[0] is not zipimport.zipimporter
+        or not isinstance(hooks[1], types.FunctionType)
+        or hooks[1].__code__ is not template.__code__
+        or tuple(c.cell_contents for c in hooks[1].__closure__ or ())
+        != tuple(c.cell_contents for c in template.__closure__ or ())
+    ):
+        raise InstallationError("unsupported path hooks")
+    if not sys.flags.isolated or not sys.flags.no_site or not sys.dont_write_bytecode:
+        raise InstallationError("interpreter is not isolated")
+    for item in sys.path:
+        if (
+            type(item) is not str
+            or not item
+            or _absolute(item, "import path") != Path(item)
+            or not _within(Path(item), roots)
+            or not Path(item).is_dir()
+        ):
+            raise InstallationError("unapproved import path")
+    for path, finder in tuple(sys.path_importer_cache.items()):
+        if (
+            type(path) is not str
+            or _absolute(path, "cached import path") != Path(path)
+            or not _within(Path(path), roots)
+            or (finder is not None and type(finder) is not machinery.FileFinder)
+        ):
+            raise InstallationError("unsupported cached importer")
+    for name, module in tuple(sys.modules.items()):
+        # CPython's typing compatibility aliases are classes, not modules.
+        if (name == "typing.io" and module is getattr(typing, "io", None)) or (
+            name == "typing.re" and module is getattr(typing, "re", None)
+        ):
+            continue
+        if module is None or not isinstance(module, types.ModuleType):
+            raise InstallationError(f"unobservable module: {name}")
+        spec = getattr(module, "__spec__", None)
+        origin = getattr(spec, "origin", None)
+        if origin == "built-in":
+            canonical_name = getattr(spec, "name", None)
+            if (
+                not isinstance(canonical_name, str)
+                or getattr(spec, "loader", None) is not machinery.BuiltinImporter
+                or canonical_name not in sys.builtin_module_names
+                or sys.modules.get(canonical_name) is not module
+            ):
+                raise InstallationError(f"unsupported built-in module: {name}")
+            continue
+        if origin == "frozen":
+            canonical_name = getattr(spec, "name", None)
+            if (
+                not isinstance(canonical_name, str)
+                or getattr(spec, "loader", None) is not machinery.FrozenImporter
+                or machinery.FrozenImporter.find_spec(canonical_name) is None
+                or sys.modules.get(canonical_name) is not module
+            ):
+                raise InstallationError(f"unsupported frozen module: {name}")
+            continue
+        path = getattr(module, "__file__", None)
+        if path is None:
+            paths = getattr(module, "__path__", None)
+            if (
+                spec is None
+                or origin is not None
+                or type(getattr(spec, "loader", None)) is not machinery.NamespaceLoader
+                or paths is None
+                or not paths
+                or any(
+                    _absolute(p, "namespace path") != Path(p)
+                    or not _within(Path(p), roots)
+                    or not Path(p).is_dir()
+                    for p in paths
+                )
+            ):
+                raise InstallationError(f"unobservable module origin: {name}")
+            continue
+        if (
+            type(path) is not str
+            or _absolute(path, "module origin") != Path(path)
+            or Path(path) not in files
+        ):
+            raise InstallationError(f"unapproved module origin: {name}")
+        if name != "__main__" and (
+            spec is None
+            or origin != path
+            or type(getattr(spec, "loader", None))
+            not in (
+                machinery.SourceFileLoader,
+                machinery.SourcelessFileLoader,
+                machinery.ExtensionFileLoader,
+            )
+        ):
+            raise InstallationError(f"unsupported module loader: {name}")
+    module = sys.modules.get(fixed_callable.__module__)
+    if module is None or fixed_callable.__globals__ is not module.__dict__:
+        raise InstallationError("callable module globals mismatch")
+    if getattr(module, "__file__", None) not in {str(p) for p in files}:
+        raise InstallationError("callable origin mismatch")
+    owner: object = module
+    for component in fixed_callable.__qualname__.split("."):
+        if not isinstance(owner, types.ModuleType | type):
+            raise InstallationError("unsupported callable qualification")
+        owner = vars(owner).get(component)
+    if owner is not fixed_callable:
+        raise InstallationError("callable binding mismatch")
+
+
+def verify_installation(
+    *, approval_path: Path, manifest_path: Path, namespace: str, fixed_callable: types.FunctionType
+) -> VerifiedInstallation:
+    """Verify actual installation against separately protected operator records.
+
+    Operator startup owns these inputs and must maintain the verified immutability
+    envelope; this observation does not provide lifetime or database authority.
+    """
+    obs = _Observation()
+    try:
+        if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "uname"):
+            raise InstallationError("unsupported platform")
+        uid = os.getuid()
+        if os.geteuid() != uid:
+            raise InstallationError("effective uid mismatch")
+        for path in (approval_path, manifest_path):
+            if type(path) is not Path and not isinstance(path, Path):
+                raise InstallationError("invalid record path")
+            if _absolute(str(path), "record path") != path:
+                raise InstallationError("invalid record path")
+            _safe_directory(path.parent, uid)
+            parent = os.lstat(path.parent)
+            if parent.st_uid != uid or stat.S_IMODE(parent.st_mode) != 0o700:
+                raise InstallationError("unprotected record namespace")
+        if approval_path == manifest_path or approval_path.parent != manifest_path.parent:
+            raise InstallationError("record namespace mismatch")
+        manifest_data, manifest_stat, manifest_hash = obs.read(
+            manifest_path, _RECORD_CAP, record=True
+        )
+        approval_data, approval_stat, _ = obs.read(approval_path, _RECORD_CAP, record=True)
+        for info in (manifest_stat, approval_stat):
+            if info.st_uid != uid or stat.S_IMODE(info.st_mode) != 0o600:
+                raise InstallationError("unprotected operator record")
+        assert manifest_data is not None and approval_data is not None
+        manifest = _parse_manifest(manifest_data)
+        approval = _parse_approval(approval_data, max_record_bytes=manifest.limits.max_record_bytes)
+        obs.seconds = manifest.limits.max_elapsed_seconds
+        obs.max_file = manifest.limits.max_file_bytes
+        obs.max_total = manifest.limits.max_total_bytes
+        obs.max_files = manifest.limits.max_files
+        obs.check_time()
+        if (
+            (
+                approval.deployment_id,
+                approval.provenance,
+                approval.namespace,
+                approval.artifact_sha256,
+                approval.callable_module,
+                approval.callable_qualname,
+            )
+            != (
+                manifest.deployment_id,
+                manifest.provenance,
+                manifest.namespace,
+                manifest.artifact_sha256,
+                manifest.callable_module,
+                manifest.callable_qualname,
+            )
+            or approval.manifest_sha256 != manifest_hash
+            or namespace != manifest.namespace
+        ):
+            raise InstallationError("operator record scope mismatch")
+        if (
+            approval.uid != uid
+            or approval.host != socket.gethostname()
+            or approval.expires_at <= datetime.now(UTC)
+        ):
+            raise InstallationError("operator record host, uid or expiry mismatch")
+        uname = os.uname()
+        if manifest.platform != PlatformIdentity(
+            uname.sysname, uname.release, uname.version, uname.machine
+        ):
+            raise InstallationError("platform identity mismatch")
+        if manifest.runtime != RuntimeIdentity(
+            sys.implementation.name,
+            sys.implementation.cache_tag or "",
+            sys.version,
+            marshal.version,
+        ):
+            raise InstallationError("runtime identity mismatch")
+        if (
+            type(fixed_callable) is not types.FunctionType
+            or fixed_callable.__closure__ is not None
+            or (fixed_callable.__module__, fixed_callable.__qualname__)
+            != (manifest.callable_module, manifest.callable_qualname)
+        ):
+            raise InstallationError("callable identity mismatch")
+        code = fixed_callable.__code__
+        if (
+            hashlib.sha256(marshal.dumps(code, marshal.version)).hexdigest()
+            != manifest.callable_code_sha256
+        ):
+            raise InstallationError("callable code mismatch")
+        if _artifact_digest(manifest) != manifest.artifact_sha256:
+            raise InstallationError("artifact digest mismatch")
+        if Path(os.path.realpath(sys.executable)) != manifest.interpreter_path:
+            raise InstallationError("interpreter path mismatch")
+        if any(_within(path, manifest.roots) for path in (approval_path, manifest_path)):
+            raise InstallationError("records inside inventory")
+        _safe_directory(manifest.interpreter_path.parent, uid)
+        _, interpreter_info, interpreter_hash = obs.read(manifest.interpreter_path, obs.max_file)
+        _matches_file(interpreter_info, interpreter_hash, manifest.interpreter, uid)
+        inventory: set[Path] = set()
+        for root in manifest.roots:
+            inventory.update(_inventory(root, uid, obs))
+        paths_before = tuple(sys.path)
+        _imports(manifest.roots, inventory, fixed_callable)
+        if tuple(sys.path) != paths_before or fixed_callable.__code__ is not code:
+            raise InstallationError("import or callable changed during verification")
+        if _stat_key(os.lstat(manifest_path)) != _stat_key(manifest_stat) or _stat_key(
+            os.lstat(approval_path)
+        ) != _stat_key(approval_stat):
+            raise InstallationError("operator record changed")
+        obs.check_time()
+        proof = object.__new__(VerifiedInstallation)
+        object.__setattr__(proof, "_VerifiedInstallation__function", fixed_callable)
+        object.__setattr__(proof, "_VerifiedInstallation__code", code)
+        object.__setattr__(proof, "_VerifiedInstallation__pid", os.getpid())
+        object.__setattr__(proof, "_VerifiedInstallation__files", obs.files)
+        object.__setattr__(proof, "_VerifiedInstallation__bytes", obs.total)
+        object.__setattr__(proof, "_VerifiedInstallation__elapsed", time.monotonic() - obs.start)
+        return proof
+    except InstallationError:
+        raise
+    except (OSError, ValueError, TypeError, AttributeError, RuntimeError, OverflowError) as exc:
+        raise InstallationError("installation observation failed") from exc
