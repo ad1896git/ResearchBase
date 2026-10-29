@@ -507,15 +507,13 @@ class _Observation:
             raise InstallationError(f"not a singly linked regular file: {path}")
         if before.st_size > cap:
             raise InstallationError("file size limit")
-        if not record and (
-            self.files >= self.max_files or self.total + before.st_size > self.max_total
-        ):
+        if self.files >= self.max_files or self.total + before.st_size > self.max_total:
             raise InstallationError("inventory limit")
-        flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0)
         fd = os.open(path, flags)
         try:
             opened = os.fstat(fd)
-            if _stat_key(before) != _stat_key(opened):
+            if not stat.S_ISREG(opened.st_mode) or _stat_key(before) != _stat_key(opened):
                 raise InstallationError("file changed before read")
             digest = hashlib.sha256()
             chunks: list[bytes] = []
@@ -539,11 +537,10 @@ class _Observation:
                 raise InstallationError("file changed during read")
         finally:
             os.close(fd)
-        if not record:
-            self.files += 1
-            self.total += size
-            if self.files > self.max_files or self.total > self.max_total:
-                raise InstallationError("inventory limit")
+        self.files += 1
+        self.total += size
+        if self.files > self.max_files or self.total > self.max_total:
+            raise InstallationError("inventory limit")
         self.check_time()
         return (b"".join(chunks) if record else None, opened, digest.hexdigest())
 
@@ -621,7 +618,7 @@ def _within(path: Path, roots: tuple[ApprovedRoot, ...]) -> bool:
 
 
 def _imports(
-    roots: tuple[ApprovedRoot, ...], files: set[Path], fixed_callable: types.FunctionType
+    roots: tuple[ApprovedRoot, ...], files: set[Path], fixed_callable: types.FunctionType | None
 ) -> None:
     machinery = importlib.machinery
     if sys.meta_path != [machinery.BuiltinImporter, machinery.FrozenImporter, machinery.PathFinder]:
@@ -641,7 +638,12 @@ def _imports(
         != tuple(c.cell_contents for c in template.__closure__ or ())
     ):
         raise InstallationError("unsupported path hooks")
-    if not sys.flags.isolated or not sys.flags.no_site or not sys.dont_write_bytecode:
+    if (
+        not sys.flags.isolated
+        or not sys.flags.no_site
+        or not sys.dont_write_bytecode
+        or sys.flags.optimize
+    ):
         raise InstallationError("interpreter is not isolated")
     for item in sys.path:
         if (
@@ -652,12 +654,23 @@ def _imports(
             or not Path(item).is_dir()
         ):
             raise InstallationError("unapproved import path")
+    expected_loaders = [
+        (suffix, loader)
+        for loader, suffixes in (
+            (machinery.ExtensionFileLoader, machinery.EXTENSION_SUFFIXES),
+            (machinery.SourceFileLoader, machinery.SOURCE_SUFFIXES),
+            (machinery.SourcelessFileLoader, machinery.BYTECODE_SUFFIXES),
+        )
+        for suffix in suffixes
+    ]
     for path, finder in tuple(sys.path_importer_cache.items()):
         if (
             type(path) is not str
             or _absolute(path, "cached import path") != Path(path)
             or not _within(Path(path), roots)
             or (finder is not None and type(finder) is not machinery.FileFinder)
+            or (finder is not None and finder.path != path)
+            or (finder is not None and getattr(finder, "_loaders", None) != expected_loaders)
         ):
             raise InstallationError("unsupported cached importer")
     for name, module in tuple(sys.modules.items()):
@@ -725,6 +738,8 @@ def _imports(
             )
         ):
             raise InstallationError(f"unsupported module loader: {name}")
+    if fixed_callable is None:
+        return
     module = sys.modules.get(fixed_callable.__module__)
     if module is None or fixed_callable.__globals__ is not module.__dict__:
         raise InstallationError("callable module globals mismatch")
@@ -739,25 +754,145 @@ def _imports(
         raise InstallationError("callable binding mismatch")
 
 
-def verify_installation(
-    *, approval_path: Path, manifest_path: Path, namespace: str, fixed_callable: types.FunctionType
-) -> VerifiedInstallation:
-    """Verify actual installation against separately protected operator records.
+@dataclass(slots=True)
+class _PreparedState:
+    manifest: DeploymentManifest
+    approval: OperatorApproval
+    manifest_path: Path
+    approval_path: Path
+    manifest_data: bytes
+    approval_data: bytes
+    manifest_stat: os.stat_result
+    approval_stat: os.stat_result
+    obs: _Observation
+    inventory: set[Path]
+    modules: dict[str, object]
+    paths: tuple[str, ...]
+    meta: tuple[object, ...]
+    hooks: tuple[object, ...]
+    pid: int
+    used: bool = False
 
-    Operator startup owns these inputs and must maintain the verified immutability
-    envelope; this observation does not provide lifetime or database authority.
+
+class PreparedInstallation:
+    """Opaque one-use observation of a verified fresh startup installation."""
+
+    __slots__ = ("__state",)
+
+    def __new__(cls) -> PreparedInstallation:
+        raise TypeError("prepared contexts are issued only by verification")
+
+    def __reduce_ex__(self, protocol: int) -> object:
+        raise TypeError("prepared contexts cannot be serialized")
+
+
+# Fixed bootstrap closure for the reviewed stdlib/verifier/entrypoint. A module
+# does not become bootstrap code merely by being placed in a runtime root.
+_BOOTSTRAP_STDLIB = frozenset(
+    """__future__ _abc _ast _blake2 _codecs _collections _collections_abc
+    _compat_pickle _datetime _frozen_importlib _frozen_importlib_external
+    _functools _hashlib _imp _io _json _opcode _operator _pickle _signal
+    _socket _sre _stat _struct _thread _tokenize _typing _warnings _weakref
+    _weakrefset abc array ast builtins codecs collections collections.abc
+    contextlib copy copyreg dataclasses datetime dis encodings encodings.aliases
+    encodings.utf_8 enum errno fnmatch functools genericpath hashlib importlib
+    importlib._bootstrap importlib._bootstrap_external importlib.machinery inspect
+    io ipaddress itertools json json.decoder json.encoder json.scanner keyword
+    linecache marshal math ntpath opcode operator os os.path pathlib pickle posix
+    posixpath re re._casefix re._compiler re._constants re._parser reprlib select
+    selectors socket stat struct sys time token tokenize types typing urllib
+    urllib.parse warnings weakref zipimport _sha2 _sha3 _sha256 _sha512 _md5
+    _posixsubprocess _random _bisect _heapq _locale _string _struct""".split()
+)
+
+
+def _bootstrap_modules(files: set[Path], interpreter: Path) -> None:
+    """Accept only the fixed interpreter's stdlib and this reviewed bootstrap."""
+    stdlib = (
+        interpreter.parent.parent
+        / "lib"
+        / ("python" + str(sys.version_info.major) + "." + str(sys.version_info.minor))
+    )
+    if Path(sys.base_prefix) != interpreter.parent.parent:
+        raise InstallationError("unsupported interpreter bootstrap prefix")
+    verifier = Path(__file__)
+    allowed = {
+        "researchbase": verifier.parent.parent / "__init__.py",
+        "researchbase.foundation": verifier.parent / "__init__.py",
+        "researchbase.foundation.bearing_installation": verifier,
+    }
+    for name, module in tuple(sys.modules.items()):
+        if name in ("typing.io", "typing.re"):
+            continue
+        if not isinstance(module, types.ModuleType):
+            raise InstallationError(f"unobservable bootstrap module: {name}")
+        if name == "__main__":
+            if getattr(module, "__file__", None) not in {str(p) for p in files}:
+                raise InstallationError("unapproved bootstrap entrypoint")
+            continue
+        if name in allowed:
+            if getattr(module, "__file__", None) != str(allowed[name]):
+                raise InstallationError(f"unapproved bootstrap module: {name}")
+            continue
+        if name not in _BOOTSTRAP_STDLIB:
+            raise InstallationError(f"preloaded non-bootstrap module: {name}")
+        spec = getattr(module, "__spec__", None)
+        origin = getattr(spec, "origin", None)
+        if origin in ("built-in", "frozen"):
+            continue  # _imports validates the actual built-in/frozen loader and identity.
+        if name.split(".", 1)[0] not in sys.stdlib_module_names:
+            raise InstallationError(f"preloaded non-bootstrap module: {name}")
+        path = getattr(module, "__file__", None)
+        if (
+            type(path) is not str
+            or stdlib not in Path(path).parents
+            or "site-packages" in Path(path).parts
+            or "dist-packages" in Path(path).parts
+        ):
+            raise InstallationError(f"preloaded non-bootstrap module: {name}")
+
+
+def _bounds(obs: _Observation, limits: Limits, *record_sizes: int) -> None:
+    obs.seconds = limits.max_elapsed_seconds
+    obs.max_file = limits.max_file_bytes
+    obs.max_total = limits.max_total_bytes
+    obs.max_files = limits.max_files
+    if (
+        obs.files > obs.max_files
+        or obs.total > obs.max_total
+        or any(size > obs.max_file for size in record_sizes)
+    ):
+        raise InstallationError("inventory limit")
+    obs.check_time()
+
+
+def _unexpired(approval: OperatorApproval) -> None:
+    if approval.expires_at <= datetime.now(UTC):
+        raise InstallationError("operator record expired")
+
+
+def prepare_installation(
+    *, approval_path: Path, manifest_path: Path, namespace: str
+) -> PreparedInstallation:
+    """Observe a frozen installation before importing any non-bootstrap code.
+
+    The operator must freeze the fixed runtime, verifier and entrypoint before
+    executing them. This verifies observations, not that bootstrap trust base.
     """
     obs = _Observation()
     try:
-        if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "uname"):
+        if (
+            os.name != "posix"
+            or not hasattr(os, "O_NOFOLLOW")
+            or not hasattr(os, "O_NONBLOCK")
+            or not hasattr(os, "uname")
+        ):
             raise InstallationError("unsupported platform")
         uid = os.getuid()
         if os.geteuid() != uid:
             raise InstallationError("effective uid mismatch")
         for path in (approval_path, manifest_path):
-            if type(path) is not Path and not isinstance(path, Path):
-                raise InstallationError("invalid record path")
-            if _absolute(str(path), "record path") != path:
+            if not isinstance(path, Path) or _absolute(str(path), "record path") != path:
                 raise InstallationError("invalid record path")
             _safe_directory(path.parent, uid)
             parent = os.lstat(path.parent)
@@ -768,18 +903,19 @@ def verify_installation(
         manifest_data, manifest_stat, manifest_hash = obs.read(
             manifest_path, _RECORD_CAP, record=True
         )
-        approval_data, approval_stat, _ = obs.read(approval_path, _RECORD_CAP, record=True)
+        assert manifest_data is not None
+        manifest = _parse_manifest(manifest_data)
+        _bounds(obs, manifest.limits, len(manifest_data))
+        approval_data, approval_stat, _ = obs.read(
+            approval_path,
+            min(_RECORD_CAP, manifest.limits.max_record_bytes, obs.max_file),
+            record=True,
+        )
+        assert approval_data is not None
+        approval = _parse_approval(approval_data, max_record_bytes=manifest.limits.max_record_bytes)
         for info in (manifest_stat, approval_stat):
             if info.st_uid != uid or stat.S_IMODE(info.st_mode) != 0o600:
                 raise InstallationError("unprotected operator record")
-        assert manifest_data is not None and approval_data is not None
-        manifest = _parse_manifest(manifest_data)
-        approval = _parse_approval(approval_data, max_record_bytes=manifest.limits.max_record_bytes)
-        obs.seconds = manifest.limits.max_elapsed_seconds
-        obs.max_file = manifest.limits.max_file_bytes
-        obs.max_total = manifest.limits.max_total_bytes
-        obs.max_files = manifest.limits.max_files
-        obs.check_time()
         if (
             (
                 approval.deployment_id,
@@ -801,12 +937,9 @@ def verify_installation(
             or namespace != manifest.namespace
         ):
             raise InstallationError("operator record scope mismatch")
-        if (
-            approval.uid != uid
-            or approval.host != socket.gethostname()
-            or approval.expires_at <= datetime.now(UTC)
-        ):
-            raise InstallationError("operator record host, uid or expiry mismatch")
+        if approval.uid != uid or approval.host != socket.gethostname():
+            raise InstallationError("operator record host or uid mismatch")
+        _unexpired(approval)
         uname = os.uname()
         if manifest.platform != PlatformIdentity(
             uname.sysname, uname.release, uname.version, uname.machine
@@ -819,6 +952,80 @@ def verify_installation(
             marshal.version,
         ):
             raise InstallationError("runtime identity mismatch")
+        if _artifact_digest(manifest) != manifest.artifact_sha256:
+            raise InstallationError("artifact digest mismatch")
+        if Path(os.path.realpath(sys.executable)) != manifest.interpreter_path:
+            raise InstallationError("interpreter path mismatch")
+        if any(_within(path, manifest.roots) for path in (approval_path, manifest_path)):
+            raise InstallationError("records inside inventory")
+        _safe_directory(manifest.interpreter_path.parent, uid)
+        _, info, digest = obs.read(manifest.interpreter_path, obs.max_file)
+        _matches_file(info, digest, manifest.interpreter, uid)
+        inventory: set[Path] = set()
+        for root in manifest.roots:
+            inventory.update(_inventory(root, uid, obs))
+        _imports(manifest.roots, inventory, None)
+        _bootstrap_modules(inventory, manifest.interpreter_path)
+        if _stat_key(os.lstat(manifest_path)) != _stat_key(manifest_stat) or _stat_key(
+            os.lstat(approval_path)
+        ) != _stat_key(approval_stat):
+            raise InstallationError("operator record changed")
+        _unexpired(approval)
+        obs.check_time()
+        state = _PreparedState(
+            manifest,
+            approval,
+            manifest_path,
+            approval_path,
+            manifest_data,
+            approval_data,
+            manifest_stat,
+            approval_stat,
+            obs,
+            inventory,
+            dict(sys.modules),
+            tuple(sys.path),
+            tuple(sys.meta_path),
+            tuple(sys.path_hooks),
+            os.getpid(),
+        )
+        context = object.__new__(PreparedInstallation)
+        object.__setattr__(context, "_PreparedInstallation__state", state)
+        _unexpired(approval)
+        obs.check_time()
+        return context
+    except InstallationError:
+        raise
+    except (OSError, ValueError, TypeError, AttributeError, RuntimeError, OverflowError) as exc:
+        raise InstallationError("installation observation failed") from exc
+
+
+def verify_installation(
+    *, prepared: PreparedInstallation, fixed_callable: types.FunctionType
+) -> VerifiedInstallation:
+    """Finalize once, after the operator imports the fixed target from the frozen inventory."""
+    try:
+        if type(prepared) is not PreparedInstallation:
+            raise InstallationError("invalid prepared context")
+        state = object.__getattribute__(prepared, "_PreparedInstallation__state")
+        if type(state) is not _PreparedState or state.used or state.pid != os.getpid():
+            raise InstallationError("invalid or consumed prepared context")
+        state.used = True
+        manifest, obs, uid = state.manifest, state.obs, os.getuid()
+        if (
+            uid != state.approval.uid
+            or os.geteuid() != uid
+            or socket.gethostname() != state.approval.host
+        ):
+            raise InstallationError("operator identity changed")
+        _unexpired(state.approval)
+        if (
+            tuple(sys.path) != state.paths
+            or tuple(sys.meta_path) != state.meta
+            or tuple(sys.path_hooks) != state.hooks
+            or any(sys.modules.get(k) is not v for k, v in state.modules.items())
+        ):
+            raise InstallationError("bootstrap import state changed")
         if (
             type(fixed_callable) is not types.FunctionType
             or fixed_callable.__closure__ is not None
@@ -832,34 +1039,57 @@ def verify_installation(
             != manifest.callable_code_sha256
         ):
             raise InstallationError("callable code mismatch")
-        if _artifact_digest(manifest) != manifest.artifact_sha256:
-            raise InstallationError("artifact digest mismatch")
-        if Path(os.path.realpath(sys.executable)) != manifest.interpreter_path:
-            raise InstallationError("interpreter path mismatch")
-        if any(_within(path, manifest.roots) for path in (approval_path, manifest_path)):
-            raise InstallationError("records inside inventory")
+        for path, expected, before in (
+            (state.manifest_path, state.manifest_data, state.manifest_stat),
+            (state.approval_path, state.approval_data, state.approval_stat),
+        ):
+            _safe_directory(path.parent, uid)
+            parent = os.lstat(path.parent)
+            if parent.st_uid != uid or stat.S_IMODE(parent.st_mode) != 0o700:
+                raise InstallationError("unprotected record namespace")
+            data, info, _ = obs.read(
+                path, min(manifest.limits.max_record_bytes, obs.max_file), record=True
+            )
+            if (
+                data != expected
+                or _stat_key(info) != _stat_key(before)
+                or info.st_uid != uid
+                or stat.S_IMODE(info.st_mode) != 0o600
+            ):
+                raise InstallationError("operator record changed")
         _safe_directory(manifest.interpreter_path.parent, uid)
-        _, interpreter_info, interpreter_hash = obs.read(manifest.interpreter_path, obs.max_file)
-        _matches_file(interpreter_info, interpreter_hash, manifest.interpreter, uid)
+        _, info, digest = obs.read(manifest.interpreter_path, obs.max_file)
+        _matches_file(info, digest, manifest.interpreter, uid)
         inventory: set[Path] = set()
         for root in manifest.roots:
             inventory.update(_inventory(root, uid, obs))
-        paths_before = tuple(sys.path)
+        if inventory != state.inventory:
+            raise InstallationError("inventory changed")
         _imports(manifest.roots, inventory, fixed_callable)
-        if tuple(sys.path) != paths_before or fixed_callable.__code__ is not code:
+        if (
+            tuple(sys.path) != state.paths
+            or tuple(sys.meta_path) != state.meta
+            or tuple(sys.path_hooks) != state.hooks
+            or any(sys.modules.get(k) is not v for k, v in state.modules.items())
+            or fixed_callable.__code__ is not code
+        ):
             raise InstallationError("import or callable changed during verification")
-        if _stat_key(os.lstat(manifest_path)) != _stat_key(manifest_stat) or _stat_key(
-            os.lstat(approval_path)
-        ) != _stat_key(approval_stat):
+        if _stat_key(os.lstat(state.manifest_path)) != _stat_key(state.manifest_stat) or _stat_key(
+            os.lstat(state.approval_path)
+        ) != _stat_key(state.approval_stat):
             raise InstallationError("operator record changed")
-        obs.check_time()
+        _unexpired(state.approval)
         proof = object.__new__(VerifiedInstallation)
         object.__setattr__(proof, "_VerifiedInstallation__function", fixed_callable)
         object.__setattr__(proof, "_VerifiedInstallation__code", code)
         object.__setattr__(proof, "_VerifiedInstallation__pid", os.getpid())
         object.__setattr__(proof, "_VerifiedInstallation__files", obs.files)
         object.__setattr__(proof, "_VerifiedInstallation__bytes", obs.total)
-        object.__setattr__(proof, "_VerifiedInstallation__elapsed", time.monotonic() - obs.start)
+        _unexpired(state.approval)
+        elapsed = time.monotonic() - obs.start
+        if elapsed > obs.seconds:
+            raise InstallationError("verification timeout")
+        object.__setattr__(proof, "_VerifiedInstallation__elapsed", elapsed)
         return proof
     except InstallationError:
         raise

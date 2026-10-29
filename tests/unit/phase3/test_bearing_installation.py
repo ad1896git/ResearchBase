@@ -95,7 +95,25 @@ def approval():
 
 def test_positive_records_and_exact_artifact_preimage():
     parsed = _parse_manifest(encoded(manifest()))
-    assert _parse_approval(encoded(approval())).uid == 3
+    authorized = _parse_approval(encoded(approval()))
+    assert authorized.uid == 3
+    assert (parsed.deployment_id, parsed.provenance, parsed.namespace) == (
+        "deploy",
+        "revision",
+        "scope",
+    )
+    assert (authorized.deployment_id, authorized.provenance, authorized.namespace) == (
+        "deploy",
+        "revision",
+        "scope",
+    )
+    assert (
+        parsed.platform.system,
+        parsed.platform.release,
+        parsed.platform.version,
+        parsed.platform.machine,
+    ) == ("Darwin", "1", "kernel", "arm64")
+    assert parsed.callable_code_sha256 == "c" * 64
     preimage = (
         '["researchbase.bearing.installation-artifact.v1","[\\"cpython\\",\\"cpython-312\\",\\"3.12\\",4]","'
         + "a" * 64
@@ -173,3 +191,47 @@ def test_approval_fields_timestamp_and_size():
         _parse_approval(encoded({**good, "unexpected": 1}))
     with pytest.raises(InstallationError, match="record size"):
         _parse_approval(encoded(good), max_record_bytes=1)
+
+
+def test_missing_and_duplicate_inventory_fields():
+    good = manifest()
+    _parse_manifest(encoded(good))
+    missing = copy.deepcopy(good)
+    del missing["platform"]["machine"]
+    with pytest.raises(InstallationError, match="platform fields"):
+        _parse_manifest(encoded(missing))
+    missing_approval = approval()
+    del missing_approval["host"]
+    with pytest.raises(InstallationError, match="approval fields"):
+        _parse_approval(encoded(missing_approval))
+    duplicate = copy.deepcopy(good)
+    duplicate["roots"][1]["label"] = duplicate["roots"][0]["label"]
+    with pytest.raises(InstallationError, match="duplicate root label"):
+        _parse_manifest(encoded(duplicate))
+    duplicate = copy.deepcopy(good)
+    duplicate["roots"][0]["files"].append(copy.deepcopy(duplicate["roots"][0]["files"][0]))
+    with pytest.raises(InstallationError, match="duplicate file path"):
+        _parse_manifest(encoded(duplicate))
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "max_roots",
+        "max_files",
+        "max_total_bytes",
+        "max_file_bytes",
+        "max_record_bytes",
+        "max_elapsed_seconds",
+    ],
+)
+def test_individual_limit_boundaries(field):
+    good = manifest()
+    _parse_manifest(encoded(good))
+    bad = copy.deepcopy(good)
+    bad["limits"][field] += 1
+    with pytest.raises(InstallationError, match="limits ceiling"):
+        _parse_manifest(encoded(bad))
+    bad["limits"][field] = 0
+    with pytest.raises(InstallationError, match=field):
+        _parse_manifest(encoded(bad))
