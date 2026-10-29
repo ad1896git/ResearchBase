@@ -1,138 +1,75 @@
-# ADR-0027 — PR3-16 D1 node-budget amendment
+# ADR-0027 — PR3-16 D1 paired bearing-evaluation amendment
 
-Status: PROPOSED
+Status: PROPOSED, pending commander final review and acceptance. No code slice is
+authorized by this ADR. The detailed proposed contract and blockers are in
+[the D1 contract](../../phase3/design/PR3-16-d1-amendment-contract.md).
 
-Date: 2026-10-27. Companion:
-[D1 contract draft](../../phase3/design/PR3-16-d1-amendment-contract.md).
-Disposition counts: **RESOLVED 3; OWNER 3; MISSING 1** (A01–A07).
-These count this ADR's dispositions, including its summaries of contract items;
-they are not additional owner decisions or implementation evidence.
+## Decision proposed 2026-10-28
 
-## A01 — RESOLVED — context and problem
+Replace the earlier open-ended producer/evaluator questions with one bounded operation:
+compare already-produced candidate and baseline predictions against identical frozen
+labels, sample IDs and split/group protocol. Compute classification accuracy and
+imbalance diagnostics deterministically. This is an operational observation, not a
+scientific Measurement or Claim, a training job, a provider invocation, Run execution,
+or evidence of a new physical fault. A new-fault candidate requires independent
+verification in a separately authorized track. Fixture results do not establish
+empirical superiority. No PR3-17 ranking or selection is authorized.
 
-The owner requests a separate contract and PROPOSED ADR now; no implementation is
-scheduled and production node admission stays denied until the contract is
-approved. The atomic amendment is unconditional before activation. The current
-storage contract requires a previously committed reservation, while PR3-04 records
-budget stop when a reservation takes the last additive unit. A subsequent append
-then denies, leaving a charged gap. Existing accounting derives depth from task
-steps and requires a comparable evaluator for positive node charges. No production
-producer or approved node evaluator/vector is supplied. Sources:
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14`,
-`docs/phase3/PR3-16-execution-pack-r2.md:499`,
-`docs/phase3/PR3-16-execution-pack-r2.md:502`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:184`,
-`docs/phase3/PR3-16-freeze-inventory.md:294`.
+A new versioned compound Application command reserves existing task budget and appends
+one PROPOSED node atomically. A trusted core consumer evaluates outside the transaction
+and settles in a separate attributed command. Prior stops deny; only a stop proven to
+arise from this transaction consuming its own last unit permits this node, with a
+durable task stop and no implicit session closure. Preserve sticky stops, UNKNOWN
+charges, current entitlement after waits, and original receipt replay. ADR-0026 and
+ADR-0029 remain controlling except for the specifically proposed guard amendment.
 
-## A02 — RESOLVED — invariants, scientific integrity and security
+Existing `ArtifactVersion`, dataset snapshot, metric and Run input models are candidate
+provenance owners, but the source does not establish a durable typed binding from a
+search node/reservation and its settlement to all paired inputs, protocol and evaluator.
+The contract identifies this as an activation blocker, not an invitation to store
+unvalidated arbitrary JSON or create an unapproved canonical table. The deployment's
+bounded resource/pricing profile and production capability composition are also not
+present in source; activation requires measured evidence and an explicit owner before
+any production claim. No dataset or performance result is supplied by this decision.
 
-Retain existing PR3-04 accounting, admitted counters, charged gaps/UNKNOWN outcomes
-and trusted settlement ownership. No search ledger, implicit refund, nested public
-reservation command or fake production capability is admitted. Human and Agent
-share the Application boundary; actor-only planning does not establish resource
-trust or execution authority. Current entitlement, committed replay and fresh
-admission retain their order and post-wait validation. Concrete provenance,
-immutable failed/pruned history, Run seals and scientific hashes remain intact.
-Operational progress scores do not become Measurements or scientific validity.
-Sources: `docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md:34`,
-`docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md:39`,
-`docs/architecture/adr/ADR-0026-pr3-16-experiment-search-core.md:43`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:54`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:64`,
-`docs/phase3/PR3-04-contract-freeze.md:574`,
-`docs/phase3/PR3-16-execution-pack-r2.md:502`.
+## Staging and compatibility
 
-## A03 — OWNER — proposed decision and alternatives
+1. Concrete pure evaluator/value contract and tests, without activation.
+2. Minimal forward PostgreSQL guards; admission still denied until Application wiring.
+3. Atomic admission and attributed settlement with the concrete core consumer.
+4. Real PostgreSQL regression/CI and independent acceptance. Commander separately
+   authorizes each actual code slice after review.
 
-**Question:** what complete node-aware admission composition, registered producer,
-evaluator, full resource vector, depth/occupancy mapping, stop effects and settlement
-owner will the owner and architecture review approve? These are the contract's
-O01–O08 decisions; their detailed questions/options/recommendations remain open.
+Recheck the sole migration head before a forward migration after
+`0082_experiment_search_core`; never edit 0078/0080/0081/0082. Preserve v1 material,
+replay, guards and ACLs, all scientific hashes, and the current 10-node/3-depth/
+11-event/zero-link read profile. Future writer extensions first require compatible
+measured complete-response bounds. Before migration use, rollback removes only the
+new forward objects; after use, preserve immutable history and use forward repair.
+No deletion/refund of historical gaps or UNKNOWN outcomes is permitted.
 
-**Options:** approve a complete atomic composition through existing accounting in
-one owning Application transaction, preserving prior command semantics; or retain
-production denial while the required design is incomplete. Continuing conservative
-storage does not remove the unconditional amendment prerequisite. Nesting a public
-safety command, minting a new ledger or substituting the gateway fake vector is
-incompatible with the established constraints.
+The previous 2026-10-27 question-only draft is superseded by these selections; its
+historical evidence is available in version control. This proposal is not acceptance,
+implementation evidence, or permission to run a real bearing study.
 
-**Recommendation / proposed decision:** develop the reviewed composition within
-existing accounting and receipt families, with reservation and node admission
-committing together or neither committing. Preserve denial on prior stop and
-review the last-unit case explicitly. Resolve evaluator success/observation and
-settlement lifetime before treating node creation as an admitted iteration.
-The candidate composition is not a frozen effect manifest, command name, producer
-registration, evaluator implementation or authorization. Pending those decisions,
-this ADR remains PROPOSED and production admission stays denied.
+## Separately reviewable Stage 1 scope
 
-**Consequences if later approved and verified:** the combined operation could
-avoid a new reservation-without-node gap caused by splitting those effects across
-commands. It cannot refund existing gaps, remove UNKNOWN charges, clear sticky
-stops or authorize scientific execution. Sources:
-`docs/phase3/PR3-16-execution-pack-r2.md:52`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:189`,
-`docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:321`,
-`docs/phase3/PR3-03-contract-freeze.md:1778`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14`.
+Stage 1 is only a pure in-memory paired evaluator and closed value contract. It may
+be reviewed/authorized separately while this production amendment stays PROPOSED.
+It performs no Artifact I/O, SQL/UoW, budget mutation, producer registration, node
+admission, scientific Measurement/Claim persistence or Run execution. No deployment
+pricing/vector/latency proof is inferred from its tests. O02 arithmetic and the
+explicit Stage 1 bounds/undefined-value rules in the companion contract must be
+closed before its source implementation; O01/O03/O04/O09 activation dependencies
+remain blocking for subsequent production slices. Local probe fixtures establish
+computation behavior only, never an empirical bearing diagnosis improvement.
 
-## A04 — OWNER — data migration and rollback
+### Commander Stage 1 authorization — 2026-10-28
 
-**Question:** what exact forward guard/receipt/catalog delta, preservation evidence
-and rollback or forward-repair procedure will implement the approved effects?
-**Options:** review that inventory and recovery procedure after the effect contract
-is complete; or leave the amendment unavailable. **Recommendation:** preserve all
-historical reservations, usage, receipts and scientific records, and require the
-explicit changed/unchanged-object manifest before any migration authorization.
-Do not reinterpret old reservations as atomic node admission or repair charged
-gaps by deletion/refund. No migration identifier, SQL body, backfill or executable
-rollback is assigned by this ADR. Contract O09 remains unanswered. Sources:
-`docs/phase3/PR3-16-execution-pack-r2.md:50`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:8`,
-`docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md:373`,
-`docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md:428`.
-
-## A05 — OWNER — API compatibility and exact composition
-
-**Question:** does a separately defined atomic command or an explicitly versioned
-extension own the new material/results, and what per-caller locks and guards
-preserve replay and existing safety/gateway behavior? **Options:** specify a
-separate command contract; or review a compatible versioned extension.
-**Recommendation:** settle the exact envelope/effect inventory and independent
-vectors before choosing names or altering guards. Preserve old safety commands and
-hash vectors, same Application boundary, no serializable trust flag, no extra
-transaction/receipt and no copied gateway lock helper. Contract O06/O09 detail
-the unresolved mapping. This ADR adds no HTTP/CLI route or production capability.
-Sources: `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:321`,
-`docs/phase3/PR3-03-contract-freeze.md:1778`,
-`docs/phase3/PR3-03-contract-freeze.md:1789`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:10`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:13`,
-`docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md:326`.
-
-## A06 — MISSING — amendment acceptance checks
-
-No executable D1 atomic check exists. Contract M01–M10 enumerate the absent storage,
-atomicity/recovery, trust/evaluator, vector, mapping, stop-race, settlement,
-ordinary-role guard, compatibility and literal/replay checks. Existing PR3-04
-tests and the absent proposed search budget test do not establish atomic node
-admission. Exact assertions await the owner decisions; no missing row counts as
-coverage. Focused documentation-change verification is recorded in the companion
-contract, separately from unrun D1 acceptance. Sources:
-`docs/phase3/PR3-16-freeze-inventory.md:294`,
-`docs/phase3/PR3-16-design-closeout.md:274`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:18`.
-
-## A07 — RESOLVED — affected phases and authorization limit
-
-This proposal concerns Phase 3 search lineage and its existing task-safety
-accounting dependency. Phase 1/2 scientific ownership and immutable provenance
-remain unchanged. PR3-17 decisions/scoring, Run creation/execution, workers,
-providers, promotion and Phase 4 remain outside this design task. Owner approval
-of this design is still pending; implementation requires separate authorization.
-No implementation is scheduled, ADR acceptance asserted, or other closeout decision
-changed. Sources: `docs/proposals/PR3-16_Search_Lineage_Contract_DRAFT.md:78`,
-`docs/architecture/06_Phase3_Development_Specification_v1.1_Harness_Integrated.md:2568`,
-`docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md:1188`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:3`,
-`docs/phase3/PR3-16-owner-decisions-2026-10-27.md:14`,
-`docs/phase3/PR3-16-execution-pack-r2.md:533`.
+After independent cold review PASS/no P0/P1 at `1cf17316`, the commander accepts only
+the separately scoped pure Stage 1 in-memory numerical/value contract and authorizes
+its implementation plus unit/architecture tests. The review's P2 cross-reference is
+corrected: end-to-end ArtifactStore/PG/resource proof belongs to Stage 3, not Stage 1.
+The owner delegated this decision. ADR-0027's production amendment stays PROPOSED;
+no Artifact I/O, canonical provenance binding, migration, capability registration,
+budget mutation or node activation is authorized by this acceptance.
