@@ -1784,14 +1784,16 @@ class ResearchTaskCommandReceiptsModel(Base):
             initially="DEFERRED",
         ),
         CheckConstraint(
-            "(pr316_command_event(command_name) IS NULL AND "
+            "((pr316_command_event(command_name) IS NULL AND "
             "num_nonnulls(result_search_session_id,result_search_node_id,result_search_event_id)=0)"
-            " OR (pr316_command_event(command_name) IS NOT NULL AND result_search_session_id "
-            "IS NOT NULL AND result_search_event_id IS NOT NULL AND resulting_row_version>=2 "
-            "AND ((command_name= 'create_search_session' AND result_search_node_id IS NULL) "
-            "OR (command_name IN "
-            "('append_search_node','admit_bearing_evaluation_v2') AND "
-            "result_search_node_id IS NOT NULL)))",
+            " OR (pr316_command_event(command_name) IS NOT NULL AND "
+            "result_search_session_id IS NOT NULL AND result_search_event_id IS NOT NULL"
+            " AND resulting_row_version>=2 AND ((command_name= 'create_search_session' "
+            "AND result_search_node_id IS NULL) OR (command_name= 'append_search_node' "
+            "AND result_search_node_id IS NOT NULL)))) OR "
+            "(command_name='admit_bearing_evaluation_v2' AND "
+            "num_nonnulls(result_search_session_id,result_search_node_id,result_search_event_id)=3"
+            " AND resulting_row_version>=2)",
             name="pr316_receipt_shape_ck",
         ),
         Index(
@@ -1849,15 +1851,15 @@ class ResearchTaskCommandReceiptsModel(Base):
         Index("pr301_receipts_project_time", "project_id", "completed_at", "id"),
         UniqueConstraint("research_task_id", "project_id", "id", name="pr303_receipt_scope_key"),
         CheckConstraint(
-            "command_name IN ( 'create_research_task' , 'create_task_plan' , 'add_task_step' "
-            ", 'add_task_step_dependency' , 'seal_task_plan' , 'cancel_research_task' , "
-            "'bind_task_policies' , 'reserve_task_budget' , 'settle_task_budget' , "
-            "'evaluate_task_termination' , 'request_human_checkpoint' , "
-            "'respond_human_checkpoint' , 'register_agent_tool_policy' , "
-            "'request_capability_invocation' , 'start_capability_invocation' , "
-            "'finish_capability_invocation' , 'create_search_session' , "
-            "'append_search_node', 'admit_bearing_evaluation_v2','settle_bearing_evaluation_v2' "
-            ")",
+            "(command_name IN ( 'create_research_task' , 'create_task_plan' , "
+            "'add_task_step' , 'add_task_step_dependency' , 'seal_task_plan' , "
+            "'cancel_research_task' , 'bind_task_policies' , 'reserve_task_budget' , "
+            "'settle_task_budget' , 'evaluate_task_termination' , "
+            "'request_human_checkpoint' , 'respond_human_checkpoint' , "
+            "'register_agent_tool_policy' , 'request_capability_invocation' , "
+            "'start_capability_invocation' , 'finish_capability_invocation' , "
+            "'create_search_session' , 'append_search_node' )) OR command_name IN "
+            "('admit_bearing_evaluation_v2','settle_bearing_evaluation_v2')",
             name="pr316_command_names",
         ),
         ForeignKeyConstraint(
@@ -1988,49 +1990,54 @@ class ResearchTaskEventsModel(Base):
             name="pr303_task_event_capability_fk",
         ),
         CheckConstraint(
-            "event_type IN ( 'CREATED' , 'PLAN_CREATED' , 'STEP_ADDED' , 'DEPENDENCY_ADDED' ,"
-            " 'PLAN_SEALED' , 'CANCELLED' , 'POLICIES_BOUND' , 'BUDGET_RESERVED' , "
-            "'BUDGET_SETTLED' , 'TERMINATION_EVALUATED' , 'CHECKPOINT_REQUESTED' , "
-            "'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' , 'CAPABILITY_REQUESTED' , "
-            "'CAPABILITY_STARTED' , 'CAPABILITY_FINISHED' , 'SEARCH_SESSION_CREATED' , "
-            "'SEARCH_NODE_APPENDED', 'BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED' )",
+            "(event_type IN ( 'CREATED' , 'PLAN_CREATED' , 'STEP_ADDED' , "
+            "'DEPENDENCY_ADDED' , 'PLAN_SEALED' , 'CANCELLED' , 'POLICIES_BOUND' , "
+            "'BUDGET_RESERVED' , 'BUDGET_SETTLED' , 'TERMINATION_EVALUATED' , "
+            "'CHECKPOINT_REQUESTED' , 'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' "
+            ", 'CAPABILITY_REQUESTED' , 'CAPABILITY_STARTED' , 'CAPABILITY_FINISHED' , "
+            "'SEARCH_SESSION_CREATED' , 'SEARCH_NODE_APPENDED' )) OR event_type IN "
+            "('BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED')",
             name="pr316_task_event_names",
         ),
         CheckConstraint(
-            "(event_type = 'CREATED' AND prior_status IS NULL AND new_status = 'CREATED' ) OR"
-            " (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' AND new_status = "
-            "'PLANNING' ) OR (event_type IN ( 'STEP_ADDED' , 'DEPENDENCY_ADDED' , "
-            "'PLAN_SEALED' ) AND prior_status = 'PLANNING' AND new_status = 'PLANNING' ) OR "
-            "(event_type = 'CANCELLED' AND prior_status IN ( 'CREATED' , 'PLANNING' ) AND "
-            "new_status = 'CANCELLED' ) OR (event_type IN ( 'POLICIES_BOUND' , "
-            "'BUDGET_RESERVED' , 'BUDGET_SETTLED' , 'TERMINATION_EVALUATED' , "
-            "'CHECKPOINT_REQUESTED' , 'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' , "
-            "'CAPABILITY_REQUESTED' , 'CAPABILITY_STARTED' , "
-            "'CAPABILITY_FINISHED','BEARING_EVALUATION_SETTLED' ) AND "
-            "prior_status IN ( 'CREATED' , 'PLANNING' , 'CANCELLED' ) AND new_status = "
-            "prior_status) OR (event_type IN ( 'SEARCH_SESSION_CREATED' , "
-            "'SEARCH_NODE_APPENDED', 'BEARING_EVALUATION_ADMITTED' ) AND "
-            "prior_status IN ( 'CREATED' , 'PLANNING' ) AND "
-            "new_status = prior_status)",
+            "((event_type = 'CREATED' AND prior_status IS NULL AND new_status = "
+            "'CREATED' ) OR (event_type = 'PLAN_CREATED' AND prior_status = 'CREATED' "
+            "AND new_status = 'PLANNING' ) OR (event_type IN ( 'STEP_ADDED' , "
+            "'DEPENDENCY_ADDED' , 'PLAN_SEALED' ) AND prior_status = 'PLANNING' AND "
+            "new_status = 'PLANNING' ) OR (event_type = 'CANCELLED' AND prior_status IN "
+            "( 'CREATED' , 'PLANNING' ) AND new_status = 'CANCELLED' ) OR (event_type IN"
+            " ( 'POLICIES_BOUND' , 'BUDGET_RESERVED' , 'BUDGET_SETTLED' , "
+            "'TERMINATION_EVALUATED' , 'CHECKPOINT_REQUESTED' , 'CHECKPOINT_RESPONDED' ,"
+            " 'TOOL_POLICY_REGISTERED' , 'CAPABILITY_REQUESTED' , 'CAPABILITY_STARTED' ,"
+            " 'CAPABILITY_FINISHED' ) AND prior_status IN ( 'CREATED' , 'PLANNING' , "
+            "'CANCELLED' ) AND new_status = prior_status) OR (event_type IN ( "
+            "'SEARCH_SESSION_CREATED' , 'SEARCH_NODE_APPENDED' ) AND prior_status IN ( "
+            "'CREATED' , 'PLANNING' ) AND new_status = prior_status)) OR "
+            "(event_type='BEARING_EVALUATION_ADMITTED' AND prior_status IN "
+            "('CREATED','PLANNING') AND new_status=prior_status) OR "
+            "(event_type='BEARING_EVALUATION_SETTLED' AND prior_status IN "
+            "('CREATED','PLANNING','CANCELLED') AND new_status=prior_status)",
             name="pr316_task_event_states",
         ),
         CheckConstraint(
-            "CASE WHEN event_type IN ('BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED') "
-            "THEN reason IS NOT NULL AND pr316_reason(reason) "
-            "WHEN event_type IN ( 'CANCELLED' , 'POLICIES_BOUND' , 'BUDGET_RESERVED' , "
+            "(event_type NOT IN "
+            "('BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED') AND (CASE WHEN"
+            " event_type IN ( 'CANCELLED' , 'POLICIES_BOUND' , 'BUDGET_RESERVED' , "
             "'BUDGET_SETTLED' , 'TERMINATION_EVALUATED' , 'CHECKPOINT_REQUESTED' , "
-            "'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' , 'CAPABILITY_REQUESTED' , "
-            "'CAPABILITY_STARTED' , 'CAPABILITY_FINISHED' , 'SEARCH_SESSION_CREATED' , "
-            "'SEARCH_NODE_APPENDED' ) THEN "
-            "reason IS NOT NULL AND length(btrim(reason)) "
-            "BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED ELSE reason IS NULL END",
+            "'CHECKPOINT_RESPONDED' , 'TOOL_POLICY_REGISTERED' , 'CAPABILITY_REQUESTED' "
+            ", 'CAPABILITY_STARTED' , 'CAPABILITY_FINISHED' , 'SEARCH_SESSION_CREATED' ,"
+            " 'SEARCH_NODE_APPENDED' ) THEN reason IS NOT NULL AND length(btrim(reason))"
+            " BETWEEN 1 AND 8192 AND reason IS NFC NORMALIZED ELSE reason IS NULL END)) "
+            "OR (event_type IN "
+            "('BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED') AND reason IS "
+            "NOT NULL AND pr316_reason(reason))",
             name="pr316_task_event_reason",
         ),
         CheckConstraint(
-            "event_type IN ( 'BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED',"
-            "'CAPABILITY_REQUESTED','CAPABILITY_FINISHED','BEARING_EVALUATION_ADMITTED',"
-            "'BEARING_EVALUATION_SETTLED') OR NOT (stop_human OR stop_policy "
-            "OR stop_budget OR stop_repeated_failure OR stop_no_improvement OR stop_success)",
+            "(event_type IN ( 'BUDGET_RESERVED','BUDGET_SETTLED','TERMINATION_EVALUATED',"
+            "'CAPABILITY_REQUESTED','CAPABILITY_FINISHED') OR NOT (stop_human OR stop_policy "
+            "OR stop_budget OR stop_repeated_failure OR stop_no_improvement OR stop_success)) "
+            "OR event_type IN ('BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED')",
             name="pr303_event_stop_kind",
         ),
         CheckConstraint(

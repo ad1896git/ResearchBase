@@ -385,7 +385,7 @@ PR2_20_POST_0079_ADDED_CONSTRAINTS = (
 
 
 def assert_pr2_20_head_catalog_unchanged(before: dict[str, Any], after: dict[str, Any]) -> None:
-    """Allow only the named 0080/0081/0082 delta; retain exact definitions of prior objects."""
+    """Allow only the named 0080 through 0083 delta and preserve prior objects."""
     before_indexes = {tuple(row) for row in before["indexes"]}
     after_indexes = {tuple(row) for row in after["indexes"]}
     expected_indexes = {
@@ -397,8 +397,58 @@ def assert_pr2_20_head_catalog_unchanged(before: dict[str, Any], after: dict[str
 
     before_constraints = {tuple(row) for row in before["constraints"]}
     after_constraints = {tuple(row) for row in after["constraints"]}
-    added = after_constraints - before_constraints
-    removed = before_constraints - after_constraints
+    material_key = (
+        "research_task_command_receipts",
+        "research_task_command_receipts_material_version_check",
+    )
+    old_material = [row for row in before_constraints if row[:2] == material_key]
+    new_material = [row for row in after_constraints if row[:2] == material_key]
+    assert len(old_material) == len(new_material) == 1
+    assert old_material[0][2] == "CHECK ((material_version = 1))"
+    # pg_get_constraintdef emits PostgreSQL's canonical CASE and text-array syntax.
+    material = " ".join(new_material[0][2].split())
+    assert material == (
+        "CHECK ((material_version = CASE WHEN (command_name = ANY "
+        "(ARRAY['admit_bearing_evaluation_v2'::text, 'settle_bearing_evaluation_v2'::text])) "
+        "THEN 2 ELSE 1 END))"
+    )
+    bindings = {
+        "pr316d1_labels_av_fk": ("labels_artifact_version_id", "artifact_versions"),
+        "pr316d1_baseline_predictions_av_fk": (
+            "baseline_predictions_artifact_version_id",
+            "artifact_versions",
+        ),
+        "pr316d1_candidate_predictions_av_fk": (
+            "candidate_predictions_artifact_version_id",
+            "artifact_versions",
+        ),
+        "pr316d1_protocol_av_fk": ("protocol_artifact_version_id", "artifact_versions"),
+        "pr316d1_evaluator_av_fk": ("evaluator_artifact_version_id", "artifact_versions"),
+        "pr316d1_dataset_snapshot_fk": ("dataset_snapshot_id", "dataset_snapshots"),
+        "pr316d1_metric_version_fk": ("metric_definition_version_id", "metric_definition_versions"),
+    }
+    expected_d1 = {
+        (
+            "budget_reservations",
+            name,
+            f"FOREIGN KEY ({column}) REFERENCES {target}(id) ON DELETE RESTRICT",
+        )
+        for name, (column, target) in bindings.items()
+    }
+    expected_d1.add(
+        (
+            "budget_reservations",
+            "pr316d1_reservation_binding_shape_ck",
+            "CHECK ((num_nonnulls(labels_artifact_version_id, "
+            "baseline_predictions_artifact_version_id, "
+            "candidate_predictions_artifact_version_id, protocol_artifact_version_id, "
+            "evaluator_artifact_version_id, dataset_snapshot_id, "
+            "metric_definition_version_id, consumer_generation) = ANY (ARRAY[0, 8])))",
+        )
+    )
+    assert expected_d1 <= after_constraints
+    added = after_constraints - before_constraints - expected_d1 - set(new_material)
+    removed = before_constraints - after_constraints - set(old_material)
     assert {row[:2] for row in removed} == PR2_20_POST_0079_REMOVED_CONSTRAINTS
     assert not any(row[0] in PR2_20_POST_0079_TABLES for row in before_constraints)
     assert {row[0] for row in added if row[0] in PR2_20_POST_0079_TABLES} == (

@@ -468,6 +468,31 @@ def test_mapped_search_check_expressions_follow_canonical_alembic():
                 depth += (sql[end] == "(") - (sql[end] == ")")
                 end += 1
             declared[match[1]] = " ".join(sql[start : end - 1].split())
+    commands = "'admit_bearing_evaluation_v2','settle_bearing_evaluation_v2'"
+    events = "'BEARING_EVALUATION_ADMITTED','BEARING_EVALUATION_SETTLED'"
+    declared["pr316_command_names"] = (
+        f"({declared['pr316_command_names']}) OR command_name IN ({commands})"
+    )
+    declared["pr316_receipt_shape_ck"] = (
+        f"({declared['pr316_receipt_shape_ck']}) OR "
+        "(command_name='admit_bearing_evaluation_v2' AND "
+        "num_nonnulls(result_search_session_id,result_search_node_id,result_search_event_id)=3 "
+        "AND resulting_row_version>=2)"
+    )
+    declared["pr316_task_event_names"] = (
+        f"({declared['pr316_task_event_names']}) OR event_type IN ({events})"
+    )
+    declared["pr316_task_event_states"] = (
+        f"({declared['pr316_task_event_states']}) OR "
+        "(event_type='BEARING_EVALUATION_ADMITTED' AND prior_status IN "
+        "('CREATED','PLANNING') AND new_status=prior_status) OR "
+        "(event_type='BEARING_EVALUATION_SETTLED' AND prior_status IN "
+        "('CREATED','PLANNING','CANCELLED') AND new_status=prior_status)"
+    )
+    declared["pr316_task_event_reason"] = (
+        f"(event_type NOT IN ({events}) AND ({declared['pr316_task_event_reason']})) OR "
+        f"(event_type IN ({events}) AND reason IS NOT NULL AND pr316_reason(reason))"
+    )
     mapped = {
         constraint.name: " ".join(str(constraint.sqltext).split())
         for table in Base.metadata.tables.values()

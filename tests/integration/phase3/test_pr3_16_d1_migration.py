@@ -65,7 +65,7 @@ from researchbase.foundation.canonical_json import canonical_json_bytes
 from researchbase.foundation.execution_context import ExecutionContext
 from researchbase.foundation.ids import new_uuid7
 from researchbase.foundation.time import SystemClock
-from researchbase.persistence.models import BudgetReservationsModel
+from researchbase.persistence.models import Base, BudgetReservationsModel
 
 PARENT = "0082_experiment_search_core"
 HEAD = "0083_bearing_evaluation_guards"
@@ -962,3 +962,47 @@ def test_unexpected_helper_default_acl_refuses_upgrade_transactionally():
                 assert conn.scalar(text("SELECT to_regprocedure('pr316d1_enabled()')")) is None
         finally:
             engine.dispose()
+
+
+def test_amended_check_metadata_matches_public_catalog(d1):
+    with d1.engine.begin() as conn:
+        for table in ("research_task_command_receipts", "research_task_events"):
+            temp = "metadata_" + table
+            conn.execute(text(f"CREATE TEMP TABLE {temp} (LIKE public.{table})"))
+            checks = {
+                c.name: c
+                for c in Base.metadata.tables[table].constraints
+                if isinstance(c, CheckConstraint) and c.name in CHANGED_CHECKS
+            }
+            for name, check in checks.items():
+                conn.execute(
+                    text(f'ALTER TABLE {temp} ADD CONSTRAINT "{name}" CHECK ({check.sqltext})')
+                )
+            actual = dict(
+                conn.execute(
+                    text(
+                        "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+                        "WHERE conrelid=CAST(:table AS regclass) AND conname=ANY(:names)"
+                    ),
+                    {"table": "public." + table, "names": list(checks)},
+                ).all()
+            )
+            compiled = dict(
+                conn.execute(
+                    text(
+                        "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+                        "WHERE conrelid=CAST(:table AS regclass) AND conname=ANY(:names)"
+                    ),
+                    {"table": temp, "names": list(checks)},
+                ).all()
+            )
+            assert actual == compiled
+            assert set(actual) == set(checks)
+        assert (
+            sum(
+                c.name in CHANGED_CHECKS
+                for table in ("research_task_command_receipts", "research_task_events")
+                for c in Base.metadata.tables[table].constraints
+            )
+            == 7
+        )
