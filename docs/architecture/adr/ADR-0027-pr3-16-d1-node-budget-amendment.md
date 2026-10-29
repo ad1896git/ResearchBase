@@ -1,7 +1,7 @@
 # ADR-0027 — PR3-16 D1 paired bearing-evaluation amendment
 
-Status: PROPOSED, pending commander final review and acceptance. No code slice is
-authorized by this ADR. The detailed proposed contract and blockers are in
+Status: PROPOSED for the production amendment. Separately scoped commander
+authorizations below and in the companion contract do not activate production. The detailed proposed contract and blockers are in
 [the D1 contract](../../phase3/design/PR3-16-d1-amendment-contract.md).
 
 ## Decision proposed 2026-10-28
@@ -92,3 +92,13 @@ corrected: end-to-end ArtifactStore/PG/resource proof belongs to Stage 3, not St
 The owner delegated this decision. ADR-0027's production amendment stays PROPOSED;
 no Artifact I/O, canonical provenance binding, migration, capability registration,
 budget mutation or node activation is authorized by this acceptance.
+
+
+### Separately reviewable Stage 2 selection — 2026-10-28
+
+The commander selects the exact disabled O09 catalog slice for separate review before code authorization; production remains PROPOSED. New v2 deadline_seconds equals reserved W and is reconstructed from that immutable field; exact transaction-epoch deadline must fit the existing earliest-reservation task origin cap, otherwise deny without clipping. Registered remaining-phase allowance is a later mandatory Application check, not guessed from W. Preserve the two independent existing reason owners: accounting task-event reason and node/search mutation reason may differ for v2 only, validated by a new early v2 dispatch; all legacy checks remain unchanged. No extra storage is needed and all eight frozen serializer/result examples retain their meaning. No enablement, new table, production grant or service wiring belongs to this slice. See the companion Stage2 section for exact named constraints and acceptance boundary.
+
+
+### Commander disabled Stage 2 acceptance — 2026-10-28
+
+Accept only the separately reviewed disabled schema/guard contract at8cbc9afb, after independent read-only PASS/noP0/P1. Authorize0083 forward migration, ORM binding columns and required PG18/regression/current-head checks under the exact companion manifest. Correct the prospective proof wording; no guard or new migration test has yet passed. Enablement stays literal false, no new production grants/services/registry; all unclosed production facts remain blocking and the full amendment stays PROPOSED.

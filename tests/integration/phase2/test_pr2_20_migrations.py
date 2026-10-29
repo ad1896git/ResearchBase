@@ -1,5 +1,6 @@
 """No PR220 DDL: accepted migrations preserve disposable historical bytes and edges."""
 
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -189,7 +190,36 @@ def test_populated_source_evidence_conclusion_placement_review_decision_head_noo
     catalog = s.catalog(engine)
     s.upgrade(phase2_database_url)
     assert s.manifest(engine, tables) == before
-    s.assert_pr2_20_head_catalog_unchanged(catalog, s.catalog(engine))
+    after_catalog = s.catalog(engine)
+    s.assert_pr2_20_head_catalog_unchanged(catalog, after_catalog)
+    for kind in ("missing_fk", "extra", "old", "cascade", "shape", "material"):
+        tampered = deepcopy(after_catalog)
+        rows = tampered["constraints"]
+        if kind == "missing_fk":
+            rows[:] = [row for row in rows if row[1] != "pr316d1_labels_av_fk"]
+        elif kind == "extra":
+            rows.append(["budget_reservations", "unexpected_constraint", "CHECK (true)"])
+        elif kind == "old":
+            old_rows = {tuple(row) for row in catalog["constraints"]}
+            row = next(row for row in rows if tuple(row) in old_rows)
+            row[2] += " altered"
+        else:
+            name = {
+                "cascade": "pr316d1_labels_av_fk",
+                "shape": "pr316d1_reservation_binding_shape_ck",
+                "material": "research_task_command_receipts_material_version_check",
+            }[kind]
+            row = next(row for row in rows if row[1] == name)
+            original_definition = row[2]
+            if kind == "cascade":
+                row[2] = row[2].replace("RESTRICT", "CASCADE")
+            elif kind == "shape":
+                row[2] = row[2].replace("ARRAY[0, 8]", "ARRAY[0, 4, 8]")
+            else:
+                row[2] = row[2].replace("ELSE 1", "ELSE 2")
+            assert row[2] != original_definition
+        with pytest.raises(AssertionError):
+            s.assert_pr2_20_head_catalog_unchanged(catalog, tampered)
     engine.dispose()
     with engine.connect() as conn:
         assert (

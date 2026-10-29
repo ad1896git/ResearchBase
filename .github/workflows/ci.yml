@@ -89,7 +89,7 @@ jobs:
       - run: pg_dump --version
       - run: uv sync --locked --group dev
       - run: uv run alembic upgrade head
-      - run: test "$(uv run alembic current | tail -n 1)" = "0082_experiment_search_core (head)"
+      - run: test "$(uv run alembic current | tail -n 1)" = "0083_bearing_evaluation_guards (head)"
       - name: Run deterministic pytest file shard
         shell: bash
         run: |

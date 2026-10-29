@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_authorized_head_and_s1_only():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0082_experiment_search_core"]
+    assert scripts.get_heads() == ["0083_bearing_evaluation_guards"]
     assert (
         scripts.get_revision("0079_agent_identity_versions").down_revision
         == "0078_task_safety_policies"
