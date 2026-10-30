@@ -235,6 +235,7 @@ def test_unknown_replay_never_refunds_or_redispatches(gateway, monkeypatch):
 
     from researchbase.agent_runtime.application import routing
     from researchbase.agent_runtime.application.gateway_contracts import CapabilityRequest
+    from researchbase.persistence.task_safety_repository import SqlAlchemyTaskSafetyRepository
 
     g = gateway
     parameters = replace(g.args.parameters, outcome="UNKNOWN_OUTCOME")
@@ -259,11 +260,19 @@ def test_unknown_replay_never_refunds_or_redispatches(gateway, monkeypatch):
     monkeypatch.setattr(routing, "finite_fake_echo", echo)
     result = g.gateway_service.invoke(c, g.context)
     assert result.outcome == "UNKNOWN_OUTCOME" and len(calls) == 1
+    with g.engine.connect() as conn:
+        snapshot = conn.execute(text("SELECT clock_timestamp()")).scalar_one()
+
+    def safety_at_snapshot():
+        with monkeypatch.context() as patch:
+            patch.setattr(SqlAlchemyTaskSafetyRepository, "snapshot_at", lambda self: snapshot)
+            return service(g.p).get_task_safety(g.owner, g.project, g.task)
+
     before = _rows(g.engine)
-    first = service(g.p).get_task_safety(g.owner, g.project, g.task)
+    first = safety_at_snapshot()
     for _ in range(2):
         assert g.gateway_service.invoke(c, g.context) == result
-        current = service(g.p).get_task_safety(g.owner, g.project, g.task)
+        current = safety_at_snapshot()
         assert current.reserved == first.reserved and current.consumed == first.consumed
         assert current.parallel_branches == first.parallel_branches == 1
         assert current.reserved.llm_calls == 1 and current.consumed.llm_calls == 0
