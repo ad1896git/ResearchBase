@@ -359,3 +359,45 @@ print(json.dumps(d.run_cycle(control,evidence,evidence,{'ci':{'kind':'ci','confi
         if process.poll() is None:
             process.kill()
             process.wait(timeout=5)
+
+
+def test_initial_validation_timeout_binds_before_claim_then_reopens_and_resumes(case, monkeypatch):
+    control, evidence, jobs = case
+    validations = []
+
+    def validate(*args, **kwargs):
+        validations.append(1)
+        if len(validations) == 1:
+            raise TimeoutError("initial validation query timed out")
+        # Opening here independently revalidates the paused/resumed protocol state.
+        with StateStore(control, evidence) as store:
+            task = store.state["tasks"]["ci"]
+            assert task["status"] == "running" and task["attempt"] == 1
+        assert json.loads((control / "ci-ci.json").read_text()) == target()
+
+    def command(*args, **kwargs):
+        with StateStore(control, evidence) as store:
+            done = store.state["tasks"]["ci"]["status"] == "done"
+        return propose(control, evidence, "dispatch" if done else "wait", "worker" if done else "")
+
+    def execute(value, jobs, control, evidence, **kwargs):
+        complete_worker(control, evidence)
+        return dict(decision=value, status="done")
+
+    monkeypatch.setattr(CITarget, "validate", validate)
+    monkeypatch.setattr(CIObserver, "observe", lambda *a, **kw: dict(pr={}, check_runs=checks()))
+    monkeypatch.setattr(driver, "command_once", command)
+    monkeypatch.setattr(driver, "dispatch", execute)
+    result = driver.run_cycle(
+        control,
+        evidence,
+        evidence,
+        jobs,
+        policy=driver.Policy(retry_delay=1, heartbeat_interval=0.05),
+    )
+    assert result["status"] == "done" and len(validations) == 2
+    assert result["rounds_used"] == 2 and result["tasks"]["ci"]["attempt"] == 1
+    saved = json.loads(next(control.glob("ci-retry-*.json")).read_text())
+    assert saved["intent"] == result["tasks"]["ci"]["intent"]
+    with StateStore(control, evidence) as store:
+        assert all(t["status"] == "done" for t in store.state["tasks"].values())

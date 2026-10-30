@@ -186,6 +186,16 @@ class Driver:
             with StateStore(self.control, self.evidence) as store:
                 # Even a validation-query timeout has a durable read-only wait claim.
                 if store.state["tasks"][name]["status"] == "ready":
+                    # Validation itself may have exhausted its query budget before
+                    # the waiter could bind the target. Persist it before the claim;
+                    # a restart must never see an unbound running/paused CI intent.
+                    binding = self.control / ("ci-" + name + ".json")
+                    expected = encoded(target.__dict__)
+                    require(not binding.is_symlink(), "symlink CI target binding")
+                    if binding.exists():
+                        require(binding.read_bytes() == expected, "CI target drift")
+                    else:
+                        atomic_write(binding, expected)
                     store.begin(name, "ci", f"pr:{target.pr}", target.head, target.base_commit)
                 store.pause_ci(name, int(time.time()) + self.policy.retry_delay)
                 task = store.state["tasks"][name]
