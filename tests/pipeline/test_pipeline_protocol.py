@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 from scripts.pipeline_protocol import (
-    EXPECTED_CHECKS,
     ExecutionReceipt,
     ProtocolError,
     Publication,
@@ -22,10 +21,19 @@ ROOT = Path(__file__).resolve().parents[2]
 A, B, C = "a" * 40, "b" * 40, "c" * 40
 PROOFS = ("published", "verified", "reviewed")
 ENV = dict(os.environ, PYTHONPATH=str(ROOT))
+REQUIRED_CI = (
+    "static",
+    "checks (0)",
+    "checks (1)",
+    "checks (2)",
+    "checks (3)",
+    "checks (4)",
+    "checks (5)",
+)
 
 
 def checks(head=A):
-    return [dict(name=n, head=head, conclusion="success") for n in EXPECTED_CHECKS]
+    return [dict(name=n, head=head, conclusion="success") for n in REQUIRED_CI]
 
 
 def output(evidence, *, result="pass", attempt=1, task_id="work", commit=A):
@@ -769,8 +777,11 @@ def test_review_and_verification_for_another_pr_same_head_cannot_be_reused(paths
             )
 
 
-@pytest.mark.parametrize("kind", ["delete", "architecture", "worker"])
-def test_quota_retry_cannot_change_its_frozen_action_scope(paths, kind):
+@pytest.mark.parametrize(
+    "field,value",
+    [("kind", "delete"), ("kind", "architecture"), ("key", "other"), ("head", C), ("base", C)],
+)
+def test_quota_retry_cannot_change_its_frozen_action_scope(paths, field, value):
     control, evidence = paths
     with StateStore(control, evidence, create=True) as store:
         store.add("work")
@@ -780,6 +791,44 @@ def test_quota_retry_cannot_change_its_frozen_action_scope(paths, kind):
             "work", 100, ExecutionReceipt("work", 1, intent["id"], A, 75, key=intent["key"])
         )
         with pytest.raises(ProtocolError, match="retry intent changed"):
-            store.begin("work", kind, "lane", C, B, now=100)
+            scope = dict(kind="worker", key="lane", head=A, base=B)
+            scope[field] = value
+            store.begin("work", **scope, now=100)
     with StateStore(control, evidence) as resumed:
         assert resumed.state["tasks"]["work"]["status"] == "retry_wait"
+
+
+@pytest.mark.parametrize("missing", REQUIRED_CI)
+def test_each_required_ci_name_is_independently_required(paths, missing):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        prepare_proofs(store, evidence)
+        with pytest.raises(ProtocolError, match="CI not ready"):
+            store.await_merge(
+                "merge",
+                Publication("topic", A, B, 38),
+                after_event=0,
+                checks=[item for item in checks() if item["name"] != missing],
+                proofs=PROOFS,
+            )
+
+
+@pytest.mark.parametrize("damage", ["ready", "done", "rounds"])
+def test_corrupt_execution_state_is_rejected_before_restart_dispatch(paths, damage):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        store.add("work")
+        store.add("independent")
+        store.begin("work", "worker", "lane", A, B)
+    snapshot = control / "state.json"
+    value = json.loads(snapshot.read_text())
+    if damage == "rounds":
+        value["rounds_used"] = 0
+    else:
+        value["tasks"]["work"]["status"] = damage
+    snapshot.write_text(json.dumps(value))
+    corrupted = snapshot.read_bytes()
+    with pytest.raises(ProtocolError):
+        with StateStore(control, evidence):
+            pytest.fail("corrupt state reached dispatch")
+    assert snapshot.read_bytes() == corrupted

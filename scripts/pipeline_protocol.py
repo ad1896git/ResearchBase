@@ -218,6 +218,94 @@ def validate_state(value):
             require(task["retry_at"] is not None, "missing retry time")
         if task["status"] in ("done", "failed", "retry_wait"):
             require(task["result"] is not None, "missing completion receipt")
+        status = task["status"]
+        pristine = (
+            task["attempt"] == 0
+            and task["intent"] is None
+            and task["result"] is None
+            and task["retry_at"] is None
+        )
+        if status == "ready":
+            require(
+                pristine and task["merge"] is None and task["reason"] is None,
+                "ready task contains prior execution",
+            )
+        if status == "running":
+            require(
+                task["intent"]["kind"] in ("worker", "verify", "review", "publish", "ci")
+                and task["result"] is None
+                and task["retry_at"] is None
+                and task["merge"] is None
+                and task["reason"] is None,
+                "inconsistent running task",
+            )
+        if status == "retry_wait":
+            require(
+                task["intent"]["kind"] in ("worker", "review")
+                and task["merge"] is None
+                and task["reason"] == "quota",
+                "inconsistent quota task",
+            )
+        if status == "awaiting_merge":
+            require(pristine and task["reason"] is None, "inconsistent merge wait")
+        if status in ("done", "failed"):
+            require(
+                task["attempt"] > 0
+                and task["intent"] is not None
+                and task["intent"]["kind"] in ("worker", "verify", "review", "ci", "publish")
+                and task["retry_at"] is None
+                and task["merge"] is None
+                and task["reason"] is None,
+                "inconsistent completed task",
+            )
+        if status == "blocked":
+            require(
+                type(task["reason"]) is str
+                and bool(task["reason"])
+                and task["result"] is None
+                and task["retry_at"] is None,
+                "inconsistent blocked task",
+            )
+            if task["intent"] is not None:
+                require(
+                    task["attempt"] > 0
+                    and task["intent"]["kind"] == "publish"
+                    and task["merge"] is None,
+                    "inconsistent uncertain publication",
+                )
+            else:
+                require(task["attempt"] == 0, "blocked task lost execution intent")
+                if task["merge"] is not None:
+                    require(
+                        task["merge"]["approved_event"] is None, "blocked merge retains approval"
+                    )
+        if status == "budget_exhausted":
+            require(
+                task["reason"] == "round budget exhausted"
+                and task["merge"] is None
+                and (
+                    pristine
+                    or (
+                        task["attempt"] > 0
+                        and task["intent"] is not None
+                        and task["intent"]["kind"] in ("worker", "review")
+                        and task["result"] is not None
+                        and task["retry_at"] is not None
+                    )
+                ),
+                "inconsistent exhausted budget",
+            )
+        if task["merge"] is not None:
+            require(
+                (task["merge"]["approved_event"] is None)
+                == (task["merge"]["approved_actor"] is None),
+                "partial approval",
+            )
+
+    require(
+        value["rounds_used"] == sum(t["attempt"] for t in value["tasks"].values()),
+        "round/attempt count mismatch",
+    )
 
     checked = set()
 
@@ -293,6 +381,7 @@ class StateStore:
 
     def _copy(self):
         self.lock.check()
+        validate_state(self.state)
         return json.loads(json.dumps(self.state))
 
     def add(self, name, needs=()):
@@ -311,6 +400,7 @@ class StateStore:
         self._save(value)
 
     def eligible(self, now):
+        validate_state(self.state)
         return [
             name
             for name, t in self.state["tasks"].items()
@@ -537,7 +627,7 @@ class StateStore:
     def await_merge(self, name, publication: Publication, *, after_event: int, checks, proofs):
         value = self._copy()
         task = value["tasks"][name]
-        require(name in self.eligible(0), "merge task not eligible")
+        require(name in self.eligible(0) and task["status"] == "ready", "merge task not eligible")
         require(
             len(proofs) == 3 and len(set(proofs)) == 3 and set(proofs) == set(task["needs"]),
             "missing readiness proof dependencies",

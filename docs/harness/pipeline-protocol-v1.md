@@ -111,3 +111,8 @@ live cutover, the separately approved executor integration must repeat these
 scenarios through its real adapters, verify worker sandbox isolation and bounded
 shutdown, and demonstrate human label confirmation. This PR does not authorize
 that later integration or the cutover.
+
+State validation rejects impossible status/intent/receipt combinations and requires
+rounds_used to equal total attempts before dispatch or mutation. Restart corruption
+is covered by `test_corrupt_execution_state_is_rejected_before_restart_dispatch`.
+Quota scope fields and all seven required CI names are tested independently.
