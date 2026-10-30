@@ -86,10 +86,41 @@ class Heartbeat:
         self.thread.join()
 
 
+def human_gate_wait(tasks):
+    """Only dependency chains ending exclusively at a human merge gate can park."""
+    if any(t["status"] in ("blocked", "failed", "budget_exhausted") for t in tasks.values()):
+        return False
+    waiting = {n for n, t in tasks.items() if t["status"] == "awaiting_merge"}
+    while True:
+        added = {
+            n
+            for n, t in tasks.items()
+            if t["status"] == "ready"
+            and t["needs"]
+            and any(dep in waiting for dep in t["needs"])
+            and all(tasks[dep]["status"] == "done" or dep in waiting for dep in t["needs"])
+        }
+        if added <= waiting:
+            break
+        waiting |= added
+    unfinished = {n for n, t in tasks.items() if t["status"] not in TERMINAL}
+    return bool(waiting) and unfinished <= waiting
+
+
 class Driver:
-    def __init__(self, control: Path, evidence: Path, checkout: Path, jobs: dict, policy: Policy):
+    def __init__(
+        self,
+        control: Path,
+        evidence: Path,
+        checkout: Path,
+        jobs: dict,
+        policy: Policy,
+        *,
+        park_human_gates=False,
+    ):
         self.control, self.evidence, self.checkout = control, evidence, checkout
         self.jobs, self.policy = jobs, policy
+        self.park_human_gates = park_human_gates
         self.events = control / "driver-events"
         self.events.mkdir(exist_ok=True)
         require(not self.events.is_symlink(), "symlink driver events")
@@ -224,6 +255,10 @@ class Driver:
             tasks = state["tasks"]
             if all(t["status"] in TERMINAL for t in tasks.values()):
                 return
+            if self.park_human_gates and human_gate_wait(tasks):
+                self.event("parked", status="awaiting_merge", revision=state["revision"])
+                self.notify("driver", "awaiting_merge", "Human merge required; no runnable work")
+                return
             if any(t["status"] == "failed" for t in tasks.values()):
                 self.block("failed execution needs operator reconciliation")
                 continue
@@ -236,8 +271,20 @@ class Driver:
             if active_ci:
                 self.wait_for_ci(active_ci[0], heartbeat)
                 continue
-            if any(t["status"] == "running" for t in tasks.values()):
-                self.block("unreconciled live non-CI execution; never relaunch")
+            running = [n for n, t in tasks.items() if t["status"] == "running"]
+            if running:
+                name = running[0]
+                require(self.jobs[name]["kind"] == "worker", "unknown running executor")
+                heartbeat.phase = dict(phase="recovery", task_id=name)
+                result = dispatch(
+                    dict(action="dispatch", task_id=name, revision=state["revision"]),
+                    self.jobs,
+                    self.control,
+                    self.evidence,
+                    timeout=self.policy.session_timeout,
+                )
+                require(result["status"] == "done", "worker recovery unsuccessful")
+                self.event("recovered", task_id=name, result=result)
                 continue
             if state["rounds_used"] >= self.policy.round_budget:
                 with StateStore(self.control, self.evidence) as store:
@@ -314,20 +361,29 @@ def graceful_stop():
 
 
 def run_cycle(
-    control: Path, evidence: Path, checkout: Path, jobs: dict, *, policy: Policy | None = None
+    control: Path,
+    evidence: Path,
+    checkout: Path,
+    jobs: dict,
+    *,
+    policy: Policy | None = None,
+    park_human_gates: bool = False,
 ) -> dict:
     policy = policy or Policy()
     policy.validate()
     require((control / "initialized").is_file(), "explicit established ledger required")
     # Entire lifecycle ownership; task adapters still use their own short state locks.
     with ProcessLock(control / "driver.lock"), graceful_stop():
-        driver = Driver(control, evidence, checkout, jobs, policy)
+        driver = Driver(
+            control, evidence, checkout, jobs, policy, park_human_gates=park_human_gates
+        )
         try:
-            binding = encoded(
-                dict(
-                    policy=asdict(policy), jobs=jobs, checkout=str(checkout), evidence=str(evidence)
-                )
+            fields: dict = dict(
+                policy=asdict(policy), jobs=jobs, checkout=str(checkout), evidence=str(evidence)
             )
+            if park_human_gates:
+                fields["park_human_gates"] = True
+            binding = encoded(fields)
             bound = control / "driver-binding.json"
             if bound.exists():
                 require(
@@ -343,7 +399,8 @@ def run_cycle(
             driver.block(f"driver error: {type(exc).__name__}: {exc}")
         state = driver.snapshot()
         require(
-            all(t["status"] in TERMINAL for t in state["tasks"].values()),
+            all(t["status"] in TERMINAL for t in state["tasks"].values())
+            or (park_human_gates and human_gate_wait(state["tasks"])),
             "driver must not exit with unfinished tasks",
         )
         status = (
@@ -351,6 +408,8 @@ def run_cycle(
         )
         if any(t["status"] == "budget_exhausted" for t in state["tasks"].values()):
             status = "budget_exhausted"
+        if park_human_gates and human_gate_wait(state["tasks"]):
+            status = "awaiting_merge"
         driver.event("exit", status=status, rounds_used=state["rounds_used"])
         return dict(status=status, rounds_used=state["rounds_used"], tasks=state["tasks"])
 
