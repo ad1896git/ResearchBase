@@ -161,17 +161,21 @@ def wait_ci(
                 confirmation = observer.observe()
                 require(classify(confirmation["check_runs"], target.head) == outcome, "CI changed")
                 authority(store)
-                relative = f"ci-{task_id}-{task['attempt']}.json"
-                path = evidence / relative
-                require(not path.exists() and not path.is_symlink(), "CI evidence already exists")
                 payload = encoded(confirmation)
-                atomic_write(path, payload)
+                digest = hashlib.sha256(payload).hexdigest()
+                relative = f"ci-{task_id}-{task['attempt']}-{digest}.json"
+                path = evidence / relative
+                require(not path.is_symlink(), "symlink CI evidence")
+                if path.exists():
+                    require(path.read_bytes() == payload, "conflicting CI observation evidence")
+                else:
+                    atomic_write(path, payload)
                 report = dict(
                     task_id=task_id,
                     attempt=task["attempt"],
                     result=outcome,
                     commit=target.head,
-                    evidence=[dict(path=relative, sha256=hashlib.sha256(payload).hexdigest())],
+                    evidence=[dict(path=relative, sha256=digest)],
                     notes="Host observed exact-head GitHub Actions checks; no merge authority.",
                 )
                 store.finish(

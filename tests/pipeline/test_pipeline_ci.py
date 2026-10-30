@@ -80,3 +80,28 @@ def test_stale_dispatch_cannot_start_ci(tmp_path):
     target = ci.CITarget("test/sandbox", 7, "pipeline-test/ci", A, "main", B)
     with pytest.raises(ProtocolError, match="stale CI"):
         ci.wait_ci(target, "ci", control, evidence, expected_revision=0)
+
+
+def test_crash_after_observation_write_recovers_without_new_attempt(tmp_path, monkeypatch):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    control = tmp_path / "control"
+    with StateStore(control, evidence, create=True) as store:
+        store.add("ci")
+    target = ci.CITarget("test/sandbox", 7, "pipeline-test/ci", A, "main", B)
+    monkeypatch.setattr(ci.CIObserver, "observe", lambda self: {"pr": {}, "check_runs": checks()})
+    original = StateStore.finish
+
+    def interrupted(*args):
+        raise RuntimeError("after durable CI evidence, before completion")
+
+    monkeypatch.setattr(StateStore, "finish", interrupted)
+    with pytest.raises(RuntimeError, match="after durable"):
+        ci.wait_ci(target, "ci", control, evidence, timeout=0)
+    before = {p.name: p.read_bytes() for p in evidence.iterdir()}
+    assert len(before) == 1
+    monkeypatch.setattr(StateStore, "finish", original)
+    assert ci.wait_ci(target, "ci", control, evidence, timeout=0) == "done"
+    assert {p.name: p.read_bytes() for p in evidence.iterdir()} == before
+    with StateStore(control, evidence) as store:
+        assert store.state["rounds_used"] == 1

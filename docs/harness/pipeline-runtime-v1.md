@@ -48,8 +48,12 @@ The evidence root must be the checkout. Control and checkout cannot contain one
 another. The checkout must have an explicit HTTPS sandbox origin and cannot be
 the ResearchBase main repository. Worker jobs/prompts are bound before dispatch.
 The intent is durable before `codex exec --sandbox workspace-write`; the sandbox
-checkout is the configured writable workspace; CLI-managed temporary directories
-may also be writable. The control directory is outside these writable roots. The host, outside the model sandbox,
+checkout is the sole configured writable workspace. Session flags explicitly clear
+additional writable roots, exclude both /tmp and inherited TMPDIR, and disable
+network access; --strict-config rejects unsupported settings. Control/checkout
+overlap is rejected after resolving paths, so control cannot lie in an effective
+writable root, even when control itself is in /tmp or TMPDIR. Jobs needing
+temporary files must place them inside their checkout. The host, outside the model sandbox,
 records the schema result, actual git HEAD, exit code and a per-attempt receipt.
 The existing protocol verifies task/attempt/intent, scope, real evidence hashes
 and host status. Model PASS cannot override a failed or timed-out process. A
@@ -88,7 +92,9 @@ never count as success. All seven must complete successfully; the observer then
 rechecks the PR and checks before writing host evidence/completion. No check or
 PR is modified. A bounded wait timeout preserves the running intent and attempt;
 resuming CI polling does not spend another round. Host errors or drift also leave
-no PASS. No label, approval or merge authority is inferred from CI success.
+no PASS. Observation evidence is immutable and content-addressed; a crash after
+evidence write but before completion can requery and reuse identical evidence
+(or preserve it and write a new observation), with the same intent and attempt. No label, approval or merge authority is inferred from CI success.
 
 ## Validation and boundaries
 
