@@ -1,11 +1,12 @@
 # Bounded engineering runtime adapters — second step
 
-This is a local follow-up to the reviewed publication executor at `f0294d8` and
-main-repository draft PR #40. Its code is not pushed to that PR. It adds only a
-short-session commander, a worker adapter, a read-only CI waiter and explicit
-single-step dispatch. There is no daemon, notification system, merge/label action,
-scientific implementation, new canonical schema or runtime dependency. The old
-`.pipeline/bin` loop and governing Harness files are not modified or activated.
+The publication executor and single-step runtime were merged in #40. The runtime
+contains a short-session commander, sandbox worker, read-only CI waiter and explicit
+single-step dispatch. The independently invoked outer cycle in
+[pipeline-driver-v1.md](pipeline-driver-v1.md) now owns wait continuation, heartbeat,
+retry and terminal-only exits. Neither CLI activates or installs the old loop.
+No scientific implementation, canonical schema, runtime dependency or merge/label
+authority is added. `.pipeline/bin` remains untouched.
 
 ## Commander and dispatch
 
@@ -125,7 +126,7 @@ inspection. Previously accepted real SIGKILL publication evidence is preserved.
 This completes the explicitly requested second-step adapters for isolated use.
 Production scheduling/cutover, real model quota retry, hostile daemon containment,
 notifications and human-label/merge integration remain outside this authorization.
-Cloud CI for main-repository draft #40 is not implied by sandbox CI evidence.
+Sandbox CI evidence never substitutes for exact-head main-repository PR CI.
 
 Codex flag behavior was checked against local `codex-cli 0.164.0 --help` and
 [official non-interactive documentation](https://learn.chatgpt.com/docs/non-interactive-mode).
