@@ -169,6 +169,7 @@ def test_authorized_squash_persists_real_effect_receipt_and_reopens(case):
     assert state["rounds_used"] == 4 and len(case["puts"]) == 1
     with StateStore(case["control"], case["evidence"]) as s:
         assert s.state["tasks"]["merge"]["status"] == "done"
+    assert execute(case)[0] == "done" and len(case["puts"]) == 1
     assert not any("delete" in k for k in case["puts"][0])
 
 
@@ -311,6 +312,17 @@ def test_revoked_or_reapplied_approval_is_not_reused_on_restart(case, monkeypatc
     assert execute(case)[0] == "awaiting_merge" and not case["puts"]
     case["normalized"].update(effective=(8, "owner"), cursor=8)
     assert execute(case)[0] == "blocked" and not case["puts"]
+
+
+def test_valid_reapproval_during_final_check_blocks_before_any_put(case, monkeypatch):
+    def change(name, pause):
+        if name == "before-request":
+            case["normalized"].update(effective=(7, "owner"), cursor=7)
+
+    monkeypatch.setattr(merger, "checkpoint", change)
+    result, state = execute(case)
+    assert result == "blocked" and not case["puts"]
+    assert "final approval differs" in state["tasks"]["merge"]["reason"]
 
 
 @pytest.mark.parametrize("bad", ["parent", "tree", "marker", "source_branch"])

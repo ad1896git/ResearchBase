@@ -251,6 +251,21 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             "rehearsal target mismatch",
         )
         task = store.state["tasks"][name]
+        if task["status"] == "done":
+            require(task["intent"]["kind"] == "merge", "completed task is not a merge")
+            effect = decode((store.directory / task["result"]).read_text())["merge"]
+            require(
+                effect["repository"] == repository and effect["risk"] == risk,
+                "completed merge replay scope mismatch",
+            )
+            target_file = store.directory / "merge-operations" / name / "target.json"
+            prior = decode(target_file.read_text())
+            require(
+                prior["entry_id"] == entry_id
+                and prior["authorization_sha256"] == policy["authorization_sha256"],
+                "completed merge replay authorization mismatch",
+            )
+            return "done"
         require(task["status"] == "awaiting_merge", "not awaiting merge")
         binding = dict(task["merge"])
         folder = store.directory / "merge-operations" / name
@@ -324,6 +339,12 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             )
             == "manual_merge_ready",
             "final approval/CI changed",
+        )
+        approval = store.state["tasks"][name]["merge"]
+        require(
+            (approval["approved_event"], approval["approved_actor"])
+            == (intent["approval_event"], intent["approval_actor"]),
+            "final approval differs from frozen merge intent",
         )
         final = remote_pr(repository, binding["pr"])
         require(
