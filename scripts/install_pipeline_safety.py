@@ -24,6 +24,7 @@ TAKE_LOCK = """def take_lock():
     if not _process_lock.acquire():
         log("another autopilot holds the kernel lock; exiting")
         return False
+    begin_legacy_run(LOGS / "autopilot.active")
     PIDFILE.write_text(str(os.getpid()))
     return True"""
 LOOP = """#!/bin/sh
@@ -50,7 +51,8 @@ def _rewrite(text: str) -> str:
     text = text.replace(
         anchor,
         anchor + '\nsys.path.insert(0, str(REPO / "scripts"))\n'
-        "from pipeline_safety import ProcessLock, prepare_lane as safe_prepare_lane\n"
+        "from pipeline_safety import (ProcessLock, prepare_lane as safe_prepare_lane, "
+        "begin_legacy_run, finish_legacy_run)\n"
         '_process_lock = ProcessLock(LOGS / "autopilot.lock")\n',
         1,
     )
@@ -65,6 +67,14 @@ def _rewrite(text: str) -> str:
     marker = "    if not take_lock():\n        return 0\n"
     assert text.count(marker) == 1
     text = text.replace(marker, marker + reset, 1)
+    successful_exit = '    if rc == 0:\n        log("queue waiting for explicit disposition"'
+    assert text.count(successful_exit) == 1
+    text = text.replace(
+        successful_exit,
+        '    if rc == 0:\n        finish_legacy_run(LOGS / "autopilot.active")\n'
+        '        log("queue waiting for explicit disposition"',
+        1,
+    )
     ast.parse(text)
     return text
 

@@ -20,6 +20,13 @@ locks; PID contents are diagnostic. Files remain on disk after release. Kernel
 locks release on process death; subprocess exec does not inherit the descriptors.
 The control directory and lock inodes must not be replaced while running.
 
+A durable `autopilot.active` crash marker is written before state access or worker
+launch. A crashed/non-successful driver leaves it in place: subsequent drivers
+refuse to run, even if the kernel lock is free and an orphan worker still writes.
+Only a clean successful queue clears its own marker. An operator must reconcile
+workers/effects and preserve the old marker before manually permitting restart;
+this patch does not kill orphan processes or implement automatic recovery.
+
 ## Verification
 
 Use the existing locked environment, without dependency synchronization:

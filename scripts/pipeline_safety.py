@@ -21,6 +21,38 @@ class SafetyError(RuntimeError):
 _LOCKS: weakref.WeakSet[ProcessLock] = weakref.WeakSet()
 
 
+def real_directory(path: Path):
+    """Create directories without accepting symlinks anywhere in their chain."""
+    path = path.absolute()
+    if ".." in path.parts:
+        raise SafetyError("parent traversal in directory")
+    for parent in reversed((path, *path.parents)):
+        try:
+            parent.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        if not stat.S_ISDIR(parent.lstat().st_mode):
+            raise SafetyError("symlink or non-directory parent denied")
+
+
+def begin_legacy_run(marker: Path):
+    """Under autopilot.lock: unclean runs require operator reconciliation."""
+    try:
+        with marker.open("xb") as stream:
+            stream.write(f"{os.getpid()}\n".encode())
+            stream.flush()
+            os.fsync(stream.fileno())
+    except FileExistsError as exc:
+        raise SafetyError("unclean driver run; reconcile workers before restart") from exc
+
+
+def finish_legacy_run(marker: Path):
+    """Only a successful, joined queue clears its own crash marker."""
+    if marker.read_text().strip() != str(os.getpid()):
+        raise SafetyError("legacy run marker owner mismatch")
+    marker.unlink()
+
+
 class ProcessLock:
     """Keep a stable lock inode; PID contents are diagnostics, never lock authority."""
 
@@ -38,7 +70,7 @@ class ProcessLock:
         if self.fd is not None:
             self.check()
             return True
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        real_directory(self.path.parent)
         fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
         try:
             info = os.fstat(fd)
@@ -107,7 +139,13 @@ def prepare_lane(repo: Path, work: Path, step: dict) -> Path:
     repo = repo.resolve(strict=True)
     if git(repo, "rev-parse", "--verify", base + "^{commit}") != base:
         raise SafetyError("base commit mismatch")
-    work.mkdir(parents=True, exist_ok=True)
+    source_branch = "refs/heads/" + step["base_branch"]
+    git(repo, "rev-parse", "--verify", source_branch + "^{commit}")
+    if subprocess.run(
+        ["git", "-C", str(repo), "merge-base", "--is-ancestor", base, source_branch]
+    ).returncode:
+        raise SafetyError("base commit is not on requested source branch")
+    real_directory(work)
     lane = work / name
     with ProcessLock(work / ".locks" / (name + ".lock")):
         if lane.is_symlink():
@@ -144,6 +182,23 @@ def prepare_lane(repo: Path, work: Path, step: dict) -> Path:
             ["git", "-C", str(lane), "merge-base", "--is-ancestor", base, "HEAD"]
         ).returncode:
             raise SafetyError("lane base mismatch")
+        if git(lane, "ls-files", "--unmerged"):
+            raise SafetyError("unresolved Git conflict; preserve lane for reconciliation")
+        for name in (
+            "MERGE_HEAD",
+            "CHERRY_PICK_HEAD",
+            "REVERT_HEAD",
+            "rebase-merge",
+            "rebase-apply",
+            "sequencer",
+            "BISECT_LOG",
+            "index.lock",
+        ):
+            operation = Path(git(lane, "rev-parse", "--git-path", name))
+            if not operation.is_absolute():
+                operation = lane / operation
+            if operation.exists():
+                raise SafetyError("interrupted Git operation; preserve lane for reconciliation")
         return lane
 
 

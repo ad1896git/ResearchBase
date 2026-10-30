@@ -206,7 +206,10 @@ def main():
         return 0
     if not take_lock():
         return 0
-    return run_queue(state)
+    rc = run_queue(state)
+    if rc == 0:
+        log("queue waiting for explicit disposition")
+    return rc
 """
     changed = _rewrite(fixture)
     ast.parse(changed)
@@ -214,3 +217,112 @@ def main():
     assert "safe_prepare_lane(REPO" in changed
     assert "old destructive code" not in changed
     assert "os.kill" not in changed
+    assert 'begin_legacy_run(LOGS / "autopilot.active")' in changed
+    assert 'finish_legacy_run(LOGS / "autopilot.active")' in changed
+
+
+def test_dead_driver_with_live_worker_refuses_restart(tmp_path):
+    marker, lock = tmp_path / "active", tmp_path / "driver.lock"
+    program = """
+import subprocess,sys
+from pathlib import Path
+from scripts.pipeline_safety import ProcessLock,begin_legacy_run
+with ProcessLock(Path(sys.argv[1])):
+    begin_legacy_run(Path(sys.argv[2]))
+    worker=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'])
+    print(worker.pid,flush=True)
+    sys.stdin.readline()
+"""
+    driver = subprocess.Popen(
+        [sys.executable, "-u", "-c", program, str(lock), str(marker)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        env=ENV,
+        start_new_session=True,
+    )
+    try:
+        worker_pid = int(announcement(driver))
+        driver.kill()
+        driver.wait(timeout=10)
+        os.kill(worker_pid, 0)  # Actual orphan still exists when recovery is attempted.
+        probe = """
+import sys
+from pathlib import Path
+from scripts.pipeline_safety import ProcessLock,begin_legacy_run
+with ProcessLock(Path(sys.argv[1])):
+    begin_legacy_run(Path(sys.argv[2]))
+"""
+        restarted = subprocess.run(
+            [sys.executable, "-c", probe, str(lock), str(marker)],
+            capture_output=True,
+            text=True,
+            env=ENV,
+            timeout=10,
+        )
+        assert restarted.returncode != 0
+        assert "reconcile workers before restart" in restarted.stderr
+        assert marker.exists()
+    finally:
+        os.killpg(driver.pid, signal.SIGTERM)
+        driver.communicate(timeout=10)
+
+
+@pytest.mark.parametrize("component", ["work", ".locks"])
+def test_symlink_directory_chain_escape_is_denied(source, tmp_path, component):
+    repo, work, step = source
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if component == "work":
+        work.symlink_to(outside, target_is_directory=True)
+    else:
+        work.mkdir()
+        (work / ".locks").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(SafetyError, match="parent denied"):
+        prepare_lane(repo, work, step)
+    assert list(outside.iterdir()) == []
+
+
+def test_real_unmerged_conflict_is_preserved(source):
+    repo, work, step = source
+    lane = prepare_lane(repo, work, step)
+    for key, value in (("user.name", "test"), ("user.email", "test@example.invalid")):
+        git(lane, "config", key, value)
+    (lane / "file.txt").write_text("first\n")
+    git(lane, "commit", "-qam", "first")
+    git(lane, "checkout", "-qb", "other", step["base_commit"])
+    (lane / "file.txt").write_text("second\n")
+    git(lane, "commit", "-qam", "second")
+    git(lane, "checkout", step["branch"])
+    assert (
+        subprocess.run(["git", "-C", str(lane), "merge", "other"], capture_output=True).returncode
+        == 1
+    )
+    before = git(lane, "ls-files", "--unmerged"), (lane / "file.txt").read_bytes()
+    with pytest.raises(SafetyError, match="unresolved Git conflict"):
+        prepare_lane(repo, work, step)
+    assert (git(lane, "ls-files", "--unmerged"), (lane / "file.txt").read_bytes()) == before
+
+
+@pytest.mark.parametrize(
+    "operation", ["CHERRY_PICK_HEAD", "rebase-merge", "sequencer", "index.lock"]
+)
+def test_interrupted_operation_is_preserved(source, operation):
+    repo, work, step = source
+    lane = prepare_lane(repo, work, step)
+    marker = Path(git(lane, "rev-parse", "--git-path", operation))
+    if not marker.is_absolute():
+        marker = lane / marker
+    marker.write_text("interrupted")
+    with pytest.raises(SafetyError, match="interrupted Git operation"):
+        prepare_lane(repo, work, step)
+    assert marker.read_text() == "interrupted"
+
+
+def test_base_commit_must_belong_to_requested_source_branch(source):
+    repo, work, step = source
+    git(repo, "checkout", "-q", "--orphan", "unrelated")
+    git(repo, "commit", "-qam", "unrelated")
+    with pytest.raises(SafetyError, match="not on requested source branch"):
+        prepare_lane(repo, work, dict(step, base_branch="unrelated"))
+    assert not work.exists()
