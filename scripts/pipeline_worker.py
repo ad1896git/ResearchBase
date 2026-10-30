@@ -131,6 +131,12 @@ def worker_once(
             require(task["attempt"] < 2, "worker attempt limit (2)")
             if task["status"] == "retry_wait":
                 require(int(time.time()) >= task["retry_at"], "worker retry not due")
+                prior = control / "executions" / f"{job.task_id}-{task['attempt']}"
+                require(
+                    (prior / "artifacts.tar").is_file() and (prior / "artifacts.json").is_file(),
+                    "prior attempt artifact snapshot missing",
+                )
+                snapshot_artifacts(checkout, prior)
             require(run("git", "rev-parse", "HEAD", cwd=checkout) == job.head, "worker start drift")
             intent = store.begin(
                 job.task_id, "worker", job.key, job.head, job.base, now=int(time.time())

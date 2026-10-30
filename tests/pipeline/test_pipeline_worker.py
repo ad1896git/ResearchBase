@@ -383,3 +383,29 @@ def test_incomplete_or_over_budget_snapshot_preserves_evidence_and_refuses_retry
     with pytest.raises(ProtocolError, match="snapshot budget exceeded"):
         worker.snapshot_artifacts(checkout, output2)
     assert not (output2 / "artifacts.tar").exists()
+
+
+@pytest.mark.parametrize("damage", ["missing", "tampered"])
+def test_retry_validates_previous_artifacts_before_new_attempt(setup, monkeypatch, damage):
+    job, control, checkout, launches, _ = setup
+    clock = [1000]
+    monkeypatch.setattr(worker.time, "time", lambda: clock[0])
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    assert worker.worker_once(job, control, checkout) == "retry_wait"
+    archive = control / "executions/work-1/artifacts.tar"
+    if damage == "missing":
+        archive.rename(archive.with_name("retained-away.tar"))
+    else:
+        archive.write_bytes(b"tampered")
+    clock[0] = 2000
+    with pytest.raises(ProtocolError, match="snapshot missing|snapshot changed"):
+        worker.worker_once(job, control, checkout)
+    assert len(launches) == 1
+    with StateStore(control, checkout) as store:
+        assert store.state["tasks"]["work"]["attempt"] == 1
