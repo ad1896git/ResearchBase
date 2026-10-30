@@ -152,3 +152,173 @@ def test_stale_commander_cannot_start_worker(setup):
     with pytest.raises(ProtocolError, match="stale worker"):
         worker.worker_once(job, control, checkout, expected_revision=0)
     assert not launches
+
+
+@pytest.mark.parametrize("kind", ["timeout", "quota", "session_exit"])
+def test_transient_attempts_are_bounded_and_preserve_evidence(setup, monkeypatch, kind):
+    job, control, checkout, launches, _ = setup
+    clock = [1000]
+    monkeypatch.setattr(worker.time, "time", lambda: clock[0])
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        if kind == "quota":
+            (output / "stderr.log").write_text("quota exceeded")
+        return dict(
+            exit_code=1 if kind == "quota" else -15,
+            timed_out=kind == "timeout",
+            descendants_stopped=True,
+        )
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    assert worker.worker_once(job, control, checkout) == "retry_wait"
+    first = {p: p.read_bytes() for p in (control / "executions/work-1").iterdir()}
+    first_receipt = (control / "results/work-1.json").read_bytes()
+    with StateStore(control, checkout) as store:
+        task = store.state["tasks"]["work"]
+        assert task["attempt"] == 1
+        assert task["reason"] == ("quota" if kind == "quota" else "worker_transient")
+        assert task["retry_at"] == 1000 + (900 if kind == "quota" else 60)
+    with pytest.raises(ProtocolError, match="not due"):
+        worker.worker_once(job, control, checkout)
+    clock[0] = 2000
+    assert worker.worker_once(job, control, checkout) == "blocked"
+    with StateStore(control, checkout) as store:
+        assert store.state["tasks"]["work"]["attempt"] == 2
+        assert store.state["rounds_used"] == 2
+    assert len(launches) == 2 and launches[0] != launches[1]
+    assert all(p.read_bytes() == content for p, content in first.items())
+    assert (control / "results/work-1.json").read_bytes() == first_receipt
+    with pytest.raises(ProtocolError):
+        worker.worker_once(job, control, checkout)
+    assert len(launches) == 2
+
+
+@pytest.mark.parametrize(
+    "diagnostic", ["operation not permitted", "invalid schema", "permission denied"]
+)
+def test_systemic_failure_is_never_retried(setup, monkeypatch, diagnostic):
+    job, control, checkout, launches, _ = setup
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        (output / "stderr.log").write_text(diagnostic)
+        return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    for _ in range(2):
+        with pytest.raises(ProtocolError, match="systemic/unclassified"):
+            worker.worker_once(job, control, checkout)
+    assert len(launches) == 1
+
+
+def test_retry_receipt_crash_recovers_original_deadline_without_relaunch(setup, monkeypatch):
+    job, control, checkout, launches, _ = setup
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    original = StateStore._save
+
+    def crash(self, value):
+        if value["tasks"]["work"]["status"] == "retry_wait":
+            raise RuntimeError("receipt persisted")
+        return original(self, value)
+
+    monkeypatch.setattr(StateStore, "_save", crash)
+    with pytest.raises(RuntimeError, match="receipt persisted"):
+        worker.worker_once(job, control, checkout)
+    receipt = (control / "results/work-1.json").read_bytes()
+    monkeypatch.setattr(StateStore, "_save", original)
+    assert worker.worker_once(job, control, checkout) == "retry_wait"
+    assert (control / "results/work-1.json").read_bytes() == receipt
+    assert len(launches) == 1
+
+
+def test_owned_driver_automatically_retries_then_advances_without_input(setup, monkeypatch):
+    from dataclasses import asdict
+
+    from scripts import pipeline_driver as driver
+
+    job, control, checkout, launches, _ = setup
+    clock = [1000]
+    monkeypatch.setattr(worker.time, "time", lambda: clock[0])
+
+    def session(cwd, output, instruction, schema, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        if len(launches) == 1:
+            return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+        proof = checkout / "second.txt"
+        proof.write_text("second attempt fresh session")
+        answer = dict(
+            task_id="work",
+            attempt=2,
+            result="pass",
+            commit=A,
+            evidence=[dict(path=proof.name, sha256=hashlib.sha256(proof.read_bytes()).hexdigest())],
+            notes="pass",
+        )
+        (output / "answer.json").write_text(json.dumps(answer))
+        return dict(exit_code=0, timed_out=False, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", session)
+    waits = []
+
+    def idle(self, timestamp, heartbeat):
+        assert len(launches) == 1
+        assert self.snapshot()["rounds_used"] == 1
+        assert heartbeat.phase["phase"] == "retry_wait"
+        heartbeat.pulse()
+        waits.append(timestamp)
+        clock[0] = timestamp
+
+    monkeypatch.setattr(driver.Driver, "idle_until", idle)
+    monkeypatch.setattr(
+        driver,
+        "command_once",
+        lambda *a, **k: dict(
+            action="dispatch",
+            task_id="work",
+            revision=json.loads((control / "state.json").read_text())["revision"],
+        ),
+    )
+    result = driver.run_cycle(
+        control, checkout, checkout, {"work": dict(kind="worker", config=asdict(job))}
+    )
+    assert result["status"] == "done" and result["rounds_used"] == 2
+    assert result["tasks"]["work"]["attempt"] == 2
+    assert len(waits) == 1 and len(launches) == 2
+    assert (control / "executions/work-1/host.json").is_file()
+    assert (control / "executions/work-2/answer.json").is_file()
+
+
+@pytest.mark.parametrize(
+    "diagnostic",
+    [
+        "error: unexpected argument '--bad' found",
+        "Error: failed to parse configuration: invalid type: string, expected a sequence",
+        "unknown unexplained failure",
+    ],
+)
+def test_unknown_positive_exit_and_configuration_errors_block_without_retry(
+    setup, monkeypatch, diagnostic
+):
+    job, control, checkout, launches, _ = setup
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        (output / "stderr.log").write_text(diagnostic)
+        return dict(exit_code=2, timed_out=False, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    for _ in range(2):
+        with pytest.raises(ProtocolError, match="systemic/unclassified"):
+            worker.worker_once(job, control, checkout)
+    assert len(launches) == 1

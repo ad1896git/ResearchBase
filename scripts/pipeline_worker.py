@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import cast
 
 from scripts.pipeline_executor import run
+from scripts.pipeline_faults import classify
 from scripts.pipeline_protocol import (
     ID,
     ExecutionReceipt,
@@ -89,9 +91,14 @@ def worker_once(
         else:
             require(task["status"] == "ready", "missing established worker binding")
             atomic_write(bound, binding)
-        if task["status"] == "ready":
+        if task["status"] in ("ready", "retry_wait"):
+            require(task["attempt"] < 2, "worker attempt limit (2)")
+            if task["status"] == "retry_wait":
+                require(int(time.time()) >= task["retry_at"], "worker retry not due")
             require(run("git", "rev-parse", "HEAD", cwd=checkout) == job.head, "worker start drift")
-            intent = store.begin(job.task_id, "worker", job.key, job.head, job.base)
+            intent = store.begin(
+                job.task_id, "worker", job.key, job.head, job.base, now=int(time.time())
+            )
             require(intent is not None, "worker budget exhausted")
             fresh = True
         else:
@@ -152,7 +159,27 @@ def worker_once(
             require(saved["terminal"]["descendants_stopped"] is True, "unjoined worker")
             receipt = ExecutionReceipt(**saved["receipt"])
         authority(store)
-        store.finish((output / "answer.json").read_text(), receipt)
+        answer = output / "answer.json"
+        saved = decode(host.read_text())
+        result = control / f"results/{job.task_id}-{task['attempt']}.json"
+        if result.is_file():
+            store.recover_result(job.task_id)
+            return store.state["tasks"][job.task_id]["status"]
+        fault = classify(output, saved["terminal"])
+        if (
+            receipt.commit == intent["head"]
+            and fault is not None
+            and (not answer.exists() and not answer.is_symlink())
+        ):
+            store.worker_fault(
+                job.task_id, int(time.time()) + (900 if fault == "quota" else 60), receipt, fault
+            )
+            return store.state["tasks"][job.task_id]["status"]
+        require(
+            answer.is_file() and not answer.is_symlink(),
+            "worker report absent or unsafe; systemic/unclassified failure; host receipt retained",
+        )
+        store.finish(answer.read_text(), receipt)
         return store.state["tasks"][job.task_id]["status"]
 
 

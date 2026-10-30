@@ -113,3 +113,24 @@ unchanged, record pending→pass, heartbeats throughout, fresh successor command
 and actual sandbox worker receipt. Preserve branches and all evidence. Independent
 review and exact-head main-repository CI are required before human merge labeling.
 There is no cutover or old-loop installation in this PR.
+
+
+## Bounded worker fault recovery
+
+Writable sessions retain a unique 0700 temporary directory inside the already writable
+sandbox checkout. Explicit TMPDIR/TMPPREFIX reach child shells. Global /tmp, inherited
+host temporary roots, control roots and network remain excluded; scratch and old
+attempt evidence are retained. Read-only commander permissions are unchanged.
+
+For missing reports, a joined host receipt and unchanged HEAD are mandatory before
+retry. Permission/schema/output-path/configuration denials take priority over timeout
+and quota and block. Known timeout, signal termination or explicit network interruption without
+systemic diagnostics enter retry_wait for 60 seconds; explicit quota/rate-limit signals
+wait 900 seconds. Each task has at most two total attempts, each a fresh ephemeral
+session with a new intent and execution directory. The second transient failure blocks.
+Valid reports still undergo the existing schema/evidence/host checks; a model PASS
+cannot override host failure. Unknown live process outcomes never retry. Waiting writes
+heartbeats without consuming rounds; runnable independent tasks can proceed. Each new
+attempt consumes one round and is also constrained by the cycle budget. Immutable fault
+receipts bind the original host outcome; crash recovery adopts their original deadline.
+No production deployment or reset of previously blocked tasks is implicit in this change.
