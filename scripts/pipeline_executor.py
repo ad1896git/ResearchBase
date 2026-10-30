@@ -7,6 +7,7 @@ import json
 import re
 import signal
 import subprocess
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import cast
@@ -23,9 +24,9 @@ from scripts.pipeline_protocol import (
 )
 
 
-def run(*args: str, cwd: Path | None = None) -> str:
+def run(*args: str, cwd: Path | None = None, timeout: float = 120) -> str:
     return subprocess.run(
-        args, cwd=cwd, check=True, capture_output=True, text=True, timeout=120
+        args, cwd=cwd, check=True, capture_output=True, text=True, timeout=timeout
     ).stdout.strip()
 
 
@@ -47,7 +48,7 @@ class Target:
         target.validate()
         return target
 
-    def validate(self):
+    def validate(self, *, deadline: float | None = None, query_timeout: float = 120):
         target = self
         require(
             re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", target.repository) is not None,
@@ -56,7 +57,15 @@ class Target:
         require(target.repository.lower() != "ad1896git/researchbase", "main repo denied")
         require(target.branch.startswith("pipeline-test/"), "test branch prefix required")
         for ref in (target.branch, target.base):
-            run("git", "check-ref-format", "refs/heads/" + ref)
+            remaining = query_timeout if deadline is None else deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("target validation deadline exhausted")
+            run(
+                "git",
+                "check-ref-format",
+                "refs/heads/" + ref,
+                timeout=min(query_timeout, remaining),
+            )
         require(target.base != target.branch, "base equals branch")
         require(Path(target.checkout).is_absolute(), "absolute checkout required")
         commit(target.head)

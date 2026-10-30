@@ -90,7 +90,16 @@ state, then fetches all check-run pages. Missing/pending checks wait. Duplicate
 names, wrong head or producer deny; skipped, neutral, cancelled and failed checks
 never count as success. All seven must complete successfully; the observer then
 rechecks the PR and checks before writing host evidence/completion. No check or
-PR is modified. A bounded wait timeout preserves the running intent and attempt;
+PR is modified. One absolute monotonic deadline starts at invocation entry and
+covers ref-validation commands, all PR/check-run queries (including pagination),
+confirmation and polling sleeps. Each command receives the smaller of the
+remaining total budget and `--query-timeout` (default 10 seconds). Deadline checks
+before/after observation and before completion reject late terminal results.
+A query timeout returns `timeout` without retrying that query in the same call.
+A zero total budget performs no query, state I/O or attempt allocation. Local
+scheduling, subprocess reaping and filesystem overhead are not additional polling
+budget and are measured separately; this is not a hard-real-time OS guarantee.
+A bounded wait timeout preserves any established running intent and attempt;
 resuming CI polling does not spend another round. Host errors or drift also leave
 no PASS. Observation evidence is immutable and content-addressed; a crash after
 evidence write but before completion can requery and reuse identical evidence

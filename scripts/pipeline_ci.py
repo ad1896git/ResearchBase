@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,7 +34,7 @@ class CITarget:
     base: str
     base_commit: str
 
-    def validate(self):
+    def validate(self, *, deadline: float | None = None, query_timeout: float = 10):
         integer(self.pr, 1)
         Target(
             self.repository,
@@ -42,17 +43,22 @@ class CITarget:
             str(Path.cwd()),
             self.head,
             self.base_commit,
-        ).validate()
+        ).validate(deadline=deadline, query_timeout=query_timeout)
 
 
 class CIObserver:
     def __init__(self, target: CITarget):
         self.target = target
 
-    def observe(self) -> dict:
+    def observe(self, *, deadline: float, query_timeout: float) -> dict:
+        def query(*args: str):
+            result = run(*args, timeout=remaining(deadline, query_timeout))
+            remaining(deadline, query_timeout)  # Never accept a response that arrived too late.
+            return result
+
         t = self.target
         pr = json.loads(
-            run(
+            query(
                 "gh",
                 "pr",
                 "view",
@@ -74,7 +80,7 @@ class CIObserver:
             "CI PR/head/base drift",
         )
         pages = json.loads(
-            run(
+            query(
                 "gh",
                 "api",
                 f"repos/{t.repository}/commits/{t.head}/check-runs?per_page=100&filter=all",
@@ -106,6 +112,13 @@ def classify(rows: list[dict], head: str) -> str:
     return "pending" if pending else "pass"
 
 
+def remaining(deadline: float, query_timeout: float) -> float:
+    budget = deadline - time.monotonic()
+    if budget <= 0:
+        raise TimeoutError("CI total deadline exhausted")
+    return min(query_timeout, budget)
+
+
 def wait_ci(
     target: CITarget,
     task_id: str,
@@ -113,12 +126,46 @@ def wait_ci(
     evidence: Path,
     *,
     timeout=180,
+    query_timeout=10,
     interval=2,
     expected_revision=None,
 ) -> str:
-    target.validate()
     require(0 <= timeout <= 600 and 0 < interval <= 10, "CI wait bounds")
+    require(0 < query_timeout <= 120, "CI query timeout bounds")
+    deadline = time.monotonic() + timeout
+    try:
+        remaining(deadline, query_timeout)
+        return _wait_ci_until(
+            target,
+            task_id,
+            control,
+            evidence,
+            deadline=deadline,
+            query_timeout=query_timeout,
+            interval=interval,
+            expected_revision=expected_revision,
+        )
+    except (TimeoutError, subprocess.TimeoutExpired):
+        # Queries, validation, sleep and confirmation share one absolute budget.
+        # Keep any established intent; timeout never becomes completion or a new attempt.
+        return "timeout"
+
+
+def _wait_ci_until(
+    target: CITarget,
+    task_id: str,
+    control: Path,
+    evidence: Path,
+    *,
+    deadline: float,
+    query_timeout: float,
+    interval=2,
+    expected_revision=None,
+) -> str:
+    target.validate(deadline=deadline, query_timeout=query_timeout)
+    remaining(deadline, query_timeout)
     with StateStore(control, evidence) as store:
+        remaining(deadline, query_timeout)
         if expected_revision is not None:
             require(store.state["revision"] == expected_revision, "stale CI dispatch")
         task = store.state["tasks"][task_id]
@@ -132,6 +179,7 @@ def wait_ci(
             require(task["status"] == "ready", "missing established CI binding")
             atomic_write(binding, expected)
         if task["status"] == "ready":
+            remaining(deadline, query_timeout)
             intent = store.begin(task_id, "ci", f"pr:{target.pr}", target.head, target.base_commit)
             require(intent is not None, "CI budget exhausted")
         else:
@@ -145,20 +193,25 @@ def wait_ci(
             "CI intent mismatch",
         )
         if task["status"] in ("done", "failed"):
+            remaining(deadline, query_timeout)
             return task["status"]
         saved = control / f"results/{task_id}-{task['attempt']}.json"
         if saved.exists():
+            remaining(deadline, query_timeout)
             store.recover_result(task_id)
             return store.state["tasks"][task_id]["status"]
         observer = CIObserver(target)
-        deadline = time.monotonic() + timeout
         while True:
-            observation = observer.observe()
+            remaining(deadline, query_timeout)
+            observation = observer.observe(deadline=deadline, query_timeout=query_timeout)
+            remaining(deadline, query_timeout)
             outcome = classify(observation["check_runs"], target.head)
             authority(store)
             if outcome != "pending":
                 # Recheck the PR binding immediately before producing completion evidence.
-                confirmation = observer.observe()
+                remaining(deadline, query_timeout)
+                confirmation = observer.observe(deadline=deadline, query_timeout=query_timeout)
+                remaining(deadline, query_timeout)
                 require(classify(confirmation["check_runs"], target.head) == outcome, "CI changed")
                 authority(store)
                 payload = encoded(confirmation)
@@ -178,6 +231,7 @@ def wait_ci(
                     evidence=[dict(path=relative, sha256=digest)],
                     notes="Host observed exact-head GitHub Actions checks; no merge authority.",
                 )
+                remaining(deadline, query_timeout)
                 store.finish(
                     json.dumps(report),
                     ExecutionReceipt(
@@ -190,10 +244,7 @@ def wait_ci(
                     ),
                 )
                 return store.state["tasks"][task_id]["status"]
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return "timeout"  # Preserve the running intent. No extra attempt on resume.
-            time.sleep(min(interval, remaining))
+            time.sleep(remaining(deadline, interval))
 
 
 def main():
@@ -202,7 +253,8 @@ def main():
     parser.add_argument("--task", required=True)
     parser.add_argument("--control", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
-    parser.add_argument("--timeout", type=int, default=180)
+    parser.add_argument("--timeout", type=float, default=180)
+    parser.add_argument("--query-timeout", type=float, default=10)
     args = parser.parse_args()
     result = wait_ci(
         CITarget(**decode(args.target.read_text())),
@@ -210,6 +262,7 @@ def main():
         args.control.resolve(),
         args.evidence.resolve(),
         timeout=args.timeout,
+        query_timeout=args.query_timeout,
     )
     print(json.dumps({"status": result}))
 
