@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "attempt", "result", "commit", "evidence", "notes"],
+  "properties": {
+    "task_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"},
+    "attempt": {"type": "integer", "minimum": 1},
+    "result": {"type": "string", "enum": ["pass", "fail", "error"]},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "notes": {"type": "string", "maxLength": 4096},
+    "evidence": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1, "maxLength": 512},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}
