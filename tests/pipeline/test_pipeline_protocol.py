@@ -793,7 +793,7 @@ def test_quota_retry_cannot_change_its_frozen_action_scope(paths, field, value):
         with pytest.raises(ProtocolError, match="retry intent changed"):
             scope = dict(kind="worker", key="lane", head=A, base=B)
             scope[field] = value
-            store.begin("work", **scope, now=100)
+            store.begin("work", scope["kind"], scope["key"], scope["head"], scope["base"], now=100)
     with StateStore(control, evidence) as resumed:
         assert resumed.state["tasks"]["work"]["status"] == "retry_wait"
 
