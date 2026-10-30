@@ -1,5 +1,6 @@
 import hashlib
 import json
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -322,3 +323,63 @@ def test_unknown_positive_exit_and_configuration_errors_block_without_retry(
         with pytest.raises(ProtocolError, match="systemic/unclassified"):
             worker.worker_once(job, control, checkout)
     assert len(launches) == 1
+
+
+def test_retry_cannot_overwrite_previous_attempt_artifact_snapshot(setup, monkeypatch):
+    job, control, checkout, launches, _ = setup
+    clock = [1000]
+    monkeypatch.setattr(worker.time, "time", lambda: clock[0])
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        (checkout / "partial.txt").write_text(f"attempt-{len(launches)}")
+        return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    assert worker.worker_once(job, control, checkout) == "retry_wait"
+    first = control / "executions/work-1/artifacts.tar"
+    saved = first.read_bytes()
+    clock[0] = 2000
+    assert worker.worker_once(job, control, checkout) == "blocked"
+    assert (checkout / "partial.txt").read_text() == "attempt-2"
+    assert first.read_bytes() == saved
+    with tarfile.open(first) as archive:
+        member = archive.extractfile("partial.txt")
+        assert member is not None and member.read() == b"attempt-1"
+
+
+def test_artifact_snapshot_never_follows_symlinks_or_overwrites_partial_archive(tmp_path):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    output = tmp_path / "output"
+    output.mkdir()
+    secret = tmp_path / "outside"
+    secret.write_text("outside content must not be copied")
+    (checkout / "link").symlink_to(secret)
+    worker.snapshot_artifacts(checkout, output)
+    with tarfile.open(output / "artifacts.tar") as archive:
+        assert archive.getmember("link").issym()
+        assert b"outside content must not be copied" not in (output / "artifacts.tar").read_bytes()
+    (output / "artifacts.json").write_text('{"sha256":"wrong"}')
+    with pytest.raises(ProtocolError, match="snapshot changed"):
+        worker.snapshot_artifacts(checkout, output)
+
+
+def test_incomplete_or_over_budget_snapshot_preserves_evidence_and_refuses_retry(tmp_path):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    output = tmp_path / "partial"
+    output.mkdir()
+    archive = output / "artifacts.tar"
+    archive.write_bytes(b"interrupted archive")
+    with pytest.raises(ProtocolError, match="incomplete artifact snapshot"):
+        worker.snapshot_artifacts(checkout, output)
+    assert archive.read_bytes() == b"interrupted archive"
+    output2 = tmp_path / "too-large"
+    output2.mkdir()
+    with (checkout / "large").open("wb") as stream:
+        stream.truncate(64 * 1024 * 1024 + 1)
+    with pytest.raises(ProtocolError, match="snapshot budget exceeded"):
+        worker.snapshot_artifacts(checkout, output2)
+    assert not (output2 / "artifacts.tar").exists()

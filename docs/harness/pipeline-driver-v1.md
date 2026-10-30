@@ -134,3 +134,11 @@ heartbeats without consuming rounds; runnable independent tasks can proceed. Eac
 attempt consumes one round and is also constrained by the cycle budget. Immutable fault
 receipts bind the original host outcome; crash recovery adopts their original deadline.
 No production deployment or reset of previously blocked tasks is implicit in this change.
+
+
+Before any retry, the joined attempt's checkout artifacts are archived outside the
+worker-writable root as immutable `executions/<task>-<attempt>/artifacts.tar` plus a
+SHA256 manifest. Later sessions may update checkout files while earlier artifact bytes
+remain recoverable. Symlinks are archived as links and never followed; `.git` is excluded.
+Snapshots are bounded to 64 MiB of regular-file content and 10,000 entries. An incomplete,
+changed or over-budget snapshot blocks instead of relaunching or overwriting evidence.

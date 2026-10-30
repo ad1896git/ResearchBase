@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import stat
+import tarfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -64,6 +68,38 @@ def authority(store: StateStore):
     require(decode(path.read_text()) == store.state, "worker authoritative state changed")
     marker = store.directory / "initialized"
     require(marker.is_file() and not marker.is_symlink(), "worker initialization lost")
+
+
+def snapshot_artifacts(checkout: Path, output: Path):
+    """Retain failed-attempt files outside the worker's writable checkout before any retry."""
+    archive = output / "artifacts.tar"
+    manifest = output / "artifacts.json"
+    require(not archive.is_symlink() and not manifest.is_symlink(), "unsafe artifact snapshot")
+    if archive.exists() or manifest.exists():
+        require(archive.is_file() and manifest.is_file(), "incomplete artifact snapshot")
+        with archive.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        require(decode(manifest.read_text()) == {"sha256": digest}, "artifact snapshot changed")
+        return
+    total = count = 0
+    for path in checkout.rglob("*"):
+        if path.relative_to(checkout).parts[0] == ".git":
+            continue
+        count += 1
+        metadata = path.lstat()
+        if stat.S_ISREG(metadata.st_mode):
+            total += metadata.st_size
+        require(count <= 10000 and total <= 64 * 1024 * 1024, "artifact snapshot budget exceeded")
+    # Exclusive creation; a crash leaves an incomplete archive for operator reconciliation.
+    with tarfile.open(archive, "x", dereference=False) as stream:
+        for path in sorted(checkout.iterdir()):
+            if path.name != ".git":
+                stream.add(path, arcname=path.name)
+    archive.chmod(0o600)
+    with archive.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        os.fsync(stream.fileno())
+    atomic_write(manifest, encoded({"sha256": digest}))
 
 
 def worker_once(
@@ -159,6 +195,7 @@ def worker_once(
             require(saved["terminal"]["descendants_stopped"] is True, "unjoined worker")
             receipt = ExecutionReceipt(**saved["receipt"])
         authority(store)
+        snapshot_artifacts(checkout, output)
         answer = output / "answer.json"
         saved = decode(host.read_text())
         result = control / f"results/{job.task_id}-{task['attempt']}.json"
