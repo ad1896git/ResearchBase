@@ -371,7 +371,7 @@ def installation():
                 str(lib),
                 str(lib / "lib-dynload"),
             ],
-            env={"TMPDIR": os.environ["TMPDIR"]},
+            env={"TMPDIR": str(base)},
             capture_output=True,
             text=True,
             timeout=20,
@@ -471,7 +471,7 @@ def test_controlled_startup(installation, scenario):
         assert control.returncode == 0, control.stdout + control.stderr
     run = subprocess.run(
         [str(interpreter), "-I", "-S", "-B", str(base / "source/bootstrap.py"), scenario],
-        env={"TMPDIR": os.environ["TMPDIR"]},
+        env={"TMPDIR": str(base)},
         capture_output=True,
         text=True,
         timeout=20,
@@ -516,7 +516,7 @@ def test_elapsed_boundary_is_not_clipped(monkeypatch):
 def _child(base, interpreter, *args):
     return subprocess.run(
         [str(interpreter), "-I", "-S", "-B", str(base / "source/bootstrap.py"), *args],
-        env={"TMPDIR": os.environ["TMPDIR"]},
+        env={"TMPDIR": str(base)},
         capture_output=True,
         text=True,
         timeout=20,
