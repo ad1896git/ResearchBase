@@ -148,6 +148,7 @@ class ExecutionReceipt:
     intent_id: str
     commit: str
     exit_code: int
+    key: str
 
 
 @dataclass(frozen=True)
@@ -332,6 +333,14 @@ class StateStore:
         )
         value = self._copy()
         task = value["tasks"][name]
+        if task["status"] == "retry_wait":
+            prior = task["intent"]
+            require(
+                (kind, key, head, base)
+                == (prior["kind"], prior["key"], prior["head"], prior["base"]),
+                "retry intent changed",
+            )
+            self._validate_completion(name, decode((self.directory / task["result"]).read_text()))
         if kind in ("delete", "architecture"):
             task.update(status="blocked", reason="human decision required")
             self._save(value)
@@ -379,6 +388,7 @@ class StateStore:
         integer(receipt.attempt, 1)
         require(
             receipt.attempt == task["attempt"]
+            and receipt.key == task["intent"]["key"]
             and receipt.commit == task["intent"]["head"]
             and type(receipt.exit_code) is int
             and receipt.exit_code == 75,
@@ -461,6 +471,7 @@ class StateStore:
             "execution binding mismatch",
         )
         require(type(receipt.exit_code) is int, "invalid host exit code")
+        require(receipt.key == task["intent"]["key"], "execution scope mismatch")
         if task["intent"]["kind"] != "worker":
             require(receipt.commit == task["intent"]["head"], "wrong checked head")
 
@@ -564,6 +575,10 @@ class StateStore:
                     content["receipt"]["commit"] == publication.head,
                     "readiness evidence on wrong head",
                 )
+                require(
+                    prior["intent"]["key"] == content["receipt"]["key"] == f"pr:{publication.pr}",
+                    "readiness evidence on wrong PR",
+                )
 
     def approve_label(self, name, *, event_id, label, pr, head, base, actor):
         value = self._copy()
@@ -576,12 +591,12 @@ class StateStore:
             and (pr, head, base) == (binding["pr"], binding["head"], binding["base"]),
             "approval scope mismatch",
         )
-        integer(event_id, binding["after_event"] + 1)
+        integer(event_id, max(binding["after_event"], binding["approved_event"] or 0) + 1)
         binding["approved_event"] = event_id
         binding["approved_actor"] = actor
         self._save(value)
 
-    def merge_allowed(self, name, *, head, base, checks, labels, label_cursor):
+    def merge_allowed(self, name, *, head, base, checks, labels, label_cursor, effective_approval):
         binding = self.state["tasks"][name]["merge"]
         if not binding:
             return False
@@ -607,7 +622,18 @@ class StateStore:
             value["tasks"][name]["merge"]["approved_actor"] = None
             self._save(value)
             return False
-        if "approved-merge" not in labels:
+        if effective_approval is not None:
+            require(
+                type(effective_approval) is tuple and len(effective_approval) == 2,
+                "invalid effective label observation",
+            )
+            integer(effective_approval[0], 1)
+            text(effective_approval[1], 128)
+            integer(label_cursor, cast(int, effective_approval[0]))
+        if "approved-merge" not in labels or effective_approval != (
+            binding["approved_event"],
+            binding["approved_actor"],
+        ):
             integer(label_cursor, binding["after_event"])
             if binding["approved_event"] is not None:
                 integer(label_cursor, binding["approved_event"])

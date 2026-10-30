@@ -56,6 +56,9 @@ cannot turn a failing execution into success. Worker completion is not independe
 code verification: subsequent verify/review/CI tasks and their evidence are still
 mandatory before accepting a PR. Host execution receipts and remote observations
 must come from the future trusted executor, not the model's response.
+Host receipts also bind the immutable intent key. Verification/review keys use
+`pr:<number>` and must match the recorded publication's PR and head; successful
+evidence for another PR with the same commit cannot be substituted.
 
 ## Human merge confirmation
 
@@ -71,12 +74,18 @@ label, missing/failed/duplicate required check or observed head/base drift denie
 merge. Drift invalidates the approval; reapplying an old event cannot restore it.
 Label absence carries the observer's authoritative removal cursor; delayed older
 approval events cannot undo a later removal. A readiness baseline alone is insufficient.
+When the label is present, the observer must supply its currently effective
+application event and actor, not just its presence or the last event cursor. That
+pair must match the stored human approval. Removal and unauthorized re-addition
+between polls therefore invalidate old approval; older events cannot overwrite a
+newer approval. The protocol does not infer these facts from a label-name list.
 The future executor must recheck GitHub state immediately before an atomic
 `--match-head-commit` merge. This offline library performs no merge itself.
 
 ## Executable acceptance matrix
 
 Run `python -m pytest tests/pipeline` using the existing locked environment.
+Use the project's Python3.12 environment, not the legacy loop's system Python.
 
 | Cutover condition | Executable coverage |
 | --- | --- |
