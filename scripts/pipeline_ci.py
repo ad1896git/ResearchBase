@@ -125,9 +125,9 @@ def wait_ci(
     control: Path,
     evidence: Path,
     *,
-    timeout=180,
-    query_timeout=10,
-    interval=2,
+    timeout: float = 180,
+    query_timeout: float = 10,
+    interval: float = 2,
     expected_revision=None,
 ) -> str:
     require(0 <= timeout <= 600 and 0 < interval <= 10, "CI wait bounds")
@@ -159,7 +159,7 @@ def _wait_ci_until(
     *,
     deadline: float,
     query_timeout: float,
-    interval=2,
+    interval: float = 2,
     expected_revision=None,
 ) -> str:
     target.validate(deadline=deadline, query_timeout=query_timeout)
