@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -100,6 +102,17 @@ def run_session(
             "LC_ALL",
         )
     }
+    if writable:
+        # Temp space stays inside the already writable checkout, never in control.
+        scratch = Path(tempfile.mkdtemp(prefix=".pipeline-session-", dir=cwd.resolve()))
+        env["TMPDIR"] = str(scratch)
+        env["TMPPREFIX"] = str(scratch / "zsh")
+        for key in ("TMPDIR", "TMPPREFIX"):
+            argv.extend(["-c", f"shell_environment_policy.set.{key}={json.dumps(env[key])}"])
+        # Options must precede the stdin prompt argument.
+        argv.remove("-")
+        argv.append("-")
+        atomic_write(output / "scratch.json", encoded({"path": str(scratch)}))
     atomic_write(output / "launch.json", encoded({"argv": argv, "timeout": timeout}))
     with (
         (output / "events.jsonl").open("xb") as stdout,

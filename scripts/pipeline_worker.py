@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import stat
+import tarfile
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import cast
 
 from scripts.pipeline_executor import run
+from scripts.pipeline_faults import classify
 from scripts.pipeline_protocol import (
     ID,
     ExecutionReceipt,
@@ -64,6 +70,38 @@ def authority(store: StateStore):
     require(marker.is_file() and not marker.is_symlink(), "worker initialization lost")
 
 
+def snapshot_artifacts(checkout: Path, output: Path):
+    """Retain failed-attempt files outside the worker's writable checkout before any retry."""
+    archive = output / "artifacts.tar"
+    manifest = output / "artifacts.json"
+    require(not archive.is_symlink() and not manifest.is_symlink(), "unsafe artifact snapshot")
+    if archive.exists() or manifest.exists():
+        require(archive.is_file() and manifest.is_file(), "incomplete artifact snapshot")
+        with archive.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        require(decode(manifest.read_text()) == {"sha256": digest}, "artifact snapshot changed")
+        return
+    total = count = 0
+    for path in checkout.rglob("*"):
+        if path.relative_to(checkout).parts[0] == ".git":
+            continue
+        count += 1
+        metadata = path.lstat()
+        if stat.S_ISREG(metadata.st_mode):
+            total += metadata.st_size
+        require(count <= 10000 and total <= 64 * 1024 * 1024, "artifact snapshot budget exceeded")
+    # Exclusive creation; a crash leaves an incomplete archive for operator reconciliation.
+    with tarfile.open(archive, "x", dereference=False) as stream:
+        for path in sorted(checkout.iterdir()):
+            if path.name != ".git":
+                stream.add(path, arcname=path.name)
+    archive.chmod(0o600)
+    with archive.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        os.fsync(stream.fileno())
+    atomic_write(manifest, encoded({"sha256": digest}))
+
+
 def worker_once(
     job: WorkerJob,
     control: Path,
@@ -89,9 +127,20 @@ def worker_once(
         else:
             require(task["status"] == "ready", "missing established worker binding")
             atomic_write(bound, binding)
-        if task["status"] == "ready":
+        if task["status"] in ("ready", "retry_wait"):
+            require(task["attempt"] < 2, "worker attempt limit (2)")
+            if task["status"] == "retry_wait":
+                require(int(time.time()) >= task["retry_at"], "worker retry not due")
+                prior = control / "executions" / f"{job.task_id}-{task['attempt']}"
+                require(
+                    (prior / "artifacts.tar").is_file() and (prior / "artifacts.json").is_file(),
+                    "prior attempt artifact snapshot missing",
+                )
+                snapshot_artifacts(checkout, prior)
             require(run("git", "rev-parse", "HEAD", cwd=checkout) == job.head, "worker start drift")
-            intent = store.begin(job.task_id, "worker", job.key, job.head, job.base)
+            intent = store.begin(
+                job.task_id, "worker", job.key, job.head, job.base, now=int(time.time())
+            )
             require(intent is not None, "worker budget exhausted")
             fresh = True
         else:
@@ -152,7 +201,28 @@ def worker_once(
             require(saved["terminal"]["descendants_stopped"] is True, "unjoined worker")
             receipt = ExecutionReceipt(**saved["receipt"])
         authority(store)
-        store.finish((output / "answer.json").read_text(), receipt)
+        snapshot_artifacts(checkout, output)
+        answer = output / "answer.json"
+        saved = decode(host.read_text())
+        result = control / f"results/{job.task_id}-{task['attempt']}.json"
+        if result.is_file():
+            store.recover_result(job.task_id)
+            return store.state["tasks"][job.task_id]["status"]
+        fault = classify(output, saved["terminal"])
+        if (
+            receipt.commit == intent["head"]
+            and fault is not None
+            and (not answer.exists() and not answer.is_symlink())
+        ):
+            store.worker_fault(
+                job.task_id, int(time.time()) + (900 if fault == "quota" else 60), receipt, fault
+            )
+            return store.state["tasks"][job.task_id]["status"]
+        require(
+            answer.is_file() and not answer.is_symlink(),
+            "worker report absent or unsafe; systemic/unclassified failure; host receipt retained",
+        )
+        store.finish(answer.read_text(), receipt)
         return store.state["tasks"][job.task_id]["status"]
 
 
