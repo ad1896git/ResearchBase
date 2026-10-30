@@ -34,6 +34,9 @@ executor always uses an explicit HTTPS remote rather than trusting checkout
 hooks are disabled for this test-only push. It never deletes branches or PRs.
 
 The protocol lock spans intent persistence, remote operations and reconciliation.
+Immediately before every push or PR creation, the executor rechecks the lock
+inode, initialization marker, full authoritative state (including revision and
+intent) and target binding. Lost or changed authority denies the next write.
 An immutable target binding prevents restart with another repository, ref or
 checkout. Every invocation queries the base SHA, all PR states by head branch and
 the remote branch SHA before writing. Only one open draft PR with matching

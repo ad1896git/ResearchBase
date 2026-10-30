@@ -19,6 +19,7 @@ from scripts.pipeline_protocol import (
     decode,
     encoded,
     require,
+    validate_state,
 )
 
 
@@ -162,6 +163,23 @@ def checkpoint(name: str, pause_after: str | None):
         signal.raise_signal(signal.SIGSTOP)
 
 
+def publication_guard(store: StateStore, expected_target: bytes):
+    """Revalidate authority after observations and immediately before a remote write."""
+    store.lock.check()
+    state = store.directory / "state.json"
+    marker = store.directory / "initialized"
+    binding = store.directory / "executor-target.json"
+    require(not state.is_symlink(), "symlink state denied")
+    require(marker.is_file() and not marker.is_symlink(), "initialization marker lost")
+    current = decode(state.read_text())
+    validate_state(current)
+    require(current == store.state, "authoritative state changed before publication")
+    require(
+        not binding.is_symlink() and binding.read_bytes() == expected_target,
+        "target changed before publication",
+    )
+
+
 def publish(target: Target, control: Path, evidence: Path, *, initialize=False, pause_after=None):
     target.validate()
     remote = GitHub(target)
@@ -211,13 +229,16 @@ def publish(target: Target, control: Path, evidence: Path, *, initialize=False, 
                     target.head,
                     cwd=Path(target.checkout),
                 )
+                publication_guard(store, expected)
                 remote.push()
             require(remote.branch_head(target.branch) == target.head, "push not observed")
             checkpoint("after-push", pause_after)
             # Requery immediately before creation; a failed request is never blindly retried.
             observed = remote.validate_pr(remote.prs())
             if observed is None:
+                publication_guard(store, expected)
                 atomic_write(marker, encoded({"intent": store.state["tasks"]["publish"]["intent"]}))
+                publication_guard(store, expected)
                 remote.create()
                 checkpoint("after-pr", pause_after)
                 observed = remote.validate_pr(remote.prs())

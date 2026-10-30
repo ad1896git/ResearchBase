@@ -194,3 +194,41 @@ def test_library_entry_also_denies_main_repository(setup):
     with pytest.raises(ProtocolError, match="main repo denied"):
         executor.publish(replace(target, repository="ad1896git/ResearchBase"), control, evidence)
     assert (remote.pushes, remote.creates) == (0, 0)
+
+
+@pytest.mark.parametrize("stage", ["query", "after-push"])
+@pytest.mark.parametrize("damage", ["missing-state", "changed-state", "replaced-lock", "target"])
+def test_lost_authority_denies_next_remote_write(setup, monkeypatch, stage, damage):
+    target, control, evidence, remote = setup
+    original_prs = remote.prs
+
+    def corrupt():
+        if damage == "missing-state":
+            (control / "state.json").unlink()
+        elif damage == "changed-state":
+            path = control / "state.json"
+            state = json.loads(path.read_text())
+            state["revision"] += 1
+            executor.atomic_write(path, executor.encoded(state))
+        elif damage == "replaced-lock":
+            path = control / "control.lock"
+            path.rename(control / "old-control.lock")
+            path.write_text("replacement")
+        else:
+            (control / "executor-target.json").write_text("{}")
+
+    def query(self):
+        if stage == "query":
+            corrupt()
+        return original_prs(self)
+
+    def pause(name, pause_after):
+        if stage == "after-push" and name == "after-push":
+            corrupt()
+
+    monkeypatch.setattr(remote, "prs", query)
+    monkeypatch.setattr(executor, "checkpoint", pause)
+    with pytest.raises((RuntimeError, OSError)):
+        executor.publish(target, control, evidence, initialize=True)
+    assert remote.pushes == (0 if stage == "query" else 1)
+    assert remote.creates == 0
