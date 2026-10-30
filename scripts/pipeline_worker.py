@@ -152,7 +152,17 @@ def worker_once(
             require(saved["terminal"]["descendants_stopped"] is True, "unjoined worker")
             receipt = ExecutionReceipt(**saved["receipt"])
         authority(store)
-        store.finish((output / "answer.json").read_text(), receipt)
+        answer = output / "answer.json"
+        terminal = decode(host.read_text())["terminal"]
+        require(
+            answer.is_file() and not answer.is_symlink(),
+            "worker report absent or unsafe; "
+            f"host_exit={receipt.exit_code}; terminal_exit={terminal['exit_code']}; "
+            f"timed_out={terminal['timed_out']}; "
+            f"descendants_stopped={terminal['descendants_stopped']}; "
+            "host receipt retained; no relaunch",
+        )
+        store.finish(answer.read_text(), receipt)
         return store.state["tasks"][job.task_id]["status"]
 
 

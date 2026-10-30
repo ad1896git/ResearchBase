@@ -1,8 +1,10 @@
 import hashlib
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
+from scripts import pipeline_driver as driver
 from scripts import pipeline_worker as worker
 from scripts.pipeline_protocol import ProtocolError, StateStore
 
@@ -117,6 +119,63 @@ def test_invalid_or_missing_report_does_not_pass(setup, monkeypatch):
         worker.worker_once(job, control, checkout)
     with StateStore(control, checkout) as store:
         assert store.state["tasks"]["work"]["status"] == "running"
+
+
+@pytest.mark.parametrize("timed_out,exit_code,host_exit", [(True, -15, 124), (False, 7, 7)])
+def test_missing_report_explains_persisted_host_outcome_and_never_relaunches(
+    setup, monkeypatch, timed_out, exit_code, host_exit
+):
+    job, control, checkout, launches, _ = setup
+
+    def no_report(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        assert kwargs["timeout"] == 180
+        return dict(exit_code=exit_code, timed_out=timed_out, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", no_report)
+    for _ in range(2):
+        with pytest.raises(ProtocolError, match=f"host_exit={host_exit}") as error:
+            worker.worker_once(job, control, checkout)
+        assert f"terminal_exit={exit_code}" in str(error.value)
+        assert f"timed_out={timed_out}" in str(error.value)
+        assert "descendants_stopped=True" in str(error.value)
+        assert "no relaunch" in str(error.value)
+    assert len(launches) == 1
+    host = json.loads((control / "executions/work-1/host.json").read_text())
+    assert host["receipt"]["exit_code"] == host_exit
+    with StateStore(control, checkout) as store:
+        assert store.state["rounds_used"] == 1
+        assert store.state["tasks"]["work"]["status"] == "running"
+
+
+def test_owned_driver_blocks_with_timeout_diagnostic_and_preserves_attempt(setup, monkeypatch):
+    job, control, checkout, launches, _ = setup
+
+    def no_report(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", no_report)
+    monkeypatch.setattr(
+        driver,
+        "command_once",
+        lambda *a, **k: dict(
+            action="dispatch",
+            task_id="work",
+            revision=json.loads((control / "state.json").read_text())["revision"],
+        ),
+    )
+    result = driver.run_cycle(
+        control, checkout, checkout, {"work": dict(kind="worker", config=asdict(job))}
+    )
+    assert result["status"] == "blocked" and result["rounds_used"] == 1
+    task = result["tasks"]["work"]
+    assert task["attempt"] == 1 and "timed_out=True" in task["reason"]
+    assert "host_exit=124" in task["reason"] and task["result"] is None
+    assert (control / "executions/work-1/host.json").is_file()
+    assert len(launches) == 1
 
 
 def test_worker_cannot_share_control_write_root(setup):

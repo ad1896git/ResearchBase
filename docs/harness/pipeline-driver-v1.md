@@ -113,3 +113,12 @@ unchanged, record pending→pass, heartbeats throughout, fresh successor command
 and actual sandbox worker receipt. Preserve branches and all evidence. Independent
 review and exact-head main-repository CI are required before human merge labeling.
 There is no cutover or old-loop installation in this PR.
+## Missing worker reports
+
+If a terminated worker produces no regular answer file, its host receipt remains
+authoritative. The blocked diagnostic includes the normalized host exit, child
+terminal exit, timeout flag and descendant-stop evidence, rather than reporting
+only a missing filename. This does not raise the 180-second default limit, retry
+the worker, reset attempts, invent a report or treat exit0 alone as task success.
+The owned driver still blocks before normal exit; a repeated adapter call cannot
+launch the same intent again. Unknown live outcomes retain their existing guard.
