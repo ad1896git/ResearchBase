@@ -13,6 +13,8 @@ from pathlib import Path
 from scripts.pipeline_protocol import atomic_write, encoded, require
 
 SCRIPTS = Path(__file__).resolve().parent
+WORKER_TIMEOUTS = {"design": 900, "implementation": 3600, "review": 900}
+MAX_SESSION_TIMEOUT = 7200
 
 
 def group_alive(pgid: int) -> bool:
@@ -56,7 +58,7 @@ def run_session(
     codex="codex",
 ) -> dict:
     """Caller owns its control lock. A launch marker without terminal receipt denies replay."""
-    require(1 <= timeout <= 600, "session timeout out of bounds")
+    require(1 <= timeout <= MAX_SESSION_TIMEOUT, "session timeout out of bounds")
     output.mkdir(exist_ok=False)
     atomic_write(output / "prompt.txt", prompt.encode())
     atomic_write(output / "schema.json", schema.read_bytes())

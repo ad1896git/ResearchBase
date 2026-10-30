@@ -142,3 +142,18 @@ SHA256 manifest. Later sessions may update checkout files while earlier artifact
 remain recoverable. Symlinks are archived as links and never followed; `.git` is excluded.
 Snapshots are bounded to 64 MiB of regular-file content and 10,000 entries. An incomplete,
 changed or over-budget snapshot blocks instead of relaunching or overwriting evidence.
+
+
+## Deployment phase budgets (2026-10-30)
+
+Explicit operator deployment authorization tunes phase deadlines: commander180s,
+design900s, implementation3600s, independent review900s, CI9000s. Design180s was a
+censored timeout; implementation worktree-to-final-source elapsed1267s (not an isolated
+worker measurement), review first-source-to-report about106s, recent CI about80–84min.
+These are conservative initial bounds with margin, not fabricated successful worker
+percentiles. New successful design samples must be recorded. Stage selection changes
+time only, never worker capabilities. Session hard ceiling7200s; heartbeat5s, CI query10s.
+Old policy/job bindings are retained as history; never resume them with silently changed
+budgets. New prepared generations bind the new policy and optional stage. A historical
+continuation may set attempt_limit=1 because its earlier attempt already consumed one
+of the two total attempts; it blocks after that allowance, without resetting old ledgers.
