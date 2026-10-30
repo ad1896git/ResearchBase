@@ -129,8 +129,9 @@ def wait_ci(
     query_timeout: float = 10,
     interval: float = 2,
     expected_revision=None,
+    on_observation=None,
 ) -> str:
-    require(0 <= timeout <= 600 and 0 < interval <= 10, "CI wait bounds")
+    require(0 <= timeout <= 86400 and 0 < interval <= 10, "CI wait bounds")
     require(0 < query_timeout <= 120, "CI query timeout bounds")
     deadline = time.monotonic() + timeout
     try:
@@ -144,6 +145,7 @@ def wait_ci(
             query_timeout=query_timeout,
             interval=interval,
             expected_revision=expected_revision,
+            on_observation=on_observation,
         )
     except (TimeoutError, subprocess.TimeoutExpired):
         # Queries, validation, sleep and confirmation share one absolute budget.
@@ -161,6 +163,7 @@ def _wait_ci_until(
     query_timeout: float,
     interval: float = 2,
     expected_revision=None,
+    on_observation=None,
 ) -> str:
     target.validate(deadline=deadline, query_timeout=query_timeout)
     remaining(deadline, query_timeout)
@@ -206,6 +209,8 @@ def _wait_ci_until(
             observation = observer.observe(deadline=deadline, query_timeout=query_timeout)
             remaining(deadline, query_timeout)
             outcome = classify(observation["check_runs"], target.head)
+            if on_observation is not None:
+                on_observation(outcome)
             authority(store)
             if outcome != "pending":
                 # Recheck the PR binding immediately before producing completion evidence.

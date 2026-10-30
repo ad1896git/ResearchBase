@@ -216,7 +216,9 @@ def validate_state(value):
             require(task["merge"] is not None, "missing merge binding")
         if task["status"] == "retry_wait":
             require(task["retry_at"] is not None, "missing retry time")
-        if task["status"] in ("done", "failed", "retry_wait"):
+        if task["status"] in ("done", "failed") or (
+            task["status"] == "retry_wait" and task["reason"] != "ci_timeout"
+        ):
             require(task["result"] is not None, "missing completion receipt")
         status = task["status"]
         pristine = (
@@ -241,10 +243,16 @@ def validate_state(value):
             )
         if status == "retry_wait":
             require(
-                task["intent"]["kind"] in ("worker", "review")
-                and task["merge"] is None
-                and task["reason"] == "quota",
-                "inconsistent quota task",
+                task["merge"] is None
+                and (
+                    (task["intent"]["kind"] in ("worker", "review") and task["reason"] == "quota")
+                    or (
+                        task["intent"]["kind"] == "ci"
+                        and task["reason"] == "ci_timeout"
+                        and task["result"] is None
+                    )
+                ),
+                "inconsistent retry task",
             )
         if status == "awaiting_merge":
             require(pristine and task["reason"] is None, "inconsistent merge wait")
@@ -260,21 +268,21 @@ def validate_state(value):
             )
         if status == "blocked":
             require(
-                type(task["reason"]) is str
-                and bool(task["reason"])
-                and task["result"] is None
-                and task["retry_at"] is None,
+                type(task["reason"]) is str and bool(task["reason"]) and task["retry_at"] is None,
                 "inconsistent blocked task",
             )
             if task["intent"] is not None:
                 require(
                     task["attempt"] > 0
-                    and task["intent"]["kind"] == "publish"
+                    and task["intent"]["kind"] in ("worker", "verify", "review", "publish", "ci")
                     and task["merge"] is None,
                     "inconsistent uncertain publication",
                 )
             else:
-                require(task["attempt"] == 0, "blocked task lost execution intent")
+                require(
+                    task["attempt"] == 0 and task["result"] is None,
+                    "blocked task lost execution intent",
+                )
                 if task["merge"] is not None:
                     require(
                         task["merge"]["approved_event"] is None, "blocked merge retains approval"
@@ -343,6 +351,8 @@ class StateStore:
                 self.state = decode(path.read_text())
                 validate_state(self.state)
                 for name, task in self.state["tasks"].items():
+                    if task["status"] == "retry_wait" and task["reason"] == "ci_timeout":
+                        self._validate_ci_pause(name, task)
                     if task["result"] is not None:
                         saved = self.directory / task["result"]
                         require(
@@ -405,6 +415,7 @@ class StateStore:
             name
             for name, t in self.state["tasks"].items()
             if (t["status"] == "ready" or (t["status"] == "retry_wait" and t["retry_at"] <= now))
+            and not (t["status"] == "retry_wait" and t["reason"] == "ci_timeout")
             and all(self.state["tasks"][n]["status"] == "done" for n in t["needs"])
         ]
 
@@ -451,6 +462,129 @@ class StateStore:
         value["rounds_used"] += 1
         self._save(value)
         return dict(task["intent"])
+
+    def block(self, name, reason):
+        """Preserve uncertain intents/receipts; blocking never authorizes replay."""
+        text(reason)
+        require(bool(reason), "blocking reason required")
+        value = self._copy()
+        task = value["tasks"][name]
+        require(task["status"] not in ("done", "blocked", "budget_exhausted"), "terminal task")
+        task.update(status="blocked", retry_at=None, reason=reason)
+        if task["merge"] is not None:
+            task["merge"].update(approved_event=None, approved_actor=None)
+        self._save(value)
+
+    def exhaust(self, name):
+        value = self._copy()
+        task = value["tasks"][name]
+        require(task["status"] == "ready", "only unstarted tasks exhaust new-work budget")
+        task.update(status="budget_exhausted", reason="round budget exhausted")
+        self._save(value)
+
+    def _ci_pause_path(self, name, task):
+        return self.directory / f"ci-retry-{name}-{task['attempt']}-{task['retry_at']}.json"
+
+    def _validate_ci_pause(self, name, task):
+        path = self._ci_pause_path(name, task)
+        require(path.is_file() and not path.is_symlink(), "missing CI timeout receipt")
+        expected = dict(
+            task_id=name,
+            attempt=task["attempt"],
+            intent=task["intent"],
+            retry_at=task["retry_at"],
+            reason="ci_timeout",
+        )
+        require(decode(path.read_text()) == expected, "CI timeout receipt drift")
+
+    def pause_ci(self, name, retry_at):
+        integer(retry_at)
+        value = self._copy()
+        task = value["tasks"][name]
+        require(
+            task["status"] == "running" and task["intent"]["kind"] == "ci",
+            "only read-only CI may pause without terminal execution receipt",
+        )
+        task.update(status="retry_wait", retry_at=retry_at, reason="ci_timeout")
+        path = self._ci_pause_path(name, task)
+        payload = encoded(
+            dict(
+                task_id=name,
+                attempt=task["attempt"],
+                intent=task["intent"],
+                retry_at=retry_at,
+                reason="ci_timeout",
+            )
+        )
+        require(not path.is_symlink(), "symlink CI timeout receipt")
+        if path.exists():
+            require(path.read_bytes() == payload, "conflicting CI timeout receipt")
+        else:
+            with path.open("xb") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            directory = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        self._save(value)
+
+    def recover_ci_pause(self, name):
+        """Apply an immutable timeout receipt left before its state commit, never rerun work."""
+        task = self.state["tasks"][name]
+        require(
+            task["status"] == "running" and task["intent"]["kind"] == "ci",
+            "CI recovery needs running observation",
+        )
+        pending = []
+        for path in self.directory.glob(f"ci-retry-{name}-{task['attempt']}-*.json"):
+            require(not path.is_symlink(), "symlink CI timeout receipt")
+            saved = decode(path.read_text())
+            exact(saved, ("task_id", "attempt", "intent", "retry_at", "reason"))
+            integer(saved["retry_at"])
+            expected = dict(
+                task_id=name,
+                attempt=task["attempt"],
+                intent=task["intent"],
+                retry_at=saved["retry_at"],
+                reason="ci_timeout",
+            )
+            require(
+                saved == expected and path == self._ci_pause_path(name, saved),
+                "CI timeout recovery binding drift",
+            )
+            resumed = path.with_suffix(".resumed")
+            if resumed.exists():
+                require(
+                    not resumed.is_symlink() and resumed.read_bytes() == path.read_bytes(),
+                    "CI resume receipt drift",
+                )
+            else:
+                pending.append(saved)
+        require(len(pending) <= 1, "ambiguous CI timeout recovery")
+        if pending:
+            self.pause_ci(name, pending[0]["retry_at"])
+
+    def resume_ci(self, name, *, now):
+        task = self.state["tasks"][name]
+        require(
+            task["status"] == "retry_wait" and task["reason"] == "ci_timeout",
+            "not a paused CI observation",
+        )
+        self._validate_ci_pause(name, task)
+        require(now >= task["retry_at"], "CI retry not due")
+        path = self._ci_pause_path(name, task)
+        resumed = path.with_suffix(".resumed")
+        require(not resumed.is_symlink(), "symlink CI resume receipt")
+        if resumed.exists():
+            require(resumed.read_bytes() == path.read_bytes(), "CI resume receipt drift")
+        else:
+            atomic_write(resumed, path.read_bytes())
+        value = self._copy()
+        value["tasks"][name].update(status="running", retry_at=None, reason=None)
+        self._save(value)
 
     def quota(self, name, retry_at, receipt: ExecutionReceipt | None = None):
         integer(retry_at)
@@ -514,8 +648,11 @@ class StateStore:
         if set(content) == {"quota", "retry_at"}:
             self._quota_receipt(name, task, ExecutionReceipt(**content["quota"]))
             require(
-                task["status"] in ("retry_wait", "budget_exhausted")
-                and content["retry_at"] == task["retry_at"],
+                task["status"] == "blocked"
+                or (
+                    task["status"] in ("retry_wait", "budget_exhausted")
+                    and content["retry_at"] == task["retry_at"]
+                ),
                 "invalid quota receipt",
             )
             return
@@ -529,7 +666,7 @@ class StateStore:
                 "wrong completion method",
             )
             outcome = "done" if parsed["result"] == "pass" and receipt.exit_code == 0 else "failed"
-            require(task["status"] == outcome, "completion outcome mismatch")
+            require(task["status"] in (outcome, "blocked"), "completion outcome mismatch")
         else:
             exact(content, ("publication", "intent_id"))
             observed = Publication(**content["publication"])

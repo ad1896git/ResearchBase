@@ -13,8 +13,12 @@ from scripts.pipeline_worker import WorkerJob, worker_once
 
 
 def dispatch(value: dict, jobs: dict, control: Path, evidence: Path, *, timeout=180) -> dict:
+    if value["action"] == "wait":
+        return {"decision": value, "status": "wait"}
+    if value["action"] == "stop":
+        return {"decision": value, "status": "stop"}
     if value["action"] != "dispatch":
-        return {"decision": value, "status": value["action"]}
+        return {"decision": value, "status": "blocked"}
     task_id = value["task_id"]
     require(task_id in jobs, "no configured executor for selected task")
     job = jobs[task_id]

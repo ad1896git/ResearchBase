@@ -116,3 +116,15 @@ State validation rejects impossible status/intent/receipt combinations and requi
 rounds_used to equal total attempts before dispatch or mutation. Restart corruption
 is covered by `test_corrupt_execution_state_is_rejected_before_restart_dispatch`.
 Quota scope fields and all seven required CI names are tested independently.
+
+## Additive engineering driver states
+
+The driver continuation contract in `pipeline-driver-v1.md` adds read-only CI
+`retry_wait` with reason `ci_timeout` and immutable timeout/resume receipts. It is
+not a quota wait and cannot call `begin` to obtain another attempt. Only `resume_ci`
+may return it to running after its due time. Existing root/task fields and the
+rounds_used=sum(attempts) invariant remain unchanged. Older readers reject the new
+state, so this ledger must not be reopened by the old driver. Explicit driver
+blocking may preserve an unresolved worker/CI intent or a failed completion receipt;
+blocking never authorizes replay or rewrites the receipt. See the new invariant and
+pause recovery tests in `test_pipeline_driver.py`.
