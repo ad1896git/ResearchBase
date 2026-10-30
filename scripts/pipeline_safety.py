@@ -18,6 +18,10 @@ class SafetyError(RuntimeError):
     pass
 
 
+class LockBusy(SafetyError):
+    """A valid stable lock is already owned; no other safety failure is recoverable as busy."""
+
+
 _LOCKS: weakref.WeakSet[ProcessLock] = weakref.WeakSet()
 
 
@@ -108,7 +112,7 @@ class ProcessLock:
 
     def __enter__(self):
         if not self.acquire():
-            raise SafetyError("pipeline lock already held")
+            raise LockBusy("pipeline lock already held")
         return self
 
     def __exit__(self, *args):

@@ -17,7 +17,7 @@ from scripts.pipeline_protocol import (
     Publication,
     StateStore,
 )
-from scripts.pipeline_safety import ProcessLock
+from scripts.pipeline_safety import ProcessLock, SafetyError
 
 A, B = "a" * 40, "b" * 40
 SOURCE_GUARD = wakeup.source_guard
@@ -419,3 +419,46 @@ def test_invalid_config_emits_structured_blocked(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["pipeline_wakeup", "--config", str(config)])
     assert wakeup.main() == 2
     assert json.loads(capsys.readouterr().err)["status"] == "blocked"
+
+
+def test_scan_to_cycle_lock_race_skips_only_busy_generation(queue_case, merge_case, monkeypatch):
+    config, queue, entry = queue_case
+    control, evidence = merge_case
+    later = dict(
+        entry, id="later", control=str(control), evidence=str(evidence), checkout=str(evidence)
+    )
+    queue.write_text(json.dumps(dict(version=1, entries=[entry, later])))
+    monkeypatch.setattr(wakeup, "check_merge", lambda *a: "awaiting_merge")
+    actual_run_cycle = wakeup.run_cycle
+    competitor = ProcessLock(Path(entry["control"]) / "driver.lock")
+    calls = []
+
+    def race(control, evidence, checkout, jobs, **kwargs):
+        calls.append(control)
+        if control == Path(entry["control"]):
+            # Both scans have completed; a different owner wins the admission gap.
+            assert competitor.acquire()
+            return actual_run_cycle(control, evidence, checkout, jobs, **kwargs)
+        return {"status": "done"}
+
+    monkeypatch.setattr(wakeup, "run_cycle", race)
+    try:
+        result = wakeup.wake(config)
+        assert result["entries"] == {"new": "busy", "later": "done"}
+        assert calls == [Path(entry["control"]), control]
+        assert not (Path(entry["control"]) / "driver-binding.json").exists()
+        with StateStore(Path(entry["control"]), Path(entry["evidence"])) as store:
+            assert store.state["tasks"]["work"]["attempt"] == 0
+    finally:
+        competitor.close()
+
+
+def test_cycle_safety_error_is_not_misclassified_as_busy(queue_case, monkeypatch):
+    config, _, _ = queue_case
+
+    def unsafe(*args, **kwargs):
+        raise SafetyError("lock inode changed")
+
+    monkeypatch.setattr(wakeup, "run_cycle", unsafe)
+    with pytest.raises(SafetyError, match="lock inode changed"):
+        wakeup.wake(config)

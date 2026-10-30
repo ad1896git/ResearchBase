@@ -25,7 +25,7 @@ from scripts.pipeline_protocol import (
     exact,
     require,
 )
-from scripts.pipeline_safety import ProcessLock
+from scripts.pipeline_safety import LockBusy, ProcessLock
 
 LABEL = "com.researchbase.pipeline-wakeup"
 
@@ -284,14 +284,19 @@ def wake(config):
             runnable.append((key, entry, jobs))
         # Complete the read-only scan for every generation before entering a long CI wait.
         for key, entry, jobs in runnable:
-            result = run_cycle(
-                absolute(entry["control"]),
-                absolute(entry["evidence"]),
-                absolute(entry["checkout"]),
-                jobs,
-                policy=Policy(),
-                park_human_gates=True,
-            )
+            try:
+                result = run_cycle(
+                    absolute(entry["control"]),
+                    absolute(entry["evidence"]),
+                    absolute(entry["checkout"]),
+                    jobs,
+                    policy=Policy(),
+                    park_human_gates=True,
+                )
+            except LockBusy:
+                # Another legitimate owner may have acquired the lease after the scan.
+                results[key] = "busy"
+                continue
             results[key] = result["status"]
             if result["status"] in ("blocked", "budget_exhausted"):
                 notify(root, dict(entry=key, status=result["status"]))

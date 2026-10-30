@@ -56,7 +56,10 @@ also uses its existing `driver.lock`, and the ledger's short `control.lock` stil
 protects state transactions. No PID-based lock authority or lock-file deletion is
 introduced. The read-only merge scan acquires the driver lock before the state
 lock and releases it before `run_cycle` acquires ownership. A concurrently owned
-generation is skipped; it is never relaunched. launchd coalesces scheduled starts
+generation is skipped; it is never relaunched. If another driver wins the gap
+between scan and cycle admission, the dedicated `LockBusy` outcome marks only
+that entry busy and the wake continues to later entries. Other safety errors
+(including a changed lock inode) propagate as blocked failures, never as busy. launchd coalesces scheduled starts
 while its job is running, so 300 seconds is the wake interval when idle, not a
 promise of parallel invocations during a long cycle.
 
