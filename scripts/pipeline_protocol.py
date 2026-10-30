@@ -215,7 +215,7 @@ def validate_state(value):
             require(task["merge"] is not None, "missing merge binding")
         if task["status"] == "retry_wait":
             require(task["retry_at"] is not None, "missing retry time")
-        if task["status"] == "done":
+        if task["status"] in ("done", "failed", "retry_wait"):
             require(task["result"] is not None, "missing completion receipt")
 
     checked = set()
@@ -233,8 +233,12 @@ def validate_state(value):
 
 
 class StateStore:
-    def __init__(self, directory: Path, evidence_root: Path, *, merge_approvers=frozenset()):
+    def __init__(
+        self, directory: Path, evidence_root: Path, *, merge_approvers=frozenset(), create=False
+    ):
         self.directory = directory
+        self.create = create
+        self.new_directory = not directory.exists()
         self.evidence_root = evidence_root.resolve()
         self.lock = ProcessLock(directory / "control.lock")
         self.state: dict = {}
@@ -246,16 +250,27 @@ class StateStore:
             path = self.directory / "state.json"
             require(not path.is_symlink(), "symlink state denied")
             if path.exists():
+                require((self.directory / "initialized").is_file(), "missing initialization marker")
                 self.state = decode(path.read_text())
                 validate_state(self.state)
                 for name, task in self.state["tasks"].items():
-                    if task["status"] == "done":
+                    if task["result"] is not None:
                         saved = self.directory / task["result"]
                         require(
                             saved.is_file() and not saved.is_symlink(), "missing completion receipt"
                         )
                         self._validate_completion(name, decode(saved.read_text()))
             else:
+                require(
+                    self.create
+                    and self.new_directory
+                    and not (self.directory / "initialized").exists(),
+                    "state missing; explicit new-directory initialization required",
+                )
+                with (self.directory / "initialized").open("xb") as marker:
+                    marker.write(b"pipeline-protocol-v1\n")
+                    marker.flush()
+                    os.fsync(marker.fileno())
                 self.state = dict(version=1, revision=0, rounds_used=0, tasks={})
                 atomic_write(path, encoded(self.state))
             return self
@@ -338,13 +353,37 @@ class StateStore:
         self._save(value)
         return dict(task["intent"])
 
-    def quota(self, name, retry_at):
+    def quota(self, name, retry_at, receipt: ExecutionReceipt | None = None):
         integer(retry_at)
         value = self._copy()
         task = value["tasks"][name]
         require(task["status"] == "running", "no running attempt")
-        task.update(status="retry_wait", retry_at=retry_at, reason="quota")
+        if receipt is None:
+            raise ProtocolError("quota needs terminal execution receipt")
+        self._quota_receipt(name, task, receipt)
+        relative = self._receipt(name, dict(quota=asdict(receipt), retry_at=retry_at))
+        task.update(status="retry_wait", retry_at=retry_at, reason="quota", result=relative)
         self._save(value)
+
+    def _quota_receipt(self, name, task, receipt: ExecutionReceipt):
+        if not isinstance(receipt, ExecutionReceipt):
+            raise ProtocolError("invalid terminal receipt")
+        require(
+            task["intent"]["kind"] in ("worker", "review"),
+            "quota is only for non-executing model attempts",
+        )
+        require(
+            receipt.task_id == name and receipt.intent_id == task["intent"]["id"],
+            "quota execution binding mismatch",
+        )
+        integer(receipt.attempt, 1)
+        require(
+            receipt.attempt == task["attempt"]
+            and receipt.commit == task["intent"]["head"]
+            and type(receipt.exit_code) is int
+            and receipt.exit_code == 75,
+            "quota requires terminated non-executing attempt",
+        )
 
     def _receipt(self, name, content):
         task = self.state["tasks"][name]
@@ -372,15 +411,25 @@ class StateStore:
 
     def _validate_completion(self, name, content):
         task = self.state["tasks"][name]
+        if set(content) == {"quota", "retry_at"}:
+            self._quota_receipt(name, task, ExecutionReceipt(**content["quota"]))
+            require(
+                task["status"] in ("retry_wait", "budget_exhausted")
+                and content["retry_at"] == task["retry_at"],
+                "invalid quota receipt",
+            )
+            return
         if set(content) == {"report", "receipt"}:
             parsed = report(json.dumps(content["report"]), self.evidence_root)
             receipt = ExecutionReceipt(**content["receipt"])
             require(receipt.task_id == name, "completion task mismatch")
             self._bind_report(parsed, receipt, task)
             require(
-                parsed["result"] == "pass" and receipt.exit_code == 0,
-                "invalid successful completion",
+                task["intent"]["kind"] in ("worker", "verify", "review", "ci"),
+                "wrong completion method",
             )
+            outcome = "done" if parsed["result"] == "pass" and receipt.exit_code == 0 else "failed"
+            require(task["status"] == outcome, "completion outcome mismatch")
         else:
             exact(content, ("publication", "intent_id"))
             observed = Publication(**content["publication"])
@@ -398,8 +447,10 @@ class StateStore:
                 "remote publication mismatch",
             )
             integer(observed.pr, 1)
+            require(task["status"] == "done", "publication outcome mismatch")
 
     def _bind_report(self, parsed, receipt, task):
+        integer(receipt.attempt, 1)
         require(
             parsed["task_id"] == receipt.task_id
             and parsed["attempt"] == receipt.attempt == task["attempt"],
@@ -418,6 +469,10 @@ class StateStore:
         parsed = report(raw, self.evidence_root)
         task = self.state["tasks"][receipt.task_id]
         require(task["status"] == "running", "no running attempt")
+        require(
+            task["intent"]["kind"] in ("worker", "verify", "review", "ci"),
+            "wrong completion method",
+        )
         self._bind_report(parsed, receipt, task)
         content = dict(report=parsed, receipt=asdict(receipt))
         relative = self._receipt(receipt.task_id, content)
@@ -433,6 +488,13 @@ class StateStore:
         path = self.directory / f"results/{name}-{task['attempt']}.json"
         require(path.is_file(), "no receipt; reconcile live execution, never blindly relaunch")
         content = decode(path.read_text())
+        if set(content) == {"quota", "retry_at"}:
+            self.quota(name, content["retry_at"], ExecutionReceipt(**content["quota"]))
+            return
+        if set(content) == {"publication", "intent_id"}:
+            require(content["intent_id"] == task["intent"]["id"], "publication intent mismatch")
+            self.reconcile_publication(name, Publication(**content["publication"]))
+            return
         exact(content, ("report", "receipt"))
         self.finish(json.dumps(content["report"]), ExecutionReceipt(**content["receipt"]))
 
@@ -461,10 +523,15 @@ class StateStore:
             task.update(status="done", result=relative)
         self._save(value)
 
-    def await_merge(self, name, publication: Publication, *, after_event: int, checks):
+    def await_merge(self, name, publication: Publication, *, after_event: int, checks, proofs):
         value = self._copy()
         task = value["tasks"][name]
         require(name in self.eligible(0), "merge task not eligible")
+        require(
+            len(proofs) == 3 and len(set(proofs)) == 3 and set(proofs) == set(task["needs"]),
+            "missing readiness proof dependencies",
+        )
+        self._ready_proofs(proofs, publication)
         integer(publication.pr, 1)
         integer(after_event)
         require(checks_ready(publication.head, checks), "CI not ready on exact head")
@@ -480,6 +547,23 @@ class StateStore:
             ),
         )
         self._save(value)
+
+    def _ready_proofs(self, proofs, publication):
+        for proof_id, kind in zip(proofs, ("publish", "verify", "review"), strict=True):
+            prior = self.state["tasks"][proof_id]
+            require(
+                prior["status"] == "done" and prior["intent"]["kind"] == kind,
+                "readiness evidence incomplete",
+            )
+            content = decode((self.directory / prior["result"]).read_text())
+            self._validate_completion(proof_id, content)
+            if kind == "publish":
+                require(content["publication"] == asdict(publication), "publication proof mismatch")
+            else:
+                require(
+                    content["receipt"]["commit"] == publication.head,
+                    "readiness evidence on wrong head",
+                )
 
     def approve_label(self, name, *, event_id, label, pr, head, base, actor):
         value = self._copy()
@@ -497,10 +581,23 @@ class StateStore:
         binding["approved_actor"] = actor
         self._save(value)
 
-    def merge_allowed(self, name, *, head, base, checks, labels):
+    def merge_allowed(self, name, *, head, base, checks, labels, label_cursor):
         binding = self.state["tasks"][name]["merge"]
         if not binding:
             return False
+        integer(label_cursor, max(binding["after_event"], binding["approved_event"] or 0))
+        task = self.state["tasks"][name]
+        by_kind = {
+            self.state["tasks"][n]["intent"]["kind"]: n
+            for n in task["needs"]
+            if self.state["tasks"][n]["intent"] is not None
+        }
+        require(set(by_kind) == {"publish", "verify", "review"}, "missing readiness proofs")
+        publish = self.state["tasks"][by_kind["publish"]]
+        self._ready_proofs(
+            tuple(by_kind[k] for k in ("publish", "verify", "review")),
+            Publication(publish["intent"]["key"], binding["head"], binding["base"], binding["pr"]),
+        )
         if (head, base) != (binding["head"], binding["base"]):
             value = self._copy()
             value["tasks"][name].update(
@@ -511,10 +608,13 @@ class StateStore:
             self._save(value)
             return False
         if "approved-merge" not in labels:
+            integer(label_cursor, binding["after_event"])
             if binding["approved_event"] is not None:
+                integer(label_cursor, binding["approved_event"])
+            if binding["approved_event"] is not None or label_cursor > binding["after_event"]:
                 value = self._copy()
                 changed = value["tasks"][name]["merge"]
-                changed["after_event"] = changed["approved_event"]
+                changed["after_event"] = label_cursor
                 changed["approved_event"] = None
                 changed["approved_actor"] = None
                 self._save(value)

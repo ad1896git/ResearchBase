@@ -20,6 +20,7 @@ from scripts.pipeline_safety import SafetyError
 
 ROOT = Path(__file__).resolve().parents[2]
 A, B, C = "a" * 40, "b" * 40, "c" * 40
+PROOFS = ("published", "verified", "reviewed")
 ENV = dict(os.environ, PYTHONPATH=str(ROOT))
 
 
@@ -41,6 +42,18 @@ def output(evidence, *, result="pass", attempt=1, task_id="work", commit=A):
     )
 
 
+def prepare_proofs(store, evidence):
+    store.add("published")
+    store.begin("published", "publish", "topic", A, B)
+    store.reconcile_publication("published", Publication("topic", A, B, 38))
+    for name, kind in (("verified", "verify"), ("reviewed", "review")):
+        store.add(name)
+        intent = store.begin(name, kind, name, A, B)
+        assert intent is not None
+        store.finish(output(evidence, task_id=name), ExecutionReceipt(name, 1, intent["id"], A, 0))
+    store.add("merge", needs=PROOFS)
+
+
 @pytest.fixture
 def paths(tmp_path):
     evidence = tmp_path / "evidence"
@@ -56,7 +69,7 @@ def paths(tmp_path):
 
 def test_crash_after_durable_result_recovers_without_rerunning(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("work")
     program = """import os,sys,json
 from pathlib import Path
@@ -71,12 +84,14 @@ with StateStore(Path(sys.argv[1]),Path(sys.argv[2])) as store:
         env=ENV,
     )
     assert crashed.returncode == 71
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         assert store.state["tasks"]["work"]["status"] == "running"
         store.recover_result("work")
         assert store.state["tasks"]["work"]["status"] == "done"
         assert store.state["rounds_used"] == 1
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as restored:
+    with StateStore(
+        control, evidence, merge_approvers=frozenset({"owner"}), create=True
+    ) as restored:
         assert restored.state["tasks"]["work"]["status"] == "done"
 
 
@@ -105,7 +120,7 @@ def test_push_and_pr_created_before_crash_are_reconciled_not_recreated(paths, tm
     head = subprocess.check_output(
         ["git", "-C", str(source), "rev-parse", "HEAD"], text=True
     ).strip()
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("publish")
     # Real Git push plus a durable PR service test double; not live GitHub evidence.
     program = """import os,sys,json,subprocess
@@ -139,7 +154,7 @@ with StateStore(Path(control),Path(evidence)) as store:
         == head
     )
     observed = json.loads((remote / "pr.json").read_text())
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.reconcile_publication(
             "publish", Publication("refs/heads/topic", head, head, observed["pr"])
         )
@@ -152,7 +167,7 @@ with StateStore(Path(control),Path(evidence)) as store:
 @pytest.mark.parametrize("bad", ["", "{", "null", "{}", '{"task_id":"x","task_id":"x"}', "NaN"])
 def test_missing_or_malformed_output_never_becomes_pass(paths, bad):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("work")
         intent = store.begin("work", "worker", "job", A, B)
         assert intent is not None
@@ -182,7 +197,7 @@ def test_wrong_structured_fields_rejected(paths, field, value):
 
 def test_claimed_pass_does_not_override_host_failure_or_lose_history(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("work")
         intent = store.begin("work", "worker", "job", A, B)
         assert intent is not None
@@ -197,43 +212,56 @@ def test_claimed_pass_does_not_override_host_failure_or_lose_history(paths):
 
 def test_awaiting_merge_does_not_block_independent_tasks(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
-        store.add("merge")
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
+        prepare_proofs(store, evidence)
         store.add("dependent", needs=("merge",))
         store.add("independent")
-        store.await_merge("merge", Publication("topic", A, B, 38), after_event=10, checks=checks())
+        store.await_merge(
+            "merge", Publication("topic", A, B, 38), after_event=10, checks=checks(), proofs=PROOFS
+        )
         assert store.eligible(0) == ["independent"]
-        assert not store.merge_allowed("merge", head=A, base=B, checks=checks(), labels=[])
+        assert not store.merge_allowed(
+            "merge", head=A, base=B, checks=checks(), labels=[], label_cursor=10
+        )
         store.approve_label(
             "merge", event_id=11, label="approved-merge", pr=38, head=A, base=B, actor="owner"
         )
         assert store.merge_allowed(
-            "merge", head=A, base=B, checks=checks(), labels=["approved-merge"]
+            "merge", head=A, base=B, checks=checks(), labels=["approved-merge"], label_cursor=11
         )
 
 
 @pytest.mark.parametrize("head,base", [(C, B), (A, C)])
 def test_head_or_base_drift_invalidates_approval_permanently(paths, head, base):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
-        store.add("merge")
-        store.await_merge("merge", Publication("topic", A, B, 38), after_event=10, checks=checks())
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
+        prepare_proofs(store, evidence)
+        store.await_merge(
+            "merge", Publication("topic", A, B, 38), after_event=10, checks=checks(), proofs=PROOFS
+        )
         store.approve_label(
             "merge", event_id=11, label="approved-merge", pr=38, head=A, base=B, actor="owner"
         )
         assert not store.merge_allowed(
-            "merge", head=head, base=base, checks=checks(head), labels=["approved-merge"]
+            "merge",
+            head=head,
+            base=base,
+            checks=checks(head),
+            labels=["approved-merge"],
+            label_cursor=11,
         )
         assert not store.merge_allowed(
-            "merge", head=A, base=B, checks=checks(), labels=["approved-merge"]
+            "merge", head=A, base=B, checks=checks(), labels=["approved-merge"], label_cursor=11
         )
 
 
 def test_stale_label_removal_and_reapplication(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
-        store.add("merge")
-        store.await_merge("merge", Publication("topic", A, B, 38), after_event=10, checks=checks())
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
+        prepare_proofs(store, evidence)
+        store.await_merge(
+            "merge", Publication("topic", A, B, 38), after_event=10, checks=checks(), proofs=PROOFS
+        )
         with pytest.raises(ProtocolError):
             store.approve_label(
                 "merge", event_id=10, label="approved-merge", pr=38, head=A, base=B, actor="owner"
@@ -241,16 +269,22 @@ def test_stale_label_removal_and_reapplication(paths):
         store.approve_label(
             "merge", event_id=11, label="approved-merge", pr=38, head=A, base=B, actor="owner"
         )
-        assert not store.merge_allowed("merge", head=A, base=B, checks=checks(), labels=[])
+        assert not store.merge_allowed(
+            "merge", head=A, base=B, checks=checks(), labels=[], label_cursor=20
+        )
         with pytest.raises(ProtocolError):
             store.approve_label(
                 "merge", event_id=11, label="approved-merge", pr=38, head=A, base=B, actor="owner"
             )
+        with pytest.raises(ProtocolError):
+            store.approve_label(
+                "merge", event_id=12, label="approved-merge", pr=38, head=A, base=B, actor="owner"
+            )
         store.approve_label(
-            "merge", event_id=12, label="approved-merge", pr=38, head=A, base=B, actor="owner"
+            "merge", event_id=21, label="approved-merge", pr=38, head=A, base=B, actor="owner"
         )
         assert store.merge_allowed(
-            "merge", head=A, base=B, checks=checks(), labels=["approved-merge"]
+            "merge", head=A, base=B, checks=checks(), labels=["approved-merge"], label_cursor=21
         )
 
 
@@ -266,18 +300,24 @@ def test_no_merge_for_incomplete_wrong_or_failed_ci(paths, change):
         bad[0]["head"] = C
     if change == "duplicate":
         bad.append(dict(bad[0]))
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
-        store.add("merge")
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
+        prepare_proofs(store, evidence)
         with pytest.raises(ProtocolError, match="CI not ready"):
-            store.await_merge("merge", Publication("topic", A, B, 38), after_event=0, checks=bad)
+            store.await_merge(
+                "merge", Publication("topic", A, B, 38), after_event=0, checks=bad, proofs=PROOFS
+            )
 
 
 def test_quota_wait_does_not_consume_rounds_and_budget_exhaustion_is_distinct(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("work")
         store.begin("work", "worker", "job", A, B, max_rounds=1)
-        store.quota("work", 100)
+        store.quota(
+            "work",
+            100,
+            ExecutionReceipt("work", 1, store.state["tasks"]["work"]["intent"]["id"], A, 75),
+        )
         for now in range(100):
             assert store.eligible(now) == []
         assert store.state["rounds_used"] == 1
@@ -288,7 +328,7 @@ def test_quota_wait_does_not_consume_rounds_and_budget_exhaustion_is_distinct(pa
 @pytest.mark.parametrize("kind", ["delete", "architecture"])
 def test_deletion_and_architecture_always_require_human_decision(paths, kind):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("dangerous")
         store.add("independent")
         assert store.begin("dangerous", kind, "target", A, B) is None
@@ -298,7 +338,7 @@ def test_deletion_and_architecture_always_require_human_decision(paths, kind):
 
 def test_unknown_publication_is_not_blindly_retried(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("publish")
         store.begin("publish", "publish", "topic", A, B)
         store.reconcile_publication("publish", None)
@@ -308,27 +348,27 @@ def test_unknown_publication_is_not_blindly_retried(paths):
 
 def test_existing_state_with_missing_receipt_is_rejected(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("work")
         intent = store.begin("work", "worker", "job", A, B)
         assert intent is not None
         store.finish(output(evidence), ExecutionReceipt("work", 1, intent["id"], A, 0))
     (control / "results/work-1.json").unlink()
     with pytest.raises(ProtocolError, match="missing completion"):
-        with StateStore(control, evidence, merge_approvers=frozenset({"owner"})):
+        with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True):
             pass
 
 
 def test_modified_evidence_is_rejected_on_recovery(paths):
     control, evidence = paths
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         store.add("work")
         intent = store.begin("work", "worker", "job", A, B)
         assert intent is not None
         store.finish(output(evidence), ExecutionReceipt("work", 1, intent["id"], A, 0))
     (evidence / "test.log").write_text("tampered")
     with pytest.raises(ProtocolError, match="hash mismatch"):
-        with StateStore(control, evidence, merge_approvers=frozenset({"owner"})):
+        with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True):
             pass
 
 
@@ -337,7 +377,7 @@ def test_two_protocol_writers_cannot_enter_the_same_store(paths):
     program = """import sys
 from pathlib import Path
 from scripts.pipeline_protocol import StateStore
-with StateStore(Path(sys.argv[1]),Path(sys.argv[2])):
+with StateStore(Path(sys.argv[1]),Path(sys.argv[2]),create=True):
     print('locked',flush=True)
     sys.stdin.readline()
 """
@@ -352,7 +392,7 @@ with StateStore(Path(sys.argv[1]),Path(sys.argv[2])):
         assert owner.stdout is not None
         assert owner.stdout.readline().strip() == "locked"
         with pytest.raises(SafetyError, match="lock already held"):
-            with StateStore(control, evidence):
+            with StateStore(control, evidence, create=True):
                 pass
     finally:
         owner.communicate("\n", timeout=10)
@@ -360,11 +400,11 @@ with StateStore(Path(sys.argv[1]),Path(sys.argv[2])):
 
 def test_existing_running_resource_is_not_reassigned_after_restart(paths):
     control, evidence = paths
-    with StateStore(control, evidence) as store:
+    with StateStore(control, evidence, create=True) as store:
         store.add("first")
         store.add("second")
         store.begin("first", "worker", "lane-1", A, B)
-    with StateStore(control, evidence) as resumed:
+    with StateStore(control, evidence, create=True) as resumed:
         with pytest.raises(ProtocolError, match="unreconciled execution"):
             resumed.begin("second", "worker", "lane-1", A, B)
         assert resumed.state["tasks"]["first"]["status"] == "running"
@@ -372,14 +412,16 @@ def test_existing_running_resource_is_not_reassigned_after_restart(paths):
 
 def test_default_policy_and_unauthorized_actor_cannot_approve_merge(paths):
     control, evidence = paths
-    with StateStore(control, evidence) as store:
-        store.add("merge")
-        store.await_merge("merge", Publication("topic", A, B, 38), after_event=10, checks=checks())
+    with StateStore(control, evidence, create=True) as store:
+        prepare_proofs(store, evidence)
+        store.await_merge(
+            "merge", Publication("topic", A, B, 38), after_event=10, checks=checks(), proofs=PROOFS
+        )
         with pytest.raises(ProtocolError, match="not authorized"):
             store.approve_label(
                 "merge", event_id=11, label="approved-merge", pr=38, head=A, base=B, actor="owner"
             )
-    with StateStore(control, evidence, merge_approvers=frozenset({"owner"})) as store:
+    with StateStore(control, evidence, merge_approvers=frozenset({"owner"}), create=True) as store:
         with pytest.raises(ProtocolError, match="not authorized"):
             store.approve_label(
                 "merge", event_id=12, label="approved-merge", pr=38, head=A, base=B, actor="worker"
@@ -388,7 +430,7 @@ def test_default_policy_and_unauthorized_actor_cannot_approve_merge(paths):
 
 def test_state_revision_conflict_does_not_overwrite_external_change(paths):
     control, evidence = paths
-    with StateStore(control, evidence) as store:
+    with StateStore(control, evidence, create=True) as store:
         store.add("work")
         other = json.loads((control / "state.json").read_text())
         other["revision"] += 1
@@ -401,7 +443,7 @@ def test_state_revision_conflict_does_not_overwrite_external_change(paths):
 
 def test_duplicate_and_unknown_state_fields_fail_closed(paths):
     control, evidence = paths
-    with StateStore(control, evidence):
+    with StateStore(control, evidence, create=True):
         pass
     good = (control / "state.json").read_text()
     for bad in (
@@ -410,7 +452,7 @@ def test_duplicate_and_unknown_state_fields_fail_closed(paths):
     ):
         (control / "state.json").write_text(bad)
         with pytest.raises(ProtocolError):
-            with StateStore(control, evidence):
+            with StateStore(control, evidence, create=True):
                 pass
 
 
@@ -429,10 +471,136 @@ def test_result_schema_and_runtime_closed_fields_agree():
 
 def test_receipt_for_another_commit_cannot_make_report_pass(paths):
     control, evidence = paths
-    with StateStore(control, evidence) as store:
+    with StateStore(control, evidence, create=True) as store:
         store.add("work")
         intent = store.begin("work", "verify", "job", A, B)
         assert intent is not None
         with pytest.raises(ProtocolError, match="execution binding mismatch"):
             store.finish(output(evidence), ExecutionReceipt("work", 1, intent["id"], C, 0))
         assert store.state["tasks"]["work"]["status"] == "running"
+
+
+def test_quota_without_terminal_receipt_keeps_claim_across_restart(paths):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        store.add("work")
+        store.add("other")
+        store.begin("work", "worker", "lane", A, B)
+        with pytest.raises(ProtocolError, match="terminal execution receipt"):
+            store.quota("work", 100)
+    with StateStore(control, evidence) as resumed:
+        with pytest.raises(ProtocolError, match="not eligible"):
+            resumed.begin("work", "worker", "lane", A, B, now=1000)
+        with pytest.raises(ProtocolError, match="unreconciled"):
+            resumed.begin("other", "worker", "lane", A, B, now=1000)
+
+
+def test_safe_quota_receipt_survives_restart_and_does_not_overlap_other_work(paths):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        store.add("work")
+        store.add("other")
+        intent = store.begin("work", "worker", "lane", A, B)
+        assert intent is not None
+        store.quota("work", 100, ExecutionReceipt("work", 1, intent["id"], A, 75))
+    with StateStore(control, evidence) as resumed:
+        resumed.begin("other", "worker", "lane", A, B)
+        with pytest.raises(ProtocolError, match="unreconciled"):
+            resumed.begin("work", "worker", "lane", A, B, now=1000)
+        assert resumed.state["rounds_used"] == 2
+
+
+@pytest.mark.parametrize("with_receipt", [False, True])
+def test_missing_established_snapshot_cannot_reinitialize(paths, with_receipt):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        store.add("work")
+        intent = store.begin("work", "worker", "lane", A, B)
+        assert intent is not None
+        if with_receipt:
+            store.finish(output(evidence), ExecutionReceipt("work", 1, intent["id"], A, 0))
+    (control / "state.json").unlink()
+    for create in (False, True):
+        with pytest.raises(ProtocolError, match="state missing"):
+            with StateStore(control, evidence, create=create):
+                pass
+    assert not (control / "state.json").exists()
+    assert (control / "initialized").is_file()
+
+
+@pytest.mark.parametrize("damage", ["missing", "partial", "altered"])
+def test_failed_receipt_damage_is_rejected_on_restart(paths, damage):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        store.add("work")
+        intent = store.begin("work", "worker", "lane", A, B)
+        assert intent is not None
+        store.finish(output(evidence), ExecutionReceipt("work", 1, intent["id"], A, 9))
+    path = control / "results/work-1.json"
+    if damage == "missing":
+        path.unlink()
+    elif damage == "partial":
+        path.write_text('{"report":')
+    else:
+        content = json.loads(path.read_text())
+        content["receipt"]["exit_code"] = 0
+        path.write_text(json.dumps(content))
+    with pytest.raises(ProtocolError):
+        with StateStore(control, evidence):
+            pass
+
+
+def test_generic_worker_report_cannot_complete_publication(paths):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        store.add("work")
+        intent = store.begin("work", "publish", "topic", A, B)
+        assert intent is not None
+        with pytest.raises(ProtocolError, match="wrong completion method"):
+            store.finish(output(evidence), ExecutionReceipt("work", 1, intent["id"], A, 0))
+        assert store.state["tasks"]["work"]["status"] == "running"
+
+
+def test_merge_readiness_requires_recorded_publish_verify_review_dependencies(paths):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        store.add("merge")
+        with pytest.raises(ProtocolError, match="readiness proof dependencies"):
+            store.await_merge(
+                "merge",
+                Publication("topic", A, B, 38),
+                after_event=10,
+                checks=checks(),
+                proofs=PROOFS,
+            )
+
+
+def test_merge_readiness_rejects_another_pr_even_with_same_head(paths):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True) as store:
+        prepare_proofs(store, evidence)
+        with pytest.raises(ProtocolError, match="publication proof mismatch"):
+            store.await_merge(
+                "merge",
+                Publication("topic", A, B, 39),
+                after_event=10,
+                checks=checks(),
+                proofs=PROOFS,
+            )
+
+
+def test_merge_rechecks_readiness_evidence_after_human_approval(paths):
+    control, evidence = paths
+    with StateStore(control, evidence, create=True, merge_approvers=frozenset({"owner"})) as store:
+        prepare_proofs(store, evidence)
+        store.await_merge(
+            "merge", Publication("topic", A, B, 38), after_event=10, checks=checks(), proofs=PROOFS
+        )
+        store.approve_label(
+            "merge", event_id=11, label="approved-merge", pr=38, head=A, base=B, actor="owner"
+        )
+        (evidence / "test.log").write_text("tampered after review")
+        with pytest.raises(ProtocolError, match="hash mismatch"):
+            store.merge_allowed(
+                "merge", head=A, base=B, checks=checks(), labels=["approved-merge"], label_cursor=11
+            )

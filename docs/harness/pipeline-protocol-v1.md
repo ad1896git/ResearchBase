@@ -10,6 +10,9 @@ Postgres or activate a replacement loop. No new dependencies or scientific schem
 New, operator-owned `.pipeline/control/state.json` is the sole authoritative
 current control state. The legacy `state.json` and historical lanes remain intact.
 The caller chooses a sandboxed test control directory for offline validation.
+Initialization requires explicit `create=True` and a genuinely new directory.
+An immutable initialization marker distinguishes lost state from a new pipeline;
+missing state in an established directory never silently starts an empty ledger.
 
 Root fields: `version` (1), `revision`, `rounds_used`, `tasks` (keyed by task ID).
 Each task has only `needs`, `status`, `attempt`, `intent`, `result`, `retry_at`,
@@ -40,6 +43,11 @@ and applied without running the worker again. An interrupted/partial receipt or 
 unknown remote outcome denies replay and requires reconciliation, not blind retry.
 Publication recovery consumes a host observation of the existing branch/PR bound
 to the expected key/head/base; there is deliberately no push/create operation here.
+Generic model reports cannot complete publication. Every referenced receipt,
+including failures, is revalidated on reopening. A quota wait needs a bound host
+terminal receipt with reserved exit code75: the executor must establish that the
+model was refused without executing work and all mutating descendants are stopped.
+An absent/uncertain terminal receipt keeps the running claim and denies retry.
 
 `scripts/pipeline_result.schema.json` is suitable for `codex exec --output-schema`.
 The runtime additionally validates exact fields, duplicates, evidence containment,
@@ -51,14 +59,18 @@ must come from the future trusted executor, not the model's response.
 
 ## Human merge confirmation
 
-A PR reaches `awaiting_merge` only with the complete successful static+six-shard
-matrix on its expected head. It blocks dependent tasks, not unrelated work. The
+A PR reaches `awaiting_merge` only with recorded publication, verification and
+separate review task dependencies, all bound to this PR/head, plus the complete
+successful static+six-shard matrix. The receipts are checked again before merge
+eligibility. It blocks dependent tasks, not unrelated work. The
 human adds `approved-merge`; the future read-only GitHub observer supplies the PR,
 event cursor, actor and observed head/base. The controller never adds this label.
 Approvers default to an empty set: the operator must explicitly configure the
 human account. A label predating readiness, wrong actor/PR/head/base, removed
 label, missing/failed/duplicate required check or observed head/base drift denies
 merge. Drift invalidates the approval; reapplying an old event cannot restore it.
+Label absence carries the observer's authoritative removal cursor; delayed older
+approval events cannot undo a later removal. A readiness baseline alone is insufficient.
 The future executor must recheck GitHub state immediately before an atomic
 `--match-head-commit` merge. This offline library performs no merge itself.
 
@@ -77,6 +89,11 @@ Run `python -m pytest tests/pipeline` using the existing locked environment.
 | History and existing lanes are preserved | `test_claimed_pass_does_not_override_host_failure_or_lose_history`, safety tests for dirty/incomplete/conflicted lanes and interrupted Git operations |
 | Awaiting human merge does not halt independent work | `test_awaiting_merge_does_not_block_independent_tasks` |
 | Human-only actions and approval scope | `test_deletion_and_architecture_always_require_human_decision`, `test_stale_label_removal_and_reapplication`, `test_default_policy_and_unauthorized_actor_cannot_approve_merge` |
+
+Additional executable restart/readiness negatives cover missing established state,
+quota without terminal receipts, overlapping quota retries, missing/partial/altered
+failed receipts, generic publication-report bypass, missing proof dependencies,
+another PR with the same head, and evidence tampering after human approval.
 
 These tests actually kill subprocesses and perform a local Git push. PR creation
 is a durable remote-service test double, not live GitHub evidence. No claim is made
