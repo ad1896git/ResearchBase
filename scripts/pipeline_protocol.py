@@ -245,7 +245,10 @@ def validate_state(value):
             require(
                 task["merge"] is None
                 and (
-                    (task["intent"]["kind"] in ("worker", "review") and task["reason"] == "quota")
+                    (
+                        task["intent"]["kind"] in ("worker", "review")
+                        and task["reason"] in ("quota", "worker_transient")
+                    )
                     or (
                         task["intent"]["kind"] == "ci"
                         and task["reason"] == "ci_timeout"
@@ -587,6 +590,59 @@ class StateStore:
         value["tasks"][name].update(status="running", retry_at=None, reason=None)
         self._save(value)
 
+    def worker_fault(self, name, retry_at, receipt, reason):
+        integer(retry_at)
+        task = self.state["tasks"][name]
+        require(task["status"] == "running", "no running worker fault")
+        content = dict(worker_fault=asdict(receipt), retry_at=retry_at, reason=reason)
+        self._worker_fault_receipt(name, task, content)
+        relative = self._receipt(name, content)
+        value = self._copy()
+        target = value["tasks"][name]
+        if task["attempt"] >= 2:
+            target.update(
+                status="blocked", retry_at=None, reason="worker attempt limit (2)", result=relative
+            )
+        else:
+            target.update(
+                status="retry_wait",
+                retry_at=retry_at,
+                reason="quota" if reason == "quota" else "worker_transient",
+                result=relative,
+            )
+        self._save(value)
+
+    def _worker_fault_receipt(self, name, task, content):
+        from scripts.pipeline_faults import classify
+
+        exact(content, ("worker_fault", "retry_at", "reason"))
+        integer(content["retry_at"])
+        receipt = ExecutionReceipt(**content["worker_fault"])
+        intent = task["intent"]
+        if intent is None:
+            raise ProtocolError("missing worker fault intent")
+        require(intent["kind"] == "worker", "not a worker fault")
+        require(
+            (receipt.task_id, receipt.attempt, receipt.intent_id, receipt.key, receipt.commit)
+            == (name, task["attempt"], intent["id"], intent["key"], intent["head"]),
+            "worker fault binding mismatch",
+        )
+        output = self.directory / "executions" / f"{name}-{task['attempt']}"
+        host = output / "host.json"
+        require(host.is_file() and not host.is_symlink(), "missing worker fault host")
+        saved = decode(host.read_text())
+        require(saved["receipt"] == content["worker_fault"], "worker fault host mismatch")
+        require(
+            receipt.exit_code
+            == (124 if saved["terminal"]["timed_out"] else saved["terminal"]["exit_code"]),
+            "worker fault terminal mismatch",
+        )
+        require(
+            content["reason"] in ("quota", "timeout", "session_exit")
+            and classify(output, saved["terminal"]) == content["reason"],
+            "unclassified worker fault",
+        )
+
     def quota(self, name, retry_at, receipt: ExecutionReceipt | None = None):
         integer(retry_at)
         value = self._copy()
@@ -657,6 +713,17 @@ class StateStore:
                 and task["intent"]["base"] == effect["base"]
                 and task["intent"]["key"] == f"{effect['repository']}:pr:{effect['pr']}",
                 "merge completion binding mismatch",
+            )
+            return
+        if set(content) == {"worker_fault", "retry_at", "reason"}:
+            self._worker_fault_receipt(name, task, content)
+            require(
+                task["status"] == "blocked"
+                or (
+                    task["status"] in ("retry_wait", "budget_exhausted")
+                    and content["retry_at"] == task["retry_at"]
+                ),
+                "invalid worker fault state",
             )
             return
         if set(content) == {"quota", "retry_at"}:
@@ -740,6 +807,14 @@ class StateStore:
         path = self.directory / f"results/{name}-{task['attempt']}.json"
         require(path.is_file(), "no receipt; reconcile live execution, never blindly relaunch")
         content = decode(path.read_text())
+        if set(content) == {"worker_fault", "retry_at", "reason"}:
+            self.worker_fault(
+                name,
+                content["retry_at"],
+                ExecutionReceipt(**content["worker_fault"]),
+                content["reason"],
+            )
+            return
         if set(content) == {"quota", "retry_at"}:
             self.quota(name, content["retry_at"], ExecutionReceipt(**content["quota"]))
             return

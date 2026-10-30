@@ -254,6 +254,9 @@ class Driver:
             state = self.snapshot()
             tasks = state["tasks"]
             if all(t["status"] in TERMINAL for t in tasks.values()):
+                for name, task in tasks.items():
+                    if task["status"] == "blocked":
+                        self.notify(name, "blocked", task["reason"])
                 return
             if self.park_human_gates and human_gate_wait(tasks):
                 self.event("parked", status="awaiting_merge", revision=state["revision"])
@@ -271,6 +274,24 @@ class Driver:
             if active_ci:
                 self.wait_for_ci(active_ci[0], heartbeat)
                 continue
+            paused_workers = [
+                n
+                for n, t in tasks.items()
+                if t["status"] == "retry_wait" and t["intent"]["kind"] == "worker"
+            ]
+            with StateStore(self.control, self.evidence) as store:
+                eligible_now = store.eligible(int(time.time()))
+            if paused_workers and not eligible_now:
+                name = paused_workers[0]
+                task = tasks[name]
+                self.notify(
+                    name,
+                    f"retry-{task['attempt']}",
+                    f"{task['reason']}: retry_wait; next fresh attempt after {task['retry_at']}",
+                )
+                heartbeat.phase = dict(phase="retry_wait", task_id=name)
+                self.idle_until(task["retry_at"], heartbeat)
+                # Eligible dispatch below consumes the next attempt, never the wait.
             running = [n for n, t in tasks.items() if t["status"] == "running"]
             if running:
                 name = running[0]
@@ -283,7 +304,10 @@ class Driver:
                     self.evidence,
                     timeout=self.policy.session_timeout,
                 )
-                require(result["status"] == "done", "worker recovery unsuccessful")
+                require(
+                    result["status"] in ("done", "retry_wait", "blocked"),
+                    "worker recovery unsuccessful",
+                )
                 self.event("recovered", task_id=name, result=result)
                 continue
             if state["rounds_used"] >= self.policy.round_budget:
@@ -320,7 +344,9 @@ class Driver:
                         timeout=self.policy.session_timeout,
                     )
                     self.event("executed", result=result)
-                    require(result["status"] == "done", "worker unsuccessful")
+                    require(
+                        result["status"] in ("done", "retry_wait", "blocked"), "worker unsuccessful"
+                    )
                 else:
                     self.block("unsupported executor decision")
             elif action == "wait":
