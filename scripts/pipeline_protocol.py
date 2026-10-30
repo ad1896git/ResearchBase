@@ -260,7 +260,8 @@ def validate_state(value):
             require(
                 task["attempt"] > 0
                 and task["intent"] is not None
-                and task["intent"]["kind"] in ("worker", "verify", "review", "ci", "publish")
+                and task["intent"]["kind"]
+                in ("worker", "verify", "review", "ci", "publish", "merge")
                 and task["retry_at"] is None
                 and task["merge"] is None
                 and task["reason"] is None,
@@ -619,9 +620,9 @@ class StateStore:
             "quota requires terminated non-executing attempt",
         )
 
-    def _receipt(self, name, content):
+    def _receipt(self, name, content, *, attempt=None):
         task = self.state["tasks"][name]
-        relative = f"results/{name}-{task['attempt']}.json"
+        relative = f"results/{name}-{task['attempt'] if attempt is None else attempt}.json"
         target = self.directory / relative
         target.parent.mkdir(exist_ok=True)
         require(
@@ -645,6 +646,19 @@ class StateStore:
 
     def _validate_completion(self, name, content):
         task = self.state["tasks"][name]
+        if set(content) == {"merge"}:
+            self._validate_merge_effect(name, content["merge"])
+            effect = content["merge"]
+            require(
+                task["status"] == "done"
+                and task["intent"]["kind"] == "merge"
+                and task["intent"]["id"] == effect["intent_id"]
+                and task["intent"]["head"] == effect["head"]
+                and task["intent"]["base"] == effect["base"]
+                and task["intent"]["key"] == f"{effect['repository']}:pr:{effect['pr']}",
+                "merge completion binding mismatch",
+            )
+            return
         if set(content) == {"quota", "retry_at"}:
             self._quota_receipt(name, task, ExecutionReceipt(**content["quota"]))
             require(
@@ -823,7 +837,21 @@ class StateStore:
         binding["approved_actor"] = actor
         self._save(value)
 
-    def merge_allowed(self, name, *, head, base, checks, labels, label_cursor, effective_approval):
+    def merge_allowed(
+        self,
+        name,
+        *,
+        head,
+        base,
+        checks,
+        labels,
+        label_cursor,
+        effective_approval,
+        risk="medium",
+        low_risk_enabled=False,
+    ):
+        require(risk in ("low", "medium", "high"), "unrecognized merge risk")
+        require(type(low_risk_enabled) is bool, "invalid low-risk policy")
         binding = self.state["tasks"][name]["merge"]
         if not binding:
             return False
@@ -849,6 +877,8 @@ class StateStore:
             value["tasks"][name]["merge"]["approved_actor"] = None
             self._save(value)
             return False
+        if risk == "low" and low_risk_enabled:
+            return task["status"] == "awaiting_merge" and checks_ready(head, checks)
         if effective_approval is not None:
             require(
                 type(effective_approval) is tuple and len(effective_approval) == 2,
@@ -878,3 +908,128 @@ class StateStore:
             and binding["approved_actor"] in self.merge_approvers
             and checks_ready(head, checks)
         )
+
+    def merge_proof_digest(self, name):
+        task = self.state["tasks"][name]
+        require(len(task["needs"]) == 3, "merge proof count")
+        rows = []
+        for dependency in sorted(task["needs"]):
+            prior = self.state["tasks"][dependency]
+            require(prior["status"] == "done" and prior["result"], "missing merge proof")
+            path = self.directory / prior["result"]
+            self._validate_completion(dependency, decode(path.read_text()))
+            rows.append([dependency, hashlib.sha256(path.read_bytes()).hexdigest()])
+        return hashlib.sha256(encoded(rows)).hexdigest()
+
+    def _validate_merge_effect(self, name, effect):
+        exact(
+            effect,
+            (
+                "repository",
+                "pr",
+                "head",
+                "base",
+                "sha",
+                "tree",
+                "source_tree",
+                "parent",
+                "merger",
+                "intent_id",
+                "risk",
+                "message",
+                "proofs_sha256",
+                "approval_event",
+                "approval_actor",
+            ),
+        )
+        for field in ("head", "base", "sha", "tree", "source_tree", "parent"):
+            commit(effect[field])
+        integer(effect["pr"], 1)
+        text(effect["repository"], 256)
+        text(effect["merger"], 128)
+        require(
+            type(effect["intent_id"]) is str and re.fullmatch(r"[0-9a-f]{24}", effect["intent_id"]),
+            "merge receipt intent id",
+        )
+        require(effect["risk"] in ("low", "medium", "high"), "merge receipt risk")
+        require(
+            effect["parent"] == effect["base"]
+            and effect["tree"] == effect["source_tree"]
+            and f"pipeline-merge:{effect['intent_id']}" in effect["message"]
+            and effect["proofs_sha256"] == self.merge_proof_digest(name),
+            "merge effect/proof mismatch",
+        )
+        saved = self.directory / "merge-operations" / name / "effect.json"
+        require(saved.is_file() and not saved.is_symlink(), "missing host merge effect")
+        require(decode(saved.read_text()) == effect, "host merge effect drift")
+        intent_path = saved.parent / "intent.json"
+        target_path = saved.parent / "target.json"
+        require(
+            not intent_path.is_symlink() and not target_path.is_symlink(), "symlink merge binding"
+        )
+        intent = decode(intent_path.read_text())
+        target = decode(target_path.read_text())
+        require(
+            (effect["repository"], effect["pr"], effect["risk"], effect["head"], effect["base"])
+            == (target["repository"], target["pr"], target["risk"], target["head"], target["base"])
+            and effect["intent_id"] == intent["id"]
+            and effect["merger"] == intent["execution_actor"]
+            and all(
+                effect[key] == intent[key]
+                for key in (
+                    "head",
+                    "base",
+                    "source_tree",
+                    "risk",
+                    "approval_event",
+                    "approval_actor",
+                    "proofs_sha256",
+                )
+            ),
+            "merge journal/receipt mismatch",
+        )
+        requested = saved.parent / "requested.json"
+        require(requested.is_file() and not requested.is_symlink(), "missing merge request marker")
+        request = decode(requested.read_text())
+        require(
+            request["intent_id"] == effect["intent_id"]
+            and request["request"]["sha"] == effect["head"]
+            and request["request"]["merge_method"] == "squash",
+            "merge request binding mismatch",
+        )
+
+    def finish_merge(self, name, effect):
+        """Commit an already reconciled external effect; never infer it from a model report."""
+        task = self.state["tasks"][name]
+        require(task["status"] == "awaiting_merge", "not a pending merge")
+        self._validate_merge_effect(name, effect)
+        binding = task["merge"]
+        require(
+            (effect["pr"], effect["head"], effect["base"])
+            == (binding["pr"], binding["head"], binding["base"]),
+            "merge effect scope mismatch",
+        )
+        if effect["risk"] != "low":
+            require(
+                (effect["approval_event"], effect["approval_actor"])
+                == (binding["approved_event"], binding["approved_actor"])
+                and binding["approved_actor"] in self.merge_approvers,
+                "merge effect approval mismatch",
+            )
+        relative = self._receipt(name, {"merge": effect}, attempt=1)
+        value = self._copy()
+        value["tasks"][name].update(
+            status="done",
+            attempt=1,
+            intent=dict(
+                id=effect["intent_id"],
+                kind="merge",
+                key=f"{effect['repository']}:pr:{effect['pr']}",
+                head=effect["head"],
+                base=effect["base"],
+            ),
+            result=relative,
+            merge=None,
+        )
+        value["rounds_used"] += 1
+        self._save(value)

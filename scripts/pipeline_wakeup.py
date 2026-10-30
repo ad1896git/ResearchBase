@@ -128,7 +128,7 @@ def observe(repository, number):
     )
 
 
-def check_merge(store, name, repository):
+def check_merge(store, name, repository, *, risk="medium", low_risk_enabled=False):
     binding = store.state["tasks"][name]["merge"]
     first = observe(repository, binding["pr"])
     second = observe(repository, binding["pr"])
@@ -161,6 +161,8 @@ def check_merge(store, name, repository):
         labels=second["labels"],
         label_cursor=second["cursor"],
         effective_approval=effective,
+        risk=risk,
+        low_risk_enabled=low_risk_enabled,
     )
     if store.state["tasks"][name]["status"] == "blocked":
         return "blocked"
@@ -169,6 +171,7 @@ def check_merge(store, name, repository):
 
 def load_config(path):
     config = decode(path.read_text())
+    extra = ("merge_policy",) if config.get("version") == 2 else ()
     exact(
         config,
         (
@@ -181,9 +184,12 @@ def load_config(path):
             "approvers",
             "codex_home",
             "executable_dirs",
-        ),
+        )
+        + extra,
     )
-    require(config["version"] == 1, "config version")
+    require(config["version"] in (1, 2), "config version")
+    if extra:
+        require(type(config["merge_policy"]) is dict, "merge policy required")
     for key in ("root", "queue", "runtime", "codex_home"):
         absolute(config[key])
     interpreter(config["python"])
@@ -268,10 +274,27 @@ def wake(config):
                 ) as store:
                     for name, task in list(store.state["tasks"].items()):
                         if task["status"] == "awaiting_merge":
-                            status = check_merge(store, name, entry["repository"])
+                            if config.get("version") == 2 and config["merge_policy"].get("enabled"):
+                                from scripts.pipeline_merge import execute_merge
+
+                                status = execute_merge(
+                                    store,
+                                    name,
+                                    entry["repository"],
+                                    policy=config["merge_policy"],
+                                    entry_id=key,
+                                )
+                            else:
+                                status = check_merge(store, name, entry["repository"])
                             notify(
                                 root,
-                                dict(entry=key, task=name, status=status, binding=task["merge"]),
+                                dict(
+                                    entry=key,
+                                    task=name,
+                                    status=status,
+                                    binding=store.state["tasks"][name]["merge"],
+                                    reason=store.state["tasks"][name]["reason"],
+                                ),
                             )
             except Exception as exc:
                 notify(
