@@ -18,6 +18,7 @@ from scripts.pipeline_commander import command_once
 from scripts.pipeline_protocol import StateStore, atomic_write, decode, encoded, exact, require
 from scripts.pipeline_runtime import dispatch
 from scripts.pipeline_safety import ProcessLock
+from scripts.pipeline_sessions import MAX_SESSION_TIMEOUT, WORKER_TIMEOUTS
 
 TERMINAL = frozenset(("done", "blocked", "budget_exhausted"))
 
@@ -26,6 +27,9 @@ TERMINAL = frozenset(("done", "blocked", "budget_exhausted"))
 class Policy:
     round_budget: int = 5
     session_timeout: int = 180
+    design_timeout: int = WORKER_TIMEOUTS["design"]
+    implementation_timeout: int = WORKER_TIMEOUTS["implementation"]
+    review_timeout: int = WORKER_TIMEOUTS["review"]
     ci_timeout: float = 9000
     query_timeout: float = 10
     poll_interval: float = 2
@@ -35,7 +39,11 @@ class Policy:
 
     def validate(self):
         require(type(self.round_budget) is int and 1 <= self.round_budget <= 40, "round budget")
-        require(1 <= self.session_timeout <= 600, "session timeout")
+        require(1 <= self.session_timeout <= MAX_SESSION_TIMEOUT, "session timeout")
+        for value in (self.design_timeout, self.implementation_timeout, self.review_timeout):
+            require(
+                type(value) is int and 1 <= value <= MAX_SESSION_TIMEOUT, "worker phase timeout"
+            )
         require(0 < self.ci_timeout <= 86400, "CI total timeout")
         require(0 < self.query_timeout <= 120, "CI query timeout")
         require(0 < self.poll_interval <= 10, "CI poll interval")
@@ -131,6 +139,16 @@ class Driver:
         path = self.events / f"{self.sequence:08d}.json"
         require(not path.exists() and not path.is_symlink(), "event sequence conflict")
         atomic_write(path, encoded(dict(kind=kind, time=time.time(), **fields)))
+
+    def worker_timeout(self, name):
+        stage = self.jobs[name].get("config", {}).get("stage", "implementation")
+        limits = {
+            "design": self.policy.design_timeout,
+            "implementation": self.policy.implementation_timeout,
+            "review": self.policy.review_timeout,
+        }
+        require(stage in limits, "unknown worker stage")
+        return limits[stage]
 
     def snapshot(self):
         with StateStore(self.control, self.evidence) as store:
@@ -302,7 +320,7 @@ class Driver:
                     self.jobs,
                     self.control,
                     self.evidence,
-                    timeout=self.policy.session_timeout,
+                    timeout=self.worker_timeout(name),
                 )
                 require(
                     result["status"] in ("done", "retry_wait", "blocked"),
@@ -341,7 +359,7 @@ class Driver:
                         self.jobs,
                         self.control,
                         self.evidence,
-                        timeout=self.policy.session_timeout,
+                        timeout=self.worker_timeout(name),
                     )
                     self.event("executed", result=result)
                     require(

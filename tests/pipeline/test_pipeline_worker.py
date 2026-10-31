@@ -409,3 +409,94 @@ def test_retry_validates_previous_artifacts_before_new_attempt(setup, monkeypatc
     assert len(launches) == 1
     with StateStore(control, checkout) as store:
         assert store.state["tasks"]["work"]["attempt"] == 1
+
+
+@pytest.mark.parametrize(
+    "stage,expected", [("design", 900), ("implementation", 3600), ("review", 900)]
+)
+@pytest.mark.parametrize("recover", [False, True])
+def test_driver_phase_deadline_is_used_for_dispatch_and_recovery(
+    setup, monkeypatch, stage, expected, recover
+):
+    from dataclasses import asdict, replace
+
+    from scripts import pipeline_driver as driver
+
+    job, control, checkout, launches, _ = setup
+    job = replace(job, stage=stage)
+    if recover:
+        original = StateStore.finish
+        monkeypatch.setattr(
+            StateStore, "finish", lambda *a: (_ for _ in ()).throw(RuntimeError("receipt window"))
+        )
+        with pytest.raises(RuntimeError):
+            worker.worker_once(job, control, checkout)
+        monkeypatch.setattr(StateStore, "finish", original)
+    monkeypatch.setattr(
+        driver,
+        "command_once",
+        lambda *a, **k: dict(
+            action="dispatch",
+            task_id="work",
+            revision=json.loads((control / "state.json").read_text())["revision"],
+        ),
+    )
+    dispatch = driver.dispatch
+    deadlines = []
+
+    def observed(*args, **kwargs):
+        deadlines.append(kwargs["timeout"])
+        return dispatch(*args, **kwargs)
+
+    monkeypatch.setattr(driver, "dispatch", observed)
+    result = driver.run_cycle(
+        control, checkout, checkout, {"work": dict(kind="worker", config=asdict(job))}
+    )
+    assert result["status"] == "done" and deadlines == [expected]
+    assert len(launches) == 1 and result["rounds_used"] == 1
+
+
+def test_historical_remaining_allowance_prevents_a_third_logical_attempt(setup, monkeypatch):
+    from dataclasses import replace
+
+    job, control, checkout, launches, _ = setup
+    job = replace(job, stage="design", attempt_limit=1)
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        assert kwargs["timeout"] == 900
+        return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    assert worker.worker_once(job, control, checkout) == "blocked"
+    with pytest.raises(ProtocolError):
+        worker.worker_once(job, control, checkout)
+    assert len(launches) == 1
+
+
+def test_single_remaining_attempt_applies_on_fault_receipt_crash_recovery(setup, monkeypatch):
+    from dataclasses import replace
+
+    job, control, checkout, launches, _ = setup
+    job = replace(job, attempt_limit=1)
+
+    def absent(cwd, output, *args, **kwargs):
+        launches.append(output)
+        output.mkdir()
+        return dict(exit_code=-15, timed_out=True, descendants_stopped=True)
+
+    monkeypatch.setattr(worker, "run_session", absent)
+    original = StateStore._save
+
+    def crash(self, value):
+        if value["tasks"]["work"]["status"] == "retry_wait":
+            raise RuntimeError("persisted receipt")
+        return original(self, value)
+
+    monkeypatch.setattr(StateStore, "_save", crash)
+    with pytest.raises(RuntimeError):
+        worker.worker_once(job, control, checkout)
+    monkeypatch.setattr(StateStore, "_save", original)
+    assert worker.worker_once(job, control, checkout) == "blocked"
+    assert len(launches) == 1

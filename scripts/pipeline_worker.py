@@ -26,7 +26,7 @@ from scripts.pipeline_protocol import (
     require,
     text,
 )
-from scripts.pipeline_sessions import SCRIPTS, run_session
+from scripts.pipeline_sessions import SCRIPTS, WORKER_TIMEOUTS, run_session
 
 
 @dataclass(frozen=True)
@@ -37,10 +37,16 @@ class WorkerJob:
     prompt_file: str
     head: str
     base: str
+    stage: str = "implementation"
+    attempt_limit: int = 2
 
     def validate(self, control: Path, evidence: Path):
         require(ID.fullmatch(self.task_id) is not None, "invalid worker task")
         text(self.key, 256)
+        require(self.stage in WORKER_TIMEOUTS, "unknown worker stage")
+        require(
+            type(self.attempt_limit) is int and 1 <= self.attempt_limit <= 2, "worker attempt limit"
+        )
         commit(self.head)
         commit(self.base)
         checkout = Path(self.checkout)
@@ -102,15 +108,24 @@ def snapshot_artifacts(checkout: Path, output: Path):
     atomic_write(manifest, encoded({"sha256": digest}))
 
 
+def worker_status(store: StateStore, job: WorkerJob):
+    task = store.state["tasks"][job.task_id]
+    if task["status"] == "retry_wait" and task["attempt"] >= job.attempt_limit:
+        store.block(job.task_id, "historical remaining attempt allowance exhausted")
+    return store.state["tasks"][job.task_id]["status"]
+
+
 def worker_once(
     job: WorkerJob,
     control: Path,
     evidence: Path,
     *,
-    timeout=180,
+    timeout=None,
     expected_revision=None,
 ):
     job.validate(control, evidence)
+    if timeout is None:
+        timeout = WORKER_TIMEOUTS[job.stage]
     checkout = Path(job.checkout).resolve()
     with StateStore(control, evidence) as store:
         if expected_revision is not None:
@@ -128,7 +143,7 @@ def worker_once(
             require(task["status"] == "ready", "missing established worker binding")
             atomic_write(bound, binding)
         if task["status"] in ("ready", "retry_wait"):
-            require(task["attempt"] < 2, "worker attempt limit (2)")
+            require(task["attempt"] < job.attempt_limit, "worker attempt limit")
             if task["status"] == "retry_wait":
                 require(int(time.time()) >= task["retry_at"], "worker retry not due")
                 prior = control / "executions" / f"{job.task_id}-{task['attempt']}"
@@ -195,7 +210,7 @@ def worker_once(
                 result = control / f"results/{job.task_id}-{task['attempt']}.json"
                 require(result.is_file(), "unknown live worker outcome; operator reconciliation")
                 store.recover_result(job.task_id)
-                return store.state["tasks"][job.task_id]["status"]
+                return worker_status(store, job)
             require(not host.is_symlink(), "symlink host receipt")
             saved = decode(host.read_text())
             require(saved["terminal"]["descendants_stopped"] is True, "unjoined worker")
@@ -207,7 +222,7 @@ def worker_once(
         result = control / f"results/{job.task_id}-{task['attempt']}.json"
         if result.is_file():
             store.recover_result(job.task_id)
-            return store.state["tasks"][job.task_id]["status"]
+            return worker_status(store, job)
         fault = classify(output, saved["terminal"])
         if (
             receipt.commit == intent["head"]
@@ -217,7 +232,7 @@ def worker_once(
             store.worker_fault(
                 job.task_id, int(time.time()) + (900 if fault == "quota" else 60), receipt, fault
             )
-            return store.state["tasks"][job.task_id]["status"]
+            return worker_status(store, job)
         require(
             answer.is_file() and not answer.is_symlink(),
             "worker report absent or unsafe; systemic/unclassified failure; host receipt retained",
@@ -231,7 +246,7 @@ def main():
     parser.add_argument("--job", type=Path, required=True)
     parser.add_argument("--control", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
-    parser.add_argument("--timeout", type=int, default=180)
+    parser.add_argument("--timeout", type=int, default=None)
     args = parser.parse_args()
     job = WorkerJob(**decode(args.job.read_text()))
     print(
