@@ -81,6 +81,7 @@ def controls(policy):
         path = Path(policy[key])
         require(path.is_absolute() and path.parent.is_dir(), "merge control parent missing")
         require(path.resolve() == path and not path.is_symlink(), "unsafe merge control path")
+        require(not path.exists() or path.is_file(), "merge control must be a regular file")
         paths.append(path)
     require(paths[0] != paths[1], "merge controls must differ")
     return tuple(paths)
@@ -291,6 +292,7 @@ def reconcile(store, name, repository, row, intent, folder, policy, target):
         approval_actor=intent["approval_actor"],
     )
     immutable(folder / "effect.json", effect)
+    store.validate_merge_completion(name, effect)
     append_merge_log(policy, target, row, effect)
     store.finish_merge(name, effect)
     return "done"

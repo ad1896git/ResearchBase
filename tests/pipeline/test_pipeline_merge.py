@@ -594,3 +594,47 @@ def test_crash_before_log_append_recovers_remote_effect_and_logs_once(case, monk
     monkeypatch.setattr(merger, "atomic_write", original)
     assert execute(case)[0] == "done"
     assert len(case["puts"]) == 1 and log.read_text().count(D) == 1
+
+
+@pytest.mark.parametrize("kind", ["proof", "approval", "request"])
+def test_full_receipt_validation_precedes_any_pass_log(case, monkeypatch, kind):
+    original = merger.checkpoint
+
+    def tamper(name, pause_after):
+        original(name, pause_after)
+        if name != "after-merge":
+            return
+        if kind == "proof":
+            with StateStore(case["control"], case["evidence"]) as store:
+                proof = store.state["tasks"]["review"]["result"]
+            (case["control"] / proof).write_text("{}")
+        elif kind == "approval":
+            # The active in-memory binding is authoritative inside the host's lease.
+            case["corrupt_approval"] = True
+        else:
+            (case["control"] / "merge-operations/merge/requested.json").write_text("{}")
+
+    monkeypatch.setattr(merger, "checkpoint", tamper)
+    original_validate = StateStore.validate_merge_completion
+
+    def validate(store, *args):
+        if case.get("corrupt_approval"):
+            store.state["tasks"]["merge"]["merge"]["approved_actor"] = "stranger"
+        return original_validate(store, *args)
+
+    monkeypatch.setattr(StateStore, "validate_merge_completion", validate)
+    assert execute(case)[0] == "blocked" and len(case["puts"]) == 1
+    assert not merger.Path(case["policy"]["merge_log"]).exists()
+
+
+@pytest.mark.parametrize("kind", ["directory", "fifo"])
+@pytest.mark.parametrize("key", ["stop_file", "merge_log"])
+def test_non_regular_controls_rejected_before_put(case, kind, key):
+    path = merger.Path(case["policy"][key])
+    if kind == "directory":
+        path.mkdir()
+    else:
+        import os
+
+        os.mkfifo(path)
+    assert execute(case)[0] == "blocked" and not case["puts"]
