@@ -29,5 +29,13 @@
     "parent_M00_risk": "medium unchanged",
     "this_change": "data-only release snapshot; no consumers or runtime behavior changes",
     "phase": "prepared before canary merge; final outcome recorded separately"
+  },
+  "emergency_stop_exercise": {
+    "release_pr": 47,
+    "release_commit": "7343f85fe0b1404ed7b949eb37416173f7c4fe75",
+    "phase": "prepared_before_runtime_drill",
+    "purpose": "Owner-authorized real OFF/on scheduled merge drill; data-only evidence task, no science/runtime behavior changes",
+    "risk": "low for this inert data diff; parent M00 medium unchanged",
+    "scope": "One eligible PR plus independent read-only observer during OFF; preserve branches and old attempts"
   }
 }
