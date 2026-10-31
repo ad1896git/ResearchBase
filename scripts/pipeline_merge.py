@@ -71,6 +71,56 @@ def immutable(path, value):
         atomic_write(path, data)
 
 
+def controls(policy):
+    """Optional v2 operational controls; v1 remains for immutable historical policies."""
+    if policy["version"] == 1:
+        return None
+    require(policy["version"] == 2, "merge policy version")
+    paths = []
+    for key in ("stop_file", "merge_log"):
+        path = Path(policy[key])
+        require(path.is_absolute() and path.parent.is_dir(), "merge control parent missing")
+        require(path.resolve() == path and not path.is_symlink(), "unsafe merge control path")
+        paths.append(path)
+    require(paths[0] != paths[1], "merge controls must differ")
+    return tuple(paths)
+
+
+def paused(policy):
+    paths = controls(policy)
+    return paths is not None and paths[0].exists()
+
+
+def append_merge_log(policy, target, row, effect):
+    paths = controls(policy)
+    if paths is None:
+        return
+    log = paths[1]
+    # Stable shared lock and atomic prefix-preserving append prevent torn/duplicate rows
+    # across generations or a crash after logging but before the local done receipt.
+    with ProcessLock(log.with_name(log.name + ".lock")):
+        controls(policy)
+        old = log.read_bytes() if log.exists() else b""
+        require(not old or old.endswith(b"\n"), "incomplete existing merge log")
+        timestamp = row["merged_at"]
+        require(
+            type(timestamp) is str and re.fullmatch(r"[0-9T:Z+.-]+", timestamp), "merge timestamp"
+        )
+        task = target["backlog_id"]
+        require(type(task) is str and re.fullmatch(r"[A-Za-z0-9_-]+", task), "log task id")
+        line = (
+            f"| {timestamp} | {effect['repository']}#{effect['pr']} | {task} | "
+            f"{effect['risk']} | {effect['sha']} | PASS: exact head/base; independent review; "
+            "7 trusted CI; authorized risk/actor; squash parent/tree; source retained |\n"
+        ).encode()
+        marker = ("| " + effect["sha"] + " |").encode()
+        matching = [r + b"\n" for r in old.splitlines() if marker in r]
+        if matching:
+            require(matching == [line], "merge log receipt conflict")
+            return
+        atomic_write(log, old + line)
+
+
 def authorized(policy, entry_id):
     exact(
         policy,
@@ -84,9 +134,13 @@ def authorized(policy, entry_id):
             "targets",
             "sandbox_rehearsal",
             "round_budget",
-        ),
+        )
+        + (("stop_file", "merge_log") if policy["version"] == 2 else ()),
     )
-    require(policy["version"] == 1 and policy["enabled"] is True, "executor not explicitly enabled")
+    controls(policy)
+    require(
+        policy["version"] in (1, 2) and policy["enabled"] is True, "executor not explicitly enabled"
+    )
     require(type(policy["allow_low_risk"]) is bool, "low-risk policy")
     require(type(policy["sandbox_rehearsal"]) is bool, "sandbox policy")
     require(
@@ -197,7 +251,7 @@ def authority(store, policy, entry_id, expected):
     require((target, risk) == expected, "task authorization drift before merge")
 
 
-def reconcile(store, name, repository, row, intent, folder):
+def reconcile(store, name, repository, row, intent, folder, policy, target):
     require((folder / "requested.json").is_file(), "external merge without this executor request")
     require(
         row["merged"] is True and row["merged_by"]["login"] == intent["execution_actor"],
@@ -237,6 +291,7 @@ def reconcile(store, name, repository, row, intent, folder):
         approval_actor=intent["approval_actor"],
     )
     immutable(folder / "effect.json", effect)
+    append_merge_log(policy, target, row, effect)
     store.finish_merge(name, effect)
     return "done"
 
@@ -245,6 +300,10 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
     """Caller owns driver.lock plus this StateStore; models never supply merge authority."""
     try:
         target, risk = authorized(policy, entry_id)
+        require(
+            repository.lower() != MAIN or policy["version"] == 2,
+            "production merge controls required",
+        )
         require(repository.lower() in (MAIN, SANDBOX), "unauthorized merge repository")
         require(
             (repository.lower() == SANDBOX) == policy["sandbox_rehearsal"],
@@ -286,13 +345,17 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             allow_low_risk=policy["allow_low_risk"],
             sandbox_rehearsal=policy["sandbox_rehearsal"],
         )
+        if policy["version"] == 2:
+            target_binding["controls"] = {k: policy[k] for k in ("stop_file", "merge_log")}
         immutable(folder / "target.json", target_binding)
         row = remote_pr(repository, binding["pr"])
         intent_path = folder / "intent.json"
         intent = decode(intent_path.read_text()) if intent_path.exists() else None
         if row["merged"]:
             require(intent is not None, "manual/external merge needs operator reconciliation")
-            return reconcile(store, name, repository, row, intent, folder)
+            return reconcile(store, name, repository, row, intent, folder, policy, target)
+        if paused(policy):
+            return "awaiting_merge"
         require(
             not (folder / "requested.json").exists(),
             "unknown merge request outcome; never resubmit",
@@ -372,13 +435,24 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
                 f"Bound head {intent['head']}; base {intent['base']}; retained source branch."
             ),
         )
+        if paused(policy):
+            return "awaiting_merge"
         immutable(folder / "requested.json", dict(intent_id=intent["id"], request=request))
         checkpoint("unknown-request-window", pause_after)
+        if paused(policy):
+            return "awaiting_merge"
         response = put_merge(repository, binding["pr"], request)
         require(response["merged"] is True, "remote did not confirm merge")
         checkpoint("after-merge", pause_after)
         return reconcile(
-            store, name, repository, remote_pr(repository, binding["pr"]), intent, folder
+            store,
+            name,
+            repository,
+            remote_pr(repository, binding["pr"]),
+            intent,
+            folder,
+            policy,
+            target,
         )
     except Exception as exc:
         if store.state["tasks"][name]["status"] == "awaiting_merge":

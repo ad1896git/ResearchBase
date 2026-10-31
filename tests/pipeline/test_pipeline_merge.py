@@ -62,7 +62,9 @@ def case(tmp_path, monkeypatch):
         encoded(dict(version=1, tasks=[dict(id="T01", risk="medium", authorized=True)]))
     )
     policy = dict(
-        version=1,
+        version=2,
+        stop_file=str(tmp_path / "AUTO-MERGE.OFF"),
+        merge_log=str(tmp_path / "MERGE-LOG.md"),
         enabled=True,
         allow_low_risk=True,
         execution_actor="bot",
@@ -139,7 +141,13 @@ def case(tmp_path, monkeypatch):
     def put(repository, number, request):
         assert number == 1 and request["sha"] == A and request["merge_method"] == "squash"
         fixture["puts"].append(request)
-        remote.update(merged=True, state="closed", merged_by=dict(login="bot"), merge_commit_sha=D)
+        remote.update(
+            merged=True,
+            state="closed",
+            merged_by=dict(login="bot"),
+            merge_commit_sha=D,
+            merged_at="2026-10-31T03:16:54Z",
+        )
         return dict(merged=True, sha=D)
 
     monkeypatch.setattr(merger, "get", get)
@@ -423,3 +431,166 @@ def test_production_requires_executor_commit_already_on_main(monkeypatch, releas
     else:
         with pytest.raises(ProtocolError, match="already released"):
             merger.released_source_guard()
+
+
+def test_stop_file_defers_without_budget_or_request_and_resumes(case):
+    stop = merger.Path(case["policy"]["stop_file"])
+    stop.touch()
+    result, state = execute(case)
+    assert result == "awaiting_merge" and state["rounds_used"] == 3
+    assert state["tasks"]["merge"]["attempt"] == 0 and not case["puts"]
+    stop.unlink()
+    assert execute(case)[0] == "done" and len(case["puts"]) == 1
+
+
+def test_stop_changed_inside_live_session_prevents_put(case, monkeypatch):
+    original = merger.authority
+
+    def stop_after_authority(*args):
+        original(*args)
+        merger.Path(case["policy"]["stop_file"]).touch()
+
+    monkeypatch.setattr(merger, "authority", stop_after_authority)
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+    assert not (case["control"] / "merge-operations/merge/requested.json").exists()
+
+
+def test_stop_after_remote_effect_still_reconciles_and_logs(case, monkeypatch):
+    original = merger.put_merge
+
+    def sent(*args):
+        result = original(*args)
+        merger.Path(case["policy"]["stop_file"]).touch()
+        return result
+
+    monkeypatch.setattr(merger, "put_merge", sent)
+    assert execute(case)[0] == "done"
+    assert merger.Path(case["policy"]["merge_log"]).read_text().count(D) == 1
+
+
+def test_log_is_one_row_with_remote_time_task_risk_and_verification(case):
+    log = merger.Path(case["policy"]["merge_log"])
+    log.write_text("existing history\n")
+    assert execute(case)[0] == "done"
+    data = log.read_text()
+    assert data.startswith("existing history\n") and len(data.splitlines()) == 2
+    assert "2026-10-31T03:16:54Z" in data and "T01 | medium" in data
+    assert D in data and "PASS:" in data and "source retained" in data
+    assert execute(case)[0] == "done" and log.read_text() == data
+
+
+def test_crash_after_log_before_done_reconciles_without_duplicate_row(case, monkeypatch):
+    original = StateStore.finish_merge
+
+    def crash(*args):
+        raise SystemExit("crash after durable log")
+
+    monkeypatch.setattr(StateStore, "finish_merge", crash)
+    with pytest.raises(SystemExit):
+        execute(case)
+    log = merger.Path(case["policy"]["merge_log"])
+    before = log.read_bytes()
+    monkeypatch.setattr(StateStore, "finish_merge", original)
+    assert execute(case)[0] == "done"
+    assert len(case["puts"]) == 1 and log.read_bytes() == before
+
+
+def test_pause_late_unknown_window_never_submits_on_resume(case, monkeypatch):
+    original = merger.checkpoint
+
+    def switch(name, pause_after):
+        original(name, pause_after)
+        if name == "unknown-request-window":
+            merger.Path(case["policy"]["stop_file"]).touch()
+
+    monkeypatch.setattr(merger, "checkpoint", switch)
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+    merger.Path(case["policy"]["stop_file"]).unlink()
+    assert execute(case)[0] == "blocked" and not case["puts"]
+
+
+@pytest.mark.parametrize("key", ["stop_file", "merge_log"])
+def test_control_symlink_fails_closed(case, key, tmp_path):
+    path = merger.Path(case["policy"][key])
+    target = tmp_path / "other-file"
+    target.touch()
+    path.symlink_to(target)
+    assert execute(case)[0] == "blocked" and not case["puts"]
+
+
+def test_conflicting_log_receipt_blocks_success_without_second_effect(case):
+    log = merger.Path(case["policy"]["merge_log"])
+    log.write_text(f"| wrong history | {D} |\n")
+    assert execute(case)[0] == "blocked" and len(case["puts"]) == 1
+    assert log.read_text() == f"| wrong history | {D} |\n"
+
+
+def test_production_v1_policy_cannot_bypass_operational_controls(case):
+    case["policy"].pop("stop_file")
+    case["policy"].pop("merge_log")
+    case["policy"]["version"] = 1
+    with StateStore(case["control"], case["evidence"]) as s:
+        assert (
+            merger.execute_merge(s, "merge", merger.MAIN, policy=case["policy"], entry_id="entry")
+            == "blocked"
+        )
+    assert not case["puts"]
+
+
+def test_paused_merge_does_not_prevent_unrelated_generation_dispatch(case, tmp_path, monkeypatch):
+    monkeypatch.setattr(wakeup, "source_guard", lambda c: None)
+    merger.Path(case["policy"]["stop_file"]).touch()
+    other = tmp_path / "other-control"
+    with StateStore(other, case["evidence"], create=True) as store:
+        store.add("independent")
+    jobs = tmp_path / "jobs.json"
+    jobs.write_bytes(encoded({}))
+    entry = dict(
+        id="entry",
+        control=str(case["control"]),
+        evidence=str(case["evidence"]),
+        checkout=str(case["evidence"]),
+        jobs=str(jobs),
+        jobs_sha256=hashlib.sha256(jobs.read_bytes()).hexdigest(),
+        repository=REPO,
+    )
+    queue = tmp_path / "queue.json"
+    queue.write_bytes(
+        encoded(dict(version=1, entries=[entry, dict(entry, id="independent", control=str(other))]))
+    )
+    seen = []
+
+    def dispatch(control, *args, **kwargs):
+        seen.append(control)
+        return dict(status="awaiting_merge" if control == case["control"] else "done")
+
+    monkeypatch.setattr(wakeup, "run_cycle", dispatch)
+    result = wakeup.wake(
+        dict(
+            version=2,
+            root=str(tmp_path / "timer"),
+            queue=str(queue),
+            approvers=["owner"],
+            merge_policy=case["policy"],
+        )
+    )
+    assert result["entries"] == dict(entry="awaiting_merge", independent="done")
+    assert other in seen and not case["puts"]
+
+
+def test_crash_before_log_append_recovers_remote_effect_and_logs_once(case, monkeypatch):
+    original = merger.atomic_write
+    log = merger.Path(case["policy"]["merge_log"])
+
+    def crash(path, data):
+        if path == log:
+            raise SystemExit("power loss before log replace")
+        return original(path, data)
+
+    monkeypatch.setattr(merger, "atomic_write", crash)
+    with pytest.raises(SystemExit):
+        execute(case)
+    assert len(case["puts"]) == 1 and not log.exists()
+    monkeypatch.setattr(merger, "atomic_write", original)
+    assert execute(case)[0] == "done"
+    assert len(case["puts"]) == 1 and log.read_text().count(D) == 1
