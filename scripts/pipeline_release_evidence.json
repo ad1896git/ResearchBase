@@ -1,0 +1,33 @@
+{
+  "record_type": "engineering_release_snapshot",
+  "recorded_at": "2026-10-31T01:50:08.570505+00:00",
+  "scope": "M00 single-task rollout acceptance; not scientific canonical evidence",
+  "accepted_executor": {
+    "pull_request": 43,
+    "reviewed_head": "7df3104e58258f4bf64cce7387321423190e040f",
+    "merged_main": "a676378ff960dc0abc4ec2179548cfe38e4dc5f8",
+    "ci_run": 41147880264
+  },
+  "observed_main_protection": {
+    "strict": true,
+    "enforce_admins": true,
+    "check_app_id": 15368,
+    "required_checks": [
+      "static",
+      "checks (0)",
+      "checks (1)",
+      "checks (2)",
+      "checks (3)",
+      "checks (4)",
+      "checks (5)"
+    ],
+    "response_sha256": "155d1a6c9036e413b6ea66c5c3cd53b08d0875c54351d872945649803b429c48"
+  },
+  "authorized_rollout": {
+    "automatic_task_count": 1,
+    "all_other_tasks": "manual merge pending further owner confirmation",
+    "parent_M00_risk": "medium unchanged",
+    "this_change": "data-only release snapshot; no consumers or runtime behavior changes",
+    "phase": "prepared before canary merge; final outcome recorded separately"
+  }
+}
