@@ -605,9 +605,10 @@ def test_full_receipt_validation_precedes_any_pass_log(case, monkeypatch, kind):
         if name != "after-merge":
             return
         if kind == "proof":
-            with StateStore(case["control"], case["evidence"]) as store:
-                proof = store.state["tasks"]["review"]["result"]
+            saved = json.loads((case["control"] / "state.json").read_text())
+            proof = saved["tasks"]["review"]["result"]
             (case["control"] / proof).write_text("{}")
+            case["proof_actually_corrupted"] = True
         elif kind == "approval":
             # The active in-memory binding is authoritative inside the host's lease.
             case["corrupt_approval"] = True
@@ -624,6 +625,8 @@ def test_full_receipt_validation_precedes_any_pass_log(case, monkeypatch, kind):
 
     monkeypatch.setattr(StateStore, "validate_merge_completion", validate)
     assert execute(case)[0] == "blocked" and len(case["puts"]) == 1
+    if kind == "proof":
+        assert case["proof_actually_corrupted"]
     assert not merger.Path(case["policy"]["merge_log"]).exists()
 
 
