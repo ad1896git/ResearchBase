@@ -1073,8 +1073,8 @@ class StateStore:
             "merge request binding mismatch",
         )
 
-    def finish_merge(self, name, effect):
-        """Commit an already reconciled external effect; never infer it from a model report."""
+    def validate_merge_completion(self, name, effect):
+        """Validate the full effect, journal, authority and proofs without committing done."""
         task = self.state["tasks"][name]
         require(task["status"] == "awaiting_merge", "not a pending merge")
         self._validate_merge_effect(name, effect)
@@ -1091,6 +1091,10 @@ class StateStore:
                 and binding["approved_actor"] in self.merge_approvers,
                 "merge effect approval mismatch",
             )
+
+    def finish_merge(self, name, effect):
+        """Commit an already reconciled external effect; never infer it from a model report."""
+        self.validate_merge_completion(name, effect)
         relative = self._receipt(name, {"merge": effect}, attempt=1)
         value = self._copy()
         value["tasks"][name].update(
