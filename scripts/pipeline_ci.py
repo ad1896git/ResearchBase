@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -44,6 +45,34 @@ class CITarget:
             self.head,
             self.base_commit,
         ).validate(deadline=deadline, query_timeout=query_timeout)
+
+
+class PublishedCITarget(CITarget):
+    """GET-only observation of an already published PR; grants no publication port."""
+
+    def validate(self, *, deadline=None, query_timeout=10):
+        from scripts.pipeline_protocol import commit
+
+        require(
+            self.repository.lower()
+            in ("ad1896git/researchbase", "ad1896git/researchbase-pipeline-sandbox"),
+            "CI repository not allowlisted",
+        )
+        integer(self.pr, 1)
+        commit(self.head)
+        commit(self.base_commit)
+        for ref in (self.base, self.branch):
+            require(type(ref) is str and not ref.startswith("-"), "CI reference")
+            run("git", "check-ref-format", "refs/heads/" + ref, timeout=query_timeout)
+        current = json.loads(
+            run(
+                "gh",
+                "api",
+                f"repos/{self.repository}/git/ref/heads/{self.base}",
+                timeout=query_timeout,
+            )
+        )
+        require(current["object"]["sha"] == self.base_commit, "CI actual base reference drift")
 
 
 class CIObserver:
@@ -164,6 +193,7 @@ def _wait_ci_until(
     interval: float = 2,
     expected_revision=None,
     on_observation=None,
+    single_observation=False,
 ) -> str:
     target.validate(deadline=deadline, query_timeout=query_timeout)
     remaining(deadline, query_timeout)
@@ -249,7 +279,174 @@ def _wait_ci_until(
                     ),
                 )
                 return store.state["tasks"][task_id]["status"]
+            if single_observation:
+                # The existing running intent is the durable wait. A later timer
+                # observes it again; pending is neither completion nor a retry.
+                payload = encoded(observation)
+                digest = hashlib.sha256(payload).hexdigest()
+                snapshot = evidence / f"ci-pending-{task_id}-{digest}.json"
+                require(not snapshot.is_symlink(), "unsafe pending CI evidence")
+                if snapshot.exists():
+                    require(snapshot.read_bytes() == payload, "pending observation drift")
+                else:
+                    atomic_write(snapshot, payload)
+                atomic_write(
+                    control / f"ci-pending-{task_id}.json",
+                    encoded(
+                        dict(
+                            intent=intent, outcome="pending", evidence=snapshot.name, sha256=digest
+                        )
+                    ),
+                )
+                return "pending"
             time.sleep(remaining(deadline, interval))
+
+
+def poll_ci(
+    target,
+    task_id,
+    control,
+    evidence,
+    *,
+    query_timeout=10,
+    total_timeout=9000,
+    retry_delay=60,
+    max_timeouts=3,
+):
+    """Finite timer observation with persistent UTC windows, never a sleeping loop."""
+    require(0 < query_timeout <= 120, "CI query timeout")
+    require(
+        0 < total_timeout <= 86400
+        and 0 < retry_delay <= 3600
+        and type(max_timeouts) is int
+        and 1 <= max_timeouts <= 3,
+        "CI window policy",
+    )
+    now = time.time()
+    with StateStore(control, evidence) as store:
+        bound = control / f"ci-{task_id}.json"
+        expected = encoded(target.__dict__)
+        require(not bound.is_symlink(), "symlink CI target")
+        if bound.exists():
+            require(bound.read_bytes() == expected, "CI target drift")
+        else:
+            require(store.state["tasks"][task_id]["status"] == "ready", "CI binding lost")
+            atomic_write(bound, expected)
+        policy_file = control / f"ci-probe-policy-{task_id}.json"
+        policy = encoded(
+            dict(total_timeout=total_timeout, retry_delay=retry_delay, max_timeouts=max_timeouts)
+        )
+        if policy_file.exists():
+            require(
+                not policy_file.is_symlink() and policy_file.read_bytes() == policy,
+                "CI window policy drift",
+            )
+        else:
+            require(
+                store.state["tasks"][task_id]["status"] == "ready",
+                "legacy CI wait needs explicit migration; do not reset elapsed budget",
+            )
+            atomic_write(policy_file, policy)
+        task = store.state["tasks"][task_id]
+        if task["status"] in ("done", "failed", "blocked", "budget_exhausted"):
+            return task["status"]
+        if task["status"] == "ready":
+            if (
+                store.begin(task_id, "ci", f"pr:{target.pr}", target.head, target.base_commit)
+                is None
+            ):
+                return "budget_exhausted"
+        task = store.state["tasks"][task_id]
+        require(task["intent"] is not None and task["intent"]["kind"] == "ci", "CI claim")
+        if task["status"] == "retry_wait":
+            require(task["reason"] == "ci_timeout", "unknown CI retry type")
+            if now < task["retry_at"]:
+                return "retry_wait"
+            store.resume_ci(task_id, now=int(now))
+        task = store.state["tasks"][task_id]
+        resumed = list(control.glob(f"ci-retry-{task_id}-{task['attempt']}-*.resumed"))
+        window_file = control / f"ci-window-{task_id}-{len(resumed)}.json"
+        if not window_file.exists():
+            atomic_write(
+                window_file,
+                encoded(
+                    dict(
+                        intent=task["intent"],
+                        window=len(resumed),
+                        started_utc=now,
+                        deadline_utc=now + total_timeout,
+                    )
+                ),
+            )
+        require(not window_file.is_symlink(), "symlink CI window")
+        window = decode(window_file.read_text())
+        require(
+            window["intent"] == task["intent"]
+            and window["window"] == len(resumed)
+            and window["deadline_utc"] - window["started_utc"] == total_timeout,
+            "CI window binding drift",
+        )
+        heartbeat = control / f"ci-probe-{task_id}.json"
+        atomic_write(
+            heartbeat, encoded(dict(last_probe_utc=now, window=window, status=task["status"]))
+        )
+        if now >= window["deadline_utc"]:
+            store.pause_ci(task_id, int(now + retry_delay))
+            if len(resumed) + 1 >= max_timeouts:
+                store.block(task_id, "CI windows exhausted; operator reconciliation required")
+            notify = control / f"ci-timeout-notice-{task_id}-{len(resumed)}.json"
+            atomic_write(
+                notify,
+                encoded(
+                    dict(
+                        window=window,
+                        status=store.state["tasks"][task_id]["status"],
+                        reason="CI elapsed window, same intent/attempt retained",
+                    )
+                ),
+            )
+            return store.state["tasks"][task_id]["status"]
+    remaining_utc = window["deadline_utc"] - time.time()
+    try:
+        return _wait_ci_until(
+            target,
+            task_id,
+            control,
+            evidence,
+            deadline=time.monotonic() + min(8 * query_timeout, max(0.001, remaining_utc)),
+            query_timeout=query_timeout,
+            single_observation=True,
+        )
+    except (TimeoutError, subprocess.TimeoutExpired) as exc:
+        atomic_write(
+            heartbeat,
+            encoded(
+                dict(
+                    last_probe_utc=time.time(),
+                    window=window,
+                    status="pending",
+                    error=type(exc).__name__,
+                )
+            ),
+        )
+        return "pending"
+    except subprocess.CalledProcessError as exc:
+        if not re.search(
+            r"HTTP (429|5[0-9][0-9])|timed out|connection reset", str(exc.stderr), re.I
+        ):
+            raise
+        atomic_write(
+            heartbeat,
+            encoded(
+                dict(
+                    last_probe_utc=time.time(),
+                    window=window,
+                    status="pending",
+                    error="transient remote query",
+                )
+            ),
+        )
+        return "pending"
 
 
 def main():
