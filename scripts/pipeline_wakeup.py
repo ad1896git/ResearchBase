@@ -172,6 +172,8 @@ def check_merge(store, name, repository, *, risk="medium", low_risk_enabled=Fals
 def load_config(path):
     config = decode(path.read_text())
     extra = ("merge_policy",) if config.get("version") == 2 else ()
+    if "daily_report" in config:
+        extra += ("daily_report",)
     exact(
         config,
         (
@@ -188,7 +190,7 @@ def load_config(path):
         + extra,
     )
     require(config["version"] in (1, 2), "config version")
-    if extra:
+    if config["version"] == 2:
         require(type(config["merge_policy"]) is dict, "merge policy required")
     for key in ("root", "queue", "runtime", "codex_home"):
         absolute(config[key])
@@ -227,7 +229,7 @@ def source_guard(config):
     require(not run("git", "status", "--porcelain", cwd=runtime), "dirty runtime checkout")
 
 
-def wake(config):
+def wake(config) -> dict:
     source_guard(config)
     root = absolute(config["root"])
     root.mkdir(parents=True, exist_ok=True)
@@ -323,7 +325,26 @@ def wake(config):
             results[key] = result["status"]
             if result["status"] in ("blocked", "budget_exhausted"):
                 notify(root, dict(entry=key, status=result["status"]))
-        return dict(status="checked", entries=results)
+        response = dict(status="checked", entries=results)
+        if "daily_report" in config:
+            try:
+                from scripts.pipeline_progress import daily_report
+
+                response["daily_report"] = daily_report(
+                    config["daily_report"],
+                    root,
+                    [entry for entry, _jobs in entries.values()],
+                    config["approvers"],
+                )
+            except Exception as exc:
+                issue = dict(
+                    component="daily_report",
+                    status="blocked",
+                    reason=f"{type(exc).__name__}: {exc}",
+                )
+                notify(root, issue)
+                response["daily_report"] = issue
+        return response
     finally:
         lock.close()
 
