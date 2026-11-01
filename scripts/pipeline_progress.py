@@ -37,7 +37,7 @@ def configuration(raw):
     return raw
 
 
-def inventory(config):
+def inventory(config) -> dict:
     auth = regular(config["authorization_file"]).read_bytes()
     require(hashlib.sha256(auth).hexdigest() == config["authorization_sha256"], "inventory drift")
     manifest = decode(auth.decode())
