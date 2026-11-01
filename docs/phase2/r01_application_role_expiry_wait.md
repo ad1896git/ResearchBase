@@ -19,6 +19,9 @@ advancing clock crosses expiry before the holder releases. The final credential
 observation is at or after release, and consumption denies FORBIDDEN for the
 caller role or GRANT_STALE for the issuer role. Protected-effect counts and
 ACTIVE grant history remain unchanged; the scheduled role/event also stay exact.
+The printed `expiry_observed_before_unlock_at` is the DB-time lower bound sampled
+before releasing the holder, not an exact unlock timestamp. Control flow and the
+observed conflicting lock order place actual unlock before final authorization.
 There is no direct SQL role update in the new cases, blind pre-transaction sleep,
 expiry daemon or caller-clock substitution.
 

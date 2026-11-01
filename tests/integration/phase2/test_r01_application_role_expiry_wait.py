@@ -95,7 +95,7 @@ def test_application_scheduled_expiry_denies_after_observed_consumption_wait(
                         dict(pid=witness["pid"]),
                     ).scalar_one()
                     assert started < witness["observed_at"] < expiry
-                    released = poll_db_clock(observer, expiry)
+                    expiry_observed = poll_db_clock(observer, expiry)
             finally:
                 holder.rollback()
             with pytest.raises(ResearchBaseError) as denied:
@@ -103,7 +103,7 @@ def test_application_scheduled_expiry_denies_after_observed_consumption_wait(
             assert denied.value.code is (
                 ErrorCode.FORBIDDEN if expiry_kind == "caller_role" else ErrorCode.GRANT_STALE
             )
-    assert checked[-1] >= released > expiry
+    assert checked[-1] >= expiry_observed > expiry
     assert counts(engine) == before
     _, reader = fresh(approval_env)
     entitled = approval_env[-1][2] if expiry_kind == "caller_role" else actor
@@ -138,7 +138,7 @@ def test_application_scheduled_expiry_denies_after_observed_consumption_wait(
             tx_started_at=str(started),
             wait_observed_at=str(witness["observed_at"]),
             expiry_at=str(expiry),
-            release_at=str(released),
+            expiry_observed_before_unlock_at=str(expiry_observed),
             authorization_checked_at=str(checked[-1]),
             outcome=denied.value.code.value,
             protected_effect_counts_unchanged=True,
