@@ -348,3 +348,201 @@ def test_later_success_confirms_and_finishes_the_original_intent(tick_case, monk
     assert receipt.is_file()
     assert poll(case) == "done"
     assert len(confirmations) == 2
+
+
+class SimulatedCrash(BaseException):
+    pass
+
+
+@pytest.mark.parametrize("lost", ["ci-window-ci-0.json", "ci-window-claim-ci-0.json"])
+def test_lost_claimed_window_or_claim_never_grants_new_clock(tick_case, lost):
+    case = tick_case
+    assert poll(case) == "pending"
+    before = state(case)
+    (case.control / lost).unlink()
+    case.clock.utc += 4000
+    with pytest.raises(ProtocolError, match="missing established CI window"):
+        poll(case)
+    assert not (case.control / lost).exists()
+    assert state(case) == before and len(case.calls) == 1
+
+
+def test_window_is_durable_before_begin_and_prebegin_restart_reuses_clock(tick_case, monkeypatch):
+    case = tick_case
+    start = case.clock.utc
+    original_begin = StateStore.begin
+
+    def crash(self, *args, **kwargs):
+        assert document(case, "ci-window-ci-0.json")["deadline_utc"] == start + 9000
+        assert self.state["tasks"]["ci"]["status"] == "ready"
+        raise SimulatedCrash
+
+    monkeypatch.setattr(StateStore, "begin", crash)
+    with pytest.raises(SimulatedCrash):
+        poll(case)
+    window = (case.control / "ci-window-ci-0.json").read_bytes()
+    assert state(case)["rounds_used"] == 0 and not case.calls
+    monkeypatch.setattr(StateStore, "begin", original_begin)
+    case.clock.utc += 4000
+    assert poll(case) == "pending"
+    assert (case.control / "ci-window-ci-0.json").read_bytes() == window
+    assert state(case)["rounds_used"] == 1
+
+
+def test_after_begin_before_claim_crash_is_explicitly_blocked_not_retimed(tick_case, monkeypatch):
+    case = tick_case
+    original = ci._probe_claim
+
+    # Read state from disk: attempting another StateStore here would test its lock,
+    # rather than the intended after-begin crash boundary.
+    def crash_after_begin(*args, **kwargs):
+        assert document(case, "state.json")["tasks"]["ci"]["status"] == "running"
+        raise SimulatedCrash
+
+    monkeypatch.setattr(ci, "_probe_claim", crash_after_begin)
+    with pytest.raises(SimulatedCrash):
+        poll(case)
+    old = (case.control / "ci-window-ci-0.json").read_bytes()
+    monkeypatch.setattr(ci, "_probe_claim", original)
+    case.clock.utc += 4000
+    with pytest.raises(ProtocolError, match="missing established CI window claim"):
+        poll(case)
+    assert (case.control / "ci-window-ci-0.json").read_bytes() == old and not case.calls
+
+
+@pytest.mark.parametrize("restart_delay", [30, 300])
+def test_pause_receipt_before_state_crash_reuses_original_retry_at(
+    tick_case, monkeypatch, restart_delay
+):
+    case = tick_case
+    assert poll(case) == "pending"
+    deadline = document(case, "ci-window-ci-0.json")["deadline_utc"]
+    case.clock.utc = deadline
+    save = StateStore._save
+
+    def crash(self, value):
+        if value["tasks"]["ci"]["status"] == "retry_wait":
+            raise SimulatedCrash
+        return save(self, value)
+
+    monkeypatch.setattr(StateStore, "_save", crash)
+    with pytest.raises(SimulatedCrash):
+        poll(case)
+    assert state(case)["tasks"]["ci"]["status"] == "running"
+    receipts = list(case.control.glob("ci-retry-ci-1-*.json"))
+    assert len(receipts) == 1
+    original_receipt = receipts[0].read_bytes()
+    assert json.loads(original_receipt)["retry_at"] == deadline + 60
+    monkeypatch.setattr(StateStore, "_save", save)
+    case.clock.utc += restart_delay
+    assert poll(case) == ("retry_wait" if restart_delay < 60 else "pending")
+    assert len(list(case.control.glob("ci-retry-ci-1-*.json"))) == 1
+    assert receipts[0].read_bytes() == original_receipt
+    if restart_delay < 60:
+        assert state(case)["tasks"]["ci"]["retry_at"] == deadline + 60
+    else:
+        assert receipts[0].with_suffix(".resumed").read_bytes() == original_receipt
+
+
+@pytest.mark.parametrize("limit", [1, 2, 3])
+@pytest.mark.parametrize("boundary", ["pause_receipt", "before_block", "after_block"])
+def test_last_window_exhaustion_survives_every_pause_block_boundary(
+    tick_case, monkeypatch, limit, boundary
+):
+    case = tick_case
+    assert poll(case, max_timeouts=limit) == "pending"
+    for index in range(limit - 1):
+        case.clock.utc = document(case, f"ci-window-ci-{index}.json")["deadline_utc"]
+        assert poll(case, max_timeouts=limit) == "retry_wait"
+        case.clock.utc = state(case)["tasks"]["ci"]["retry_at"]
+        assert poll(case, max_timeouts=limit) == "pending"
+    case.clock.utc = document(case, f"ci-window-ci-{limit - 1}.json")["deadline_utc"]
+    save, block, notice = StateStore._save, StateStore.block, ci._probe_notice
+
+    def crash_save(self, value):
+        if value["tasks"]["ci"]["status"] == "retry_wait":
+            raise SimulatedCrash
+        return save(self, value)
+
+    def crash_block(self, *args, **kwargs):
+        raise SimulatedCrash
+
+    def crash_notice(*args):
+        if args[-1] == "blocked":
+            raise SimulatedCrash
+        return notice(*args)
+
+    monkeypatch.setattr(StateStore, "_save", crash_save if boundary == "pause_receipt" else save)
+    monkeypatch.setattr(StateStore, "block", crash_block if boundary == "before_block" else block)
+    monkeypatch.setattr(ci, "_probe_notice", crash_notice if boundary == "after_block" else notice)
+    with pytest.raises(SimulatedCrash):
+        poll(case, max_timeouts=limit)
+    calls = len(case.calls)
+    monkeypatch.setattr(StateStore, "_save", save)
+    monkeypatch.setattr(StateStore, "block", block)
+    monkeypatch.setattr(ci, "_probe_notice", notice)
+    case.clock.utc += 300
+    assert poll(case, max_timeouts=limit) == "blocked"
+    assert poll(case, max_timeouts=limit) == "blocked"
+    assert len(case.calls) == calls
+    assert len(list(case.control.glob("ci-window-ci-*.json"))) == limit
+    assert len(list(case.control.glob("ci-retry-ci-1-*.json"))) == limit
+    assert document(case, f"ci-timeout-notice-ci-{limit - 1}.json")["status"] == "blocked"
+    assert state(case)["rounds_used"] == state(case)["tasks"]["ci"]["attempt"] == 1
+
+
+@pytest.mark.parametrize("lose_next", [False, True])
+def test_resume_marker_before_state_crash_reuses_prepared_window_or_blocks(
+    tick_case, monkeypatch, lose_next
+):
+    case = tick_case
+    assert poll(case) == "pending"
+    case.clock.utc = document(case, "ci-window-ci-0.json")["deadline_utc"]
+    assert poll(case) == "retry_wait"
+    case.clock.utc = state(case)["tasks"]["ci"]["retry_at"]
+    save = StateStore._save
+
+    def crash(self, value):
+        if value["tasks"]["ci"]["status"] == "running":
+            assert document(case, "ci-window-ci-1.json")["started_utc"] == case.clock.utc
+            assert (case.control / "ci-window-claim-ci-1.json").is_file()
+            raise SimulatedCrash
+        return save(self, value)
+
+    monkeypatch.setattr(StateStore, "_save", crash)
+    with pytest.raises(SimulatedCrash):
+        poll(case)
+    window = (case.control / "ci-window-ci-1.json").read_bytes()
+    assert state(case)["tasks"]["ci"]["status"] == "retry_wait"
+    monkeypatch.setattr(StateStore, "_save", save)
+    case.clock.utc += 4000
+    if lose_next:
+        (case.control / "ci-window-ci-1.json").unlink()
+        with pytest.raises(ProtocolError, match="missing established CI window"):
+            poll(case)
+        assert not (case.control / "ci-window-ci-1.json").exists()
+    else:
+        assert poll(case) == "pending"
+        assert (case.control / "ci-window-ci-1.json").read_bytes() == window
+        assert state(case)["rounds_used"] == 1
+
+
+def test_missing_consumed_window_and_retimed_active_window_are_rejected(tick_case):
+    case = tick_case
+    assert poll(case) == "pending"
+    path = case.control / "ci-window-ci-0.json"
+    saved = path.read_bytes()
+    parsed = json.loads(saved)
+    parsed["started_utc"] += 4000
+    parsed["deadline_utc"] += 4000
+    path.write_text(json.dumps(parsed))
+    with pytest.raises(ProtocolError, match="claim drift"):
+        poll(case)
+    path.write_bytes(saved)
+    case.clock.utc = parsed["deadline_utc"] - 4000
+    assert poll(case) == "retry_wait"
+    case.clock.utc = state(case)["tasks"]["ci"]["retry_at"]
+    assert poll(case) == "pending"
+    path.unlink()
+    with pytest.raises(ProtocolError, match="missing established CI window"):
+        poll(case)

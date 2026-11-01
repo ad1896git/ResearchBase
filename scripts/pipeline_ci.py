@@ -20,6 +20,7 @@ from scripts.pipeline_protocol import (
     atomic_write,
     decode,
     encoded,
+    exact,
     integer,
     require,
 )
@@ -302,6 +303,96 @@ def _wait_ci_until(
             time.sleep(remaining(deadline, interval))
 
 
+def _probe_window(control, task_id, target, attempt, index, total_timeout, now, *, create=False):
+    """Timing is immutable and precedes begin/resume; missing claimed timing is never renewed."""
+    path = control / f"ci-window-{task_id}-{index}.json"
+    require(not path.is_symlink(), "symlink CI window")
+    if not path.exists():
+        require(create, "missing established CI window; operator reconciliation required")
+        atomic_write(
+            path,
+            encoded(
+                dict(
+                    task_id=task_id,
+                    target=target.__dict__,
+                    attempt=attempt,
+                    window=index,
+                    started_utc=now,
+                    deadline_utc=now + total_timeout,
+                )
+            ),
+        )
+    require(path.is_file(), "unsafe CI window")
+    window = decode(path.read_text())
+    exact(window, ("task_id", "target", "attempt", "window", "started_utc", "deadline_utc"))
+    require(
+        window["task_id"] == task_id
+        and window["target"] == target.__dict__
+        and window["attempt"] == attempt
+        and window["window"] == index
+        and type(window["started_utc"]) in (int, float)
+        and type(window["deadline_utc"]) in (int, float)
+        and window["started_utc"] >= 0
+        and window["deadline_utc"] - window["started_utc"] == total_timeout,
+        "CI window binding drift",
+    )
+    return window
+
+
+def _probe_claim(control, task_id, window, intent, *, create=False):
+    index = window["window"]
+    path = control / f"ci-window-claim-{task_id}-{index}.json"
+    expected = encoded(
+        dict(
+            task_id=task_id,
+            intent=intent,
+            window_sha256=hashlib.sha256(
+                (control / f"ci-window-{task_id}-{index}.json").read_bytes()
+            ).hexdigest(),
+        )
+    )
+    require(not path.is_symlink(), "symlink CI window claim")
+    if not path.exists():
+        require(create, "missing established CI window claim; operator reconciliation required")
+        atomic_write(path, expected)
+    require(path.is_file() and path.read_bytes() == expected, "CI window claim drift")
+
+
+def _probe_resumed(control, task_id, task):
+    markers = list(control.glob(f"ci-retry-{task_id}-{task['attempt']}-*.resumed"))
+    for marker in markers:
+        receipt = marker.with_suffix(".json")
+        require(
+            marker.is_file()
+            and not marker.is_symlink()
+            and receipt.is_file()
+            and not receipt.is_symlink()
+            and marker.read_bytes() == receipt.read_bytes(),
+            "CI resume receipt drift",
+        )
+        saved = decode(receipt.read_text())
+        require(
+            saved["task_id"] == task_id
+            and saved["attempt"] == task["attempt"]
+            and saved["intent"] == task["intent"]
+            and saved["reason"] == "ci_timeout",
+            "CI resume binding drift",
+        )
+    return markers
+
+
+def _probe_notice(control, task_id, window, status):
+    path = control / f"ci-timeout-notice-{task_id}-{window['window']}.json"
+    expected = encoded(
+        dict(window=window, status=status, reason="CI elapsed window, same intent/attempt retained")
+    )
+    require(not path.is_symlink(), "symlink CI timeout notice")
+    if path.exists():
+        require(path.is_file() and path.read_bytes() == expected, "CI timeout notice drift")
+    else:
+        atomic_write(path, expected)
+
+
 def poll_ci(
     target,
     task_id,
@@ -348,63 +439,92 @@ def poll_ci(
             )
             atomic_write(policy_file, policy)
         task = store.state["tasks"][task_id]
-        if task["status"] in ("done", "failed", "blocked", "budget_exhausted"):
+        exhausted = "CI windows exhausted; operator reconciliation required"
+        if task["status"] in ("done", "failed", "budget_exhausted"):
             return task["status"]
+        if task["status"] == "blocked" and task["reason"] != exhausted:
+            return "blocked"
         if task["status"] == "ready":
-            if (
-                store.begin(task_id, "ci", f"pr:{target.pr}", target.head, target.base_commit)
-                is None
-            ):
+            # A crash before begin reuses this exact original clock. A crash after
+            # begin but before claim leaves running+missing claim and fails closed.
+            window = _probe_window(
+                control, task_id, target, task["attempt"] + 1, 0, total_timeout, now, create=True
+            )
+            require(
+                not (control / f"ci-window-claim-{task_id}-0.json").exists(),
+                "ready CI has an existing claim",
+            )
+            intent = store.begin(task_id, "ci", f"pr:{target.pr}", target.head, target.base_commit)
+            if intent is None:
                 return "budget_exhausted"
+            _probe_claim(control, task_id, window, intent, create=True)
         task = store.state["tasks"][task_id]
         require(task["intent"] is not None and task["intent"]["kind"] == "ci", "CI claim")
+        resumed = _probe_resumed(control, task_id, task)
+        index = len(resumed)
+        if task["status"] == "retry_wait":
+            # resume_ci writes its marker before saving state. Reconcile exactly
+            # that marker/window rather than counting the paused window twice.
+            marker = control / f"ci-retry-{task_id}-{task['attempt']}-{task['retry_at']}.resumed"
+            index -= int(marker.exists())
+        require(0 <= index < max_timeouts, "CI window limit exceeded")
+        # Validate the entire already-consumed timing chain, including the active
+        # window, before recovering receipts or granting a next window.
+        for number in range(index + 1):
+            saved = _probe_window(
+                control, task_id, target, task["attempt"], number, total_timeout, now
+            )
+            _probe_claim(control, task_id, saved, task["intent"])
+        window = saved
+        if task["status"] == "running":
+            # A pause receipt may be durable although its state save was killed.
+            # StateStore reuses its retry_at; never calculate a replacement pause.
+            store.recover_ci_pause(task_id)
+            task = store.state["tasks"][task_id]
+        if task["status"] == "blocked":
+            _probe_notice(control, task_id, window, "blocked")
+            return "blocked"
         if task["status"] == "retry_wait":
             require(task["reason"] == "ci_timeout", "unknown CI retry type")
+            if index + 1 >= max_timeouts:
+                store.block(task_id, exhausted)
+                _probe_notice(control, task_id, window, "blocked")
+                return "blocked"
+            _probe_notice(control, task_id, window, "retry_wait")
             if now < task["retry_at"]:
                 return "retry_wait"
-            store.resume_ci(task_id, now=int(now))
-        task = store.state["tasks"][task_id]
-        resumed = list(control.glob(f"ci-retry-{task_id}-{task['attempt']}-*.resumed"))
-        window_file = control / f"ci-window-{task_id}-{len(resumed)}.json"
-        if not window_file.exists():
-            atomic_write(
-                window_file,
-                encoded(
-                    dict(
-                        intent=task["intent"],
-                        window=len(resumed),
-                        started_utc=now,
-                        deadline_utc=now + total_timeout,
-                    )
-                ),
+            # Persist the next window AND its same-intent claim before resume.
+            # If resume's marker was already written, their absence is corruption.
+            window = _probe_window(
+                control,
+                task_id,
+                target,
+                task["attempt"],
+                index + 1,
+                total_timeout,
+                now,
+                create=len(resumed) == index,
             )
-        require(not window_file.is_symlink(), "symlink CI window")
-        window = decode(window_file.read_text())
-        require(
-            window["intent"] == task["intent"]
-            and window["window"] == len(resumed)
-            and window["deadline_utc"] - window["started_utc"] == total_timeout,
-            "CI window binding drift",
-        )
+            _probe_claim(control, task_id, window, task["intent"], create=len(resumed) == index)
+            store.resume_ci(task_id, now=int(now))
+            index += 1
+            task = store.state["tasks"][task_id]
         heartbeat = control / f"ci-probe-{task_id}.json"
         atomic_write(
-            heartbeat, encoded(dict(last_probe_utc=now, window=window, status=task["status"]))
+            heartbeat,
+            encoded(
+                dict(
+                    last_probe_utc=now,
+                    window={**window, "intent": task["intent"]},
+                    status=task["status"],
+                )
+            ),
         )
         if now >= window["deadline_utc"]:
             store.pause_ci(task_id, int(now + retry_delay))
-            if len(resumed) + 1 >= max_timeouts:
-                store.block(task_id, "CI windows exhausted; operator reconciliation required")
-            notify = control / f"ci-timeout-notice-{task_id}-{len(resumed)}.json"
-            atomic_write(
-                notify,
-                encoded(
-                    dict(
-                        window=window,
-                        status=store.state["tasks"][task_id]["status"],
-                        reason="CI elapsed window, same intent/attempt retained",
-                    )
-                ),
-            )
+            if index + 1 >= max_timeouts:
+                store.block(task_id, exhausted)
+            _probe_notice(control, task_id, window, store.state["tasks"][task_id]["status"])
             return store.state["tasks"][task_id]["status"]
     remaining_utc = window["deadline_utc"] - time.time()
     try:
@@ -423,7 +543,7 @@ def poll_ci(
             encoded(
                 dict(
                     last_probe_utc=time.time(),
-                    window=window,
+                    window={**window, "intent": task["intent"]},
                     status="pending",
                     error=type(exc).__name__,
                 )
@@ -440,7 +560,7 @@ def poll_ci(
             encoded(
                 dict(
                     last_probe_utc=time.time(),
-                    window=window,
+                    window={**window, "intent": task["intent"]},
                     status="pending",
                     error="transient remote query",
                 )

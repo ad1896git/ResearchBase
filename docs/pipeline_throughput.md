@@ -73,7 +73,11 @@ Already published allowlisted PRs can be observed read-only through
 its leases. Pending CI persists the same intent, attempt and round, raw observation
 hash, UTC start/deadline and last-probe heartbeat. Default total window is 9,000s,
 with at most three windows and a durable timeout notice/retry receipt. Restart does
-not reset the clock. Query timeout/429/5xx preserves the pending intent and fixed
+not reset the clock. Immutable task/target windows precede begin/resume, and separate
+claims bind their bytes to the intent. Missing established timing blocks; pause
+receipts retain their original retry date. The last-window cap is enforced before
+every resume, including interrupted pause/block/resume saves. Query
+timeout/429/5xx preserves the pending intent and fixed
 deadline; unknown errors block. Terminal success needs two fresh observations;
 exact head/base, actual base reference and the seven GitHub Actions checks remain
 mandatory. Remote CI queueing is backpressure, not a reason to weaken checks.
