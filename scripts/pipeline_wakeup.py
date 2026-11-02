@@ -128,7 +128,9 @@ def observe(repository, number):
     )
 
 
-def check_merge(store, name, repository, *, risk="medium", low_risk_enabled=False):
+def check_merge(
+    store, name, repository, *, risk="medium", low_risk_enabled=False, medium_eligible=False
+):
     binding = store.state["tasks"][name]["merge"]
     first = observe(repository, binding["pr"])
     second = observe(repository, binding["pr"])
@@ -163,6 +165,7 @@ def check_merge(store, name, repository, *, risk="medium", low_risk_enabled=Fals
         effective_approval=effective,
         risk=risk,
         low_risk_enabled=low_risk_enabled,
+        medium_eligible=medium_eligible,
     )
     if store.state["tasks"][name]["status"] == "blocked":
         return "blocked"

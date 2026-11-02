@@ -924,9 +924,11 @@ class StateStore:
         effective_approval,
         risk="medium",
         low_risk_enabled=False,
+        medium_eligible=False,
     ):
         require(risk in ("low", "medium", "high"), "unrecognized merge risk")
         require(type(low_risk_enabled) is bool, "invalid low-risk policy")
+        require(type(medium_eligible) is bool, "invalid medium-risk eligibility")
         binding = self.state["tasks"][name]["merge"]
         if not binding:
             return False
@@ -952,7 +954,7 @@ class StateStore:
             value["tasks"][name]["merge"]["approved_actor"] = None
             self._save(value)
             return False
-        if risk == "low" and low_risk_enabled:
+        if (risk == "low" and low_risk_enabled) or (risk == "medium" and medium_eligible):
             return task["status"] == "awaiting_merge" and checks_ready(head, checks)
         if effective_approval is not None:
             require(
@@ -1015,7 +1017,8 @@ class StateStore:
                 "proofs_sha256",
                 "approval_event",
                 "approval_actor",
-            ),
+            )
+            + (("medium_authorization",) if "medium_authorization" in effect else ()),
         )
         for field in ("head", "base", "sha", "tree", "source_tree", "parent"):
             commit(effect[field])
@@ -1063,6 +1066,26 @@ class StateStore:
             ),
             "merge journal/receipt mismatch",
         )
+        if "medium_authorization" in effect:
+            from scripts.pipeline_medium_merge import validate_reservation
+
+            medium = effect["medium_authorization"]
+            exact(medium, ("journal", "key", "binding"))
+            require(effect["risk"] == "medium", "medium authority risk mismatch")
+            require(
+                intent.get("medium_authorization") == medium, "medium intent authority mismatch"
+            )
+            require(target["medium_auto"]["journal"] == medium["journal"], "medium policy mismatch")
+            claimed = medium["binding"]
+            require(
+                all(
+                    claimed[k] == effect[k]
+                    for k in ("repository", "pr", "head", "base", "intent_id", "proofs_sha256")
+                )
+                and claimed["authorization_sha256"] == target["authorization_sha256"],
+                "medium effect identity mismatch",
+            )
+            validate_reservation(medium["journal"], medium["key"], claimed)
         requested = saved.parent / "requested.json"
         require(requested.is_file() and not requested.is_symlink(), "missing merge request marker")
         request = decode(requested.read_text())
@@ -1084,7 +1107,7 @@ class StateStore:
             == (binding["pr"], binding["head"], binding["base"]),
             "merge effect scope mismatch",
         )
-        if effect["risk"] != "low":
+        if effect["risk"] != "low" and "medium_authorization" not in effect:
             require(
                 (effect["approval_event"], effect["approval_actor"])
                 == (binding["approved_event"], binding["approved_actor"])

@@ -641,3 +641,324 @@ def test_non_regular_controls_rejected_before_put(case, kind, key):
 
         os.mkfifo(path)
     assert execute(case)[0] == "blocked" and not case["puts"]
+
+
+@pytest.fixture
+def medium_case(case, monkeypatch, tmp_path):
+    """Host-issued exact review plus immutable tree/blob fixtures, not live GitHub."""
+    import base64
+
+    raw = b"An ordinary explanation.\n"
+    blob = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\x00" + raw).hexdigest()
+    case["files"] = [
+        dict(
+            filename="docs/engineering/note.md",
+            status="added",
+            sha=blob,
+            additions=1,
+            deletions=0,
+            changes=1,
+            patch="@@ -0,0 +1 @@\n+An ordinary explanation.",
+        )
+    ]
+    case["remote"].update(additions=1, deletions=0)
+    case["normalized"].update(labels=set(), effective=None)
+    review = tmp_path / "independent.json"
+    review.write_bytes(encoded(dict(verdict="PASS", head=A, base=B, findings=[])))
+    (tmp_path / "medium-canary.json").write_bytes(encoded(dict(version=1, reservations={})))
+    case["policy"].update(
+        version=3,
+        medium_auto=dict(
+            enabled=True,
+            journal=str(tmp_path / "medium-canary.json"),
+            reviews=[
+                dict(
+                    head=A,
+                    base=B,
+                    file=str(review),
+                    sha256=hashlib.sha256(review.read_bytes()).hexdigest(),
+                    author="model-author",
+                    reviewer="independent-reviewer",
+                )
+            ],
+        ),
+    )
+    old_get = merger.get
+
+    def get(endpoint, *, pages=False):
+        if endpoint.endswith("/git/commits/" + B):
+            return dict(tree=dict(sha="e" * 40))
+        if endpoint.endswith("/git/trees/" + "e" * 40 + "?recursive=1"):
+            return dict(truncated=False, tree=[])
+        if endpoint.endswith("/git/trees/" + C + "?recursive=1"):
+            return dict(
+                truncated=False,
+                tree=[
+                    dict(
+                        path="docs/engineering/note.md",
+                        mode="100644",
+                        type="blob",
+                        sha=blob,
+                        size=len(raw),
+                    )
+                ],
+            )
+        if endpoint.endswith("/git/blobs/" + blob):
+            return dict(
+                sha=blob, size=len(raw), encoding="base64", content=base64.b64encode(raw).decode()
+            )
+        return old_get(endpoint, pages=pages)
+
+    monkeypatch.setattr(merger, "get", get)
+    case["review"] = review
+    return case
+
+
+def test_medium_exact_host_review_without_label_keeps_risk_and_audit(medium_case):
+    case = medium_case
+    assert execute(case)[0] == "done"
+    assert len(case["puts"]) == 1
+    cfg = case["policy"]["medium_auto"]
+    journal = json.loads(open(cfg["journal"]).read())
+    assert len(journal["reservations"]) == 1
+    entry = next(iter(journal["reservations"].values()))
+    assert entry["effect"]["risk"] == "medium"
+    assert entry["effect"]["approval_actor"] is None
+    assert entry["report_status"] == "pending_owner_review"
+    assert len(list(case["review"].parent.glob("*.owner-review.json"))) == 1
+    assert execute(case)[0] == "done" and len(case["puts"]) == 1
+
+
+@pytest.mark.parametrize("fault", ["disabled", "missing", "stale", "self", "failed", "forged"])
+def test_medium_invalid_review_is_manual_and_owner_label_still_works(medium_case, fault):
+    case = medium_case
+    cfg = case["policy"]["medium_auto"]
+    if fault == "disabled":
+        cfg["enabled"] = False
+    elif fault == "missing":
+        cfg["reviews"] = []
+    elif fault == "stale":
+        cfg["reviews"][0]["head"] = C
+    elif fault == "self":
+        cfg["reviews"][0]["reviewer"] = cfg["reviews"][0]["author"]
+    elif fault == "failed":
+        case["review"].write_bytes(encoded(dict(verdict="FAIL", head=A, base=B, findings=[])))
+        cfg["reviews"][0]["sha256"] = hashlib.sha256(case["review"].read_bytes()).hexdigest()
+    else:
+        case["review"].write_text("{}")
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+    case["normalized"].update(labels={"approved-merge"}, effective=(7, "owner"), cursor=7)
+    assert execute(case)[0] == "done" and len(case["puts"]) == 1
+    assert json.loads(open(cfg["journal"]).read())["reservations"] == {}
+
+
+def test_medium_fourth_reservation_manual_not_blocked_and_owner_path_works(medium_case):
+    from scripts.pipeline_medium_merge import reserve
+
+    case = medium_case
+    cfg = case["policy"]["medium_auto"]
+    for i in range(3):
+        reserve(cfg, dict(intent=str(i)))
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+    case["normalized"].update(labels={"approved-merge"}, effective=(7, "owner"), cursor=7)
+    assert execute(case)[0] == "done"
+    assert len(json.loads(open(cfg["journal"]).read())["reservations"]) == 3
+
+
+@pytest.mark.parametrize("fault", ["blob", "mode", "tree", "counts", "patch", "network"])
+def test_medium_incomplete_immutable_source_falls_back(medium_case, monkeypatch, fault):
+    case = medium_case
+    old_get = merger.get
+
+    def get(endpoint, *, pages=False):
+        value = old_get(endpoint, pages=pages)
+        if "/git/blobs/" in endpoint and fault == "blob":
+            value["content"] = "Zm9yZ2Vk"
+        if "/git/trees/" in endpoint and value["tree"] and fault == "mode":
+            value["tree"][0]["mode"] = "120000"
+        if "/git/trees/" in endpoint and fault == "tree":
+            value["truncated"] = True
+        if "/git/trees/" in endpoint and fault == "network":
+            raise TimeoutError("temporary read failed")
+        return value
+
+    monkeypatch.setattr(merger, "get", get)
+    if fault == "counts":
+        case["remote"]["additions"] = 2
+    if fault == "patch":
+        case["files"][0]["patch"] = None
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+
+
+def test_medium_unknown_request_holds_slot_and_never_retries(medium_case, monkeypatch):
+    case = medium_case
+
+    def unknown(*args):
+        raise TimeoutError("remote outcome unknown")
+
+    monkeypatch.setattr(merger, "put_merge", unknown)
+    assert execute(case)[0] == "awaiting_merge"
+    journal = json.loads(open(case["policy"]["medium_auto"]["journal"]).read())
+    assert len(journal["reservations"]) == 1
+    assert next(iter(journal["reservations"].values()))["effect"] is None
+    assert execute(case)[0] == "awaiting_merge"
+
+
+def test_medium_off_after_request_marker_has_no_effect(medium_case, monkeypatch):
+    from pathlib import Path
+
+    case = medium_case
+
+    def checkpoint(name, pause_after):
+        if name == "unknown-request-window":
+            Path(case["policy"]["stop_file"]).touch()
+
+    monkeypatch.setattr(merger, "checkpoint", checkpoint)
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+    assert (case["control"] / "merge-operations/merge/requested.json").is_file()
+    assert (
+        len(json.loads(open(case["policy"]["medium_auto"]["journal"]).read())["reservations"]) == 1
+    )
+
+
+@pytest.mark.parametrize("phase", ["before-request", "after-merge"])
+def test_medium_crash_resumes_one_intent_one_slot(medium_case, monkeypatch, phase):
+    case = medium_case
+
+    def crash(name, pause):
+        if name == phase:
+            raise SystemExit("simulated process termination")
+
+    monkeypatch.setattr(merger, "checkpoint", crash)
+    with pytest.raises(SystemExit):
+        execute(case)
+    monkeypatch.setattr(merger, "checkpoint", lambda *a: None)
+    assert execute(case)[0] == "done"
+    assert len(case["puts"]) == 1
+    journal = json.loads(open(case["policy"]["medium_auto"]["journal"]).read())
+    assert len(journal["reservations"]) == 1
+    assert next(iter(journal["reservations"].values()))["report_status"] == "pending_owner_review"
+
+
+def test_medium_remote_effect_with_lost_response_reconciles_next_tick(medium_case, monkeypatch):
+    case = medium_case
+    real_put = merger.put_merge
+
+    def lost_response(*args):
+        real_put(*args)
+        raise TimeoutError("response lost after actual fixture effect")
+
+    monkeypatch.setattr(merger, "put_merge", lost_response)
+    assert execute(case)[0] == "awaiting_merge"
+    assert len(case["puts"]) == 1
+    assert execute(case)[0] == "done"
+    assert len(case["puts"]) == 1
+
+
+@pytest.mark.parametrize("phase", ["owner-report", "journal-effect", "merge-log", "done"])
+def test_medium_report_log_completion_crash_recovery(medium_case, monkeypatch, phase):
+    from scripts import pipeline_medium_merge as medium
+
+    case = medium_case
+    real_atomic = medium.atomic_write
+    armed = True
+
+    def atomic(path, data):
+        nonlocal armed
+        match = (phase == "owner-report" and path.name.endswith(".owner-review.json")) or (
+            phase == "journal-effect"
+            and path.name == "medium-canary.json"
+            and b"pending_owner_review" in data
+        )
+        if armed and match:
+            armed = False
+            raise SystemExit("crash before durable write")
+        return real_atomic(path, data)
+
+    monkeypatch.setattr(medium, "atomic_write", atomic)
+    real_log = merger.append_merge_log
+    real_finish = StateStore.finish_merge
+
+    def log(*args):
+        nonlocal armed
+        if armed and phase == "merge-log":
+            armed = False
+            raise SystemExit("crash before log")
+        return real_log(*args)
+
+    def finish(*args):
+        nonlocal armed
+        if armed and phase == "done":
+            armed = False
+            raise SystemExit("crash before done")
+        return real_finish(*args)
+
+    monkeypatch.setattr(merger, "append_merge_log", log)
+    monkeypatch.setattr(StateStore, "finish_merge", finish)
+    with pytest.raises(SystemExit):
+        execute(case)
+    assert execute(case)[0] == "done"
+    assert len(case["puts"]) == 1
+    assert len(list(case["review"].parent.glob("*.owner-review.json"))) == 1
+    lines = __import__("pathlib").Path(case["policy"]["merge_log"]).read_text().splitlines()
+    assert len(lines) == 1
+
+
+@pytest.mark.parametrize(
+    "fault", ["missing-check", "failed-check", "wrong-head", "duplicate-check"]
+)
+def test_medium_still_requires_exact_seven_trusted_ci(medium_case, fault):
+    case = medium_case
+    checks = case["normalized"]["checks"]
+    if fault == "missing-check":
+        checks.pop()
+    elif fault == "failed-check":
+        checks[0]["conclusion"] = "failure"
+    elif fault == "wrong-head":
+        checks[0]["head"] = C
+    else:
+        checks.append(checks[0])
+    # Even a mismatched optimistic aggregate cannot replace exact check rows.
+    case["normalized"]["outcome"] = "pass"
+    assert execute(case)[0] == "awaiting_merge"
+    assert not case["puts"]
+
+
+def test_medium_deleted_journal_never_resets_quota(medium_case):
+    from pathlib import Path
+
+    case = medium_case
+    Path(case["policy"]["medium_auto"]["journal"]).unlink()
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+    assert not Path(case["policy"]["medium_auto"]["journal"]).exists()
+
+
+def test_medium_opt_in_never_bypasses_high_risk_owner_label(medium_case):
+    case = medium_case
+    risk(case, "high")
+    assert execute(case)[0] == "awaiting_merge" and not case["puts"]
+    case["normalized"].update(labels={"approved-merge"}, effective=(7, "owner"), cursor=7)
+    assert execute(case)[0] == "done"
+    assert json.loads(open(case["policy"]["medium_auto"]["journal"]).read())["reservations"] == {}
+
+
+def test_medium_crash_between_reservation_and_intent_reuses_same_slot(medium_case, monkeypatch):
+    case = medium_case
+    real_immutable = merger.immutable
+    armed = True
+
+    def crash(path, value):
+        nonlocal armed
+        if armed and path.name == "intent.json":
+            armed = False
+            raise SystemExit("crash before durable intent")
+        return real_immutable(path, value)
+
+    monkeypatch.setattr(merger, "immutable", crash)
+    with pytest.raises(SystemExit):
+        execute(case)
+    before = json.loads(open(case["policy"]["medium_auto"]["journal"]).read())
+    assert len(before["reservations"]) == 1
+    assert execute(case)[0] == "done" and len(case["puts"]) == 1
+    after = json.loads(open(case["policy"]["medium_auto"]["journal"]).read())
+    assert list(before["reservations"]) == list(after["reservations"])

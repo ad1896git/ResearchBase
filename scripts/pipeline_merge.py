@@ -10,8 +10,10 @@ import secrets
 import signal
 import subprocess
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
+from scripts import pipeline_medium_merge as medium
 from scripts.pipeline_executor import run
 from scripts.pipeline_protocol import (
     EXPECTED_CHECKS,
@@ -23,7 +25,7 @@ from scripts.pipeline_protocol import (
     require,
 )
 from scripts.pipeline_safety import ProcessLock
-from scripts.pipeline_wakeup import check_merge
+from scripts.pipeline_wakeup import check_merge, notify
 
 MAIN = "ad1896git/researchbase"
 SANDBOX = "ad1896git/researchbase-pipeline-sandbox"
@@ -75,7 +77,7 @@ def controls(policy):
     """Optional v2 operational controls; v1 remains for immutable historical policies."""
     if policy["version"] == 1:
         return None
-    require(policy["version"] == 2, "merge policy version")
+    require(policy["version"] in (2, 3), "merge policy version")
     paths = []
     for key in ("stop_file", "merge_log"):
         path = Path(policy[key])
@@ -136,12 +138,16 @@ def authorized(policy, entry_id):
             "sandbox_rehearsal",
             "round_budget",
         )
-        + (("stop_file", "merge_log") if policy["version"] == 2 else ()),
+        + (("stop_file", "merge_log") if policy["version"] in (2, 3) else ())
+        + (("medium_auto",) if policy["version"] == 3 else ()),
     )
     controls(policy)
     require(
-        policy["version"] in (1, 2) and policy["enabled"] is True, "executor not explicitly enabled"
+        policy["version"] in (1, 2, 3) and policy["enabled"] is True,
+        "executor not explicitly enabled",
     )
+    if policy["version"] == 3:
+        medium.config(policy["medium_auto"])
     require(type(policy["allow_low_risk"]) is bool, "low-risk policy")
     require(type(policy["sandbox_rehearsal"]) is bool, "sandbox policy")
     require(
@@ -291,8 +297,25 @@ def reconcile(store, name, repository, row, intent, folder, policy, target):
         approval_event=intent["approval_event"],
         approval_actor=intent["approval_actor"],
     )
+    if "medium_authorization" in intent:
+        effect["medium_authorization"] = intent["medium_authorization"]
     immutable(folder / "effect.json", effect)
     store.validate_merge_completion(name, effect)
+    if "medium_authorization" in intent:
+        authority = intent["medium_authorization"]
+        medium.record_effect(policy["medium_auto"], authority["key"], authority["binding"], effect)
+        notify(
+            store.directory,
+            dict(
+                task=name,
+                status="medium_merge_owner_review_pending",
+                head=effect["head"],
+                sha=effect["sha"],
+                intent_id=intent["id"],
+                journal=authority["journal"],
+                reservation=authority["key"],
+            ),
+        )
     append_merge_log(policy, target, row, effect)
     store.finish_merge(name, effect)
     return "done"
@@ -303,7 +326,7 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
     try:
         target, risk = authorized(policy, entry_id)
         require(
-            repository.lower() != MAIN or policy["version"] == 2,
+            repository.lower() != MAIN or policy["version"] in (2, 3),
             "production merge controls required",
         )
         require(repository.lower() in (MAIN, SANDBOX), "unauthorized merge repository")
@@ -347,8 +370,10 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             allow_low_risk=policy["allow_low_risk"],
             sandbox_rehearsal=policy["sandbox_rehearsal"],
         )
-        if policy["version"] == 2:
+        if policy["version"] in (2, 3):
             target_binding["controls"] = {k: policy[k] for k in ("stop_file", "merge_log")}
+        if policy["version"] == 3:
+            target_binding["medium_auto"] = policy["medium_auto"]
         immutable(folder / "target.json", target_binding)
         row = remote_pr(repository, binding["pr"])
         intent_path = folder / "intent.json"
@@ -358,6 +383,17 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             return reconcile(store, name, repository, row, intent, folder, policy, target)
         if paused(policy):
             return "awaiting_merge"
+        if (folder / "requested.json").exists() and intent and "medium_authorization" in intent:
+            notify(
+                store.directory,
+                dict(
+                    task=name,
+                    status="merge_outcome_unknown",
+                    intent_id=intent["id"],
+                    action="reconcile only; never resubmit",
+                ),
+            )
+            return "awaiting_merge"
         require(
             not (folder / "requested.json").exists(),
             "unknown merge request outcome; never resubmit",
@@ -366,6 +402,52 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
         status = check_merge(
             store, name, repository, risk=risk, low_risk_enabled=policy["allow_low_risk"]
         )
+        medium_proof: dict[str, Any] | None = None
+        proposed_id = intent["id"] if intent is not None else secrets.token_hex(12)
+        if (
+            (status == "awaiting_merge" or (intent and "medium_authorization" in intent))
+            and risk == "medium"
+            and policy["version"] == 3
+        ):
+            candidate = remote_pr(repository, binding["pr"])
+            if (candidate["head"]["sha"], candidate["base"]["sha"]) == (
+                binding["head"],
+                binding["base"],
+            ):
+                proof = medium.eligibility(policy["medium_auto"], repository, candidate, get)
+                if proof is not None:
+                    if intent is None:
+                        proposed_id = hashlib.sha256(
+                            encoded(
+                                dict(
+                                    proof=proof,
+                                    authorization_sha256=policy["authorization_sha256"],
+                                    proofs_sha256=store.merge_proof_digest(name),
+                                )
+                            )
+                        ).hexdigest()[:24]
+                    claim = dict(
+                        proof,
+                        intent_id=proposed_id,
+                        authorization_sha256=policy["authorization_sha256"],
+                        proofs_sha256=store.merge_proof_digest(name),
+                    )
+                    if medium.can_reserve(policy["medium_auto"], claim):
+                        medium_proof = dict(
+                            journal=policy["medium_auto"]["journal"],
+                            key=medium.reservation_key(claim),
+                            binding=claim,
+                        )
+                        status = check_merge(
+                            store,
+                            name,
+                            repository,
+                            risk=risk,
+                            low_risk_enabled=policy["allow_low_risk"],
+                            medium_eligible=True,
+                        )
+        if intent and "medium_authorization" in intent and medium_proof is None:
+            return "awaiting_merge"
         if status != "manual_merge_ready":
             return status
         row = remote_pr(repository, binding["pr"])
@@ -384,12 +466,20 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             base_branch=row["base"]["ref"],
             risk=risk,
             execution_actor=policy["execution_actor"],
-            approval_event=current["approved_event"],
-            approval_actor=current["approved_actor"],
+            approval_event=None if medium_proof is not None else current["approved_event"],
+            approval_actor=None if medium_proof is not None else current["approved_actor"],
             proofs_sha256=store.merge_proof_digest(name),
         )
+        if medium_proof is not None:
+            facts["medium_authorization"] = medium_proof
+            try:
+                medium.reserve(policy["medium_auto"], medium_proof["binding"])
+            except Exception:
+                # A competing reservation or uncertain journal never becomes
+                # authority. Leave the task available for a trusted owner label.
+                return "awaiting_merge"
         if intent is None:
-            intent = dict(id=secrets.token_hex(12), **facts)
+            intent = dict(id=proposed_id, **facts)
             immutable(intent_path, intent)
         else:
             require(
@@ -400,14 +490,20 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
         authority(store, policy, entry_id, (target, risk))
         require(
             check_merge(
-                store, name, repository, risk=risk, low_risk_enabled=policy["allow_low_risk"]
+                store,
+                name,
+                repository,
+                risk=risk,
+                low_risk_enabled=policy["allow_low_risk"],
+                medium_eligible=medium_proof is not None,
             )
             == "manual_merge_ready",
             "final approval/CI changed",
         )
         approval = store.state["tasks"][name]["merge"]
         require(
-            (approval["approved_event"], approval["approved_actor"])
+            medium_proof is not None
+            or (approval["approved_event"], approval["approved_actor"])
             == (intent["approval_event"], intent["approval_actor"]),
             "final approval differs from frozen merge intent",
         )
@@ -425,6 +521,19 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             preflight(repository, final, rehearsal=policy["sandbox_rehearsal"]) == source_tree,
             "source tree drift",
         )
+        if medium_proof is not None:
+            require(
+                medium.eligibility(policy["medium_auto"], repository, final, get)
+                == {
+                    k: v
+                    for k, v in medium_proof["binding"].items()
+                    if k not in ("intent_id", "authorization_sha256", "proofs_sha256")
+                },
+                "medium eligibility changed before request",
+            )
+            medium.validate_reservation(
+                medium_proof["journal"], medium_proof["key"], medium_proof["binding"]
+            )
         authority(store, policy, entry_id, (target, risk))
         require(store.merge_proof_digest(name) == intent["proofs_sha256"], "readiness proof drift")
         immutable(folder / "target.json", target_binding)
@@ -457,6 +566,25 @@ def execute_merge(store, name, repository, *, policy, entry_id, pause_after=None
             target,
         )
     except Exception as exc:
+        # A requested medium effect is quarantined but remains observable by
+        # subsequent ticks; only a validated remote result can complete it.
+        pending = store.directory / "merge-operations" / name
+        if (pending / "requested.json").is_file() and (pending / "intent.json").is_file():
+            prior = decode((pending / "intent.json").read_text())
+            if (
+                "medium_authorization" in prior
+                and store.state["tasks"][name]["status"] == "awaiting_merge"
+            ):
+                notify(
+                    store.directory,
+                    dict(
+                        task=name,
+                        status="merge_outcome_unknown",
+                        intent_id=prior["id"],
+                        action="reconcile only; never resubmit",
+                    ),
+                )
+                return "awaiting_merge"
         if store.state["tasks"][name]["status"] == "awaiting_merge":
             store.block(name, f"merge blocked: {type(exc).__name__}: {exc}"[:4000])
         return "blocked"
