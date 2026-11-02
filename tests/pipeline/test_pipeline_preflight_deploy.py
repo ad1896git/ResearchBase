@@ -126,6 +126,7 @@ def deployment_fixture(tmp_path) -> tuple[Path, Path, dict[str, Any]]:
         row["path_mapping"] = mapping
     Path(m["script"]).write_text(DEPLOYMENT_PAYLOAD)
     m["script_sha256"] = t.sha(Path(m["script"]))
+    m["online_inputs"].append(str(runtime))
     m["deployment"] = dict(
         version=1,
         head=head,

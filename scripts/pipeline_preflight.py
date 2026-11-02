@@ -24,6 +24,15 @@ MAX_FILES = 100000
 MAX_BYTES = 1024 * 1024 * 1024
 
 
+class UnknownChildren(SafetyError):
+    pass
+
+
+def joined(value):
+    if not value:
+        raise UnknownChildren("unknown descendants; root quarantined")
+
+
 def require(value, message):
     if not value:
         raise SafetyError(message)
@@ -339,7 +348,7 @@ def profile(root):
     )
 
 
-def child(root, argv, timeout):
+def child(root: Path, argv: list[str], timeout: int) -> dict[str, Any]:
     require(sys.platform == "darwin" and SANDBOX.is_file(), "OS write isolation unavailable")
     env = {
         "PATH": "/usr/bin:/bin",
@@ -369,11 +378,11 @@ def child(root, argv, timeout):
     except subprocess.TimeoutExpired:
         timed_out = True
         stopped = stop_group(process.pid, process.poll)
-        require(stopped, "unknown descendants; isolation root quarantined")
+        joined(stopped)
         stdout, stderr = process.communicate(timeout=3)
     finally:
         stopped = stop_group(process.pid, process.poll)
-    require(stopped, "unknown descendants; isolation root quarantined")
+    joined(stopped)
     require(len(stdout) + len(stderr) <= 8 * 1024 * 1024, "child output bound")
     return dict(
         exit_code=process.returncode,
@@ -394,7 +403,10 @@ def capability_probe(root, python, writable):
     )
     negative = child(writable, [str(python), "-B", "-c", program, str(denied)], 10)
     require(
-        negative["exit_code"] == 0 and denied.read_bytes() == before, "kernel deny probe failed"
+        negative["exit_code"] == 0
+        and denied.read_bytes() == before
+        and "Operation not permitted" in negative["stderr"],
+        "kernel deny probe failed",
     )
     positive = child(
         writable,
@@ -446,7 +458,9 @@ def next_attempt(root, correction):
     )
     result = json.loads(prior.read_text())
     require(
-        result["status"] == "blocked" and result["possible_online_write"] is False,
+        result["status"] == "blocked"
+        and result["possible_online_write"] is False
+        and result.get("quarantined", True) is False,
         "passed or possible online write attempt cannot be retried",
     )
     return len(names)
@@ -487,6 +501,7 @@ def run(root, correction=None):
     )
     phases = []
     failure = None
+    quarantined = False
     try:
         probe = capability_probe(root, Path(manifest["python"]), writable)
         write_json(area, "kernel-probe.json", probe)
@@ -537,6 +552,7 @@ def run(root, correction=None):
             )
     except (SafetyError, OSError, ValueError, subprocess.SubprocessError) as error:
         failure = type(error).__name__ + ": " + str(error)
+        quarantined = isinstance(error, UnknownChildren)
     try:
         after = inventory(inputs)
         unchanged = after == before
@@ -548,6 +564,7 @@ def run(root, correction=None):
         status="pass" if failure is None and unchanged else "blocked",
         attempt=attempt,
         possible_online_write=not unchanged,
+        quarantined=quarantined,
         live_unchanged=unchanged,
         failure=failure,
         before=before,
@@ -597,7 +614,9 @@ def bootstrap(root, correction):
         all(not stat.S_ISREG(os.fstat(fd).st_mode) for fd in (1, 2)),
         "regular inherited output descriptor forbidden",
     )
+    original_root = (root.stat().st_dev, root.stat().st_ino)
     env = {
+        "RB_PREFLIGHT_ROOT_ID": f"{original_root[0]}:{original_root[1]}",
         "PATH": "/usr/bin:/bin",
         "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
         "PYTHONDONTWRITEBYTECODE": "1",
@@ -620,6 +639,9 @@ def bootstrap(root, correction):
         and canary.stat().st_nlink == 1
         and canary.read_bytes() == b"protected-canary",
         "canary identity",
+    )
+    require(
+        (root.stat().st_dev, root.stat().st_ino) == original_root, "root replaced during bootstrap"
     )
     argv = [
         str(SANDBOX),
@@ -673,6 +695,11 @@ def main(argv=None):
         root = canonical(args.root)
         if args.command == "_outer":
             confined(root)
+            require(
+                os.environ.get("RB_PREFLIGHT_ROOT_ID")
+                == f"{root.stat().st_dev}:{root.stat().st_ino}",
+                "bootstrap root identity mismatch",
+            )
             CONFINED = True
             return run(root, args.correction_of)
         return bootstrap(root, args.correction_of)

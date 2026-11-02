@@ -146,3 +146,7 @@ Linux CI cannot provide Seatbelt: native Mac tests are explicitly platform-skipp
 unsupported runtime refuses. Actual LOCAL-MAC-PASS is separate evidence. Existing seven job
 names, benchmarks, risk/approval policies, scheduler, scientific contracts and schema are
 unchanged. No real online command may run until exact-source review, all seven CI and merge.
+
+## Current WIP device boundary
+
+Overall BLOCKED_PENDING_OWNER_DEVICE_BOUNDARY: strict profile currently denies all Root-external writes, including /dev/null. Native Git on the current Mac opens that device O_RDWR, so the complete deployment-positive regression is presently a real FAIL. It remains enabled and is not reclassified as an environment PASS. Partial validation excludes that single known blocked test explicitly; the remaining suite is not a complete acceptance. No device exception is enabled without explicit owner decision. No real online preflight, deployment or service action has run.

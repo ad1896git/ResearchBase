@@ -262,6 +262,11 @@ t.join();raise SystemExit(7)
     }[attack]
     observed = t.child(r, [sys.executable, "-B", "-c", code], 10)
     assert observed["exit_code"] != 0 and not observed["timed_out"] and t.inventory([o]) == before
+    if attack != "race":
+        assert (
+            "Operation not permitted" in observed["stderr"]
+            or "PermissionError" in observed["stderr"]
+        )
 
 
 @MAC
@@ -353,7 +358,9 @@ def test_correction_budget_three_and_online_change_hardstop(tmp_path):
         a = e / f"attempt-{i}"
         a.mkdir()
         p = a / "result.json"
-        p.write_text(json.dumps(dict(status="blocked", possible_online_write=False)))
+        p.write_text(
+            json.dumps(dict(status="blocked", possible_online_write=False, quarantined=False))
+        )
         if i < 3:
             assert t.next_attempt(r, t.sha(p)) == i + 1
         else:
@@ -364,7 +371,7 @@ def test_correction_budget_three_and_online_change_hardstop(tmp_path):
             (a / "result.json").unlink()
             a.rmdir()
     p = e / "attempt-0/result.json"
-    p.write_text(json.dumps(dict(status="blocked", possible_online_write=True)))
+    p.write_text(json.dumps(dict(status="blocked", possible_online_write=True, quarantined=False)))
     with pytest.raises(SafetyError, match="cannot be retried"):
         t.next_attempt(r, t.sha(p))
 
@@ -376,7 +383,7 @@ def test_uncertain_or_wrong_prior_result_denies_retry(tmp_path):
     with pytest.raises(SafetyError, match="uncertain"):
         t.next_attempt(r, "a" * 64)
     p = a / "result.json"
-    p.write_text(json.dumps(dict(status="blocked", possible_online_write=False)))
+    p.write_text(json.dumps(dict(status="blocked", possible_online_write=False, quarantined=False)))
     for correction in (None, "a" * 64):
         with pytest.raises(SafetyError):
             t.next_attempt(r, correction)

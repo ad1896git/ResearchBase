@@ -6,6 +6,7 @@ import argparse
 import contextlib
 import hashlib
 import json
+import os
 import plistlib
 import runpy
 import shutil
@@ -67,6 +68,12 @@ def validate_deployment(value, root, writable, inputs, python):
         "deployment exact head",
     )
     require(value["runtime"] == str(python.parents[2]), "deployment fixed runtime")
+    require(
+        any(
+            Path(value["runtime"]) == p or Path(value["runtime"]).is_relative_to(p) for p in inputs
+        ),
+        "undeclared target runtime",
+    )
     require(type(value["stamp"]) is str and value["stamp"].isalnum(), "deployment stamp")
     prior_runtime = canonical(value["prior_runtime"])
     require(
@@ -129,7 +136,11 @@ def materialize(model, writable):
     records = []
     for source, dest in mappings:
         # Symlinks are recorded by the online snapshot, but not introduced as writable aliases.
-        snapshot = inventory([source], strict=True)
+        snapshot = inventory([source])
+        require(
+            all(row["kind"] != "symlink" for row in snapshot.values()),
+            "materialization symlink requires explicit reviewed mapping",
+        )
         dest.parent.mkdir(parents=True, exist_ok=True)
         if source.is_dir():
             shutil.copytree(source, dest)
@@ -263,9 +274,33 @@ def rehearse(root, attempt, phase):
 
     def validate(*args, **kwargs):
         require(args[0]["snapshot_inventory"] == closure, "fixture manifest identity")
-        for name in FILES:
-            path = fixture / name
-            require(sha(path) == closure[str(path)]["sha256"], "legacy fixture drift")
+        current = inventory([fixture], strict=True)
+        # Only these fixture-local operations are expected from this deployment.
+        # This is NOT an exclusion in the full online before/after inventory.
+        additions = {str(fixture / name) for name in (".pipeline/snapshots", ".pipeline/work")}
+        additions.add(str(Path(oldconfig["root"]) / "wakeup.lock"))
+        require(
+            set(current) - additions == set(closure) - additions,
+            "fixture dependency membership drift",
+        )
+        for path, before in closure.items():
+            require(path in current, "fixture dependency disappeared")
+            after = current[path]
+            if path in additions:
+                continue
+            require(
+                (before["kind"], before["mode"], before["uid"], before["gid"])
+                == (after["kind"], after["mode"], after["uid"], after["gid"]),
+                "fixture dependency identity drift",
+            )
+            if before["kind"] == "file":
+                require(before["sha256"] == after["sha256"], "fixture dependency bytes drift")
+            else:
+                allowed = {Path(v).name for v in additions if Path(v).parent == Path(path)}
+                require(
+                    set(after["children"]) - allowed == set(before["children"]) - allowed,
+                    "fixture directory drift",
+                )
         interpreter = (
             prior_runtime / ".venv/bin/python3" if plist.read_bytes() == prior_plist else python
         )
@@ -295,7 +330,27 @@ def rehearse(root, attempt, phase):
     def transport(argv, *args, **kwargs):
         calls.append(argv)
         if argv[0] == "launchctl":
+            domain = f"gui/{os.getuid()}"
+            service = domain + "/com.researchbase.pipeline-wakeup"
             action = argv[1]
+            if action == "print-disabled":
+                require(argv == ["launchctl", action, domain], "unknown launchd domain")
+            elif action == "print":
+                require(
+                    argv
+                    in [
+                        ["launchctl", action, domain + "/" + name]
+                        for name in (*LEGACY, "com.researchbase.pipeline-wakeup")
+                    ],
+                    "unknown service",
+                )
+            elif action in ("bootstrap", "bootout"):
+                require(argv == ["launchctl", action, domain, str(plist)], "unknown service plist")
+            else:
+                require(
+                    action in ("enable", "disable") and argv == ["launchctl", action, service],
+                    "unknown service action",
+                )
             out, rc = "", 0
             if action == "print-disabled":
                 out = "\n".join(f'"{n}" => disabled' for n in LEGACY)
@@ -384,7 +439,19 @@ def rehearse(root, attempt, phase):
         if state["new"] and clock[0] >= 300 and state["runs"] == 1:
             rows = dict(
                 status="checked",
-                entries={e["id"]: "done" for e in oldqueue["entries"]},
+                entries={
+                    e["id"]: (
+                        "done"
+                        if all(
+                            t["status"] == "done"
+                            for t in json.loads((Path(e["control"]) / "state.json").read_text())[
+                                "tasks"
+                            ].values()
+                        )
+                        else "held"
+                    )
+                    for e in oldqueue["entries"]
+                },
                 backlog={},
                 admission={},
             )
