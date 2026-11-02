@@ -17,14 +17,16 @@ bundle; `source` metadata in the JSON identifies this distinction.
 `static` selects one completed successful **push/main** producer from repository
 ID 1361591752 and fixed CI workflow ID 373014981. The source must be an ancestor
 of this run's fixed PR base (or this push's SHA), updated within 14 days, attempt
-one, with the exact seven completed successful jobs. The producer's workflow,
+one, with the exact seven completed successful jobs. Job queries use the fixed
+attempt-one endpoint and bind each job head/attempt; run identity is reread before
+and after capture, rejecting a rerun or producer drift. The producer's workflow,
 selector and timing-parser Git blob identities must match the reviewed checkout.
 A changed protocol therefore falls back until a new compatible main run succeeds.
 The reader cannot consume its own in-progress run or a pending/failed/PR run.
 
 Each producer must have six distinct `pytest-timings-0..5` artifacts, each with
 exactly `pytest-results.xml` and `pytest-files.txt`. Artifact identity, head,
-repository, expiry, SHA256 digest, size, ZIP entries, XML shape/counters and case
+repository, expiry, SHA256 digest, size, ZIP entries, XML closed parent/child grammar, node/depth budgets, counters and case
 times are verified. Declared file lists must form the full disjoint producer Git
 inventory; each case belongs to its shard and has a unique identity. Legacy
 XML-only artifacts are incompatible. Bounded archive/XML reads reject traversal,

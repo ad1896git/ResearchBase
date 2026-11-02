@@ -17,7 +17,7 @@ from scripts.ci_pytest_files import shard_files
 
 BASE, HEAD, RUN = "a" * 40, "b" * 40, 123
 LIST = f"/actions/workflows/{t.WORKFLOW_ID}/runs?branch=main&event=push&status=success&per_page=20"
-JOBS = f"/actions/runs/{RUN}/jobs?filter=latest&per_page=100"
+JOBS = f"/actions/runs/{RUN}/attempts/1/jobs?per_page=100"
 ARTS = f"/actions/runs/{RUN}/artifacts?per_page=100"
 TREE = f"/git/trees/{HEAD}?recursive=1"
 COMPARE = f"/compare/{HEAD}...{BASE}"
@@ -68,6 +68,7 @@ def source(tmp_path: Path):
         updated_at=datetime.now(UTC).isoformat(),
         id=RUN,
         workflow_id=t.WORKFLOW_ID,
+        path=".github/workflows/ci.yml",
         event="push",
         head_branch="main",
         status="completed",
@@ -86,11 +87,20 @@ def source(tmp_path: Path):
     )
     docs: dict[str, Any] = {
         LIST: {"workflow_runs": [run]},
+        f"/actions/runs/{RUN}": copy.deepcopy(run),
         COMPARE: {"status": "ahead", "merge_base_commit": {"sha": HEAD}},
         JOBS: {
             "total_count": 7,
             "jobs": [
-                dict(name=n, run_id=RUN, status="completed", conclusion="success")
+                dict(
+                    name=n,
+                    run_id=RUN,
+                    run_attempt=1,
+                    head_sha=HEAD,
+                    head_branch="main",
+                    status="completed",
+                    conclusion="success",
+                )
                 for n in sorted(t.EXPECTED_JOBS)
             ],
         },
@@ -359,3 +369,98 @@ def test_workflow_keeps_seven_check_names_and_full_gate():
     assert "--durations /tmp/ci-shard-profile/profile.json" in workflow
     assert "${{ needs.static.outputs.timing-sha256 }}" in workflow
     assert "pull_request_target" not in workflow and ": write" not in workflow
+
+
+@pytest.mark.parametrize("kind", ["null-timestamp", "null-artifact-name"])
+def test_nullable_metadata_keeps_fallback(source, kind):
+    root, docs = source
+    if kind == "null-timestamp":
+        docs[LIST]["workflow_runs"][0]["updated_at"] = None
+    else:
+        docs[ARTS]["artifacts"][0]["name"] = None
+    raw, receipt = t.prepare(root, BASE, getter(docs))
+    assert receipt["mode"] == "committed-fallback"
+    assert receipt["reason"].startswith("ValueError:")
+    assert raw == (root / ".github/pytest-durations.json").read_bytes()
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["nested-suite", "hidden-error", "unknown-child", "unknown-attribute", "duplicate-skipped"],
+)
+def test_hidden_junit_structure_cannot_be_trusted(source, kind):
+    root, docs = source
+    with zipfile.ZipFile(io.BytesIO(archive())) as z:
+        xml = ET.fromstring(z.read("pytest-results.xml"))
+    if kind == "nested-suite":
+        hidden = ET.SubElement(xml[0], "testsuite", errors="1", failures="0", tests="0")
+        ET.SubElement(hidden, "error").text = "hidden"
+    elif kind == "hidden-error":
+        properties = ET.SubElement(xml[0][0], "properties")
+        ET.SubElement(properties, "error").text = "hidden"
+    elif kind == "unknown-child":
+        ET.SubElement(xml[0][0], "extension")
+    elif kind == "unknown-attribute":
+        xml[0][0].set("error", "hidden")
+    else:
+        xml[0].set("skipped", "1")
+        ET.SubElement(xml[0][0], "skipped")
+        ET.SubElement(xml[0][0], "skipped")
+    raw = archive(xml=ET.tostring(xml))
+    docs["/actions/artifacts/10/zip"] = raw
+    docs[ARTS]["artifacts"][0].update(size_in_bytes=len(raw), digest="sha256:" + t.digest(raw))
+    _, receipt = t.prepare(root, BASE, getter(docs))
+    assert receipt["mode"] == "committed-fallback"
+
+
+def test_xml_node_budget_rejects_bounded_but_excessive_metadata():
+    root = ET.Element("testsuites")
+    properties = ET.SubElement(ET.SubElement(root, "testsuite"), "properties")
+    for _ in range(250000):
+        ET.SubElement(properties, "property", name="x", value="y")
+    with pytest.raises(ValueError, match="node/depth budget"):
+        t.closed_junit(root)
+
+
+def test_real_pytest_property_shape_remains_supported(source):
+    root, docs = source
+    with zipfile.ZipFile(io.BytesIO(archive())) as z:
+        xml = ET.fromstring(z.read("pytest-results.xml"))
+    properties = ET.SubElement(xml[0][0], "properties")
+    ET.SubElement(properties, "property", name="benchmark", value="observed")
+    raw = archive(xml=ET.tostring(xml))
+    docs["/actions/artifacts/10/zip"] = raw
+    docs[ARTS]["artifacts"][0].update(size_in_bytes=len(raw), digest="sha256:" + t.digest(raw))
+    _, receipt = t.prepare(root, BASE, getter(docs))
+    assert receipt["mode"] == "trusted-main" and receipt["producer"]["attempt"] == 1
+
+
+@pytest.mark.parametrize(
+    "kind", ["jobs-attempt2", "before-rerun", "during-rerun", "during-head-drift"]
+)
+def test_producer_attempt_is_fixed_and_checked_before_after(source, kind):
+    root, docs = source
+    if kind == "jobs-attempt2":
+        docs[JOBS]["jobs"][0]["run_attempt"] = 2
+    elif kind == "before-rerun":
+        docs[f"/actions/runs/{RUN}"]["run_attempt"] = 2
+    calls = []
+    snapshots = 0
+
+    def get(endpoint, limit):
+        nonlocal snapshots
+        calls.append(endpoint)
+        if endpoint == f"/actions/runs/{RUN}":
+            snapshots += 1
+            if snapshots == 2:
+                if kind == "during-rerun":
+                    docs[endpoint]["run_attempt"] = 2
+                if kind == "during-head-drift":
+                    docs[endpoint]["head_sha"] = "c" * 40
+        return getter(docs)(endpoint, limit)
+
+    _, receipt = t.prepare(root, BASE, get)
+    assert receipt["mode"] == "committed-fallback"
+    assert not any("filter=latest" in endpoint for endpoint in calls)
+    if kind != "before-rerun":
+        assert JOBS in calls

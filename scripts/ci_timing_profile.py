@@ -127,6 +127,79 @@ def document(get: Get, endpoint: str) -> dict[str, Any]:
     return value
 
 
+def closed_junit(root: ET.Element) -> None:
+    children = {
+        "testsuites": {"testsuite"},
+        "testsuite": {"testcase", "properties", "system-out", "system-err"},
+        "testcase": {"properties", "skipped", "system-out", "system-err"},
+        "properties": {"property"},
+        "property": set(),
+        "skipped": set(),
+        "system-out": set(),
+        "system-err": set(),
+    }
+    attributes = {
+        "testsuites": set(),
+        "testsuite": {
+            "name",
+            "errors",
+            "failures",
+            "skipped",
+            "tests",
+            "time",
+            "timestamp",
+            "hostname",
+        },
+        "testcase": {"classname", "name", "time", "file", "line", "url"},
+        "properties": set(),
+        "property": {"name", "value"},
+        "skipped": {"type", "message"},
+        "system-out": set(),
+        "system-err": set(),
+    }
+    pending = [(root, 0)]
+    count = 0
+    while pending:
+        node, depth = pending.pop()
+        count += 1
+        require(count <= 250000 and depth <= 4, "XML node/depth budget")
+        require(node.tag in children, "unsupported JUnit tag")
+        require(set(node.attrib) <= attributes[node.tag], "unsupported JUnit attribute")
+        require(all(child.tag in children[node.tag] for child in node), "JUnit child shape")
+        if node.tag in {"testsuite", "testcase"}:
+            for tag in ("properties", "skipped", "system-out", "system-err"):
+                require(sum(child.tag == tag for child in node) <= 1, "duplicate JUnit child")
+        pending.extend((child, depth + 1) for child in node)
+
+
+def producer_identity(run: dict[str, Any]) -> dict[str, Any]:
+    require(isinstance(run, dict), "producer document shape")
+    require(
+        isinstance(run["repository"], dict) and isinstance(run["head_repository"], dict),
+        "producer repository shape",
+    )
+    require(type(run["updated_at"]) is str, "producer timestamp type")
+    require(type(run["run_attempt"]) is int and run["run_attempt"] == 1, "producer attempt")
+    return {
+        key: run[key]
+        for key in (
+            "id",
+            "workflow_id",
+            "path",
+            "head_sha",
+            "head_branch",
+            "event",
+            "status",
+            "conclusion",
+            "run_attempt",
+            "updated_at",
+        )
+    } | {
+        "repository_id": run["repository"]["id"],
+        "head_repository_id": run["head_repository"]["id"],
+    }
+
+
 def parse_artifact(raw: bytes) -> tuple[list[str], list[tuple[str, str, float]]]:
     require(len(raw) <= MAX_ZIP, "ZIP size bound")
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
@@ -158,6 +231,7 @@ def parse_artifact(raw: bytes) -> tuple[list[str], list[tuple[str, str, float]]]
     require(
         root.tag == "testsuites" and len(root) == 1 and root[0].tag == "testsuite", "JUnit shape"
     )
+    closed_junit(root)
     suite = root[0]
     cases = suite.findall("testcase")
     require(0 < len(cases) <= MAX_CASES, "JUnit case count")
@@ -198,7 +272,13 @@ def measured_profile(root: Path, base: str, get: Get) -> tuple[dict[str, float],
         f"/actions/workflows/{WORKFLOW_ID}/runs?branch=main&event=push&status=success&per_page=20",
     )
     chosen = None
+    require(isinstance(listing["workflow_runs"], list), "producer listing shape")
     for run in listing["workflow_runs"]:
+        require(isinstance(run, dict), "producer document shape")
+        require(
+            isinstance(run["repository"], dict) and isinstance(run["head_repository"], dict),
+            "producer repository shape",
+        )
         if not (
             run["workflow_id"] == WORKFLOW_ID
             and run["event"] == "push"
@@ -210,6 +290,7 @@ def measured_profile(root: Path, base: str, get: Get) -> tuple[dict[str, float],
             and run["head_repository"]["id"] == REPOSITORY_ID
         ):
             continue
+        require(type(run["updated_at"]) is str, "producer timestamp type")
         updated = datetime.fromisoformat(run["updated_at"].replace("Z", "+00:00"))
         now = datetime.now(UTC)
         if updated.tzinfo is None or not now - timedelta(days=14) <= updated <= now + timedelta(
@@ -229,12 +310,24 @@ def measured_profile(root: Path, base: str, get: Get) -> tuple[dict[str, float],
     assert chosen is not None
     run_id, head = chosen["id"], chosen["head_sha"]
     require(type(run_id) is int and run_id > 0, "producer run ID")
-    jobs = document(get, f"/actions/runs/{run_id}/jobs?filter=latest&per_page=100")
+    producer_snapshot = producer_identity(chosen)
+    require(producer_snapshot["path"] == ".github/workflows/ci.yml", "producer workflow path")
+    require(
+        producer_identity(document(get, f"/actions/runs/{run_id}")) == producer_snapshot,
+        "producer changed before capture",
+    )
+    jobs = document(get, f"/actions/runs/{run_id}/attempts/1/jobs?per_page=100")
     require(jobs["total_count"] == 7 and len(jobs["jobs"]) == 7, "incomplete/duplicate job set")
     require({j["name"] for j in jobs["jobs"]} == EXPECTED_JOBS, "seven exact jobs required")
     require(
         all(
-            j["run_id"] == run_id and j["status"] == "completed" and j["conclusion"] == "success"
+            j["run_id"] == run_id
+            and type(j["run_attempt"]) is int
+            and j["run_attempt"] == 1
+            and j["head_sha"] == head
+            and j["head_branch"] == "main"
+            and j["status"] == "completed"
+            and j["conclusion"] == "success"
             for j in jobs["jobs"]
         ),
         "job status",
@@ -259,6 +352,11 @@ def measured_profile(root: Path, base: str, get: Get) -> tuple[dict[str, float],
     )
     artifacts = document(get, f"/actions/runs/{run_id}/artifacts?per_page=100")
     require(artifacts["total_count"] == len(artifacts["artifacts"]) <= 100, "artifact pagination")
+    require(isinstance(artifacts["artifacts"], list), "artifact listing shape")
+    require(
+        all(isinstance(a, dict) and type(a.get("name")) is str for a in artifacts["artifacts"]),
+        "artifact name type",
+    )
     timings = [a for a in artifacts["artifacts"] if a["name"].startswith("pytest-timings-")]
     require(
         len(timings) == 6
@@ -308,7 +406,12 @@ def measured_profile(root: Path, base: str, get: Get) -> tuple[dict[str, float],
     require(selected_all == inventory, "incomplete producer file partition")
     require(all(math.isfinite(v) and v <= 43200 for v in durations.values()), "file duration bound")
     require(1 < sum(durations.values()) <= 43210, "total timing budget/empty run")
+    require(
+        producer_identity(document(get, f"/actions/runs/{run_id}")) == producer_snapshot,
+        "producer changed during capture",
+    )
     return durations, dict(
+        attempt=1,
         run_id=run_id,
         head=head,
         base=base,
@@ -362,6 +465,7 @@ def prepare(root: Path, base: str, get: Get = github) -> tuple[bytes, dict[str, 
         )
     except (
         OSError,
+        AttributeError,
         ValueError,
         KeyError,
         TypeError,
