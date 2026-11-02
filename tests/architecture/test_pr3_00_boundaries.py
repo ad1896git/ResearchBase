@@ -203,6 +203,7 @@ def test_bootstrap_initializers_stay_empty_and_import_without_activation(tmp_pat
     packages = []
     admitted_planning_files = {
         # Owner-frozen PR3-02-S2 Q1/Q4/Q5: CREATED intents and reads only.
+        "agent_runtime/domain/critic_preview.py",  # Authorized synthetic-only P09 preview.
         "agent_runtime/domain/agent_execution.py",
         "agent_runtime/application/execution_contracts.py",
         "agent_runtime/application/agent_executions.py",
