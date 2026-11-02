@@ -3,8 +3,8 @@
   "payloads": [
     {
       "path": "CONTRACT-PROPOSED.md",
-      "sha256": "87adf16a4b61c7db79868d587711bfec34a0ccaad8b822d7c60d9dab574797d3",
-      "bytes": 13790
+      "sha256": "4a3dde8a4750115db06aca7a4f71420263ab684ede34db88142d3dc7b6f8c611",
+      "bytes": 15538
     },
     {
       "path": "CROSSWALK.md",
@@ -13,8 +13,8 @@
     },
     {
       "path": "LOCAL-WRITER-STEPS-NOT-EXECUTED.md",
-      "sha256": "d5dccd0775d5a29267f2db80106e2f1b6adb033e670684e8a6e0c5ecffcadfed",
-      "bytes": 8930
+      "sha256": "9582ad3df2a35dbe3fffd1b701ca02f65497e3a86c33862b32ad2c3022e325c1",
+      "bytes": 9609
     },
     {
       "path": "PROTECTIONS-AND-RISKS-ONEPAGE.md",

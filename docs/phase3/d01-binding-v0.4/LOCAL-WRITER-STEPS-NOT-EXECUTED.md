@@ -29,10 +29,12 @@ read -r -p 'Approved DBA login role: ' D01_DBA_ROLE
 read -r -p 'Approved existing isolated database: ' D01_DATABASE_NAME
 read -r -p 'New dedicated writer role (lowercase identifier): ' D01_WRITER_ROLE
 [[ "$D01_SOCKET_DIRECTORY" == /* && -d "$D01_SOCKET_DIRECTORY" ]] || exit 1
+[[ "$D01_SOCKET_DIRECTORY" != *,* ]] || exit 1  # No libpq multi-host list.
 [[ "$D01_SOCKET_PORT" =~ ^[0-9]{1,5}$ ]] || exit 1
 (( 10#$D01_SOCKET_PORT >= 1 && 10#$D01_SOCKET_PORT <= 65535 )) || exit 1
 [[ "$D01_WRITER_ROLE" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || exit 1
-[[ -n "$D01_DBA_ROLE" && -n "$D01_DATABASE_NAME" ]] || exit 1
+[[ "$D01_DBA_ROLE" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || exit 1
+[[ "$D01_DATABASE_NAME" =~ ^[A-Za-z_][A-Za-z0-9_]{0,62}$ ]] || exit 1
 # Explicit socket parameters; strip inherited connection shortcuts/credentials.
 env -u PGHOST -u PGHOSTADDR -u PGPORT -u PGDATABASE -u PGUSER \
     -u PGSERVICE -u PGSERVICEFILE -u PGPASSWORD -u PGPASSFILE -u PGOPTIONS \
@@ -50,6 +52,14 @@ SELECT pg_catalog.current_database(),
 -- following CREATE in a separate owner-approved invocation, not blindly after print.
 SQL
 ```
+
+The guarded manual steps support only plain approved role/database identifiers.
+A `-d` conninfo string or URI can override other libpq connection arguments;
+therefore reject `host=... dbname=...`, `postgresql://...`, spaces, separators or
+other unsupported names, never reinterpret them or relax the guard. Complex valid
+PostgreSQL names require a separately reviewed explicit-parameter procedure. A
+comma-separated host list is also rejected. These restrictions do not assert the
+actual local DB name has already been supplied.
 
 Printing these facts is not a comparison or grant. Do not append CREATE to this
 observation heredoc and pretend human review happened. In a **separate invocation**

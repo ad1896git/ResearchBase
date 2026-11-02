@@ -108,25 +108,29 @@ replacing that requirement is the explicit unresolved helper decision.
 
 ## 4. Rebind command design (not an existing executable)
 
-Proposed operator-only `binding-rebind prepare` reads the original protected record
-and fixed new observation, prints a sorted path-by-path old/new **binding** diff and
-reason, and writes only an UNAPPROVED candidate. No trusted boolean/`--yes`/agent
+One proposed operator-only public command, `binding-rebind`, reads the original
+protected record and fixed new observation, prints a sorted path-by-path old/new
+**binding** diff and reason, then pauses for the actual owner confirmation through
+the existing protected owner/operator channel. Observation, displayed candidate,
+confirmation and append are INTERNAL phases of that same command, not separate
+public prepare/finalize commands or a new approval service. Any pending candidate
+is unapproved data. No trusted boolean/`--yes`/agent
 self-confirmation. Major upgrade, migration, relevant role/owner/permission changes
 and deployment changes require rebind; PG-minor maintenance requires an explicit
 PG_UPGRADE event even if all compared fields/diff are unchanged. Do not claim an
 unrecorded harmless role-graph/minor change can be detected from these predicates.
 
-A distinct protected finalize step requires the actual owner's explicit confirmation
+The same command's protected append phase requires the actual owner's explicit confirmation
 of original SHA, candidate canonical SHA and diff SHA in independently retained
 decision evidence. Operator cannot manufacture that decision. Under the original
 namespace's exclusive owner protocol, recheck expected previous SHA/sequence and
 all observations, then append a **new**0600 approval file with exclusive-create,
 full write/fsync and directory fsync; parent0700. Never overwrite old approval,
-replace history, or let a partial file become a valid record. Repeated finalize
+replace history, or let a partial file become a valid record. Repeated invocation after an uncertain append
 returns the exact original append if already durably recorded; conflicting or
 incomplete outcome HOLDs. SHA chain/sequence is consistency, not a signature.
 
-Finalize is not activate/register/migrate/grant/restart. Before any bound identity
+The command does not activate/register/migrate/grant/restart. Before any bound identity
 changes, old root must revoke and drain under D03, preserving original receipts and
 unknown outcomes. Unknown old work/cleanup blocks a new live root, even if namespace
 or approval changed. Startup selects one explicitly approved record through protected
@@ -170,6 +174,21 @@ Planned regression obligations: sole creator AST/import-alias/direct-driver/dyna
 negative probes; unapproved factory never returned; wrong DB/head/role/helper/Unix
 endpoint denied; PUBLIC effective privileges and indirect owner membership tested;
 real same-connection/reconnect/commit/rollback-cleanup/fork/expiry/replay boundaries.
+Concrete future test cases (planned, **NOT RUN**, not a claim of production lint):
+
+| Case | Source/behavior fixture | Required future observation |
+|---|---|---|
+| E01 | sole database.py creator, actual preflight succeeds | Only fixed protected root may receive bound factory |
+| E02 | uow.py direct create_engine (current bypass) | Reject outside creator; route existing owner semantics through reviewed creator |
+| E03 | migrations/env.py engine_from_config (current bypass) | Reject construction outside creator, retain separately authorized migration semantics |
+| E04 | from sqlalchemy import create_engine as alias; alias(...) | Alias cannot escape denied construction |
+| E05 | import sqlalchemy as sa; sa.create_engine(...) | Attribute alias cannot escape denied construction |
+| E06 | psycopg.connect / async engine / other direct driver | Deny outside the sole admitted creator |
+| E07 | importlib, __import__, getattr or unresolved dynamic factory | Unsupported dynamic construction fails closed, no generic exemption |
+| E08 | failed preflight, caller URL or substitute factory | No returned bound session factory or authority |
+| E09 | successful startup then replaced/reconnected physical connection | Deny new attempt without same approved actual-connection proof |
+| E10 | lint passes but lease lost/unknown commit/cleanup failure | Runtime deny/UNKNOWN rules still apply; lint is not lifetime proof |
+
 No product tests or PG were run by this docs task. Small offline vectors establish
 only JSON/shape/hash behavior, not any runtime binding or authority.
 
