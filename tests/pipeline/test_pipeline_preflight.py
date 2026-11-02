@@ -84,10 +84,35 @@ raise SystemExit(23 if phase=='rollback' else 0)
         )
     b = r / "bindings.json"
     b.write_text(json.dumps(dict(config=str(r / "payload/attempt-0/old.json"))))
+    base_runtime = Path(sys.base_prefix).resolve()
+    runtime = Path(sys.executable).parents[2]
     m = dict(
+        interpreter_inputs=[
+            dict(
+                role="current",
+                executable=sys.executable,
+                resolved_executable=str(Path(sys.executable).resolve()),
+                executable_sha256=t.sha(Path(sys.executable).resolve()),
+                base_runtime=str(base_runtime),
+                path_aliases=sorted(
+                    set(
+                        t.interpreter_aliases(Path(sys.executable))
+                        + t.interpreter_aliases(
+                            Path(
+                                (Path(sys.executable).parents[1] / "pyvenv.cfg")
+                                .read_text()
+                                .splitlines()[0]
+                                .split("=", 1)[1]
+                                .strip()
+                            )
+                        )
+                    )
+                ),
+            )
+        ],
         version=1,
         python=sys.executable,
-        online_inputs=[str(o)],
+        online_inputs=[str(o), str(runtime), str(base_runtime)],
         script=str(script),
         script_sha256=t.sha(script),
         bindings=[str(b)],
@@ -431,3 +456,89 @@ def test_unconfined_internal_entry_cannot_bypass_outer(tmp_path):
         cwd=Path(__file__).resolve().parents[2],
     )
     assert v.returncode == 2 and not (r / "payload").exists()
+
+
+@pytest.mark.parametrize("field", ["closure", "digest", "resolved", "roles"])
+def test_interpreter_closure_required_before_write(tmp_path, field):
+    r, _, m = fixture(tmp_path)
+    if field == "closure":
+        m["online_inputs"].remove(m["interpreter_inputs"][0]["base_runtime"])
+    elif field == "digest":
+        m["interpreter_inputs"][0]["executable_sha256"] = "0" * 64
+    elif field == "resolved":
+        m["interpreter_inputs"][0]["resolved_executable"] = m["script"]
+    else:
+        m["interpreter_inputs"] = []
+    save(r, m)
+    assert invoke(r) == 2 and not (r / "payload").exists()
+
+
+def test_prior_resolved_binary_and_base_library_changes_observed(tmp_path):
+    r, o, m = fixture(tmp_path)
+    project = o / "prior-project"
+    venv = project / ".venv"
+    (venv / "bin").mkdir(parents=True)
+    base = o / "prior-base"
+    (base / "bin").mkdir(parents=True)
+    (base / "lib").mkdir()
+    binary = base / "bin/python3"
+    binary.write_bytes(b"fixture executable bytes")
+    lib = base / "lib/stdlib.py"
+    lib.write_text("fixture base runtime")
+    (venv / "bin/python3").symlink_to(binary)
+    (venv / "pyvenv.cfg").write_text("home = " + str(base / "bin") + "\n")
+    rows = [
+        m["interpreter_inputs"][0],
+        dict(
+            role="prior",
+            executable=str(venv / "bin/python3"),
+            resolved_executable=str(binary),
+            executable_sha256=t.sha(binary),
+            base_runtime=str(base),
+            path_aliases=t.interpreter_aliases(venv / "bin/python3"),
+        ),
+    ]
+    paths = [Path(p) for p in m["online_inputs"]]
+    t.interpreter_closure(rows, paths, Path(sys.executable), project)
+    before = t.inventory([base])
+    binary.write_bytes(b"replaced binary")
+    with pytest.raises(SafetyError, match="digest drift"):
+        t.interpreter_closure(rows, paths, Path(sys.executable), project)
+    assert t.inventory([base]) != before
+    binary.write_bytes(b"fixture executable bytes")
+    before = t.inventory([base])
+    lib.write_text("changed library")
+    assert t.inventory([base]) != before
+
+
+@MAC
+def test_intent_records_actual_single_root_profile_not_workdir(tmp_path):
+    r, _, _ = fixture(tmp_path)
+    assert invoke(r) == 0
+    intent = json.loads((r / "evidence/attempt-0/intent.json").read_text())
+    assert intent["effective_write_root"] == str(r) and intent["profile"] == t.profile(r)
+    assert intent["payload_workdir"] == str(r / "payload/attempt-0")
+    assert "writable_root" not in intent
+
+
+def test_interpreter_alias_loop_is_bounded_and_alias_metadata_snapshotted(tmp_path):
+    r, o, _ = fixture(tmp_path)
+    a = o / "alias-a"
+    b = o / "alias-b"
+    a.symlink_to(b)
+    b.symlink_to(a)
+    with pytest.raises(SafetyError, match="alias bound"):
+        t.interpreter_aliases(a)
+    b.unlink()
+    b.symlink_to(o / "stdout")
+    before = t.inventory([a])
+    a.unlink()
+    a.symlink_to(o / "stderr")
+    assert t.inventory([a]) != before
+
+
+def test_declared_interpreter_aliases_cannot_be_silently_omitted(tmp_path):
+    r, _, m = fixture(tmp_path)
+    m["interpreter_inputs"][0]["path_aliases"] = []
+    save(r, m)
+    assert invoke(r) == 2 and not (r / "payload").exists()

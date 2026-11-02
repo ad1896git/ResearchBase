@@ -126,7 +126,23 @@ def deployment_fixture(tmp_path) -> tuple[Path, Path, dict[str, Any]]:
         row["path_mapping"] = mapping
     Path(m["script"]).write_text(DEPLOYMENT_PAYLOAD)
     m["script_sha256"] = t.sha(Path(m["script"]))
-    m["online_inputs"].append(str(runtime))
+    m["interpreter_inputs"].append(
+        {
+            **m["interpreter_inputs"][0],
+            "role": "prior",
+            "executable": str(prior / ".venv/bin/python3"),
+        }
+    )
+    (prior / ".venv/pyvenv.cfg").write_text(
+        "home = " + str(Path(sys.base_prefix).resolve() / "bin") + "\n"
+    )
+    m["interpreter_inputs"][1]["path_aliases"] = sorted(
+        set(
+            t.interpreter_aliases(prior / ".venv/bin/python3")
+            + t.interpreter_aliases(Path(sys.base_prefix).resolve() / "bin")
+        )
+    )
+
     m["deployment"] = dict(
         version=1,
         head=head,

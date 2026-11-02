@@ -67,7 +67,15 @@ All listed fields are required; unknown versions/fields are refused:
 {
   "version": 1,
   "python": "/ABS/REVIEWED_RUNTIME/.venv/bin/python3",
-  "online_inputs": ["/ABS/ONLINE/control", "/ABS/ONLINE/runtime", "/ABS/ONLINE/service-inputs"],
+  "interpreter_inputs": [
+    {"role": "current", "executable": "/ABS/REVIEWED_RUNTIME/.venv/bin/python3",
+     "resolved_executable": "/ABS/CPYTHON_BASE/bin/python3.12", "executable_sha256": "64-hex",
+     "base_runtime": "/ABS/CPYTHON_BASE", "path_aliases": ["/ABS/REVIEWED_RUNTIME/.venv/bin/python3"]},
+    {"role": "prior", "executable": "/ABS/READONLY_PRIOR_RUNTIME/.venv/bin/python3",
+     "resolved_executable": "/ABS/CPYTHON_BASE/bin/python3.12", "executable_sha256": "64-hex",
+     "base_runtime": "/ABS/CPYTHON_BASE", "path_aliases": ["/ABS/READONLY_PRIOR_RUNTIME/.venv/bin/python3"]}
+  ],
+  "online_inputs": ["/ABS/ONLINE/control", "/ABS/ONLINE/runtime", "/ABS/ONLINE/service-inputs", "/ABS/CPYTHON_BASE"],
   "script": "/ABS/PRIVATE_ROOT/deploy.py",
   "script_sha256": "64-lowercase-hex",
   "bindings": ["/ABS/PRIVATE_ROOT/fixture-bindings.json"],
@@ -122,6 +130,18 @@ matching baseline guards remain separate release obligations.
 `--phase normal` (exit0) and `--phase rollback` (exit23). That mode is labeled generic and is
 not accepted as the fixed deployment-adapter proof. No temporary Python wrapper is needed for
 the deployment mode; only the reviewed payload and closed data manifest are provided.
+
+Current/prior executable spelling remains the venv path (so sys.prefix is unchanged); the
+resolved startup binary SHA and actual base runtime are mandatory. The complete current/prior
+venv roots and base runtime directories must be explicit online inputs. pyvenv.cfg home must
+resolve to that base, and current loaded sys.base_prefix must agree. Only interpreter/home
+alias chains are additionally declared via exact path_aliases and snapshotted with lstat and
+readlink (no generic following of all online symlinks). They are revalidated at phase boundaries;
+missing closure, changed executable bytes or alias redirection blocks. This observes runtime
+changes across the operation; a trusted bootstrap/interpreter/OS before first execution remains
+an external caller freeze obligation, not self-attestation against an already compromised host.
+The intent records effective_write_root=root/profile(root); payload_workdir is just a working
+directory, not a narrower kernel sandbox.
 
 ## Whole-online comparison and results
 

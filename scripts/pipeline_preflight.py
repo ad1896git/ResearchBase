@@ -129,9 +129,10 @@ def inventory(paths, *, strict=False):
             os.close(fd)
 
     for path in paths:
-        require(path.resolve() == path, "input ancestor changed")
+        boundary = path.parent if not strict and path.is_symlink() else path
+        require(boundary.resolve() == boundary, "input ancestor changed")
         visit(path)
-        require(path.resolve() == path, "input ancestor changed")
+        require(boundary.resolve() == boundary, "input ancestor changed")
     return result
 
 
@@ -211,6 +212,110 @@ def checked_plist(path, root, python, runtime=None, executable_dirs=()):
     return hashlib.sha256(raw).hexdigest()
 
 
+def interpreter_aliases(path):
+    current = Path("/")
+    pending = list(path.parts[1:])
+    found = set()
+    followed = 0
+    while pending:
+        part = pending.pop(0)
+        if part in ("", "."):
+            continue
+        if part == "..":
+            current = current.parent
+            continue
+        candidate = current / part
+        if candidate.is_symlink():
+            followed += 1
+            found.add(str(candidate))
+            require(followed <= 40, "interpreter alias bound")
+            target = Path(os.readlink(candidate))
+            if target.is_absolute():
+                current = Path("/")
+                pending = list(target.parts[1:]) + pending
+            else:
+                pending = list(target.parts) + pending
+        else:
+            current = candidate
+    return sorted(found)
+
+
+def interpreter_closure(
+    specs: list[dict[str, Any]], inputs, python, prior_runtime=None, write_root=None
+):
+    expected = {"current": python}
+    if prior_runtime is not None:
+        expected["prior"] = prior_runtime / ".venv/bin/python3"
+    require(type(specs) is list and len(specs) == len(expected), "interpreter closure roles")
+    seen = set()
+    for spec in specs:
+        exact(
+            spec,
+            (
+                "role",
+                "executable",
+                "resolved_executable",
+                "executable_sha256",
+                "base_runtime",
+                "path_aliases",
+            ),
+        )
+        role = spec["role"]
+        require(type(role) is str and role in expected and role not in seen, "interpreter role")
+        seen.add(role)
+        lexical = expected[role]
+        require(spec["executable"] == str(lexical), "interpreter lexical path changed")
+        resolved = lexical.resolve(strict=True)
+        require(
+            spec["resolved_executable"] == str(resolved)
+            and resolved.is_file()
+            and sha(resolved) == spec["executable_sha256"],
+            "resolved interpreter digest drift",
+        )
+        base = canonical(spec["base_runtime"])
+        require(base.is_dir() and resolved.is_relative_to(base), "interpreter base runtime")
+        require(
+            any(base == p or base.is_relative_to(p) for p in inputs),
+            "base runtime outside snapshot closure",
+        )
+        runtime = lexical.parents[2]
+        require(
+            any(runtime == p or runtime.is_relative_to(p) for p in inputs),
+            "lexical runtime outside snapshot closure",
+        )
+        cfg = lexical.parents[1] / "pyvenv.cfg"
+        require(cfg.is_file() and not cfg.is_symlink(), "venv configuration missing/aliased")
+        homes = [
+            line.split("=", 1)[1].strip()
+            for line in cfg.read_text().splitlines()
+            if line.split("=", 1)[0].strip() == "home" and "=" in line
+        ]
+        require(
+            len(homes) == 1
+            and Path(homes[0]).is_absolute()
+            and Path(homes[0]).resolve().parent == base,
+            "venv base runtime mismatch",
+        )
+        aliases = sorted(set(interpreter_aliases(lexical) + interpreter_aliases(Path(homes[0]))))
+        require(spec["path_aliases"] == aliases, "interpreter alias closure mismatch")
+        for name in aliases:
+            alias = Path(name)
+            require(
+                alias.parent.resolve() == alias.parent and alias.is_symlink(),
+                "interpreter alias changed",
+            )
+            require(
+                write_root is None
+                or (not alias.is_relative_to(write_root) and not write_root.is_relative_to(alias)),
+                "interpreter alias/writeRoot overlap",
+            )
+            if not any(alias == p or alias.is_relative_to(p) for p in inputs):
+                inputs.append(alias)
+        if role == "current":
+            require(Path(sys.base_prefix).resolve() == base, "current loaded base prefix mismatch")
+    return specs
+
+
 def plan(root, attempt=0):
     require(root.is_dir() and root.resolve() == root, "root missing/noncanonical")
     info = root.stat()
@@ -232,6 +337,7 @@ def plan(root, attempt=0):
             "plists",
             "timeout",
             "deployment",
+            "interpreter_inputs",
         ),
     )
     require(
@@ -287,6 +393,13 @@ def plan(root, attempt=0):
         executable_dirs = validate_deployment(
             manifest["deployment"], root, writable, inputs, python
         )
+    interpreter_closure(
+        manifest["interpreter_inputs"],
+        inputs,
+        python,
+        Path(manifest["deployment"]["prior_runtime"]) if manifest["deployment"] else None,
+        write_root=root,
+    )
     readonly = (str(runtime), str(python), *executable_dirs)
     for item in manifest["bindings"]:
         validate_paths(json.loads(beneath(item, root).read_text()), writable, readonly)
@@ -470,6 +583,13 @@ def run(root, correction=None):
     attempt = next_attempt(root, correction)
     manifest, inputs, script, plist_hashes = plan(root, attempt)
     before = inventory(inputs)
+    interpreter_closure(
+        manifest["interpreter_inputs"],
+        inputs,
+        Path(manifest["python"]),
+        Path(manifest["deployment"]["prior_runtime"]) if manifest["deployment"] else None,
+        write_root=root,
+    )
     root_identity = (root.stat().st_dev, root.stat().st_ino)
     evidence = root / "evidence"
     evidence.mkdir(mode=0o700, exist_ok=True)
@@ -495,8 +615,9 @@ def run(root, correction=None):
             attempt=attempt,
             inputs=protected,
             before=before,
-            writable_root=str(writable),
-            profile=profile(writable),
+            effective_write_root=str(root),
+            payload_workdir=str(writable),
+            profile=profile(root),
         ),
     )
     phases = []
@@ -512,6 +633,13 @@ def run(root, correction=None):
                 "root identity changed",
             )
             require(sha(script) == manifest["script_sha256"], "scenario source changed")
+            interpreter_closure(
+                manifest["interpreter_inputs"],
+                inputs,
+                Path(manifest["python"]),
+                Path(manifest["deployment"]["prior_runtime"]) if manifest["deployment"] else None,
+                write_root=root,
+            )
             protected_before = inventory([evidence], strict=True)
             if manifest["deployment"] is None:
                 argv = [manifest["python"], "-B", str(script), "--phase", phase]
@@ -541,6 +669,13 @@ def run(root, correction=None):
                 (root / "manifest.json").read_bytes().hex() == protected["manifest.json"]
                 and script.read_bytes().hex() == protected["script"],
                 "protected manifest/source changed",
+            )
+            interpreter_closure(
+                manifest["interpreter_inputs"],
+                inputs,
+                Path(manifest["python"]),
+                Path(manifest["deployment"]["prior_runtime"]) if manifest["deployment"] else None,
+                write_root=root,
             )
             phases.append(dict(phase=phase, **observed))
             current = inventory(inputs)
