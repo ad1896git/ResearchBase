@@ -28,8 +28,8 @@
     },
     {
       "path": "author-validation.json",
-      "sha256": "4f4dab9fbd0080151ed61c2ee54a745aa525dc295f49af46ee99e56a720a0ed5",
-      "bytes": 701
+      "sha256": "064ba30027ddf32427043f62ddc2228fb1e6f8eb9737c4c99dad94b2fc5c7cb2",
+      "bytes": 3435
     },
     {
       "path": "source-binding.json",

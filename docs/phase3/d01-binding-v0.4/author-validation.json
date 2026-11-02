@@ -9,6 +9,105 @@
   "source_engine_changes": "NONE",
   "SQL_commands": "DOCUMENTED_ONLY_NOT_EXECUTED",
   "freeze": "HOLD",
-  "at": "2026-11-02T09:15:31.298918+00:00",
-  "setup_history": "Initial Ruff imports sorted/unused import removed; metadata hash lookup corrected from sha256 to portable_sha256 before validation. No SQL/product calls."
+  "at": "2026-11-02T09:18:47.220152+00:00",
+  "setup_history": "Initial Ruff imports sorted/unused import removed; metadata hash lookup corrected from sha256 to portable_sha256 before validation. No SQL/product calls.",
+  "manual_guard_validation": {
+    "status": "PURE_ARGUMENT_GUARDS_ONLY",
+    "PSQL_or_SQL_executed": false,
+    "shell": "/bin/bash with only exact guards and printf stub; no client/connect",
+    "actual_socket_directory_server_or_identity_proven": false,
+    "cases": [
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "approved_db",
+        "expected_allowed": true,
+        "exit_code": 0,
+        "stub_reached": true
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "Approved_DB2",
+        "expected_allowed": true,
+        "exit_code": 0,
+        "stub_reached": true
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "host=127.0.0.1 dbname=x",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "postgresql://host/x",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "postgres://host/x",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "name with space",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "-dbname",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "DB_IDENTIFIER_ONLY",
+        "value": "db;anything",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "NO_HOST_LIST_ONLY_NOT_DIRECTORY_OR_SOCKET_PROOF",
+        "value": "/approved/socket",
+        "expected_allowed": true,
+        "exit_code": 0,
+        "stub_reached": true
+      },
+      {
+        "kind": "NO_HOST_LIST_ONLY_NOT_DIRECTORY_OR_SOCKET_PROOF",
+        "value": "/approved/socket,127.0.0.1",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      },
+      {
+        "kind": "NO_HOST_LIST_ONLY_NOT_DIRECTORY_OR_SOCKET_PROOF",
+        "value": "/a,/b",
+        "expected_allowed": false,
+        "exit_code": 1,
+        "stub_reached": false
+      }
+    ]
+  }
 }
