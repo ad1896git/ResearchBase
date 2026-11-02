@@ -6,6 +6,7 @@ import ast
 from pathlib import Path
 from typing import get_type_hints
 
+import pytest
 from scripts.pr18_evidence import TODO_DISPOSITIONS, audit_repository_markers
 
 from researchbase.application.commands import _WRITE_COMMAND_NAMES, ApplicationService
@@ -21,6 +22,35 @@ FORBIDDEN_RUNTIME_TERMS = (
     "autogen",
     "celery",
 )
+
+
+# Owner-approved P04 compatibility only: exact outer-layer immutable value imports.
+_P04_VALUE_IMPORTS = {
+    ("adapters/coding/fake.py", "researchbase.agent_runtime.application.context_contracts"): (
+        "CanonicalContext",
+    ),
+    (
+        "capabilities/coding/fake_contracts.py",
+        "researchbase.agent_runtime.application.context_contracts",
+    ): ("ArtifactContext", "CanonicalContext", "SourceReference"),
+    ("capabilities/coding/fake_contracts.py", "researchbase.agent_runtime.application.contracts"): (
+        "InputType",
+    ),
+    (
+        "capabilities/coding/fake_port.py",
+        "researchbase.agent_runtime.application.context_contracts",
+    ): ("CanonicalContext",),
+}
+
+
+def _admitted_p04_value_import(path: Path, node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.ImportFrom)
+        and node.level == 0
+        and all(item.asname is None for item in node.names)
+        and tuple(item.name for item in node.names)
+        == _P04_VALUE_IMPORTS.get((path.relative_to(SOURCE_ROOT).as_posix(), node.module or ""))
+    )
 
 
 def _python_files(root: Path) -> list[Path]:
@@ -42,7 +72,8 @@ def test_core_has_no_agent_or_phase2_runtime_imports() -> None:
                 # PR3-01 admits the planning module at its specified adapters/ports.
                 # Phase 1 scientific Core still cannot import that runtime.
                 if name.startswith("researchbase.agent_runtime") and (
-                    path.is_relative_to(SOURCE_ROOT / "agent_runtime")
+                    _admitted_p04_value_import(path, node)
+                    or path.is_relative_to(SOURCE_ROOT / "agent_runtime")
                     or path.is_relative_to(SOURCE_ROOT / "persistence")
                     or path.relative_to(SOURCE_ROOT).as_posix()
                     in {
@@ -125,3 +156,128 @@ def test_phase1_has_no_generic_version_or_polymorphic_provenance_escape_hatches(
     assert "class GenericVersion" not in source
     assert "class ProvenanceNode" not in source
     assert "class PolymorphicProvenance" not in source
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "statement", "admitted"),
+    [
+        (
+            "adapters/coding/fake.py",
+            "from researchbase.agent_runtime.application.context_contracts import CanonicalContext",
+            True,
+        ),
+        (
+            "capabilities/coding/fake_contracts.py",
+            (
+                "from researchbase.agent_runtime.application.context_contracts "
+                "import ArtifactContext, CanonicalContext, SourceReference"
+            ),
+            True,
+        ),
+        (
+            "capabilities/coding/fake_contracts.py",
+            "from researchbase.agent_runtime.application.contracts import InputType",
+            True,
+        ),
+        (
+            "capabilities/coding/fake_port.py",
+            "from researchbase.agent_runtime.application.context_contracts import CanonicalContext",
+            True,
+        ),
+        (
+            "application/example.py",
+            "from researchbase.agent_runtime.application.context_contracts import CanonicalContext",
+            False,
+        ),
+        (
+            "domain/example.py",
+            "from researchbase.agent_runtime.application.context_contracts import CanonicalContext",
+            False,
+        ),
+        (
+            "capabilities/coding/other.py",
+            "from researchbase.agent_runtime.application.context_contracts import CanonicalContext",
+            False,
+        ),
+        (
+            "adapters/coding/fake.py",
+            (
+                "from researchbase.agent_runtime.application.context_contracts "
+                "import CanonicalContext, SourceReference"
+            ),
+            False,
+        ),
+        (
+            "adapters/coding/fake.py",
+            (
+                "from researchbase.agent_runtime.application.context_contracts "
+                "import CanonicalContext as Context"
+            ),
+            False,
+        ),
+        (
+            "adapters/coding/fake.py",
+            "from researchbase.agent_runtime.application.context_contracts import *",
+            False,
+        ),
+        (
+            "adapters/coding/fake.py",
+            "import researchbase.agent_runtime.application.context_contracts",
+            False,
+        ),
+        (
+            "adapters/coding/fake.py",
+            "from researchbase.agent_runtime.application.research_task import ResearchTaskService",
+            False,
+        ),
+        (
+            "adapters/coding/fake.py",
+            (
+                "from .researchbase.agent_runtime.application.context_contracts "
+                "import CanonicalContext"
+            ),
+            False,
+        ),
+        ("adapters/coding/fake.py", "import langgraph", False),
+        (
+            "capabilities/coding/fake_contracts.py",
+            (
+                "from researchbase.agent_runtime.application.context_contracts "
+                "import SourceReference, CanonicalContext, ArtifactContext"
+            ),
+            False,
+        ),
+        (
+            "capabilities/coding/fake_contracts.py",
+            "from researchbase.agent_runtime.application.context_contracts import CanonicalContext",
+            False,
+        ),
+        (
+            "adapters/coding/extra/fake.py",
+            "from researchbase.agent_runtime.application.context_contracts import CanonicalContext",
+            False,
+        ),
+        (
+            "adapters/coding/fake.py",
+            (
+                "from researchbase.agent_runtime.application.context_contracts.extra "
+                "import CanonicalContext"
+            ),
+            False,
+        ),
+    ],
+)
+def test_p04_value_import_exception_stays_exact(
+    tmp_path, monkeypatch, relative_path, statement, admitted
+):
+    source_root = tmp_path / "src/researchbase"
+    target = source_root / relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(statement + "\n")
+    monkeypatch.setitem(globals(), "ROOT", tmp_path)
+    monkeypatch.setitem(globals(), "SOURCE_ROOT", source_root)
+    if admitted:
+        test_core_has_no_agent_or_phase2_runtime_imports()
+    else:
+        with pytest.raises(AssertionError):
+            test_core_has_no_agent_or_phase2_runtime_imports()
