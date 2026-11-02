@@ -1006,3 +1006,29 @@ def test_verify_cli_readonly_and_unknown_flags(tmp_path):
         ).returncode
         != 0
     )
+
+
+@pytest.mark.parametrize("encoding", ["duplicate", "nonfinite"])
+def test_verify_rejects_ambiguous_json_even_with_matching_byte_pin(tmp_path, encoding):
+    from dataclasses import replace
+
+    r, _, _, _, _, ctx, _ = unit_verification_proof(tmp_path)
+    path = r / "evidence/attempt-0/result.json"
+    text = path.read_text()
+    if encoding == "duplicate":
+        text = '{"status":"pass",' + text.lstrip()[1:]
+    else:
+        assert '"failure": null' in text
+        text = text.replace('"failure": null', '"failure": NaN')
+    path.write_text(text)
+    ctx = replace(ctx, result_sha256=t.sha(path))
+    with pytest.raises((SafetyError, t.ProtocolError)):
+        t.verify_result(ctx)
+
+
+def test_large_snapshot_json_keeps_duplicate_rejection_without_protocol_limit_change():
+    value = '{"padding":"' + "x" * (1024 * 1024) + '","key":1,"key":2}'
+    with pytest.raises(SafetyError, match="duplicate"):
+        t.proof_json(value)
+    with pytest.raises(t.ProtocolError, match="too large"):
+        t.decode(value)
