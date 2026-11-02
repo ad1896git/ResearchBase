@@ -1,6 +1,7 @@
 """Conservative classifications and durable quota must fail closed."""
 
 import hashlib
+from typing import Any
 
 import pytest
 from scripts import pipeline_medium_merge as medium
@@ -115,7 +116,7 @@ def test_old_source_also_scanned_and_counts_complete():
             medium.inventory(files, 1, 1, 0, blobs)
 
 
-def settings(tmp_path):
+def settings(tmp_path) -> dict[str, Any]:
     (tmp_path / "canary.json").write_bytes(encoded(dict(version=1, reservations={})))
     report = tmp_path / "review.json"
     report.write_bytes(encoded(dict(verdict="PASS", head="a" * 40, base="b" * 40, findings=[])))
