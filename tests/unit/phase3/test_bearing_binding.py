@@ -138,3 +138,28 @@ def test_protected_record_and_cas():
             load_binding_record(path)
     finally:
         shutil.rmtree(base)
+
+
+def test_complete_acl_comparison_rejects_extra_nonwriter_execute():
+    """Effective writer EXECUTE booleans alone cannot authorize an extra grantee."""
+    from researchbase.foundation.bearing_binding_contracts import ExecuteGrant
+
+    record = parse_binding_record(specimen())
+    extra = ExecuteGrant(4294967294, record.helper.owner_oid, "EXECUTE", False)
+    assert extra.grantee_oid not in (record.session_role.oid, record.current_role.oid)
+    acl = tuple(sorted((*record.helper.effective_acl, extra)))
+    actual = DatabaseObservation(
+        record.database,
+        record.alembic_revision,
+        record.session_role,
+        record.current_role,
+        dataclasses.replace(record.helper, effective_acl=acl),
+        None,
+        None,
+        (True, True),
+        (),
+        17,
+    )
+    with pytest.raises(BindingError, match="database binding mismatch"):
+        compare_database(record, actual)
+    # Pure comparisons return no opaque runtime proof; no fixture mints an issuer.

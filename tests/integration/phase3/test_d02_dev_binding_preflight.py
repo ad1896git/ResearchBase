@@ -37,6 +37,8 @@ scenario=sys.argv[1]
 path=records/'binding.json'
 v=json.loads(path.read_bytes())
 if scenario=='wrong-owner':v['database']['owner_oid']+=1
+if scenario=='wrong-current-role':v['roles']['current']['oid']+=1
+if scenario=='wrong-definition':v['helper']['definition_sha256']='0'*64
 if scenario=='wrong-system':v['database']['system_identifier']='123456'
 if scenario=='wrong-head':v['alembic_revision']='0082_no_match'
 if scenario=='wrong-helper':v['helper']['oid']+=1
@@ -128,6 +130,61 @@ with factory.read_session() as session:
     assert before==after and pid==row[0]
 b=factory.preflight();b.assert_factory(b.factory_identity)
 factory_token=b.factory_identity
+if scenario in ('binding-expiry','installation-expiry','cas-inode-replace','lease-path-replace'):
+    state=db._bound_roots[factory]
+    original_connection=state.connection;original_driver=state.driver
+    restoration=None;clock_target=None;original_clock=None
+    if scenario in ('binding-expiry','installation-expiry'):
+        from datetime import timedelta
+        clock_target=db if scenario=='binding-expiry' else bi
+        original_clock=clock_target.datetime
+        class ExpiredClock(original_clock):
+            @classmethod
+            def now(cls,tz=None):return original_clock.now(tz)+timedelta(days=2)
+        clock_target.datetime=ExpiredClock
+    elif scenario=='cas-inode-replace':
+        original_path=Path(v['cas']['path']);saved=original_path.with_name('cas.saved')
+        original_path.rename(saved);original_path.mkdir(mode=0o700)
+        assert original_path.stat().st_ino != v['cas']['inode']
+        def restoration():original_path.rmdir();saved.rename(original_path)
+    else:
+        original_path=Path(v['lease']['path']);saved=original_path.with_name('lease.saved')
+        original_path.rename(saved);original_path.touch(mode=0o600)
+        assert original_path.stat().st_ino != v['lease']['inode']
+        def restoration():original_path.unlink();saved.rename(original_path)
+    try:
+        if clock_target is not None:b.assert_factory(factory_token)
+        else:factory.preflight()
+    except BindingError:pass
+    else:raise AssertionError('post-success continuity fault accepted')
+    finally:
+        if clock_target is not None:clock_target.datetime=original_clock
+        if restoration is not None:restoration()
+    assert state.connection is original_connection and state.driver is original_driver
+    try:factory.preflight()
+    except BindingError:pass
+    else:raise AssertionError('restored resource/clock reactivated invalid root')
+    if scenario=='lease-path-replace':
+        from researchbase.foundation.local_bearing_registration import LeaseError,acquire_lease
+        assert state.closed and state.invalid and state.cleanup_unknown and state.driver.closed
+        try:state.lease.close_checked()
+        except LeaseError:pass
+        else:raise AssertionError('lost lease continuity minted close proof')
+        try:factory.close()
+        except BindingError:pass
+        else:raise AssertionError('unknown root silently resumed cleanup')
+        # Fixture-only new lease is not a new binding factory or old-root recovery.
+        with acquire_lease(original_path) as other:
+            assert other.identity_token is not state.lease.identity_token
+            assert other.check()
+    else:
+        factory.close()
+        assert state.closed and state.invalid and state.driver.closed and not state.cleanup_unknown
+    print(json.dumps({'scenario':scenario,'result':'PASS_DEV_ONLY_CONTINUITY_DENIAL',
+        'successful_real_factory_before_fault':True,'same_original_connection':True,
+        'restoration_reactivation_denied':True,'clock_fault_injection':clock_target is not None,
+        'cleanup_unknown':state.cleanup_unknown,'authority':False}))
+    sys.exit(0)
 if scenario in ('replace-wrapper','replace-callable'):
     if scenario=='replace-wrapper':
         from contextlib import contextmanager
@@ -365,8 +422,14 @@ def dev_installation():
     "scenario",
     [
         "positive",
+        "binding-expiry",
+        "installation-expiry",
+        "cas-inode-replace",
+        "lease-path-replace",
         "overlap",
         "wrong-owner",
+        "wrong-current-role",
+        "wrong-definition",
         "wrong-system",
         "wrong-head",
         "wrong-helper",
@@ -412,7 +475,10 @@ def test_actual_writer_preflight(dev_installation, scenario):
     result = json.loads(run.stdout.strip().splitlines()[-1])
     assert result["authority"] is False
     assert result["result"] == (
-        "PASS_DEV_ONLY_UNKNOWN_QUARANTINE"
+        "PASS_DEV_ONLY_CONTINUITY_DENIAL"
+        if scenario
+        in ("binding-expiry", "installation-expiry", "cas-inode-replace", "lease-path-replace")
+        else "PASS_DEV_ONLY_UNKNOWN_QUARANTINE"
         if scenario in ("fault-close", "fault-session-rollback")
         else "DENIED"
         if scenario.startswith(("wrong-", "fault-")) or scenario == "ambient"
