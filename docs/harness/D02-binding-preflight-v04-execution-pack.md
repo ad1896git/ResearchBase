@@ -1,6 +1,8 @@
 # D02 v0.4 bounded development preflight — exact execution pack
 
-PROPOSED ENGINEERING SCOPE pending independent scope review **before source**.
+ENGINEERING SCOPE independently reviewed PASS before source (p01,
+`independent-scope-review-1.json` in the D02-v04-implementation evidence directory).
+This records development scope only; source/actual acceptance remain separate.
 Parent D02 HIGH, frozen D01 v0.4 at d57a45f, base of this worktree d57a45f.
 Authority: D01-v04-FROZEN.json and D02-D03-v04-ADMISSION.json, owner resolution
 2026-11-02, and root's independently reviewed D02-dev-provision RESULT.json.
@@ -112,6 +114,7 @@ PG variables rather than silently let PGHOSTADDR/service/password override Unix
 parameters; no environment/credential contents in errors. Ordinary APIs retain
 existing connection semantics, without D1 verification marks.
 
+Private engine uses SQLAlchemy `NullPool`; ordinary compatibility pools are unchanged.
 Private engine/one Connection/actual driver connection are captured in this sole
 creator. Observe one REPEATABLE READ READ ONLY transaction, explicit bounded
 connection/statement/lock timeouts; no SET ROLE, DDL or canonical changes. Complete
@@ -151,6 +154,15 @@ Owner-only cleanup always attempts Session rollback/close then connection/engine
 cleanup then module-owned checked local lease close, retaining all errors. Positive
 local close is not DB rollback proof or D03 REVOKED acknowledgement. Unknown holds;
 no silent retry, new identity or self-reactivation.
+
+The exact public lease seam is `LocalLease.identity_token`,
+`assert_binding(*, path, device, inode, uid, mode)` for root-side filesystem I/O,
+and `close_checked() -> LeaseCloseObservation`. The latter exposes `lease_identity`
+and non-I/O `assert_released_for(identity)`, issuing a positive observation only
+after original owner continuity and an actual successful owned descriptor close.
+Existing `close() -> None` never stands in for that observation. D03 may associate
+this same local observation with its own future root/attempt receipt; no second
+release API or private fd access is authorized.
 
 Future actual bound-write UoW adoption/permit LA/LR/commit guard belongs to D03/D06,
 NOT_IMPLEMENTED in this PR. A fresh observation marker or same-looking DB values
