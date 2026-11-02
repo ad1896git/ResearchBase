@@ -219,6 +219,35 @@ def test_explicit_mapping_verifies_both_plist_bytes(tmp_path):
         t.plan(r)
 
 
+@pytest.mark.parametrize("name", ["python", "python3"])
+def test_plan_preserves_exact_selected_venv_interpreter(tmp_path, monkeypatch, name):
+    selected = Path(sys.executable).parent / name
+    assert selected.is_file()
+    monkeypatch.setattr(sys, "executable", str(selected))
+    r, _, m = fixture(tmp_path)
+    assert t.plan(r)[0]["python"] == str(selected)
+    assert all(
+        plistlib.loads(Path(row["path"]).read_bytes())["ProgramArguments"][0] == str(selected)
+        for row in m["plists"]
+    )
+
+
+def test_matching_binary_other_spelling_is_not_manifest_authority(tmp_path):
+    r, _, m = fixture(tmp_path)
+    selected = Path(sys.executable)
+    other = selected.parent / ("python3" if selected.name == "python" else "python")
+    assert other != selected and other.resolve() == selected.resolve()
+    row = m["plists"][0]
+    path = Path(row["path"])
+    value = plistlib.loads(path.read_bytes())
+    value["ProgramArguments"][0] = str(other)
+    path.write_bytes(plistlib.dumps(value))
+    row["sha256"] = t.sha(path)
+    save(r, m)
+    with pytest.raises(SafetyError, match="plist interpreter"):
+        t.plan(r)
+
+
 def test_unavailable_no_fallback(tmp_path):
     r, o, _ = fixture(tmp_path)
     before = t.inventory([o])

@@ -22,6 +22,11 @@ DEPLOYMENT_PAYLOAD = "\"\"\"One bounded timer runtime upgrade. No old loop resta
 def deployment_fixture(tmp_path) -> tuple[Path, Path, dict[str, Any]]:
     r, o, m = fixture(tmp_path)
     runtime = Path(__file__).resolve().parents[2]
+    # Fixture approves canonical host directories explicitly; product keeps its
+    # canonical-path rejection (Linux /bin may be a symlink to /usr/bin).
+    executable_dirs = list(
+        dict.fromkeys(str(Path(path).resolve()) for path in ("/usr/bin", "/bin"))
+    )
     prior = o / "prior-runtime"
     (prior / ".venv/bin").mkdir(parents=True)
     (prior / ".venv/bin/python3").symlink_to(sys.executable)
@@ -49,7 +54,7 @@ def deployment_fixture(tmp_path) -> tuple[Path, Path, dict[str, Any]]:
         source_head="a" * 40,
         approvers=["fixture-owner"],
         codex_home=str(o / "codex-home"),
-        executable_dirs=["/usr/bin", "/bin"],
+        executable_dirs=executable_dirs,
         merge_policy=dict(
             enabled=False,
             authorization_file=str(o / ".pipeline/control/auth.json"),
@@ -164,7 +169,7 @@ def deployment_fixture(tmp_path) -> tuple[Path, Path, dict[str, Any]]:
             ".pipeline/control/old/queue.json",
         ],
         prior_plist="LaunchAgents/com.researchbase.pipeline-wakeup.plist",
-        executable_dirs=["/usr/bin", "/bin"],
+        executable_dirs=executable_dirs,
         codex_version="codex-cli 0.164.0",
     )
     save(r, m)
@@ -187,6 +192,19 @@ def test_actual_plist_schema_and_typed_deployment_plan(tmp_path):
         proof["old"]["path_mapping"]
         and t.inventory([o])[str(o / "prior-runtime/.venv/bin/python3")]["kind"] == "symlink"
     )
+
+
+def test_deployment_executable_directory_symlink_still_denied(tmp_path):
+    r, o, m = deployment_fixture(tmp_path)
+    directories = m["deployment"]["executable_dirs"]
+    assert len(directories) == len(set(directories))
+    assert all(str(Path(path).resolve()) == path for path in directories)
+    alias = o / "unapproved-executable-alias"
+    alias.symlink_to(directories[0], target_is_directory=True)
+    m["deployment"]["executable_dirs"] = [str(alias)]
+    save(r, m)
+    with pytest.raises(t.SafetyError, match="noncanonical/symlink"):
+        t.plan(r)
 
 
 @MAC

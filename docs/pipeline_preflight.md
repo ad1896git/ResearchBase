@@ -259,3 +259,11 @@ authorized actual deployment after verified rehearsal may acquire the live
 lease. Natural timer changes to any full online inventory entry block capture;
 no lock/log exclusion is permitted. No live capture/deployment is authorized by
 the CLI's existence.
+
+Interpreter spelling is an exact binding: generic/current plist ProgramArguments
+must match the approved manifest `python` and the current process sys.executable.
+The tool does not reconstruct a different executable basename or accept a matching
+realpath as an alternate authority. The explicit old deployment role still uses its
+pinned prior-runtime `.venv/bin/python3` contract. Fixture executable directories
+are chosen as explicit canonical host paths (and deduplicated where `/bin` aliases
+`/usr/bin` on Linux); caller-supplied symlink directory spellings remain rejected.

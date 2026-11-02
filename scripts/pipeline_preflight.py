@@ -400,11 +400,11 @@ def plan(root, attempt=0):
         labels.add(item["role"])
         path = beneath(item["path"], root)
         row_runtime = runtime
+        row_python = python  # Preserve the exact approved current spelling, not an alias.
         if item["role"] == "old" and manifest["deployment"] is not None:
             row_runtime = Path(manifest["deployment"]["prior_runtime"])
-        actual = checked_plist(
-            path, writable, row_runtime / ".venv/bin/python3", row_runtime, executable_dirs
-        )
+            row_python = row_runtime / ".venv/bin/python3"  # Closed prior-role contract.
+        actual = checked_plist(path, writable, row_python, row_runtime, executable_dirs)
         require(
             actual == item["sha256"]
             and type(item["original_sha256"]) is str
