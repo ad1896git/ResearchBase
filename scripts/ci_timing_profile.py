@@ -139,7 +139,7 @@ def closed_junit(root: ET.Element) -> None:
         "system-err": set(),
     }
     attributes = {
-        "testsuites": set(),
+        "testsuites": {"name"},
         "testsuite": {
             "name",
             "errors",

@@ -426,6 +426,7 @@ def test_real_pytest_property_shape_remains_supported(source):
     root, docs = source
     with zipfile.ZipFile(io.BytesIO(archive())) as z:
         xml = ET.fromstring(z.read("pytest-results.xml"))
+    xml.set("name", "pytest results")
     properties = ET.SubElement(xml[0][0], "properties")
     ET.SubElement(properties, "property", name="benchmark", value="observed")
     raw = archive(xml=ET.tostring(xml))
