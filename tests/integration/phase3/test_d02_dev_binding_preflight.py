@@ -37,6 +37,19 @@ scenario=sys.argv[1]
 path=records/'binding.json'
 v=json.loads(path.read_bytes())
 if scenario=='wrong-owner':v['database']['owner_oid']+=1
+if scenario=='wrong-db-oid':v['database']['oid']+=1
+if scenario=='wrong-session-role':v['roles']['session']['oid']+=1
+if scenario=='wrong-helper-owner':
+    old_owner=v['helper']['owner_oid'];v['helper']['owner_oid']+=1
+    for grant in v['helper']['effective_acl']:
+        for field in ('grantee_oid','grantor_oid'):
+            if grant[field]==old_owner:grant[field]=v['helper']['owner_oid']
+if scenario=='wrong-extra-acl':
+    import copy
+    extra=copy.deepcopy(v['helper']['effective_acl'][-1]);extra['grantee_oid']=4294967294
+    v['helper']['effective_acl'].append(extra)
+    v['helper']['effective_acl'].sort(key=lambda r:(r['grantee_oid'],r['grantor_oid'],
+        r['privilege'],r['is_grantable']))
 if scenario=='wrong-current-role':v['roles']['current']['oid']+=1
 if scenario=='wrong-definition':v['helper']['definition_sha256']='0'*64
 if scenario=='wrong-system':v['database']['system_identifier']='123456'
@@ -49,6 +62,15 @@ if scenario.startswith('wrong-'):path.write_text(json.dumps(v));path.chmod(0o600
 if scenario=='ambient':os.environ['PGHOSTADDR']='127.0.0.1'
 def fault(*args,**kwargs):raise RuntimeError('injected development fault')
 if scenario=='fault-create':db.create_engine=fault
+if scenario=='fault-connect':
+    from sqlalchemy import event
+    real_engine=db.create_engine;requested_connections=[]
+    def engine_with_connect_fault(*args,**kwargs):
+        e=real_engine(*args,**kwargs)
+        def fail_after_physical_connect(connection):
+            requested_connections.append((connection,connection.connection.driver_connection));fault()
+        event.listen(e,'engine_connect',fail_after_physical_connect);return e
+    db.create_engine=engine_with_connect_fault
 if scenario=='fault-observe':db.observe_database=fault
 if scenario=='fault-compare':db.compare_database=fault
 if scenario=='fault-issue':
@@ -73,6 +95,19 @@ try:
     factory=db.create_binding_preflight_factory(binding_record_path=path,installation=proof,fixed_callable=evaluate)
 except BindingError as exc:
     assert scenario.startswith(('wrong-','fault-')) or scenario=='ambient',repr(exc.__cause__)
+    if scenario=='fault-connect':
+        assert 'cleanup unknown' in str(exc) and len(requested_connections)==1
+        assert not db._bound_roots
+        from researchbase.foundation.local_bearing_registration import acquire_lease,LeaseError
+        try:acquire_lease(Path(v['lease']['path']))
+        except LeaseError:pass
+        else:raise AssertionError('unknown connection creation released old lease')
+        # Fixture-only natural process disposal; no product recovery or release receipt.
+        connection,driver=requested_connections[0];connection.close();assert driver.closed
+        print(json.dumps({'scenario':scenario,'result':'PASS_DEV_ONLY_UNKNOWN_QUARANTINE',
+            'physical_connection_was_requested':True,'lease_was_retained':True,
+            'factory_not_issued':True,'authority':False}))
+        sys.exit(0)
     causes=[]; current=exc
     while current is not None:
         causes.append(str(current));current=current.__cause__
@@ -110,6 +145,12 @@ with factory.read_session() as session:
     row=session.execute(text("SELECT pg_catalog.pg_backend_pid(),"
     "pg_catalog.current_setting('transaction_read_only'),public.pr316d1_enabled()" )).one()
     assert row[1:] == ('on',False)
+    if scenario=='positive-bounds':
+        bounds=session.execute(text("SELECT pg_catalog.current_setting('statement_timeout'),"
+            "pg_catalog.current_setting('lock_timeout'),"
+            "pg_catalog.current_setting('transaction_isolation'),"
+            "pg_catalog.current_setting('default_transaction_read_only')")).one()
+        assert tuple(bounds)==('10s','3s','repeatable read','on'),tuple(bounds)
     from dataclasses import asdict
     observed=asdict(db.observe_database(session.connection()))
     before=session.execute(text("SELECT (SELECT count(*) FROM public.alembic_version),"
@@ -269,7 +310,8 @@ try:b.assert_factory(factory_token)
 except BindingError:pass
 else:raise AssertionError('closed root accepted')
 print(json.dumps({'scenario':scenario,'result':'PASS_DEV_ONLY','same_backend_pid':row[0],
- 'observed':observed,'read_only':'on','helper_enabled':False,'before_after_equal':list(before)==list(after),'authority':False}))
+ 'observed':observed,'observed_timeouts':list(bounds) if scenario=='positive-bounds' else None,
+ 'read_only':'on','helper_enabled':False,'before_after_equal':list(before)==list(after),'authority':False}))
 """
 
 
@@ -422,6 +464,12 @@ def dev_installation():
     "scenario",
     [
         "positive",
+        "positive-bounds",
+        "wrong-db-oid",
+        "wrong-session-role",
+        "wrong-helper-owner",
+        "wrong-extra-acl",
+        "fault-connect",
         "binding-expiry",
         "installation-expiry",
         "cas-inode-replace",
@@ -479,7 +527,7 @@ def test_actual_writer_preflight(dev_installation, scenario):
         if scenario
         in ("binding-expiry", "installation-expiry", "cas-inode-replace", "lease-path-replace")
         else "PASS_DEV_ONLY_UNKNOWN_QUARANTINE"
-        if scenario in ("fault-close", "fault-session-rollback")
+        if scenario in ("fault-close", "fault-session-rollback", "fault-connect")
         else "DENIED"
         if scenario.startswith(("wrong-", "fault-")) or scenario == "ambient"
         else "PASS_DEV_ONLY"
