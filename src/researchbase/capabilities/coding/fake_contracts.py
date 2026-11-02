@@ -159,7 +159,10 @@ class FakeCodingCandidateRequest:
 
 def request_digest(request: FakeCodingCandidateRequest) -> str:
     require(type(request) is FakeCodingCandidateRequest)
-    request.__post_init__()
+    try:
+        request.__post_init__()
+    except (ValueError, TypeError, AttributeError, UnicodeError, RecursionError):
+        reject()
     material = {
         "project_id": str(request.project_id),
         "task_id": str(request.task_id),
@@ -333,8 +336,11 @@ def validate_result(request: FakeCodingCandidateRequest, result: FakeCodingCandi
     require(
         type(request) is FakeCodingCandidateRequest and type(result) is FakeCodingCandidateResult
     )
-    request.__post_init__()
-    result.__post_init__()
+    try:
+        request.__post_init__()
+        result.__post_init__()
+    except (ValueError, TypeError, AttributeError, UnicodeError, RecursionError):
+        reject()
     require(
         (result.project_id, result.task_id, result.step_id, result.repository_artifact_ref)
         == (request.project_id, request.task_id, request.step_id, request.repository_artifact_ref)
@@ -356,8 +362,8 @@ def validate_result(request: FakeCodingCandidateRequest, result: FakeCodingCandi
 
 def validate_context(request: FakeCodingCandidateRequest, context: CanonicalContext) -> None:
     require(type(request) is FakeCodingCandidateRequest and type(context) is CanonicalContext)
-    request.__post_init__()
     try:
+        request.__post_init__()
         context.__post_init__()
         context.task.__post_init__()
         if (request.project_id, request.task_id, request.step_id) != (

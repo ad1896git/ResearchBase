@@ -487,3 +487,47 @@ def test_exact_body_size_and_empty_deletion_are_real_previews():
     result = FakeCodingPreviewAdapter().preview(request, context)
     assert result.source_candidates[0].bytes == b""
     assert result.patch.startswith(b"--- a/src/a.py\n+++ b/src/a.py\n@@ -1 +0,0 @@\n-")
+
+
+@pytest.mark.parametrize("slot", tuple(FakeCodingCandidateRequest.__slots__))
+@pytest.mark.parametrize("boundary", ["preview", "result", "digest"])
+def test_deleted_required_request_slot_is_sanitized(slot, boundary):
+    request, context = sample()
+    result = FakeCodingPreviewAdapter().preview(request, context)
+    object.__delattr__(request, slot)
+    if boundary == "preview":
+        failure(lambda: FakeCodingPreviewAdapter().preview(request, context))
+    elif boundary == "result":
+        failure(lambda: validate_result(request, result))
+    else:
+        failure(lambda: request_digest(request))
+
+
+@pytest.mark.parametrize(
+    "slot",
+    [
+        "patch",
+        "objective",
+        "bytes",
+        "argv",
+        "producer_provenance",
+        "state",
+    ],
+)
+def test_deleted_nested_or_result_slot_is_sanitized(slot):
+    request, context = sample()
+    result = FakeCodingPreviewAdapter().preview(request, context)
+    if slot == "patch":
+        target = result
+    elif slot == "objective":
+        target = request
+    elif slot == "bytes":
+        target = result.source_candidates[0]
+    elif slot == "argv":
+        target = result.test_observation.declared_commands[0]
+    elif slot == "producer_provenance":
+        target = result.producer
+    else:
+        target = result.test_observation
+    object.__delattr__(target, slot)
+    failure(lambda: validate_result(request, result))

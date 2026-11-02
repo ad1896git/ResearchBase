@@ -14,6 +14,8 @@ implemented by `FakeCodingPreviewAdapter`. All new public values are frozen,
 slotted, keyword-only dataclasses, with exact types and immutable tuples. Unknown
 constructor fields reject. Values are checked again at preview/result boundaries.
 Existing sanitized `VALIDATION_ERROR` and scope-only `FORBIDDEN` are reused.
+Deleting a required request/result/nested slot through a frozen-object bypass is
+also normalized to VALIDATION_ERROR at preview/digest/result validation boundaries.
 No provider, filesystem, process, database, ArtifactStore, clock, random generator,
 callback, workspace discovery or other external I/O is used.
 
@@ -115,7 +117,7 @@ stage (`pg_argv=[]`); standard hosted required CI remains real and must pass at 
 reviewed final head. No local test substitutes for a missing hosted check or
 independent review.
 
-Author-local validation at this candidate: 628 targeted/new/related pure tests passed
-in 3.19s; whole-source/tests Ruff check and format passed (920 files); whole-source/
+Author-local validation at this candidate: 673 targeted/new/related pure tests passed
+in 3.26s; whole-source/tests Ruff check and format passed (920 files); whole-source/
 tests Pyright reported 0 errors, 0 warnings. These are author checks, not independent
 review or hosted exact-head CI acceptance.
