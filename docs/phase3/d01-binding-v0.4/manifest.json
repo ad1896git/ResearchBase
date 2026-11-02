@@ -1,50 +1,50 @@
 {
-  "status": "PROPOSED_HOLD_OWNER_DECISIONS_NOT_FREEZE",
+  "status": "OWNER_RESOLVED_REVIEW_CANDIDATE_NOT_AUTHOR_FREEZE",
   "payloads": [
     {
       "path": "CONTRACT-PROPOSED.md",
-      "sha256": "4a3dde8a4750115db06aca7a4f71420263ab684ede34db88142d3dc7b6f8c611",
-      "bytes": 15538
+      "sha256": "b4cdd9cecf87f8a3e2df2f0e3ffad22a57217f41f8c65f1692036dbb87d5939b",
+      "bytes": 18752
     },
     {
       "path": "CROSSWALK.md",
-      "sha256": "cb9a35dd771fef0cf52b5cab8441b402ff05975786546a1f727e50eedde63ac7",
-      "bytes": 5919
+      "sha256": "f8c5e639d5429c00ad23a6cea7931f7af730e6716a197e2876e899ea4ab15190",
+      "bytes": 5797
     },
     {
       "path": "LOCAL-WRITER-STEPS-NOT-EXECUTED.md",
-      "sha256": "9582ad3df2a35dbe3fffd1b701ca02f65497e3a86c33862b32ad2c3022e325c1",
-      "bytes": 9609
+      "sha256": "a3faa8126b37ea6dcfb797e930341d4375109940e5164f2a1505bf8f10917493",
+      "bytes": 10156
     },
     {
       "path": "PROTECTIONS-AND-RISKS-ONEPAGE.md",
-      "sha256": "c68df6d46c06f909b8263a38dd4d52e958ab26764b9fa1b29f7a506caadde4dd",
-      "bytes": 2396
+      "sha256": "7b96a4c8052420712cb1222ae5515eea8c4454720a85542ef72e8145c9e74289",
+      "bytes": 2518
     },
     {
       "path": "README.md",
-      "sha256": "63f5c8c0338b8b472c8f9e563bdc36e4863986f6a31988e026b0132e5a160610",
-      "bytes": 1634
+      "sha256": "2a5b9cdfe651d96a6a6d6c807fd6c043d401c9e9d7fa6894e6809f970d6ae9f6",
+      "bytes": 1803
     },
     {
       "path": "author-validation.json",
-      "sha256": "064ba30027ddf32427043f62ddc2228fb1e6f8eb9737c4c99dad94b2fc5c7cb2",
-      "bytes": 3435
+      "sha256": "dc7f05c05e035c3a69ec3a13838b55b8f349da9e0e2bc170b8a9f4bcf999555f",
+      "bytes": 3815
     },
     {
       "path": "source-binding.json",
-      "sha256": "f4170026ed0d9170817fa3ce3f7608fa7447fdf8ac1b2e6c90375220465027fa",
-      "bytes": 3332
+      "sha256": "e8deef372592cfc0d16fe2504e90c549d12d3642c1148ccd1d3e3c7a1836d20e",
+      "bytes": 5970
     },
     {
       "path": "vectors.json",
-      "sha256": "aae9880c40c77ad1fbca8873aa26676d6222222acee43c37d34f04c54d662f25",
-      "bytes": 34332
+      "sha256": "0a1ead419f1a66645452484e54e82d7e7b42966cd47238fc06e66b88911e590f",
+      "bytes": 69140
     },
     {
       "path": "verify_vectors.py",
-      "sha256": "a547408d08924605901c592dee63d55cfd9099914febb6a2f9ad68e22e1b025b",
-      "bytes": 8401
+      "sha256": "c343239190448ee21126d9b23676ae6b52fca3a3c65135ca93522871a8c6172d",
+      "bytes": 10496
     }
   ]
 }

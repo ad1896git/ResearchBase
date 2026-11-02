@@ -1,6 +1,9 @@
 # Local restricted writer steps — DOCUMENT ONLY, NOT EXECUTED
 
-PROPOSED. These commands are an owner/DBA checklist, not authorization to run them.
+PROPOSED DOCUMENTATION. The2026-11-02 owner resolution separately authorizes root
+to create a NEW dedicated HomebrewPG18 development DB/restricted roles with actual
+before/after reports. Author does not execute these commands; the root execution
+plan and actual report, not this document, establish what was done.
 No SQL, connection, role, pg_hba, secret or facility was touched for this proposal.
 Do not use the repository demo TCP/admin defaults. The local client path below was
 verified as a file by root; that says nothing about an actual server/version/socket.
@@ -9,7 +12,8 @@ No actual `.env`, credential file or password is read or embedded here.
 ## 1. Owner supplies actual local facts and approves scope
 
 Fill the **actual approved isolated** Unix socket directory, port, DBA login and
-existing target DB from owner/DBA metadata. Do not guess `/tmp`, Homebrew defaults,
+new dedicated development target DB from root's approved provisioning metadata
+(created under that separate root plan before these per-role steps). Do not guess `/tmp`, Homebrew defaults,
 admin role or `researchbase` DB. Exact system_identifier/DBOID/PG18/unique Alembic,
 helper owner/catalog and DB–CAS scope must be independently reviewed. No reference
 facts are borrowed from tests; don't point these steps at production.
@@ -19,7 +23,7 @@ exists, STOP: no automatic ALTER/reuse/reset. Local peer/authentication mapping 
 be independently configured by DBA; these steps do not loosen `pg_hba.conf`, set
 trust, copy a password or prompt for a credential. If authentication fails, STOP.
 
-Proposed manual Bash session, to be typed only after that approval:
+Proposed manual Bash session, to be typed only within that exact already-approved root plan:
 
 ```bash
 D01_PSQL=/opt/homebrew/opt/postgresql@18/bin/psql
@@ -45,8 +49,10 @@ env -u PGHOST -u PGHOSTADDR -u PGPORT -u PGDATABASE -u PGUSER \
 -- Observe and compare to independently approved facts BEFORE role creation.
 SELECT pg_catalog.current_database(),
        (SELECT oid FROM pg_catalog.pg_database WHERE datname=pg_catalog.current_database()),
+       (SELECT datdba FROM pg_catalog.pg_database WHERE datname=pg_catalog.current_database()),
        (SELECT system_identifier FROM pg_catalog.pg_control_system()),
        pg_catalog.current_setting('server_version_num'),
+       pg_catalog.current_setting('server_version_num')::pg_catalog.int4/10000 AS pg_major,
        pg_catalog.inet_server_addr(), pg_catalog.inet_server_port();
 -- STOP here unless actual target facts were independently matched. Execute the
 -- following CREATE in a separate owner-approved invocation, not blindly after print.

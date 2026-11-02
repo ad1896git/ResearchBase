@@ -1,15 +1,15 @@
-# v0.4 保留／放弃／实际风险（一页，PROPOSED）
+# v0.4 裁决后保留／减少／实际风险（一页）
 
-**状态：HOLD，不自动冻结。** v0.3/#57草稿及分支保留。D01 HIGH与原依赖不变。
+**三项policy已由owner明确解决；当前等独评与root实际开发设施报告，不再重复索要方向。** D01 HIGH不变，root独评通过后直接冻结并按裁决处理57；作者不执行DB/角色/关闭PR。
 
-| 项目 | 保留保护 | 减少什么／实际风险 |
+| 项目 | 保留 | 减少与实际风险 |
 |---|---|---|
-| DB／版本 | cluster system_identifier、DB名/OID、PG18主版本、Alembic；实际身份不等于授权 | 不绑minor，未声明维护升级可能无法自动察觉；性能/PG配置校准仍要真实记录。datdba原身份若移除，与D1固定核对不等价，待确认。 |
-| role | 直接/间接owner拒绝，super/bypass/createrole及原CREATEDB/REPLICATION/DDL/ownerSET禁令 | 不保存完整图；不影响这些谓词的成员/选项变更可能无diff。DBA必须维护前撤销、显式rebind；不能声称已监控全部权限漂移。 |
-| helper | pg_get_functiondef原UTF8哈希、owner、安全flags、选定roles有效EXECUTE；不自动改任何ACL | 不能证明原OID、raw ACL/所有其他属性不变；额外给其他role的权限可能不改变writer的EXECUTE。与D1:456/464/472及410要求有实质取舍。PUBLIC EXECUTE原样保留，不是误配。 |
-| JSON | 标准排序JSON+SHA，版本/闭合字段/UTF8/重复键/非有限值/资源上限；批准记录只追加 | SHA不证明owner身份；JSON等价表示同hash，Unicode不同值仍不同。授权仍来自受保护operator和真正owner确认，不能加approved=true。 |
-| 连接／防绕过 | Unix-only、固定组合根；sole engine creator；每transaction原preflight、sameconnection、连续lease、真实commit/revoke/cleanup与原receipt | lint只能约束受审代码，不是恶意同UID进程隔离或真实连接证明。现多入口尚未重构；实际socket/角色/设施未提供。 |
+| DB | cluster系统ID、DB名/OID/ownerOID、PG18主版本五项；Alembic/endpoint/role绑定 | 不绑minor；未声明维护升级可能无自动diff。PG/config资源校准仍实际记录，升级/角色变更走同一owner-confirmed append-only rebind。 |
+| helper | OID、零参非variadic非setbool签名、定义SHA、owner、明确安全flags/固定search_path/support0、完整normalizedACL | 不再序列化35字段。定义hash仍可能发现许多其他改动，但不单列所有catalog估算/元数据；rawACL的NULL/排序等同权限差异不属未来security比较。0083历史byte-for-byte ACL义务不放松。 |
+| 权限 | 全grantee/grantor/EXECUTE/grantable，PUBLIC0+owner完整保留，意外grant拒绝；ordinarywriter禁owner/提升权限/DDL | 不保存完整rolegraph；直接谓词不等于记录所有无影响membership变化。协作DBA维护前撤销/rebind，PUBLIC权限实际audit；不静默REVOKE全局权限。 |
+| 格式与防绕开 | 标准JSON闭合字段/UTF8/重复键/非有限值/上限+SHA；唯一enginecreator、每事务实际连接/preflight | JSONhash不是人类批准。lint不是恶意同UID隔离或真实factory/lease证明；新源重构尚未实现，不能冒PASS。 |
+| 开发设施 | owner授权root在本机HomebrewPG18创建NEW专用测试DB/受限role，前后报告 | 只是coding/test权限；若本地HBAtrust，必须如实标记，不能当protectedreference认证或A2、genuineconsumer、生产设施。 |
 
-**继续保留**：default deny、普通CLI/API无genuine注册、无调用方自选authority；完整安装/代码闭包、CAS/namespace/inode；资源/预算/expiry；UNKNOWN/full reservation、不换原身份/不退款；reference不升级为production；真实PG/独评/阶段门禁。
+**永久不变**：受保护operator/安装与全代码闭包；CAS/root/namespace/inode；连续lease、真实commit/revoke/cleanup；currententitlement、原receipt/UNKNOWN/full reservation；资源/价格/预算/expiry；CLI/API默认无genuine注册；reference不升级production；原0083保持literalfalse、无历史迁移/表/ACL重写。
 
-**09:00只需决定三件事**：helper缩小的是record还是原完整核验；DB四字段是否删除原owner/其他身份匹配；D02自动准入是否仍须满足D1:478实际基础设施/认证provision。任一未决都不freeze、不写role/新批准、不close57。D03设计可准备不等于集成验收；本包所有真实设施/数据库行为NOT RUN。
+**下一步**：独评本候选→root直接freeze；D02按精确source/interface范围和实际dev报告进入bounded实现、D03继续设计。实际reference migration/apply、安装/注册、真实D1科学写入和生产仍各自原门禁。本包向量只证明codec，不证明actualDB/CAS/role安全；无作者SQL或设施操作。

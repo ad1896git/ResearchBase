@@ -1,35 +1,58 @@
-# v0.4 seven-principle specification crosswalk
+# v0.4 owner-resolved specification crosswalk
 
-PROPOSED; exactbase7540438. This is an author crosswalk, not independent PASS.
-D1=`docs/phase3/design/PR3-16-d1-amendment-contract.md`; ADR=`docs/architecture/adr/ADR-0027-pr3-16-d1-node-budget-amendment.md`.
-Production D1 is PROPOSED (D1:3); the accepted limited reference policy and its
-specific stage/preflight requirements must be distinguished from production GO.
-No v0.3 preference is treated as authority.
+UPDATED PROPOSAL pending independent review. Base7540438; previous9a proposal and
+its known HOLD decisions remain in Git history. They are superseded by the explicit
+owner resolution below, not silently interpreted away. Full production D1 remains
+PROPOSED; the bounded reference-policy and development-scope changes are distinct.
 
-| Owner principle | Authoritative text / exact location | Finding / candidate effect |
+## Owner resolution
+
+Verbatim owner decision, transcribed by root (including the explicit follow-up choice):
+
+```text
+D01 v0.4 裁决：
+辅助函数：采用“函数定义哈希 + 所有者 + 安全标志 + OID + 有效 ACL”。批准将 D1 规格中的“全部属性”修订为“所有安全相关属性”，修订内容写入规格并注明来源。
+数据库识别：保留数据库所有者匹配，共五个字段。
+D02 设施：使用本机 Homebrew PG18，新建专用测试数据库和受限角色，仅用于开发测试。角色创建步骤我已审阅，___（我自己执行 / 授权你执行，执行前后各回报一次结果）。
+按以上修改 v0.4，独立评审通过后直接冻结，准入 D02 实现和 D03 设计。关闭 #57，保留分支。
+
+后续明确选择：
+- 授权你执行；执行前后各汇报一次结果
+```
+
+Source SHA256 `ecea1afa09529fccbf432b0ec8ed7c39142acfa5ca92c14773104ac9b25c6a48`; operator original is
+`.pipeline/logs/reviews/D01-v04-owner-resolution-20261102/OWNER-RESOLUTION.md`.
+No secret/host value/credential is embedded. This is actual owner authority for the
+narrow delta, not a new signing framework or inferred permission.
+
+D1=`docs/phase3/design/PR3-16-d1-amendment-contract.md`; ADR0027 references its
+closed security set. Historical line references below are at754 before this diff;
+current changed policy is the dated2026-11-02 O09 paragraph.
+
+| Principle / previous issue | Historical requirement and exact quoted location | Resolution / unchanged boundary |
 |---|---|---|
-| 1 four DB values, PGmajor only | D1:472 “pg_control_system().system_identifier … pg_database 的 oid/datdba … session_user/current_user …”; :454 “精确身份记录，包括…端点与端口…迁移角色及函数 owner” | No requirement to bind PGminor was found; keep real PG/config in O03 measurements. **QUESTION DB4**: if “onlyfour” drops approved datdba/other fixed identity comparison, live owner-membership denial is not the same as matching original owner identity. Record permits DB-owner change without a bound-value difference if writer remains non-owner. Unix endpoint and session/current role identity retained separately, explicitly not silently deleted. |
-| 2 append-only owner-confirmed rebind | D1:440 “operator…create a separate protected, scoped bootstrap authorization record”; :476 “授权仍来自受保护的真实操作员/部署权限”; :478 “BEFORE_CODING 须合同接受、基础参考基础设施身份与认证 provision 及接口审查” | Append/new ownerdecision is compatible, no mutation/self-approval. **QUESTION STAGE**: automatic D02 implementation admission cannot be reported as satisfying missing actual prerequisite facts/authentication/provision. Actual socket/admin/writer/DB are unassigned. Compatible conditional acceptance may retain those gates; bypass requires owner decision, not a record-format side effect. |
-| 3 direct conservative role checks, no graph record | D1:474 “普通Application writer不是函数owner，无DDL、superuser、CREATEROLE/CREATEDB/REPLICATION/BYPASSRLS及切换owner权限” | No normative demand for serialized full role graph found. Keep all these unchanged predicates (also indirect/equality owner membership) using direct queries. NOINHERIT does not remove PUBLIC privileges. Benign membership changes can leave policy predicates unchanged: protected maintenance must explicitly revoke/rebind, not claim complete drift detection. |
-| 4 definitionhash+owner/security/effectiveEXECUTE, not35fields | D1:456 “OID、零参数 boolean 签名、owner、ACL、语言、volatility、security、search_path 和其他属性…一致”; :464 “原 OID、签名、owner、ACL、search_path 和全部其他函数属性未变”; :472 “pg_proc OID/owner/ACL/全部属性”; :410–414 “retain both PUBLIC and explicit role ACLs byte-for-byte” | **CONFLICT HELPER if summary replaces fixed preflight/activation checks.** Definitionhash does not bind OID/raw ACL, nor prove every catalog attribute unchanged. Effective EXECUTE for the selected writer can stay true while another role receives a grant. Keep existing checks until owner resolves scope; do not “fix” by revoking helper PUBLIC. |
-| 5 Unix only | D1:454 “端点与端口”; :472 fixed inet_server_addr()/port; :438 singlehost/localFS trustboundary | Compatible restriction, not obligation to keep TCP. Null inet observations do not establish local endpoint authorization; retain actual protected Unix socketdir/port and clusteridentity, no fallback/guessed defaults. Local compose TCP mapping is not a reference Unix grant. |
-| 6 standard sorted JSON+SHA, fewer vectors | D1:440 protectedrecord, no required v0.3 binary format; ADR reference decision “无新运行时 canonical schema、表或签名 JSON 真相源” | Compatible operator-record format simplification; JSON/SHA remains data, not approver proof/scientifictruth. Closedshape, duplicate/nonfinite/UTF8/bounds remain necessary. v0.3 bytegrammar/55vectors are prior proposed artifacts, not mandatory new coverage. |
-| 7 one engine module, startup preflight beforefactory+lint/tests | D1:442 “exactly one fixed DB/store/verifier binding”; :450 “Before a transaction…preflight”; :446 lease through actualcommit/failurecleanup; ADR:111 typedport/layering | Compatible additional construction discipline only if all runtime invariants remain. One startup check/lint is insufficient for later physicalconnection/reconnect/lifetime. Current database.py/uow.py/migrations.env multiple engine paths need a separately reviewed real refactor, not a new self-issued verification flag or unrelated import exemption. |
+| DB fingerprint | D1:472 “pg_database 的 oid/datdba”; :454 “精确身份记录” | RESOLVED_BY_OWNER: five values system_identifier/name/OID/ownerOID/PGmajor all match. PGminor not bound; actualPG/config remain O03 observations. Alembic, Unix endpoint/port, session/current identities are retained separately. |
+| One owner-confirmed rebind | D1:440 protected scoped approval; :476 “授权仍来自受保护的真实操作员/部署权限” | One public command, internal observe→diff→actual ownerconfirm→append. No self-approved boolean/hash authority, no overwrite/activation. Minor/role maintenance with no fingerprint difference still needs explicit rebind event. |
+| Direct role predicates | D1:474 “无DDL、superuser、CREATEROLE/CREATEDB/REPLICATION/BYPASSRLS及切换owner权限” | All retained, including direct/indirect MEMBER denial for DB/functionowners and reachable elevatedroles. No complete rolegraph encoding required. PUBLIC effective privileges require actualaudit, not NOINHERIT assumption. |
+| Helper catalog scope | D1:456/464/472 previously “全部…属性”; :410–414 historical “retain both PUBLIC and explicit role ACLs byte-for-byte” | RESOLVED_BY_OWNER: future comparison is OID/fixedsignature/definitionSHA/owner/finite securityset/full normalized effectiveACL, including allgrantees/grantors/PUBLIC/owner/grantability. Historical0083 rawACL/noGRANT/noownerchange duties untouched. SameTX and onlyapprovedfalse→truebody replacement retained. |
+| Unix only | D1:454 endpoint/port; :438 singlehost/localFS | Narrow supported transport, not TCPfallback. Actual socketdir/port is root-supplied evidence; localdev HBAtrust is not protected referenceauthentication. |
+| Standard JSON | D1 protected operatorrecord; ADR no new canonical/signing JSONtruthsource | Sorted standardJSON+SHA, closedshape/UTF8/duplicates/nonfinite/bounds. Whitespace/keyorder aliases standard; no v0.3 custombyteprotocol or55-vector repetition. SHA cannot issue authority. |
+| Sole engine module | D1:442 one fixedroot; :450 “Before a transaction”; :446 actualcommit/failurecleanup lease | Existing database.py is proposed solecreator; uow.py and migrations.env bypasses must be refactored later. Lint/tests add defense, never replace per-attempt actualconnection/preflight/continuouslease/commit-revoke evidence. No engine source edited now. |
+| D02 stage/provision | D1:478 reference BEFORE_CODING provisioning requirements | RESOLVED_BY_OWNER: root may create NEW dedicated localHomebrewPG18 devDB/restrictedroles with before/after reports, enabling authorized boundedcoding/test path after review and actualdevfacts. This development exception does not satisfy reference auth/installation/migration/apply/production gates. No existingDB/role/globalauth changes. |
 
-## Three owner decision topics; no silent compatibility selection
+## Exact approved source delta and gate
 
-1. HELPER: choose (A) reduced summary only for record but retain original complete
-   O09 fixed preflight/activation catalog evidence (still needs exact approved
-   source/record linkage), or (B) explicitly amend that scope to the reduced set and
-   accept identity/ACL drift risks. Neither alternative is owner-approved here.
-2. DB4: confirm whether actual queried datdba and other fixed identity facts remain
-   approved/matched outside the four serialized DB values, or deliberately remove
-   their original-identity comparison while retaining conservative live denial.
-   Do not conceal extra fields by renaming them into a second truth record.
-3. STAGE: preserve actual BEFORE_CODING prerequisites and treat automatic D02
-   source authorization as conditional on their satisfaction, or explicitly decide
-   a bounded prerequisite change. Missing facilities are not supplied by independent
-   design PASS. D03 design is not D02/production integration.
+D1 O09 replaces only the future all-catalog comparison with the finite securityset
+and complete semantic ACL, pins DBowner as the fifth value and explicitly records
+owner-selected local development scope. ADR adds only a dated reference/provenance
+note. No migration file, historical ACL assertion, enabled=false source, lifecycle,
+Application/repository layering, lease, sameTX/actualcommit or reference/production
+exclusion is changed. See source-binding.json for exact input SHA; diff is the
+audit surface, not author private context.
 
-Until resolved: **HOLD_FREEZE_09_DECISION**; no D02 source, no approval-file writing,
-no role/PG/migration action, no57close. D1 source governing text is unchanged.
+Previous HELPER/DB4/STAGE owner questions are resolved. Remaining statuses are
+PENDING_INDEPENDENT_REVIEW and PENDING_ROOT_ACTUAL_DEV_REPORTS, not a request for
+duplicate direction approval. Root directly freezes after PASS, admits D02 bounded
+implementation/D03 design with actual prerequisites, then closes57 preservingbranch.
+Author does not provision or close a PR. Independent PASS is not actualprovision,
+protectedreference/A2, realconsumer/PGbinding or production acceptance.

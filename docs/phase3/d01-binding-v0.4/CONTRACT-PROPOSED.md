@@ -1,17 +1,21 @@
 # D01 binding v0.4 — simplified closed proposal
 
-PROPOSED. NOT FROZEN. Three explicit questions in CROSSWALK.md block the owner's
-conditional automatic freeze. No D02 source, database, role, migration, provisioning,
-registration or activation is authorized by this document. PR57/v0.3 stays draft,
-unmerged and unchanged until root's later gate. Parent D01 HIGH, owner authority
+PROPOSED UPDATED CANDIDATE, pending independent review; not yet frozen by author.
+The owner resolved the three earlier questions (CROSSWALK.md#owner-resolution):
+five DB fields including owner, helper OID/full effective ACL/closed security
+attributes, and explicitly authorized Homebrew PG18 development provisioning.
+Root may freeze after independent PASS, admit the authorized bounded D02
+implementation/D03 design when actual development facts are ready, and then close
+PR57 preserving its branch. No author database/role/source-engine/activation action
+is performed here. PR57/v0.3 is unchanged until that separate root gate. Parent D01 HIGH, owner authority
 and all original dependencies remain. This folder is a compact alternative, not
 an amendment to authoritative architecture/D1 documents.
 
 ## 1. Scope and authority
 
-The seven owner instructions (2026-11-02) select: four database identity values,
+The seven owner instructions (2026-11-02) select: five database identity values including owner,
 Alembic revision and owner-confirmed append-only rebind, direct conservative role
-queries, helper definition hash/owner/security/effective EXECUTE, Unix-only,
+queries, helper definition hash/owner/OID/closed security attributes/full effective ACL, Unix-only,
 standard sorted-key JSON+SHA256, one engine-creator module and preflight before
 returning a session factory. They do not remove actual D1 installation, protected
 operator approval, fixed loaded-code closure, DB–CAS–root binding, continuous
@@ -23,7 +27,9 @@ amendment O01/O03/O09 →this proposal. The full production amendment remains
 PROPOSED; the separately accepted limited reference policy is not production GO.
 Current Phase3 uses PostgreSQL18. A new approval alone cannot authorize PG19 or
 an incompatible schema. Missing actual evidence blocks registration/activation;
-BEFORE_CODING prerequisites are a separate unresolved gate, not satisfied here.
+The owner-authorized development path requires actual root before/after facility
+reports and exact interface/source scope; it is not protected-reference authentication
+or activation evidence. Previous policy questions are resolved, not new owner HOLDs.
 
 ## 2. Record and byte contract
 
@@ -63,19 +69,47 @@ success is not current, protected, observed or approved.
 | approved_at; expires_at | UTC times above; runtime also checks original authorization lifetime |
 | confirmation | object exactly event, decision_sha256, diff_sha256; event INITIAL iff sequence1, otherwise PG_UPGRADE/MIGRATION/ROLE_CHANGE/DEPLOYMENT_CHANGE; both hashes64lowerhex, referencing independently protected human decision and exact displayed diff, not self-approval |
 | deployment | exactly id, host, uid, namespace, root_id, installation_manifest_sha256, artifact_sha256, callable_module, callable_qualname, callable_code_sha256; uid uint64; hashes64lowerhex; fixed callable `researchbase.agent_runtime.domain.bearing_evaluation.evaluate`; original actual inventory/source proof retained |
-| database | exactly system_identifier canonical decimal text1..2^64-1, name, oid1..2^32-1, pg_major exact18; **no minor version or stored DB-owner identity** under this candidate |
+| database | exactly system_identifier canonical decimal text1..2^64-1, name, oid1..2^32-1, owner_oid1..2^32-1, pg_major exact18; these five values all match actual observation; minor version is not bound |
 | alembic_revision | exact unique approved head text<=128, not latest/current/main/head aliases; no automatic migration |
 | roles | exactly session and current, each {name,oid}, plus policy literal `restricted-writer-v4`; no encoded membership graph; actual identity must match and direct query predicates below must hold |
-| helper | exactly name=`public.pr316d1_enabled()`, definition_sha256, owner_oid, security_definer=false, leakproof=false, effective_execute={session:true,current:true}; hashes match exact UTF8 pg_get_functiondef output, no SQL normalization; **no OID/raw ACL/35-field catalog record** |
+| helper | exactly name=`public.pr316d1_enabled()`, oid, definition_sha256, owner_oid, signature, security, effective_acl; OIDs1..2^32-1, hash64lowerhex over exact UTF8 pg_get_functiondef output; nested fields below are closed; no35-position/raw ACL record |
 | connection | exactly transport=`UNIX`, socket_directory absolute local path, port exact int1..65535; operator fills actual values; inet_server_addr()/port must both be SQLNULL, never a TCP fallback |
 | cas | exactly path, namespace, device, inode, uid, mode; uint64 identities, namespace equals deployment.namespace, uid equals deployment.uid, mode exact0700 |
 | lease | exactly path, device, inode, uid, mode; uint64 identities, uid equals deployment.uid, mode exact0600; no release/reacquire during lifetime |
 
-The helper/DB-owner omissions above are intentional representations of the requested
-simplification, **not declared compatible with current O09 fixed checks**. See
-CROSSWALK.md. D02 cannot drop original requirements just because this parser can
-read the smaller record. No opaque v0.3 class hierarchy/full graph/35-position
-serialization is required merely because it appeared in that earlier proposal.
+The owner-approved finite helper contract is:
+
+- `signature` exactly argument_type_oids=[]; variadic_type_oid=0;
+  return_type_oid=16 (PG18 bool); returns_set=false. Fixed public zero-argument
+  function resolution, not caller name/SQL or a new overload.
+- `security` exactly kind=f, language=sql, volatility=s, security_definer=false,
+  leakproof=false, strict=false, parallel=u, support_oid=0, configuration=
+  ["search_path=pg_catalog, public, pg_temp"]. These map to prokind/language,
+  provolatile/prosecdef/proleakproof/proisstrict/proparallel/prosupport/proconfig.
+  Support/planner hooks and any other per-function SET option are unsupported.
+- `effective_acl`: at most64 normalized unique objects, each exactly grantee_oid
+  (uint32,0=PUBLIC), grantor_oid (positiveOID), privilege=EXECUTE,
+  is_grantable (exactbool). Sort by(grantee_oid,grantor_oid,privilege,is_grantable),
+  no duplicate normalized rows. Expand the complete server ACL using
+  aclexplode(COALESCE(proacl,acldefault('f',proowner))), then sort/deduplicate
+  identical semantic grants. Count/bound the actual source rows too; never LIMIT
+  away excess/unknown grants or omit a grantee/grantor. PUBLIC and owner EXECUTE
+  must be present; PUBLIC grantable=false. Match the entire independently approved
+  baseline, not merely those two entries or writer privilege. Current0083 baseline
+  permits PUBLIC+owner EXECUTE, so any unexpected extra grant denies; this record
+  never authorizes a grant. Owner-entry grantability is matched to actual baseline,
+  not inferred from the owner's implicit right to issue grants.
+
+Typed persistence observation returns native bounded OID integers; in particular
+project `p.prosupport::pg_catalog.oid`, not regproc text/name fallback. Complete
+ACL expansion and all helper observations use the same actual read snapshot.
+
+OID/signature, definition hash, owner, every listed security attribute and complete
+normalized ACL are compared. Metadata/estimates outside this finite set are not
+separately serialized; the definition hash may still detect many such changes.
+Historical0083 raw ACL byte-for-byte duties are unchanged. Owner explicitly approved
+security comparison, not a claim it equals the former all-catalog rule. No v0.3
+opaque class hierarchy/full role graph/35-position encoding becomes normative.
 
 ## 3. Fixed observation and conservative role queries
 
@@ -84,7 +118,8 @@ fully qualified queries, never caller SQL/URL or raw DB objects in foundation.
 Obtain pg_control_system().system_identifier, current_database()/pg_database.oid,
 server_version_num integer divided by10000, unique Alembic head, actual session_user
 and current_user OID/name, actual DB/function owners, helper definition, flags and
-effective EXECUTE. Server minor is not a binding value; actual PG/config still
+complete effective ACL and actual session/current effective EXECUTE (both must
+be true). Server minor is not a binding value; actual PG/config still
 belongs in O03 calibration evidence. An unannounced minor upgrade may leave this
 record unchanged: maintenance revoke/rebind is a procedural requirement, not an
 automatic fingerprint guarantee.
@@ -103,8 +138,9 @@ approved scope; NOINHERIT does not remove PUBLIC privileges. If an effective
 privilege exceeds approved scope, HOLD for DBA/owner review: never silently revoke
 PUBLIC or grant a broad role. Default helper PUBLIC+owner EXECUTE remains unchanged;
 effective EXECUTE is expected **true**, not a reason to revoke existing grants.
-Raw ACL/all-attribute preservation remains mandatory where current D1 requires it;
-replacing that requirement is the explicit unresolved helper decision.
+The owner-approved future security comparison uses full normalized ACL and the
+closed set above. Historical0083 raw ACL preservation and no unauthorized grant
+remain mandatory; no helper privilege change is performed by rebind or this doc.
 
 ## 4. Rebind command design (not an existing executable)
 
@@ -192,14 +228,22 @@ Concrete future test cases (planned, **NOT RUN**, not a claim of production lint
 No product tests or PG were run by this docs task. Small offline vectors establish
 only JSON/shape/hash behavior, not any runtime binding or authority.
 
-## 6. Freeze state
+## 6. Independent review and direct-freeze gate
 
-HOLD. Decide helper-catalog scope, four-DB-field scope and D02 stage/provision
-prerequisites at09:00. Current D1 requirements remain in force until an explicit
-accepted change/compatible interpretation is recorded and independently reviewed.
-Do not auto-freeze, close57, start D02 source or claim D03 integrated acceptance.
-The proposal can still simplify JSON/transport/version/role-query design without
-pretending the three outstanding questions are solved.
+The three previous policy issues are RESOLVED_BY_OWNER, not pending09 choices.
+This updated candidate still requires independent exact-head review. After PASS,
+root directly freezes D01, admits the already-authorized bounded D02 implementation
+and D03 design with actual development prerequisites/source scope, and closes57
+while preserving its branch; do not request the same direction approval again.
+Root separately executes only the newly authorized dedicated local dev DB/roles
+with before/after reports. Author does not execute PG, roles or engine source.
+
+Actual development reports are PENDING_ROOT_PROVISION, not a new policy HOLD.
+If the supplied dev HBA is trust, label it honestly: no protected-reference/A2
+credential or production proof. Genuine installation, reference migration/apply,
+consumer registration/activation, continuous lease, actual connection/commit,
+resources/pricing/scientific/production gates all remain. Independent design PASS
+is not actual provision completion or a producer/PG binding acceptance.
 
 Primary PostgreSQL18 references (technical interpretation only):
 [privilege/function information](https://www.postgresql.org/docs/18/functions-info.html),

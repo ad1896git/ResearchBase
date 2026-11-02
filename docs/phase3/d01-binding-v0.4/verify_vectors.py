@@ -28,7 +28,13 @@ SCHEMA = {
         "callable_qualname": "text",
         "callable_code_sha256": "hash",
     },
-    "database": {"system_identifier": "text", "name": "text", "oid": "oid", "pg_major": "int"},
+    "database": {
+        "system_identifier": "text",
+        "name": "text",
+        "oid": "oid",
+        "owner_oid": "oid",
+        "pg_major": "int",
+    },
     "alembic_revision": "text",
     "roles": {
         "session": {"name": "text", "oid": "oid"},
@@ -37,11 +43,34 @@ SCHEMA = {
     },
     "helper": {
         "name": "text",
+        "oid": "oid",
         "definition_sha256": "hash",
         "owner_oid": "oid",
-        "security_definer": "bool",
-        "leakproof": "bool",
-        "effective_execute": {"session": "bool", "current": "bool"},
+        "signature": {
+            "argument_type_oids": [],
+            "variadic_type_oid": "u32",
+            "return_type_oid": "oid",
+            "returns_set": "bool",
+        },
+        "security": {
+            "kind": "text",
+            "language": "text",
+            "volatility": "text",
+            "security_definer": "bool",
+            "leakproof": "bool",
+            "strict": "bool",
+            "parallel": "text",
+            "support_oid": "u32",
+            "configuration": ["text"],
+        },
+        "effective_acl": [
+            {
+                "grantee_oid": "u32",
+                "grantor_oid": "oid",
+                "privilege": "text",
+                "is_grantable": "bool",
+            }
+        ],
     },
     "connection": {"transport": "text", "socket_directory": "text", "port": "int"},
     "cas": {
@@ -83,14 +112,21 @@ def shape(value, schema):
         need(type(value) is dict and set(value) == set(schema), "CLOSED_FIELDS")
         for key, item in schema.items():
             shape(value[key], item)
+    elif type(schema) is list:
+        need(type(value) is list and len(value) <= 64, "ARRAY_BOUND")
+        if not schema:
+            need(not value, "EMPTY_ARGUMENTS")
+        else:
+            for item in value:
+                shape(item, schema[0])
     elif schema == "previous":
         if value is not None:
             shape(value, "hash")
     elif schema == "bool":
         need(type(value) is bool, "BOOL")
-    elif schema in {"int", "u64", "oid"}:
+    elif schema in {"int", "u64", "u32", "oid"}:
         need(type(value) is int, "INTEGER_TYPE")
-        maximum = 2**32 - 1 if schema == "oid" else 2**64 - 1
+        maximum = 2**32 - 1 if schema in {"oid", "u32"} else 2**64 - 1
         need((1 if schema == "oid" else 0) <= value <= maximum, "INTEGER_RANGE")
     else:
         need(type(value) is str and 0 < len(value.encode("utf-8")) <= 4096, "UTF8_TEXT")
@@ -184,13 +220,43 @@ def decode(raw):
         )
         need(value["roles"]["policy"] == "restricted-writer-v4", "ROLE_POLICY")
         helper = value["helper"]
+        need(helper["name"] == "public.pr316d1_enabled()", "HELPER_NAME")
         need(
-            helper["name"] == "public.pr316d1_enabled()"
-            and not helper["security_definer"]
-            and not helper["leakproof"],
-            "HELPER_FLAGS",
+            helper["signature"]
+            == {
+                "argument_type_oids": [],
+                "variadic_type_oid": 0,
+                "return_type_oid": 16,
+                "returns_set": False,
+            },
+            "HELPER_SIGNATURE",
         )
-        need(helper["effective_execute"] == {"session": True, "current": True}, "HELPER_EXECUTE")
+        need(
+            helper["security"]
+            == {
+                "kind": "f",
+                "language": "sql",
+                "volatility": "s",
+                "security_definer": False,
+                "leakproof": False,
+                "strict": False,
+                "parallel": "u",
+                "support_oid": 0,
+                "configuration": ["search_path=pg_catalog, public, pg_temp"],
+            },
+            "HELPER_SECURITY",
+        )
+        rows = helper["effective_acl"]
+        keys = []
+        for row in rows:
+            need(row["privilege"] == "EXECUTE", "ACL_PRIVILEGE")
+            need(row["grantee_oid"] != 0 or not row["is_grantable"], "PUBLIC_GRANTABLE")
+            keys.append(
+                (row["grantee_oid"], row["grantor_oid"], row["privilege"], row["is_grantable"])
+            )
+        need(keys == sorted(set(keys)), "ACL_NORMALIZED")
+        need(any(row["grantee_oid"] == 0 for row in rows), "ACL_PUBLIC")
+        need(any(row["grantee_oid"] == helper["owner_oid"] for row in rows), "ACL_OWNER")
         connection = value["connection"]
         need(connection["transport"] == "UNIX" and 1 <= connection["port"] <= 65535, "UNIX_ONLY")
         deployment = value["deployment"]
@@ -238,7 +304,7 @@ def main():
                 "vectors": len(data["vectors"]),
                 "PG": "NOT_RUN",
                 "approval_or_binding_issued": False,
-                "freeze": "HOLD",
+                "freeze": "NOT_A_GATE",
             },
             sort_keys=True,
         )
