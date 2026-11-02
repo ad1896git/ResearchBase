@@ -34,7 +34,7 @@ text or scientific authority is silently rewritten. Statements about a control
 directory, line numbers, earlier source state, missing interfaces or original
 review context are historical descriptions, not new checks of this Git head.
 The full 18-position and nested typed grammar remains concretely inspectable in
-the unchanged codec. The codec is a specimen, not a production verifier.
+the codec (AST-equivalent to the original; two long lines only are wrapped). The codec is a specimen, not a production verifier.
 
 ## Provenance and portability
 
@@ -44,8 +44,11 @@ original SHA256 and explicit transformations. The original v0.1/v0.2/v0.3 contro
 and review artifacts remain untouched outside this Git bundle. The original v0.3
 manifest/review hashes are retained as provenance, not as an installed gate.
 
-All 55 literal files, vectors JSON, codec, SQL, contract and index bytes are copied
-unchanged. Only documentary metadata paths in catalog/sensitivity/review snapshots
+All 55 literal files, vectors JSON, SQL, contract and index bytes are copied
+unchanged. The portable codec differs only in two long-line string/f-string wraps;
+its AST is identical to the original (source locations excluded), and all 55
+regenerated vectors remain byte-identical. No codec field or algorithm changes.
+Only documentary metadata paths in catalog/sensitivity/review snapshots
 lose the original personal checkout prefix; the historical distribution file path
 becomes its basename. Headers, observations, semantic fields, decisions and hashes
 are unchanged. No host catalog is read during this packaging or offline verification.
@@ -71,7 +74,7 @@ python3.12 docs/phase3/d01-binding-proposed-v0.3/verify_bundle.py
 ```
 
 The verifier checks all payload hashes and each literal's length, full hex, UTF8
-rendering and SHA256. It copies only the unchanged codec into an isolated temporary
+rendering and SHA256. It copies only the AST-equivalent portable codec into an isolated temporary
 directory and runs that specimen to regenerate vectors; the generated vectors JSON
 and all 55 literal bytes must match the bundled originals byte for byte. The
 original generator writes beside itself, so **do not run generate_vectors.py in

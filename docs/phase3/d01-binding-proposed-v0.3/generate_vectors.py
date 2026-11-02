@@ -370,7 +370,10 @@ def sample():
         "sql",
         "",
         "boolean",
-        "CREATE OR REPLACE FUNCTION public.pr316d1_enabled()\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog', 'public', 'pg_temp'\nAS $function$SELECT false$function$\n",
+        "CREATE OR REPLACE FUNCTION public.pr316d1_enabled()\n"
+        " RETURNS boolean\n LANGUAGE sql\n STABLE\n"
+        " SET search_path TO 'pg_catalog', 'public', 'pg_temp'\n"
+        "AS $function$SELECT false$function$\n",
     ]
     return [
         1,
@@ -570,7 +573,8 @@ def main():
     )
     (here / "vectors.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     print(
-        f"{len(vectors)} vectors verified; accepted={sum(v['expected'] == 'ACCEPT_CODEC_ONLY' for v in vectors)}"
+        f"{len(vectors)} vectors verified; accepted="
+        f"{sum(v['expected'] == 'ACCEPT_CODEC_ONLY' for v in vectors)}"
     )
 
 

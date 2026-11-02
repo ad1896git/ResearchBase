@@ -27,7 +27,7 @@
       "path": "README.md",
       "origin_repo_relative_path": null,
       "original_sha256": null,
-      "portable_sha256": "813bb837a7e4f747b2dbaabeecaeef9b2a2c90eb8d95ff02d9428f81db40decd",
+      "portable_sha256": "0311f0b4efb1470b46b0ee8fabdbab4ffe21cd0d1c649e5aabafcd476a0efca8",
       "byte_identical": false,
       "transformations": [
         "New portability explanation/offline documentation auxiliary, not production code."
@@ -53,9 +53,11 @@
       "path": "generate_vectors.py",
       "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/generate_vectors.py",
       "original_sha256": "b95c41ab6483382ab7db1eb6522f062b84d4ac091acd6b7eb2d29e0e53d0d615",
-      "portable_sha256": "b95c41ab6483382ab7db1eb6522f062b84d4ac091acd6b7eb2d29e0e53d0d615",
-      "byte_identical": true,
-      "transformations": []
+      "portable_sha256": "cd920b65793657e7e00756c1551962d2830c9ddf3234524b17699d246d9bfff8",
+      "byte_identical": false,
+      "transformations": [
+        "Format-only: wrap one long SQL string and one f-string using adjacent Python string literals. AST dump excluding source-location attributes identical to original; field/codec algorithm/output unchanged."
+      ]
     },
     {
       "path": "history/D01-v0.1-PROPOSED.md",
