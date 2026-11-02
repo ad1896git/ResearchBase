@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name != 'pull_request' && github.run_id || 'pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -14,6 +18,9 @@ concurrency:
 jobs:
   static:
     runs-on: ubuntu-latest
+    outputs:
+      timing-sha256: ${{ steps.timings.outputs.sha256 }}
+      timing-artifact-id: ${{ steps.publish-timings.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,6 +33,19 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyright
+      - name: Freeze one trusted timing profile for all shards
+        id: timings
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TIMING_BASE: ${{ github.event.pull_request.base.sha || github.sha }}
+        run: uv run python scripts/ci_timing_profile.py --base "$TIMING_BASE" --output /tmp/ci-shard-profile
+      - uses: actions/upload-artifact@v4
+        id: publish-timings
+        with:
+          name: ci-shard-profile-${{ github.run_attempt }}
+          path: /tmp/ci-shard-profile/
+          if-no-files-found: error
 
   checks:
     needs: static
@@ -84,14 +104,26 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run alembic upgrade head
       - run: test "$(uv run alembic current | tail -n 1)" = "0083_bearing_evaluation_guards (head)"
+      - name: Download this run's frozen timing profile
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.static.outputs.timing-artifact-id }}
+          merge-multiple: true
+          path: /tmp/ci-shard-profile
+      - name: Verify identical profile bytes across all six shards
+        env:
+          TIMING_SHA256: ${{ needs.static.outputs.timing-sha256 }}
+        run: uv run python scripts/ci_timing_profile.py --verify /tmp/ci-shard-profile/profile.json --sha256 "$TIMING_SHA256"
       - name: Run deterministic pytest file shard
         shell: bash
         run: |
-          uv run python scripts/ci_pytest_files.py --index ${{ matrix.shard }} --count 6 --durations .github/pytest-durations.json > /tmp/pytest-files.txt
+          uv run python scripts/ci_pytest_files.py --index ${{ matrix.shard }} --count 6 --durations /tmp/ci-shard-profile/profile.json > /tmp/pytest-files.txt
           mapfile -t test_files < /tmp/pytest-files.txt
           uv run pytest --junitxml=/tmp/pytest-results.xml "${test_files[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: pytest-timings-${{ matrix.shard }}
-          path: /tmp/pytest-results.xml
+          path: |
+            /tmp/pytest-results.xml
+            /tmp/pytest-files.txt
