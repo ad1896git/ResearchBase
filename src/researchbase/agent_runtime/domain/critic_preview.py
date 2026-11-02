@@ -243,11 +243,17 @@ class SyntheticFinding:
     reason: str
     locator: SyntheticLocator
 
+    def __post_init__(self) -> None:
+        _finding(self)
+
 
 @dataclass(frozen=True, slots=True)
 class SyntheticLimitation:
     rule_code: str
     code: str
+
+    def __post_init__(self) -> None:
+        _limitation(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,6 +262,9 @@ class SyntheticPreview:
     request_sha256: str
     findings: tuple[SyntheticFinding, ...]
     limitations: tuple[SyntheticLimitation, ...]
+
+    def __post_init__(self) -> None:
+        _result(self)
 
     @property
     def producer_kind(self) -> str:
@@ -301,6 +310,30 @@ class SyntheticPreview:
         return raw
 
 
+def _finding(value: object) -> int:
+    _require(type(value) is SyntheticFinding, "PREVIEW_TYPE")
+    ordinal = _field(value, "ordinal", "PREVIEW_TYPE")
+    _require(type(ordinal) is int and 1 <= ordinal <= 4, "PREVIEW_TYPE")
+    code = _field(value, "code", "PREVIEW_TYPE")
+    _require(type(code) is str and code in _CODES, "PREVIEW_TYPE")
+    index = _CODES.index(code)
+    severity = _field(value, "severity", "PREVIEW_TYPE")
+    reason = _field(value, "reason", "PREVIEW_TYPE")
+    _require(type(severity) is str and severity == "SYNTHETIC_CONCERN", "PREVIEW_TYPE")
+    _require(type(reason) is str and reason == _REASONS[index], "PREVIEW_TYPE")
+    _locator_shape(_field(value, "locator", "PREVIEW_TYPE"))
+    return index
+
+
+def _limitation(value: object) -> int:
+    _require(type(value) is SyntheticLimitation, "PREVIEW_TYPE")
+    rule = _field(value, "rule_code", "PREVIEW_TYPE")
+    code = _field(value, "code", "PREVIEW_TYPE")
+    _require(type(rule) is str and rule in _RULES, "PREVIEW_TYPE")
+    _require(type(code) is str and code == "NO_SYNTHETIC_LEAF", "PREVIEW_TYPE")
+    return _RULES.index(rule)
+
+
 def _result(value: object) -> None:
     _require(type(value) is SyntheticPreview, "PREVIEW_TYPE")
     _label(_field(value, "target_label", "TARGET_LABEL"), "TARGET_LABEL")
@@ -311,30 +344,16 @@ def _result(value: object) -> None:
     _require(type(limitations) is tuple and len(limitations) <= 4, "PREVIEW_TYPE")
     indices = []
     for ordinal, finding in enumerate(findings, 1):
-        _require(type(finding) is SyntheticFinding, "PREVIEW_TYPE")
-        number = _field(finding, "ordinal", "PREVIEW_TYPE")
-        _require(type(number) is int and number == ordinal, "PREVIEW_TYPE")
-        code = _field(finding, "code", "PREVIEW_TYPE")
-        _require(type(code) is str and code in _CODES, "PREVIEW_TYPE")
-        index = _CODES.index(code)
+        index = _finding(finding)
+        _require(finding.ordinal == ordinal, "PREVIEW_TYPE")
         _require(not indices or indices[-1] < index, "PREVIEW_TYPE")
         indices.append(index)
-        severity = _field(finding, "severity", "PREVIEW_TYPE")
-        reason = _field(finding, "reason", "PREVIEW_TYPE")
-        _require(type(severity) is str and severity == "SYNTHETIC_CONCERN", "PREVIEW_TYPE")
-        _require(type(reason) is str and reason == _REASONS[index], "PREVIEW_TYPE")
-        _locator_shape(_field(finding, "locator", "PREVIEW_TYPE"))
     missing_indices = []
     for limitation in limitations:
-        _require(type(limitation) is SyntheticLimitation, "PREVIEW_TYPE")
-        rule = _field(limitation, "rule_code", "PREVIEW_TYPE")
-        code = _field(limitation, "code", "PREVIEW_TYPE")
-        _require(type(rule) is str and rule in _RULES, "PREVIEW_TYPE")
-        index = _RULES.index(rule)
+        index = _limitation(limitation)
         _require(not missing_indices or missing_indices[-1] < index, "PREVIEW_TYPE")
         _require(index not in indices, "PREVIEW_TYPE")
         missing_indices.append(index)
-        _require(type(code) is str and code == "NO_SYNTHETIC_LEAF", "PREVIEW_TYPE")
 
 
 def _locator_material(value: SyntheticLocator) -> list:

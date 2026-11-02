@@ -468,3 +468,83 @@ def test_invalid_slot_exact_type_disclosure_bool_and_source_keys():
     for key in ["", "a" * 65, "foreign/source", "secret space", 1]:
         with pytest.raises(ValueError, match="^EVIDENCE_KEY$"):
             cp.preview(forged(request(), evidence=(forged(evidence(), source_key=key),)))
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"ordinal": False},
+        {"ordinal": 0},
+        {"ordinal": 5},
+        {"code": "bad"},
+        {"severity": "REAL"},
+        {"reason": "bad"},
+        {"locator": None},
+    ],
+)
+def test_finding_constructor_checks_its_own_invariants(changes):
+    attrs = dict(
+        ordinal=1,
+        code="OVERCLAIM_CANDIDATE",
+        severity="SYNTHETIC_CONCERN",
+        reason="asserted_count_exceeds_supplied_support",
+        locator=locator(),
+    )
+    with pytest.raises(ValueError):
+        cp.SyntheticFinding(**(attrs | changes))
+
+
+@pytest.mark.parametrize("rule,code", [("bad", "bad"), ("O", "bad"), (False, "NO_SYNTHETIC_LEAF")])
+def test_limitation_constructor_checks_its_own_invariants(rule, code):
+    with pytest.raises(ValueError):
+        cp.SyntheticLimitation(rule, code)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"target_label": "bad target"},
+        {"request_sha256": "notdigest"},
+        {"findings": []},
+        {"limitations": []},
+        {"findings": (None,)},
+        {"limitations": (None,)},
+    ],
+)
+def test_preview_constructor_checks_its_own_invariants(changes):
+    attrs = dict(target_label="target", request_sha256="0" * 64, findings=(), limitations=())
+    with pytest.raises(ValueError):
+        cp.SyntheticPreview(**(attrs | changes))
+
+
+def test_constructed_output_collections_cannot_contradict_rules_or_order():
+    result = cp.preview(request(overclaim=cp.OverclaimFixture(5, 3, locator())))
+    with pytest.raises(ValueError):
+        cp.SyntheticPreview(
+            "target", "0" * 64, result.findings, (cp.SyntheticLimitation("O", "NO_SYNTHETIC_LEAF"),)
+        )
+    with pytest.raises(ValueError):
+        cp.SyntheticPreview("target", "0" * 64, result.findings * 2, ())
+    with pytest.raises(ValueError):
+        cp.SyntheticPreview("target", "0" * 64, (), tuple(reversed(result.limitations)))
+
+
+@pytest.mark.parametrize("cls", [cp.SyntheticFinding, cp.SyntheticLimitation, cp.SyntheticPreview])
+def test_output_constructor_subclasses_and_uninitialized_slots_are_closed(cls):
+    source = cp.preview(request(overclaim=cp.OverclaimFixture(5, 3, locator())))
+    valid = {
+        cp.SyntheticFinding: source.findings[0],
+        cp.SyntheticLimitation: source.limitations[0],
+        cp.SyntheticPreview: source,
+    }[cls]
+    attrs = {f.name: getattr(valid, f.name) for f in fields(valid)}
+    subclass = type("OutputLookalike", (cls,), {})
+    with pytest.raises(ValueError):
+        subclass(**attrs)
+    with pytest.raises(ValueError):
+        cls.__post_init__(object.__new__(cls))
+    for name in attrs:
+        bad = unchecked(cls, **attrs)
+        object.__delattr__(bad, name)
+        with pytest.raises(ValueError):
+            cls.__post_init__(bad)
