@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from scripts import pipeline_preflight as t
@@ -270,3 +271,179 @@ def test_bad_deployment_model_refuses_before_first_payload_write(tmp_path, mutat
     before = t.inventory([o])
     assert invoke(r) != 0
     assert t.inventory([o]) == before and not (r / "payload").exists()
+
+
+CAPTURE_ENTRY = "\"\"\"Readonly capture inside the merged fixed tool OS-confined Root only; no lease.\"\"\"\nfrom pathlib import Path\nimport json,sys\nOUT=Path(__file__).resolve().parent\nsys.path.insert(0,str(OUT))\nimport manifest as M\n\ndef main():\n    B,ROOT,RUNTIME,PLIST=M.bindings(OUT/'bindings.json')\n    M.review_roles(B,OUT) # pending roles reject before control or lock access\n    writable=Path(B['preflight_root'])\n    assert writable.is_absolute() and writable.resolve()==writable and OUT.is_relative_to(writable),'Root-derived output required'\n    assert not ROOT.is_relative_to(writable) and not writable.is_relative_to(ROOT),'online/write Root overlap'\n    assert sys.executable==str(RUNTIME/'.venv/bin/python3'),'fixed interpreter required'\n    sys.path.insert(0,str(RUNTIME))\n    from scripts.pipeline_preflight import confined\n    confined(writable) # fixed tool kernel proof BEFORE first control read/output\n    dest=OUT/'deployment-manifest.json'\n    assert not dest.exists() and not dest.is_symlink(),'prior capture preserved'\n    manifest=M.build()\n    M.validate(manifest,ROOT,RUNTIME,OUT,PLIST,create=False)\n    with dest.open('x') as f:f.write(json.dumps(manifest,indent=2)+'\\n')\n    print(json.dumps(dict(status='readonly_captured_kernel_confined',files=len(manifest['files']),manifest=str(dest))))\nif __name__=='__main__':main()\n"  # noqa: E501
+
+
+def capture_fixture(tmp_path):
+    r, o, m = fixture(tmp_path)
+    runtime = Path(__file__).resolve().parents[2]
+    context = dict(
+        release_head="a" * 40,
+        tool_merge_head="b" * 40,
+        validation_pr=56,
+        validation_head="c" * 40,
+        validation_base="d" * 40,
+        validation_run=123,
+        queue_sha256="e" * 64,
+        index_sha256="f" * 64,
+    )
+    roles = {}
+    for role in ("index-activation-review", "validation-admission-review"):
+        path = r / (role + ".json")
+        path.write_text(
+            json.dumps(dict(version=1, role=role, verdict="PASS", findings=[], context=context))
+        )
+        roles[role] = dict(path=path.name, sha256=t.sha(path))
+        m["bindings"].append(str(path))
+    (r / "capture-manifest.py").write_text(CAPTURE_ENTRY)
+    m["script"] = str(r / "capture-manifest.py")
+    # Real entry/kernel/children/IO; only online control transport is synthetic.
+    (r / "manifest.py").write_text(
+        "from pathlib import Path\nimport json,hashlib\n"
+        + "OUT=Path(__file__).resolve().parent\n"
+        + f"ONLINE=Path({str(o)!r});RUNTIME=Path({str(runtime)!r})\n"
+        + f"def bindings(path):return ({{'preflight_root':{str(r)!r}}},ONLINE,RUNTIME,ONLINE/'fixture.plist')\n"  # noqa: E501
+        + "def review_roles(b,out):\n v=json.loads((out/'capture.json').read_text())\n assert len(v['roles'])==2\n"  # noqa: E501
+        + "def build():\n return {'files':[{'path':p.name,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(ONLINE.iterdir()) if p.is_file()]}\n"  # noqa: E501
+        + "def validate(m,*args,**kw):\n assert kw=={'create':False}\n for row in m['files']:assert hashlib.sha256((ONLINE/row['path']).read_bytes()).hexdigest()==row['sha256']\n"  # noqa: E501
+    )
+    for name in ("deploy.py", "snapshot_inventory.py", "rollback.py"):
+        (r / name).write_text("# inert synthetic dependency\n")
+    sources = {
+        name: t.sha(r / name)
+        for name in (
+            "deploy.py",
+            "manifest.py",
+            "snapshot_inventory.py",
+            "rollback.py",
+            "capture-manifest.py",
+        )
+    }
+    m["script_sha256"] = t.sha(r / "capture-manifest.py")
+    (r / "capture.json").write_text(
+        json.dumps(
+            dict(
+                version=1,
+                script_sha256=m["script_sha256"],
+                context=context,
+                roles=roles,
+                sources=sources,
+            )
+        )
+    )
+    m["bindings"].append(str(r / "capture.json"))
+    save(r, m)
+    return r, o, m
+
+
+def capture_invoke(root):
+    return subprocess.run(
+        [sys.executable, "-B", "-m", "scripts.pipeline_preflight", "capture", "--root", str(root)],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+    )
+
+
+@MAC
+def test_native_capture_then_deployment_then_verify(tmp_path):
+    second = tmp_path / "rehearsal"
+    second.mkdir()
+    dr, online, expected = deployment_fixture(second)
+    first = tmp_path / "capture"
+    first.mkdir()
+    r, o, m = capture_fixture(first)
+    # Synthetic source data contains the complete typed deployment plan. The
+    # capture output, rather than the test's in-memory object, drives rehearsal.
+    seed = o / "prepared-deployment.json"
+    seed.write_text(json.dumps(expected))
+    module = r / "manifest.py"
+    source = module.read_text().replace(
+        "return {'files':",
+        "return {'prepared_deployment':json.loads((ONLINE/'prepared-deployment.json').read_text()),'files':",  # noqa: E501
+    )
+    module.write_text(source)
+    auth = json.loads((r / "capture.json").read_text())
+    auth["sources"]["manifest.py"] = t.sha(module)
+    (r / "capture.json").write_text(json.dumps(auth))
+    before = t.inventory([o])
+    observed = capture_invoke(r)
+    assert observed.returncode == 0, observed.stdout + observed.stderr
+    result_path = r / "evidence/attempt-0/result.json"
+    result = json.loads(result_path.read_text())
+    assert result["adapter"] == "capture" and result["mode"] == "readonly_capture"
+    assert [p["phase"] for p in result["phases"]] == ["capture"]
+    assert result["phases"][0]["exit_code"] == 0 and result["before"] == result["after"]
+    captured = r / "deployment-manifest.json"
+    assert captured.is_file() and t.inventory([o]) == before
+    dm = json.loads(captured.read_text())["prepared_deployment"]
+    assert dm == expected
+    commitment = dr / "capture-commitment.json"
+    commitment.write_text(
+        json.dumps(
+            dict(captured_manifest_sha256=t.sha(captured), capture_result_sha256=t.sha(result_path))
+        )
+    )
+    dm["bindings"].append(str(commitment))
+    save(dr, dm)
+    dbefore = t.inventory([online])
+    assert invoke(dr) == 0
+    context = t.VerificationContext(
+        root=str(dr),
+        attempt=0,
+        result_sha256=t.sha(dr / "evidence/attempt-0/result.json"),
+        manifest_sha256=t.sha(dr / "manifest.json"),
+        payload_sha256=dm["script_sha256"],
+        release_head=dm["deployment"]["head"],
+        python=sys.executable,
+        expected_bindings=(("capture-commitment.json", t.sha(commitment)),),
+    )
+    assert t.verify_result(context)["status"] == "verified"
+    assert t.inventory([online]) == dbefore and t.inventory([o]) == before
+
+
+@MAC
+def test_native_capture_pending_roles_before_online_io(tmp_path):
+    r, o, m = capture_fixture(tmp_path)
+    auth = json.loads((r / "capture.json").read_text())
+    auth["context"] = None
+    (r / "capture.json").write_text(json.dumps(auth))
+    m["online_inputs"].insert(0, str(o / "never-created"))
+    save(r, m)
+    observed = capture_invoke(r)
+    assert observed.returncode == 2 and "unknown or missing fields" in observed.stdout
+    assert not (r / "evidence").exists() and not (r / "deployment-manifest.json").exists()
+
+
+@pytest.mark.parametrize(
+    "mutation", ["unknown", "failed", "context", "digest", "source", "missing", "deployment"]
+)
+def test_capture_closed_roles_reject_before_online_read(tmp_path, mutation):
+    r, o, m = capture_fixture(tmp_path)
+    path = r / "capture.json"
+    auth = json.loads(path.read_text())
+    role = "validation-admission-review"
+    if mutation == "unknown":
+        auth["extra"] = True
+    elif mutation == "failed":
+        receipt = r / (role + ".json")
+        value = json.loads(receipt.read_text())
+        value["verdict"] = "FAIL"
+        receipt.write_text(json.dumps(value))
+        auth["roles"][role]["sha256"] = t.sha(receipt)
+    elif mutation == "context":
+        auth["context"]["validation_run"] += 1
+    elif mutation == "digest":
+        auth["roles"][role]["sha256"] = "0" * 64
+    elif mutation == "source":
+        (r / "rollback.py").write_text("# changed")
+    elif mutation == "missing":
+        (r / (role + ".json")).unlink()
+    else:
+        m["deployment"] = {}
+    path.write_text(json.dumps(auth))
+    with patch.object(t, "inventory", side_effect=AssertionError("unexpected online inventory")):
+        with pytest.raises((t.SafetyError, FileNotFoundError)):
+            t.capture_roles(r, m)

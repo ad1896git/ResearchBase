@@ -599,9 +599,83 @@ def next_attempt(root, correction):
     return len(names)
 
 
-def run(root, correction=None):
+def capture_roles(root, manifest):
+    """Root-local pinned preparation roles, checked before reading online inputs."""
+    require(manifest["deployment"] is None, "capture requires generic readonly payload")
+    path = str(root / "capture.json")
+    require(path in manifest["bindings"], "capture authorization must be protected input")
+    value = proof_json(read_artifact(str(root), "capture.json"))
+    exact(value, ("version", "script_sha256", "context", "roles", "sources"))
+    require(type(value["version"]) is int and value["version"] == 1, "capture version")
+    require(value["script_sha256"] == manifest["script_sha256"], "capture script binding")
+    sources = value["sources"]
+    exact(
+        sources,
+        ("deploy.py", "manifest.py", "snapshot_inventory.py", "rollback.py", "capture-manifest.py"),
+    )
+    require(
+        manifest["script"] == str(root / "capture-manifest.py"), "closed capture entry required"
+    )
+    for relative, digest in sources.items():
+        require(
+            hashlib.sha256(read_artifact(str(root), relative)).hexdigest() == digest,
+            "capture source closure drift",
+        )
+    context = value["context"]
+    exact(
+        context,
+        (
+            "release_head",
+            "tool_merge_head",
+            "validation_pr",
+            "validation_head",
+            "validation_base",
+            "validation_run",
+            "queue_sha256",
+            "index_sha256",
+        ),
+    )
+    for key in ("release_head", "tool_merge_head", "validation_head", "validation_base"):
+        require(
+            type(context[key]) is str and re.fullmatch("[0-9a-f]{40}", context[key]),
+            "pending capture head",
+        )
+    for key in ("queue_sha256", "index_sha256"):
+        require(
+            type(context[key]) is str and re.fullmatch("[0-9a-f]{64}", context[key]),
+            "pending capture digest",
+        )
+    for key in ("validation_pr", "validation_run"):
+        require(type(context[key]) is int and context[key] > 0, "pending capture witness")
+    roles = value["roles"]
+    exact(roles, ("index-activation-review", "validation-admission-review"))
+    for role, pin in roles.items():
+        exact(pin, ("path", "sha256"))
+        require(pin["path"] == role + ".json", "capture role path")
+        require(str(root / pin["path"]) in manifest["bindings"], "unprotected capture role")
+        raw = read_artifact(str(root), pin["path"])
+        require(hashlib.sha256(raw).hexdigest() == pin["sha256"], "capture role digest")
+        receipt = proof_json(raw)
+        exact(receipt, ("version", "role", "verdict", "findings", "context"))
+        require(
+            type(receipt["version"]) is int
+            and receipt["version"] == 1
+            and receipt["role"] == role
+            and receipt["verdict"] == "PASS"
+            and receipt["findings"] == []
+            and receipt["context"] == context,
+            "capture role not PASS/exact context",
+        )
+    return value
+
+
+def run(root, correction=None, *, capture=False):
     attempt = next_attempt(root, correction)
+    if capture:
+        capture_roles(root, proof_json(read_artifact(str(root), "manifest.json")))
     manifest, inputs, script, plist_hashes = plan(root, attempt)
+    if capture:
+        capture_roles(root, manifest)
     before = inventory(inputs)
     interpreter_closure(
         manifest["interpreter_inputs"],
@@ -648,7 +722,7 @@ def run(root, correction=None):
     try:
         probe = capability_probe(root, Path(manifest["python"]), writable)
         write_json(area, "kernel-probe.json", probe)
-        for phase in ("normal", "rollback"):
+        for phase in ("capture",) if capture else ("normal", "rollback"):
             require(
                 root.resolve() == root
                 and (root.stat().st_dev, root.stat().st_ino) == root_identity,
@@ -664,7 +738,9 @@ def run(root, correction=None):
             )
             protected_before = inventory([evidence], strict=True)
             if manifest["deployment"] is None:
-                argv = [manifest["python"], "-B", str(script), "--phase", phase]
+                argv = [manifest["python"], "-B", str(script)]
+                if not capture:
+                    argv += ["--phase", phase]
             else:
                 adapter = Path(__file__).with_name("pipeline_preflight_deploy.py").resolve()
                 argv = [
@@ -699,13 +775,17 @@ def run(root, correction=None):
                 Path(manifest["deployment"]["prior_runtime"]) if manifest["deployment"] else None,
                 write_root=root,
             )
+            if capture:
+                capture_roles(root, manifest)
             phases.append(dict(phase=phase, **observed))
             current = inventory(inputs)
             require(current == before, "online inventory changed; STOP operation, owner required")
             require(
                 not observed["timed_out"]
-                and observed["exit_code"] == (0 if phase == "normal" else 23),
-                "scenario failed/expected injected rollback not observed",
+                and observed["exit_code"] == (0 if phase in ("normal", "capture") else 23),
+                "capture failed"
+                if capture
+                else "scenario failed/expected injected rollback not observed",
             )
             if manifest["deployment"] is not None:
                 relative = f"payload/attempt-{attempt}/{phase}/adapter-result.json"
@@ -738,9 +818,9 @@ def run(root, correction=None):
         intent_sha256=intent_sha256,
         stage_proofs=stage_proofs,
         plist_hashes=plist_hashes,
-        mode="isolated_rehearsal",
+        mode="readonly_capture" if capture else "isolated_rehearsal",
         deployment="NOT_EXECUTED",
-        adapter="deployment" if manifest["deployment"] else "generic",
+        adapter="capture" if capture else ("deployment" if manifest["deployment"] else "generic"),
         correction_budget="maximum3 explicit corrections; no automatic retry",
     )
     exact(result, RESULT_KEYS)
@@ -1352,7 +1432,7 @@ def confined(root):
     )
 
 
-def bootstrap(root, correction):
+def bootstrap(root, correction, *, capture=False):
     require(sys.platform == "darwin" and SANDBOX.is_file(), "OS write isolation unavailable")
     require(
         root.is_dir()
@@ -1380,7 +1460,11 @@ def bootstrap(root, correction):
         "LC_ALL": "C",
     }
     attempt = next_attempt(root, correction)
-    plan(root, attempt)  # Pure first-write rejection of all declared payload paths.
+    if capture:
+        capture_roles(root, proof_json(read_artifact(str(root), "manifest.json")))
+    prepared = plan(root, attempt)  # Pure first-write rejection of all declared payload paths.
+    if capture:
+        capture_roles(root, prepared[0])
     canary = root / ".deny-canary"
     if not canary.exists():
         fd = os.open(canary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -1405,7 +1489,7 @@ def bootstrap(root, correction):
         "-B",
         "-m",
         "scripts.pipeline_preflight",
-        "_outer",
+        "_capture_outer" if capture else "_outer",
         "--root",
         str(root),
     ]
@@ -1440,7 +1524,7 @@ def main(argv=None):
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("run", "_outer"):
+    for name in ("run", "_outer", "capture", "_capture_outer"):
         command = commands.add_parser(name)
         command.add_argument("--root", required=True)
         command.add_argument("--correction-of")
@@ -1467,7 +1551,7 @@ def main(argv=None):
             print(json.dumps(verify_result(context), sort_keys=True))
             return 0
         root = canonical(args.root)
-        if args.command == "_outer":
+        if args.command in ("_outer", "_capture_outer"):
             confined(root)
             null_identity()
             require(
@@ -1476,8 +1560,8 @@ def main(argv=None):
                 "bootstrap root identity mismatch",
             )
             CONFINED = True
-            return run(root, args.correction_of)
-        return bootstrap(root, args.correction_of)
+            return run(root, args.correction_of, capture=args.command == "_capture_outer")
+        return bootstrap(root, args.correction_of, capture=args.command == "capture")
     except (
         SafetyError,
         ProtocolError,

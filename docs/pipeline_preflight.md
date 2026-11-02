@@ -223,3 +223,39 @@ bind the newly frozen tool+feature release (754 is required ancestor), both actu
 proofs and Root commitment data linking its stable bindings/dependency manifest. Pending
 head/data must stay non-executable; the original PR54-only live branch was not validated as
 a future release by the historical rehearsal smoke.
+
+### Readonly capture before deployment rehearsal
+
+`python -B -m scripts.pipeline_preflight capture --root /absolute/private-root`
+runs the closed `capture-manifest.py` entry exactly once, expecting exit0. It
+uses the same outer kernel confinement, interpreter closure, full online
+inventory, child joining and explicit correction budget as `run`. Its receipt
+has mode `readonly_capture`, adapter `capture` and one phase. It is preparation
+evidence, never deployment rehearsal PASS; `verify` continues to require both
+deployment normal0 and rollback23 and rejects capture receipts.
+
+The version1 manifest remains unchanged and must use `deployment:null`. Its
+protected JSON bindings include `capture.json` and both role receipt files.
+Before plan/interpreter or online snapshot reads, the tool validates this
+Root-local capture document's exact fields: version1, script_sha256, sources,
+context and roles. Sources pins the five named operator files (deploy.py,
+manifest.py, snapshot_inventory.py, rollback.py, capture-manifest.py). Context
+binds release/tool heads, validation PR/head/base/run and queue/index SHA.
+Roles are index-activation-review and validation-admission-review, each an
+exact `{path,sha256}` pin to its matching filename. Each receipt has exact
+version/role/verdict/findings/context, PASS and empty findings. These pins are
+caller-trusted reviewed inputs, not self-authenticating approval. Pending or
+stale inputs reject before online reads; imported operator code is never run
+in the unconfined bootstrap. The five source hashes are rechecked after child
+completion. Missing OS confinement remains failclosed.
+
+Capture outputs are Root-derived data for a separately frozen deployment
+manifest. Bind their SHA and the capture result SHA into a protected commitment
+consumed by the deployment manifest. Then run the same-byte deployment normal
+and rollback rehearsal through `run`, followed by `verify` using independently
+frozen expected commitment/result/manifest/payload/head/interpreter pins. The
+operator capture/build must be readonly, without ProcessLock/PID writes; only
+authorized actual deployment after verified rehearsal may acquire the live
+lease. Natural timer changes to any full online inventory entry block capture;
+no lock/log exclusion is permitted. No live capture/deployment is authorized by
+the CLI's existence.
