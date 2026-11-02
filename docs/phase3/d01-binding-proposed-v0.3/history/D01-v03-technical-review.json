@@ -1,0 +1,87 @@
+{
+  "verdict": "PASS_PROPOSED_TECHNICAL_CONSISTENCY",
+  "review_kind": "Independent design consistency only; not a frozen scientific contract/gate",
+  "findings": [],
+  "closed_findings": [
+    {
+      "id": "D01-v02-P2-01",
+      "status": "CLOSED",
+      "evidence": "Exact UnicodeCc checks includeC0/DEL/C1;195 independent host/path/body probes retain only declared HT/LF/CR body exceptions"
+    },
+    {
+      "id": "D01-v02-P2-02",
+      "status": "CLOSED",
+      "evidence": "Fixed SQL explicitly castsprosupport to pg_catalog.oid and contract specifies same-snapshot ACL/composite packing"
+    },
+    {
+      "id": "D01-v02-P2-03",
+      "status": "CLOSED",
+      "evidence": "Nonrecursive escaped-string-aware depth8 and integer20-digit bounds, closed parse errors; deep/huge literals and independent injectedValueError/RecursionError deny"
+    }
+  ],
+  "offline_checks": {
+    "verdict": "PASS_OFFLINE_TECHNICAL_CHECKS",
+    "literal_count": 55,
+    "classifications": {
+      "ACCEPT_CODEC_ONLY": 7,
+      "REJECT": 48
+    },
+    "original42_vectors_unchanged": true,
+    "v02_reviewed_bytes_unchanged": true,
+    "manifest_hashes_match": true,
+    "isolated_generator_byte_identical": true,
+    "additional_Cc_field_probes": 195,
+    "deep_and_huge_integer_denied": true,
+    "injected_ValueError_RecursionError_closed": true,
+    "prosupport_explicit_oid_cast": true,
+    "python": "3.12.15 (main, Oct  9 2026, 15:10:57) [Clang 22.1.3 ]",
+    "DB": "NOT RUN",
+    "facilities": "NOT RUN",
+    "original_draft_modified": false
+  },
+  "offline_checks_sha256": "3df9c903a9f55d0b0feb64bf71da5ecfbafe0dffc242f4fa1cea7b2f945107e0",
+  "file_sha256": {
+    "CONTRACT-PROPOSED.md": "3e6ff0abdf6b147754b9b5ad409a49f2b4266a1dadd4ae37c59b7f4f4a425367",
+    "VECTOR-INDEX.md": "5172f4c99e155bb597b89da4301172d608a835861cc8c29adc1bacc644b31a73",
+    "REVIEW-NOTES.md": "f2831dae39362b788da169c0e82fcd6b80346f136abd0cadd7e063053ce05387",
+    "local-catalog-source.json": "e8046b5fa178fd39dbda294f65e2d17ae50fb623658cdb21c468896db406d655",
+    "shasum-crosscheck.log": "40d95af6e088bd5e5b8ed58f1de93d59137f219202f5cce9adc107e4834c4e2b",
+    "offline-run.log": "0aa405b241c5c8ba27dfdcb6f37d296ad1f766e4e6cd23ea23a479a12b8ff1c5",
+    "vectors.json": "dc3db33b036623ecc639626ee60b4ab29c935376c82a7a09de24690f9fbdad74",
+    "sensitivity.json": "70e87f9f189c43bc4de04c5d9a9fd71aace269d741f0294ecffb69a2ed2e7bc8",
+    "manifest.json": "8110588acfef5230d00b12b28d8da4671a3b84816666ee1a1284c0d9131f3b0e",
+    "generate_vectors.py": "b95c41ab6483382ab7db1eb6522f062b84d4ac091acd6b7eb2d29e0e53d0d615",
+    "projection-PROPOSED.sql": "12fc21f2de56963a9ca073e898ede3593fb48685b375192d6da66ab58d7f6e37"
+  },
+  "prior_evidence": {
+    "v01": "manual-design-v01-technical-review.json retained",
+    "v02_review_sha256": "972653c38f4a062d6c38151eadf1ae1473e5407c52fdb69a26432b514db3e1fc",
+    "v02_bytes_unchanged": true,
+    "original42_vectors_unchanged": true
+  },
+  "technical_assessment": [
+    "55literal specimens:7codec-only accepts/48rejects independently match exact length/hex/UTF8/SHA/context; deterministic isolated regeneration matches allbytes",
+    "Role graph covers membershipgrantor/admin/inherit/set and full option-independent ancestry; conservative owner/elevated/admin deny avoids earlier directOID gap",
+    "Actual privilege/object/schema safety remains separate; graph is not a DDL-privilege attestation or provisionproof",
+    "Opaque issued same-object captured connectionroot/port/UoW factory identity addresses matching-string counterexample as a required proposal; originalpublic installationproof and fixedactualdomain evaluate retained",
+    "No private-field consumer, caller verifier, directDB object in foundation or generic registry is admitted",
+    "Same-thread/process-local consumption and currentlease restrictions remain; D03 actual UoW commit/revoke/cleanup and supported delivery semantics cannot be inferred from protocolmethod names"
+  ],
+  "remaining_gates": [
+    "Owner must explicitly accept final technical D01 contract rather than only direction; this review does not itselffreeze architecture",
+    "Actual host/topology/UID/recordprotection, DB/roles/permissions/endpoint/socket/CAS/lease values and credentials remain operator supplied and independently proven",
+    "Exact factoryissuer/constructionmodule/wiring and public proof issuance/consume integration/tests must be frozen in properD02/D03 packs beforecoding",
+    "No concurrency expansion beyond LocalLease currentcontract; D03 ownerthread/revoke delivery and actualcommit lifetime still require exact accepted design",
+    "Real PG18 adapter projection/type/permission, protected startup, lease/factory binding and mismatch tests remain NOT RUN",
+    "No code/migration/installation/activation/productionwrite/resourceprofile/provider/egress authority or wholeparentcompletion"
+  ],
+  "scientific_freeze_authorized": false,
+  "implementation_authorized": false,
+  "facilities_authorized": false,
+  "limits": [
+    "No source/draft changes; only isolated offline generator copies and reviewer output files",
+    "No DB connections, PG query, facilities, credentials, permissions or network effects",
+    "Official PG18 docs consulted in prior review remain source for role/regproc semantics; staticBKI is distributionmetadata only",
+    "Codec-positive is synthetic structural evidence, never approved binding/deployment acceptance"
+  ]
+}

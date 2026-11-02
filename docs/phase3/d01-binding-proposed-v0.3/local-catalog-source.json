@@ -1,0 +1,130 @@
+{
+  "status": "READ_ONLY_INSTALLED_DISTRIBUTION_HEADER_NOT_DB_OBSERVATION",
+  "path": "postgres.bki",
+  "sha256": "ba43fc265c5e477644ac7c28b1771e42d020ee76520cb80bf9a82074a9e90756",
+  "header": "# PostgreSQL 18\ncreate pg_proc 1255 bootstrap rowtype_oid 81\n (\n oid = oid ,\n proname = name ,\n pronamespace = oid ,\n proowner = oid ,\n prolang = oid ,\n procost = float4 ,\n prorows = float4 ,\n provariadic = oid ,\n prosupport = regproc ,\n prokind = char ,\n prosecdef = bool ,\n proleakproof = bool ,\n proisstrict = bool ,\n proretset = bool ,\n provolatile = char ,\n proparallel = char ,\n pronargs = int2 ,\n pronargdefaults = int2 ,\n prorettype = oid ,\n proargtypes = oidvector FORCE NOT NULL ,\n proallargtypes = _oid ,\n proargmodes = _char ,\n proargnames = _text ,\n proargdefaults = pg_node_tree ,\n protrftypes = _oid ,\n prosrc = text FORCE NOT NULL ,\n probin = text ,\n prosqlbody = pg_node_tree ,\n proconfig = _text ,\n proacl = _aclitem\n )\n",
+  "pg_proc_column_types": [
+    [
+      "oid",
+      "oid "
+    ],
+    [
+      "proname",
+      "name "
+    ],
+    [
+      "pronamespace",
+      "oid "
+    ],
+    [
+      "proowner",
+      "oid "
+    ],
+    [
+      "prolang",
+      "oid "
+    ],
+    [
+      "procost",
+      "float4 "
+    ],
+    [
+      "prorows",
+      "float4 "
+    ],
+    [
+      "provariadic",
+      "oid "
+    ],
+    [
+      "prosupport",
+      "regproc "
+    ],
+    [
+      "prokind",
+      "char "
+    ],
+    [
+      "prosecdef",
+      "bool "
+    ],
+    [
+      "proleakproof",
+      "bool "
+    ],
+    [
+      "proisstrict",
+      "bool "
+    ],
+    [
+      "proretset",
+      "bool "
+    ],
+    [
+      "provolatile",
+      "char "
+    ],
+    [
+      "proparallel",
+      "char "
+    ],
+    [
+      "pronargs",
+      "int2 "
+    ],
+    [
+      "pronargdefaults",
+      "int2 "
+    ],
+    [
+      "prorettype",
+      "oid "
+    ],
+    [
+      "proargtypes",
+      "oidvector FORCE NOT NULL "
+    ],
+    [
+      "proallargtypes",
+      "_oid "
+    ],
+    [
+      "proargmodes",
+      "_char "
+    ],
+    [
+      "proargnames",
+      "_text "
+    ],
+    [
+      "proargdefaults",
+      "pg_node_tree "
+    ],
+    [
+      "protrftypes",
+      "_oid "
+    ],
+    [
+      "prosrc",
+      "text FORCE NOT NULL "
+    ],
+    [
+      "probin",
+      "text "
+    ],
+    [
+      "prosqlbody",
+      "pg_node_tree "
+    ],
+    [
+      "proconfig",
+      "_text "
+    ],
+    [
+      "proacl",
+      "_aclitem"
+    ]
+  ],
+  "matches_proposed_30_attribute_projection": true,
+  "actual_deployment_catalog_verified": false
+}

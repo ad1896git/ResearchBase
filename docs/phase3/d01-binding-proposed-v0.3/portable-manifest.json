@@ -1,0 +1,571 @@
+{
+  "status": "PROPOSED_PORTABLE_DOCUMENTATION_NOT_OWNER_FREEZE",
+  "parent": "D01",
+  "risk_unchanged": "high",
+  "owner_only": true,
+  "original_v03_manifest_sha256": "8110588acfef5230d00b12b28d8da4671a3b84816666ee1a1284c0d9131f3b0e",
+  "original_v03_independent_technical_review_sha256": "10699f00e40a3d77050aaa761ed1f1284be8873b0c9596d90d71c4ab60a3968b",
+  "original_technical_verdict": "PASS_PROPOSED_TECHNICAL_CONSISTENCY_ONLY",
+  "new_bundle_independent_review": "PENDING",
+  "source_versions_retained_unchanged_outside_bundle": true,
+  "literal_count": 55,
+  "codec_only_accepts": 7,
+  "rejects": 48,
+  "hash_scope": "All 68 payloads below; portable-manifest.json itself is bound by the Git commit/external review, avoiding a recursive self-hash.",
+  "scientific_authority_or_implementation_granted": false,
+  "PG_or_facilities_observed_this_packaging": false,
+  "payloads": [
+    {
+      "path": "CONTRACT-PROPOSED.md",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/CONTRACT-PROPOSED.md",
+      "original_sha256": "3e6ff0abdf6b147754b9b5ad409a49f2b4266a1dadd4ae37c59b7f4f4a425367",
+      "portable_sha256": "3e6ff0abdf6b147754b9b5ad409a49f2b4266a1dadd4ae37c59b7f4f4a425367",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "README.md",
+      "origin_repo_relative_path": null,
+      "original_sha256": null,
+      "portable_sha256": "813bb837a7e4f747b2dbaabeecaeef9b2a2c90eb8d95ff02d9428f81db40decd",
+      "byte_identical": false,
+      "transformations": [
+        "New portability explanation/offline documentation auxiliary, not production code."
+      ]
+    },
+    {
+      "path": "REVIEW-NOTES.md",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/REVIEW-NOTES.md",
+      "original_sha256": "f2831dae39362b788da169c0e82fcd6b80346f136abd0cadd7e063053ce05387",
+      "portable_sha256": "f2831dae39362b788da169c0e82fcd6b80346f136abd0cadd7e063053ce05387",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "VECTOR-INDEX.md",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/VECTOR-INDEX.md",
+      "original_sha256": "5172f4c99e155bb597b89da4301172d608a835861cc8c29adc1bacc644b31a73",
+      "portable_sha256": "5172f4c99e155bb597b89da4301172d608a835861cc8c29adc1bacc644b31a73",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "generate_vectors.py",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/generate_vectors.py",
+      "original_sha256": "b95c41ab6483382ab7db1eb6522f062b84d4ac091acd6b7eb2d29e0e53d0d615",
+      "portable_sha256": "b95c41ab6483382ab7db1eb6522f062b84d4ac091acd6b7eb2d29e0e53d0d615",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "history/D01-v0.1-PROPOSED.md",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-binding-contract-PROPOSED.md",
+      "original_sha256": "e8370455cfed56539489e9c68e0b7ce4cdbc65ee791864031138b0825405eedd",
+      "portable_sha256": "e8370455cfed56539489e9c68e0b7ce4cdbc65ee791864031138b0825405eedd",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "history/D01-v0.2-PROPOSED.md",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.2/CONTRACT-PROPOSED.md",
+      "original_sha256": "5aaaf1eecab741f9c60404819d1e24c7fade0a1a229fe2a838d8aa543fbc600e",
+      "portable_sha256": "5aaaf1eecab741f9c60404819d1e24c7fade0a1a229fe2a838d8aa543fbc600e",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "history/D01-v03-technical-review.json",
+      "origin_repo_relative_path": ".pipeline/logs/reviews/decisions-20261101/D01-v03-technical-review.json",
+      "original_sha256": "10699f00e40a3d77050aaa761ed1f1284be8873b0c9596d90d71c4ab60a3968b",
+      "portable_sha256": "10699f00e40a3d77050aaa761ed1f1284be8873b0c9596d90d71c4ab60a3968b",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-acl-null-empty-confusion.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-acl-null-empty-confusion.bin",
+      "original_sha256": "a063e96a5544c3123f8357f844be7c9f2a4d88b5b9399d13ae97d7874b6d1248",
+      "portable_sha256": "a063e96a5544c3123f8357f844be7c9f2a4d88b5b9399d13ae97d7874b6d1248",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-acl-privilege.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-acl-privilege.bin",
+      "original_sha256": "d244c6e93bedf82dd1ad6984cf52f4613a75dc0baaeba9c887f5b1f3d0985e1d",
+      "portable_sha256": "d244c6e93bedf82dd1ad6984cf52f4613a75dc0baaeba9c887f5b1f3d0985e1d",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-acl-raw-limit.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-acl-raw-limit.bin",
+      "original_sha256": "e3ef6e10e5937644cae1650c606538266f7f05417dc75eff4b00a4e32da92f16",
+      "portable_sha256": "e3ef6e10e5937644cae1650c606538266f7f05417dc75eff4b00a4e32da92f16",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-bom.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-bom.bin",
+      "original_sha256": "e3c4c1f4c7bd65bb2370c61cb2c989b83d9cad598fd6b3e70c38d46c7ca5ba4f",
+      "portable_sha256": "e3c4c1f4c7bd65bb2370c61cb2c989b83d9cad598fd6b3e70c38d46c7ca5ba4f",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-bool-uid.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-bool-uid.bin",
+      "original_sha256": "66c9fc33ce62c45d971a91faa734faea10b96d45a9d869c7a0946435953b0b76",
+      "portable_sha256": "66c9fc33ce62c45d971a91faa734faea10b96d45a9d869c7a0946435953b0b76",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-catalog-extra-field.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-catalog-extra-field.bin",
+      "original_sha256": "445aaaff70044b38f8c7597842376fbf626a99fe2005d29ae461e9eb748f3b89",
+      "portable_sha256": "445aaaff70044b38f8c7597842376fbf626a99fe2005d29ae461e9eb748f3b89",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-config-limit.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-config-limit.bin",
+      "original_sha256": "0654dc620f702c126421435a389ff2a804625734e15288a5f87025dc41b95604",
+      "portable_sha256": "0654dc620f702c126421435a389ff2a804625734e15288a5f87025dc41b95604",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-control-body-C1.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-control-body-C1.bin",
+      "original_sha256": "d214d483bbdbfb31a2281ff0dfee75d9c7c9ecebf5ac8996fe9185d4bbc7c46a",
+      "portable_sha256": "d214d483bbdbfb31a2281ff0dfee75d9c7c9ecebf5ac8996fe9185d4bbc7c46a",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-control-body-DEL.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-control-body-DEL.bin",
+      "original_sha256": "315d9190ce8935cf46c37fb12261049c152b096eb4e4e79700fd81d4cdef083e",
+      "portable_sha256": "315d9190ce8935cf46c37fb12261049c152b096eb4e4e79700fd81d4cdef083e",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-control-host-C1.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-control-host-C1.bin",
+      "original_sha256": "e0b1f453206cf15fc5fb7a374764ab70e4eb5cd430ab1e36e6d659f726b31900",
+      "portable_sha256": "e0b1f453206cf15fc5fb7a374764ab70e4eb5cd430ab1e36e6d659f726b31900",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-control-host-DEL.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-control-host-DEL.bin",
+      "original_sha256": "26b7ac785a6aeb2b23f27abd7e8fb4301f9623ba3653e7377153ed72e95c7beb",
+      "portable_sha256": "26b7ac785a6aeb2b23f27abd7e8fb4301f9623ba3653e7377153ed72e95c7beb",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-control-path-C1.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-control-path-C1.bin",
+      "original_sha256": "64019f841fda0557210a4b75c39efb230cc798d95a18f3b49ff2636329d46607",
+      "portable_sha256": "64019f841fda0557210a4b75c39efb230cc798d95a18f3b49ff2636329d46607",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-control-path-DEL.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-control-path-DEL.bin",
+      "original_sha256": "1e6e8b44384c60e3baa39e8481444def7554bca5ba7637ccafaf728f46898523",
+      "portable_sha256": "1e6e8b44384c60e3baa39e8481444def7554bca5ba7637ccafaf728f46898523",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-depth15000-array.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-depth15000-array.bin",
+      "original_sha256": "3f8fe7ecda17d24483e46073dcfc54e521d2941251c060ba78211b0802ecee74",
+      "portable_sha256": "3f8fe7ecda17d24483e46073dcfc54e521d2941251c060ba78211b0802ecee74",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-depth8-wrong-record.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-depth8-wrong-record.bin",
+      "original_sha256": "03539fe28c270a9037b764b77233a2905acc047c4cfaaeac60e370aaec44219d",
+      "portable_sha256": "03539fe28c270a9037b764b77233a2905acc047c4cfaaeac60e370aaec44219d",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-depth9-array.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-depth9-array.bin",
+      "original_sha256": "ac63557304af50a56fe3ca31dc0964a31e9337bbeb0382f25e4bc90aad156828",
+      "portable_sha256": "ac63557304af50a56fe3ca31dc0964a31e9337bbeb0382f25e4bc90aad156828",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-depth9-object.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-depth9-object.bin",
+      "original_sha256": "bc7bccd01021d845038a428ed4f344cfd1cd574fbb300c5efa9d44715897e6ea",
+      "portable_sha256": "bc7bccd01021d845038a428ed4f344cfd1cd574fbb300c5efa9d44715897e6ea",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-edge-limit.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-edge-limit.bin",
+      "original_sha256": "1b12da3a7b2bd6d03832dbaefa9ee409a5032019dcab6a5e7da7257b3e14ad31",
+      "portable_sha256": "1b12da3a7b2bd6d03832dbaefa9ee409a5032019dcab6a5e7da7257b3e14ad31",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-edge-missing-option.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-edge-missing-option.bin",
+      "original_sha256": "b24ccb90598e7294a603d0ea95742e209238e63f5165dae06dabaf3649dfafa3",
+      "portable_sha256": "b24ccb90598e7294a603d0ea95742e209238e63f5165dae06dabaf3649dfafa3",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-expected-acl-null.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-expected-acl-null.bin",
+      "original_sha256": "0a0ce6f50032acfae767aca287ab230b1fb6986ea9e80c64aeaf219bce14de51",
+      "portable_sha256": "0a0ce6f50032acfae767aca287ab230b1fb6986ea9e80c64aeaf219bce14de51",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-expected-membership-inherit.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-expected-membership-inherit.bin",
+      "original_sha256": "d1e87b0d8dac6892c465dd42e8bfe059f3d942927fd5016468c6b3c6cc02870a",
+      "portable_sha256": "d1e87b0d8dac6892c465dd42e8bfe059f3d942927fd5016468c6b3c6cc02870a",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-expected-membership-set.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-expected-membership-set.bin",
+      "original_sha256": "ba5413d2866714cab4a8d7a16b506fcef8a5873e29dc9f4104ee87fbe5aeadaf",
+      "portable_sha256": "ba5413d2866714cab4a8d7a16b506fcef8a5873e29dc9f4104ee87fbe5aeadaf",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-expected-role-option.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-expected-role-option.bin",
+      "original_sha256": "2e7f440d3babb75e2eb9a02154f1ca6b0d8ca7663961abdf6a3ce1e63965e6e4",
+      "portable_sha256": "2e7f440d3babb75e2eb9a02154f1ca6b0d8ca7663961abdf6a3ce1e63965e6e4",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-expiry-equality.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-expiry-equality.bin",
+      "original_sha256": "1d9ff426679ed07b66352acec2b87539f97f39031806156b0ef7fdba07759701",
+      "portable_sha256": "1d9ff426679ed07b66352acec2b87539f97f39031806156b0ef7fdba07759701",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-extra-position.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-extra-position.bin",
+      "original_sha256": "6fc73509c802f8017c18d106f7edd48ee6d1b971c4bcb3fd1dd9200d19315b56",
+      "portable_sha256": "6fc73509c802f8017c18d106f7edd48ee6d1b971c4bcb3fd1dd9200d19315b56",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-extra-whitespace.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-extra-whitespace.bin",
+      "original_sha256": "60e48e105f99f9c0d59af2e1e897fd139b6022123b77b75531d2d009e020eae4",
+      "portable_sha256": "60e48e105f99f9c0d59af2e1e897fd139b6022123b77b75531d2d009e020eae4",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-float-uid.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-float-uid.bin",
+      "original_sha256": "f332b22d10e8c083118416710e0c2ffd740fe980340ffae74057e6b3b03c0366",
+      "portable_sha256": "f332b22d10e8c083118416710e0c2ffd740fe980340ffae74057e6b3b03c0366",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-float4-nan.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-float4-nan.bin",
+      "original_sha256": "610bfab525a4fb7efe3b54067210daa64168ea3eb4d1c002ddf96e28d9b4203c",
+      "portable_sha256": "610bfab525a4fb7efe3b54067210daa64168ea3eb4d1c002ddf96e28d9b4203c",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-inherit-owner-reachable.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-inherit-owner-reachable.bin",
+      "original_sha256": "e6d7f4e1af73f921c96371d210a97beb50de14f2012a167956003964932c1ec1",
+      "portable_sha256": "e6d7f4e1af73f921c96371d210a97beb50de14f2012a167956003964932c1ec1",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-integer5000-digits.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-integer5000-digits.bin",
+      "original_sha256": "64f369b346711df48dd85a4dbf2b18f373ff913ed0b07b0e9ff4aa7be7f7b5fe",
+      "portable_sha256": "64f369b346711df48dd85a4dbf2b18f373ff913ed0b07b0e9ff4aa7be7f7b5fe",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-invalid-utf8.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-invalid-utf8.bin",
+      "original_sha256": "c3cf603ce26812b934d1be37ea1ac13e2f53c5a85d0d2dcd023b294942f4c124",
+      "portable_sha256": "c3cf603ce26812b934d1be37ea1ac13e2f53c5a85d0d2dcd023b294942f4c124",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-ip-mapped.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-ip-mapped.bin",
+      "original_sha256": "b44baa2d98c0367b2afe1ba0098b54e7c3d32364f3f601264f413abb2838b9b8",
+      "portable_sha256": "b44baa2d98c0367b2afe1ba0098b54e7c3d32364f3f601264f413abb2838b9b8",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-ip-noncanonical.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-ip-noncanonical.bin",
+      "original_sha256": "a6f292e46deac463cd470df3a3c6593d6e0b39977a0181fa6924e7facf62adb4",
+      "portable_sha256": "a6f292e46deac463cd470df3a3c6593d6e0b39977a0181fa6924e7facf62adb4",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-ip-remote.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-ip-remote.bin",
+      "original_sha256": "27cc4411d125b0a6c10f5f37a46c240333ee814beaca192d2fdc57c9fbd1396b",
+      "portable_sha256": "27cc4411d125b0a6c10f5f37a46c240333ee814beaca192d2fdc57c9fbd1396b",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-missing-position.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-missing-position.bin",
+      "original_sha256": "46650f44b02f6d09843ce077c526585a4f747c5d6a20144d9b72cecadc653f4d",
+      "portable_sha256": "46650f44b02f6d09843ce077c526585a4f747c5d6a20144d9b72cecadc653f4d",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-nfd-text.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-nfd-text.bin",
+      "original_sha256": "43c94d2a41a8259bad66853601347c4fe0b613ccc11fe7183b0bc7c3eb9cc22e",
+      "portable_sha256": "43c94d2a41a8259bad66853601347c4fe0b613ccc11fe7183b0bc7c3eb9cc22e",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-oid-overflow.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-oid-overflow.bin",
+      "original_sha256": "f37440b791be2703e95eea4a38ce5dc8a527b9651588cccd5a9141063ea881a1",
+      "portable_sha256": "f37440b791be2703e95eea4a38ce5dc8a527b9651588cccd5a9141063ea881a1",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-oversized-body.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-oversized-body.bin",
+      "original_sha256": "3b5fc2f4e1c8e49c87dfab1a0dceb4be0391019a624b8ff3b6367eefe47ec32f",
+      "portable_sha256": "3b5fc2f4e1c8e49c87dfab1a0dceb4be0391019a624b8ff3b6367eefe47ec32f",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-record-limit.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-record-limit.bin",
+      "original_sha256": "1b3b04bb1bbb529e65a52c3a4e56cba08f67a2e52389a3336499dfe271b462e2",
+      "portable_sha256": "1b3b04bb1bbb529e65a52c3a4e56cba08f67a2e52389a3336499dfe271b462e2",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-role-limit.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-role-limit.bin",
+      "original_sha256": "024ed5689e3c01d57f4f7839d7154fcf1a5fb3f412a681566e9c4358a0cc3119",
+      "portable_sha256": "024ed5689e3c01d57f4f7839d7154fcf1a5fb3f412a681566e9c4358a0cc3119",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-set-owner-reachable.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-set-owner-reachable.bin",
+      "original_sha256": "8cbf1838f6323088214c3082e63053d2d6bc4d899527d3c8f0e5bfaab2df74ba",
+      "portable_sha256": "8cbf1838f6323088214c3082e63053d2d6bc4d899527d3c8f0e5bfaab2df74ba",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-trailing-data.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-trailing-data.bin",
+      "original_sha256": "53c5e538fcd610dabcc44cc09354103775bf818a1137a6174a1e3a6324e68fa2",
+      "portable_sha256": "53c5e538fcd610dabcc44cc09354103775bf818a1137a6174a1e3a6324e68fa2",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-transitive-owner.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-transitive-owner.bin",
+      "original_sha256": "bc6552ac283bbcdae3ecd16638963805dfe9982c2e0a42bd1f56f871d062e235",
+      "portable_sha256": "bc6552ac283bbcdae3ecd16638963805dfe9982c2e0a42bd1f56f871d062e235",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-unicode-escape-alias.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-unicode-escape-alias.bin",
+      "original_sha256": "b48d604a8bcdaef41186207795023c07cae7b21be302d6ed2c890efb9b1abcfd",
+      "portable_sha256": "b48d604a8bcdaef41186207795023c07cae7b21be302d6ed2c890efb9b1abcfd",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-unix-port-nonnull.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-unix-port-nonnull.bin",
+      "original_sha256": "6c2d7231b72a1d553e438ebc40ecdf30d48537c79937ca6f2c46ae541069b98f",
+      "portable_sha256": "6c2d7231b72a1d553e438ebc40ecdf30d48537c79937ca6f2c46ae541069b98f",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-unsafe-path.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-unsafe-path.bin",
+      "original_sha256": "534dbce7f8e5f660f3264cac2a03f6fb81638c299c32c668c56c8710bca69aec",
+      "portable_sha256": "534dbce7f8e5f660f3264cac2a03f6fb81638c299c32c668c56c8710bca69aec",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-utc-offset.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-utc-offset.bin",
+      "original_sha256": "1faebd4395653b58678d5edc0437ea645cf4ef93a9c7ef88959d4f5e1c6d52ca",
+      "portable_sha256": "1faebd4395653b58678d5edc0437ea645cf4ef93a9c7ef88959d4f5e1c6d52ca",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/negative-wrong-callable.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/negative-wrong-callable.bin",
+      "original_sha256": "e0ea6d5840a005d4d853b6458379b3c43c8a2c06dd817acc31312483ee6ac34a",
+      "portable_sha256": "e0ea6d5840a005d4d853b6458379b3c43c8a2c06dd817acc31312483ee6ac34a",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/positive-acl-empty.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/positive-acl-empty.bin",
+      "original_sha256": "0a0ce6f50032acfae767aca287ab230b1fb6986ea9e80c64aeaf219bce14de51",
+      "portable_sha256": "0a0ce6f50032acfae767aca287ab230b1fb6986ea9e80c64aeaf219bce14de51",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/positive-body-HT-LF-CR.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/positive-body-HT-LF-CR.bin",
+      "original_sha256": "917f9b8c7566ce2439a2b1cacddf3e0005b6f1e62925a4c8ff7929bf61f0b254",
+      "portable_sha256": "917f9b8c7566ce2439a2b1cacddf3e0005b6f1e62925a4c8ff7929bf61f0b254",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/positive-ipv4.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/positive-ipv4.bin",
+      "original_sha256": "0e99d845cf7a32d36ba90dc9becf44f0dafd9a76702a9d512310f7cd4f54776f",
+      "portable_sha256": "0e99d845cf7a32d36ba90dc9becf44f0dafd9a76702a9d512310f7cd4f54776f",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/positive-ipv6.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/positive-ipv6.bin",
+      "original_sha256": "288c4a6b7605b2d0cfef424a3939b0da54a7101052a443f940a2d4a432505712",
+      "portable_sha256": "288c4a6b7605b2d0cfef424a3939b0da54a7101052a443f940a2d4a432505712",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/positive-quoted-brackets-escapes.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/positive-quoted-brackets-escapes.bin",
+      "original_sha256": "43edd6f2a772b49eb72203aca70f3f6a27e801f1f9e05c6b15b1169e4e7af3fa",
+      "portable_sha256": "43edd6f2a772b49eb72203aca70f3f6a27e801f1f9e05c6b15b1169e4e7af3fa",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/positive-restricted-membership.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/positive-restricted-membership.bin",
+      "original_sha256": "ea26059f1215305e234b39871a209c2910010dcdbbb7de4023a06219f9cf1167",
+      "portable_sha256": "ea26059f1215305e234b39871a209c2910010dcdbbb7de4023a06219f9cf1167",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "literal-bytes/positive-unix-null.bin",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/literal-bytes/positive-unix-null.bin",
+      "original_sha256": "1d9ff426679ed07b66352acec2b87539f97f39031806156b0ef7fdba07759701",
+      "portable_sha256": "1d9ff426679ed07b66352acec2b87539f97f39031806156b0ef7fdba07759701",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "local-catalog-source.json",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/local-catalog-source.json",
+      "original_sha256": "e8046b5fa178fd39dbda294f65e2d17ae50fb623658cdb21c468896db406d655",
+      "portable_sha256": "d80eb98e183a5caa142e5b6973328c4a04ba8544000bcfdfd6b8c97bd0995026",
+      "byte_identical": false,
+      "transformations": [
+        "Historical distribution source path reduced to basename; header and distribution SHA unchanged, no new observation."
+      ]
+    },
+    {
+      "path": "projection-PROPOSED.sql",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/projection-PROPOSED.sql",
+      "original_sha256": "12fc21f2de56963a9ca073e898ede3593fb48685b375192d6da66ab58d7f6e37",
+      "portable_sha256": "12fc21f2de56963a9ca073e898ede3593fb48685b375192d6da66ab58d7f6e37",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "sensitivity.json",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/sensitivity.json",
+      "original_sha256": "70e87f9f189c43bc4de04c5d9a9fd71aace269d741f0294ecffb69a2ed2e7bc8",
+      "portable_sha256": "9af575eed2a21227a52e082f2a4c4427c2eb041dcff3b90ad87fa7ad3dd19f81",
+      "byte_identical": false,
+      "transformations": [
+        "Remove original operator checkout absolute prefix from documentary evidence references only."
+      ]
+    },
+    {
+      "path": "vectors.json",
+      "origin_repo_relative_path": ".pipeline/control/decisions-20261101/approved-20261102/manual-design-drafts/D01-v0.3/vectors.json",
+      "original_sha256": "dc3db33b036623ecc639626ee60b4ab29c935376c82a7a09de24690f9fbdad74",
+      "portable_sha256": "dc3db33b036623ecc639626ee60b4ab29c935376c82a7a09de24690f9fbdad74",
+      "byte_identical": true,
+      "transformations": []
+    },
+    {
+      "path": "verify_bundle.py",
+      "origin_repo_relative_path": null,
+      "original_sha256": null,
+      "portable_sha256": "b589139766bcf26167b38d48f07b125507f3f437bf716db99a3ff64f4b3e880a",
+      "byte_identical": false,
+      "transformations": [
+        "New portability explanation/offline documentation auxiliary, not production code."
+      ]
+    }
+  ]
+}
