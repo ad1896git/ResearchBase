@@ -1,0 +1,79 @@
+{
+  "status": "PROPOSED_INPUT_SNAPSHOT_NOT_APPROVAL",
+  "base": "7540438a4d4c1e58af8872dc8c6c18cb07fdb2f2",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878"
+    },
+    {
+      "path": "docs/architecture/01_ResearchBase_System_Architecture_v1.3_Harness_Integrated.md",
+      "sha256": "a8303273232485af10fdc9653f321e0770cc605e73b941355a8f44c34bb2370e"
+    },
+    {
+      "path": "docs/architecture/02_Final_Architecture_Correction_Addendum_v1.0.md",
+      "sha256": "59215309207075311c7f42d706c923589081d1cd90d378eb204752e4a61760a3"
+    },
+    {
+      "path": "docs/architecture/03_Global_Schema_and_Contract_Registry_v1.0.md",
+      "sha256": "366c9922710e59b0364759f95d7af0184c90c71cbbfc8dcbc80c3eff63b58133"
+    },
+    {
+      "path": "docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md",
+      "sha256": "8dad02342a8fe6729acc4add3085673a45104f4f903945b41c22344e7ef28776"
+    },
+    {
+      "path": "docs/architecture/06_Phase3_Development_Specification_v1.1_Harness_Integrated.md",
+      "sha256": "4d4a6c0ba7ed1c5522fd97604bbbc4ecefd9b56453400fcbf57a8735e1100a56"
+    },
+    {
+      "path": "docs/harness/09_Harness_Integration_Specification_v1.0.md",
+      "sha256": "4ed462a1c903859d3009e33619054e44df646fdc72dabb6b14ed873fa473325e"
+    },
+    {
+      "path": "docs/architecture/adr/ADR-0027-pr3-16-d1-node-budget-amendment.md",
+      "sha256": "62ff0cc2c9b16a36d1ea111a31488d430e2358db832b1692eb0a8ea44c458188"
+    },
+    {
+      "path": "docs/phase3/design/PR3-16-d1-amendment-contract.md",
+      "sha256": "363bfde4922e050a086b631942229af3e2bed4a0e54f9b7033cf54ae1ad3d3c1"
+    },
+    {
+      "path": "migrations/versions/0083_bearing_evaluation_guards.py",
+      "sha256": "d706cb1385eae1ed01cd5c1defd6ea25abb5ab21a3a1a2eab23c46d319ac8605"
+    },
+    {
+      "path": "src/researchbase/foundation/bearing_installation.py",
+      "sha256": "b757c41b6eeca39cd04fd0b1d44e76ba23f50eb93617bf962e47c3d8c0bdff29"
+    },
+    {
+      "path": "src/researchbase/foundation/local_bearing_registration.py",
+      "sha256": "cc465758b2758358bf529cd0a7ac9220dca82260797df03fe198e22cfa6580e1"
+    },
+    {
+      "path": "src/researchbase/persistence/database.py",
+      "sha256": "888d0ee65acf6c809d6eb025883c929aac2b12d8780e002dbbc304bce02c123a"
+    },
+    {
+      "path": "src/researchbase/persistence/uow.py",
+      "sha256": "7e4211d7da614e7310304d51eceb5fa47300db924c68eac15281c6e0361035f6"
+    },
+    {
+      "path": "migrations/env.py",
+      "sha256": "e90b9ad06d80d2d03a26f70c17bb7289ea4f398317119fa3f0fc7534a35c9399"
+    }
+  ],
+  "owner_instruction": {
+    "operator_local_path": ".pipeline/logs/reviews/D01-v04-owner-20261102/OWNER-INSTRUCTIONS.md",
+    "sha256": "5d98243b8883a84dd2d88e2a3f28f9ec67e6e0bb6e0122e2ae761761998328c8"
+  },
+  "prior_v03_portable_manifest_sha256": "2cd1e04daf8fbd5070a0849993982d6564e66883532223351f50c7deba636fa8",
+  "prior_v03_69files_unchanged": true,
+  "official_PG18_sources": [
+    "https://www.postgresql.org/docs/18/functions-info.html",
+    "https://www.postgresql.org/docs/18/sql-createrole.html",
+    "https://www.postgresql.org/docs/18/libpq-connect.html"
+  ],
+  "freeze": "HOLD_HELPER_DB4_STAGE_DECISIONS",
+  "all_PG_role_connection_facility_engine_changes": "NOT_RUN"
+}

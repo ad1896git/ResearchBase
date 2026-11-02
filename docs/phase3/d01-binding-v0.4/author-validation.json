@@ -1,0 +1,14 @@
+{
+  "status": "AUTHOR_OFFLINE_JSON_ONLY_NOT_GATE",
+  "stdout": "{\"PG\": \"NOT_RUN\", \"approval_or_binding_issued\": false, \"freeze\": \"HOLD\", \"result\": \"OFFLINE_JSON_SPECIMENS_CONSISTENT_ONLY\", \"vectors\": 13}",
+  "exit_code": 0,
+  "cwd": "/",
+  "prior_v03_69files": "HASHES_UNCHANGED",
+  "product_tests": "NOT_RUN",
+  "PG_roles_credentials_facilities": "NOT_RUN",
+  "source_engine_changes": "NONE",
+  "SQL_commands": "DOCUMENTED_ONLY_NOT_EXECUTED",
+  "freeze": "HOLD",
+  "at": "2026-11-02T09:15:31.298918+00:00",
+  "setup_history": "Initial Ruff imports sorted/unused import removed; metadata hash lookup corrected from sha256 to portable_sha256 before validation. No SQL/product calls."
+}

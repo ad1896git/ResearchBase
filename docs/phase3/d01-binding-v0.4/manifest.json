@@ -1,0 +1,50 @@
+{
+  "status": "PROPOSED_HOLD_OWNER_DECISIONS_NOT_FREEZE",
+  "payloads": [
+    {
+      "path": "CONTRACT-PROPOSED.md",
+      "sha256": "87adf16a4b61c7db79868d587711bfec34a0ccaad8b822d7c60d9dab574797d3",
+      "bytes": 13790
+    },
+    {
+      "path": "CROSSWALK.md",
+      "sha256": "cb9a35dd771fef0cf52b5cab8441b402ff05975786546a1f727e50eedde63ac7",
+      "bytes": 5919
+    },
+    {
+      "path": "LOCAL-WRITER-STEPS-NOT-EXECUTED.md",
+      "sha256": "d5dccd0775d5a29267f2db80106e2f1b6adb033e670684e8a6e0c5ecffcadfed",
+      "bytes": 8930
+    },
+    {
+      "path": "PROTECTIONS-AND-RISKS-ONEPAGE.md",
+      "sha256": "c68df6d46c06f909b8263a38dd4d52e958ab26764b9fa1b29f7a506caadde4dd",
+      "bytes": 2396
+    },
+    {
+      "path": "README.md",
+      "sha256": "63f5c8c0338b8b472c8f9e563bdc36e4863986f6a31988e026b0132e5a160610",
+      "bytes": 1634
+    },
+    {
+      "path": "author-validation.json",
+      "sha256": "4f4dab9fbd0080151ed61c2ee54a745aa525dc295f49af46ee99e56a720a0ed5",
+      "bytes": 701
+    },
+    {
+      "path": "source-binding.json",
+      "sha256": "f4170026ed0d9170817fa3ce3f7608fa7447fdf8ac1b2e6c90375220465027fa",
+      "bytes": 3332
+    },
+    {
+      "path": "vectors.json",
+      "sha256": "aae9880c40c77ad1fbca8873aa26676d6222222acee43c37d34f04c54d662f25",
+      "bytes": 34332
+    },
+    {
+      "path": "verify_vectors.py",
+      "sha256": "a547408d08924605901c592dee63d55cfd9099914febb6a2f9ad68e22e1b025b",
+      "bytes": 8401
+    }
+  ]
+}
