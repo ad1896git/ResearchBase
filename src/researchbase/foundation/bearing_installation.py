@@ -17,6 +17,7 @@ import sys
 import time
 import types
 import typing
+import weakref
 import zipimport
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -447,13 +448,17 @@ def _artifact_digest(manifest: DeploymentManifest) -> str:
 class VerifiedInstallation:
     """Process-local observation, not a registration, entitlement or capability."""
 
-    __slots__ = ("__function", "__code", "__pid", "__files", "__bytes", "__elapsed")
+    __slots__ = ("__function", "__code", "__pid", "__files", "__bytes", "__elapsed", "__weakref__")
 
     def __new__(cls) -> VerifiedInstallation:
         raise TypeError("installation evidence is issued by verification")
 
     def __reduce_ex__(self, protocol: int) -> object:
         raise TypeError("installation evidence cannot be serialized")
+
+    def consume_for_binding(self, *, expected, fixed_callable):
+        """Consume genuine verification once; no external private-state access."""
+        return _consume_binding(self, expected, fixed_callable)
 
     @property
     def measurements(self) -> tuple[int, int, float]:
@@ -1093,8 +1098,138 @@ def verify_installation(
         if elapsed > obs.seconds:
             raise InstallationError("verification timeout")
         object.__setattr__(proof, "_VerifiedInstallation__elapsed", elapsed)
+        _binding_installations[proof] = (state, fixed_callable, code)
         return proof
     except InstallationError:
         raise
     except (OSError, ValueError, TypeError, AttributeError, RuntimeError, OverflowError) as exc:
         raise InstallationError("installation observation failed") from exc
+
+
+# Only this issuer populates these registries; public markers never issue evidence.
+_binding_installations: weakref.WeakKeyDictionary[
+    VerifiedInstallation, tuple[_PreparedState, object, object]
+] = weakref.WeakKeyDictionary()
+_binding_witnesses: weakref.WeakKeyDictionary[
+    InstallationBindingWitness, tuple[_PreparedState, object, object, object]
+] = weakref.WeakKeyDictionary()
+
+
+class InstallationBindingWitness:
+    """One scoped retained installation, not a DB capability."""
+
+    __slots__ = ("__weakref__",)
+
+    def __new__(cls):
+        raise TypeError("installation binding witnesses are issuer-owned")
+
+    def __reduce_ex__(self, protocol):
+        raise TypeError("installation binding witnesses cannot be serialized")
+
+    def assert_current(self) -> None:
+        try:
+            state, function, code, expected = _binding_witnesses[self]
+            _match_binding(state, function, code, expected)
+            # Fresh bounded observation; the spent original prepared context is never reset.
+            obs = _Observation()
+            limits = state.manifest.limits
+            obs.seconds = limits.max_elapsed_seconds
+            obs.max_files = limits.max_files
+            obs.max_total = limits.max_total_bytes
+            obs.max_file = limits.max_file_bytes
+            clone = _PreparedState(
+                state.manifest,
+                state.approval,
+                state.manifest_path,
+                state.approval_path,
+                state.manifest_data,
+                state.approval_data,
+                state.manifest_stat,
+                state.approval_stat,
+                obs,
+                state.inventory,
+                state.modules,
+                state.paths,
+                state.meta,
+                state.hooks,
+                state.pid,
+            )
+            prepared = object.__new__(PreparedInstallation)
+            object.__setattr__(prepared, "_PreparedInstallation__state", clone)
+            checked = verify_installation(
+                prepared=prepared, fixed_callable=cast(types.FunctionType, function)
+            )
+            _binding_installations.pop(checked)
+        except (KeyError, AttributeError, TypeError, ValueError, OSError) as exc:
+            _binding_witnesses.pop(self, None)
+            raise InstallationError("installation binding continuity denied") from exc
+
+    def assert_identity(self) -> None:
+        """Non-I/O identity/expiry check; filesystem work belongs to assert_current."""
+        try:
+            _match_binding(*_binding_witnesses[self])
+        except (KeyError, AttributeError, TypeError, ValueError) as exc:
+            raise InstallationError("installation binding identity denied") from exc
+
+    def close(self) -> None:
+        _binding_witnesses.pop(self, None)
+
+
+def _match_binding(state, function, code, expected) -> None:
+    from researchbase.foundation.bearing_binding_contracts import InstallationExpectation
+
+    if type(expected) is not InstallationExpectation or state.pid != os.getpid():
+        raise InstallationError("installation binding scope denied")
+    a, m = state.approval, state.manifest
+    _unexpired(a)
+    if (
+        datetime.now(UTC) >= expected.expires_at
+        or expected.expires_at > a.expires_at
+        or os.getuid() != a.uid
+        or os.geteuid() != a.uid
+        or type(function) is not types.FunctionType
+        or (function.__module__, function.__qualname__) != (m.callable_module, m.callable_qualname)
+        or vars(sys.modules[function.__module__]).get(function.__name__) is not function
+        or function.__code__ is not code
+        or (
+            expected.deployment_id,
+            expected.host,
+            expected.uid,
+            expected.namespace,
+            expected.manifest_sha256,
+            expected.artifact_sha256,
+            expected.callable_module,
+            expected.callable_qualname,
+            expected.callable_code_sha256,
+            expected.record_directory,
+        )
+        != (
+            a.deployment_id,
+            a.host,
+            a.uid,
+            a.namespace,
+            a.manifest_sha256,
+            a.artifact_sha256,
+            m.callable_module,
+            m.callable_qualname,
+            m.callable_code_sha256,
+            state.approval_path.parent,
+        )
+    ):
+        raise InstallationError("installation binding scope mismatch")
+
+
+def _consume_binding(proof, expected, fixed_callable):
+    try:
+        if type(proof) is not VerifiedInstallation:
+            raise InstallationError("invalid installation evidence")
+        state, function, code = _binding_installations.pop(proof)
+        if function is not fixed_callable:
+            raise InstallationError("fixed callable changed")
+        _match_binding(state, function, code, expected)
+        witness = object.__new__(InstallationBindingWitness)
+        _binding_witnesses[witness] = (state, function, code, expected)
+        witness.assert_current()
+        return witness
+    except (KeyError, AttributeError, TypeError, ValueError) as exc:
+        raise InstallationError("installation evidence cannot be consumed") from exc

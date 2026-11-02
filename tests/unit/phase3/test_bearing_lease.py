@@ -239,3 +239,59 @@ def test_kernel_query_error_fails_closed(
             assert lease.check() is False
     with acquire_lease(path) as replacement:
         assert replacement.check() is True
+
+
+def test_checked_close_is_issuer_owned(tmp_path):
+    import pickle
+
+    from researchbase.foundation.local_bearing_registration import LeaseCloseObservation
+
+    path = tmp_path / "checked"
+    path.touch()
+    path.chmod(0o600)
+    lease = acquire_lease(path)
+    identity = lease.identity_token
+    info = path.stat()
+    lease.assert_binding(
+        path=path.resolve(), device=info.st_dev, inode=info.st_ino, uid=info.st_uid, mode=0o600
+    )
+    receipt = lease.close_checked()
+    receipt.assert_released_for(identity)
+    assert lease.close_checked() is receipt
+    with pytest.raises(LeaseError):
+        receipt.assert_released_for(object())
+    with pytest.raises(TypeError):
+        pickle.dumps(receipt)
+    with pytest.raises(TypeError):
+        LeaseCloseObservation()
+    fake = object.__new__(LeaseCloseObservation)
+    with pytest.raises(LeaseError):
+        fake.assert_released_for(identity)
+
+
+@pytest.mark.parametrize("failure", ["oldclose", "replacement", "close-error"])
+def test_unknown_close_never_certifies(tmp_path, monkeypatch, failure):
+    from researchbase.foundation import local_bearing_registration as lb
+
+    path = tmp_path / "unknown"
+    path.touch()
+    lease = acquire_lease(path)
+    if failure == "oldclose":
+        lease.close()
+    elif failure == "replacement":
+        path.unlink()
+        path.touch()
+    else:
+        real = lb.os.close
+
+        def fail(fd):
+            if fd == lease._fd:
+                raise OSError("injected close error")
+            return real(fd)
+
+        monkeypatch.setattr(lb.os, "close", fail)
+    with pytest.raises(LeaseError):
+        lease.close_checked()
+    if failure == "close-error":
+        monkeypatch.setattr(lb.os, "close", real)
+        real(lease._fd)

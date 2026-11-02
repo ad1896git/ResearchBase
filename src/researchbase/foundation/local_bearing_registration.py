@@ -100,10 +100,50 @@ class LocalLease:
         self._identity = identity
         self._pid = os.getpid()
         self._closed = False
+        self._identity_token = object()
+        self._close_observation = None
+
+    @property
+    def identity_token(self) -> object:
+        return self._identity_token
+
+    def assert_binding(self, *, path: Path, device: int, inode: int, uid: int, mode: int) -> None:
+        try:
+            info = os.lstat(path)
+            if (
+                path != self._path
+                or path != path.resolve(strict=True)
+                or (info.st_dev, info.st_ino, info.st_uid, stat.S_IMODE(info.st_mode))
+                != (device, inode, uid, mode)
+                or info.st_nlink != 1
+                or not self.check()
+            ):
+                raise LeaseError("local binding changed")
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise LeaseError("local binding unavailable") from exc
+
+    def close_checked(self) -> LeaseCloseObservation:
+        """Positive only after this owner checked continuity and closed its actual fd."""
+        if self._close_observation is not None:
+            self._close_observation.assert_released_for(self._identity_token)
+            return self._close_observation
+        if _owners.get(self._identity) is not self or not self.check():
+            raise LeaseError("lease close outcome unknown")
+        self._closed = True
+        if _owners.get(self._identity) is self:
+            del _owners[self._identity]
+        try:
+            os.close(self._fd)
+        except OSError as exc:
+            raise LeaseError("lease close outcome unknown") from exc
+        receipt = object.__new__(LeaseCloseObservation)
+        _close_receipts[receipt] = (self._identity_token, self._pid)
+        self._close_observation = receipt
+        return receipt
 
     def check(self) -> bool:
         """Verify the current lock without acquiring or replacing it."""
-        if self._closed or os.getpid() != self._pid:
+        if self._closed or os.getpid() != self._pid or _owners.get(self._identity) is not self:
             return False
         try:
             if (
@@ -175,3 +215,32 @@ def acquire_lease(path: Path) -> LocalLease:
             os.close(fd)
         if key is not None:
             _owners.pop(key, None)
+
+
+_close_receipts: dict[LeaseCloseObservation, tuple[object, int]] = {}
+
+
+class LeaseCloseObservation:
+    """Module-issued local close evidence; never DB rollback/revocation proof."""
+
+    __slots__ = ()
+
+    def __new__(cls):
+        raise TypeError("lease close observations are issuer-owned")
+
+    def __reduce_ex__(self, protocol):
+        raise TypeError("lease close observations cannot be serialized")
+
+    @property
+    def lease_identity(self) -> object:
+        try:
+            identity, pid = _close_receipts[self]
+            if pid != os.getpid():
+                raise LeaseError("foreign lease close observation")
+            return identity
+        except KeyError as exc:
+            raise LeaseError("invalid lease close observation") from exc
+
+    def assert_released_for(self, identity: object) -> None:
+        if self.lease_identity is not identity:
+            raise LeaseError("lease close identity mismatch")

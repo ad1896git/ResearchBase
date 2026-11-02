@@ -17,7 +17,11 @@ from researchbase.hg1_ceremony import HG1Coordinator
 from researchbase.hg1_identity import PeerCredential, TrustedPeerIdentity
 from researchbase.hg1_review_ops import HG1ReviewOperations
 from researchbase.host_config import load_host_settings
-from researchbase.persistence.database import create_database_engine, create_session_factory
+from researchbase.persistence.database import (
+    create_database_engine,
+    create_session_factory,
+    open_database_connection,
+)
 from researchbase.persistence.uow import SqlAlchemyUnitOfWork
 
 REQUIRED_M3_HBA = (
@@ -46,7 +50,7 @@ def verify_m3_server(settings: Any) -> None:
     host = load_host_settings()
     engine = create_database_engine(settings.database_url)
     try:
-        with engine.connect() as connection:
+        with open_database_connection(engine) as connection:
             connection.execute(text("SET TRANSACTION READ ONLY"))
             facts = connection.execute(
                 text("""

@@ -227,6 +227,62 @@ if scenario in ("final-expiry", "final-time"):
         raise AssertionError("expired or overrun proof issued")
     sys.exit(0)
 proof = bi.verify_installation(prepared=prepared, fixed_callable=evaluate)
+if scenario.startswith("binding-"):
+    import json
+    from datetime import datetime
+    from researchbase.foundation.bearing_binding_contracts import InstallationExpectation
+    a = json.loads((records / "approval.json").read_text())
+    m = json.loads((records / "manifest.json").read_text())
+    expected = InstallationExpectation(a["deployment_id"], a["host"], a["uid"], a["namespace"],
+        a["manifest_sha256"], a["artifact_sha256"], a["callable_module"], a["callable_qualname"],
+        m["callable_code_sha256"],
+        datetime.fromisoformat(a["expires_at"].replace("Z","+00:00")), records)
+    if scenario == "binding-forged":
+        proof = object.__new__(bi.VerifiedInstallation)
+    try:
+        witness = proof.consume_for_binding(expected=expected, fixed_callable=evaluate)
+    except bi.InstallationError:
+        assert scenario == "binding-forged"
+        print("BINDING DENIED forged")
+        sys.exit(0)
+    witness.assert_current()
+    try:
+        proof.consume_for_binding(expected=expected, fixed_callable=evaluate)
+    except bi.InstallationError:
+        pass
+    else:
+        raise AssertionError("installation reused")
+    if scenario == "binding-fork":
+        pid = os.fork()
+        if pid == 0:
+            try: witness.assert_identity()
+            except bi.InstallationError: os._exit(0)
+            os._exit(1)
+        assert os.waitpid(pid,0)[1] == 0
+    elif scenario == "binding-replace":
+        path = records / "approval.json"
+        raw = path.read_bytes()
+        path.unlink(); path.write_bytes(raw); path.chmod(0o600)
+        try: witness.assert_current()
+        except bi.InstallationError: pass
+        else: raise AssertionError("replacement accepted")
+    elif scenario == "binding-module":
+        evaluate.__module__ = "unapproved_module"
+        try: witness.assert_identity()
+        except bi.InstallationError: pass
+        else: raise AssertionError("replacement module accepted")
+    elif scenario == "binding-code":
+        evaluate.__code__ = (lambda:None).__code__
+        try: witness.assert_identity()
+        except bi.InstallationError: pass
+        else: raise AssertionError("replacement code accepted")
+    elif scenario == "binding-closed":
+        witness.close()
+        try: witness.assert_identity()
+        except bi.InstallationError: pass
+        else: raise AssertionError("closed witness accepted")
+    print("BINDING",scenario)
+    sys.exit(0)
 print("POSITIVE hash_reads=%d hash_bytes=%d elapsed=%.6f" % proof.measurements, flush=True)
 try:
     bi.verify_installation(prepared=None, fixed_callable=evaluate)
@@ -334,6 +390,7 @@ def installation():
             "researchbase/__init__.py",
             "researchbase/foundation/__init__.py",
             "researchbase/foundation/bearing_installation.py",
+            "researchbase/foundation/bearing_binding_contracts.py",
             "researchbase/foundation/canonical_json.py",
             "researchbase/foundation/errors.py",
             "researchbase/agent_runtime/__init__.py",
@@ -614,3 +671,22 @@ def test_preparation_rejects_changed_observations(installation, variant, diagnos
         manifest_path.write_bytes(manifest_bytes)
         approval_path.write_bytes(approval_bytes)
         approval_path.chmod(0o600)
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "binding-positive",
+        "binding-forged",
+        "binding-fork",
+        "binding-replace",
+        "binding-code",
+        "binding-closed",
+        "binding-module",
+    ],
+)
+def test_public_binding_consumption(installation, scenario):
+    base, interpreter = installation
+    result = _child(base, interpreter, scenario)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "BINDING" in result.stdout

@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from types import TracebackType
 
-from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -1413,13 +1412,9 @@ class SqlAlchemyUnitOfWork:
 
 def search_result_resolution_uow_factory(url: str) -> Callable[[], SqlAlchemyUnitOfWork]:
     """Startup options bound even B01's first statement, before SET LOCAL is legal."""
-    engine = create_engine(
-        url,
-        connect_args={
-            "options": "-c lock_timeout=10s -c statement_timeout=30s",
-            "connect_timeout": 10,
-        },
-    )
+    from researchbase.persistence.database import create_search_result_engine
+
+    engine = create_search_result_engine(url)
     sessions = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
     return lambda: SqlAlchemyUnitOfWork(sessions)
 
