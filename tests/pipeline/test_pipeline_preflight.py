@@ -621,3 +621,388 @@ print(json.dumps({op:check(os.getpid(),op.encode(),1,ctypes.c_char_p(b'/dev/null
         "file-write-mode": 1,
     }
     assert t.null_identity() == identity and t.inventory([o]) == before
+
+
+def unit_verification_proof(tmp_path) -> Any:
+    """Fabricated host receipts for parser negatives, never native acceptance."""
+    import stat
+
+    from tests.pipeline.test_pipeline_preflight_deploy import deployment_fixture
+
+    r, o, m = deployment_fixture(tmp_path)
+    data = {}
+    aliases = {name for spec in m["interpreter_inputs"] for name in spec["path_aliases"]}
+    binaries = {spec["resolved_executable"]: spec for spec in m["interpreter_inputs"]}
+    roots = [Path(v) for v in m["online_inputs"]] + [Path(v) for v in aliases]
+    tops = [p for p in roots if not any(other != p and p.is_relative_to(other) for other in roots)]
+    names = set(roots) | {Path(v) for v in binaries}
+    for p in list(names):
+        current = p.parent
+        while current not in tops and any(current.is_relative_to(top) for top in tops):
+            names.add(current)
+            current = current.parent
+    for index, p in enumerate(sorted(names)):
+        row = dict(
+            dev=1,
+            ino=index + 1,
+            mode=stat.S_IFDIR | 0o700,
+            uid=os.getuid(),
+            gid=0,
+            nlink=1,
+            size=0,
+            mtime_ns=0,
+            ctime_ns=0,
+            kind="directory",
+            children=[],
+        )
+        if str(p) in aliases:
+            target = os.readlink(p)
+            row.update(
+                mode=stat.S_IFLNK | 0o777,
+                kind="symlink",
+                target=target,
+                target_sha256=hashlib.sha256(os.fsencode(target)).hexdigest(),
+            )
+            row.pop("children")
+        elif str(p) in binaries:
+            row.update(
+                mode=stat.S_IFREG | 0o600,
+                kind="file",
+                size=p.stat().st_size,
+                sha256=binaries[str(p)]["executable_sha256"],
+            )
+            row.pop("children")
+        data[str(p)] = row
+    for name, _row in data.items():
+        parent = data.get(str(Path(name).parent))
+        if parent is not None:
+            parent["children"].append(Path(name).name)
+    for row in data.values():
+        if "children" in row:
+            row["children"].sort()
+    protected = {
+        "manifest.json": (r / "manifest.json").read_bytes().hex(),
+        "script": Path(m["script"]).read_bytes().hex(),
+    }
+    for name in m["bindings"] + [v[k] for v in m["plists"] for k in ("path", "original_path")]:
+        protected[name] = Path(name).read_bytes().hex()
+    device = dict(
+        dev=1, ino=2, mode=stat.S_IFCHR | 0o666, uid=0, gid=0, nlink=1, rdev=os.makedev(3, 2)
+    )
+    intent = dict(
+        attempt=0,
+        inputs=protected,
+        before=data,
+        null_device=device,
+        effective_write_root=str(r),
+        payload_workdir=str(r / "payload/attempt-0"),
+        profile=t.profile(r),
+    )
+
+    def put(relative, value):
+        p = r / relative
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(value, sort_keys=True) + "\n")
+        return t.sha(p)
+
+    intent_sha = put("evidence/attempt-0/intent.json", intent)
+    proofs = []
+    phases = []
+    stages = {}
+    for phase, exit_code in (("normal", 0), ("rollback", 23)):
+        relative = f"payload/attempt-0/{phase}/adapter-result.json"
+        plist = str(r / "payload/attempt-0/fixture" / m["deployment"]["prior_plist"])
+        stage = dict(
+            success=True,
+            phase=phase,
+            payload_sha256=m["script_sha256"],
+            same_payload_bytes=True,
+            baseline=m["deployment"]["head"],
+            required_feature54=m["deployment"]["required_feature54"],
+            launchctl="SIMULATED_ONLY",
+            clock="SIMULATED_ONLY",
+            calls=[["launchctl", a, f"gui/{os.getuid()}", plist] for a in ("bootstrap", "bootout")],
+            mapping=[],
+            baseline_git=[
+                dict(
+                    argv=["git", "-C", m["deployment"]["runtime"], "rev-parse", "HEAD"],
+                    exit_code=0,
+                    stdout=m["deployment"]["head"] + "\n",
+                    stderr="",
+                ),
+                dict(
+                    argv=[
+                        "git",
+                        "-C",
+                        m["deployment"]["runtime"],
+                        "merge-base",
+                        "--is-ancestor",
+                        m["deployment"]["required_feature54"],
+                        m["deployment"]["head"],
+                    ],
+                    exit_code=0,
+                    stdout="",
+                    stderr="",
+                ),
+            ],
+        )
+        stages[phase] = stage
+        proofs.append(dict(phase=phase, path=relative, sha256=put(relative, stage)))
+        phases.append(
+            dict(
+                phase=phase,
+                exit_code=exit_code,
+                timed_out=False,
+                descendants_stopped=True,
+                stdout="",
+                stderr="",
+            )
+        )
+    result = dict(
+        version=1,
+        status="pass",
+        attempt=0,
+        null_device=device,
+        possible_online_write=False,
+        quarantined=False,
+        live_unchanged=True,
+        failure=None,
+        before=data,
+        after=data,
+        phases=phases,
+        intent_sha256=intent_sha,
+        stage_proofs=proofs,
+        plist_hashes={
+            v["role"]: dict(
+                mapped_sha256=v["sha256"],
+                original_sha256=v["original_sha256"],
+                path_mapping=v["path_mapping"],
+            )
+            for v in m["plists"]
+        },
+        mode="isolated_rehearsal",
+        deployment="NOT_EXECUTED",
+        adapter="deployment",
+        correction_budget="maximum3 explicit corrections; no automatic retry",
+    )
+    result_sha = put("evidence/attempt-0/result.json", result)
+    context = t.VerificationContext(
+        root=str(r),
+        attempt=0,
+        result_sha256=result_sha,
+        manifest_sha256=t.sha(r / "manifest.json"),
+        payload_sha256=m["script_sha256"],
+        release_head=m["deployment"]["head"],
+        python=sys.executable,
+        expected_bindings=(("bindings.json", t.sha(r / "bindings.json")),),
+    )
+    return r, m, intent, result, stages, context, put
+
+
+def test_readonly_verifier_validates_unit_receipts_without_commands_or_online_reads(tmp_path):
+    r, m, _, _, _, ctx, _ = unit_verification_proof(tmp_path)
+    before = t.inventory([r])
+    original = t.read_artifact
+    reads = []
+
+    def only_root(root, relative):
+        assert root == str(r)
+        reads.append(relative)
+        return original(root, relative)
+
+    with (
+        patch.object(t.subprocess, "Popen", side_effect=AssertionError("verification launched")),
+        patch.object(t, "inventory", side_effect=AssertionError("online rescan")),
+        patch.object(t, "read_artifact", side_effect=only_root),
+    ):
+        verified = t.verify_result(ctx)
+    assert verified["status"] == "verified" and verified["current_online_state"] == "NOT_RESCANNED"
+    assert t.inventory([r]) == before and "payload/attempt-0/rollback/adapter-result.json" in reads
+    assert verified["manifest_sha256"] == ctx.manifest_sha256
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "result_sha256",
+        "manifest_sha256",
+        "payload_sha256",
+        "release_head",
+        "python",
+        "attempt",
+        "root",
+    ],
+)
+def test_nullable_verification_context_never_touches_files(field):
+    value: dict[str, Any] = dict(
+        root="/not-a-root",
+        attempt=0,
+        result_sha256="a" * 64,
+        manifest_sha256="b" * 64,
+        payload_sha256="c" * 64,
+        release_head="d" * 40,
+        python=sys.executable,
+    )
+    value[field] = None
+    with (
+        patch.object(t, "read_artifact", side_effect=AssertionError("premature Root read")),
+        pytest.raises((SafetyError, TypeError)),
+    ):
+        t.verify_result(t.VerificationContext(**value))
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "status",
+        "unknown",
+        "online_change",
+        "failed",
+        "quarantined",
+        "phase_missing",
+        "phase_unknown",
+        "phase_bool_exit",
+        "intent",
+        "snapshot_missing",
+        "snapshot_unknown",
+        "stage_sha",
+        "stage_payload",
+        "stage_head",
+        "native_git",
+        "service_trace",
+        "manifest_head",
+        "manifest_interpreter",
+    ],
+)
+def test_result_verifier_rejects_semantic_tampering_even_with_new_result_digest(tmp_path, mutation):
+    from dataclasses import replace
+
+    r, m, intent, result, stages, ctx, put = unit_verification_proof(tmp_path)
+    if mutation == "status":
+        result["status"] = "blocked"
+    elif mutation == "unknown":
+        result["extra"] = True
+    elif mutation == "online_change":
+        result["possible_online_write"] = True
+    elif mutation == "failed":
+        result["failure"] = "observed error"
+    elif mutation == "quarantined":
+        result["quarantined"] = True
+    elif mutation == "phase_missing":
+        result["phases"].pop()
+    elif mutation == "phase_unknown":
+        result["phases"][0]["extra"] = "unsupported"
+    elif mutation == "phase_bool_exit":
+        result["phases"][0]["exit_code"] = False
+    elif mutation == "intent":
+        intent["effective_write_root"] = str(r.parent)
+        result["intent_sha256"] = put("evidence/attempt-0/intent.json", intent)
+    elif mutation == "snapshot_missing":
+        key = next(k for k, v in result["before"].items() if v["kind"] == "file")
+        result["before"].pop(key)
+    elif mutation == "snapshot_unknown":
+        next(iter(result["before"].values()))["extra"] = 0
+    elif mutation == "stage_sha":
+        result["stage_proofs"][0]["sha256"] = "0" * 64
+    elif mutation in ("stage_payload", "stage_head", "native_git", "service_trace"):
+        stage = stages["normal"]
+        if mutation == "stage_payload":
+            stage["payload_sha256"] = "0" * 64
+        elif mutation == "stage_head":
+            stage["baseline"] = "0" * 40
+        elif mutation == "native_git":
+            stage["baseline_git"][0]["exit_code"] = 1
+        else:
+            stage["calls"] = []
+        result["stage_proofs"][0]["sha256"] = put(result["stage_proofs"][0]["path"], stage)
+    else:
+        if mutation == "manifest_head":
+            m["deployment"]["head"] = "0" * 40
+        else:
+            m["python"] = "/wrong/.venv/bin/python3"
+        ctx = replace(ctx, manifest_sha256=put("manifest.json", m))
+    ctx = replace(ctx, result_sha256=put("evidence/attempt-0/result.json", result))
+    with pytest.raises((SafetyError, OSError, ValueError, KeyError, TypeError)):
+        t.verify_result(ctx)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "tampered_result",
+        "missing_result",
+        "wrong_expected_hash",
+        "wrong_expected_payload",
+        "wrong_expected_head",
+        "wrong_expected_python",
+        "binding_pin",
+        "symlink",
+        "hardlink",
+    ],
+)
+def test_result_verifier_rejects_pins_missing_and_aliases(tmp_path, mutation):
+    from dataclasses import replace
+
+    r, _, _, _, _, ctx, _ = unit_verification_proof(tmp_path)
+    p = r / "evidence/attempt-0/result.json"
+    if mutation == "tampered_result":
+        p.write_text("{}")
+    elif mutation == "missing_result":
+        p.unlink()
+    elif mutation == "wrong_expected_hash":
+        ctx = replace(ctx, manifest_sha256="0" * 64)
+    elif mutation == "wrong_expected_payload":
+        ctx = replace(ctx, payload_sha256="0" * 64)
+    elif mutation == "wrong_expected_head":
+        ctx = replace(ctx, release_head="0" * 40)
+    elif mutation == "wrong_expected_python":
+        ctx = replace(ctx, python="/wrong/.venv/bin/python3")
+    elif mutation == "binding_pin":
+        ctx = replace(ctx, expected_bindings=(("bindings.json", "0" * 64),))
+    elif mutation == "symlink":
+        target = r / "saved-result"
+        p.rename(target)
+        p.symlink_to(target)
+    else:
+        os.link(p, r / "alias-result")
+    with pytest.raises((SafetyError, OSError, ValueError)):
+        t.verify_result(ctx)
+
+
+def test_verify_cli_readonly_and_unknown_flags(tmp_path):
+    r, _, _, _, _, ctx, _ = unit_verification_proof(tmp_path)
+    args = [
+        sys.executable,
+        "-B",
+        "-m",
+        "scripts.pipeline_preflight",
+        "verify",
+        "--root",
+        ctx.root,
+        "--attempt",
+        "0",
+        "--result-sha256",
+        ctx.result_sha256,
+        "--manifest-sha256",
+        ctx.manifest_sha256,
+        "--payload-sha256",
+        ctx.payload_sha256,
+        "--release-head",
+        ctx.release_head,
+        "--python",
+        ctx.python,
+        "--binding",
+        "bindings.json=" + ctx.expected_bindings[0][1],
+    ]
+    before = t.inventory([r])
+    v = subprocess.run(
+        args, capture_output=True, text=True, cwd=Path(__file__).resolve().parents[2]
+    )
+    assert v.returncode == 0, v.stderr + v.stdout
+    assert json.loads(v.stdout)["status"] == "verified" and t.inventory([r]) == before
+    assert (
+        subprocess.run(
+            args + ["--unknown"], capture_output=True, cwd=Path(__file__).resolve().parents[2]
+        ).returncode
+        != 0
+    )

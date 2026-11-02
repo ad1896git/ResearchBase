@@ -12,9 +12,11 @@ import re
 import stat
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from scripts.pipeline_protocol import ProtocolError, decode
 from scripts.pipeline_safety import SafetyError
 from scripts.pipeline_sessions import stop_group
 
@@ -324,22 +326,8 @@ def plan(root, attempt=0):
         "private owned root required",
     )
     inventory([root], strict=True)  # No initial symlink/hardlink alias, even in unreferenced files.
-    manifest = json.loads((root / "manifest.json").read_text())
-    exact(
-        manifest,
-        (
-            "version",
-            "python",
-            "online_inputs",
-            "script",
-            "script_sha256",
-            "bindings",
-            "plists",
-            "timeout",
-            "deployment",
-            "interpreter_inputs",
-        ),
-    )
+    manifest = proof_json((root / "manifest.json").read_text())
+    exact(manifest, MANIFEST_KEYS)
     require(
         type(manifest["version"]) is int and manifest["version"] == 1,
         "unsupported manifest version",
@@ -402,7 +390,7 @@ def plan(root, attempt=0):
     )
     readonly = (str(runtime), str(python), *executable_dirs)
     for item in manifest["bindings"]:
-        validate_paths(json.loads(beneath(item, root).read_text()), writable, readonly)
+        validate_paths(proof_json(beneath(item, root).read_text()), writable, readonly)
     # Both old and replacement are explicit; no last-argv guessing or live mapping.
     labels = set()
     plist_hashes = {}
@@ -582,6 +570,7 @@ def write_json(target, name, value):
             os.fsync(directory)
         finally:
             os.close(directory)
+    return hashlib.sha256(raw).hexdigest()
 
 
 def next_attempt(root, correction):
@@ -600,7 +589,7 @@ def next_attempt(root, correction):
     require(
         correction is not None and sha(prior) == correction, "explicit exact prior result required"
     )
-    result = json.loads(prior.read_text())
+    result = proof_json(prior.read_text())
     require(
         result["status"] == "blocked"
         and result["possible_online_write"] is False
@@ -639,7 +628,7 @@ def run(root, correction=None):
         v[k] for v in manifest["plists"] for k in ("path", "original_path")
     ]:
         protected[path] = Path(path).read_bytes().hex()
-    write_json(
+    intent_sha256 = write_json(
         area,
         "intent.json",
         dict(
@@ -653,6 +642,7 @@ def run(root, correction=None):
         ),
     )
     phases = []
+    stage_proofs = []
     failure = None
     quarantined = False
     try:
@@ -717,7 +707,14 @@ def run(root, correction=None):
                 and observed["exit_code"] == (0 if phase == "normal" else 23),
                 "scenario failed/expected injected rollback not observed",
             )
-    except (SafetyError, OSError, ValueError, subprocess.SubprocessError) as error:
+            if manifest["deployment"] is not None:
+                relative = f"payload/attempt-{attempt}/{phase}/adapter-result.json"
+                data = read_artifact(str(root), relative)
+                exact(proof_json(data), STAGE_KEYS)
+                stage_proofs.append(
+                    dict(phase=phase, path=relative, sha256=hashlib.sha256(data).hexdigest())
+                )
+    except (SafetyError, ProtocolError, OSError, ValueError, subprocess.SubprocessError) as error:
         failure = type(error).__name__ + ": " + str(error)
         quarantined = isinstance(error, UnknownChildren)
     try:
@@ -738,14 +735,602 @@ def run(root, correction=None):
         before=before,
         after=after,
         phases=phases,
+        intent_sha256=intent_sha256,
+        stage_proofs=stage_proofs,
         plist_hashes=plist_hashes,
         mode="isolated_rehearsal",
         deployment="NOT_EXECUTED",
         adapter="deployment" if manifest["deployment"] else "generic",
         correction_budget="maximum3 explicit corrections; no automatic retry",
     )
+    exact(result, RESULT_KEYS)
     write_json(area, "result.json", result)
     return 0 if result["status"] == "pass" else 2
+
+
+RESULT_KEYS = (
+    "version",
+    "status",
+    "attempt",
+    "null_device",
+    "possible_online_write",
+    "quarantined",
+    "live_unchanged",
+    "failure",
+    "before",
+    "after",
+    "phases",
+    "intent_sha256",
+    "stage_proofs",
+    "plist_hashes",
+    "mode",
+    "deployment",
+    "adapter",
+    "correction_budget",
+)
+INTENT_KEYS = (
+    "attempt",
+    "inputs",
+    "before",
+    "null_device",
+    "effective_write_root",
+    "payload_workdir",
+    "profile",
+)
+MANIFEST_KEYS = (
+    "version",
+    "python",
+    "online_inputs",
+    "script",
+    "script_sha256",
+    "bindings",
+    "plists",
+    "timeout",
+    "deployment",
+    "interpreter_inputs",
+)
+STAGE_KEYS = (
+    "success",
+    "phase",
+    "payload_sha256",
+    "same_payload_bytes",
+    "baseline",
+    "required_feature54",
+    "launchctl",
+    "baseline_git",
+    "clock",
+    "calls",
+    "mapping",
+)
+
+
+def proof_json(raw):
+    # Existing protocol decoder has an intentional1MiB report limit. Full-tree
+    # snapshots are larger; keep that old boundary unchanged and use the same
+    # duplicate/nonfinite policy with this artifact's explicit128MiB bound.
+    if type(raw) is bytes:
+        require(len(raw) <= 128 * 1024 * 1024, "artifact size budget")
+        raw = raw.decode("utf-8")
+    require(type(raw) is str and len(raw.encode()) <= 128 * 1024 * 1024, "artifact JSON budget")
+    if len(raw.encode()) <= 1024 * 1024:
+        return decode(raw)
+
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            require(key not in result, "duplicate JSON key")
+            result[key] = value
+        return result
+
+    return json.loads(
+        raw, object_pairs_hook=pairs, parse_constant=lambda _: require(False, "nonfinite JSON")
+    )
+
+
+def hex_digest(value):
+    require(type(value) is str and re.fullmatch("[0-9a-f]{64}", value), "SHA256 syntax")
+    return value
+
+
+def lexical_absolute(value):
+    require(
+        type(value) is str
+        and value.startswith("/")
+        and str(Path(value)) == value
+        and not any(ord(c) < 32 for c in value),
+        "absolute lexical path required",
+    )
+    return Path(value)
+
+
+def relative_artifact(value):
+    require(
+        type(value) is str
+        and value
+        and not value.startswith("/")
+        and all(p not in ("", ".", "..") for p in value.split("/")),
+        "relative artifact required",
+    )
+    return value
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class VerificationContext:
+    """Caller supplies independently trusted pins, not authority inferred from JSON."""
+
+    root: str
+    attempt: int
+    result_sha256: str
+    manifest_sha256: str
+    payload_sha256: str
+    release_head: str
+    python: str
+    expected_bindings: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self):
+        # All scalar validation precedes any filesystem access, including root lookup.
+        for value in (self.result_sha256, self.manifest_sha256, self.payload_sha256):
+            hex_digest(value)
+        require(
+            type(self.release_head) is str and re.fullmatch("[0-9a-f]{40}", self.release_head),
+            "release head syntax",
+        )
+        require(type(self.attempt) is int and 0 <= self.attempt <= 3, "attempt syntax")
+        lexical_absolute(self.root)
+        lexical_absolute(self.python)
+        require(type(self.expected_bindings) is tuple, "binding pins must be immutable")
+        names = []
+        for item in self.expected_bindings:
+            require(type(item) is tuple and len(item) == 2, "closed binding pin")
+            relative_artifact(item[0])
+            hex_digest(item[1])
+            names.append(item[0])
+        require(len(names) == len(set(names)), "duplicate binding pin")
+
+
+def read_artifact(root_name, relative):
+    """Root-local descriptor traversal; no commands, writes, locks or online reads."""
+    root = lexical_absolute(root_name)
+    relative_artifact(relative)
+    fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in root.parts[1:]:
+            child_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = child_fd
+        info = os.fstat(fd)
+        require(
+            info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700,
+            "private proof root required",
+        )
+        pieces = relative.split("/")
+        for part in pieces[:-1]:
+            child_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = child_fd
+        before = os.stat(pieces[-1], dir_fd=fd, follow_symlinks=False)
+        require(
+            stat.S_ISREG(before.st_mode) and before.st_nlink == 1,
+            "regular unaliased artifact required",
+        )
+        leaf = os.open(pieces[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+        try:
+            require(signature(os.fstat(leaf)) == signature(before), "artifact changed on open")
+            data = bytearray()
+            while part := os.read(leaf, 65536):
+                data.extend(part)
+                require(len(data) <= 128 * 1024 * 1024, "artifact size budget")
+            named = os.stat(pieces[-1], dir_fd=fd, follow_symlinks=False)
+            require(
+                signature(before) == signature(os.fstat(leaf)) == signature(named),
+                "artifact changed during read",
+            )
+            return bytes(data)
+        finally:
+            os.close(leaf)
+    finally:
+        os.close(fd)
+
+
+def snapshot_proof(snapshot: dict[str, dict[str, Any]], manifest: dict[str, Any], root: Path):
+    require(
+        type(snapshot) is dict and snapshot and len(snapshot) <= MAX_FILES,
+        "complete snapshot required",
+    )
+    require(
+        type(manifest["online_inputs"]) is list and manifest["online_inputs"],
+        "online input declarations",
+    )
+    roots = [lexical_absolute(p) for p in manifest["online_inputs"]]
+    for spec in manifest["interpreter_inputs"]:
+        exact(
+            spec,
+            (
+                "role",
+                "executable",
+                "resolved_executable",
+                "executable_sha256",
+                "base_runtime",
+                "path_aliases",
+            ),
+        )
+        hex_digest(spec["executable_sha256"])
+        require(type(spec["path_aliases"]) is list, "alias declarations")
+        roots += [lexical_absolute(p) for p in spec["path_aliases"]]
+    require(
+        all(not p.is_relative_to(root) and not root.is_relative_to(p) for p in roots),
+        "proof root/online overlap",
+    )
+    require(all(str(p) in snapshot for p in roots), "missing declared snapshot root")
+    roots = [p for p in roots if not any(other != p and p.is_relative_to(other) for other in roots)]
+    metadata = ("dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtime_ns", "ctime_ns")
+    total = 0
+    for name, row in snapshot.items():
+        path = lexical_absolute(name)
+        require(any(path == p or path.is_relative_to(p) for p in roots), "undeclared snapshot path")
+        require(
+            type(row) is dict and row.get("kind") in ("file", "directory", "symlink"),
+            "snapshot row",
+        )
+        kind = row["kind"]
+        extra = (
+            ("sha256",)
+            if kind == "file"
+            else (("children",) if kind == "directory" else ("target", "target_sha256"))
+        )
+        exact(row, (*metadata, "kind", *extra))
+        require(all(type(row[k]) is int for k in metadata), "snapshot metadata types")
+        require(
+            all(row[k] >= 0 for k in metadata if k not in ("mtime_ns", "ctime_ns")),
+            "snapshot metadata range",
+        )
+        if kind == "file":
+            require(stat.S_ISREG(row["mode"]), "file mode")
+            hex_digest(row["sha256"])
+            total += row["size"]
+        elif kind == "directory":
+            require(stat.S_ISDIR(row["mode"]) and type(row["children"]) is list, "directory row")
+            children: list[str] = row["children"]
+            require(
+                all(
+                    type(c) is str and c not in ("", ".", "..") and "/" not in c
+                    for c in row["children"]
+                ),
+                "directory names",
+            )
+            require(sorted(set(row["children"])) == row["children"], "directory ordering")
+            require(
+                all(str(path / c) in snapshot for c in children),
+                "incomplete directory snapshot",
+            )
+        else:
+            require(stat.S_ISLNK(row["mode"]) and type(row["target"]) is str, "symlink row")
+            require(
+                hashlib.sha256(os.fsencode(row["target"])).hexdigest() == row["target_sha256"],
+                "symlink text digest",
+            )
+        require(path in roots or str(path.parent) in snapshot, "missing snapshot ancestor")
+        if str(path.parent) in snapshot:
+            parent = snapshot[str(path.parent)]
+            require(
+                parent["kind"] == "directory" and path.name in parent["children"],
+                "snapshot parent membership",
+            )
+    require(total <= MAX_BYTES, "snapshot byte budget")
+
+
+def recorded_resolution(path, snapshot):
+    current = Path("/")
+    pending = list(path.parts[1:])
+    followed = 0
+    while pending:
+        part = pending.pop(0)
+        if part in ("", "."):
+            continue
+        if part == "..":
+            current = current.parent
+            continue
+        candidate = current / part
+        row = snapshot.get(str(candidate))
+        if row is not None and row["kind"] == "symlink":
+            followed += 1
+            require(followed <= 40, "recorded alias loop")
+            target = Path(row["target"])
+            if target.is_absolute():
+                current = Path("/")
+                pending = list(target.parts[1:]) + pending
+            else:
+                pending = list(target.parts) + pending
+        else:
+            current = candidate
+    return current
+
+
+def verify_result(context: VerificationContext):
+    """Verify historical Root proof bytes only; not current host/source attestation."""
+    require(type(context) is VerificationContext, "typed verification context required")
+    context.__post_init__()
+    root = Path(context.root)
+    require(context.python == sys.executable, "verification interpreter mismatch")
+
+    def document(relative, expected) -> Any:
+        data = read_artifact(context.root, relative)
+        require(hashlib.sha256(data).hexdigest() == hex_digest(expected), "artifact SHA mismatch")
+        return proof_json(data)
+
+    result = document(f"evidence/attempt-{context.attempt}/result.json", context.result_sha256)
+    exact(result, RESULT_KEYS)
+    require(
+        type(result["version"]) is int
+        and result["version"] == 1
+        and result["status"] == "pass"
+        and result["adapter"] == "deployment"
+        and result["mode"] == "isolated_rehearsal"
+        and result["deployment"] == "NOT_EXECUTED",
+        "successful deployment rehearsal required",
+    )
+    require(
+        type(result["attempt"]) is int and result["attempt"] == context.attempt,
+        "result attempt mismatch",
+    )
+    require(
+        result["live_unchanged"] is True
+        and result["possible_online_write"] is False
+        and result["quarantined"] is False
+        and result["failure"] is None
+        and result["before"] == result["after"],
+        "online change/failure/unknown proof",
+    )
+    require(
+        result["correction_budget"] == "maximum3 explicit corrections; no automatic retry",
+        "correction policy",
+    )
+    manifest = document("manifest.json", context.manifest_sha256)
+    exact(manifest, MANIFEST_KEYS)
+    require(
+        type(manifest["version"]) is int
+        and manifest["version"] == 1
+        and manifest["python"] == context.python
+        and manifest["script_sha256"] == context.payload_sha256,
+        "manifest payload/interpreter mismatch",
+    )
+    model = manifest["deployment"]
+    exact(
+        model,
+        (
+            "version",
+            "head",
+            "required_feature54",
+            "stamp",
+            "mappings",
+            "rewrite_json",
+            "prior_plist",
+            "prior_runtime",
+            "path_aliases",
+            "executable_dirs",
+            "codex_version",
+            "runtime",
+        ),
+    )
+    require(
+        type(model["version"]) is int
+        and model["version"] == 1
+        and model["head"] == context.release_head
+        and model["runtime"] == str(Path(context.python).parents[2])
+        and model["required_feature54"] == "7540438a4d4c1e58af8872dc8c6c18cb07fdb2f2",
+        "release head/base mismatch",
+    )
+    snapshot_proof(result["before"], manifest, root)
+    roles = {v["role"]: v for v in manifest["interpreter_inputs"]}
+    require(
+        len(roles) == len(manifest["interpreter_inputs"]) == 2
+        and set(roles) == {"current", "prior"},
+        "interpreter proof roles",
+    )
+    for role, spec in roles.items():
+        expected_python = (
+            context.python
+            if role == "current"
+            else str(Path(model["prior_runtime"]) / ".venv/bin/python3")
+        )
+        executable = lexical_absolute(spec["resolved_executable"])
+        base = lexical_absolute(spec["base_runtime"])
+        require(
+            spec["executable"] == expected_python
+            and executable.is_relative_to(base)
+            and recorded_resolution(Path(expected_python), result["before"]) == executable,
+            "recorded interpreter path mismatch",
+        )
+        binary = result["before"].get(str(executable))
+        require(
+            binary is not None
+            and binary["kind"] == "file"
+            and binary["sha256"] == spec["executable_sha256"],
+            "recorded interpreter binary mismatch",
+        )
+        require(
+            str(base) in result["before"] and result["before"][str(base)]["kind"] == "directory",
+            "base runtime closure absent",
+        )
+    intent = document(f"evidence/attempt-{context.attempt}/intent.json", result["intent_sha256"])
+    exact(intent, INTENT_KEYS)
+    require(
+        type(intent["attempt"]) is int
+        and intent["attempt"] == context.attempt
+        and intent["before"] == result["before"]
+        and intent["effective_write_root"] == context.root
+        and intent["payload_workdir"] == str(root / "payload" / f"attempt-{context.attempt}")
+        and intent["profile"] == profile(root)
+        and intent["null_device"] == result["null_device"],
+        "intent/root/profile binding",
+    )
+    device = result["null_device"]
+    exact(device, ("dev", "ino", "mode", "uid", "gid", "nlink", "rdev"))
+    require(
+        all(type(v) is int for v in device.values())
+        and stat.S_ISCHR(device["mode"])
+        and device["uid"] == device["gid"] == 0
+        and device["nlink"] == 1
+        and os.major(device["rdev"]) == 3
+        and os.minor(device["rdev"]) == 2,
+        "null device proof",
+    )
+    protected = intent["inputs"]
+    require(type(protected) is dict, "protected inputs")
+    script_path = lexical_absolute(manifest["script"])
+    require(script_path.is_relative_to(root), "payload artifact escapes root")
+    require(
+        type(manifest["bindings"]) is list
+        and type(manifest["plists"]) is list
+        and len(manifest["plists"]) == 2,
+        "input declarations",
+    )
+    paths = manifest["bindings"] + [
+        p[k] for p in manifest["plists"] for k in ("path", "original_path")
+    ]
+    require(set(protected) == {"manifest.json", "script", *paths}, "protected input coverage")
+    for name, value in protected.items():
+        require(
+            type(value) is str and len(value) % 2 == 0 and re.fullmatch("[0-9a-f]*", value),
+            "protected byte encoding",
+        )
+        data = bytes.fromhex(value)
+        if name == "manifest.json":
+            relative, expected = "manifest.json", context.manifest_sha256
+        elif name == "script":
+            relative, expected = str(script_path.relative_to(root)), context.payload_sha256
+        else:
+            absolute = lexical_absolute(name)
+            require(absolute.is_relative_to(root), "binding artifact escapes root")
+            relative, expected = str(absolute.relative_to(root)), hashlib.sha256(data).hexdigest()
+        require(
+            hashlib.sha256(data).hexdigest() == expected
+            and read_artifact(context.root, relative) == data,
+            "protected input bytes changed",
+        )
+    for relative, expected in context.expected_bindings:
+        name = str(root / relative)
+        require(
+            name in manifest["bindings"]
+            and name in protected
+            and hashlib.sha256(bytes.fromhex(protected[name])).hexdigest() == expected,
+            "expected binding commitment missing/changed",
+        )
+    require(
+        type(result["phases"]) is list
+        and len(result["phases"]) == 2
+        and type(result["stage_proofs"]) is list
+        and len(result["stage_proofs"]) == 2,
+        "incomplete phases",
+    )
+    for phase, wanted, row, proof in zip(
+        ("normal", "rollback"), (0, 23), result["phases"], result["stage_proofs"], strict=True
+    ):
+        exact(row, ("phase", "exit_code", "timed_out", "descendants_stopped", "stdout", "stderr"))
+        require(
+            row["phase"] == phase
+            and type(row["exit_code"]) is int
+            and row["exit_code"] == wanted
+            and row["timed_out"] is False
+            and row["descendants_stopped"] is True
+            and type(row["stdout"]) is str
+            and type(row["stderr"]) is str,
+            "phase terminal proof",
+        )
+        exact(proof, ("phase", "path", "sha256"))
+        require(
+            proof["phase"] == phase
+            and proof["path"] == f"payload/attempt-{context.attempt}/{phase}/adapter-result.json",
+            "stage location",
+        )
+        stage = document(proof["path"], proof["sha256"])
+        exact(stage, STAGE_KEYS)
+        require(
+            stage["success"] is True
+            and stage["phase"] == phase
+            and stage["same_payload_bytes"] is True
+            and stage["payload_sha256"] == context.payload_sha256
+            and stage["baseline"] == context.release_head
+            and stage["required_feature54"] == model["required_feature54"]
+            and stage["launchctl"] == stage["clock"] == "SIMULATED_ONLY",
+            "same-byte stage/release mismatch",
+        )
+        require(
+            type(stage["calls"]) is list
+            and type(stage["mapping"]) is list
+            and all(type(c) is list and all(type(a) is str for a in c) for c in stage["calls"]),
+            "closed stage command trace",
+        )
+        plist = str(
+            root
+            / "payload"
+            / f"attempt-{context.attempt}"
+            / "fixture"
+            / relative_artifact(model["prior_plist"])
+        )
+        for action in ("bootstrap", "bootout"):
+            require(
+                ["launchctl", action, f"gui/{os.getuid()}", plist] in stage["calls"],
+                "incomplete simulated service trace",
+            )
+        facts: list[dict[str, Any]] = stage["baseline_git"]
+        require(type(facts) is list and len(facts) == 2, "native baseline facts")
+        for fact in facts:
+            exact(fact, ("argv", "exit_code", "stdout", "stderr"))
+            require(
+                type(fact["exit_code"]) is int
+                and fact["exit_code"] == 0
+                and type(fact["stdout"]) is str
+                and type(fact["stderr"]) is str,
+                "native baseline outcome",
+            )
+        require(
+            facts[0]["argv"] == ["git", "-C", model["runtime"], "rev-parse", "HEAD"]
+            and facts[0]["stdout"].strip() == context.release_head
+            and facts[1]["argv"]
+            == [
+                "git",
+                "-C",
+                model["runtime"],
+                "merge-base",
+                "--is-ancestor",
+                model["required_feature54"],
+                context.release_head,
+            ],
+            "native exact head/base facts",
+        )
+    require(
+        type(result["plist_hashes"]) is dict
+        and set(result["plist_hashes"]) == {"old", "replacement"},
+        "plist proof roles",
+    )
+    require(
+        {p["role"] for p in manifest["plists"]} == {"old", "replacement"}, "manifest plist roles"
+    )
+    for p in manifest["plists"]:
+        exact(p, ("role", "path", "sha256", "original_path", "original_sha256", "path_mapping"))
+        require(
+            result["plist_hashes"][p["role"]]
+            == dict(
+                mapped_sha256=p["sha256"],
+                original_sha256=p["original_sha256"],
+                path_mapping=p["path_mapping"],
+            ),
+            "plist hashes/mapping mismatch",
+        )
+    return dict(
+        status="verified",
+        root=context.root,
+        attempt=context.attempt,
+        result_sha256=context.result_sha256,
+        manifest_sha256=context.manifest_sha256,
+        payload_sha256=context.payload_sha256,
+        release_head=context.release_head,
+        python=context.python,
+        current_online_state="NOT_RESCANNED",
+        authority="CALLER_TRUSTED_CONTEXT_AND_EXECUTION_SOURCE_REQUIRED",
+        deployment="NOT_EXECUTED",
+    )
 
 
 def confined(root):
@@ -859,8 +1444,28 @@ def main(argv=None):
         command = commands.add_parser(name)
         command.add_argument("--root", required=True)
         command.add_argument("--correction-of")
+    verify = commands.add_parser("verify")
+    verify.add_argument("--root", required=True)
+    verify.add_argument("--attempt", required=True, type=int)
+    for flag in ("result-sha256", "manifest-sha256", "payload-sha256", "release-head", "python"):
+        verify.add_argument("--" + flag, required=True)
+    verify.add_argument("--binding", action="append", default=[])
     args = parser.parse_args(argv)
     try:
+        if args.command == "verify":
+            pins = tuple(tuple(value.rsplit("=", 1)) for value in args.binding)
+            context = VerificationContext(
+                root=args.root,
+                attempt=args.attempt,
+                result_sha256=args.result_sha256,
+                manifest_sha256=args.manifest_sha256,
+                payload_sha256=args.payload_sha256,
+                release_head=args.release_head,
+                python=args.python,
+                expected_bindings=pins,
+            )
+            print(json.dumps(verify_result(context), sort_keys=True))
+            return 0
         root = canonical(args.root)
         if args.command == "_outer":
             confined(root)
@@ -875,6 +1480,7 @@ def main(argv=None):
         return bootstrap(root, args.correction_of)
     except (
         SafetyError,
+        ProtocolError,
         OSError,
         ValueError,
         TypeError,

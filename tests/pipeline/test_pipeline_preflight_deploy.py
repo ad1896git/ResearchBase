@@ -208,6 +208,44 @@ def test_fixed_cli_full_deployment_and_rollback_same_bytes(tmp_path):
         )
         assert any(v[1] == "bootstrap" for v in a["calls"] if v[0] == "launchctl")
     assert result["status"] == "pass" and result["live_unchanged"]
+    context = t.VerificationContext(
+        root=str(r),
+        attempt=0,
+        result_sha256=t.sha(r / "evidence/attempt-0/result.json"),
+        manifest_sha256=t.sha(r / "manifest.json"),
+        payload_sha256=m["script_sha256"],
+        release_head=m["deployment"]["head"],
+        python=sys.executable,
+        expected_bindings=(("bindings.json", t.sha(r / "bindings.json")),),
+    )
+    verified = t.verify_result(context)
+    assert verified["status"] == "verified" and verified["current_online_state"] == "NOT_RESCANNED"
+    argv = [
+        sys.executable,
+        "-B",
+        "-m",
+        "scripts.pipeline_preflight",
+        "verify",
+        "--root",
+        str(r),
+        "--attempt",
+        "0",
+        "--result-sha256",
+        context.result_sha256,
+        "--manifest-sha256",
+        context.manifest_sha256,
+        "--payload-sha256",
+        context.payload_sha256,
+        "--release-head",
+        context.release_head,
+        "--python",
+        sys.executable,
+    ]
+    v = subprocess.run(
+        argv, capture_output=True, text=True, cwd=Path(__file__).resolve().parents[2]
+    )
+    assert v.returncode == 0, v.stdout + v.stderr
+    assert t.inventory([o]) == before
 
 
 @pytest.mark.parametrize("mutation", ["head", "feature", "runtime", "mapping", "plist_env"])

@@ -181,3 +181,45 @@ Owner subsequently authorized only the exact character-device data sink describe
 No other outside-root write exception or weak isolation fallback was added. Later native
 results must be actually run and independently reviewed; the exception alone is not a PASS.
 No real online preflight or deployment has run in this PR's development/tests.
+
+## Read-only result consumption API and CLI
+
+The same repository module provides frozen `VerificationContext` and `verify_result(context)`.
+Callers supply independently trusted expected Root, attempt, result/manifest/payload SHA256,
+exact release HEAD and lexical interpreter; optional immutable `(Root-relative input, SHA256)`
+pins bind operator commitment data listed in the manifest's `bindings`. Invalid/null context
+is rejected before any artifact access. No temporary verifier script is required.
+
+```sh
+/ABS/APPROVED_RUNTIME/.venv/bin/python3 -B -m scripts.pipeline_preflight verify \
+  --root /ABS/PRIVATE_ROOT --attempt 0 \
+  --result-sha256 EXPECTED_RESULT_SHA256 --manifest-sha256 EXPECTED_MANIFEST_SHA256 \
+  --payload-sha256 EXPECTED_PAYLOAD_SHA256 --release-head EXPECTED_RELEASE_HEAD \
+  --python /ABS/APPROVED_RUNTIME/.venv/bin/python3 \
+  --binding operator-commitment.json=EXPECTED_COMMITMENT_SHA256
+```
+
+`verify` performs no command, payload import, write, lock/PID operation or current-online rescan.
+Root-local descriptor traversal rejects symlinks/hardlinks and unstable reads. Producer and
+consumer share the closed version1 result/intent/manifest/stage field sets. Result SHA now
+binds intent SHA and normal/rollback stage proof hashes; verifier checks protected input bytes,
+Root/profile/device identity, complete before/after directory closure and interpreter records,
+phase termination0/23, same payload bytes, simulated service trace and native exact Git
+head/754 ancestry facts. Missing, unknown, partial, failed, changed-online, wrong-pin/head/
+interpreter proofs or substituted artifacts fail/nonzero. Existing protocol JSON decoding is
+reused for small documents; bounded full-tree artifacts retain duplicate/nonfinite rejection
+without widening the existing protocol's1MiB report limit. Artifact limit128MiB refuses rather
+than truncates.
+
+Output `status=verified` means those **historical proof bytes** match the supplied context. It
+is not new authority, a current source/online-state check, a merge/deployment approval or
+cryptographic authentication of the host. Trusted context pins must come from the authorized
+freeze and observed fixed-tool execution, not be recomputed from editable untrusted results
+just to obtain PASS. A malicious host capable of fabricating all records and trusted inputs
+is outside this claim. Real live gates and independent operator review remain mandatory.
+
+A future installer can import this fixed API with no handwritten checker. Its context should
+bind the newly frozen tool+feature release (754 is required ancestor), both actual stage
+proofs and Root commitment data linking its stable bindings/dependency manifest. Pending
+head/data must stay non-executable; the original PR54-only live branch was not validated as
+a future release by the historical rehearsal smoke.
