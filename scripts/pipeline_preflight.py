@@ -451,18 +451,49 @@ def plan(root, attempt=0):
     return manifest, inputs, script, plist_hashes
 
 
+def null_identity():
+    # Owner-approved immutable character sink only, with no namespace privilege.
+    path = Path("/dev/null")
+    before = path.lstat()
+    require(
+        stat.S_ISCHR(before.st_mode)
+        and before.st_uid == 0
+        and before.st_gid == 0
+        and before.st_nlink == 1
+        and os.major(before.st_rdev) == 3
+        and os.minor(before.st_rdev) == 2,
+        "unexpected /dev/null device identity",
+    )
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        held = os.fstat(fd)
+        after = path.lstat()
+        keys = ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink", "st_rdev")
+        require(
+            tuple(getattr(before, k) for k in keys)
+            == tuple(getattr(held, k) for k in keys)
+            == tuple(getattr(after, k) for k in keys),
+            "/dev/null changed during validation",
+        )
+        return {k[3:]: getattr(held, k) for k in keys}
+    finally:
+        os.close(fd)
+
+
 def profile(root):
     # All descendants inherit Seatbelt. No writable inherited files or IPC broker.
     return (
         "(version 1)(allow default)(deny file-write*)"
         "(allow file-write* (subpath " + json.dumps(str(root), ensure_ascii=False) + "))"
         "(deny file-write* (literal " + json.dumps(str(root / ".deny-canary")) + "))"
+        '(allow file-write-data (literal "/dev/null"))'
         "(deny network*)(deny mach-lookup)"
     )
 
 
 def child(root: Path, argv: list[str], timeout: int) -> dict[str, Any]:
     require(sys.platform == "darwin" and SANDBOX.is_file(), "OS write isolation unavailable")
+    null_identity()
     env = {
         "PATH": "/usr/bin:/bin",
         "HOME": str(root / "home"),
@@ -615,6 +646,7 @@ def run(root, correction=None):
             attempt=attempt,
             inputs=protected,
             before=before,
+            null_device=null_identity(),
             effective_write_root=str(root),
             payload_workdir=str(writable),
             profile=profile(root),
@@ -698,6 +730,7 @@ def run(root, correction=None):
         version=1,
         status="pass" if failure is None and unchanged else "blocked",
         attempt=attempt,
+        null_device=null_identity(),
         possible_online_write=not unchanged,
         quarantined=quarantined,
         live_unchanged=unchanged,
@@ -749,6 +782,7 @@ def bootstrap(root, correction):
         all(not stat.S_ISREG(os.fstat(fd).st_mode) for fd in (1, 2)),
         "regular inherited output descriptor forbidden",
     )
+    null_identity()
     original_root = (root.stat().st_dev, root.stat().st_ino)
     env = {
         "RB_PREFLIGHT_ROOT_ID": f"{original_root[0]}:{original_root[1]}",
@@ -830,6 +864,7 @@ def main(argv=None):
         root = canonical(args.root)
         if args.command == "_outer":
             confined(root)
+            null_identity()
             require(
                 os.environ.get("RB_PREFLIGHT_ROOT_ID")
                 == f"{root.stat().st_dev}:{root.stat().st_ino}",

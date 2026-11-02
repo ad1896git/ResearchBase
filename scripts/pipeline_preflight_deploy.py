@@ -209,6 +209,7 @@ def rehearse(root, attempt, phase):
     runtime = Path(model["runtime"])
     real_run = subprocess.run
     # Real read-only git baseline/ancestor proof, still inside kernel isolation.
+    baseline_git = []
     for args in (
         ["git", "-C", str(runtime), "rev-parse", "HEAD"],
         [
@@ -222,6 +223,9 @@ def rehearse(root, attempt, phase):
         ],
     ):
         result = real_run(args, capture_output=True, text=True, timeout=30, close_fds=True)
+        baseline_git.append(
+            dict(argv=args, exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
+        )
         require(result.returncode == 0, "deployment baseline proof failed")
         if "rev-parse" in args:
             require(result.stdout.strip() == model["head"], "runtime exact head drift")
@@ -496,6 +500,7 @@ def rehearse(root, attempt, phase):
         baseline=model["head"],
         required_feature54=model["required_feature54"],
         launchctl="SIMULATED_ONLY",
+        baseline_git=baseline_git,
         clock="SIMULATED_ONLY",
         calls=calls,
         mapping=records,

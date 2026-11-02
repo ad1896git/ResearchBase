@@ -36,8 +36,13 @@ A newly authorized operation uses a new root; this tool does not grant that auth
 ## Mechanism and host limits
 
 A minimal bootstrap validates the plan without running payload, then starts the complete
-orchestrator through macOS `/usr/bin/sandbox-exec`. Its kernel policy denies writes except
-beneath the single root, denies network and all Mach lookup. All descendants inherit that
+orchestrator through macOS `/usr/bin/sandbox-exec`. Its kernel policy permits mutable filesystem writes only beneath the single root, denies
+network and all Mach lookup. The sole owner-approved external sink is exact `/dev/null`,
+with `file-write-data` permission only; creation, unlink, rename and metadata writes remain
+denied. Before applying the policy and at execution boundaries, lstat/open(O_NOFOLLOW)/fstat
+verify a stable singly linked root:root character device with major3/minor2. Any substitution,
+owner/type/device mismatch or validation race blocks. No other device, `/tmp`/xcrun cache or
+external writable path is exempt. All descendants inherit that
 same policy, including native shell/dd/ln and a mistakenly unmocked service command. There is
 no broker or weaker fallback, and no dependence on Python monkeypatching for write isolation.
 The launchd/clock adapter is mocked *inside* the confined process for rehearsal semantics.
@@ -52,7 +57,8 @@ The internal orchestrator entry also checks the active kernel policy; invoking i
 without confinement refuses. `sandbox-exec` and sandbox-check APIs are host-specific/deprecated
 or private facilities; absence or changed behavior is blocked, never treated as an OS PASS.
 
-The kernel protects **outside-root writes by this process tree**, not malicious changes by
+The kernel protects **outside-root mutable-file writes by this process tree** (with the
+explicit identity-checked `/dev/null` data sink above), not malicious changes by
 other unconfined host processes. Such online changes, including a legitimate timer tick,
 make this rehearsal fail. Reviewed payload is SHA-bound; parent evidence/inputs are checked
 against RAM inventories after execution and created with O_EXCL. This is not a claim of a
@@ -167,6 +173,11 @@ unsupported runtime refuses. Actual LOCAL-MAC-PASS is separate evidence. Existin
 names, benchmarks, risk/approval policies, scheduler, scientific contracts and schema are
 unchanged. No real online command may run until exact-source review, all seven CI and merge.
 
-## Current WIP device boundary
+## Preserved device-boundary history
 
-Overall BLOCKED_PENDING_OWNER_DEVICE_BOUNDARY: strict profile currently denies all Root-external writes, including /dev/null. Native Git on the current Mac opens that device O_RDWR, so the complete deployment-positive regression is presently a real FAIL. It remains enabled and is not reclassified as an environment PASS. Partial validation excludes that single known blocked test explicitly; the remaining suite is not a complete acceptance. No device exception is enabled without explicit owner decision. No real online preflight, deployment or service action has run.
+WIP d548/d452 full native deployment tests failed on Git's /dev/null O_RDWR acquisition.
+Those raw failures remain separate evidence; partial suites never replaced full acceptance.
+Owner subsequently authorized only the exact character-device data sink described above.
+No other outside-root write exception or weak isolation fallback was added. Later native
+results must be actually run and independently reviewed; the exception alone is not a PASS.
+No real online preflight or deployment has run in this PR's development/tests.

@@ -222,11 +222,13 @@ def test_explicit_mapping_verifies_both_plist_bytes(tmp_path):
 def test_unavailable_no_fallback(tmp_path):
     r, o, _ = fixture(tmp_path)
     before = t.inventory([o])
-    with patch.object(t.sys, "platform", "linux"):
-        assert t.run(r) == 2
-    result = json.loads((r / "evidence/attempt-0/result.json").read_text())
-    assert result["status"] == "blocked" and result["phases"] == []
-    assert t.inventory([o]) == before
+    with (
+        patch.object(t.sys, "platform", "linux"),
+        patch.object(t.subprocess, "Popen", side_effect=AssertionError("must not launch")),
+    ):
+        with pytest.raises(SafetyError, match="unavailable"):
+            t.bootstrap(r, None)
+    assert not (r / "evidence").exists() and t.inventory([o]) == before
 
 
 @MAC
@@ -542,3 +544,80 @@ def test_declared_interpreter_aliases_cannot_be_silently_omitted(tmp_path):
     m["interpreter_inputs"][0]["path_aliases"] = []
     save(r, m)
     assert invoke(r) == 2 and not (r / "payload").exists()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"st_mode": 0o100666},
+        {"st_mode": 0o120777},
+        {"st_uid": 1},
+        {"st_gid": 1},
+        {"st_nlink": 2},
+        {"st_rdev": os.makedev(3, 3)},
+    ],
+)
+def test_null_identity_rejects_regular_symlink_owner_links_or_wrong_device(change):
+    import types
+
+    real = Path.lstat
+    expected = dict(st_mode=0o020666, st_uid=0, st_gid=0, st_nlink=1, st_rdev=os.makedev(3, 2))
+
+    def metadata(path, *args, **kwargs):
+        if path == Path("/dev/null"):
+            return types.SimpleNamespace(**{**expected, **change})
+        return real(path, *args, **kwargs)
+
+    with patch.object(Path, "lstat", metadata), pytest.raises(SafetyError, match="device identity"):
+        t.null_identity()
+
+
+@MAC
+def test_null_identity_open_race_fails_closed():
+    import types
+
+    original = os.fstat
+
+    def changed(fd):
+        info = original(fd)
+        return types.SimpleNamespace(
+            **{
+                key: getattr(info, key) + (1 if key == "st_ino" else 0)
+                for key in (
+                    "st_dev",
+                    "st_ino",
+                    "st_mode",
+                    "st_uid",
+                    "st_gid",
+                    "st_nlink",
+                    "st_rdev",
+                )
+            }
+        )
+
+    with patch.object(os, "fstat", changed), pytest.raises(SafetyError, match="changed during"):
+        t.null_identity()
+
+
+@MAC
+def test_kernel_null_data_only_and_no_other_device_privileges(tmp_path):
+    r, o, _ = fixture(tmp_path)
+    before = t.inventory([o])
+    identity = t.null_identity()
+    program = """import ctypes,json,os
+f=os.open('/dev/null',os.O_WRONLY);assert os.write(f,b'approved sink')==13;os.close(f)
+check=ctypes.CDLL('/usr/lib/system/libsystem_sandbox.dylib').sandbox_check
+check.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_int];check.restype=ctypes.c_int
+ops=['file-write-data','file-write-create','file-write-unlink','file-write-mode']
+print(json.dumps({op:check(os.getpid(),op.encode(),1,ctypes.c_char_p(b'/dev/null')) for op in ops}))
+"""
+    observed = t.child(r, [sys.executable, "-B", "-c", program], 10)
+    assert observed["exit_code"] == 0
+    result = json.loads(observed["stdout"])
+    assert result == {
+        "file-write-data": 0,
+        "file-write-create": 1,
+        "file-write-unlink": 1,
+        "file-write-mode": 1,
+    }
+    assert t.null_identity() == identity and t.inventory([o]) == before
