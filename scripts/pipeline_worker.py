@@ -39,6 +39,8 @@ class WorkerJob:
     base: str
     stage: str = "implementation"
     attempt_limit: int = 2
+    capability_file: str = ""
+    capability_sha256: str = ""
 
     def validate(self, control: Path, evidence: Path):
         require(ID.fullmatch(self.task_id) is not None, "invalid worker task")
@@ -63,7 +65,12 @@ class WorkerJob:
             run("git", "remote", "get-url", "origin", cwd=checkout).lower().removesuffix(".git")
         )
         require(remote.startswith("https://github.com/"), "explicit sandbox HTTPS origin required")
-        require(remote != "https://github.com/ad1896git/researchbase", "main repo worker denied")
+        if remote == "https://github.com/ad1896git/researchbase":
+            require(bool(self.capability_file), "main repo worker denied")
+        if self.capability_file:
+            from scripts.pipeline_capability import validate_capability
+
+            validate_capability(self, control)
         require(Path(self.prompt_file).is_absolute(), "absolute worker prompt required")
 
 
@@ -133,7 +140,12 @@ def worker_once(
         require(job.task_id in store.state["tasks"], "unknown worker task")
         task = store.state["tasks"][job.task_id]
         prompt = Path(job.prompt_file).read_text()
-        binding = encoded({"job": asdict(job), "prompt": prompt})
+        bound_job = asdict(job)
+        if not job.capability_file and not job.capability_sha256:
+            # Do not invalidate immutable pre-throughput sandbox job bindings.
+            bound_job.pop("capability_file")
+            bound_job.pop("capability_sha256")
+        binding = encoded({"job": bound_job, "prompt": prompt})
         bindings = control / "workers"
         bindings.mkdir(exist_ok=True)
         bound = bindings / (job.task_id + ".json")
@@ -190,8 +202,9 @@ def worker_once(
                 output,
                 instruction,
                 SCRIPTS / "pipeline_result.schema.json",
-                writable=True,
+                writable=not (job.capability_file and job.stage == "review"),
                 timeout=timeout,
+                source_root=checkout if job.capability_file else None,
             )
             require(terminal["descendants_stopped"], "worker descendants still live")
             authority(store)
@@ -237,6 +250,10 @@ def worker_once(
             answer.is_file() and not answer.is_symlink(),
             "worker report absent or unsafe; systemic/unclassified failure; host receipt retained",
         )
+        if job.capability_file:
+            from scripts.pipeline_capability import validate_capability
+
+            validate_capability(job, control, completed=True)
         store.finish(answer.read_text(), receipt)
         return store.state["tasks"][job.task_id]["status"]
 

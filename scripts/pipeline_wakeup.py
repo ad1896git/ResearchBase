@@ -174,6 +174,8 @@ def load_config(path):
     extra = ("merge_policy",) if config.get("version") == 2 else ()
     if "daily_report" in config:
         extra += ("daily_report",)
+    if "throughput" in config:
+        extra += ("throughput",)
     exact(
         config,
         (
@@ -192,6 +194,11 @@ def load_config(path):
     require(config["version"] in (1, 2), "config version")
     if config["version"] == 2:
         require(type(config["merge_policy"]) is dict, "merge policy required")
+    if "throughput" in config:
+        require(
+            config["version"] == 2 and type(config["throughput"]) is dict,
+            "throughput requires explicit version-2 configuration",
+        )
     for key in ("root", "queue", "runtime", "codex_home"):
         absolute(config[key])
     interpreter(config["python"])
@@ -229,8 +236,12 @@ def source_guard(config):
     require(not run("git", "status", "--porcelain", cwd=runtime), "dirty runtime checkout")
 
 
-def wake(config) -> dict:
+def wake(config, *, config_path=None) -> dict:
     source_guard(config)
+    if "throughput" in config:
+        from scripts.pipeline_throughput import tick
+
+        return tick(config, config_path=config_path)
     root = absolute(config["root"])
     root.mkdir(parents=True, exist_ok=True)
     lock = ProcessLock(root / "wakeup.lock")
@@ -384,7 +395,7 @@ def main():
             args.render_plist.write_bytes(render_plist(config, args.config.resolve()))
             return 0
         os.environ.update(environment(config))
-        print(json.dumps(wake(config)), flush=True)
+        print(json.dumps(wake(config, config_path=args.config.resolve())), flush=True)
         return 0
     except Exception as exc:
         print(

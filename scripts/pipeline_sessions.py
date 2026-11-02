@@ -56,6 +56,7 @@ def run_session(
     writable=False,
     timeout=180,
     codex="codex",
+    source_root=None,
 ) -> dict:
     """Caller owns its control lock. A launch marker without terminal receipt denies replay."""
     require(1 <= timeout <= MAX_SESSION_TIMEOUT, "session timeout out of bounds")
@@ -115,6 +116,13 @@ def run_session(
         argv.remove("-")
         argv.append("-")
         atomic_write(output / "scratch.json", encoded({"path": str(scratch)}))
+    if source_root is not None:
+        require(Path(source_root).resolve() == cwd.resolve(), "source import root mismatch")
+        env["PYTHONPATH"] = str(cwd / "src") + os.pathsep + str(cwd)
+        argv[-1:-1] = [
+            "-c",
+            "shell_environment_policy.set.PYTHONPATH=" + json.dumps(env["PYTHONPATH"]),
+        ]
     atomic_write(output / "launch.json", encoded({"argv": argv, "timeout": timeout}))
     with (
         (output / "events.jsonl").open("xb") as stdout,

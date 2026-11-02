@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ from scripts.pipeline_protocol import (
     atomic_write,
     decode,
     encoded,
+    exact,
     integer,
     require,
 )
@@ -44,6 +46,34 @@ class CITarget:
             self.head,
             self.base_commit,
         ).validate(deadline=deadline, query_timeout=query_timeout)
+
+
+class PublishedCITarget(CITarget):
+    """GET-only observation of an already published PR; grants no publication port."""
+
+    def validate(self, *, deadline=None, query_timeout=10):
+        from scripts.pipeline_protocol import commit
+
+        require(
+            self.repository.lower()
+            in ("ad1896git/researchbase", "ad1896git/researchbase-pipeline-sandbox"),
+            "CI repository not allowlisted",
+        )
+        integer(self.pr, 1)
+        commit(self.head)
+        commit(self.base_commit)
+        for ref in (self.base, self.branch):
+            require(type(ref) is str and not ref.startswith("-"), "CI reference")
+            run("git", "check-ref-format", "refs/heads/" + ref, timeout=query_timeout)
+        current = json.loads(
+            run(
+                "gh",
+                "api",
+                f"repos/{self.repository}/git/ref/heads/{self.base}",
+                timeout=query_timeout,
+            )
+        )
+        require(current["object"]["sha"] == self.base_commit, "CI actual base reference drift")
 
 
 class CIObserver:
@@ -164,6 +194,7 @@ def _wait_ci_until(
     interval: float = 2,
     expected_revision=None,
     on_observation=None,
+    single_observation=False,
 ) -> str:
     target.validate(deadline=deadline, query_timeout=query_timeout)
     remaining(deadline, query_timeout)
@@ -249,7 +280,293 @@ def _wait_ci_until(
                     ),
                 )
                 return store.state["tasks"][task_id]["status"]
+            if single_observation:
+                # The existing running intent is the durable wait. A later timer
+                # observes it again; pending is neither completion nor a retry.
+                payload = encoded(observation)
+                digest = hashlib.sha256(payload).hexdigest()
+                snapshot = evidence / f"ci-pending-{task_id}-{digest}.json"
+                require(not snapshot.is_symlink(), "unsafe pending CI evidence")
+                if snapshot.exists():
+                    require(snapshot.read_bytes() == payload, "pending observation drift")
+                else:
+                    atomic_write(snapshot, payload)
+                atomic_write(
+                    control / f"ci-pending-{task_id}.json",
+                    encoded(
+                        dict(
+                            intent=intent, outcome="pending", evidence=snapshot.name, sha256=digest
+                        )
+                    ),
+                )
+                return "pending"
             time.sleep(remaining(deadline, interval))
+
+
+def _probe_window(control, task_id, target, attempt, index, total_timeout, now, *, create=False):
+    """Timing is immutable and precedes begin/resume; missing claimed timing is never renewed."""
+    path = control / f"ci-window-{task_id}-{index}.json"
+    require(not path.is_symlink(), "symlink CI window")
+    if not path.exists():
+        require(create, "missing established CI window; operator reconciliation required")
+        atomic_write(
+            path,
+            encoded(
+                dict(
+                    task_id=task_id,
+                    target=target.__dict__,
+                    attempt=attempt,
+                    window=index,
+                    started_utc=now,
+                    deadline_utc=now + total_timeout,
+                )
+            ),
+        )
+    require(path.is_file(), "unsafe CI window")
+    window = decode(path.read_text())
+    exact(window, ("task_id", "target", "attempt", "window", "started_utc", "deadline_utc"))
+    require(
+        window["task_id"] == task_id
+        and window["target"] == target.__dict__
+        and window["attempt"] == attempt
+        and window["window"] == index
+        and type(window["started_utc"]) in (int, float)
+        and type(window["deadline_utc"]) in (int, float)
+        and window["started_utc"] >= 0
+        and window["deadline_utc"] - window["started_utc"] == total_timeout,
+        "CI window binding drift",
+    )
+    return window
+
+
+def _probe_claim(control, task_id, window, intent, *, create=False):
+    index = window["window"]
+    path = control / f"ci-window-claim-{task_id}-{index}.json"
+    expected = encoded(
+        dict(
+            task_id=task_id,
+            intent=intent,
+            window_sha256=hashlib.sha256(
+                (control / f"ci-window-{task_id}-{index}.json").read_bytes()
+            ).hexdigest(),
+        )
+    )
+    require(not path.is_symlink(), "symlink CI window claim")
+    if not path.exists():
+        require(create, "missing established CI window claim; operator reconciliation required")
+        atomic_write(path, expected)
+    require(path.is_file() and path.read_bytes() == expected, "CI window claim drift")
+
+
+def _probe_resumed(control, task_id, task):
+    markers = list(control.glob(f"ci-retry-{task_id}-{task['attempt']}-*.resumed"))
+    for marker in markers:
+        receipt = marker.with_suffix(".json")
+        require(
+            marker.is_file()
+            and not marker.is_symlink()
+            and receipt.is_file()
+            and not receipt.is_symlink()
+            and marker.read_bytes() == receipt.read_bytes(),
+            "CI resume receipt drift",
+        )
+        saved = decode(receipt.read_text())
+        require(
+            saved["task_id"] == task_id
+            and saved["attempt"] == task["attempt"]
+            and saved["intent"] == task["intent"]
+            and saved["reason"] == "ci_timeout",
+            "CI resume binding drift",
+        )
+    return markers
+
+
+def _probe_notice(control, task_id, window, status):
+    path = control / f"ci-timeout-notice-{task_id}-{window['window']}.json"
+    expected = encoded(
+        dict(window=window, status=status, reason="CI elapsed window, same intent/attempt retained")
+    )
+    require(not path.is_symlink(), "symlink CI timeout notice")
+    if path.exists():
+        require(path.is_file() and path.read_bytes() == expected, "CI timeout notice drift")
+    else:
+        atomic_write(path, expected)
+
+
+def poll_ci(
+    target,
+    task_id,
+    control,
+    evidence,
+    *,
+    query_timeout=10,
+    total_timeout=9000,
+    retry_delay=60,
+    max_timeouts=3,
+):
+    """Finite timer observation with persistent UTC windows, never a sleeping loop."""
+    require(0 < query_timeout <= 120, "CI query timeout")
+    require(
+        0 < total_timeout <= 86400
+        and 0 < retry_delay <= 3600
+        and type(max_timeouts) is int
+        and 1 <= max_timeouts <= 3,
+        "CI window policy",
+    )
+    now = time.time()
+    with StateStore(control, evidence) as store:
+        bound = control / f"ci-{task_id}.json"
+        expected = encoded(target.__dict__)
+        require(not bound.is_symlink(), "symlink CI target")
+        if bound.exists():
+            require(bound.read_bytes() == expected, "CI target drift")
+        else:
+            require(store.state["tasks"][task_id]["status"] == "ready", "CI binding lost")
+            atomic_write(bound, expected)
+        policy_file = control / f"ci-probe-policy-{task_id}.json"
+        policy = encoded(
+            dict(total_timeout=total_timeout, retry_delay=retry_delay, max_timeouts=max_timeouts)
+        )
+        if policy_file.exists():
+            require(
+                not policy_file.is_symlink() and policy_file.read_bytes() == policy,
+                "CI window policy drift",
+            )
+        else:
+            require(
+                store.state["tasks"][task_id]["status"] == "ready",
+                "legacy CI wait needs explicit migration; do not reset elapsed budget",
+            )
+            atomic_write(policy_file, policy)
+        task = store.state["tasks"][task_id]
+        exhausted = "CI windows exhausted; operator reconciliation required"
+        if task["status"] in ("done", "failed", "budget_exhausted"):
+            return task["status"]
+        if task["status"] == "blocked" and task["reason"] != exhausted:
+            return "blocked"
+        if task["status"] == "ready":
+            # A crash before begin reuses this exact original clock. A crash after
+            # begin but before claim leaves running+missing claim and fails closed.
+            window = _probe_window(
+                control, task_id, target, task["attempt"] + 1, 0, total_timeout, now, create=True
+            )
+            require(
+                not (control / f"ci-window-claim-{task_id}-0.json").exists(),
+                "ready CI has an existing claim",
+            )
+            intent = store.begin(task_id, "ci", f"pr:{target.pr}", target.head, target.base_commit)
+            if intent is None:
+                return "budget_exhausted"
+            _probe_claim(control, task_id, window, intent, create=True)
+        task = store.state["tasks"][task_id]
+        require(task["intent"] is not None and task["intent"]["kind"] == "ci", "CI claim")
+        resumed = _probe_resumed(control, task_id, task)
+        index = len(resumed)
+        if task["status"] == "retry_wait":
+            # resume_ci writes its marker before saving state. Reconcile exactly
+            # that marker/window rather than counting the paused window twice.
+            marker = control / f"ci-retry-{task_id}-{task['attempt']}-{task['retry_at']}.resumed"
+            index -= int(marker.exists())
+        require(0 <= index < max_timeouts, "CI window limit exceeded")
+        # Validate the entire already-consumed timing chain, including the active
+        # window, before recovering receipts or granting a next window.
+        for number in range(index + 1):
+            saved = _probe_window(
+                control, task_id, target, task["attempt"], number, total_timeout, now
+            )
+            _probe_claim(control, task_id, saved, task["intent"])
+        window = saved
+        if task["status"] == "running":
+            # A pause receipt may be durable although its state save was killed.
+            # StateStore reuses its retry_at; never calculate a replacement pause.
+            store.recover_ci_pause(task_id)
+            task = store.state["tasks"][task_id]
+        if task["status"] == "blocked":
+            _probe_notice(control, task_id, window, "blocked")
+            return "blocked"
+        if task["status"] == "retry_wait":
+            require(task["reason"] == "ci_timeout", "unknown CI retry type")
+            if index + 1 >= max_timeouts:
+                store.block(task_id, exhausted)
+                _probe_notice(control, task_id, window, "blocked")
+                return "blocked"
+            _probe_notice(control, task_id, window, "retry_wait")
+            if now < task["retry_at"]:
+                return "retry_wait"
+            # Persist the next window AND its same-intent claim before resume.
+            # If resume's marker was already written, their absence is corruption.
+            window = _probe_window(
+                control,
+                task_id,
+                target,
+                task["attempt"],
+                index + 1,
+                total_timeout,
+                now,
+                create=len(resumed) == index,
+            )
+            _probe_claim(control, task_id, window, task["intent"], create=len(resumed) == index)
+            store.resume_ci(task_id, now=int(now))
+            index += 1
+            task = store.state["tasks"][task_id]
+        heartbeat = control / f"ci-probe-{task_id}.json"
+        atomic_write(
+            heartbeat,
+            encoded(
+                dict(
+                    last_probe_utc=now,
+                    window={**window, "intent": task["intent"]},
+                    status=task["status"],
+                )
+            ),
+        )
+        if now >= window["deadline_utc"]:
+            store.pause_ci(task_id, int(now + retry_delay))
+            if index + 1 >= max_timeouts:
+                store.block(task_id, exhausted)
+            _probe_notice(control, task_id, window, store.state["tasks"][task_id]["status"])
+            return store.state["tasks"][task_id]["status"]
+    remaining_utc = window["deadline_utc"] - time.time()
+    try:
+        return _wait_ci_until(
+            target,
+            task_id,
+            control,
+            evidence,
+            deadline=time.monotonic() + min(8 * query_timeout, max(0.001, remaining_utc)),
+            query_timeout=query_timeout,
+            single_observation=True,
+        )
+    except (TimeoutError, subprocess.TimeoutExpired) as exc:
+        atomic_write(
+            heartbeat,
+            encoded(
+                dict(
+                    last_probe_utc=time.time(),
+                    window={**window, "intent": task["intent"]},
+                    status="pending",
+                    error=type(exc).__name__,
+                )
+            ),
+        )
+        return "pending"
+    except subprocess.CalledProcessError as exc:
+        if not re.search(
+            r"HTTP (429|5[0-9][0-9])|timed out|connection reset", str(exc.stderr), re.I
+        ):
+            raise
+        atomic_write(
+            heartbeat,
+            encoded(
+                dict(
+                    last_probe_utc=time.time(),
+                    window={**window, "intent": task["intent"]},
+                    status="pending",
+                    error="transient remote query",
+                )
+            ),
+        )
+        return "pending"
 
 
 def main():
