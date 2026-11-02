@@ -202,6 +202,10 @@ def test_scanner_allows_application_dtos_and_foundation(tmp_path: Path) -> None:
 def test_bootstrap_initializers_stay_empty_and_import_without_activation(tmp_path: Path) -> None:
     packages = []
     admitted_planning_files = {
+        # Reviewed P04 candidate-only preview; no activation or scientific writes.
+        "capabilities/coding/fake_contracts.py",
+        "capabilities/coding/fake_port.py",
+        "adapters/coding/fake.py",
         # Owner-frozen PR3-02-S2 Q1/Q4/Q5: CREATED intents and reads only.
         "agent_runtime/domain/agent_execution.py",
         "agent_runtime/application/execution_contracts.py",
