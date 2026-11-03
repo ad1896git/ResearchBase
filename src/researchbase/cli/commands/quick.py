@@ -805,6 +805,49 @@ def result_add(
     _run(runtime, operation)
 
 
+_EXPORT_KINDS = (
+    "question",
+    "hypothesis",
+    "experiment",
+    "metric",
+    "run",
+    "result",
+    "paper",
+    "evidence",
+    "claim",
+)
+
+
+def export_project(
+    ctx: typer.Context,
+    out: Annotated[
+        Path | None, typer.Option("--out", help="输出文件（默认放在本地配置目录的 exports/ 下）")
+    ] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        from datetime import datetime
+
+        from ..markdown_export import render
+
+        project = resolve_project(runtime, project_id)
+        listing = _listing(runtime)
+        rows = {kind: listing.list(project, kind) for kind in _EXPORT_KINDS}
+        text = render(str(project), rows, listing.claim_links(project), datetime.now())
+        if out is None:
+            root = Path(runtime.services.local_credentials.root) / "exports"
+            target = root / f"project-{str(project)[:8]}.md"
+        else:
+            target = out
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        typer.echo(f"已导出到 {target}")
+
+    _run(runtime, operation)
+
+
 # ---- registration -----------------------------------------------------------
 
 
@@ -821,6 +864,9 @@ def register(app: typer.Typer) -> None:
     add_command(project, "current", "显示当前项目。", project_current)
 
     app.command("search", help="在所有记录中按关键词搜索。")(search)
+    app.command("export", help="把当前项目导出为 Markdown（问题、假设、实验、结果、文献、结论）。")(
+        export_project
+    )
 
     question = _group(app, "question", "研究问题命令。")
     add_command(question, "add", "新建研究问题并冻结。", question_add)

@@ -41,6 +41,10 @@ class RecordListingService:
             numbered = [r for r in numbered if needle in str(r.get("title") or "").casefold()]
         return numbered
 
+    def claim_links(self, project: UUID) -> list[dict]:
+        with self._uow_factory() as uow:
+            return uow.record_listing.claim_links(project)
+
     def paper_detail(self, source: UUID, project: UUID) -> dict | None:
         with self._uow_factory() as uow:
             return uow.record_listing.paper_detail(source, project)

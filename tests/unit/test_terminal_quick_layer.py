@@ -122,3 +122,53 @@ def test_usage_errors_are_translated_to_chinese():
         "没有这个命令：nosuch。可运行 --help 查看用法"
     )
     assert _chinese_usage("something else") == "something else"
+
+
+def test_markdown_export_keeps_short_numbers_and_links():
+    from datetime import datetime
+
+    from researchbase.cli.markdown_export import render
+
+    question = UUID("01a19fd7-0000-7000-8000-0000000000aa")
+    hypothesis = UUID("01a19fd7-0000-7000-8000-0000000000bb")
+    claim_version = UUID("01a19fd7-0000-7000-8000-0000000000cc")
+    result = UUID("01a19fd7-0000-7000-8000-0000000000dd")
+    rows = {
+        "question": [{"id": question, "short_no": 1, "title": "问题", "status": "FROZEN"}],
+        "hypothesis": [
+            {
+                "id": hypothesis,
+                "short_no": 1,
+                "title": "假设",
+                "status": "FROZEN",
+                "parent_id": str(question),
+            }
+        ],
+        "result": [
+            {"id": result, "short_no": 1, "title": "19 分", "status": "RECORDED", "parent_id": None}
+        ],
+        "claim": [
+            {
+                "id": UUID("01a19fd7-0000-7000-8000-0000000000ee"),
+                "short_no": 1,
+                "title": "结论",
+                "status": "FROZEN",
+                "version_id": str(claim_version),
+            }
+        ],
+    }
+    links = [
+        {
+            "claim_version_id": str(claim_version),
+            "kind": "measurement",
+            "target_id": str(result),
+            "relation_type": "qualifies",
+            "qualification": "说明",
+        }
+    ]
+    text = render(str(PROJECT), rows, links, datetime(2026, 11, 3, 9, 30))
+    assert "- **#1 问题**（已冻结）" in text
+    assert "  - 假设 #1 假设（已冻结）" in text
+    assert "- **#1 结论**（已冻结）" in text
+    assert "限定：测量结果 #1 19 分；说明：说明" in text
+    assert "1. " not in text.split("## 参考文献")[0]

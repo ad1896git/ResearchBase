@@ -102,6 +102,38 @@ class SqlAlchemyRecordListingRepository:
         )
         return [dict(row) for row in result.mappings()]
 
+    def claim_links(self, project) -> list[dict]:
+        """Evidence links on claim versions: measurements, statistical results, literature."""
+        result = self._session.execute(
+            text(
+                """
+                SELECT cv.id::text AS claim_version_id, 'measurement' AS kind,
+                       er.measurement_id::text AS target_id,
+                       er.relation_type, er.qualification
+                FROM evidence_relations er
+                JOIN claim_versions cv ON cv.id = er.claim_version_id
+                JOIN claims c ON c.id = cv.claim_id
+                WHERE c.project_id = :project AND er.measurement_id IS NOT NULL
+                UNION ALL
+                SELECT cv.id::text, 'statistical', er.statistical_result_id::text,
+                       er.relation_type, er.qualification
+                FROM evidence_relations er
+                JOIN claim_versions cv ON cv.id = er.claim_version_id
+                JOIN claims c ON c.id = cv.claim_id
+                WHERE c.project_id = :project AND er.statistical_result_id IS NOT NULL
+                UNION ALL
+                SELECT s.claim_version_id::text, 'literature', rel.literature_evidence_id::text,
+                       rel.relation_type, rel.qualification
+                FROM literature_evidence_relations rel
+                JOIN literature_support_snapshots s
+                  ON s.id = rel.literature_support_snapshot_id
+                WHERE s.project_id = :project
+                """
+            ),
+            {"project": project},
+        )
+        return [dict(row) for row in result.mappings()]
+
     def paper_detail(self, source_id, project) -> dict | None:
         """Frozen source version and full-text artifact behind a linked paper."""
         row = (
