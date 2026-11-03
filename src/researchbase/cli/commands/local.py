@@ -184,6 +184,9 @@ def hypothesis_create(
     project_id: Annotated[UUID, typer.Option("--project-id")],
     statement: str = typer.Option(..., "--statement"),
     rationale: str = typer.Option(..., "--rationale"),
+    question_id: Annotated[
+        UUID | None, typer.Option("--question-id", help="所属研究问题（可选）。")
+    ] = None,
     json_mode: bool = typer.Option(False, "--json"),
 ) -> None:
     runtime = _runtime(ctx)
@@ -195,7 +198,15 @@ def hypothesis_create(
             WriteProjectionTarget.HYPOTHESIS,
             lambda: runtime.services.application.create_hypothesis(
                 CreateHypothesisCommand(
-                    ProjectId(project_id), statement, None, None, rationale, _context(runtime)
+                    ProjectId(project_id),
+                    statement,
+                    None,
+                    None,
+                    rationale,
+                    _context(runtime),
+                    research_question_id=(
+                        ResearchQuestionId(question_id) if question_id is not None else None
+                    ),
                 )
             ),
         ),

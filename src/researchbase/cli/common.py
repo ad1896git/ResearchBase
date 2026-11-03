@@ -128,7 +128,21 @@ def option_float(value: str | None, name: str, request_id: UUID) -> float | None
 
 
 def option_json(value: str | None, name: str, request_id: UUID) -> object | None:
-    return parse_json_value(value, name, request_id)
+    """Flag values: JSON when they are JSON, otherwise plain text stored as a JSON string.
+
+    Text that looks like broken JSON (starting with ``{`` or ``[``) is still rejected so
+    structured values are never silently stored as strings.
+    """
+
+    if value is None:
+        return None
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        stripped = value.strip()
+        if stripped[:1] in {"{", "["}:
+            return parse_json_value(value, name, request_id)
+        return value
 
 
 def option_uuid(value: str | None, name: str, request_id: UUID) -> str | None:

@@ -3,12 +3,20 @@
 # ruff: noqa: B008
 from __future__ import annotations
 
+from uuid import UUID
+
 import typer
 
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
+from ..context import CliRuntime
 from ..transport import add_command, command_group
-from .literature_search_execution import _principal, _request_id, _run, _runtime, _uuid
+from .literature_search_execution import _principal, _run, _runtime, _uuid
+
+
+def _request_id(runtime: CliRuntime) -> UUID:
+    # 请求号由 CLI 自动生成，无需手填。
+    return runtime.request_id
 
 
 def _service(runtime):

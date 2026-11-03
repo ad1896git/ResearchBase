@@ -22,8 +22,21 @@ from .commands.research_tasks import register as register_research_tasks
 from .composition import build_services
 from .context import CliServices, create_runtime
 from .errors import CliTransportError
-from .output import emit_error
+from .output import configure_command_logging, emit_error
 from .transport import StableTyperGroup
+
+
+def _local_actor_id(services: object) -> str | None:
+    """Single-user local mode: the authenticated OS account is the owner."""
+
+    identity = getattr(services, "local_identity", None)
+    if identity is None:
+        return None
+    try:
+        return str(identity.authenticate().actor_id)
+    except ResearchBaseError:
+        # Before `local init` / `local bootstrap`, commands that need an actor fail later.
+        return None
 
 
 def _root_callback(
@@ -35,28 +48,18 @@ def _root_callback(
     client_name: str | None,
     client_version: str | None,
     services: CliServices | None,
+    verbose: bool = False,
 ) -> None:
     try:
-        if services is None and (
-            actor_id is not None
-            or ctx.invoked_subcommand
-            not in {
-                None,
-                "local",
-                "literature",
-                "novelty-review",
-                "novelty-revision",
-                "literature-search-execution",
-                "literature-metadata",
-                "literature-evidence",
-                "research-tasks",
-            }
-        ):
+        configure_command_logging(verbose)
+        if services is None and actor_id is not None:
             raise ResearchBaseError(
                 ErrorCode.FORBIDDEN,
-                "use authenticated local or literature commands; actor overrides are forbidden",
+                "不能用 --actor-id 指定身份。本地模式默认为当前系统用户（本人）。",
             )
         selected_services = services or build_services()
+        if actor_id is None:
+            actor_id = _local_actor_id(selected_services)
         ctx.obj = create_runtime(
             selected_services,
             actor_id,
@@ -106,6 +109,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
         causation_id: str | None = typer.Option(None, "--causation-id"),
         client_name: str | None = typer.Option(None, "--client-name"),
         client_version: str | None = typer.Option(None, "--client-version"),
+        verbose: bool = typer.Option(False, "--verbose", "-v", help="显示详细日志（默认隐藏）。"),
     ) -> None:
         _root_callback(
             ctx,
@@ -116,6 +120,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
             client_name,
             client_version,
             services,
+            verbose,
         )
 
     return app
