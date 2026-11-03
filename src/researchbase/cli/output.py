@@ -115,7 +115,6 @@ def configure_command_logging(verbose: bool) -> None:
 
     logger = logging.getLogger("researchbase.commands")
     _VERBOSE_STATE["verbose"] = verbose
-    logger.propagate = False
     if verbose:
         handler = logging.StreamHandler(sys.stderr)
         handler.setFormatter(logging.Formatter("%(message)s"))
