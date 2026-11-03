@@ -21,6 +21,7 @@ from researchbase.application.commands import (
     ReviseResearchQuestionCommand,
     WriteProjectionTarget,
 )
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 from ..common import (
     application_write,
@@ -57,6 +58,12 @@ def project_create(
     runtime = _runtime(ctx)
 
     def operation() -> object:
+        # Local mode has one project from `local bootstrap`; refuse before any write.
+        if getattr(runtime.services, "local_identity", None) is not None:
+            raise ResearchBaseError(
+                ErrorCode.FORBIDDEN,
+                "本地模式只有一个项目（由 local bootstrap 创建），不能再新建项目。",
+            )
         values = merged_payload(
             json_input,
             json_file,

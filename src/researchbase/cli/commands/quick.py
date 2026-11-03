@@ -9,16 +9,17 @@ Application listing service.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
-import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import typer
+from typer.main import get_command
 
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
@@ -104,20 +105,40 @@ def _hint(reason: str) -> dict | None:
     return {"reason": reason} if reason else None
 
 
-def _lo(*args: str) -> dict:
-    """Run one low-level command with --json and return its JSON object."""
+_ROOT_APP: typer.Typer | None = None
 
-    proc = subprocess.run(
-        [sys.executable, "-m", "researchbase.cli.main", *args, "--json"],
-        capture_output=True,
-        text=True,
-        env=os.environ.copy(),
-        check=False,
-    )
-    if proc.returncode != 0:
-        raise _child_error(proc.stdout, proc.stderr)
+
+def _lo(*args: str) -> dict:
+    """Run one low-level command in-process with --json and return its JSON object.
+
+    The same root command tree runs, so request IDs, the local owner identity and
+    validation match the low-level commands exactly. Output is captured here.
+    """
+
+    if _ROOT_APP is None:
+        raise ResearchBaseError(ErrorCode.ADAPTER_UNAVAILABLE, "命令树尚未初始化")
+    command = get_command(_ROOT_APP)
+    out, err = io.StringIO(), io.StringIO()
+    code = 0
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        try:
+            # standalone_mode=False returns the exit code instead of exiting.
+            # Each high-level call is one new request; the owner never types request IDs.
+            request = [] if "--request-id" in args else ["--request-id", str(uuid4())]
+            returned = command.main(
+                args=[*request, *args, "--json"],
+                prog_name="researchbase",
+                standalone_mode=False,
+            )
+            code = int(returned or 0)
+        except typer.Exit as exc:
+            code = exc.exit_code
+        except SystemExit as exc:
+            code = int(exc.code or 0)
+    if code != 0:
+        raise _child_error(out.getvalue(), err.getvalue())
     try:
-        return json.loads(proc.stdout)
+        return json.loads(out.getvalue())
     except json.JSONDecodeError as exc:
         raise ResearchBaseError(
             ErrorCode.ADAPTER_UNAVAILABLE, "低层命令没有返回可识别的结果"
@@ -966,6 +987,8 @@ def _show(runtime: CliRuntime, operation, render) -> None:
 
 
 def register(app: typer.Typer) -> None:
+    global _ROOT_APP
+    _ROOT_APP = app
     project = _group(app, "project", "Project commands.")
     add_command(project, "use", "设置当前项目。", project_use)
     add_command(project, "current", "显示当前项目。", project_current)

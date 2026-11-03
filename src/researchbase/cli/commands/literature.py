@@ -114,7 +114,10 @@ def _source_merge(runtime: CliRuntime):
 
 
 def _request_id(runtime: CliRuntime) -> UUID:
-    # 请求号由 CLI 自动生成，无需手填。
+    if not runtime.request_id_supplied:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "--request-id is required for literature writes"
+        )
     return runtime.request_id
 
 
