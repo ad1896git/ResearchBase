@@ -141,7 +141,13 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
     sources = SourceIdentityService(uow_factory, credentials)
     versions = SourceVersionService(uow_factory, credentials)
     return ServiceBundle(
-        ApplicationService(uow_factory, clock, store, project_authorizer=local.authorize),
+        ApplicationService(
+            uow_factory,
+            clock,
+            store,
+            project_authorizer=local.authorize,
+            project_creation_authorizer=local.authorize_project_creation,
+        ),
         ProvenanceQueryService(uow_factory),
         GovernanceService(uow_factory, clock),
         GovernanceQueryService(uow_factory),

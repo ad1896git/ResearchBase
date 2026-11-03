@@ -73,6 +73,42 @@ class LocalWorkbenchService:
             project_name=project_name,
         )
 
+    def authorize_project_creation(self, uow: UnitOfWork, actor_id: UUID) -> None:
+        """Only the bound local actor may create a project; checked before any write."""
+
+        subject = self._credentials.subject()
+        repo = uow.phase2_identity
+        facts = repo.resolve_local_binding(subject)
+        if facts is None:
+            raise ResearchBaseError(ErrorCode.AUTHENTICATION_REQUIRED, "local binding unavailable")
+        if actor_id != facts["actor_id"]:
+            raise ResearchBaseError(ErrorCode.FORBIDDEN, "actor does not match the local principal")
+        at = repo.database_time()
+        principal = VerifiedPrincipal(
+            facts["actor_id"],
+            subject.deployment_id,
+            subject.subject_kind,
+            subject.subject_value,
+            subject.credential_id,
+            at,
+        )
+        if (
+            facts["retired_at"] is not None
+            or facts["bound_at"] > at
+            or (facts["revoked_at"] is not None and facts["revoked_at"] <= at)
+            or not self._credentials.is_valid(principal, at)
+        ):
+            raise ResearchBaseError(ErrorCode.FORBIDDEN, "current project authority is unavailable")
+
+    def create_project(self, request_id: UUID, name: str) -> dict[str, str]:
+        """Create a project and its OWNER membership (authority is checked first)."""
+
+        principal = self.authenticate()
+        project_id = self._identity.create_project_with_owner(
+            principal, name=name, request_id=request_id
+        )
+        return {"project_id": str(project_id), "name": name.strip()}
+
     def authorize(
         self, uow: UnitOfWork, project_id: UUID, write: bool, actor_id: UUID | None
     ) -> None:

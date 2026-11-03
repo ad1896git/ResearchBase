@@ -779,11 +779,13 @@ class ApplicationService:
         artifact_store: ArtifactStore | None = None,
         *,
         project_authorizer: Callable[[UnitOfWork, UUID, bool, UUID | None], None] | None = None,
+        project_creation_authorizer: Callable[[UnitOfWork, UUID], None] | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._clock = clock
         self._artifact_store = artifact_store
         self._project_authorizer = project_authorizer
+        self._project_creation_authorizer = project_creation_authorizer
 
     def to_write_result(self, value: object) -> WriteResult:
         """Convert a typed value for callers that are migrating to WriteResult."""
@@ -869,6 +871,10 @@ class ApplicationService:
     def create_project(self, command: CreateProjectCommand) -> WriteResult:
         actor_id = ActorId(command.context.actor_id)
         with self._uow_factory() as uow:
+            # Authorization runs before any write; a refusal leaves no project row.
+            if self._project_creation_authorizer is not None:
+                uow.begin_serializable()
+                self._project_creation_authorizer(uow, command.context.actor_id)
             _require_actor(uow, actor_id)
             project = Project(
                 id=new_typed_id(ProjectId),
