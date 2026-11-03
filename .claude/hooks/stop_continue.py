@@ -24,7 +24,7 @@ UNCHECKED = re.compile(r"^\s*-\s\[ \]\s*(.*)$")
 
 def read_count():
     try:
-        with open(COUNT_FILE, "r", encoding="utf-8") as fh:
+        with open(COUNT_FILE, encoding="utf-8") as fh:
             return int(fh.read().strip() or "0")
     except (OSError, ValueError):
         return 0
@@ -51,7 +51,7 @@ def main():
         pass
 
     try:
-        with open(TASKS_FILE, "r", encoding="utf-8") as fh:
+        with open(TASKS_FILE, encoding="utf-8") as fh:
             lines = fh.read().splitlines()
     except OSError:
         allow()  # no task list means nothing pending
@@ -59,7 +59,7 @@ def main():
     if any("NEEDS_OWNER" in line for line in lines):
         allow()
 
-    open_items = [m.group(1).strip() for m in (UNCHECKED.match(l) for l in lines) if m]
+    open_items = [m.group(1).strip() for m in (UNCHECKED.match(line) for line in lines) if m]
     if not open_items:
         allow()
 
