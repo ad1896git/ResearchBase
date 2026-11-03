@@ -17,6 +17,7 @@ from .commands.literature_evidence import register as register_literature_eviden
 from .commands.literature_search_execution import register as register_search_execution
 from .commands.local import register as register_local
 from .commands.metadata_observation import register as register_metadata
+from .commands.quick import register as register_quick
 from .commands.research import register as register_research
 from .commands.research_tasks import register as register_research_tasks
 from .composition import build_services
@@ -99,6 +100,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
     register_search_execution(app)
     register_research_tasks(app)
     register_agents(app)
+    register_quick(app)
 
     @app.callback()
     def callback(

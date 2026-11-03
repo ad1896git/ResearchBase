@@ -1,0 +1,625 @@
+"""Everyday terminal commands.
+
+Each command completes several steps of the low-level commands (which stay
+unchanged). The steps run as the same CLI with --json, so request IDs, the
+local owner identity, and validation all behave exactly as in the low-level
+commands. Short numbers (1, 2, 3, ...) are resolved in-process through the
+Application listing service.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Annotated
+from uuid import UUID
+
+import typer
+
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
+
+from ..context import CliRuntime
+from ..errors import cli_exit_code
+from ..output import emit_error
+from ..project_context import current_project_id, resolve_project, set_current_project
+from ..transport import add_command, command_group
+
+_TEXT_SUFFIXES = {".txt": "text/plain", ".md": "text/plain", ".xml": "application/jats+xml"}
+
+# Low-level reasons that need plainer Chinese guidance.
+_REASON_HINTS = {
+    "quotation not found in source content": "引文在全文中找不到：请逐字复制原文（注意标点和空格）",
+    "invalid CLI input": "输入内容不符合要求，请检查各参数",
+    "supported formats": "目前只支持纯文本（.txt/.md）和 JATS XML 全文",
+}
+
+_KIND_LABEL = {
+    "question": "研究问题",
+    "hypothesis": "假设",
+    "experiment": "实验",
+    "run": "运行",
+    "claim": "结论",
+    "paper": "文献",
+    "evidence": "文献证据",
+}
+
+
+def _runtime(ctx: typer.Context) -> CliRuntime:
+    return ctx.find_root().obj
+
+
+def _child_error(stdout: str, stderr: str) -> ResearchBaseError:
+    """Turn a failed low-level command into one error with a Chinese reason when possible."""
+
+    for text in (stdout, stderr):
+        try:
+            body = json.loads(text.strip().splitlines()[-1]) if text.strip() else {}
+        except (json.JSONDecodeError, IndexError):
+            continue
+        error = body.get("error") if isinstance(body, dict) else None
+        if isinstance(error, dict):
+            try:
+                code = ErrorCode(error.get("code"))
+            except ValueError:
+                code = ErrorCode.VALIDATION_ERROR
+            reason = str((error.get("details") or {}).get("reason") or "")
+            return ResearchBaseError(
+                code, str(error.get("message") or "操作失败"), details=_hint(reason)
+            )
+    code_match = re.search(r"代码：([A-Z_]+)", stderr)
+    title_match = re.search(r"错误：(.+?)（", stderr)
+    try:
+        code = ErrorCode(code_match.group(1)) if code_match else ErrorCode.VALIDATION_ERROR
+    except ValueError:
+        code = ErrorCode.VALIDATION_ERROR
+    title = title_match.group(1).strip() if title_match else "操作失败"
+    return ResearchBaseError(code, title)
+
+
+def _hint(reason: str) -> dict | None:
+    for needle, text in _REASON_HINTS.items():
+        if needle in reason:
+            return {"reason": text}
+    return {"reason": reason} if reason else None
+
+
+def _lo(*args: str) -> dict:
+    """Run one low-level command with --json and return its JSON object."""
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "researchbase.cli.main", *args, "--json"],
+        capture_output=True,
+        text=True,
+        env=os.environ.copy(),
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise _child_error(proc.stdout, proc.stderr)
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise ResearchBaseError(ErrorCode.INTERNAL_ERROR, "低层命令没有返回可识别的结果") from exc
+
+
+def _resolve(runtime: CliRuntime, project: UUID, kind: str, token: str) -> dict:
+    return runtime.services.record_listing.resolve(project, kind, token)
+
+
+def _row_line(row: dict) -> str:
+    title = (row.get("title") or "（无标题）").replace("\n", " ")
+    status = row.get("status") or ""
+    return f"#{row['short_no']:<3} {title}  [{status}]  {str(row['id'])[:8]}"
+
+
+def _emit_rows(rows: list[dict], json_mode: bool) -> None:
+    if json_mode:
+        typer.echo(json.dumps(rows, ensure_ascii=False, default=str))
+        return
+    if not rows:
+        typer.echo("（没有记录）")
+        return
+    for row in rows:
+        typer.echo(_row_line(row))
+
+
+def _echo_created(label: str, row: dict | None, extra: str = "") -> None:
+    number = f"#{row['short_no']} " if row and row.get("short_no") else ""
+    typer.echo(f"已添加{label} {number}{extra}".rstrip())
+
+
+def _run(runtime: CliRuntime, operation) -> None:
+    """Run a command body; report stable Chinese errors and exit with the mapped code."""
+    try:
+        operation()
+    except ResearchBaseError as exc:
+        emit_error(exc, runtime.request_id, False)
+        raise typer.Exit(code=cli_exit_code(exc)) from None
+
+
+def _group(app: typer.Typer, name: str, help_text: str) -> typer.Typer:
+    for info in app.registered_groups:
+        if info.name == name and info.typer_instance is not None:
+            return info.typer_instance
+    group = command_group(help_text)
+    app.add_typer(group, name=name)
+    return group
+
+
+# ---- project ---------------------------------------------------------------
+
+
+def project_use(
+    ctx: typer.Context,
+    project: Annotated[str, typer.Argument(help="项目 ID（完整 UUID）")],
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project_id = resolve_project(runtime, project)
+        set_current_project(runtime, project_id)
+        return {"current_project": str(project_id)}
+
+    _show(runtime, operation, lambda r: f"当前项目：{r['current_project']}")
+
+
+def project_current(ctx: typer.Context) -> None:
+    runtime = _runtime(ctx)
+    value = current_project_id(runtime)
+    typer.echo(
+        f"当前项目：{value}" if value else "还没有设置当前项目（researchbase project use <ID>）"
+    )
+
+
+# ---- record kinds ----------------------------------------------------------
+
+
+def _list_command(kind: str):
+    def command(
+        ctx: typer.Context,
+        keyword: Annotated[str | None, typer.Option("--keyword", "-k")] = None,
+        project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+        json_mode: bool = typer.Option(False, "--json"),
+    ) -> None:
+        runtime = _runtime(ctx)
+        _run(runtime, lambda: _rows_result(runtime, project_id, kind, keyword, json_mode))
+
+    return command
+
+
+def _rows_result(runtime, project_id, kind, keyword, json_mode):
+    project = resolve_project(runtime, project_id)
+    rows = runtime.services.record_listing.list(project, kind, keyword)
+    if json_mode:
+        return rows
+    for row in rows:
+        typer.echo(_row_line(row))
+    if not rows:
+        typer.echo(f"（没有{_KIND_LABEL[kind]}{'匹配“' + keyword + '”' if keyword else ''}）")
+    return None
+
+
+def search(
+    ctx: typer.Context,
+    keyword: Annotated[str, typer.Argument(help="关键词（匹配标题或陈述）")],
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        listing = runtime.services.record_listing
+        for kind, label in _KIND_LABEL.items():
+            rows = listing.list(project, kind, keyword)
+            if rows:
+                typer.echo(f"[{label}]")
+                for row in rows:
+                    typer.echo("  " + _row_line(row))
+        return None
+
+    _run(runtime, operation)
+
+
+# ---- questions / hypotheses / experiments / conclusions ---------------------
+
+
+def question_add(
+    ctx: typer.Context,
+    text: Annotated[str, typer.Argument(help="研究问题的文字")],
+    scope: Annotated[str | None, typer.Option("--scope")] = None,
+    rationale: Annotated[str | None, typer.Option("--rationale")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        args = ["rq", "create", "--project-id", str(project), "--question-text", text]
+        if scope:
+            args += ["--scope", scope]
+        if rationale:
+            args += ["--rationale", rationale]
+        created = _lo(*args)
+        _lo(
+            "rq",
+            "freeze",
+            "--research-question-id",
+            created["id"],
+            "--version-id",
+            created["current_version_id"],
+        )
+        row = _resolve(runtime, project, "question", created["id"])
+        _echo_created("研究问题", row, text)
+        return None
+
+    _run(runtime, operation)
+
+
+def hypothesis_add(
+    ctx: typer.Context,
+    statement: Annotated[str, typer.Argument(help="假设的陈述")],
+    question: Annotated[str, typer.Option("--question", help="研究问题编号或 ID")],
+    direction: Annotated[str | None, typer.Option("--direction")] = None,
+    success: Annotated[str | None, typer.Option("--success")] = None,
+    rationale: Annotated[str | None, typer.Option("--rationale")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        question_row = _resolve(runtime, project, "question", question)
+        args = [
+            "hypothesis",
+            "create",
+            "--project-id",
+            str(project),
+            "--statement",
+            statement,
+            "--research-question-id",
+            str(question_row["id"]),
+        ]
+        if direction:
+            args += ["--expected-direction", direction]
+        if success:
+            args += ["--success-criteria", success]
+        if rationale:
+            args += ["--rationale", rationale]
+        created = _lo(*args)
+        row = _resolve(runtime, project, "hypothesis", created["id"])
+        _echo_created("假设", row, statement)
+        return None
+
+    _run(runtime, operation)
+
+
+def experiment_add(
+    ctx: typer.Context,
+    title: Annotated[str, typer.Argument(help="实验名称")],
+    hypothesis: Annotated[str, typer.Option("--hypothesis", help="假设编号或 ID")],
+    objective: Annotated[str, typer.Option("--objective")],
+    protocol: Annotated[str, typer.Option("--protocol")],
+    metrics: Annotated[str, typer.Option("--metrics", help="计划测量的指标")],
+    seed: Annotated[str, typer.Option("--seed", help="随机种子策略")] = "固定种子 42",
+    analysis: Annotated[str, typer.Option("--analysis", help="分析计划")] = "描述性比较",
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        hypothesis_row = _resolve(runtime, project, "hypothesis", hypothesis)
+        created = _lo(
+            "spec",
+            "create",
+            "--project-id",
+            str(project),
+            "--hypothesis-id",
+            str(hypothesis_row["id"]),
+            "--title",
+            title,
+            "--objective",
+            objective,
+            "--protocol",
+            protocol,
+            "--planned-metrics",
+            metrics,
+            "--seed-policy",
+            seed,
+            "--analysis-plan",
+            analysis,
+        )
+        row = _resolve(runtime, project, "experiment", created["id"])
+        _echo_created("实验", row, title)
+        return None
+
+    _run(runtime, operation)
+
+
+def conclusion_add(
+    ctx: typer.Context,
+    statement: Annotated[str, typer.Argument(help="结论的陈述")],
+    scope: Annotated[str | None, typer.Option("--scope")] = None,
+    qualification: Annotated[str | None, typer.Option("--qualification")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        args = ["claim", "create", "--project-id", str(project), "--statement", statement]
+        if scope:
+            args += ["--scope", scope]
+        if qualification:
+            args += ["--qualification", qualification]
+        created = _lo(*args)
+        row = _resolve(runtime, project, "claim", created["id"])
+        _echo_created("结论", row, statement)
+        return None
+
+    _run(runtime, operation)
+
+
+# ---- papers and literature evidence -------------------------------------
+
+
+def paper_add(
+    ctx: typer.Context,
+    path: Annotated[Path, typer.Argument(help="全文文件路径（.txt / .md / JATS XML）")],
+    title: Annotated[str | None, typer.Option("--title", help="标题（默认用文件名）")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        suffix = path.suffix.lower()
+        if suffix not in _TEXT_SUFFIXES:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                f"暂不支持 {suffix or '无扩展名'} 文件",
+                details={"reason": "目前只支持 .txt / .md / JATS XML 全文；PDF 需先转换为文本"},
+            )
+        if not path.is_file():
+            raise ResearchBaseError(ErrorCode.NOT_FOUND, f"找不到文件：{path}")
+        label = title or path.stem
+        document = _lo(
+            "literature-evidence",
+            "import-document",
+            "--project-id",
+            str(project),
+            "--path",
+            str(path),
+            "--media-type",
+            _TEXT_SUFFIXES[suffix],
+            "--rights-basis",
+            "个人本地文献，仅用于个人研究记录",
+        )
+        source = _lo(
+            "literature",
+            "source",
+            "create",
+            "--project-id",
+            str(project),
+            "--kind",
+            "PAPER",
+            "--title",
+            label,
+        )
+        source_id = source["source_id"]
+        material = {
+            "version_kind": "PUBLISHED",
+            "title": label,
+            "abstract": None,
+            "authors": [],
+            "publication_date": None,
+            "venue": None,
+            "fulltext_artifact": {
+                "id": document["artifact_version_id"],
+                "content_hash": document["content_hash"],
+            },
+            "metadata": {
+                key: None
+                for key in (
+                    "journal_identifier",
+                    "volume",
+                    "issue",
+                    "pages",
+                    "license_label",
+                    "public_repository_label",
+                )
+            },
+        }
+        version = _lo(
+            "literature",
+            "version",
+            "create",
+            "--project-id",
+            str(project),
+            "--source-id",
+            source_id,
+            "--material-json",
+            json.dumps(material, ensure_ascii=False),
+        )
+        _lo(
+            "literature",
+            "version",
+            "freeze",
+            "--project-id",
+            str(project),
+            "--source-version-id",
+            version["source_version_id"],
+        )
+        row = _resolve(runtime, project, "paper", source_id)
+        _echo_created("文献", row, label)
+        return None
+
+    _run(runtime, operation)
+
+
+def evidence_add(
+    ctx: typer.Context,
+    paper: Annotated[str, typer.Option("--paper", help="文献编号、ID 前缀或标题片段")],
+    quote: Annotated[str, typer.Option("--quote", help="逐字引文")],
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        row = _resolve(runtime, project, "paper", paper)
+        detail = runtime.services.record_listing.paper_detail(row["id"], project)
+        if not detail or not detail.get("artifact_version_id"):
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "这篇文献还没有冻结的全文",
+                details={"reason": "请先用 rb paper add 导入全文"},
+            )
+        created = _lo(
+            "literature-evidence",
+            "create",
+            "--project-id",
+            str(project),
+            "--source-version-id",
+            str(detail["source_version_id"]),
+            "--quotation",
+            quote,
+            "--artifact-version-id",
+            str(detail["artifact_version_id"]),
+        )
+        evidence_row = _resolve(runtime, project, "evidence", created["id"])
+        _echo_created("文献证据", evidence_row, quote)
+        return None
+
+    _run(runtime, operation)
+
+
+def claim_link_evidence(
+    ctx: typer.Context,
+    claim: Annotated[str, typer.Option("--claim", help="结论编号或 ID")],
+    evidence: Annotated[str | None, typer.Option("--evidence", help="文献证据编号")] = None,
+    measurement: Annotated[str | None, typer.Option("--measurement")] = None,
+    statistical: Annotated[str | None, typer.Option("--statistical")] = None,
+    relation: Annotated[str, typer.Option("--relation")] = "QUALIFIES",
+    note: Annotated[str | None, typer.Option("--note", help="关联说明")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        claim_row = _resolve(runtime, project, "claim", claim)
+        version_id = claim_row.get("parent_id")
+        if not version_id:
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "这个结论还没有版本")
+        chosen = [x for x in (evidence, measurement, statistical) if x]
+        if len(chosen) != 1:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "请只指定一种要关联的内容：--evidence / --measurement / --statistical",
+            )
+        if evidence:
+            if claim_row.get("status") == "DRAFT":
+                # Literature support attaches to a frozen claim version.
+                _lo(
+                    "claim",
+                    "freeze",
+                    "--claim-id",
+                    str(claim_row["id"]),
+                    "--version-id",
+                    str(version_id),
+                )
+            evidence_row = _resolve(runtime, project, "evidence", evidence)
+            args = [
+                "claim",
+                "add-evidence",
+                "--project-id",
+                str(project),
+                "--claim-version-id",
+                str(version_id),
+                "--literature-evidence-id",
+                str(evidence_row["id"]),
+                "--relation-type",
+                relation,
+            ]
+            if note:
+                args += ["--qualification", note]
+        else:
+            args = [
+                "claim",
+                "add-evidence",
+                "--project-id",
+                str(project),
+                "--claim-version-id",
+                str(version_id),
+            ]
+            if measurement:
+                args += ["--measurement-id", measurement]
+            else:
+                args += ["--statistical-result-id", statistical or ""]
+            args += ["--relation-type", relation]
+            if note:
+                args += ["--qualification", note]
+        _lo(*args)
+        typer.echo(f"已关联到结论 #{claim_row['short_no']}")
+        return None
+
+    _run(runtime, operation)
+
+
+# ---- registration -----------------------------------------------------------
+
+
+def _show(runtime: CliRuntime, operation, render) -> None:
+    def run():
+        typer.echo(render(operation()))
+
+    _run(runtime, run)
+
+
+def register(app: typer.Typer) -> None:
+    project = _group(app, "project", "Project commands.")
+    add_command(project, "use", "设置当前项目。", project_use)
+    add_command(project, "current", "显示当前项目。", project_current)
+
+    app.command("search", help="在所有记录中按关键词搜索。")(search)
+
+    question = _group(app, "question", "研究问题命令。")
+    add_command(question, "add", "新建研究问题并冻结。", question_add)
+    add_command(question, "list", "列出研究问题。", _list_command("question"))
+
+    hypothesis = _group(app, "hypothesis", "Hypothesis commands.")
+    add_command(hypothesis, "add", "新建假设（--question 指定研究问题）。", hypothesis_add)
+    add_command(hypothesis, "list", "列出假设。", _list_command("hypothesis"))
+
+    experiment = _group(app, "experiment", "实验命令（实验规格）。")
+    add_command(experiment, "add", "新建实验（--hypothesis 指定假设）。", experiment_add)
+    add_command(experiment, "list", "列出实验。", _list_command("experiment"))
+
+    run = _group(app, "run", "Run commands.")
+    add_command(run, "list", "列出运行。", _list_command("run"))
+
+    conclusion = command_group("结论命令（即 Claim）。")
+    add_command(conclusion, "add", "新建结论。", conclusion_add)
+    add_command(conclusion, "list", "列出结论。", _list_command("claim"))
+    app.add_typer(conclusion, name="conclusion")
+
+    claim = _group(app, "claim", "Claim and evidence commands.")
+    add_command(claim, "add", "新建结论。", conclusion_add)
+    add_command(claim, "list", "列出结论。", _list_command("claim"))
+    add_command(
+        claim, "link-evidence", "把文献证据或测量/统计结果关联到结论。", claim_link_evidence
+    )
+
+    paper = command_group("文献命令（文件夹之前的简单入口）。")
+    add_command(paper, "add", "导入全文并冻结为文献来源版本。", paper_add)
+    add_command(paper, "list", "列出文献。", _list_command("paper"))
+    app.add_typer(paper, name="paper")
+
+    evidence = command_group("文献证据命令。")
+    add_command(evidence, "add", "从文献全文中摘录逐字引文，创建文献证据。", evidence_add)
+    add_command(evidence, "list", "列出文献证据。", _list_command("evidence"))
+    app.add_typer(evidence, name="evidence")
