@@ -58,12 +58,21 @@ def project_create(
     runtime = _runtime(ctx)
 
     def operation() -> object:
-        # Local mode has one project from `local bootstrap`; refuse before any write.
-        if getattr(runtime.services, "local_identity", None) is not None:
-            raise ResearchBaseError(
-                ErrorCode.FORBIDDEN,
-                "本地模式只有一个项目（由 local bootstrap 创建），不能再新建项目。",
-            )
+        local = getattr(runtime.services, "local_identity", None)
+        if local is not None:
+            if description is not None:
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "本地模式暂不保存项目描述",
+                    details={"option": "--description"},
+                )
+            if not name or not name.strip():
+                raise ResearchBaseError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "请用 --name 指定项目名称",
+                    details={"option": "--name"},
+                )
+            return local.create_project(runtime.request_id, name)
         values = merged_payload(
             json_input,
             json_file,
