@@ -81,7 +81,11 @@ _QUERIES: dict[str, str] = {
     "evidence": """
         SELECT e.id, e.extracted_statement AS title, e.review_status AS status,
                e.created_at, e.source_version_id::text AS parent_id,
-               NULL::text AS version_id, NULL::int AS row_version
+               NULL::text AS version_id, NULL::int AS row_version,
+               (SELECT re.reviewed_by = e.created_by
+                  FROM literature_evidence_review_events re
+                 WHERE re.literature_evidence_id = e.id AND re.new_status = 'VERIFIED'
+                 ORDER BY re.reviewed_at DESC, re.id DESC LIMIT 1) AS self_verified
         FROM literature_evidence e
         WHERE e.project_id = :project
     """,

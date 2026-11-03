@@ -977,10 +977,19 @@ class DiscussionHypothesisRepository(Protocol):
     def force_constraints(self) -> None: ...
 
 
+class LiteratureFolderRepository(Protocol):
+    def latest(self, project_id: UUID, folder_path: str) -> list[dict[str, Any]]: ...
+
+    def append(self, rows: list[dict[str, Any]]) -> None: ...
+
+
 class UnitOfWork(Protocol):
     def enable_b23_error_normalization(self) -> None: ...
 
     discussion_hypothesis: DiscussionHypothesisRepository
+
+    @property
+    def literature_folder(self) -> LiteratureFolderRepository: ...
 
     def begin_discussion_hypothesis(self, *, read_only: bool) -> None: ...
 

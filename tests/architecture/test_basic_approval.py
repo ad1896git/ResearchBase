@@ -52,6 +52,8 @@ def test_no_approval_effect_surface():
 
 def test_single_forward_revision():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0083_bearing_evaluation_guards"]
-    head = scripts.get_revision(scripts.get_heads()[0])
-    assert head.down_revision == "0082_experiment_search_core"
+    assert scripts.get_heads() == ["0085_literature_self_verification"]
+    # The owned migration stays linear: 0046 is its direct child.
+    assert scripts.get_revision("0046_pr2_17_authorship").down_revision == (
+        "0045_pr2_16_basic_approval"
+    )

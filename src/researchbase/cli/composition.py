@@ -23,6 +23,7 @@ from researchbase.application.governance import GovernanceService
 from researchbase.application.governance_queries import GovernanceQueryService
 from researchbase.application.internal_review import InternalReviewService
 from researchbase.application.literature_evidence import LiteratureEvidenceService
+from researchbase.application.literature_folder import LiteratureFolderService
 from researchbase.application.literature_search_execution import LiteratureSearchExecutionService
 from researchbase.application.literature_search_plan import LiteratureSearchPlanService
 from researchbase.application.literature_search_provider import StaticSearchCapabilityRegistry
@@ -102,6 +103,7 @@ class ServiceBundle:
     task_safety: TaskSafetyService | None = None
     canonical_context: CanonicalContextService | None = None
     record_listing: RecordListingService | None = None
+    literature_folder: LiteratureFolderService | None = None
 
 
 def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> ServiceBundle:
@@ -195,6 +197,7 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
         ),
         canonical_context=CanonicalContextService(uow_factory, credentials),
         record_listing=RecordListingService(uow_factory),
+        literature_folder=LiteratureFolderService(uow_factory, clock, local.authorize),
         task_safety=TaskSafetyService(
             research_task_uow_factory(settings.database_url), credentials, store
         ),

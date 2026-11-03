@@ -56,6 +56,9 @@ from researchbase.persistence.internal_review_repository import SqlAlchemyIntern
 from researchbase.persistence.literature_evidence_repository import (
     SqlAlchemyLiteratureEvidenceRepository,
 )
+from researchbase.persistence.literature_folder_repository import (
+    SqlAlchemyLiteratureFolderRepository,
+)
 from researchbase.persistence.literature_search_execution_repository import (
     SqlAlchemyLiteratureSearchExecutionRepository,
 )
@@ -517,6 +520,7 @@ class SqlAlchemyUnitOfWork:
     metadata_observations: SqlAlchemyMetadataObservationRepository
     literature_evidence: SqlAlchemyLiteratureEvidenceRepository
     record_listing: SqlAlchemyRecordListingRepository
+    literature_folder: SqlAlchemyLiteratureFolderRepository
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
     discussion_hypothesis: DiscussionHypothesisRepository
     discussion: SqlAlchemyDiscussionRepository
@@ -606,6 +610,7 @@ class SqlAlchemyUnitOfWork:
         self.source_version = SqlAlchemySourceVersionRepository(self._session)
         self.literature_evidence = SqlAlchemyLiteratureEvidenceRepository(self._session)
         self.record_listing = SqlAlchemyRecordListingRepository(self._session)
+        self.literature_folder = SqlAlchemyLiteratureFolderRepository(self._session)
         self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(self._session)
         self.literature_search_execution = SqlAlchemyLiteratureSearchExecutionRepository(
             self._session

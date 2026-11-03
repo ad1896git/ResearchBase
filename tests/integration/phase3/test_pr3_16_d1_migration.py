@@ -460,7 +460,7 @@ def constraint(error):
 
 def test_sole_head_and_frozen_source_bytes():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == ["0085_literature_self_verification"]
     assert scripts.get_revision(HEAD).down_revision == PARENT
     for name, digest in FROZEN.items():
         assert (

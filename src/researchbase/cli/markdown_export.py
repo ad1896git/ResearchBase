@@ -66,6 +66,11 @@ def _oneline(text: Any) -> str:
     return " ".join(str(text or "（无文字）").split())
 
 
+def _verifier_mark(row: dict | None) -> str:
+    """Owner self-verification is recorded on the review event; the export shows it plainly."""
+    return "（本人核验）" if row and row.get("self_verified") else ""
+
+
 def _entry(indent: str, label: str, row: dict, bold: bool = False) -> str:
     title = _oneline(row.get("title"))
     text = f"{_short(row)} {title}"
@@ -171,7 +176,8 @@ def render(project_id: str, rows: dict[str, list[dict]], links: list[dict], when
             f"- {_short(paper)} {_oneline(paper.get('title'))}（{_status(paper.get('status'))}）"
         )
         for evidence in children.get(("paper_evidence", str(paper["id"])), []):
-            lines.append(f"  - 引文 {_short(evidence)}：「{_oneline(evidence.get('title'))}」")
+            quote = _oneline(evidence.get("title"))
+            lines.append(f"  - 引文 {_short(evidence)}：「{quote}」{_verifier_mark(evidence)}")
     lines.append("")
 
     lines += ["## 结论与证据", ""]
@@ -184,7 +190,7 @@ def render(project_id: str, rows: dict[str, list[dict]], links: list[dict], when
             relation = _RELATION_LABEL.get(str(link["relation_type"]), str(link["relation_type"]))
             if target_kind == "literature":
                 quote = _oneline(target.get("title")) if target else ""
-                shown = f"文献证据 {_short(target)}：「{quote}」"
+                shown = f"文献证据 {_short(target)}：「{quote}」{_verifier_mark(target)}"
             elif target_kind == "measurement":
                 shown = (
                     f"测量结果 {_short(target)} {_oneline(target.get('title')) if target else ''}"

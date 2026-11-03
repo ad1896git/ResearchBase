@@ -76,7 +76,7 @@ def test_empty_base_upgrade_and_downgrade_refusal(monkeypatch):
                 )
             check_refusal(url, engine, cfg)
             assert ScriptDirectory.from_config(cfg).get_heads() == [
-                "0083_bearing_evaluation_guards"
+                "0085_literature_self_verification"
             ]
         finally:
             engine.dispose()
