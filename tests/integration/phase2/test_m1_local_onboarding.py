@@ -169,9 +169,16 @@ def test_real_cli_onboarding_restart_and_rejections(phase2_database_url, tmp_pat
         )["error"]["code"]
         == "BOOTSTRAP_CLOSED"
     )
+    # Local mode allows several projects; the new one gets an OWNER membership.
+    second = cli("project", "create", "--name", "Second", "--json")
+    assert second["name"] == "Second"
     assert (
-        cli("project", "create", "--name", "Unscoped", "--json", ok=False)["error"]["code"]
-        == "FORBIDDEN"
+        cli("local", "project-show", "--project-id", second["project_id"], "--json")["id"]
+        == (second["project_id"])
+    )
+    assert (
+        cli("project", "create", "--name", "", "--json", ok=False)["error"]["code"]
+        == "VALIDATION_ERROR"
     )
     foreign = str(uuid4())
     cli(
@@ -201,7 +208,7 @@ def test_real_cli_onboarding_restart_and_rejections(phase2_database_url, tmp_pat
     try:
         with engine.connect() as conn:
             assert conn.execute(text("SELECT count(*) FROM actors")).scalar_one() == 1
-            assert conn.execute(text("SELECT count(*) FROM projects")).scalar_one() == 1
+            assert conn.execute(text("SELECT count(*) FROM projects")).scalar_one() == 2
             assert conn.execute(text("SELECT count(*) FROM research_questions")).scalar_one() == 1
             assert (
                 conn.execute(text("SELECT count(*) FROM literature_search_plans")).scalar_one() == 1
