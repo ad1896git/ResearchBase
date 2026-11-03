@@ -1,0 +1,65 @@
+"""Unit tests for PDF text extraction used by `rb paper add` (no database)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from researchbase.cli.commands.quick import _doi_in, _pdf_text
+from researchbase.foundation.errors import ResearchBaseError
+
+
+def _minimal_pdf(lines: list[str]) -> bytes:
+    """Build a small, valid one-page PDF whose text is the given lines."""
+
+    content = (
+        "BT /F1 12 Tf 72 720 Td " + " ".join(f"({line}) Tj 0 -16 Td" for line in lines) + " ET"
+    )
+    objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        "/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(content)} >>\nstream\n{content}\nendstream",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    body = "%PDF-1.4\n"
+    offsets = []
+    for number, obj in enumerate(objects, start=1):
+        offsets.append(len(body.encode()))
+        body += f"{number} 0 obj\n{obj}\nendobj\n"
+    xref = len(body.encode())
+    body += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n"
+    body += "".join(f"{offset:010d} 00000 n \n" for offset in offsets)
+    body += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"
+    return body.encode()
+
+
+def test_pdf_text_and_doi_are_extracted(tmp_path: Path):
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(_minimal_pdf(["Nap and memory", "DOI 10.1234/nap.2026.7."]))
+    text, properties = _pdf_text(pdf)
+    assert "Nap and memory" in text
+    assert _doi_in(text) == "10.1234/nap.2026.7"
+    assert properties == {}
+
+
+def test_doi_is_none_when_absent():
+    assert _doi_in("no identifier here") is None
+
+
+def test_pdf_without_text_is_rejected_in_chinese(tmp_path: Path):
+    pdf = tmp_path / "blank.pdf"
+    pdf.write_bytes(_minimal_pdf([]))
+    with pytest.raises(ResearchBaseError) as caught:
+        _pdf_text(pdf)
+    assert "没有可提取的文字" in caught.value.message
+
+
+def test_broken_pdf_is_rejected_in_chinese(tmp_path: Path):
+    pdf = tmp_path / "broken.pdf"
+    pdf.write_bytes(b"not a pdf at all")
+    with pytest.raises(ResearchBaseError) as caught:
+        _pdf_text(pdf)
+    assert "无法读取这个 PDF 文件" in caught.value.message
