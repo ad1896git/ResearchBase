@@ -70,3 +70,12 @@ def current_project_id_from_root(root: object) -> UUID | None:
         return UUID(raw)
     except (OSError, ValueError):
         return None
+
+
+def local_root(runtime: CliRuntime) -> Path:
+    """The local profile directory; command output that belongs to the owner lives beneath it."""
+    credentials = getattr(runtime.services, "local_credentials", None)
+    root = getattr(credentials, "root", None)
+    if root is None:
+        raise ResearchBaseError(ErrorCode.AUTHENTICATION_REQUIRED, "本地配置不可用")
+    return Path(root)

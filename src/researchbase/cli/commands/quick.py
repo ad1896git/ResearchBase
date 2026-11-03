@@ -25,7 +25,12 @@ from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from ..context import CliRuntime
 from ..errors import cli_exit_code
 from ..output import emit_error
-from ..project_context import current_project_id, resolve_project, set_current_project
+from ..project_context import (
+    current_project_id,
+    local_root,
+    resolve_project,
+    set_current_project,
+)
 from ..transport import add_command, command_group
 
 _TEXT_SUFFIXES = {".txt": "text/plain", ".md": "text/plain", ".xml": "application/jats+xml"}
@@ -939,7 +944,7 @@ def export_project(
         rows = {kind: listing.list(project, kind) for kind in _EXPORT_KINDS}
         text = render(str(project), rows, listing.claim_links(project), datetime.now())
         if out is None:
-            root = Path(runtime.services.local_credentials.root) / "exports"
+            root = local_root(runtime) / "exports"
             target = root / f"project-{str(project)[:8]}.md"
         else:
             target = out
