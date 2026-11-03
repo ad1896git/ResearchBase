@@ -8,6 +8,7 @@ Rules:
 - Otherwise                               -> block stop, naming the next open item.
 State lives under the project's .claude/state/ (git-ignored).
 """
+
 import json
 import os
 import re
