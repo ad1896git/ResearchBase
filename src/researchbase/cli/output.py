@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
+import sys
 from dataclasses import fields, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -18,6 +20,9 @@ from researchbase.foundation.frozen_json import FrozenJSONArray, FrozenJSONObjec
 from researchbase.foundation.time import format_utc
 
 from .errors import CliTransportError, error_code, error_details
+from .messages import explain
+
+_VERBOSE_STATE = {"verbose": False}
 
 
 def to_jsonable(value: object) -> object:
@@ -93,4 +98,27 @@ def emit_error(error: Exception, request_id: UUID, json_mode: bool) -> None:
             err=True,
         )
         return
-    typer.echo(f"ERROR [{code}] {message}\nrequest_id={request_id}", err=True)
+    explanation = explain(code)
+    reason = details.get("reason") if isinstance(details, dict) else None
+    lines = [
+        f"错误：{explanation.title}（{code}）",
+        f"原因：{reason if isinstance(reason, str) and reason else message}",
+        f"怎么改：{explanation.hint}",
+        f"代码：{code}  request_id={request_id}",
+    ]
+    if _VERBOSE_STATE["verbose"] and details:
+        lines.append(f"[详细] details={json.dumps(to_jsonable(details), ensure_ascii=False)}")
+    typer.echo("\n".join(lines), err=True)
+
+
+def configure_command_logging(verbose: bool) -> None:
+    """Hide Application event logs by default; show them on stderr with --verbose."""
+
+    logger = logging.getLogger("researchbase.commands")
+    _VERBOSE_STATE["verbose"] = verbose
+    if verbose:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.handlers = [handler]
+    else:
+        logger.handlers = [logging.NullHandler()]

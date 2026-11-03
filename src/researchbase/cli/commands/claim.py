@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import typer
 
 from researchbase.application.commands import (
@@ -14,6 +16,7 @@ from researchbase.application.commands import (
     WriteProjectionTarget,
 )
 from researchbase.domain.claim import EvidenceRelationType
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 from ..commands.research import optional_uuid_from_values
 from ..common import (
@@ -129,12 +132,55 @@ def claim_revise(
     invoke(runtime, json_mode, operation)
 
 
+def _link_literature_evidence(
+    runtime: CliRuntime,
+    project_id: str | None,
+    claim_version_id: str | None,
+    evidence_id: str,
+    relation_type: str | None,
+    qualification: str | None,
+) -> object:
+    """Literature evidence attaches through a support snapshot of a frozen claim version."""
+
+    from ..project_context import resolve_project
+
+    if claim_version_id is None:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "关联文献证据需要结论版本 ID（--claim-version-id）",
+            details={"option": "--claim-version-id"},
+        )
+    project = resolve_project(runtime, project_id)
+    principal = getattr(runtime.services, "verified_principal", None)
+    service = getattr(runtime.services, "literature_evidence", None)
+    if principal is None or service is None:
+        raise ResearchBaseError(ErrorCode.AUTHENTICATION_REQUIRED, "文献证据服务不可用")
+    return service.snapshot(
+        principal,
+        project,
+        "ClaimVersion",
+        UUID(claim_version_id),
+        [
+            {
+                "evidence_id": evidence_id,
+                "relation_type": relation_type or "QUALIFIES",
+                "qualification": qualification or "文献证据关联（个人研究记录）",
+            }
+        ],
+        runtime.request_id,
+    )
+
+
 def claim_add_evidence(
     ctx: typer.Context,
     claim_id: str | None = typer.Option(None, "--claim-id"),
     claim_version_id: str | None = typer.Option(None, "--claim-version-id"),
     measurement_id: str | None = typer.Option(None, "--measurement-id"),
     statistical_result_id: str | None = typer.Option(None, "--statistical-result-id"),
+    literature_evidence_id: str | None = typer.Option(
+        None, "--literature-evidence-id", help="关联文献证据（需结论版本已冻结）。"
+    ),
+    project_id: str | None = typer.Option(None, "--project-id"),
     relation_type: str | None = typer.Option(None, "--relation-type"),
     qualification: str | None = typer.Option(None, "--qualification"),
     expected_row_version: str | None = typer.Option(None, "--expected-row-version"),
@@ -145,6 +191,15 @@ def claim_add_evidence(
     runtime = _runtime(ctx)
 
     def operation() -> object:
+        if literature_evidence_id is not None:
+            return _link_literature_evidence(
+                runtime,
+                project_id,
+                claim_version_id,
+                literature_evidence_id,
+                relation_type,
+                qualification,
+            )
         values = merged_payload(
             json_input,
             json_file,

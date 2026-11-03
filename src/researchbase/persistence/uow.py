@@ -74,6 +74,7 @@ from researchbase.persistence.prepared_submission_repository import (
     SqlAlchemyPreparedSubmissionRepository,
 )
 from researchbase.persistence.publication_repository import SqlAlchemyPublicationRepository
+from researchbase.persistence.record_listing import SqlAlchemyRecordListingRepository
 from researchbase.persistence.repositories import (
     SqlAlchemyActorRepository,
     SqlAlchemyArtifactRepository,
@@ -515,6 +516,7 @@ class SqlAlchemyUnitOfWork:
     literature_search_plan: SqlAlchemyLiteratureSearchPlanRepository
     metadata_observations: SqlAlchemyMetadataObservationRepository
     literature_evidence: SqlAlchemyLiteratureEvidenceRepository
+    record_listing: SqlAlchemyRecordListingRepository
     literature_search_execution: SqlAlchemyLiteratureSearchExecutionRepository
     discussion_hypothesis: DiscussionHypothesisRepository
     discussion: SqlAlchemyDiscussionRepository
@@ -603,6 +605,7 @@ class SqlAlchemyUnitOfWork:
         self.source_merge = SqlAlchemySourceMergeRepository(self._session)
         self.source_version = SqlAlchemySourceVersionRepository(self._session)
         self.literature_evidence = SqlAlchemyLiteratureEvidenceRepository(self._session)
+        self.record_listing = SqlAlchemyRecordListingRepository(self._session)
         self.literature_search_plan = SqlAlchemyLiteratureSearchPlanRepository(self._session)
         self.literature_search_execution = SqlAlchemyLiteratureSearchExecutionRepository(
             self._session

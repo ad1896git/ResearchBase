@@ -31,6 +31,7 @@ from researchbase.application.metadata_observation import MetadataObservationSer
 from researchbase.application.novelty import NoveltyService
 from researchbase.application.phase2_identity import Phase2IdentityService, VerifiedSubject
 from researchbase.application.provenance_queries import ProvenanceQueryService
+from researchbase.application.record_listing import RecordListingService
 from researchbase.application.revision_action import RevisionActionService
 from researchbase.application.scientific_rag_provider import ScientificRAGCapability
 from researchbase.application.search_result_resolution import SearchResultResolutionService
@@ -100,6 +101,7 @@ class ServiceBundle:
     research_tasks: ResearchTaskService | None = None
     task_safety: TaskSafetyService | None = None
     canonical_context: CanonicalContextService | None = None
+    record_listing: RecordListingService | None = None
 
 
 def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> ServiceBundle:
@@ -186,6 +188,7 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
             scientific_rag,
         ),
         canonical_context=CanonicalContextService(uow_factory, credentials),
+        record_listing=RecordListingService(uow_factory),
         task_safety=TaskSafetyService(
             research_task_uow_factory(settings.database_url), credentials, store
         ),

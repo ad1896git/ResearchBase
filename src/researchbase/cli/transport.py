@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from uuid import UUID
 
 import typer
+from typer._click.exceptions import UsageError
 from typer.core import TyperCommand, TyperGroup
 from typer.core import _click as click
 
@@ -29,6 +31,26 @@ def _request_id(ctx: click.Context, args: list[str]) -> UUID:
         return new_uuid7()
 
 
+_USAGE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"No such option: (\S+)"), "没有这个参数：{0}"),
+    (re.compile(r"No such command '([^']+)'"), "没有这个命令：{0}"),
+    (re.compile(r"Missing option '([^']+)'"), "缺少必填参数：{0}"),
+    (re.compile(r"Missing argument '([^']+)'"), "缺少必填位置参数：{0}"),
+    (re.compile(r"Option '([^']+)' requires an argument"), "参数 {0} 需要一个值"),
+    (re.compile(r"Got unexpected extra argument \(([^)]*)\)"), "多余的参数：{0}"),
+)
+
+
+def _chinese_usage(message: str) -> str:
+    """Plain Chinese reason for a Click usage error; the English original is kept as a fallback."""
+
+    for pattern, template in _USAGE_PATTERNS:
+        match = pattern.search(message)
+        if match:
+            return template.format(*match.groups()) + "。可运行 --help 查看用法"
+    return message
+
+
 def _normalize_click_error(
     ctx: click.Context, args: list[str], error: click.ClickException
 ) -> None:
@@ -36,7 +58,7 @@ def _normalize_click_error(
     transport_error = CliTransportError(
         "invalid CLI input",
         request_id=request_id,
-        details={"reason": error.format_message()},
+        details={"reason": _chinese_usage(error.format_message())},
     )
     emit_error(transport_error, request_id, "--json" in args)
 
@@ -49,6 +71,14 @@ class StableTyperGroup(TyperGroup):
             return super().parse_args(ctx, args)
         except click.ClickException as error:
             _normalize_click_error(ctx, args, error)
+            raise click.exceptions.Exit(2) from None
+
+    def invoke(self, ctx: click.Context) -> object:
+        # Unknown subcommands are resolved here, after parse_args.
+        try:
+            return super().invoke(ctx)
+        except UsageError as error:
+            _normalize_click_error(ctx, [], error)
             raise click.exceptions.Exit(2) from None
 
 
