@@ -188,10 +188,14 @@ def test_populated_source_evidence_conclusion_placement_review_decision_head_noo
     s.upgrade(phase2_database_url, "0079_agent_identity_versions")
     before = s.manifest(engine, tables)
     catalog = s.catalog(engine)
-    s.upgrade(phase2_database_url)
+    # The frozen PR2-20 catalog delta is measured at 0083; later authorized children
+    # (0084 literature folder, 0085 self-verification) have their own tests.
+    s.upgrade(phase2_database_url, "0083_bearing_evaluation_guards")
     assert s.manifest(engine, tables) == before
     after_catalog = s.catalog(engine)
     s.assert_pr2_20_head_catalog_unchanged(catalog, after_catalog)
+    s.upgrade(phase2_database_url)
+    assert s.manifest(engine, tables) == before
     for kind in ("missing_fk", "extra", "old", "cascade", "shape", "material"):
         tampered = deepcopy(after_catalog)
         rows = tampered["constraints"]
