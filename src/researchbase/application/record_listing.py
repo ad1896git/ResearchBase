@@ -21,6 +21,8 @@ def _chinese_kind(kind: str) -> str:
         "claim": "结论",
         "paper": "文献",
         "evidence": "文献证据",
+        "metric": "度量指标",
+        "result": "结果",
     }.get(kind, kind)
 
 

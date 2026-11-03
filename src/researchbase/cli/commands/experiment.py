@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import re
+
 import typer
 
 from researchbase.application.commands import (
@@ -18,6 +20,7 @@ from researchbase.application.commands import (
     WriteProjectionTarget,
 )
 from researchbase.domain.run import ArtifactInputRole, DatasetInputRole, RunStatus
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 from ..common import (
     application_write,
@@ -48,6 +51,26 @@ def _runtime(ctx: typer.Context) -> CliRuntime:
     return runtime
 
 
+_RUN_TYPE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+
+
+def normalized_run_type(value: str | None) -> str | None:
+    """Run types are lowercase identifiers such as experiment or pilot; case is folded."""
+
+    if value is None:
+        return None
+    folded = value.strip().lower()
+    if not _RUN_TYPE_PATTERN.match(folded):
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "运行类型格式不对",
+            details={
+                "reason": "只能用英文字母、数字和下划线，且以字母开头，例如 experiment 或 pilot"
+            },
+        )
+    return folded
+
+
 def run_create(
     ctx: typer.Context,
     project_id: str | None = typer.Option(None, "--project-id"),
@@ -68,7 +91,7 @@ def run_create(
             experiment_spec_version_id=option_uuid(
                 experiment_spec_version_id, "--experiment-spec-version-id", runtime.request_id
             ),
-            run_type=run_type,
+            run_type=normalized_run_type(run_type),
         )
         return application_write(
             runtime.services.application,

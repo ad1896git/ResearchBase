@@ -15,7 +15,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 import typer
@@ -45,6 +45,8 @@ _KIND_LABEL = {
     "claim": "结论",
     "paper": "文献",
     "evidence": "文献证据",
+    "metric": "度量指标",
+    "result": "结果",
 }
 
 
@@ -102,11 +104,20 @@ def _lo(*args: str) -> dict:
     try:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
-        raise ResearchBaseError(ErrorCode.INTERNAL_ERROR, "低层命令没有返回可识别的结果") from exc
+        raise ResearchBaseError(
+            ErrorCode.ADAPTER_UNAVAILABLE, "低层命令没有返回可识别的结果"
+        ) from exc
+
+
+def _listing(runtime: CliRuntime) -> Any:
+    service = getattr(runtime.services, "record_listing", None)
+    if service is None:
+        raise ResearchBaseError(ErrorCode.ADAPTER_UNAVAILABLE, "记录列表服务不可用")
+    return service
 
 
 def _resolve(runtime: CliRuntime, project: UUID, kind: str, token: str) -> dict:
-    return runtime.services.record_listing.resolve(project, kind, token)
+    return _listing(runtime).resolve(project, kind, token)
 
 
 def _row_line(row: dict) -> str:
@@ -192,7 +203,7 @@ def _list_command(kind: str):
 
 def _rows_result(runtime, project_id, kind, keyword, json_mode):
     project = resolve_project(runtime, project_id)
-    rows = runtime.services.record_listing.list(project, kind, keyword)
+    rows = _listing(runtime).list(project, kind, keyword)
     if json_mode:
         return rows
     for row in rows:
@@ -211,7 +222,7 @@ def search(
 
     def operation():
         project = resolve_project(runtime, project_id)
-        listing = runtime.services.record_listing
+        listing = _listing(runtime)
         for kind, label in _KIND_LABEL.items():
             rows = listing.list(project, kind, keyword)
             if rows:
@@ -471,7 +482,7 @@ def evidence_add(
     def operation():
         project = resolve_project(runtime, project_id)
         row = _resolve(runtime, project, "paper", paper)
-        detail = runtime.services.record_listing.paper_detail(row["id"], project)
+        detail = _listing(runtime).paper_detail(row["id"], project)
         if not detail or not detail.get("artifact_version_id"):
             raise ResearchBaseError(
                 ErrorCode.VALIDATION_ERROR,
@@ -512,7 +523,7 @@ def claim_link_evidence(
     def operation():
         project = resolve_project(runtime, project_id)
         claim_row = _resolve(runtime, project, "claim", claim)
-        version_id = claim_row.get("parent_id")
+        version_id = claim_row.get("version_id")
         if not version_id:
             raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "这个结论还没有版本")
         chosen = [x for x in (evidence, measurement, statistical) if x]
@@ -540,10 +551,12 @@ def claim_link_evidence(
                 str(project),
                 "--claim-version-id",
                 str(version_id),
+                "--claim-id",
+                str(claim_row["id"]),
                 "--literature-evidence-id",
                 str(evidence_row["id"]),
                 "--relation-type",
-                relation,
+                relation.upper(),
             ]
             if note:
                 args += ["--qualification", note]
@@ -555,16 +568,218 @@ def claim_link_evidence(
                 str(project),
                 "--claim-version-id",
                 str(version_id),
+                "--claim-id",
+                str(claim_row["id"]),
             ]
+            args += ["--expected-row-version", _fresh_version_row(runtime, project, claim_row)]
             if measurement:
-                args += ["--measurement-id", measurement]
+                result_row = _resolve(runtime, project, "result", measurement)
+                args += ["--measurement-id", str(result_row["id"])]
             else:
                 args += ["--statistical-result-id", statistical or ""]
-            args += ["--relation-type", relation]
+            args += ["--relation-type", relation.lower()]
             if note:
                 args += ["--qualification", note]
         _lo(*args)
         typer.echo(f"已关联到结论 #{claim_row['short_no']}")
+        return None
+
+    _run(runtime, operation)
+
+
+def _current(row: dict, kind: str) -> str:
+    value = row.get("version_id")
+    if not value:
+        raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, f"这个{_KIND_LABEL[kind]}还没有版本")
+    return str(value)
+
+
+def _fresh_version_row(runtime: CliRuntime, project: UUID, claim_row: dict) -> str:
+    """Claim writes check the claim version row version; read it fresh before writing."""
+    fresh = _listing(runtime).resolve(project, "claim", str(claim_row["id"]))
+    return str(fresh["version_row_version"])
+
+
+def _fresh_row_version(runtime: CliRuntime, project: UUID, kind: str, record_id: str) -> str:
+    """Read the row version right before writing, so callers never pass it by hand."""
+    row = _listing(runtime).resolve(project, kind, record_id)
+    return str(row["row_version"])
+
+
+def metric_add(
+    ctx: typer.Context,
+    name: Annotated[str, typer.Argument(help="度量指标名称，如：次日测验平均分")],
+    unit: Annotated[str | None, typer.Option("--unit")] = None,
+    aggregation: Annotated[str, typer.Option("--aggregation")] = "MEAN",
+    definition: Annotated[str | None, typer.Option("--definition")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        args = [
+            "metric",
+            "create",
+            "--project-id",
+            str(project),
+            "--name",
+            name,
+            "--definition",
+            definition or name,
+            "--aggregation",
+            aggregation,
+        ]
+        if unit:
+            args += ["--unit", unit]
+        created = _lo(*args)
+        _lo(
+            "metric",
+            "freeze",
+            "--metric-definition-id",
+            created["id"],
+            "--version-id",
+            created["current_version_id"],
+            "--expected-row-version",
+            str(created["row_version"]),
+        )
+        row = _resolve(runtime, project, "metric", created["id"])
+        _echo_created("度量指标", row, name)
+        return None
+
+    _run(runtime, operation)
+
+
+def run_add(
+    ctx: typer.Context,
+    experiment: Annotated[str, typer.Option("--experiment", help="实验编号或 ID")],
+    run_type: Annotated[str, typer.Option("--type", help="运行类型，如 experiment")] = "experiment",
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        spec = _resolve(runtime, project, "experiment", experiment)
+        version_id = _current(spec, "experiment")
+        if spec.get("status") == "DRAFT":
+            # Runs execute against a frozen experiment version.
+            _lo(
+                "spec",
+                "freeze",
+                "--experiment-spec-id",
+                str(spec["id"]),
+                "--version-id",
+                version_id,
+                "--expected-row-version",
+                str(spec["row_version"]),
+            )
+        created = _lo(
+            "run",
+            "create",
+            "--project-id",
+            str(project),
+            "--experiment-spec-version-id",
+            version_id,
+            "--run-type",
+            run_type,
+        )
+        row = _resolve(runtime, project, "run", created["id"])
+        _echo_created("运行", row, f"（{run_type}）")
+        return None
+
+    _run(runtime, operation)
+
+
+def run_start(
+    ctx: typer.Context,
+    run: Annotated[str, typer.Argument(help="运行编号或 ID")],
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        row = _resolve(runtime, project, "run", run)
+        _lo(
+            "run",
+            "start",
+            "--run-id",
+            str(row["id"]),
+            "--expected-row-version",
+            _fresh_row_version(runtime, project, "run", run),
+        )
+        typer.echo(f"运行 #{row['short_no']} 已开始")
+        return None
+
+    _run(runtime, operation)
+
+
+def run_finish(
+    ctx: typer.Context,
+    run: Annotated[str, typer.Argument(help="运行编号或 ID")],
+    outcome: Annotated[
+        str, typer.Option("--outcome", help="SUCCEEDED / FAILED / CANCELLED")
+    ] = "SUCCEEDED",
+    exit_code: Annotated[int, typer.Option("--exit-code")] = 0,
+    failure_reason: Annotated[str | None, typer.Option("--failure-reason")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        row = _resolve(runtime, project, "run", run)
+        args = [
+            "run",
+            "finish",
+            "--run-id",
+            str(row["id"]),
+            "--outcome",
+            outcome.upper(),
+            "--exit-code",
+            str(exit_code),
+            "--expected-row-version",
+            _fresh_row_version(runtime, project, "run", run),
+        ]
+        if failure_reason:
+            args += ["--failure-reason", failure_reason]
+        _lo(*args)
+        typer.echo(f"运行 #{row['short_no']} 已结束（{outcome.upper()}）")
+        return None
+
+    _run(runtime, operation)
+
+
+def result_add(
+    ctx: typer.Context,
+    run: Annotated[str, typer.Option("--run", help="运行编号或 ID")],
+    metric: Annotated[str, typer.Option("--metric", help="度量指标编号或 ID")],
+    value: Annotated[str, typer.Option("--value", help="数值")],
+    unit: Annotated[str | None, typer.Option("--unit")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        run_row = _resolve(runtime, project, "run", run)
+        metric_row = _resolve(runtime, project, "metric", metric)
+        args = [
+            "measurement",
+            "create",
+            "--run-id",
+            str(run_row["id"]),
+            "--metric-definition-version-id",
+            _current(metric_row, "metric"),
+            "--numeric-value",
+            value,
+        ]
+        if unit:
+            args += ["--unit", unit]
+        created = _lo(*args)
+        row = _resolve(runtime, project, "result", created["id"])
+        _echo_created("结果", row, f"{value}{unit or ''}")
         return None
 
     _run(runtime, operation)
@@ -599,13 +814,9 @@ def register(app: typer.Typer) -> None:
     add_command(experiment, "add", "新建实验（--hypothesis 指定假设）。", experiment_add)
     add_command(experiment, "list", "列出实验。", _list_command("experiment"))
 
-    run = _group(app, "run", "Run commands.")
-    add_command(run, "list", "列出运行。", _list_command("run"))
-
-    conclusion = command_group("结论命令（即 Claim）。")
+    conclusion = _group(app, "conclusion", "结论命令（即 Claim）。")
     add_command(conclusion, "add", "新建结论。", conclusion_add)
     add_command(conclusion, "list", "列出结论。", _list_command("claim"))
-    app.add_typer(conclusion, name="conclusion")
 
     claim = _group(app, "claim", "Claim and evidence commands.")
     add_command(claim, "add", "新建结论。", conclusion_add)
@@ -614,12 +825,24 @@ def register(app: typer.Typer) -> None:
         claim, "link-evidence", "把文献证据或测量/统计结果关联到结论。", claim_link_evidence
     )
 
-    paper = command_group("文献命令（文件夹之前的简单入口）。")
+    metric = _group(app, "metric", "度量指标命令。")
+    add_command(metric, "add", "新建并冻结度量指标。", metric_add)
+    add_command(metric, "list", "列出度量指标。", _list_command("metric"))
+
+    run_group = _group(app, "run", "Run commands.")
+    add_command(run_group, "list", "列出运行。", _list_command("run"))
+    add_command(run_group, "add", "为实验新建运行（实验版本未冻结时先冻结）。", run_add)
+    add_command(run_group, "begin", "开始运行（底层命令仍为 run start）。", run_start)
+    add_command(run_group, "end", "结束运行，--outcome 为 SUCCEEDED/FAILED/CANCELLED。", run_finish)
+
+    result = _group(app, "result", "结果命令（测量值）。")
+    add_command(result, "add", "为运行记录一个测量结果。", result_add)
+    add_command(result, "list", "列出结果。", _list_command("result"))
+
+    paper = _group(app, "paper", "文献命令（文件夹之前的简单入口）。")
     add_command(paper, "add", "导入全文并冻结为文献来源版本。", paper_add)
     add_command(paper, "list", "列出文献。", _list_command("paper"))
-    app.add_typer(paper, name="paper")
 
-    evidence = command_group("文献证据命令。")
+    evidence = _group(app, "evidence", "文献证据命令。")
     add_command(evidence, "add", "从文献全文中摘录逐字引文，创建文献证据。", evidence_add)
     add_command(evidence, "list", "列出文献证据。", _list_command("evidence"))
-    app.add_typer(evidence, name="evidence")

@@ -99,9 +99,10 @@ def emit_error(error: Exception, request_id: UUID, json_mode: bool) -> None:
         )
         return
     explanation = explain(code)
+    reason = details.get("reason") if isinstance(details, dict) else None
     lines = [
         f"错误：{explanation.title}（{code}）",
-        f"原因：{message}",
+        f"原因：{reason if isinstance(reason, str) and reason else message}",
         f"怎么改：{explanation.hint}",
         f"代码：{code}  request_id={request_id}",
     ]
