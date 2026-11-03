@@ -33,9 +33,19 @@ _TEXT_SUFFIXES = {".txt": "text/plain", ".md": "text/plain", ".xml": "applicatio
 # Low-level reasons that need plainer Chinese guidance.
 _REASON_HINTS = {
     "quotation not found in source content": "引文在全文中找不到：请逐字复制原文（注意标点和空格）",
+    "only planned runs can start": "只有“计划中”的运行才能开始；这个运行已经开始或结束了",
+    "only running runs can finish": "只有“运行中”的运行才能结束；请先执行 rb run begin",
+    "measurements require a succeeded run": "测量结果只能记在“已成功”的运行上；请先执行 rb run end",
+    "evidence relation is already attached": "这条关联已经存在，无需重复添加",
+    "current project authority is unavailable": "当前账户无权操作这个项目",
+    "exact frozen project document not found": "找不到已冻结的全文，请先执行 rb paper add",
+    "document retention/access policy unavailable": "全文缺少保存与访问说明，请重新导入",
+    "claim_id is required": "缺少结论编号",
     "invalid CLI input": "输入内容不符合要求，请检查各参数",
+    "invalid source version material JSON": "文献版本信息格式不对",
     "supported formats": "目前只支持纯文本（.txt/.md）和 JATS XML 全文",
 }
+
 
 _KIND_LABEL = {
     "question": "研究问题",
@@ -58,9 +68,12 @@ def _child_error(stdout: str, stderr: str) -> ResearchBaseError:
     """Turn a failed low-level command into one error with a Chinese reason when possible."""
 
     for text in (stdout, stderr):
+        lines = text.strip().splitlines()
+        if not lines:
+            continue
         try:
-            body = json.loads(text.strip().splitlines()[-1]) if text.strip() else {}
-        except (json.JSONDecodeError, IndexError):
+            body = json.loads(lines[-1])
+        except json.JSONDecodeError:
             continue
         error = body.get("error") if isinstance(body, dict) else None
         if isinstance(error, dict):
@@ -68,18 +81,15 @@ def _child_error(stdout: str, stderr: str) -> ResearchBaseError:
                 code = ErrorCode(error.get("code"))
             except ValueError:
                 code = ErrorCode.VALIDATION_ERROR
-            reason = str((error.get("details") or {}).get("reason") or "")
-            return ResearchBaseError(
-                code, str(error.get("message") or "操作失败"), details=_hint(reason)
-            )
+            details = error.get("details") or {}
+            reason = str(details.get("reason") or error.get("message") or "")
+            return ResearchBaseError(code, "操作失败", details=_hint(reason))
     code_match = re.search(r"代码：([A-Z_]+)", stderr)
-    title_match = re.search(r"错误：(.+?)（", stderr)
     try:
         code = ErrorCode(code_match.group(1)) if code_match else ErrorCode.VALIDATION_ERROR
     except ValueError:
         code = ErrorCode.VALIDATION_ERROR
-    title = title_match.group(1).strip() if title_match else "操作失败"
-    return ResearchBaseError(code, title)
+    return ResearchBaseError(code, "操作失败")
 
 
 def _hint(reason: str) -> dict | None:
@@ -300,6 +310,16 @@ def hypothesis_add(
         if rationale:
             args += ["--rationale", rationale]
         created = _lo(*args)
+        _lo(
+            "hypothesis",
+            "freeze",
+            "--hypothesis-id",
+            created["id"],
+            "--version-id",
+            created["current_version_id"],
+            "--expected-row-version",
+            str(created["row_version"]),
+        )
         row = _resolve(runtime, project, "hypothesis", created["id"])
         _echo_created("假设", row, statement)
         return None
