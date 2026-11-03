@@ -451,9 +451,15 @@ Before a transaction, the foundation adapter performs filesystem, installation, 
 
 **具体候选机制和指挥官核验方法**
 
-候选仅在 PR32 实际合并后，以实际合并的 0083 和重新核实的唯一 head 为基线，审查一个未发布的参考专用前向 revision。其同一迁移事务在任何 DDL 前 fail closed：核对受保护操作员事先批准且独立提供的精确身份记录，包括服务器/集群稳定身份、端点与端口、数据库名及 DB 标识、环境/部署身份、唯一当前 Alembic revision、连接 `session_user`/`current_user`、迁移角色及函数 owner；核对目标 DB 与 CAS 根、namespace、物理存储及组合根的一对一绑定、安装来源和独占租约。核验采用下文固定只读方法；实际环境所有者和 DBA 提供具体预期值与最小读取权限并经审查；缺字段、不可验证、歧义、不匹配、权限不足或绑定变化一律回滚拒绝。身份比较是事故防护，不是授权；受保护 provisioning、明确批准和仅可在参考环境使用的受限迁移角色共同提供授权。不能把未提供的 ID、凭据或 provision 写成既有事实。
 
-迁移角色须可作为现有函数 owner 执行替换（或由受保护的 owner 角色执行），且不向普通应用 writer 授予函数所有权、DDL、角色切换或绕过 guard 的权限；部署凭据、网络和发布控制须实际限制该角色只能用于核准参考 DB。执行前检查 `public.pr316d1_enabled()` 的 OID、零参数 boolean 签名、owner、ACL、语言、volatility、security、search_path 和其他属性与已审查 0083 基线一致，以及原函数体为 false；不符即拒绝。唯一允许的激活 DDL 模式为：
+**2026-11-02 owner 定向修订：D01 v0.4 安全属性与开发测试范围。** Owner 明确批准辅助函数采用“函数定义哈希 + 所有者 + 安全标志 + OID + 有效 ACL”，将本节未来 preflight/参考替换的“全部属性”核验收窄为下述**所有安全相关属性**；DB 指纹为 system_identifier、数据库名、DB OID、数据库 owner OID、PG 主版本五项，另保留 Alembic/端点/session_user/current_user 等既有绑定。原文与来源 SHA256 `ecea1afa09529fccbf432b0ec8ed7c39142acfa5ca92c14773104ac9b25c6a48` 见[逐条裁决记录](../d01-binding-v0.4/CROSSWALK.md#owner-resolution)。这不是对历史0083的改写：上文已接受 disabled Stage2/0083 的 PUBLIC及显式 ACL byte-for-byte 义务、无 GRANT/REVOKE/owner/default-privilege 变化、旧分支与表权限永久保持。未来比较采用规范化完整 effective ACL，不仅是 writer 的 EXECUTE 布尔值；不因此授权权限变更。
+
+闭合安全集合：固定 public.pr316d1_enabled 的 OID；零参数、非variadic、非set-returning boolean函数签名；SQL语言/prokind=f；provolatile=s、prosecdef=false、proleakproof=false、proisstrict=false、proparallel=u、prosupport=0（按p.prosupport::pg_catalog.oid投影，不接受regproc名称替代）；proconfig仅包含固定 search_path=pg_catalog, public, pg_temp。同时核对 pg_get_functiondef 的原UTF8 SHA256与owner OID。完整 effective ACL 为 aclexplode(COALESCE(proacl,acldefault('f',proowner))) 的全部 EXECUTE 条目，保留 grantee/grantor OID、is_grantable，PUBLIC用OID0；按(grantee,grantor,privilege,is_grantable)排序去重，不截断。实际结果须匹配独立批准基线，PUBLIC及owner EXECUTE不得遗漏，PUBLIC不可grantable；意外额外授予拒绝。仅定义文本哈希或当前writer有EXECUTE均不足。相同事务、原OID、原签名、owner与该安全集合/完整effectiveACL在允许的false→true替换前后不变；只有明确批准的函数体/对应定义哈希可随该替换改变。
+
+
+候选仅在 PR32 实际合并后，以实际合并的 0083 和重新核实的唯一 head 为基线，审查一个未发布的参考专用前向 revision。其同一迁移事务在任何 DDL 前 fail closed：核对受保护操作员事先批准且独立提供的精确身份记录，包括服务器/集群稳定身份、PG主版本、端点与端口、数据库名及 DB 标识和数据库 owner OID、环境/部署身份、唯一当前 Alembic revision、连接 `session_user`/`current_user`、迁移角色及函数 owner；核对目标 DB 与 CAS 根、namespace、物理存储及组合根的一对一绑定、安装来源和独占租约。核验采用下文固定只读方法；实际环境所有者和 DBA 提供具体预期值与最小读取权限并经审查；缺字段、不可验证、歧义、不匹配、权限不足或绑定变化一律回滚拒绝。身份比较是事故防护，不是授权；受保护 provisioning、明确批准和仅可在参考环境使用的受限迁移角色共同提供授权。不能把未提供的 ID、凭据或 provision 写成既有事实。
+
+迁移角色须可作为现有函数 owner 执行替换（或由受保护的 owner 角色执行），且不向普通应用 writer 授予函数所有权、DDL、角色切换或绕过 guard 的权限；部署凭据、网络和发布控制须实际限制该角色只能用于核准参考 DB。执行前检查 `public.pr316d1_enabled()` 的 OID、零参数非variadic非set-returning boolean 签名、定义哈希、owner、上述所有安全相关属性与规范化完整 effective ACL 与独立审查的 0083 基线一致，以及原函数体为 false；不符即拒绝。唯一允许的激活 DDL 模式为：
 
 ```sql
 CREATE OR REPLACE FUNCTION public.pr316d1_enabled() RETURNS boolean
@@ -461,7 +467,7 @@ LANGUAGE sql STABLE SECURITY INVOKER
 SET search_path = pg_catalog, public, pg_temp AS 'SELECT true';
 ```
 
-在同事务中复核原 OID、签名、owner、ACL、search_path 和全部其他函数属性未变，函数体仅从 false 变 true；否则抛错回滚。须验证实际目录属性和调用权限，不假定 SQL 文本自动保留所有属性。0083 的 deferred receipt validation 经现有 `pr316d1_validate_receipt` 调用该同一 helper，先完成既有 authority、binding、digest、安全与 deadline 等检查，再通过最后的 enabled 检查；不新增 helper 或调用链。此数据库门只解除最后的 disabled 拒绝，真实 Application command、port/adapter、注册和 verifier 及其所有检查仍必需，不能单凭 true 赋予应用信任。审查须覆盖精确 SQL、目录前后快照、权限、调用图及错误目标拒绝，真实 PG 测试证明。
+在同事务中复核原 OID、签名、owner、上述所有安全相关函数属性和规范化完整 effective ACL 未变，函数体仅从 false 变 true且定义哈希与批准的替换一致；否则抛错回滚。须验证实际目录属性和调用权限，不假定 SQL 文本自动保留所列安全属性或完整ACL。0083 的 deferred receipt validation 经现有 `pr316d1_validate_receipt` 调用该同一 helper，先完成既有 authority、binding、digest、安全与 deadline 等检查，再通过最后的 enabled 检查；不新增 helper 或调用链。此数据库门只解除最后的 disabled 拒绝，真实 Application command、port/adapter、注册和 verifier 及其所有检查仍必需，不能单凭 true 赋予应用信任。审查须覆盖精确 SQL、目录前后快照、权限、调用图及错误目标拒绝，真实 PG 测试证明。
 
 候选 revision 一旦在参考 DB 应用，其 source hash、revision 和证据冻结，绝不为生产重写；保留该参考分支、DB 和迁移历史，候选分支/revision 不合并 main，也不进入生产升级线。最终生产激活另以届时实际 main 唯一 head 和实际生产事实为基线，另行授权并设计生产 migration 和 guard delta；不得把参考身份或配置写入生产迁移，也不能让生产升级链依赖参考专用 preflight。生产变更须独立真实 PG 验收，参考通过不自动转移 gate 证明。
 
@@ -469,13 +475,15 @@ SET search_path = pg_catalog, public, pg_temp AS 'SELECT true';
 
 **具体核验方法**
 
-固定数据库核验方法为 PostgreSQL18 内置只读接口：pg_control_system().system_identifier，加 current_database()、pg_database 的 oid/datdba、inet_server_addr()/inet_server_port()、session_user/current_user，以及 public.pr316d1_enabled() 的 pg_proc OID/owner/ACL/全部属性。实际参考值由操作员 provision 后记录，不复用现测试库的值。迁移连接本身须在同一事务、任何DDL前读取并匹配这些字段，独立预检连接仅为补充；不具备读取权限则拒绝，由DBA先明确批准最小只读权限，不自动提权。相关查询已仅在现有admin/trust测试库验证可用，不构成参考授权证明。
+固定数据库核验方法为 PostgreSQL18 内置只读接口：pg_control_system().system_identifier，加 current_database()、pg_database 的 oid/datdba、server_version_num导出的PG主版本、inet_server_addr()/inet_server_port()、session_user/current_user，以及 public.pr316d1_enabled() 的 OID/零参数boolean签名/pg_get_functiondef定义哈希/owner/上述所有安全相关属性和规范化完整 effective ACL。实际参考值由操作员 provision 后记录，不复用现测试库的值。迁移连接本身须在同一事务、任何DDL前读取并匹配这些字段，独立预检连接仅为补充；不具备读取权限则拒绝，由DBA先明确批准最小只读权限，不自动提权。相关查询已仅在现有admin/trust测试库验证可用，不构成参考授权证明。
 
 角色边界：独立受保护的迁移登录角色，按批准方式在迁移连接切换到函数owner角色；普通Application writer不是函数owner，无DDL、superuser、CREATEROLE/CREATEDB/REPLICATION/BYPASSRLS及切换owner权限。角色实际名称/OID、认证方式、授权和受控凭据由真实provisioning产生；不得把现有researchbase超级用户和trust连接作为实现。
 
 文件系统/安装及DB↔CAS绑定的实地核验在迁移事务前完成，并冻结经操作员批准的绑定记录；整个DDL事务及实际COMMIT持有独占租约。事务内只核对同一DB连接上的身份/目录及内存中的冻结绑定，不临时做文件读取、hash或重新选择namespace。任何失效在允许新Application工作前拒绝注册。路径、摘要、inode或DB身份只是核验数据，授权仍来自受保护的真实操作员/部署权限。
 
 依赖门控：BEFORE_CODING 须合同接受、基础参考基础设施身份与认证 provision 及接口审查；另有明确代码授权后核心实现方可开始，默认拒绝；不要求编码前完整安装 consumer 证明或预先分配 revision。BEFORE_MIGRATION_CODING 须核实实际基线及唯一 head、批准 revision 分配并完成依 head 的维护清单审查，另行授权迁移编码；不要求完整安装 consumer 证明；核心代码可先于分配，迁移代码不可。BEFORE_ACTIVATION_APPLY 须实现冻结，并取得实际加载来源/闭包 hash、安装、租约行为、DB-CAS 绑定证明及完整候选专属 preflight 的独立审查，另行明确授权。角色和 DB preflight 方法设计可在编码前审查；实际完整候选证据只能在代码存在后审查。缺任一条件即拒绝，任何审查或授权均不自动升级其他权限。真实 30 次测量是最终生产 profile 前置条件。
+
+2026-11-02 owner另行选定D02本机Homebrew PG18开发测试路径：由root在执行前后各报告实际身份/认证/权限与结果，仅新建专用测试DB和受限角色。此明确范围内，合同/接口独评通过、精确源码授权及实际开发设施报告就绪后，可直接开展D02 bounded实现与D03设计，不再以未提供参考设施为由重复索要本次开发方向授权。开发HBA若为trust须如实标记，绝不称为受保护参考认证或A2授权。该开发coding/test许可不满足BEFORE_MIGRATION_CODING、BEFORE_ACTIVATION_APPLY、真实consumer/安装/持续lease/DB-CAS/资源或生产门禁；既有参考路径的实际provision前置仍保留，不更改既有DB/schema/role、全局认证或历史ACL。
 
 Missing actual installed manifest, loaded-code closure or binding evidence prohibits registration and activation, but does not itself prevent later bounded code work after the existing contract/interface review, infrastructure prerequisites and separate code authorization. A separately authorized positive unit proof shall use an actual protected file installation of an existing fixed evaluator/codec callable, operator setup and a real lease, and exercise registration and lifetime/revocation; a manually enabled fixture is insufficient. It makes no positive SQL or Application-write claim. Migration coding, apply, reference activation, real PostgreSQL positive admission/settlement, measurement and production acceptance remain separate gates. Preserve the existing nine-dimensional observation policy, UNKNOWN/full reservation, original receipt replay and all other contracts.
 

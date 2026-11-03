@@ -1,0 +1,115 @@
+{
+  "status": "OWNER_RESOLVED_CANDIDATE_EXACT_SOURCE_PROVENANCE",
+  "base": "7540438a4d4c1e58af8872dc8c6c18cb07fdb2f2",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "base_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "candidate_sha256": "e930e91aebb95b73e8a8a4a4bbfa5f744244158dce2cda0745d299a8992ed878",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "docs/architecture/01_ResearchBase_System_Architecture_v1.3_Harness_Integrated.md",
+      "base_sha256": "a8303273232485af10fdc9653f321e0770cc605e73b941355a8f44c34bb2370e",
+      "candidate_sha256": "a8303273232485af10fdc9653f321e0770cc605e73b941355a8f44c34bb2370e",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "docs/architecture/02_Final_Architecture_Correction_Addendum_v1.0.md",
+      "base_sha256": "59215309207075311c7f42d706c923589081d1cd90d378eb204752e4a61760a3",
+      "candidate_sha256": "59215309207075311c7f42d706c923589081d1cd90d378eb204752e4a61760a3",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "docs/architecture/03_Global_Schema_and_Contract_Registry_v1.0.md",
+      "base_sha256": "366c9922710e59b0364759f95d7af0184c90c71cbbfc8dcbc80c3eff63b58133",
+      "candidate_sha256": "366c9922710e59b0364759f95d7af0184c90c71cbbfc8dcbc80c3eff63b58133",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "docs/architecture/08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md",
+      "base_sha256": "8dad02342a8fe6729acc4add3085673a45104f4f903945b41c22344e7ef28776",
+      "candidate_sha256": "8dad02342a8fe6729acc4add3085673a45104f4f903945b41c22344e7ef28776",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "docs/architecture/06_Phase3_Development_Specification_v1.1_Harness_Integrated.md",
+      "base_sha256": "4d4a6c0ba7ed1c5522fd97604bbbc4ecefd9b56453400fcbf57a8735e1100a56",
+      "candidate_sha256": "4d4a6c0ba7ed1c5522fd97604bbbc4ecefd9b56453400fcbf57a8735e1100a56",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "docs/harness/09_Harness_Integration_Specification_v1.0.md",
+      "base_sha256": "4ed462a1c903859d3009e33619054e44df646fdc72dabb6b14ed873fa473325e",
+      "candidate_sha256": "4ed462a1c903859d3009e33619054e44df646fdc72dabb6b14ed873fa473325e",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "docs/architecture/adr/ADR-0027-pr3-16-d1-node-budget-amendment.md",
+      "base_sha256": "62ff0cc2c9b16a36d1ea111a31488d430e2358db832b1692eb0a8ea44c458188",
+      "candidate_sha256": "6149ad89177451f799f3dd1101a45d4cf914515409ff2a8504171b5e44b4f4dc",
+      "changed_by_this_owner_delta": true
+    },
+    {
+      "path": "docs/phase3/design/PR3-16-d1-amendment-contract.md",
+      "base_sha256": "363bfde4922e050a086b631942229af3e2bed4a0e54f9b7033cf54ae1ad3d3c1",
+      "candidate_sha256": "0c810fee4c68b0349d16c43293493dbb033c2c52424e827f8fc2de55c2edf2d7",
+      "changed_by_this_owner_delta": true
+    },
+    {
+      "path": "migrations/versions/0083_bearing_evaluation_guards.py",
+      "base_sha256": "d706cb1385eae1ed01cd5c1defd6ea25abb5ab21a3a1a2eab23c46d319ac8605",
+      "candidate_sha256": "d706cb1385eae1ed01cd5c1defd6ea25abb5ab21a3a1a2eab23c46d319ac8605",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "src/researchbase/foundation/bearing_installation.py",
+      "base_sha256": "b757c41b6eeca39cd04fd0b1d44e76ba23f50eb93617bf962e47c3d8c0bdff29",
+      "candidate_sha256": "b757c41b6eeca39cd04fd0b1d44e76ba23f50eb93617bf962e47c3d8c0bdff29",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "src/researchbase/foundation/local_bearing_registration.py",
+      "base_sha256": "cc465758b2758358bf529cd0a7ac9220dca82260797df03fe198e22cfa6580e1",
+      "candidate_sha256": "cc465758b2758358bf529cd0a7ac9220dca82260797df03fe198e22cfa6580e1",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "src/researchbase/persistence/database.py",
+      "base_sha256": "888d0ee65acf6c809d6eb025883c929aac2b12d8780e002dbbc304bce02c123a",
+      "candidate_sha256": "888d0ee65acf6c809d6eb025883c929aac2b12d8780e002dbbc304bce02c123a",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "src/researchbase/persistence/uow.py",
+      "base_sha256": "7e4211d7da614e7310304d51eceb5fa47300db924c68eac15281c6e0361035f6",
+      "candidate_sha256": "7e4211d7da614e7310304d51eceb5fa47300db924c68eac15281c6e0361035f6",
+      "changed_by_this_owner_delta": false
+    },
+    {
+      "path": "migrations/env.py",
+      "base_sha256": "e90b9ad06d80d2d03a26f70c17bb7289ea4f398317119fa3f0fc7534a35c9399",
+      "candidate_sha256": "e90b9ad06d80d2d03a26f70c17bb7289ea4f398317119fa3f0fc7534a35c9399",
+      "changed_by_this_owner_delta": false
+    }
+  ],
+  "owner_instruction": {
+    "operator_local_path": ".pipeline/logs/reviews/D01-v04-owner-20261102/OWNER-INSTRUCTIONS.md",
+    "sha256": "5d98243b8883a84dd2d88e2a3f28f9ec67e6e0bb6e0122e2ae761761998328c8"
+  },
+  "prior_v03_portable_manifest_sha256": "2cd1e04daf8fbd5070a0849993982d6564e66883532223351f50c7deba636fa8",
+  "prior_v03_69files_unchanged": true,
+  "official_PG18_sources": [
+    "https://www.postgresql.org/docs/18/functions-info.html",
+    "https://www.postgresql.org/docs/18/sql-createrole.html",
+    "https://www.postgresql.org/docs/18/libpq-connect.html"
+  ],
+  "freeze": "PENDING_INDEPENDENT_REVIEW_NOT_AUTHOR_FREEZE",
+  "owner_resolution": {
+    "operator_local_path": ".pipeline/logs/reviews/D01-v04-owner-resolution-20261102/OWNER-RESOLUTION.md",
+    "sha256": "ecea1afa09529fccbf432b0ec8ed7c39142acfa5ca92c14773104ac9b25c6a48",
+    "scope": "fiveDB/helperOID/fullACL/closedsecurityset; rootNEWdevDBrolesbeforeafterreports; postPASSfreezeD02implD03designandclose57preservebranch"
+  },
+  "author_PG_role_connection_facility_engine_changes": "NOT_RUN",
+  "root_dev_provision": "SEPARATE_ROOT_BEFORE_AFTER_REPORTS_REQUIRED_NO_AUTHOR_COMPLETION_CLAIM"
+}

@@ -104,6 +104,9 @@ The commander selects the exact disabled O09 catalog slice for separate review b
 Accept only the separately reviewed disabled schema/guard contract at8cbc9afb, after independent read-only PASS/noP0/P1. Authorize0083 forward migration, ORM binding columns and required PG18/regression/current-head checks under the exact companion manifest. Correct the prospective proof wording; no guard or new migration test has yet passed. Enablement stays literal false, no new production grants/services/registry; all unclosed production facts remain blocking and the full amendment stays PROPOSED.
 
 ### 隔离参考验证 bootstrap 决议
+
+2026-11-02 owner明确修订：D01 v0.4 DB身份保留owner的五项指纹；helper保留OID/固定签名/定义哈希/owner，未来比较改为闭合的所有安全相关属性与完整规范化effectiveACL，具体集合及原文来源见[companion O09](../../phase3/design/PR3-16-d1-amendment-contract.md)。0083历史rawACL/权限义务、同事务与原OID/签名、连续lease/真实commit-revoke及reference/production隔离不变。另行授权root报告前后事实后新建本机HomebrewPG18专用开发DB/受限角色；仅为D02编码测试和D03设计的设施方向，非参考/生产认证或激活，禁止既有数据库/角色/全局权限变化。独评后按本次owner决定直接冻结D01并准入相应bounded工作，实际source/开发设施事实仍须就绪；不重复请求已给出的方向授权。
+
 最终 T_max、J_max、W 和各阶段剩余余量必须来自真实正向 admission、replay、settlement、完整 I/O 与竞争负载测量；生产 profile 必须基于实际生产环境和计费事实。为了获得这些测量，允许在经实际受保护 provisioning 且经单独审查的唯一隔离参考部署上，以真实固定 consumer 和操作员记录的验证硬限额进行受限验证。该限额是 OPERATOR POLICY，不是实测生产 W、生产 profile 或信任凭据。缺少实际环境事实、验证限额或任何门控时拒绝启动和新工作。
 前向迁移及候选激活仅可存在于经审查、未发布的候选分支，并仅用于核准的精确隔离参考部署；新修订号须在 PR32 实际合并后重新核对唯一迁移 head 才分配。源代码审查、发布排除及部署权限必须阻止该迁移或候选包进入生产；DB 精确身份核对仅防事故，不能证明授权。0083 文件及其历史 source definition 永久保持字面 `SELECT false`；另行明确授权的新前向迁移可仅在该参考 DB 替换现有 helper 的运行时函数体。禁止临时 ALTER、测试开关、禁用 trigger、直接播种已提交 v2 行及用 GUC 赋权。
 参考验证不得满足生产 profile/type gate；不得由调用方 reference 标志、序列化 token、generation UUID、路径或 hash 赋予信任。真实 consumer 使用进程内对象身份 capability、注册和覆盖实际 commit/撤销的同一互斥；generation 只归属。Application 通过既有 port 使用唯一基础设施适配器，不能直接做文件系统 I/O。无新运行时 canonical schema、表或签名 JSON 真相源。
