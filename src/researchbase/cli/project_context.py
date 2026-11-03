@@ -61,3 +61,12 @@ def resolve_project(runtime: CliRuntime, explicit: str | None) -> UUID:
             details={"option": "project"},
         )
     return current
+
+
+def current_project_id_from_root(root: object) -> UUID | None:
+    """Read the stored current project from a local profile root (used before a runtime exists)."""
+    try:
+        raw = (Path(str(root)) / _FILE).read_text(encoding="utf-8").strip()
+        return UUID(raw)
+    except (OSError, ValueError):
+        return None

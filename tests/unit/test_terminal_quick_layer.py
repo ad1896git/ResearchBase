@@ -172,3 +172,23 @@ def test_markdown_export_keeps_short_numbers_and_links():
     assert "- **#1 结论**（已冻结）" in text
     assert "限定：测量结果 #1 19 分；说明：说明" in text
     assert "1. " not in text.split("## 参考文献")[0]
+
+
+def test_missing_text_outside_a_terminal_names_the_missing_field(monkeypatch):
+    from researchbase.cli.commands.quick import _ask
+
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    assert _ask("  已有文字  ", "研究问题的文字") == "已有文字"
+    with pytest.raises(ResearchBaseError) as caught:
+        _ask(None, "研究问题的文字")
+    assert "缺少研究问题的文字" in caught.value.message
+
+
+def test_completion_is_silent_without_a_profile(monkeypatch):
+    from researchbase.cli.commands import quick
+
+    def broken_services():
+        raise RuntimeError("no database")
+
+    monkeypatch.setattr("researchbase.cli.composition.build_services", broken_services)
+    assert quick._complete_kind("paper")("") == []

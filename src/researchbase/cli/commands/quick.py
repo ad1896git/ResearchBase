@@ -152,6 +152,58 @@ def _echo_created(label: str, row: dict | None, extra: str = "") -> None:
     typer.echo(f"已添加{label} {number}{extra}".rstrip())
 
 
+def _ask(value: str | None, label: str) -> str:
+    """Use the argument when given; in a terminal ask for it; otherwise say what is missing."""
+
+    if value and value.strip():
+        return value.strip()
+    if sys.stdin.isatty():
+        answer = typer.prompt(label).strip()
+        if answer:
+            return answer
+    raise ResearchBaseError(
+        ErrorCode.VALIDATION_ERROR,
+        f"缺少{label}",
+        details={"reason": f"请在命令后直接写出{label}，或在终端里运行后按提示输入"},
+    )
+
+
+def _ask_or_exit(runtime: CliRuntime, value: str | None, label: str) -> str:
+    try:
+        return _ask(value, label)
+    except ResearchBaseError as exc:
+        emit_error(exc, runtime.request_id, False)
+        raise typer.Exit(code=cli_exit_code(exc)) from None
+
+
+def _complete_kind(kind: str):
+    """Shell completion for record references: numbers with titles, for the current project."""
+
+    def complete(incomplete: str) -> list[tuple[str, str]]:
+        try:
+            from ..composition import build_services
+            from ..project_context import current_project_id_from_root
+
+            services = build_services()
+            credentials = getattr(services, "local_credentials", None)
+            listing = getattr(services, "record_listing", None)
+            if credentials is None or listing is None:
+                return []
+            project = current_project_id_from_root(credentials.root)
+            if project is None:
+                return []
+            rows = listing.list(project, kind)
+        except Exception:  # completion must never print a traceback into the shell
+            return []
+        return [
+            (str(row["short_no"]), str(row.get("title") or "")[:60])
+            for row in rows
+            if str(row["short_no"]).startswith(incomplete)
+        ]
+
+    return complete
+
+
 def _run(runtime: CliRuntime, operation) -> None:
     """Run a command body; report stable Chinese errors and exit with the mapped code."""
     try:
@@ -249,12 +301,16 @@ def search(
 
 def question_add(
     ctx: typer.Context,
-    text: Annotated[str, typer.Argument(help="研究问题的文字")],
+    text: Annotated[
+        str | None, typer.Argument(help="研究问题的文字（可省略，终端中会提示）")
+    ] = None,
     scope: Annotated[str | None, typer.Option("--scope")] = None,
     rationale: Annotated[str | None, typer.Option("--rationale")] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
     runtime = _runtime(ctx)
+
+    text = _ask_or_exit(runtime, text, "研究问题的文字")
 
     def operation():
         project = resolve_project(runtime, project_id)
@@ -281,14 +337,23 @@ def question_add(
 
 def hypothesis_add(
     ctx: typer.Context,
-    statement: Annotated[str, typer.Argument(help="假设的陈述")],
-    question: Annotated[str, typer.Option("--question", help="研究问题编号或 ID")],
+    question: Annotated[
+        str,
+        typer.Option(
+            "--question", autocompletion=_complete_kind("question"), help="研究问题编号或 ID"
+        ),
+    ],
     direction: Annotated[str | None, typer.Option("--direction")] = None,
     success: Annotated[str | None, typer.Option("--success")] = None,
     rationale: Annotated[str | None, typer.Option("--rationale")] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+    statement: Annotated[
+        str | None, typer.Argument(help="假设的陈述（可省略，终端中会提示）")
+    ] = None,
 ) -> None:
     runtime = _runtime(ctx)
+
+    statement = _ask_or_exit(runtime, statement, "假设的陈述")
 
     def operation():
         project = resolve_project(runtime, project_id)
@@ -329,16 +394,23 @@ def hypothesis_add(
 
 def experiment_add(
     ctx: typer.Context,
-    title: Annotated[str, typer.Argument(help="实验名称")],
-    hypothesis: Annotated[str, typer.Option("--hypothesis", help="假设编号或 ID")],
+    hypothesis: Annotated[
+        str,
+        typer.Option(
+            "--hypothesis", autocompletion=_complete_kind("hypothesis"), help="假设编号或 ID"
+        ),
+    ],
     objective: Annotated[str, typer.Option("--objective")],
     protocol: Annotated[str, typer.Option("--protocol")],
     metrics: Annotated[str, typer.Option("--metrics", help="计划测量的指标")],
     seed: Annotated[str, typer.Option("--seed", help="随机种子策略")] = "固定种子 42",
     analysis: Annotated[str, typer.Option("--analysis", help="分析计划")] = "描述性比较",
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+    title: Annotated[str | None, typer.Argument(help="实验名称（可省略，终端中会提示）")] = None,
 ) -> None:
     runtime = _runtime(ctx)
+
+    title = _ask_or_exit(runtime, title, "实验名称")
 
     def operation():
         project = resolve_project(runtime, project_id)
@@ -372,12 +444,16 @@ def experiment_add(
 
 def conclusion_add(
     ctx: typer.Context,
-    statement: Annotated[str, typer.Argument(help="结论的陈述")],
+    statement: Annotated[
+        str | None, typer.Argument(help="结论的陈述（可省略，终端中会提示）")
+    ] = None,
     scope: Annotated[str | None, typer.Option("--scope")] = None,
     qualification: Annotated[str | None, typer.Option("--qualification")] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
     runtime = _runtime(ctx)
+
+    statement = _ask_or_exit(runtime, statement, "结论的陈述")
 
     def operation():
         project = resolve_project(runtime, project_id)
@@ -493,11 +569,20 @@ def paper_add(
 
 def evidence_add(
     ctx: typer.Context,
-    paper: Annotated[str, typer.Option("--paper", help="文献编号、ID 前缀或标题片段")],
-    quote: Annotated[str, typer.Option("--quote", help="逐字引文")],
+    paper: Annotated[
+        str,
+        typer.Option(
+            "--paper", autocompletion=_complete_kind("paper"), help="文献编号、ID 前缀或标题片段"
+        ),
+    ],
+    quote: Annotated[
+        str | None, typer.Option("--quote", help="逐字引文（可省略，终端中会提示）")
+    ] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
     runtime = _runtime(ctx)
+
+    quote = _ask_or_exit(runtime, quote, "逐字引文")
 
     def operation():
         project = resolve_project(runtime, project_id)
@@ -530,9 +615,16 @@ def evidence_add(
 
 def claim_link_evidence(
     ctx: typer.Context,
-    claim: Annotated[str, typer.Option("--claim", help="结论编号或 ID")],
-    evidence: Annotated[str | None, typer.Option("--evidence", help="文献证据编号")] = None,
-    measurement: Annotated[str | None, typer.Option("--measurement")] = None,
+    claim: Annotated[
+        str, typer.Option("--claim", autocompletion=_complete_kind("claim"), help="结论编号或 ID")
+    ],
+    evidence: Annotated[
+        str | None,
+        typer.Option("--evidence", autocompletion=_complete_kind("evidence"), help="文献证据编号"),
+    ] = None,
+    measurement: Annotated[
+        str | None, typer.Option("--measurement", autocompletion=_complete_kind("result"))
+    ] = None,
     statistical: Annotated[str | None, typer.Option("--statistical")] = None,
     relation: Annotated[str, typer.Option("--relation")] = "QUALIFIES",
     note: Annotated[str | None, typer.Option("--note", help="关联说明")] = None,
@@ -672,7 +764,12 @@ def metric_add(
 
 def run_add(
     ctx: typer.Context,
-    experiment: Annotated[str, typer.Option("--experiment", help="实验编号或 ID")],
+    experiment: Annotated[
+        str,
+        typer.Option(
+            "--experiment", autocompletion=_complete_kind("experiment"), help="实验编号或 ID"
+        ),
+    ],
     run_type: Annotated[str, typer.Option("--type", help="运行类型，如 experiment")] = "experiment",
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
@@ -773,8 +870,13 @@ def run_finish(
 
 def result_add(
     ctx: typer.Context,
-    run: Annotated[str, typer.Option("--run", help="运行编号或 ID")],
-    metric: Annotated[str, typer.Option("--metric", help="度量指标编号或 ID")],
+    run: Annotated[
+        str, typer.Option("--run", autocompletion=_complete_kind("run"), help="运行编号或 ID")
+    ],
+    metric: Annotated[
+        str,
+        typer.Option("--metric", autocompletion=_complete_kind("metric"), help="度量指标编号或 ID"),
+    ],
     value: Annotated[str, typer.Option("--value", help="数值")],
     unit: Annotated[str | None, typer.Option("--unit")] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
