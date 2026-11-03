@@ -200,6 +200,8 @@ def test_runtime_dependencies_remain_the_accepted_set():
         "idna>=3.10,<4",
         "psycopg[binary]>=3.2,<4",
         "pydantic>=2.11,<3",
+        # Owner-approved: reads PDF text/properties for `rb paper add` (BSD-3-Clause).
+        "pypdf>=5.4,<6",
         "sqlalchemy>=2.0,<2.1",
         "typer>=0.27,<0.28",
     }

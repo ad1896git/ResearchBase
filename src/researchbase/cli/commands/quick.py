@@ -10,6 +10,7 @@ Application listing service.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import re
@@ -35,6 +36,46 @@ from ..project_context import (
 from ..transport import add_command, command_group
 
 _TEXT_SUFFIXES = {".txt": "text/plain", ".md": "text/plain", ".xml": "application/jats+xml"}
+_PDF_SUFFIX = ".pdf"
+_DOI_PATTERN = re.compile(r"\b10\.\d{4,9}/[^\s\"<>]+")
+
+
+def _pdf_text(path: Path) -> tuple[str, dict[str, str]]:
+    """Extract plain text and document properties from a PDF (pypdf, BSD licence)."""
+
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        reader = PdfReader(str(path))
+        if reader.is_encrypted:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR, "PDF 已加密，无法提取文字：请先取消密码保护"
+            )
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        info = reader.metadata or {}
+    except PdfReadError as exc:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR, "无法读取这个 PDF 文件", details={"reason": str(exc)}
+        ) from exc
+    if not text.strip():
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            "PDF 中没有可提取的文字（可能是扫描件）",
+            details={"reason": "请先做 OCR 再导入，或改用 .txt 全文"},
+        )
+    properties = {
+        key: str(value).strip()
+        for key, value in (("title", info.get("/Title")), ("author", info.get("/Author")))
+        if value and str(value).strip()
+    }
+    return text, properties
+
+
+def _doi_in(text: str) -> str | None:
+    match = _DOI_PATTERN.search(text)
+    return match.group(0).rstrip(".,;)]") if match else None
+
 
 # Low-level reasons that need plainer Chinese guidance.
 _REASON_HINTS = {
@@ -501,8 +542,10 @@ def conclusion_add(
 
 def paper_add(
     ctx: typer.Context,
-    path: Annotated[Path, typer.Argument(help="全文文件路径（.txt / .md / JATS XML）")],
-    title: Annotated[str | None, typer.Option("--title", help="标题（默认用文件名）")] = None,
+    path: Annotated[Path, typer.Argument(help="全文文件路径（.pdf / .txt / .md / JATS XML）")],
+    title: Annotated[
+        str | None, typer.Option("--title", help="标题（默认用 PDF 标题或文件名）")
+    ] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
     runtime = _runtime(ctx)
@@ -510,24 +553,36 @@ def paper_add(
     def operation():
         project = resolve_project(runtime, project_id)
         suffix = path.suffix.lower()
-        if suffix not in _TEXT_SUFFIXES:
+        if suffix not in _TEXT_SUFFIXES and suffix != _PDF_SUFFIX:
             raise ResearchBaseError(
                 ErrorCode.VALIDATION_ERROR,
                 f"暂不支持 {suffix or '无扩展名'} 文件",
-                details={"reason": "目前只支持 .txt / .md / JATS XML 全文；PDF 需先转换为文本"},
+                details={"reason": "目前支持 PDF / .txt / .md / JATS XML 全文"},
             )
         if not path.is_file():
             raise ResearchBaseError(ErrorCode.NOT_FOUND, f"找不到文件：{path}")
-        label = title or path.stem
+        import_path = path
+        media_type = "text/plain" if suffix == _PDF_SUFFIX else _TEXT_SUFFIXES[suffix]
+        properties: dict[str, str] = {}
+        doi = None
+        if suffix == _PDF_SUFFIX:
+            text, properties = _pdf_text(path)
+            doi = _doi_in(text)
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            extracted = local_root(runtime) / "extracted"
+            extracted.mkdir(parents=True, exist_ok=True)
+            import_path = extracted / f"{digest}.txt"
+            import_path.write_text(text, encoding="utf-8")
+        label = title or properties.get("title") or path.stem
         document = _lo(
             "literature-evidence",
             "import-document",
             "--project-id",
             str(project),
             "--path",
-            str(path),
+            str(import_path),
             "--media-type",
-            _TEXT_SUFFIXES[suffix],
+            media_type,
             "--rights-basis",
             "个人本地文献，仅用于个人研究记录",
         )
@@ -587,7 +642,8 @@ def paper_add(
             version["source_version_id"],
         )
         row = _resolve(runtime, project, "paper", source_id)
-        _echo_created("文献", row, label)
+        extra = f"（DOI：{doi}）" if doi else ""
+        _echo_created("文献", row, label + extra)
         return None
 
     _run(runtime, operation)
