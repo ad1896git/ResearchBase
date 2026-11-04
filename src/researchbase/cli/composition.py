@@ -17,6 +17,7 @@ from researchbase.adapters.openalex import OpenAlexSearchCapability
 from researchbase.agent_runtime.application.canonical_context import CanonicalContextService
 from researchbase.agent_runtime.application.research_task import ResearchTaskService
 from researchbase.agent_runtime.application.task_safety import TaskSafetyService
+from researchbase.application.artifact_integrity import ArtifactIntegrityService
 from researchbase.application.commands import ApplicationService
 from researchbase.application.decision import DecisionService
 from researchbase.application.governance import GovernanceService
@@ -47,6 +48,7 @@ from researchbase.foundation.errors import ResearchBaseError
 from researchbase.foundation.structured_logging import configure_logging
 from researchbase.foundation.time import SystemClock
 from researchbase.local_identity import LocalIdentityAdapter, process_uid
+from researchbase.persistence.artifact_integrity import load_fulltext_records
 from researchbase.persistence.config import load_settings
 from researchbase.persistence.database import create_database_engine, create_session_factory
 from researchbase.persistence.literature_search_execution_uow import (
@@ -102,6 +104,7 @@ class ServiceBundle:
     research_tasks: ResearchTaskService | None = None
     task_safety: TaskSafetyService | None = None
     canonical_context: CanonicalContextService | None = None
+    artifact_integrity: ArtifactIntegrityService | None = None
     record_listing: RecordListingService | None = None
     literature_folder: LiteratureFolderService | None = None
 
@@ -198,6 +201,11 @@ def build_services(*, scientific_rag: ScientificRAGCapability | None = None) -> 
         canonical_context=CanonicalContextService(uow_factory, credentials),
         record_listing=RecordListingService(uow_factory),
         literature_folder=LiteratureFolderService(uow_factory, clock, local.authorize),
+        artifact_integrity=ArtifactIntegrityService(
+            load_records=lambda: load_fulltext_records(engine),
+            store_root=Path(settings.artifact_store_root).expanduser(),
+            database=make_url(settings.database_url).database,
+        ),
         task_safety=TaskSafetyService(
             research_task_uow_factory(settings.database_url), credentials, store
         ),
