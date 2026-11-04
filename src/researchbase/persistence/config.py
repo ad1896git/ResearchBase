@@ -5,8 +5,12 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 from researchbase.persistence.database import DEFAULT_DATABASE_URL, database_url
+
+# Absolute, so the store is the same whichever directory `rb` runs from.
+DEFAULT_ARTIFACT_STORE_ROOT = Path.home() / ".researchbase" / "artifacts"
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +36,9 @@ def load_settings(environment: Mapping[str, str] | None = None) -> Settings:
     application_env = values.get("APPLICATION_ENV", "development").strip()
     if not application_env:
         raise ValueError("APPLICATION_ENV must not be blank")
-    artifact_store_root = values.get("ARTIFACT_STORE_ROOT", ".researchbase/artifacts").strip()
+    artifact_store_root = values.get(
+        "ARTIFACT_STORE_ROOT", str(DEFAULT_ARTIFACT_STORE_ROOT)
+    ).strip()
     if not artifact_store_root:
         raise ValueError("ARTIFACT_STORE_ROOT must not be blank")
     configured_database_url = (
