@@ -1,11 +1,8 @@
-"""`rb doctor`: read-only check that full-text records match their stored files."""
+"""`rb doctor`: read-only check that stored artifacts match their records."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
-from sqlalchemy.engine import make_url
 
 from researchbase.foundation.artifact_integrity import (
     PROBLEM_HASH_MISMATCH,
@@ -13,12 +10,9 @@ from researchbase.foundation.artifact_integrity import (
     PROBLEM_MISSING,
     PROBLEM_SIZE_MISMATCH,
     IntegrityReport,
-    check_fulltext_records,
 )
 from researchbase.foundation.doctor_status import default_status_path, write_status
-from researchbase.persistence.artifact_integrity import load_fulltext_records
-from researchbase.persistence.config import load_settings
-from researchbase.persistence.database import create_database_engine
+from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 _PROBLEM_TEXT = {
     PROBLEM_INVALID_HASH: "哈希格式无效",
@@ -28,7 +22,7 @@ _PROBLEM_TEXT = {
 }
 
 
-def render_report(report: IntegrityReport, database: str | None, store_root: Path) -> list[str]:
+def render_report(report: IntegrityReport, database: str | None, store_root: str) -> list[str]:
     lines = [
         f"数据库：{database}",
         f"全文存储：{store_root}",
@@ -53,22 +47,19 @@ def register(app: typer.Typer) -> None:
         help="检查全文记录能否找到对应文件、哈希是否一致（只读，不修改任何数据）。",
     )
     def doctor(
+        ctx: typer.Context,
         record: bool = typer.Option(
             False,
             "--record",
             help="把结果写入状态文件；之后运行任意 rb 命令时会提示存在的问题。",
         ),
     ) -> None:
-        settings = load_settings()
-        database = make_url(settings.database_url).database
-        store_root = Path(settings.artifact_store_root).expanduser()
-        engine = create_database_engine(settings.database_url)
-        try:
-            records = load_fulltext_records(engine)
-        finally:
-            engine.dispose()
-        report = check_fulltext_records(records, store_root)
-        for line in render_report(report, database, store_root):
+        services = ctx.find_root().obj.services
+        integrity = getattr(services, "artifact_integrity", None)
+        if integrity is None:
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "完整性检查服务未配置")
+        report = integrity.check()
+        for line in render_report(report, integrity.database, str(integrity.store_root)):
             typer.echo(line)
         if record:
             write_status(
@@ -76,7 +67,7 @@ def register(app: typer.Typer) -> None:
                 ok=report.ok,
                 records=report.checked_records,
                 problems=len(report.problems),
-                database=database,
+                database=integrity.database,
             )
         if not report.ok:
             raise typer.Exit(code=1)
