@@ -71,7 +71,15 @@ rb claim link-evidence --claim 1 --evidence 1 --relation SUPPORTS --note "文献
 
 `SUPPORTS` 要求该证据已核验。先运行 `rb evidence verify 1 --basis "已对照原文核对引文"`（个人模式可本人核验，导出时会标注“本人核验”）。也可以用 `--measurement <结果编号>` 关联本项目的测量结果。
 
-## 9. 搜索
+## 9. 更正
+
+```bash
+rb correct --conclusion 1 --assertion "午睡可能改善次日记忆（样本量小，需重复验证）" --reason "原结论未写样本量限制"
+```
+
+追加一条更正记录，原结论保留；`--result <编号>` 可更正结果，`--type` 可指定类型（默认 factual）。导出的 Markdown 会在对应结论下显示更正，并在“更正记录”一节列出全部更正。
+
+## 10. 搜索
 
 ```bash
 rb search 午睡
@@ -79,7 +87,7 @@ rb search 午睡
 
 在研究问题、假设、实验、结论和文献中按关键词查找，结果保留短编号。
 
-## 10. 导出
+## 11. 导出
 
 ```bash
 rb export --out ~/Research/exports/nap-study.md
@@ -87,7 +95,7 @@ rb export --out ~/Research/exports/nap-study.md
 
 把当前项目导出为 Markdown：问题、假设、实验、结果、文献与引文、结论及其证据关联。导出的编号与终端命令通用。
 
-## 11. 扫描文献文件夹
+## 12. 扫描文献文件夹
 
 ```bash
 rb folder scan ~/Research/papers
