@@ -23,6 +23,7 @@ from uuid import UUID, uuid4
 import typer
 from typer.main import get_command
 
+from researchbase.adapters.reference_files import REFERENCE_SUFFIXES, parse_references
 from researchbase.domain.source_identity import IdentifierType, normalize_source_identifier
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
@@ -655,7 +656,13 @@ def _paper_material(label: str, document: dict, meta: dict | None) -> dict:
     }
 
 
-def _import_paper(runtime: CliRuntime, project: UUID, path: Path, title: str | None) -> dict:
+def _import_paper(
+    runtime: CliRuntime,
+    project: UUID,
+    path: Path,
+    title: str | None,
+    reference: dict | None = None,
+) -> dict:
     """Import one full-text file as a frozen literature source.
 
     Shared by `paper add` and folder scans.
@@ -680,7 +687,7 @@ def _import_paper(runtime: CliRuntime, project: UUID, path: Path, title: str | N
     else:
         text = path.read_text(encoding="utf-8", errors="ignore")
         media_type = _TEXT_SUFFIXES[suffix]
-    doi = _valid_doi(_doi_in(text))
+    doi = _valid_doi(_doi_in(text)) or _valid_doi((reference or {}).get("doi"))
     if doi:
         _refuse_known_doi(project, doi)
     if suffix == _PDF_SUFFIX:
@@ -691,7 +698,10 @@ def _import_paper(runtime: CliRuntime, project: UUID, path: Path, title: str | N
         import_path.write_text(text, encoding="utf-8")
     else:
         import_path = path
-    meta = _crossref_record(doi, title or properties.get("title") or path.stem)
+    if reference is not None:
+        meta = _reference_metadata(reference)  # the exported file's metadata wins over Crossref
+    else:
+        meta = _crossref_record(doi, title or properties.get("title") or path.stem)
     label = title or (meta or {}).get("title") or properties.get("title") or path.stem
     document = _lo(
         "literature-evidence",
@@ -747,6 +757,218 @@ def _import_paper(runtime: CliRuntime, project: UUID, path: Path, title: str | N
     }
 
 
+def _reference_metadata(reference: dict) -> dict:
+    """A bibliographic reference shaped like Crossref metadata, for `_paper_material`."""
+
+    return {
+        "title": reference.get("title"),
+        "authors": [{"name": name, "orcid": None} for name in reference.get("authors") or []],
+        "published": None,  # exported years are not full dates; the date stays empty
+        "venue": reference.get("journal"),
+        "journal_identifier": None,
+        "volume": reference.get("volume"),
+        "issue": reference.get("issue"),
+        "pages": reference.get("pages"),
+    }
+
+
+def _title_key(text: str | None) -> str:
+    return re.sub(r"[\W_]+", "", (text or "").lower())
+
+
+def _basis_from_file(runtime: CliRuntime, project: UUID, path: Path) -> dict:
+    return _lo(
+        "literature-evidence",
+        "import-document",
+        "--project-id",
+        str(project),
+        "--path",
+        str(path),
+        "--media-type",
+        "text/plain",
+        "--rights-basis",
+        "个人本地文献，仅用于个人研究记录",
+    )
+
+
+def _basis_from_text(runtime: CliRuntime, project: UUID, text: str) -> dict:
+    """Store a short note, such as a correction reason, as the basis artifact of a correction."""
+
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    extracted = local_root(runtime) / "extracted"
+    extracted.mkdir(parents=True, exist_ok=True)
+    note = extracted / f"{digest}.txt"
+    note.write_text(text, encoding="utf-8")
+    return _basis_from_file(runtime, project, note)
+
+
+def _append_source_correction(
+    runtime: CliRuntime, project: UUID, paper: dict, changes: dict, basis: dict
+) -> None:
+    """Append a CORRECTED source version: the current version is kept, never overwritten."""
+
+    current = _lo(
+        "literature",
+        "version",
+        "show",
+        "--project-id",
+        str(project),
+        "--source-version-id",
+        str(paper["version_id"]),
+    )
+    inspected = _lo(
+        "literature-evidence",
+        "inspect",
+        "--project-id",
+        str(project),
+        "--source-version-id",
+        str(paper["version_id"]),
+    )
+    metadata = {**(current.get("metadata") or {}), **changes.get("metadata", {})}
+    material = {
+        "version_kind": "CORRECTED",
+        "title": changes.get("title", current["title"]),
+        "abstract": current.get("abstract"),
+        "authors": changes.get("authors", current.get("authors") or []),
+        "publication_date": current.get("publication_date"),
+        "venue": changes.get("venue", current.get("venue")),
+        "external_version_label": current.get("external_version_label"),
+        "fulltext_artifact": {
+            "id": inspected["artifact_version_id"],
+            "content_hash": inspected["content_hash"],
+        },
+        "metadata": metadata,
+        "predecessor_source_version": {
+            "id": current["source_version_id"],
+            "content_hash": current["content_hash"],
+        },
+        "correction_basis_artifact": {
+            "id": basis["artifact_version_id"],
+            "content_hash": basis["content_hash"],
+        },
+    }
+    version = _lo(
+        "literature",
+        "version",
+        "create",
+        "--project-id",
+        str(project),
+        "--source-id",
+        str(current["literature_source_id"]),
+        "--material-json",
+        json.dumps(material, ensure_ascii=False),
+    )
+    _lo(
+        "literature",
+        "version",
+        "freeze",
+        "--project-id",
+        str(project),
+        "--source-version-id",
+        version["source_version_id"],
+    )
+
+
+def _reference_changes(current: dict, reference: dict) -> dict:
+    """Fields where the exported reference differs from the current source version."""
+
+    changes: dict = {}
+    if reference.get("title") and reference["title"] != current.get("title"):
+        changes["title"] = reference["title"]
+    authors = reference.get("authors") or []
+    if authors and authors != [item.get("name") for item in current.get("authors") or []]:
+        changes["authors"] = [{"name": name, "orcid": None} for name in authors]
+    if reference.get("journal") and reference["journal"] != current.get("venue"):
+        changes["venue"] = reference["journal"]
+    current_metadata = current.get("metadata") or {}
+    metadata = {
+        key: reference[key]
+        for key in ("volume", "issue", "pages")
+        if reference.get(key) and reference[key] != current_metadata.get(key)
+    }
+    if metadata:
+        changes["metadata"] = metadata
+    return changes
+
+
+def _missing_changes(current: dict, reference: dict) -> dict:
+    """Only the fields the source version leaves empty; values already set are never replaced."""
+
+    changes: dict = {}
+    if not current.get("venue") and reference.get("journal"):
+        changes["venue"] = reference["journal"]
+    if not current.get("authors") and reference.get("authors"):
+        changes["authors"] = [{"name": name, "orcid": None} for name in reference["authors"]]
+    current_metadata = current.get("metadata") or {}
+    metadata = {
+        key: reference[key]
+        for key in ("volume", "issue", "pages")
+        if reference.get(key) and not current_metadata.get(key)
+    }
+    if metadata:
+        changes["metadata"] = metadata
+    return changes
+
+
+def _crossref_reference(meta: dict) -> dict:
+    return {
+        "title": meta.get("title"),
+        "authors": [item["name"] for item in meta.get("authors") or [] if item.get("name")],
+        "journal": meta.get("venue"),
+        "volume": meta.get("volume"),
+        "issue": meta.get("issue"),
+        "pages": meta.get("pages"),
+    }
+
+
+def _match_folder_file(reference: dict, files: list[dict]) -> dict | None:
+    """Match an exported reference to a folder file: DOI first, then title."""
+
+    doi = (reference.get("doi") or "").lower()
+    if doi:
+        for item in files:
+            if (item.get("doi") or "").lower() == doi:
+                return item
+    key = _title_key(reference.get("title"))
+    if key:
+        for item in files:
+            if _title_key(item.get("title")) == key:
+                return item
+    return None
+
+
+def _registered_paper(
+    runtime: CliRuntime, project: UUID, reference: dict, file_row: dict
+) -> dict | None:
+    """The project's paper row for this reference, if it is already registered."""
+
+    doi = reference.get("doi") or file_row.get("doi")
+    if doi:
+        try:
+            found = _lo(
+                "literature",
+                "source",
+                "resolve",
+                "--project-id",
+                str(project),
+                "--identifier-type",
+                "DOI",
+                "--value",
+                doi,
+            )
+        except ResearchBaseError as exc:
+            if exc.code is not ErrorCode.SOURCE_NOT_FOUND:
+                raise
+        else:
+            return _resolve(runtime, project, "paper", found["source_id"])
+    key = _title_key(reference.get("title"))
+    if key:
+        for row in _listing(runtime).list(project, "paper"):
+            if _title_key(row.get("title")) == key:
+                return row
+    return None
+
+
 def paper_add(
     ctx: typer.Context,
     path: Annotated[Path, typer.Argument(help="全文文件路径（.pdf / .txt / .md / JATS XML）")],
@@ -762,6 +984,219 @@ def paper_add(
         done = _import_paper(runtime, project, path, title)
         extra = f"（DOI：{done['doi']}）" if done["doi"] else ""
         _echo_created("文献", done["row"], done["label"] + extra)
+        return None
+
+    _run(runtime, operation)
+
+
+def paper_correct(
+    ctx: typer.Context,
+    paper: Annotated[str, typer.Argument(help="文献编号、ID 前缀或标题片段")],
+    title: Annotated[str | None, typer.Option("--title")] = None,
+    authors: Annotated[
+        str | None, typer.Option("--authors", help="作者，用分号隔开：甲; 乙")
+    ] = None,
+    venue: Annotated[str | None, typer.Option("--venue", help="期刊或会议")] = None,
+    volume: Annotated[str | None, typer.Option("--volume")] = None,
+    issue: Annotated[str | None, typer.Option("--issue")] = None,
+    pages: Annotated[str | None, typer.Option("--pages")] = None,
+    reason: Annotated[str | None, typer.Option("--reason", help="更正原因")] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    """Append a metadata correction to a paper. The earlier version is kept."""
+
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        row = _resolve(runtime, project, "paper", paper)
+        if not row.get("version_id"):
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "这篇文献还没有版本")
+        changes: dict = {}
+        if title:
+            changes["title"] = title
+        if authors is not None:
+            changes["authors"] = [
+                {"name": name.strip(), "orcid": None} for name in authors.split(";") if name.strip()
+            ]
+        if venue:
+            changes["venue"] = venue
+        metadata = {
+            key: value
+            for key, value in (("volume", volume), ("issue", issue), ("pages", pages))
+            if value
+        }
+        if metadata:
+            changes["metadata"] = metadata
+        if not changes:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "没有要更正的内容",
+                details={"reason": "请至少指定一项，例如 --title、--authors、--venue"},
+            )
+        why = _ask(reason, "更正原因")
+        basis = _basis_from_text(
+            runtime,
+            project,
+            f"更正原因：{why}\n更正内容：{json.dumps(changes, ensure_ascii=False)}",
+        )
+        _append_source_correction(runtime, project, row, changes, basis)
+        typer.echo(f"已追加文献更正 #{row['short_no']}（原记录保留）")
+        return None
+
+    _run(runtime, operation)
+
+
+def folder_import_refs(
+    ctx: typer.Context,
+    reference_file: Annotated[Path, typer.Argument(help="BibTeX（.bib）或 RIS（.ris）文件")],
+    folder: Annotated[
+        Path | None, typer.Option("--folder", help="PDF 所在文件夹（默认同 rb folder scan）")
+    ] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    """Import a .bib or .ris export; the file's metadata wins over what the PDF says."""
+
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        if reference_file.suffix.lower() not in REFERENCE_SUFFIXES:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "只支持 .bib 或 .ris 文件",
+                details={"option": "reference_file"},
+            )
+        if not reference_file.is_file():
+            raise ResearchBaseError(ErrorCode.NOT_FOUND, f"找不到文件：{reference_file}")
+        references = parse_references(reference_file)
+        if not references:
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "文件里没有可读取的文献条目")
+        folder_path = _papers_folder(folder)
+        # Scan first so files added since the last scan are seen (and registered) before matching.
+        scan = _lo(
+            "literature-folder", "scan", "--project-id", str(project), "--path", str(folder_path)
+        )
+        if scan["new"]:
+            _register_new_files(runtime, project, folder_path, scan["new"])
+        status = _lo(
+            "literature-folder", "status", "--project-id", str(project), "--path", str(folder_path)
+        )
+        basis = _basis_from_file(runtime, project, reference_file)
+        added: list[str] = []
+        corrected: list[str] = []
+        unchanged: list[str] = []
+        missing: list[str] = []
+        failed: list[str] = []
+        for reference in references:
+            label = reference.get("title") or reference.get("doi") or "（无标题）"
+            file_row = _match_folder_file(reference, status["files"])
+            if file_row is None:
+                missing.append(label)
+                continue
+            try:
+                paper = _registered_paper(runtime, project, reference, file_row)
+                if paper is None:
+                    _import_paper(
+                        runtime, project, folder_path / file_row["file_path"], None, reference
+                    )
+                    added.append(label)
+                    continue
+                current = _lo(
+                    "literature",
+                    "version",
+                    "show",
+                    "--project-id",
+                    str(project),
+                    "--source-version-id",
+                    str(paper["version_id"]),
+                )
+                changes = _reference_changes(current, reference)
+                if changes:
+                    _append_source_correction(runtime, project, paper, changes, basis)
+                    corrected.append(label)
+                else:
+                    unchanged.append(label)
+            except ResearchBaseError as exc:
+                failed.append(f"{label}（{exc.message}）")
+        typer.echo(
+            f"导入完成：新增 {len(added)} 篇，追加更正 {len(corrected)} 篇，"
+            f"无变化 {len(unchanged)} 篇"
+        )
+        if added:
+            typer.echo(f"新增：{_names(added)}")
+        if corrected:
+            typer.echo(f"追加更正（原记录保留）：{_names(corrected)}")
+        if missing:
+            typer.echo(f"文件夹中找不到对应 PDF（按 DOI 或标题匹配）：{_names(missing)}")
+        if failed:
+            typer.echo(f"未能处理 {len(failed)} 条：{_names(failed)}")
+        return None
+
+    _run(runtime, operation)
+
+
+def paper_enrich(
+    ctx: typer.Context,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    """Fill empty metadata of registered papers from Crossref (online). Appends corrections only."""
+
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        checked = corrected = unchanged = unavailable = 0
+        for row in _listing(runtime).list(project, "paper"):
+            if not row.get("version_id"):
+                continue
+            identifiers = _lo(
+                "literature",
+                "identifier",
+                "list",
+                "--project-id",
+                str(project),
+                "--source-id",
+                str(row["id"]),
+            )
+            dois = [
+                item["normalized_value"] for item in identifiers if item["identifier_type"] == "DOI"
+            ]
+            if not dois:
+                continue
+            checked += 1
+            meta = _crossref_record(dois[0], row.get("title") or "")
+            if meta is None:
+                unavailable += 1
+                continue
+            current = _lo(
+                "literature",
+                "version",
+                "show",
+                "--project-id",
+                str(project),
+                "--source-version-id",
+                str(row["version_id"]),
+            )
+            changes = _missing_changes(current, _crossref_reference(meta))
+            if not changes:
+                unchanged += 1
+                continue
+            changes_json = json.dumps(changes, ensure_ascii=False)
+            basis = _basis_from_text(
+                runtime,
+                project,
+                f"Crossref 补全（DOI {dois[0]}）：\n补全内容：{changes_json}",
+            )
+            _append_source_correction(runtime, project, row, changes, basis)
+            corrected += 1
+        if not checked:
+            typer.echo("没有带 DOI 的已登记文献，无需补全")
+            return None
+        typer.echo(
+            f"Crossref 补全：检查 {checked} 篇，补全 {corrected} 篇，"
+            f"已完整 {unchanged} 篇，无法查询 {unavailable} 篇（离线或查询已关闭）"
+        )
         return None
 
     _run(runtime, operation)
@@ -1438,9 +1873,22 @@ def register(app: typer.Typer) -> None:
     folder = _group(app, "folder", "文献文件夹：扫描、去重、移动检测（只读，不改文件夹）。")
     add_command(folder, "scan", "扫描文献文件夹并记录变化。", folder_scan)
     add_command(folder, "status", "显示文献文件夹最近的状态。", folder_status)
+    add_command(
+        folder,
+        "import-refs",
+        "导入 .bib / .ris，按 DOI 或标题匹配文件夹中的 PDF，以导入文件的元数据为准。",
+        folder_import_refs,
+    )
     paper = _group(app, "paper", "文献命令（文件夹之前的简单入口）。")
     add_command(paper, "add", "导入全文并冻结为文献来源版本。", paper_add)
     add_command(paper, "list", "列出文献。", _list_command("paper"))
+    add_command(paper, "correct", "追加文献元数据更正（原记录保留）。", paper_correct)
+    add_command(
+        paper,
+        "enrich",
+        "联网用 Crossref 补全已登记文献的空缺元数据（只补空字段，追加更正）。",
+        paper_enrich,
+    )
 
     evidence = _group(app, "evidence", "文献证据命令。")
     add_command(

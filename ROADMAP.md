@@ -47,9 +47,9 @@
 - [x] .txt、.md、JATS XML 也提取 DOI
 - [x] PDF 不移动、不复制、不改名，只记录路径和哈希；文件被移动或修改时，扫描时提示
 - [x] 离线时扫描照常（登记时的 Crossref 查询失败则用文件名，不阻断）
-- [ ] 导入 `.bib` 或 `.ris`（如从 Zotero 导出），按 DOI 或标题匹配文件夹中的 PDF，以导入文件的元数据为准
-- [ ] 来源元数据的追加更正：修改已登记文献的标题、作者等，以新版本追加，不覆盖旧记录
-- [ ] 离线时登记的文献，联网后补做 Crossref 查询（目前登记时查不到就不再补）
+- [x] 导入 `.bib` 或 `.ris`（如从 Zotero 导出）：`rb folder import-refs`，按 DOI 或标题匹配文件夹中的 PDF，以导入文件的元数据为准
+- [x] 来源元数据的追加更正：`rb paper correct` 或导入时发现不同，以 CORRECTED 版本追加，原版本保留
+- [x] 离线时登记的文献，联网后用 `rb paper enrich` 补做 Crossref 查询（只补空字段，以追加更正记录）
 
 ## 第四：Tab 补全与交互式填写
 
@@ -58,9 +58,9 @@
 
 ## 第一阶段还剩什么
 
-1. 第三项文件夹中未完成的部分（见上面未勾的条目）。
-2. 正式库 `researchbase` 迁移到当前 head（0085）：**被阻塞**。正式库当前在 `0042_pr2_15_minimal_decision`，不是之前以为的 0083。直接升级会依次执行 0043 到 0085 共 43 个迁移，并在 0082 因目录校验（catalog digest）不一致而被拒绝。需要 owner 决定方案，细节见 `.claude/state/pending-tasks.md`。
-3. owner 确认第一阶段完成标准。
+1. owner 确认第一阶段完成标准。
+
+正式库：旧库 `researchbase` 已改名为 `researchbase_legacy_0042` 保留（未删除），新的 `researchbase` 从全新迁移升级到 0085。配置和备份脚本仍用 `researchbase` 这个名字，无需改动。
 
 ## 已替换与搁置
 

@@ -71,11 +71,13 @@ _QUERIES: dict[str, str] = {
         WHERE c.project_id = :project
     """,
     "paper": """
-        SELECT s.id, s.canonical_title AS title, s.lifecycle_status AS status,
+        SELECT s.id, COALESCE(cv.title, s.canonical_title) AS title,
+               s.lifecycle_status AS status,
                l.linked_at AS created_at, NULL::text AS parent_id,
                s.current_version_id::text AS version_id, s.row_version
         FROM literature_source_project_links l
         JOIN literature_sources s ON s.id = l.literature_source_id
+        LEFT JOIN source_versions cv ON cv.id = s.current_version_id
         WHERE l.project_id = :project
     """,
     # Corrections are appended records; parent_id is "<target_type>:<target id>"

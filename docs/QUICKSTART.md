@@ -101,7 +101,15 @@ rb export --out ~/Research/exports/nap-study.md
 rb folder scan ~/Research/papers
 ```
 
-记录文件夹中的新增、移动、内容改变、缺失和重复文件，只记录路径和哈希，不移动、不改名、不修改 PDF。`rb folder status ~/Research/papers` 只读显示最近一次扫描的状态。注意：扫描目前只记录观察结果，不会把新 PDF 登记为文献，需要登记时仍用 `rb paper add`。
+默认文件夹是 `~/Research/papers`，可用环境变量 `RESEARCHBASE_PAPERS_DIR` 修改，也可以直接给出路径。扫描会记录新增、移动、内容改变、缺失和重复文件，并把新出现的 PDF、`.txt`、`.md` 登记为文献（同一 DOI 已登记的不重复登记）。文件本身不移动、不改名。
+
+从 Zotero 等工具导出的 BibTeX 或 RIS 文件可以批量导入，按 DOI 或标题匹配文件夹中的 PDF，以导出文件的元数据为准：
+
+```bash
+rb folder import-refs ~/Research/library.bib
+```
+
+已登记的文献如果元数据不同，会追加一条更正版本，原版本保留。单篇文献的元数据也可以直接更正：`rb paper correct 1 --venue "期刊全名" --reason "补充期刊名"`。联网时 `rb paper enrich` 会用 Crossref 补全已登记文献中为空的字段（不覆盖已有内容）。
 
 ---
 
