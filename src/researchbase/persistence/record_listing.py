@@ -78,6 +78,17 @@ _QUERIES: dict[str, str] = {
         JOIN literature_sources s ON s.id = l.literature_source_id
         WHERE l.project_id = :project
     """,
+    # Corrections are appended records; parent_id is "<target_type>:<target id>"
+    # so the export can attach each one to the conclusion or result it corrects.
+    "correction": """
+        SELECT c.id, (c.corrected_assertion #>> '{}') AS title,
+               c.correction_type AS status, c.created_at,
+               (lower(c.target_type) || ':' || c.target_id::text) AS parent_id,
+               NULL::text AS version_id, NULL::int AS row_version,
+               c.reason AS reason
+        FROM correction_records c
+        WHERE c.project_id = :project
+    """,
     "evidence": """
         SELECT e.id, e.extracted_statement AS title, e.review_status AS status,
                e.created_at, e.source_version_id::text AS parent_id,
