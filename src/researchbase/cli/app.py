@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import typer
 
+from researchbase.foundation.doctor_status import default_status_path, pending_warning
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 from researchbase.foundation.ids import new_uuid7
 
 from .commands.agents import register as register_agents
 from .commands.claim import register as register_claim
+from .commands.doctor import register as register_doctor
 from .commands.evidence import register as register_evidence
 from .commands.experiment import register as register_experiment
 from .commands.governance import register as register_governance
@@ -77,6 +79,10 @@ def _root_callback(
     except CliTransportError as exc:
         emit_error(exc, exc.request_id, bool(ctx.meta.get("json_requested")))
         raise typer.Exit(code=2) from None
+    if services is None and ctx.invoked_subcommand != "doctor":
+        warning = pending_warning(default_status_path())
+        if warning is not None:
+            typer.echo(warning, err=True)
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
 
@@ -102,6 +108,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
     register_search_execution(app)
     register_research_tasks(app)
     register_agents(app)
+    register_doctor(app)
     register_quick(app)
 
     @app.callback()
