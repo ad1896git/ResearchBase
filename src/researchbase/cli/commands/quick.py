@@ -13,6 +13,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -588,11 +589,169 @@ def conclusion_add(
 # ---- papers and literature evidence -------------------------------------
 
 
+def _crossref_lookup_enabled() -> bool:
+    """Crossref lookups are read-only and on by default.
+
+    Set RESEARCHBASE_CROSSREF_LOOKUP=0 to turn them off (offline use, tests).
+    """
+
+    return os.environ.get("RESEARCHBASE_CROSSREF_LOOKUP", "1") != "0"
+
+
+def _crossref_record(doi: str | None, title: str) -> dict | None:
+    """Bibliographic metadata for a DOI from Crossref, or None (off, offline, or not confirmed)."""
+
+    if doi is None or not _crossref_lookup_enabled():
+        return None
+    from researchbase.adapters.crossref import CrossrefVerifier
+
+    observed = CrossrefVerifier().observe(doi, title)
+    comparisons = (observed.get("evidence") or {}).get("comparisons") or {}
+    if observed.get("metadata") is None or comparisons.get("doi") != "MATCH":
+        return None
+    return observed["metadata"]
+
+
+def _crossref_date(meta: dict) -> str | None:
+    """Full publication date only; a year-only record leaves the date empty rather than guessing."""
+
+    published = meta.get("published")
+    parts = (published.get("date-parts") or [[]])[0] if isinstance(published, dict) else []
+    if len(parts) == 3 and all(isinstance(part, int) for part in parts):
+        return f"{parts[0]:04d}-{parts[1]:02d}-{parts[2]:02d}"
+    return None
+
+
+def _text_or_none(value: object) -> str | None:
+    return None if value is None else str(value)
+
+
+def _paper_material(label: str, document: dict, meta: dict | None) -> dict:
+    meta = meta or {}
+    authors = [
+        {"name": str(author["name"]), "orcid": _text_or_none(author.get("orcid"))}
+        for author in meta.get("authors") or []
+        if author.get("name")
+    ]
+    return {
+        "version_kind": "PUBLISHED",
+        "title": label,
+        "abstract": None,
+        "authors": authors,
+        "publication_date": _crossref_date(meta) if meta else None,
+        "venue": _text_or_none(meta.get("venue")),
+        "fulltext_artifact": {
+            "id": document["artifact_version_id"],
+            "content_hash": document["content_hash"],
+        },
+        "metadata": {
+            "journal_identifier": _text_or_none(meta.get("journal_identifier")),
+            "volume": _text_or_none(meta.get("volume")),
+            "issue": _text_or_none(meta.get("issue")),
+            "pages": _text_or_none(meta.get("pages")),
+            "license_label": None,
+            "public_repository_label": None,
+        },
+    }
+
+
+def _import_paper(runtime: CliRuntime, project: UUID, path: Path, title: str | None) -> dict:
+    """Import one full-text file as a frozen literature source.
+
+    Shared by `paper add` and folder scans.
+
+    Duplicate DOIs are refused before anything is written. Title and metadata come from
+    the user's --title, else Crossref (when the DOI is confirmed), else the file.
+    """
+
+    suffix = path.suffix.lower()
+    if suffix not in _TEXT_SUFFIXES and suffix != _PDF_SUFFIX:
+        raise ResearchBaseError(
+            ErrorCode.VALIDATION_ERROR,
+            f"暂不支持 {suffix or '无扩展名'} 文件",
+            details={"reason": "目前支持 PDF / .txt / .md / JATS XML 全文"},
+        )
+    if not path.is_file():
+        raise ResearchBaseError(ErrorCode.NOT_FOUND, f"找不到文件：{path}")
+    properties: dict[str, str] = {}
+    if suffix == _PDF_SUFFIX:
+        text, properties = _pdf_text(path)
+        media_type = "text/plain"
+    else:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        media_type = _TEXT_SUFFIXES[suffix]
+    doi = _valid_doi(_doi_in(text))
+    if doi:
+        _refuse_known_doi(project, doi)
+    if suffix == _PDF_SUFFIX:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        extracted = local_root(runtime) / "extracted"
+        extracted.mkdir(parents=True, exist_ok=True)
+        import_path = extracted / f"{digest}.txt"
+        import_path.write_text(text, encoding="utf-8")
+    else:
+        import_path = path
+    meta = _crossref_record(doi, title or properties.get("title") or path.stem)
+    label = title or (meta or {}).get("title") or properties.get("title") or path.stem
+    document = _lo(
+        "literature-evidence",
+        "import-document",
+        "--project-id",
+        str(project),
+        "--path",
+        str(import_path),
+        "--media-type",
+        media_type,
+        "--rights-basis",
+        "个人本地文献，仅用于个人研究记录",
+    )
+    source_args = [
+        "literature",
+        "source",
+        "create",
+        "--project-id",
+        str(project),
+        "--kind",
+        "PAPER",
+        "--title",
+        label,
+    ]
+    if doi:
+        source_args += ["--initial-identifier-type", "DOI", "--initial-identifier-value", doi]
+    source_id = _lo(*source_args)["source_id"]
+    version = _lo(
+        "literature",
+        "version",
+        "create",
+        "--project-id",
+        str(project),
+        "--source-id",
+        source_id,
+        "--material-json",
+        json.dumps(_paper_material(label, document, meta), ensure_ascii=False),
+    )
+    _lo(
+        "literature",
+        "version",
+        "freeze",
+        "--project-id",
+        str(project),
+        "--source-version-id",
+        version["source_version_id"],
+    )
+    return {
+        "row": _resolve(runtime, project, "paper", source_id),
+        "label": label,
+        "doi": doi,
+        "crossref": meta is not None,
+    }
+
+
 def paper_add(
     ctx: typer.Context,
     path: Annotated[Path, typer.Argument(help="全文文件路径（.pdf / .txt / .md / JATS XML）")],
     title: Annotated[
-        str | None, typer.Option("--title", help="标题（默认用 PDF 标题或文件名）")
+        str | None, typer.Option("--title", help="标题（默认用 Crossref、PDF 标题或文件名）")
     ] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
@@ -600,103 +759,9 @@ def paper_add(
 
     def operation():
         project = resolve_project(runtime, project_id)
-        suffix = path.suffix.lower()
-        if suffix not in _TEXT_SUFFIXES and suffix != _PDF_SUFFIX:
-            raise ResearchBaseError(
-                ErrorCode.VALIDATION_ERROR,
-                f"暂不支持 {suffix or '无扩展名'} 文件",
-                details={"reason": "目前支持 PDF / .txt / .md / JATS XML 全文"},
-            )
-        if not path.is_file():
-            raise ResearchBaseError(ErrorCode.NOT_FOUND, f"找不到文件：{path}")
-        import_path = path
-        media_type = "text/plain" if suffix == _PDF_SUFFIX else _TEXT_SUFFIXES[suffix]
-        properties: dict[str, str] = {}
-        doi = None
-        if suffix == _PDF_SUFFIX:
-            text, properties = _pdf_text(path)
-            doi = _valid_doi(_doi_in(text))
-            if doi:
-                _refuse_known_doi(project, doi)
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            extracted = local_root(runtime) / "extracted"
-            extracted.mkdir(parents=True, exist_ok=True)
-            import_path = extracted / f"{digest}.txt"
-            import_path.write_text(text, encoding="utf-8")
-        label = title or properties.get("title") or path.stem
-        document = _lo(
-            "literature-evidence",
-            "import-document",
-            "--project-id",
-            str(project),
-            "--path",
-            str(import_path),
-            "--media-type",
-            media_type,
-            "--rights-basis",
-            "个人本地文献，仅用于个人研究记录",
-        )
-        source_args = [
-            "literature",
-            "source",
-            "create",
-            "--project-id",
-            str(project),
-            "--kind",
-            "PAPER",
-            "--title",
-            label,
-        ]
-        if doi:
-            source_args += ["--initial-identifier-type", "DOI", "--initial-identifier-value", doi]
-        source = _lo(*source_args)
-        source_id = source["source_id"]
-        material = {
-            "version_kind": "PUBLISHED",
-            "title": label,
-            "abstract": None,
-            "authors": [],
-            "publication_date": None,
-            "venue": None,
-            "fulltext_artifact": {
-                "id": document["artifact_version_id"],
-                "content_hash": document["content_hash"],
-            },
-            "metadata": {
-                key: None
-                for key in (
-                    "journal_identifier",
-                    "volume",
-                    "issue",
-                    "pages",
-                    "license_label",
-                    "public_repository_label",
-                )
-            },
-        }
-        version = _lo(
-            "literature",
-            "version",
-            "create",
-            "--project-id",
-            str(project),
-            "--source-id",
-            source_id,
-            "--material-json",
-            json.dumps(material, ensure_ascii=False),
-        )
-        _lo(
-            "literature",
-            "version",
-            "freeze",
-            "--project-id",
-            str(project),
-            "--source-version-id",
-            version["source_version_id"],
-        )
-        row = _resolve(runtime, project, "paper", source_id)
-        extra = f"（DOI：{doi}）" if doi else ""
-        _echo_created("文献", row, label + extra)
+        done = _import_paper(runtime, project, path, title)
+        extra = f"（DOI：{done['doi']}）" if done["doi"] else ""
+        _echo_created("文献", done["row"], done["label"] + extra)
         return None
 
     _run(runtime, operation)
@@ -1217,19 +1282,59 @@ def _names(items: list[str], limit: int = 8) -> str:
     return shown + (f" 等 {len(items)} 个" if len(items) > limit else "")
 
 
+def _papers_folder(path: Path | None) -> Path:
+    """The folder to scan: the given path, else RESEARCHBASE_PAPERS_DIR, else ~/Research/papers."""
+
+    if path is not None:
+        return path
+    configured = os.environ.get("RESEARCHBASE_PAPERS_DIR")
+    return Path(configured).expanduser() if configured else Path.home() / "Research" / "papers"
+
+
+def _register_new_files(runtime: CliRuntime, project: UUID, folder: Path, files: list[str]) -> None:
+    """Register files the scan has just seen for the first time as literature sources."""
+
+    registered: list[str] = []
+    already: list[str] = []
+    failed: list[str] = []
+    for name in files:
+        try:
+            registered.append(_import_paper(runtime, project, folder / name, None)["label"])
+        except ResearchBaseError as exc:
+            if exc.code is ErrorCode.DUPLICATE_CONTENT:
+                already.append(name)
+            else:
+                failed.append(f"{name}（{exc.message}）")
+    if registered:
+        typer.echo(f"已登记为文献 {len(registered)} 篇：{_names(registered)}")
+    if already:
+        typer.echo(f"同一 DOI 的文献已登记，未重复登记 {len(already)} 个：{_names(already)}")
+    if failed:
+        typer.echo(f"未能登记 {len(failed)} 个：{_names(failed)}（可用 rb paper add 单独导入）")
+
+
 def folder_scan(
     ctx: typer.Context,
-    path: Annotated[Path, typer.Argument(help="文献文件夹路径")],
+    path: Annotated[
+        Path | None,
+        typer.Argument(
+            help="文献文件夹（默认 ~/Research/papers，可用 RESEARCHBASE_PAPERS_DIR 修改）"
+        ),
+    ] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
     runtime = _runtime(ctx)
 
     def operation():
         project = resolve_project(runtime, project_id)
-        result = _lo("literature-folder", "scan", "--project-id", str(project), "--path", str(path))
+        folder = _papers_folder(path)
+        result = _lo(
+            "literature-folder", "scan", "--project-id", str(project), "--path", str(folder)
+        )
         typer.echo(f"扫描完成：{result['folder']}（共 {result['file_count']} 个文件）")
         if result["new"]:
             typer.echo(f"新增 {len(result['new'])}：{_names(result['new'])}")
+            _register_new_files(runtime, project, folder, result["new"])
         if result["moved"]:
             moves = [f"{item['from']} → {item['to']}" for item in result["moved"]]
             typer.echo(f"移动 {len(result['moved'])}：{_names(moves)}")
@@ -1248,7 +1353,12 @@ def folder_scan(
 
 def folder_status(
     ctx: typer.Context,
-    path: Annotated[Path, typer.Argument(help="文献文件夹路径")],
+    path: Annotated[
+        Path | None,
+        typer.Argument(
+            help="文献文件夹（默认 ~/Research/papers，可用 RESEARCHBASE_PAPERS_DIR 修改）"
+        ),
+    ] = None,
     project_id: Annotated[str | None, typer.Option("--project-id")] = None,
 ) -> None:
     runtime = _runtime(ctx)
@@ -1256,7 +1366,12 @@ def folder_status(
     def operation():
         project = resolve_project(runtime, project_id)
         result = _lo(
-            "literature-folder", "status", "--project-id", str(project), "--path", str(path)
+            "literature-folder",
+            "status",
+            "--project-id",
+            str(project),
+            "--path",
+            str(_papers_folder(path)),
         )
         typer.echo(f"文件夹：{result['folder']}")
         for item in result["files"]:
