@@ -39,3 +39,6 @@ temp/
 
 # Local linked worktrees
 .worktrees/
+
+# Claude Code local task state (Stop hook)
+.claude/state/

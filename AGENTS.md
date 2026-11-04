@@ -1,5 +1,19 @@
 # AGENTS.md — ResearchBase
 
+## 0. Working mode: personal tool (effective 2026-11-03)
+
+ResearchBase is a single-user local tool owned and operated by one person (the owner). Team-level governance is cancelled.
+
+Workflow:
+- Develop on a branch → run local tests → CI must be fully green → GitHub auto-merge (`gh pr merge --auto --squash`) merges it.
+- Schema changes (migrations) and any data deletion require the owner's explicit confirmation before the PR is opened for auto-merge; such PRs are merged manually, never with `--auto`.
+- Back up before any schema change: the daily launchd backup (`~/ResearchBase-backups`, outside the repo) plus `~/ResearchBase-backups/RESTORE.md` for restore steps.
+- Do not create independent-review gates, admission indexes, completion receipts, authorization files, owner inboxes, emergency-switch drills, or merge logs. Git history and CI are the record.
+
+Retained invariants (sections 3, 5, 6 below still apply): immutable scientific history is corrected by appending new records, never by overwriting; one canonical source of truth per fact; the Application boundary; no scientific `ON DELETE CASCADE`; PostgreSQL integration tests on real PostgreSQL.
+
+Cancelled in personal mode: the D01 binding/protected-root/preflight material (binding records, role and attribute checks, hash chains of approvals, vectors/manifests for those), and the D1 node-budget lease machinery unless paid compute is later added. These documents remain as history under `docs/` and `.pipeline/` (archived) and are not active requirements.
+
 ## Purpose
 
 This repository implements ResearchBase, a scientific provenance and traceability foundation.
