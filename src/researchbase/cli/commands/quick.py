@@ -151,6 +151,7 @@ _KIND_LABEL = {
     "evidence": "文献证据",
     "metric": "度量指标",
     "result": "结果",
+    "correction": "更正",
 }
 
 
@@ -733,6 +734,90 @@ def evidence_verify(
     _run(runtime, operation)
 
 
+_CORRECTION_TYPES = ("factual", "metadata", "computational", "attribution", "other")
+
+
+def correct(
+    ctx: typer.Context,
+    conclusion: Annotated[
+        str | None,
+        typer.Option(
+            "--conclusion", autocompletion=_complete_kind("claim"), help="要更正的结论编号"
+        ),
+    ] = None,
+    result: Annotated[
+        str | None,
+        typer.Option("--result", autocompletion=_complete_kind("result"), help="要更正的结果编号"),
+    ] = None,
+    assertion: Annotated[
+        str | None, typer.Option("--assertion", help="更正后的内容（追加一条更正，原记录保留）")
+    ] = None,
+    reason: Annotated[str | None, typer.Option("--reason", help="更正原因")] = None,
+    correction_type: Annotated[
+        str,
+        typer.Option(
+            "--type",
+            help="更正类型：factual / metadata / computational / attribution / other",
+        ),
+    ] = "factual",
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    """Append a correction to a conclusion or result. Earlier records are never overwritten."""
+
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        chosen = [x for x in (conclusion, result) if x]
+        if len(chosen) != 1:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "请只指定一个要更正的对象：--conclusion 或 --result",
+            )
+        kind = correction_type.strip().lower()
+        if kind not in _CORRECTION_TYPES:
+            raise ResearchBaseError(
+                ErrorCode.VALIDATION_ERROR,
+                "更正类型不对",
+                details={"reason": "可选：" + " / ".join(_CORRECTION_TYPES), "option": "--type"},
+            )
+        if conclusion:
+            claim_row = _resolve(runtime, project, "claim", conclusion)
+            version_id = claim_row.get("version_id")
+            if not version_id:
+                raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "这个结论还没有版本")
+            target_type, target_id, label = "claim_version", str(version_id), "结论"
+            target_row = claim_row
+        elif result:
+            target_row = _resolve(runtime, project, "result", result)
+            target_type, target_id, label = "measurement", str(target_row["id"]), "结果"
+        else:  # unreachable: exactly one target was checked above
+            raise ResearchBaseError(ErrorCode.VALIDATION_ERROR, "请指定要更正的对象")
+        text = _ask(assertion, "更正后的内容")
+        why = _ask(reason, "更正原因")
+        created = _lo(
+            "correction",
+            "create",
+            "--project-id",
+            str(project),
+            "--target-type",
+            target_type,
+            "--target-id",
+            target_id,
+            "--correction-type",
+            kind,
+            "--corrected-assertion",
+            json.dumps(text, ensure_ascii=False),
+            "--reason",
+            why,
+        )
+        row = _resolve(runtime, project, "correction", str(created["id"]))
+        typer.echo(f"已添加更正 #{row['short_no']}（更正对象：{label} #{target_row['short_no']}）")
+        return None
+
+    _run(runtime, operation)
+
+
 def evidence_add(
     ctx: typer.Context,
     paper: Annotated[
@@ -1083,6 +1168,7 @@ _EXPORT_KINDS = (
     "paper",
     "evidence",
     "claim",
+    "correction",
 )
 
 
@@ -1192,9 +1278,10 @@ def register(app: typer.Typer) -> None:
     add_command(project, "current", "显示当前项目。", project_current)
 
     app.command("search", help="在所有记录中按关键词搜索。")(search)
-    app.command("export", help="把当前项目导出为 Markdown（问题、假设、实验、结果、文献、结论）。")(
-        export_project
-    )
+    app.command(
+        "export", help="把当前项目导出为 Markdown（问题、假设、实验、结果、文献、结论、更正）。"
+    )(export_project)
+    app.command("correct", help="更正一条结论或结果：追加更正记录，原记录保留。")(correct)
 
     question = _group(app, "question", "研究问题命令。")
     add_command(question, "add", "新建研究问题并冻结。", question_add)
