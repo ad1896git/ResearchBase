@@ -14,6 +14,7 @@ from .commands.experiment import register as register_experiment
 from .commands.governance import register as register_governance
 from .commands.literature import register as register_literature
 from .commands.literature_evidence import register as register_literature_evidence
+from .commands.literature_folder import register as register_literature_folder
 from .commands.literature_search_execution import register as register_search_execution
 from .commands.local import register as register_local
 from .commands.metadata_observation import register as register_metadata
@@ -90,6 +91,7 @@ def create_app(services: CliServices | None = None) -> typer.Typer:
     )
     register_metadata(app)
     register_literature_evidence(app)
+    register_literature_folder(app)
     register_local(app)
     register_research(app)
     register_evidence(app)

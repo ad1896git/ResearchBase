@@ -29,9 +29,11 @@ def test_closed_owner_and_import_boundary():
 
 def test_one_forward_migration_owns_only_screening_guards():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0083_bearing_evaluation_guards"]
-    head = scripts.get_revision(scripts.get_heads()[0])
-    assert head.down_revision == "0082_experiment_search_core"
+    assert scripts.get_heads() == ["0085_literature_self_verification"]
+    # The owned migration stays linear: 0071 is its direct child.
+    assert scripts.get_revision("0071_b23_novelty_review").down_revision == (
+        "0070_b20_screening_basis"
+    )
     source = (ROOT / "migrations/versions/0070_b20_screening_basis.py").read_text()
     assert "CREATE OR REPLACE" not in source
     assert "ON DELETE CASCADE" not in source

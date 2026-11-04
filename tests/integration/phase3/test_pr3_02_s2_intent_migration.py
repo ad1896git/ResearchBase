@@ -150,7 +150,7 @@ def test_upgrade_refuses_receipt_check_drift(constraint):
 
 def test_empty_upgrade_and_single_head():
     scripts = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert scripts.get_heads() == ["0083_bearing_evaluation_guards"]
+    assert scripts.get_heads() == ["0085_literature_self_verification"]
     assert scripts.get_revision("0082_experiment_search_core").down_revision == HEAD
     assert (
         scripts.get_revision("0083_bearing_evaluation_guards").down_revision
@@ -262,5 +262,5 @@ def test_downgrade_refuses_before_change(intent_env, populated, monkeypatch):
             == count
         )
         assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0083_bearing_evaluation_guards"
+            "0085_literature_self_verification"
         )

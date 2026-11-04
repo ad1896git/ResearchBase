@@ -62,10 +62,12 @@ def test_task12_preserves_every_historical_migration_byte_and_exact_child():
             "migrations/versions/0081_agent_execution_intents.py",
             "migrations/versions/0082_experiment_search_core.py",
             "migrations/versions/0083_bearing_evaluation_guards.py",
+            "migrations/versions/0084_literature_folder_observations.py",
+            "migrations/versions/0085_literature_self_verification.py",
         }
     )
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["0083_bearing_evaluation_guards"]
+    assert scripts.get_heads() == ["0085_literature_self_verification"]
     assert (
         scripts.get_revision("0047_pr2_18_novelty_prior_art").down_revision
         == "0046_pr2_17_authorship"

@@ -229,7 +229,9 @@ def test_real_source_cli_restart_and_no_self_approval(phase2_database_url, tmp_p
         )
         == snapshot
     )
-    cli(
+    # Personal mode: the owner may verify their own evidence; the review event
+    # still records the reviewer, and the export marks it as self-verified.
+    self_review = cli(
         "--request-id",
         str(uuid4()),
         "literature-evidence",
@@ -241,11 +243,11 @@ def test_real_source_cli_restart_and_no_self_approval(phase2_database_url, tmp_p
         "--status",
         "VERIFIED",
         "--basis",
-        "Self verification must be rejected",
+        "Self-verified against the exact source (personal mode)",
         "--json",
-        ok=False,
     )
-    cli(
+    assert self_review["review_status"] == "VERIFIED"
+    support = cli(
         "--request-id",
         str(uuid4()),
         "literature-evidence",
@@ -259,8 +261,8 @@ def test_real_source_cli_restart_and_no_self_approval(phase2_database_url, tmp_p
         "--inputs-json",
         json.dumps([{**edge, "relation_type": "SUPPORTS"}]),
         "--json",
-        ok=False,
     )
+    assert support["id"]
     cli(
         "--actor-id",
         str(uuid4()),
@@ -291,7 +293,7 @@ def test_real_source_cli_restart_and_no_self_approval(phase2_database_url, tmp_p
             connection.execute(
                 text("SELECT count(*) FROM literature_evidence_review_events")
             ).scalar_one()
-            == 0
+            == 1
         )
     engine.dispose()
     output = {
@@ -306,10 +308,7 @@ def test_real_source_cli_restart_and_no_self_approval(phase2_database_url, tmp_p
         "evidence": evidence,
         "hypothesis": frozen,
         "snapshot": snapshot,
-        "real_independent_human_verification": (
-            "NOT RUN: no designated independent authenticated "
-            "human reviewer; existing profile is single-user"
-        ),
+        "self_verification": "RECORDED: personal mode; owner self-verification",
         "cli_process_restart_readback": "PASS",
         "transcript": transcript,
     }

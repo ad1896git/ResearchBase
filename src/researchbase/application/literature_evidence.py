@@ -400,8 +400,6 @@ class LiteratureEvidenceService:
             evidence = self._read(uow, evidence_id, project)
             if status not in TRANSITIONS[evidence["review_status"]]:
                 _fail("invalid evidence review transition", ErrorCode.INVALID_STATE_TRANSITION)
-            if status == "VERIFIED" and evidence["created_by"] == principal.actor_id:
-                _fail("verification requires an independent human reviewer", ErrorCode.FORBIDDEN)
             event = {
                 "id": uuid4(),
                 "literature_evidence_id": evidence_id,
@@ -497,10 +495,9 @@ class LiteratureEvidenceService:
                         evidence["review_status"] != "VERIFIED"
                         or evidence["source_validity"] != "VALID"
                         or latest is None
-                        or latest["reviewed_by"] in {evidence["created_by"], principal.actor_id}
                     ):
                         _fail(
-                            "SUPPORTS requires independently human-verified valid evidence",
+                            "SUPPORTS requires human-verified valid evidence",
                             ErrorCode.FORBIDDEN,
                         )
                 edges.append(
@@ -605,10 +602,7 @@ class LiteratureEvidenceService:
             }:
                 valid = False
             if relation["relation_type"] == "SUPPORTS" and (
-                evidence["review_status"] != "VERIFIED"
-                or not evidence["review_events"]
-                or evidence["review_events"][-1]["reviewed_by"]
-                in {evidence["created_by"], row["created_by"]}
+                evidence["review_status"] != "VERIFIED" or not evidence["review_events"]
             ):
                 valid = False
         if (

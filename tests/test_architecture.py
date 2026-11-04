@@ -161,6 +161,10 @@ def test_phase1_has_no_unauthorized_later_business_schema_migration() -> None:
         "scientific_conclusions",
         "manuscripts",
     }
+    # Owner-approved personal-mode self-verification: replaces the M3 literature guards only.
+    authorized_tables["migrations/versions/0085_literature_self_verification.py"] = {
+        "literature_evidence"
+    }
     for path in _python_files(ROOT / "migrations"):
         contents = path.read_text()
         permitted = authorized_tables.get(path.relative_to(ROOT).as_posix(), set())

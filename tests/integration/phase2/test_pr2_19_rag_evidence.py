@@ -46,9 +46,12 @@ def test_retrieval_then_owning_admission_independent_human_review_restart(pr219_
     )
     eid = UUID(evidence["id"])
     assert evidence["artifact_version_id"] == document["artifact_version_id"]
+    # This fixture is pinned to 0075, where the database M3 guard still enforces
+    # separation (0085 relaxes it for personal mode). The Application no longer
+    # pre-checks self-verification, so the refusal comes from the database.
     with pytest.raises(ResearchBaseError) as denied:
         service.review(author, project, eid, "VERIFIED", "Self verification", uuid4())
-    assert denied.value.code is ErrorCode.FORBIDDEN
+    assert denied.value.code is ErrorCode.PROVENANCE_CLOSURE_VIOLATION
     assert author.actor_id != reviewer.actor_id
     reviewed = service.review(
         reviewer, project, eid, "VERIFIED", "Inspected independent fixture bytes", uuid4()

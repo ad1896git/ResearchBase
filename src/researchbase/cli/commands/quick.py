@@ -649,6 +649,38 @@ def paper_add(
     _run(runtime, operation)
 
 
+def evidence_verify(
+    ctx: typer.Context,
+    evidence: Annotated[str, typer.Argument(help="文献证据编号、ID 前缀或引文片段")],
+    basis: Annotated[
+        str | None, typer.Option("--basis", help="你核对了原文的哪一处、为什么成立")
+    ] = None,
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        row = _resolve(runtime, project, "evidence", evidence)
+        text = _ask(basis, "核验依据（你核对了原文的哪一处）")
+        _lo(
+            "literature-evidence",
+            "review",
+            "--project-id",
+            str(project),
+            "--evidence-id",
+            str(row["id"]),
+            "--status",
+            "VERIFIED",
+            "--basis",
+            text,
+        )
+        typer.echo(f"已核验文献证据 #{row['short_no']}（本人核验）")
+        return None
+
+    _run(runtime, operation)
+
+
 def evidence_add(
     ctx: typer.Context,
     paper: Annotated[
@@ -1042,6 +1074,64 @@ def _show(runtime: CliRuntime, operation, render) -> None:
     _run(runtime, run)
 
 
+def _names(items: list[str], limit: int = 8) -> str:
+    shown = "、".join(items[:limit])
+    return shown + (f" 等 {len(items)} 个" if len(items) > limit else "")
+
+
+def folder_scan(
+    ctx: typer.Context,
+    path: Annotated[Path, typer.Argument(help="文献文件夹路径")],
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        result = _lo("literature-folder", "scan", "--project-id", str(project), "--path", str(path))
+        typer.echo(f"扫描完成：{result['folder']}（共 {result['file_count']} 个文件）")
+        if result["new"]:
+            typer.echo(f"新增 {len(result['new'])}：{_names(result['new'])}")
+        if result["moved"]:
+            moves = [f"{item['from']} → {item['to']}" for item in result["moved"]]
+            typer.echo(f"移动 {len(result['moved'])}：{_names(moves)}")
+        if result["modified"]:
+            typer.echo(f"内容已改变 {len(result['modified'])}：{_names(result['modified'])}")
+        if result["missing"]:
+            typer.echo(f"缺失 {len(result['missing'])}：{_names(result['missing'])}")
+        if result["duplicates"]:
+            groups = [" = ".join(group) for group in result["duplicates"]]
+            typer.echo(f"重复内容 {len(groups)} 组：{_names(groups, 4)}")
+        typer.echo(f"未变化 {result['unchanged']} 个")
+        return None
+
+    _run(runtime, operation)
+
+
+def folder_status(
+    ctx: typer.Context,
+    path: Annotated[Path, typer.Argument(help="文献文件夹路径")],
+    project_id: Annotated[str | None, typer.Option("--project-id")] = None,
+) -> None:
+    runtime = _runtime(ctx)
+
+    def operation():
+        project = resolve_project(runtime, project_id)
+        result = _lo(
+            "literature-folder", "status", "--project-id", str(project), "--path", str(path)
+        )
+        typer.echo(f"文件夹：{result['folder']}")
+        for item in result["files"]:
+            doi = f"  DOI {item['doi']}" if item["doi"] else ""
+            title = item["title"] or item["file_path"]
+            typer.echo(f"  {item['file_path']}  {title}{doi}")
+        if result["missing"]:
+            typer.echo(f"已缺失（最近一次扫描未找到）：{_names(result['missing'])}")
+        return None
+
+    _run(runtime, operation)
+
+
 def register(app: typer.Typer) -> None:
     global _ROOT_APP
     _ROOT_APP = app
@@ -1091,10 +1181,16 @@ def register(app: typer.Typer) -> None:
     add_command(result, "add", "为运行记录一个测量结果。", result_add)
     add_command(result, "list", "列出结果。", _list_command("result"))
 
+    folder = _group(app, "folder", "文献文件夹：扫描、去重、移动检测（只读，不改文件夹）。")
+    add_command(folder, "scan", "扫描文献文件夹并记录变化。", folder_scan)
+    add_command(folder, "status", "显示文献文件夹最近的状态。", folder_status)
     paper = _group(app, "paper", "文献命令（文件夹之前的简单入口）。")
     add_command(paper, "add", "导入全文并冻结为文献来源版本。", paper_add)
     add_command(paper, "list", "列出文献。", _list_command("paper"))
 
     evidence = _group(app, "evidence", "文献证据命令。")
+    add_command(
+        evidence, "verify", "核验文献证据（个人模式可本人核验，导出时会标注）。", evidence_verify
+    )
     add_command(evidence, "add", "从文献全文中摘录逐字引文，创建文献证据。", evidence_add)
     add_command(evidence, "list", "列出文献证据。", _list_command("evidence"))
