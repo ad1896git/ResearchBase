@@ -18,6 +18,7 @@ concurrency:
 jobs:
   static:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     outputs:
       timing-sha256: ${{ steps.timings.outputs.sha256 }}
       timing-artifact-id: ${{ steps.publish-timings.outputs.artifact-id }}
@@ -50,7 +51,7 @@ jobs:
   checks:
     needs: static
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
