@@ -361,7 +361,7 @@ def test_producer_symlink_is_not_a_regular_source(source):
 def test_workflow_keeps_seven_check_names_and_full_gate():
     workflow = (t.ROOT / ".github/workflows/ci.yml").read_text()
     assert "shard: [0, 1, 2, 3, 4, 5]" in workflow
-    assert "timeout-minutes: 120" in workflow
+    assert workflow.count("timeout-minutes: 90") == 2  # static and checks jobs
     assert "uv run pytest --junitxml=/tmp/pytest-results.xml" in workflow
     assert (
         "--ignore" not in workflow and "-m " not in workflow and "continue-on-error" not in workflow
