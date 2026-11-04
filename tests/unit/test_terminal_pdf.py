@@ -120,3 +120,46 @@ def test_other_lookup_errors_are_not_swallowed(monkeypatch):
     with pytest.raises(ResearchBaseError) as caught:
         quick._refuse_known_doi(uuid4(), "10.1234/nap.2026.7")
     assert caught.value.code is ErrorCode.ADAPTER_UNAVAILABLE
+
+
+def test_crossref_date_needs_a_full_date():
+    from researchbase.cli.commands.quick import _crossref_date
+
+    assert _crossref_date({"published": {"date-parts": [[2013, 10, 24]]}}) == "2013-10-24"
+    assert _crossref_date({"published": {"date-parts": [[2013]]}}) is None
+    assert _crossref_date({}) is None
+
+
+def test_paper_material_carries_crossref_fields():
+    from researchbase.cli.commands.quick import _paper_material
+
+    meta = {
+        "authors": [{"name": "甲", "orcid": None}],
+        "published": {"date-parts": [[2020, 2, 3]]},
+        "venue": "期刊",
+        "volume": 3,
+        "pages": "1-9",
+    }
+    material = _paper_material("标题", {"artifact_version_id": "a", "content_hash": "h"}, meta)
+    assert material["publication_date"] == "2020-02-03"
+    assert material["venue"] == "期刊"
+    assert material["authors"] == [{"name": "甲", "orcid": None}]
+    assert material["metadata"]["volume"] == "3"
+    assert material["metadata"]["pages"] == "1-9"
+
+
+def test_folder_defaults_to_papers_directory(monkeypatch, tmp_path):
+    from researchbase.cli.commands.quick import _papers_folder
+
+    monkeypatch.delenv("RESEARCHBASE_PAPERS_DIR", raising=False)
+    assert _papers_folder(None) == Path.home() / "Research" / "papers"
+    monkeypatch.setenv("RESEARCHBASE_PAPERS_DIR", str(tmp_path))
+    assert _papers_folder(None) == tmp_path
+    assert _papers_folder(tmp_path / "other") == tmp_path / "other"
+
+
+def test_crossref_is_skipped_when_switched_off(monkeypatch):
+    from researchbase.cli.commands.quick import _crossref_record
+
+    monkeypatch.setenv("RESEARCHBASE_CROSSREF_LOOKUP", "0")
+    assert _crossref_record("10.1234/x", "标题") is None

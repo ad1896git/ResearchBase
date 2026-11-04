@@ -1,11 +1,26 @@
 # 快速上手：常用命令速查
 
-适用于本地单用户模式。下文用 `rb` 代指 `researchbase` 命令，可在 shell 里设置 `alias rb=researchbase`。
+适用于本地单用户模式。下文用 `rb` 代指 `researchbase` 命令（两者都可在任何目录下直接使用）。
 
 - 编号（#1、#2…）是项目内按创建顺序排的短编号，可直接用于命令。
 - 也可以用 UUID 前缀，或文献标题里能唯一区分的一段文字代替编号。
 - 不指定 `--project-id` 时，命令使用当前项目（`rb project use` 设置）。
 - 每一步只给出一条主要命令，并说明相关的后续命令。
+
+## 0. 安装（只需做一次）
+
+在仓库目录里，用可编辑方式安装成全局命令：
+
+```bash
+cd <仓库目录>
+uv tool install --editable . --force
+ln -sfn researchbase ~/.local/bin/rb
+```
+
+- 安装后，`researchbase` 和 `rb` 在任何目录下都可以直接运行。装完新开一个终端窗口，运行 `rb --help` 应显示帮助。
+- 可编辑安装指向仓库目录本身：以后在该目录里更新代码（`git pull`、切换分支）后，命令立即使用新代码，不需要重新安装。若修改了数据库结构（新的迁移），再运行一次 `uv run alembic upgrade head`。
+- 如果移动或删除了仓库目录，需要在新位置重新运行上面的两条命令。
+- 命令默认连接本机的 `researchbase` 数据库，不需要设置环境变量。
 
 ## 1. 建项目
 
@@ -101,7 +116,15 @@ rb export --out ~/Research/exports/nap-study.md
 rb folder scan ~/Research/papers
 ```
 
-记录文件夹中的新增、移动、内容改变、缺失和重复文件，只记录路径和哈希，不移动、不改名、不修改 PDF。`rb folder status ~/Research/papers` 只读显示最近一次扫描的状态。注意：扫描目前只记录观察结果，不会把新 PDF 登记为文献，需要登记时仍用 `rb paper add`。
+默认文件夹是 `~/Research/papers`，可用环境变量 `RESEARCHBASE_PAPERS_DIR` 修改，也可以直接给出路径。扫描会记录新增、移动、内容改变、缺失和重复文件，并把新出现的 PDF、`.txt`、`.md` 登记为文献（同一 DOI 已登记的不重复登记）。文件本身不移动、不改名。
+
+从 Zotero 等工具导出的 BibTeX 或 RIS 文件可以批量导入，按 DOI 或标题匹配文件夹中的 PDF，以导出文件的元数据为准：
+
+```bash
+rb folder import-refs ~/Research/library.bib
+```
+
+已登记的文献如果元数据不同，会追加一条更正版本，原版本保留。单篇文献的元数据也可以直接更正：`rb paper correct 1 --venue "期刊全名" --reason "补充期刊名"`。联网时 `rb paper enrich` 会用 Crossref 补全已登记文献中为空的字段（不覆盖已有内容）。
 
 ---
 

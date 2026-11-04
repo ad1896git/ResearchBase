@@ -41,14 +41,15 @@
 
 ## 第三：文献文件夹（暂不接 Zotero）
 
-已完成：扫描只记录路径和哈希，不移动、不改名；文件被移动、修改、缺失或重复时，扫描会提示；离线可用；PDF 中的 DOI 会在扫描结果中显示。
-
-- [ ] 文件夹默认 `~/Research/papers/`，可配置（目前必须指定路径）
-- [ ] 一条命令扫描文件夹，登记新 PDF（目前扫描只记录观察结果，不登记为文献）；按文件哈希和 DOI 去重，已登记的不重复处理
-- [ ] 元数据：用 Crossref 查标题、作者、年份、期刊（未做；DOI 提取已做）；找不到 DOI 时用文件名作临时标题，并在终端提示补填
-- [ ] 导入 `.bib` 或 `.ris`（如从 Zotero 导出），按 DOI 或标题匹配文件夹中的 PDF，以导入文件的元数据为准
-- [ ] 元数据变化以追加更正的方式记录，不覆盖旧记录（扫描记录是追加式的；来源元数据的追加更正尚未做）
-- [ ] Crossref 查询留到联网时补做（Crossref 只读，允许联网）
+- [x] 文件夹默认 `~/Research/papers/`，可用环境变量 `RESEARCHBASE_PAPERS_DIR` 或命令参数改
+- [x] 一条命令扫描文件夹，并把新出现的文件登记为文献（`rb folder scan`）；按文件哈希和 DOI 去重，同一 DOI 已登记的不重复登记
+- [x] 元数据：先从 PDF 或文本中提取 DOI，再用 Crossref 查标题、作者、出版日期、期刊（DOI 确认后才采用；`RESEARCHBASE_CROSSREF_LOOKUP=0` 可关闭）；找不到 DOI 时用文件名作临时标题
+- [x] .txt、.md、JATS XML 也提取 DOI
+- [x] PDF 不移动、不复制、不改名，只记录路径和哈希；文件被移动或修改时，扫描时提示
+- [x] 离线时扫描照常（登记时的 Crossref 查询失败则用文件名，不阻断）
+- [x] 导入 `.bib` 或 `.ris`（如从 Zotero 导出）：`rb folder import-refs`，按 DOI 或标题匹配文件夹中的 PDF，以导入文件的元数据为准
+- [x] 来源元数据的追加更正：`rb paper correct` 或导入时发现不同，以 CORRECTED 版本追加，原版本保留
+- [x] 离线时登记的文献，联网后用 `rb paper enrich` 补做 Crossref 查询（只补空字段，以追加更正记录）
 
 ## 第四：Tab 补全与交互式填写
 
@@ -57,9 +58,9 @@
 
 ## 第一阶段还剩什么
 
-1. 第三项文件夹中未完成的部分（见上面未勾的条目）。
-2. 正式库 `researchbase` 迁移到当前 head（0085）：**被阻塞**。正式库当前在 `0042_pr2_15_minimal_decision`，不是之前以为的 0083。直接升级会依次执行 0043 到 0085 共 43 个迁移，并在 0082 因目录校验（catalog digest）不一致而被拒绝。需要 owner 决定方案，细节见 `.claude/state/pending-tasks.md`。
-3. owner 确认第一阶段完成标准。
+1. owner 确认第一阶段完成标准。
+
+正式库：旧库 `researchbase` 已改名为 `researchbase_legacy_0042` 保留（未删除），新的 `researchbase` 从全新迁移升级到 0085。配置和备份脚本仍用 `researchbase` 这个名字，无需改动。
 
 ## 已替换与搁置
 

@@ -123,6 +123,12 @@ DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/resea
   uv run pytest -o addopts='' -ra
 ```
 
+Unit tests (`tests/unit`) do not read the local identity folder `~/.researchbase-local`
+(or `RESEARCHBASE_LOCAL_ROOT`); `tests/unit/conftest.py` points it at a missing path, so
+results match CI on a machine where the owner has already bootstrapped the local tool.
+Integration tests need `DATABASE_URL` as above and, for the disposable-cluster suites,
+`RB_TEST_ADMIN_URL`.
+
 The PR2-10 through PR2-15 disposable-cluster suites require an explicit admin selector:
 
 ```bash
