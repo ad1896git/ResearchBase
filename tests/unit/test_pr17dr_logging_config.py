@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -34,7 +35,7 @@ def test_settings_accept_explicit_environment_and_preserve_database_override() -
 def test_settings_use_frozen_defaults_and_reject_blank_environment() -> None:
     settings = load_settings({})
     assert settings.application_env == "development"
-    assert settings.artifact_store_root == ".researchbase/artifacts"
+    assert settings.artifact_store_root == str(Path.home() / ".researchbase" / "artifacts")
 
     with pytest.raises(ValueError, match="APPLICATION_ENV"):
         load_settings({"APPLICATION_ENV": "   "})
