@@ -1,376 +1,390 @@
-# ResearchBase
+# ResearchBase 使用说明
 
-ResearchBase is a scientific provenance and traceability foundation. It provides explicit,
-versioned scientific records with canonical content identity, immutable provenance bindings,
-fail-closed integrity verification, and PostgreSQL-backed application workflows.
+ResearchBase 是一个本地单用户的科研记录工具。它帮你管理研究问题、假设、文献、实验、结果和结论，并记录每一条结论依据哪些文献和数据。所有记录都保存在本机的 PostgreSQL 数据库里，全文文件保存在本机的文件存储中。
 
-## Project status
+本文面向日常使用者，说明如何安装、如何录入和查询内容、如何备份和检查数据。命令的更多示例见 [docs/QUICKSTART.md](docs/QUICKSTART.md)。
 
-Phase 1 is complete and formally frozen. The immutable formal baseline is the annotated tag
-`phase1-final-v4`; its semantic implementation is recorded separately in the freeze evidence
-under `artifacts/pr_evidence/PHASE1-FREEZE-V4/`.
+## 目录
 
-Phase 1 includes:
+1. [基本概念](#1-基本概念)
+2. [安装](#2-安装)
+3. [第一次使用](#3-第一次使用)
+4. [日常工作流程](#4-日常工作流程)
+5. [命令速查](#5-命令速查)
+6. [文献文件夹与全文](#6-文献文件夹与全文)
+7. [检查与备份](#7-检查与备份)
+8. [配置项](#8-配置项)
+9. [数据存放位置](#9-数据存放位置)
+10. [常见问题](#10-常见问题)
+11. [开发者信息](#11-开发者信息)
 
-- versioned research questions, hypotheses, experiment specifications, datasets, artifacts,
-  metric definitions, measurements, statistical results, and claims;
-- provenance and evidence relationships, runs, audit findings, impact assessments, and
-  correction records;
-- canonical JSON and raw-byte hashing with verified persisted reconstruction;
-- an Application service layer, SQLAlchemy/PostgreSQL persistence, FastAPI routes, and a Typer
-  CLI;
-- a content-addressed filesystem artifact store and Alembic-managed schema.
+---
 
-Phase 2 has bounded implementations and owning tests for literature, discussion, conclusions,
-manuscript drafts/placements, review, Decision, RevisionAction, Basic Approval, authorship and
-novelty. Code presence does not establish whole-PR acceptance or Phase 2 exit. The owner-approved
-PR2-20 first slice adds engineering evidence only; see the
-[exit report](docs/phase2/phase2_exit_report.md) for blocked prerequisites and limitations.
-Manuscript freeze/readiness, grant-consuming package release, external submission and Phase 3
-Agent Runtime remain outside this slice.
+## 1. 基本概念
 
-## Architecture
+| 概念 | 含义 | 命令组 |
+| --- | --- | --- |
+| 项目（project） | 一组相关研究的容器。所有其他记录都属于某个项目。 | `project` |
+| 研究问题（question） | 你想回答的问题。 | `question` |
+| 假设（hypothesis） | 对研究问题的可检验陈述。 | `hypothesis` |
+| 文献（paper） | 一篇论文或一份资料，保存其全文并冻结为一个版本。 | `paper`、`folder` |
+| 证据（evidence） | 从文献全文中逐字摘录的一段引文，可以标记为已核验。 | `evidence` |
+| 实验（experiment） | 为检验假设而设计的方案，包含方法和度量。 | `experiment`、`metric` |
+| 运行（run） | 实验的一次执行。 | `run` |
+| 结果（result） | 运行得到的测量值。 | `result` |
+| 结论（conclusion） | 你基于证据和结果得出的判断。 | `conclusion` |
+| 关联（claim link） | 把证据或结果关联到结论，并注明支持或反对等关系。 | `claim` |
+| 更正（correct） | 对结论或结果的修改。原内容保留，更正以新记录追加。 | `correct` |
 
-The implementation follows layered boundaries:
+核心规则：
 
-```text
-API / CLI → Application → Ports → Domain / Foundation
-                         ↑
-                   Persistence
+- **历史不被覆盖。** 修改已有结论或结果时，用 `rb correct` 追加更正，原记录保留并在导出中同时显示。文献元数据的修改同样以追加方式记录（`rb paper correct`、`rb folder import-refs`）。
+- **引文必须逐字。** `rb evidence add --quote` 中的文字必须与原文完全一致（标点和空格也要一致），否则会被拒绝并给出原因。
+- **编号即引用。** 每类记录在项目内都有按创建顺序排列的短编号（#1、#2 …），命令中可以直接使用。也可以用 UUID 前缀，或文献标题中能唯一区分的一段文字。
+
+## 2. 安装
+
+环境要求：
+
+- macOS 或 Linux
+- Python 3.12
+- [uv](https://docs.astral.sh/uv/)
+- PostgreSQL 18（数据库）
+
+在仓库目录中执行：
+
+```bash
+cd <仓库目录>
+uv sync --locked --group dev
+uv tool install --editable . --force
+ln -sfn researchbase ~/.local/bin/rb
 ```
 
-Foundation code owns canonical values, hashing, identifiers, time, and shared errors. Domain
-objects define scientific and governance invariants. Application services coordinate one
-unit-of-work transaction per command. Persistence implements the ports with SQLAlchemy and
-PostgreSQL. API and CLI adapters expose Application DTOs without making transport types part of
-the Domain.
+- 安装完成后，`researchbase` 和 `rb` 两个命令在任何目录下都可以直接使用。新开一个终端窗口后运行 `rb --help` 应显示帮助。
+- 可编辑安装指向仓库本身。以后在仓库中 `git pull` 或切换分支，命令会立即使用新代码，无需重新安装。
+- 如果仓库目录被移动或删除，需要在新位置重新运行上面的命令。
 
-The authoritative architecture documents are under `docs/architecture/`. For Phase 1, read
-them in this order:
+数据库：命令默认连接本机的 `researchbase` 数据库。如果你的数据库不在默认位置，设置环境变量 `DATABASE_URL`（见[配置项](#8-配置项)）。第一次使用前，先执行数据库迁移：
 
-1. `01_ResearchBase_System_Architecture_v1.3_Harness_Integrated.md`
-2. `02_Final_Architecture_Correction_Addendum_v1.0.md`
-3. `03_Global_Schema_and_Contract_Registry_v1.0.md`
-4. `08_Cross_Phase_Contracts_and_Compatibility_v1.1_Harness_Integrated.md`
-5. `04_Phase1_Development_Specification_v1.2_Harness_Integrated.md`
-6. `09_TDG1_Phase1_Technology_Decision_Gate_v1.0.md`
+```bash
+uv run alembic upgrade head
+```
 
-Historical execution and acceptance evidence is retained under `artifacts/`, while
-`execution/phase1/` contains the implementation and review packs used to build the frozen
-baseline. `START_HERE.md` is the original PR-00 bootstrap package guide and is retained as
-historical context.
+## 3. 第一次使用
 
-## Requirements and setup
+### 3.1 创建本地身份
 
-- Python 3.12
-- [`uv`](https://docs.astral.sh/uv/)
-- PostgreSQL 18 for integration tests; Docker Compose can provide the development instance
+```bash
+rb local init
+rb local bootstrap --display-name "你的名字" --project-name "项目名"
+rb local whoami
+```
 
-Install the locked development environment:
+- `local init` 在系统账户目录下创建本地身份目录（`~/.researchbase-local`，权限 0700）。这个目录保存本地凭据，不要复制到其他机器或其他账户。
+- `local bootstrap` 只能在空数据库上执行一次，它会创建你的身份和第一个项目。
+- **每日备份不包含本地身份目录。** 请另外把 `~/.researchbase-local` 安全地保存一份（例如加密的外置存储）。如果它丢失，已有数据无法通过命令重新关联到你的身份。
+
+### 3.2 创建项目并设为当前项目
+
+```bash
+rb project create --name "午睡与记忆"
+rb project use 1
+rb project current
+```
+
+不指定 `--project-id` 时，命令都作用于当前项目。
+
+## 4. 日常工作流程
+
+下面以一个示例研究"午睡是否改善次日记忆"为例，按顺序说明。
+
+### 4.1 录入研究问题和假设
+
+```bash
+rb question add "午睡是否改善次日记忆" --scope "成年人午睡" --rationale "测试午睡与记忆"
+rb hypothesis add "午睡20分钟组次日测验平均分高于对照组" --question 1 --direction 高于 --success "均值差>0"
+```
+
+`--scope`、`--rationale` 等参数可以省略。
+
+### 4.2 加入文献并摘录证据
+
+```bash
+rb paper add ~/Research/papers/nap-study.pdf --title "小睡与记忆（示例）"
+rb evidence add --paper 1 --quote "午睡20分钟组（n=40）的次日测验平均分高于对照组"
+rb evidence verify 1 --basis "已对照原文核对引文"
+```
+
+- 支持 PDF、`.txt`、`.md` 和 JATS XML。PDF 会提取全文，并把识别出的 DOI 记入来源。
+- `--title` 可省略，默认使用 PDF 中的标题或文件名。
+- `evidence verify` 记录你已对照原文核对过该引文。个人模式下可以本人核验，导出时会标注"本人核验"。
+
+### 4.3 设计实验、运行并记录结果
+
+```bash
+rb experiment add "午睡20分钟对照" --hypothesis 1 --objective "比较午睡组与对照组" --protocol "午睡组20分钟，对照组静坐" --metrics "次日测验平均分"
+rb metric add "次日测验平均分" --unit 分
+rb run add --experiment 1
+rb run begin 1
+rb run end 1 --outcome succeeded
+rb result add --run 1 --metric 1 --value 19.0 --unit 分
+```
+
+- `run end --outcome` 可选 `succeeded`、`failed`、`cancelled`。
+- 运行开始后再记录结果，结果与运行绑定。
+
+### 4.4 形成结论并关联证据
+
+```bash
+rb conclusion add "午睡可能改善次日记忆" --scope "成年人" --qualification "样本量较小"
+rb claim link-evidence --claim 1 --evidence 1 --relation SUPPORTS --note "文献中的对照组结果"
+```
+
+- `--relation SUPPORTS` 要求该证据已经核验（见 4.2）。
+- 也可以用 `--measurement <结果编号>` 把本项目的测量结果关联到结论。
+
+### 4.5 修改已有结论
+
+```bash
+rb correct --conclusion 1 --assertion "午睡可能改善次日记忆（样本量小，需重复验证）" --reason "原结论未写样本量限制"
+```
+
+- 原结论保留，新的更正记录追加在后面。
+- `--result <编号>` 可更正结果。`--type` 指定更正类型，默认为 `factual`。
+
+### 4.6 搜索与导出
+
+```bash
+rb search 午睡
+rb export --out ~/Research/exports/nap-study.md
+```
+
+- `search` 在研究问题、假设、实验、结论和文献中按关键词查找，结果保留短编号，可以直接用于后续命令。
+- `export` 把当前项目导出为 Markdown，包含问题、假设、实验、结果、文献与引文、结论及其证据关联，以及“更正记录”一节。
+
+## 5. 命令速查
+
+| 命令 | 用途 |
+| --- | --- |
+| `rb project create / use / current` | 创建项目、设置当前项目、查看当前项目 |
+| `rb question add` | 新建研究问题 |
+| `rb hypothesis add` | 新建假设 |
+| `rb paper add / list / correct / enrich` | 加入文献、列出、更正元数据、用 Crossref 补全字段 |
+| `rb folder scan / status / import-refs` | 扫描文献文件夹、查看状态、导入 BibTeX/RIS |
+| `rb evidence add / verify / list` | 摘录逐字引文、核验、列出 |
+| `rb experiment add` | 新建实验 |
+| `rb metric add` | 新建度量 |
+| `rb run add / begin / end / add-dataset / add-artifact / list / provenance` | 运行的创建、开始、结束、关联数据与产物、查询 |
+| `rb result add` | 记录测量结果 |
+| `rb conclusion add` | 新建结论 |
+| `rb claim link-evidence` | 把证据或结果关联到结论 |
+| `rb correct` | 追加对结论或结果的更正 |
+| `rb search` | 按关键词搜索 |
+| `rb export` | 导出 Markdown |
+| `rb doctor` | 检查全文文件是否完整（见第 7 节） |
+| `rb local init / bootstrap / whoami` | 本地身份管理 |
+
+每个命令都可以加 `--help` 查看完整参数，例如 `rb run --help`、`rb folder scan --help`。
+
+全局选项 `--verbose`（或 `-v`）显示详细日志，默认隐藏。
+
+命令出错时，终端会给出中文原因和修改建议。
+
+## 6. 文献文件夹与全文
+
+### 6.1 扫描文献文件夹
+
+```bash
+rb folder scan ~/Research/papers
+rb folder status
+```
+
+- 默认文件夹是 `~/Research/papers`，可以通过环境变量 `RESEARCHBASE_PAPERS_DIR` 修改，也可以直接给出路径。
+- 扫描会记录新增、移动、内容改变、缺失和重复的文件，并把新的 PDF、`.txt`、`.md` 登记为文献。同一 DOI 已登记的不会重复登记。
+- 扫描不移动、不改名、不删除你的文件。
+
+### 6.2 导入 BibTeX 或 RIS
+
+从 Zotero 等工具导出的文献清单可以批量导入，按 DOI 或标题与文件夹中的 PDF 匹配，并以导出文件的元数据为准：
+
+```bash
+rb folder import-refs ~/Research/library.bib
+```
+
+- 已登记的文献如果元数据不同，会追加一条新版本，原版本保留。
+- 单篇文献的元数据可以直接更正：`rb paper correct 1 --venue "期刊全名" --reason "补充期刊名"`。
+
+### 6.3 补全元数据
+
+```bash
+rb paper enrich
+```
+
+联网时，用 Crossref 补全已登记文献中为空的字段，不覆盖已有内容。
+
+## 7. 检查与备份
+
+### 7.1 `rb doctor`：全文完整性检查
+
+```bash
+rb doctor
+rb doctor --record
+```
+
+`rb doctor` 检查数据库中的每一条全文记录（全部全文版本）：
+
+- 文件是否存在；
+- 文件内容的 SHA-256 哈希是否与记录一致；
+- 文件大小是否与记录一致。
+
+它只读，不修改任何数据。全部正常时退出码为 0；发现问题时逐条列出并以退出码 1 结束。
+
+`--record` 会把结果写入状态文件。之后运行任意 `rb` 命令时，终端会先显示一行提示，直到下一次检查通过为止。
+
+### 7.2 每日自动备份
+
+macOS 上通过 launchd 任务 `com.researchbase.db-backup` 每天 03:30 运行备份，备份内容包括：
+
+- 数据库（`pg_dump` 导出，并校验 `pg_restore --list`）；
+- 全文存储目录（打包为 tar.gz，并校验）。
+
+备份后会自动运行 `rb doctor --record`，结果写入 `~/ResearchBase-backups/logs/doctor.log`。备份保留最近 14 份。
+
+备份的文件位于 `~/ResearchBase-backups/`，与仓库分开。
+
+### 7.3 恢复
+
+恢复步骤、需要同时恢复数据库与全文的原因，以及恢复演练记录，见 [ops/backup/RESTORE.md](ops/backup/RESTORE.md)。
+
+**恢复前请注意：**
+- 数据库与全文必须成对恢复；只恢复数据库会导致全文记录找不到文件。
+- 恢复后运行一次 `rb doctor`，确认全部正常。
+
+### 7.4 修改备份
+
+备份脚本、恢复说明和 launchd 配置都保存在 `ops/backup/`。修改后走 PR，合并后运行：
+
+```bash
+ops/backup/deploy.sh
+```
+
+部署脚本会把仓库中的版本复制到 `~/ResearchBase-backups/` 和 `~/Library/LaunchAgents/`，并重新加载任务。不要直接修改 `~/ResearchBase-backups/bin/` 下的副本。
+
+## 8. 配置项
+
+| 环境变量 | 作用 | 默认值 |
+| --- | --- | --- |
+| `DATABASE_URL` | 数据库连接串 | 本机 `researchbase` 数据库 |
+| `ARTIFACT_STORE_ROOT` | 全文存储目录 | `~/.researchbase/artifacts` |
+| `RESEARCHBASE_PAPERS_DIR` | 默认文献文件夹 | `~/Research/papers` |
+| `RESEARCHBASE_LOCAL_ROOT` | 本地身份目录 | `~/.researchbase-local` |
+| `RESEARCHBASE_DOCTOR_STATUS` | `doctor --record` 的状态文件 | `~/.researchbase/doctor-status.json` |
+| `OPENALEX_API_KEY` | OpenAlex 检索密钥（可选） | 未设置 |
+
+数据库地址的写法示例：
+
+```bash
+export DATABASE_URL=postgresql+psycopg://researchbase:<密码>@localhost:5432/researchbase
+```
+
+密码不要写入仓库。把它放在 `~/.pgpass` 或系统密钥管理中。
+
+## 9. 数据存放位置
+
+| 内容 | 位置 |
+| --- | --- |
+| 所有结构化记录（项目、问题、证据、结论等） | PostgreSQL 数据库 `researchbase` |
+| 全文文件（按内容哈希存放） | `~/.researchbase/artifacts/sha256/...` |
+| 本地身份凭据 | `~/.researchbase-local/`（不在每日备份中，需单独保存） |
+| 你的 PDF 原件 | 你自己的文件夹（ResearchBase 不移动、不改名） |
+| 每日备份 | `~/ResearchBase-backups/` |
+| 试用或临时数据库 | 不纳入备份，由你自己决定是否保留 |
+
+全文文件和数据库必须一起备份、一起恢复。
+
+## 10. 常见问题
+
+**`rb: command not found`**
+重新运行安装命令，并确认 `~/.local/bin` 在 `PATH` 中。新开一个终端窗口。
+
+**`rb` 提示“全文完整性检查发现问题”**
+运行 `rb doctor` 查看具体记录。常见原因是全文文件被移动、删除或损坏。查到原因后，从备份恢复对应文件，再运行 `rb doctor` 确认。
+
+**`evidence add` 提示引文不匹配**
+`--quote` 必须与原文逐字一致。从 PDF 复制时，换行、连字符和空格可能与原文不同，请对照原文修正后重试。
+
+**`claim link-evidence --relation SUPPORTS` 被拒绝**
+该证据尚未核验。先运行 `rb evidence verify <编号> --basis "..."`。
+
+**想修改已有结论**
+不要试图覆盖。使用 `rb correct` 追加更正。
+
+**`rb local bootstrap` 报错说数据库非空**
+bootstrap 只能在空数据库上执行。如果你已经有数据，直接使用 `rb local whoami` 确认身份即可。
+
+## 11. 开发者信息
+
+### 11.1 技术栈
+
+Python 3.12、uv、PostgreSQL 18、SQLAlchemy、Alembic、Typer（CLI）、FastAPI（API 适配器）、pytest、ruff、pyright。
+
+### 11.2 分层
+
+```text
+CLI / API → Application（一条命令 = 一个事务）→ Ports → Domain / Foundation
+                                                ↑
+                                          Persistence（SQLAlchemy + PostgreSQL）
+```
+
+- CLI 命令模块不得直接导入 SQLAlchemy 或 persistence 层，只能通过 Application 服务。架构测试会检查这一点。
+- 领域对象不依赖 SQLAlchemy、FastAPI、Typer。
+- 全文存储通过内容寻址的文件系统实现（`ContentAddressedFilesystemArtifactStore`）。
+
+### 11.3 目录结构
+
+```text
+src/researchbase/        代码：foundation、domain、application、persistence、adapters、cli
+migrations/              Alembic 数据库迁移
+tests/                   单元、集成、架构和端到端测试
+docs/                    用户文档（QUICKSTART）与架构文档（architecture/）
+ops/backup/              备份脚本、恢复说明和 launchd 配置
+scripts/                 验证与工具脚本
+```
+
+### 11.4 开发流程
 
 ```bash
 uv sync --locked --group dev
-```
-
-Start PostgreSQL and migrate the database:
-
-```bash
-docker compose up -d postgres
-uv run alembic upgrade head
-uv run alembic current
-```
-
-RevisionAction records completed issue-only Claim/conclusion successor changes via the
-Application service. It preserves OPEN Issues and defers Decision-purpose, NO_CHANGE
-and other result paths per the approved contract. No HTTP/CLI route is added.
-
-The current Alembic head is `0044_pr2_15_revision_action` (owner-approved Task 13).
-It repairs the PR2-04 schema contract, checks existing duplicate keys and SMALLINT
-range under table locks, and preserves rows. Conflicting data aborts the migration
-with a diagnostic; resolve it through governed corrections before retrying.
-
-The development configuration uses the local-only credentials documented in `.env.example`.
-Override `DATABASE_URL` for any non-development environment.
-
-## Verification
-
-Run the static checks:
-
-```bash
 uv run ruff format --check .
 uv run ruff check .
 uv run pyright
-git diff --check
+uv run pytest tests/unit tests/architecture
 ```
 
-For a quick local CI configuration check, run the static commands above and:
+集成测试需要 PostgreSQL 18：
 
 ```bash
-uv run pytest -o addopts='' -ra tests/unit/test_ci_migration_head.py
+export DATABASE_URL=postgresql+psycopg://researchbase:<密码>@localhost:5432/researchbase
+export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:<密码>@localhost:5432/postgres
+uv run pytest tests/integration
 ```
 
-Run the relevant focused PostgreSQL integration tests for each feature slice against a
-disposable PostgreSQL 18 instance, in addition to those quick checks. Keep local commits
-local while iterating, and push reviewed, stable feature slices. Pull requests targeting
-`main` run the full Linux CI gate; a push to `main` also runs it. CI skips changes limited
-to Markdown files under `docs/` and the root `README.md`. Each of the six CI test shards
-uses its own PostgreSQL service and applies migrations independently.
+- `RB_TEST_ADMIN_URL` 指向一个可以创建和删除测试数据库的管理员连接。部分测试套件需要它，未设置时这些测试会失败，而不是静默通过。
+- 单元测试不读取本地身份目录（`tests/unit/conftest.py` 已将其指向一个不存在的路径）。
 
-Run the full test suite against the development PostgreSQL database:
+修改后按以下流程：
 
-```bash
-DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase \
-  uv run pytest -o addopts='' -ra
-```
+1. 在分支上开发，本地运行相关测试。
+2. 推送并开 PR 到 `main`。
+3. CI 的全部必需检查通过后，用 `gh pr merge --auto --squash` 自动合并。
+4. 涉及数据库结构变更（迁移）的 PR 不使用自动合并，需要先做备份并人工确认。
 
-Unit tests (`tests/unit`) do not read the local identity folder `~/.researchbase-local`
-(or `RESEARCHBASE_LOCAL_ROOT`); `tests/unit/conftest.py` points it at a missing path, so
-results match CI on a machine where the owner has already bootstrapped the local tool.
-Integration tests need `DATABASE_URL` as above and, for the disposable-cluster suites,
-`RB_TEST_ADMIN_URL`.
+CI 对 `main` 的每次推送都会运行。
 
-The PR2-10 through PR2-15 disposable-cluster suites require an explicit admin selector:
+### 11.5 进一步阅读
 
-```bash
-RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres \
-  uv run pytest tests/integration/phase2/test_pr2_1*.py
-```
+- [docs/QUICKSTART.md](docs/QUICKSTART.md)：常用命令的逐步示例。
+- [ops/backup/README.md](ops/backup/README.md) 与 [ops/backup/RESTORE.md](ops/backup/RESTORE.md)：备份与恢复。
+- [docs/architecture/](docs/architecture/)：架构规范。`AGENTS.md` 记录仓库的工作规则。
 
-This opts the selected local PostgreSQL cluster into creating and dropping random
-`researchbase_pr210_test_`, `researchbase_pr211_r2_test_`, and `researchbase_pr212_test_`
-databases. Use a disposable cluster with an admin role that can create databases,
-inspect `pg_control_system()`, and terminate test connections. Missing or empty selectors,
-remote hosts, and admin URLs naming application databases fail rather than skip.
-`RB_PR210_TEST_ADMIN_URL` and `RB_PR211_R2_TEST_ADMIN_URL` remain suite-specific aliases;
-`RB_TEST_ADMIN_URL` takes precedence when present. Existing suites outside this group
-retain their own configuration requirements.
-
-Optionally pin the server identity with `RB_TEST_ADMIN_USER`, `RB_TEST_ADMIN_PORT`,
-`RB_TEST_ADMIN_DATA_DIRECTORY`, and `RB_TEST_ADMIN_SYSTEM_ID`. Every supplied value must
-match the connected server before a test database is created. These replace the original
-machine-specific username, port, data directory, and system identifier assertions;
-the connected database must still be `postgres` and its user must match the URL.
-
-## Repository structure
-
-```text
-src/researchbase/       Foundation, Domain, Application, persistence, API, and CLI
-migrations/             Alembic migrations
-tests/                  Unit, integration, architecture, contract, and end-to-end tests
-docs/architecture/      Normative architecture and phase specifications
-artifacts/              Accepted verification and freeze evidence
-execution/phase1/       Historical Phase 1 execution/review packs
-scripts/                Evidence and verification tooling
-```
-
-## License
-
-No license file is currently present. Until the repository owner selects and adds a license,
-no license grant should be inferred from publication.
-
-
-## Local-first onboarding (M1-AUTH-002)
-
-Use Python 3.12, uv and PostgreSQL 18.x from this source checkout. The supported MVP runs under one trusted non-root macOS/Linux account, including SSH sessions on that same host/account. Run without sudo. No application TCP listener starts. Network HTTP still needs its separately configured trusted authentication profile and is not part of local onboarding.
-
-```bash
-uv sync --frozen
-# Set DATABASE_URL for your PostgreSQL database through protected deployment configuration.
-# Prefer a mode-0600 .pgpass or deployment secret; never commit database passwords.
-uv run alembic upgrade head
-uv run researchbase local init --json
-uv run researchbase local bootstrap --display-name "Researcher" --project-name "My research" --json
-uv run researchbase local whoami --json
-```
-
-Save the returned project ID. `local init` creates `~/.researchbase-local` using the OS account database rather than `$HOME`; the parent must already exist. Alternatively select a dedicated absolute, physical path outside every Git checkout with `RESEARCHBASE_LOCAL_ROOT`. This variable selects configuration; it does not establish identity. The directory is 0700 and its files are 0600, owned by the actual UID. Symlinked paths, copied configuration at another location, another host/installation, root and mismatched real/effective UID/GID fail closed. Initialization refuses to overwrite an existing directory. Bootstrap refuses any nonempty identity/project database and never imports or reattributes legacy actors.
-
-```bash
-uv run researchbase local project-show --project-id PROJECT_UUID --json
-uv run researchbase local workspace-create --project-id PROJECT_UUID --name Lab --locator /absolute/workspace --json
-uv run researchbase local question-create --project-id PROJECT_UUID --question-text "What explains this result?" --json
-uv run researchbase local question-show --question-id QUESTION_UUID --json
-uv run researchbase --request-id REQUEST_UUID literature search-plan create --project-id PROJECT_UUID --material-json '{"objective":"Review relevant work","source_scope":"BIBLIOGRAPHIC","search_strategy":"KEYWORD","planned_providers":["openalex"]}' --json
-uv run researchbase literature search-plan show --project-id PROJECT_UUID --plan-id PLAN_UUID --json
-```
-
-Replace UUID placeholders with actual IDs; generate a fresh request UUID with `python3 -c 'import uuid; print(uuid.uuid4())'`. Reopen a terminal using the same account, configuration location and database to read the same canonical objects. `openalex` above is planned search material only; M1 performs no live provider retrieval. The `local` workbench and authorized `literature` groups are the production CLI surface; other legacy groups and `--actor-id` overrides are refused. ResearchQuestion creation/show and workspace creation reuse existing Application services with in-transaction membership/role checks. Scientific hashes and history are unchanged.
-
-The one-use bootstrap secret is removed after commit; PostgreSQL permanently closes bootstrap even if a crash leaves that file behind. Retain the protected installation and HMAC audit key/records with database backups. Do not move/copy the installation to impersonate an old account. Missing mappings require an explicit future recovery/enrollment procedure; initialization cannot recover an existing database automatically. A failed filesystem initialization leaves its partial directory untouched for inspection; do not overwrite an existing valid installation.
-
-The protected `installation.json` is operational deployment policy, not canonical identity. `enabled=false` disables the local credential; `not_after` may set an aware ISO-8601 expiry. Each authorization rereads that policy at fresh DB time after required locks. Default validity is unbounded while the trusted OS account and installation remain enabled. Canonical membership/binding revocation and actor retirement still deny access. Keep the database/server sessions in UTC. PostgreSQL's OWNER-coverage guards prevent revoking the only structural Owner; they are not weakened for local operation.
-
-This profile trusts code running as that OS account and its database administration authority. It does not isolate malicious code within the same account or guarantee identity across cloned machine identifiers/privileged UID reuse. Do not give untrusted Agent processes this account, installation files or PostgreSQL credentials. No Agent sandbox, multi-user isolation, PKI, certificate enrollment or network deployment is supplied by M1. See ADR-0012 for the boundary.
-
-### Retained host configuration
-
-The local Runner and HG1 server checks read the following environment variables
-at startup. Unset variables retain the accepted host defaults. Set these together
-with `DATABASE_URL`, `RESEARCHBASE_LOCAL_ROOT`, and `ARTIFACT_STORE_ROOT` for the
-intended deployment; the URL and storage roots must match the configured profile.
-
-| Variable | Default |
-| --- | --- |
-| `RB_HOST_DURABLE_ROOT` | `/Users/onephone/ResearchBaseData` |
-| `RB_HOST_TRUST_ROOT` | `/Library/Application Support/ResearchBase` |
-| `RB_HOST_OWNER_UID` | `502` |
-| `RB_HOST_DATABASE_USER` | `onephone` |
-| `RB_HOST_SOCKET_DIR` | `/private/tmp` |
-| `RB_HOST_DATABASE_PORT` | `55440` |
-| `RB_HOST_RUNNER_SOCKET_DIR` | `/private/tmp` |
-| `RB_HOST_M3_DATABASE` | `researchbase_m3_retained_20261011` |
-| `RB_HOST_M2_FINAL_DATABASE` | `researchbase_m2_final` |
-| `RB_HOST_M2_LIVE_DATABASE` | `researchbase_m2_live` |
-| `RB_HOST_M2_LIVE2_DATABASE` | `researchbase_m2_live2` |
-| `RB_HOST_M2_LIVE3_DATABASE` | `researchbase_m2_live3` |
-| `RB_HOST_PGDATA` | `$RB_HOST_DURABLE_ROOT/rb-m2-pg` |
-| `RB_HOST_HBA_FILE` | `$RB_HOST_PGDATA/pg_hba.conf` |
-| `RB_HOST_SYSTEM_IDENTIFIER` | `7695048034454027996` |
-| `RB_HOST_M3_REVISION` | `0031_m3_snapshot_relation_cardinality` |
-
-The five database names must be distinct. Paths must be absolute; blank or padded
-values, a root UID, and invalid ports fail closed. M2 installation and artifact
-roots remain `rb-m2-<tag>-installation` and `rb-m2-<tag>-artifacts` beneath the
-configured durable root; M3 uses `rb-m3-retained-installation` and
-`rb-m3-retained-artifacts`. The Runner still requires macOS native peer credentials,
-a non-root matching process UID, and a password-free PostgreSQL Unix-socket URL.
-M3 still checks every server identity field, its exact revision, loopback listeners,
-and the exact peer/reject HBA rules (using the configured database user).
-HG1 policy files and their parents must still be protected by root ownership;
-changing `RB_HOST_TRUST_ROOT` does not bypass those checks or install a policy.
-
-The historical `scripts/researchbase_host*.sh` verification scripts also support:
-
-| Variable | Default / effect |
-| --- | --- |
-| `RB_REVIEW_REPO` | Original checkout: `/private/tmp/ResearchBase-phase2-recovered`; PR2-04: `/Users/onephone/Documents/Codex/ResearchBaseProject/worktrees/f2-p1-remediation` |
-| `RB_REVIEW_BRANCH` | `phase2/entry-gate`; PR2-04: `recovery/f2-p1-remediation` |
-| `RB_REVIEW_PYTHON_ENV_ROOT` | `/Users/onephone/Documents/Codex/ResearchBase` |
-| `RB_REVIEW_PYTHON` | `$RB_REVIEW_PYTHON_ENV_ROOT/.venv/bin/python` (review and PR2-03 scripts) |
-| `RB_REVIEW_TOOLS` | `$RB_REVIEW_PYTHON_ENV_ROOT/.venv/bin` (review and PR2-03 scripts) |
-| `RB_REVIEW_TMP_ROOT` | `/private/tmp`; temporary clusters are unique children with the original script-specific prefix |
-| `PG_BIN` | PostgreSQL 18 binary directory; main script discovers Homebrew when unset |
-
-Historical commit/content, branch, PostgreSQL-version, cleanup, and acceptance
-checks remain active. `PR204_DRY_RUN_*` inputs retain their existing dry-run-only
-rules. PR2-04 continues to use `python3` and `uv` from `PATH`.
-
-To run the previously host-dependent four-installation Runner integration test
-against the local cluster:
-
-```sh
-export DATABASE_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/researchbase
-export RB_TEST_ADMIN_URL=postgresql+psycopg://researchbase:researchbase@localhost:5432/postgres
-HG1_RUN_LOCAL=1 uv run pytest tests/integration/phase2/test_hg1_runner_live.py
-```
-
-This mode creates and drops four uniquely named disposable databases, migrates
-and onboards four real private installations under pytest's temporary directory,
-and tests authentication, project reads, and socket cleanup through separate
-Runner processes. It discovers the local cluster's socket and port through the
-admin connection and uses password-free socket connections for the Runner.
-`HG1_RUN_LIVE=1` retains the read-only check of existing installations and their
-`migration-evidence/postcutover-cli-verification.json`. With neither flag set,
-the live test remains opt-in and skips.
-
-
-## PR2-20 focused hardening evidence
-
-Report helpers are file-only, under `tests/contracts/pr2_20_evidence.py`; database
-observers and disposable fixture generators are under `tests/integration/phase2/pr2_20_*`.
-They add no public command, query change, migration or scientific schema.
-
-Use the explicitly selected disposable local PostgreSQL 18 administrator from the
-existing `RB_TEST_ADMIN_URL` policy. Keep credentials in the environment. For example:
-
-```sh
-UV_CACHE_DIR=.uv-cache uv sync --locked --group dev
-UV_CACHE_DIR=.uv-cache uv run python scripts/pr2_20_verify.py
-UV_CACHE_DIR=.uv-cache uv run python -m tests.contracts.pr2_20_reports
-```
-
-The verifier runs static checks, unit/architecture tests and the listed owning/changed
-PostgreSQL suites. It does not run the whole suite. Machine evidence records the exact
-revision and authored dirty diff (including untracked source); generated reports and their
-evidence are excluded from that digest to avoid self-reference. Changed authored files
-require a fresh run. Logs are sanitized; JSON plans omit parameter-bearing expressions
-while retaining all plan nodes, timing and buffer statistics. No retained database is used.
-
-Large timing is separately opt-in:
-
-```sh
-RB_PR220_BENCHMARK=1 UV_CACHE_DIR=.uv-cache uv run pytest tests/e2e/test_pr2_20_benchmark.py
-```
-
-The declared dedicated Ubuntu benchmark host/settings and superseded-manuscript history
-are prerequisites; unavailable prerequisites produce BLOCKED evidence and skipped timing
-cases, never passing performance acceptance. Small CI timings are informational. Real
-PaperQA2 intake/index security, dated license/advisory review and owner exit dispositions
-remain unresolved. The retrieval transport's private-network destination protection is an
-open finding; no security clearance or provider activation is implied. Repository license
-selection remains with the owner; fixture text is TEST ONLY and unrestricted, and no
-restricted query/fulltext or public cache export is added here. Restore checks reconnect to
-disposable databases; test failures must be resolved under the owning predicate, without
-repairing immutable history. Phase 2 is accepted; Phase 3 proceeds one explicitly
-authorized PR at a time.
-
-## Phase 3 bootstrap (PR3-00)
-
-Owner authorization on 2026-10-20 and [ADR-0021](docs/architecture/adr/ADR-0021-tdg3-phase3-technology-decisions.md)
-permit PR3-00 only. The [frozen scope](docs/phase3/PR3-00-contract-freeze.md)
-adds empty runtime, strategy, capability and adapter packages plus the empty,
-forward-only `0076_agent_runtime_bootstrap` revision after accepted Phase 2
-`0075_m1_reconsideration` (commit `286cd9a`). It adds no task model, worker,
-provider, dependency, schema object or API/CLI command. Agent callers will use the
-existing Application boundary; the development harness owns no scientific state.
-
-Use the existing explicit disposable PostgreSQL 18 admin selector
-`RB_TEST_ADMIN_URL` (described above), with PostgreSQL 18 `pg_dump` on `PATH`:
-
-```sh
-uv run ruff check .
-uv run ruff format --check .
-uv run pyright
-uv run alembic heads
-uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture tests/integration/phase3/test_pr3_00_bootstrap.py
-```
-
-Tests create and drop isolated databases through the existing disposable helper;
-file artifacts go under pytest `tmp_path`. See [verification evidence](docs/phase3/PR3-00-evidence.md)
-for exact focused commands and counts. The enclosing check loop owns the full
-suite run. **STOP after PR3-00 evidence.** PR3-01 and ADR-0022 staging require
-separate implementation authorization.
-
-## Phase 3 finite capability gateway (PR3-03)
-
-The gateway supports only `CONTRACT_FAKE`: four Application commands, three
-snapshot queries, retained typed pins, durable receipts and finite in-process echo.
-Human and eligible Agent callers use the same Application boundary. Registration
-requires a Human Owner. Task execution stays disabled; this slice supplies no
-provider, process, network execution, Agent execution identity or scientific promotion.
-
-Use the explicit disposable PostgreSQL 18 administrator selected through
-`RB_TEST_ADMIN_URL` above and PostgreSQL 18 `pg_dump` on `PATH`. Each command below
-is independent; retain its output and exit code separately. Do not use the
-application database. The external check loop owns the full suite and shard runs.
-
-```sh
-export UV_CACHE_DIR="$PWD/tmp/pr3-03-uv-cache"
-mkdir -p tmp/pr3-03
-git diff --check HEAD
-uv run ruff check .
-uv run ruff format --check .
-uv run pyright
-uv run alembic heads
-uv run pytest -o addopts='' -ra tests/unit/phase3
-uv run pytest -o addopts='' -ra tests/architecture tests/unit/architecture
-uv run pytest -o addopts='' -ra --junitxml=tmp/pr3-03/schema.xml tests/integration/phase3/test_pr3_03_schema.py tests/integration/phase3/test_pr3_03_guards.py tests/integration/phase3/test_pr3_03_migration.py
-uv run pytest -o addopts='' -ra -s --junitxml=tmp/pr3-03/behavior.xml tests/integration/phase3/test_pr3_03_application.py tests/integration/phase3/test_pr3_03_concurrency.py tests/integration/phase3/test_pr3_03_replay.py
-uv run pytest -o addopts='' -ra tests/integration/phase3/test_pr3_01_*.py tests/integration/phase3/test_pr3_04_*.py tests/integration/phase3/test_pr3_02_s1_*.py
-```
-
-Captures under `tmp/pr3-03/` are ignored and local-only. The tracked
-[PR3-03 evidence](docs/phase3/PR3-03-evidence.md) records observed results, mapped
-S8 node IDs and review dispositions. Missing required coverage or external
-acceptance evidence keeps the gate open; a passing focused subset alone does not
-establish PR acceptance.
+以前的 README 中记录的 Phase 1/2/3 验收状态、冻结标签和证据包，现在保存在 git 历史中（提交 `328143d` 及之前的 README.md），不再作为使用说明的内容。
