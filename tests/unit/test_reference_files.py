@@ -31,7 +31,7 @@ IS  - 3
 SP  - 101
 EP  - 110
 DO  - 10.5555/nap.2021.1
-ER  - 
+ER  -
 
 TY  - JOUR
 T1  - Second record
