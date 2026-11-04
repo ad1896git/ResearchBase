@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from researchbase.cli.commands.quick import _doi_in, _pdf_text
+from researchbase.cli.commands.quick import _doi_in, _pdf_text, _valid_doi
+from researchbase.domain.source_identity import IdentifierType, normalize_source_identifier
 from researchbase.foundation.errors import ResearchBaseError
 
 
@@ -49,6 +50,21 @@ def test_doi_is_none_when_absent():
     assert _doi_in("no identifier here") is None
 
 
+def test_valid_doi_is_stored_in_normalized_form():
+    expected = normalize_source_identifier(
+        IdentifierType.DOI, "10.1234/nap.2026.7"
+    ).normalized_value
+    assert _valid_doi("10.1234/nap.2026.7") == expected
+
+
+def test_malformed_doi_is_dropped_instead_of_failing_the_import():
+    assert _valid_doi("10.1234/bad%zz") is None
+
+
+def test_missing_doi_stays_missing():
+    assert _valid_doi(None) is None
+
+
 def test_pdf_without_text_is_rejected_in_chinese(tmp_path: Path):
     pdf = tmp_path / "blank.pdf"
     pdf.write_bytes(_minimal_pdf([]))
@@ -63,3 +79,44 @@ def test_broken_pdf_is_rejected_in_chinese(tmp_path: Path):
     with pytest.raises(ResearchBaseError) as caught:
         _pdf_text(pdf)
     assert "无法读取这个 PDF 文件" in caught.value.message
+
+
+def test_known_doi_is_refused_before_any_write(monkeypatch):
+    from uuid import uuid4
+
+    from researchbase.cli.commands import quick
+    from researchbase.foundation.errors import ErrorCode
+
+    monkeypatch.setattr(quick, "_lo", lambda *args: {"title": "已有文献"})
+    with pytest.raises(ResearchBaseError) as caught:
+        quick._refuse_known_doi(uuid4(), "10.1234/nap.2026.7")
+    assert caught.value.code is ErrorCode.DUPLICATE_CONTENT
+    assert "已有文献" in caught.value.details["reason"]
+
+
+def test_unknown_doi_is_allowed_to_import(monkeypatch):
+    from uuid import uuid4
+
+    from researchbase.cli.commands import quick
+    from researchbase.foundation.errors import ErrorCode
+
+    def not_found(*args):
+        raise ResearchBaseError(ErrorCode.SOURCE_NOT_FOUND, "source not found")
+
+    monkeypatch.setattr(quick, "_lo", not_found)
+    assert quick._refuse_known_doi(uuid4(), "10.1234/nap.2026.7") is None
+
+
+def test_other_lookup_errors_are_not_swallowed(monkeypatch):
+    from uuid import uuid4
+
+    from researchbase.cli.commands import quick
+    from researchbase.foundation.errors import ErrorCode
+
+    def broken(*args):
+        raise ResearchBaseError(ErrorCode.ADAPTER_UNAVAILABLE, "down")
+
+    monkeypatch.setattr(quick, "_lo", broken)
+    with pytest.raises(ResearchBaseError) as caught:
+        quick._refuse_known_doi(uuid4(), "10.1234/nap.2026.7")
+    assert caught.value.code is ErrorCode.ADAPTER_UNAVAILABLE

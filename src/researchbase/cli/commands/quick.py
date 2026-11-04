@@ -22,6 +22,7 @@ from uuid import UUID, uuid4
 import typer
 from typer.main import get_command
 
+from researchbase.domain.source_identity import IdentifierType, normalize_source_identifier
 from researchbase.foundation.errors import ErrorCode, ResearchBaseError
 
 from ..context import CliRuntime
@@ -75,6 +76,52 @@ def _pdf_text(path: Path) -> tuple[str, dict[str, str]]:
 def _doi_in(text: str) -> str | None:
     match = _DOI_PATTERN.search(text)
     return match.group(0).rstrip(".,;)]") if match else None
+
+
+def _refuse_known_doi(project: UUID, doi: str) -> None:
+    """Stop before anything is written when this project already has a source with the DOI."""
+
+    try:
+        existing = _lo(
+            "literature",
+            "source",
+            "resolve",
+            "--project-id",
+            str(project),
+            "--identifier-type",
+            "DOI",
+            "--value",
+            doi,
+        )
+    except ResearchBaseError as exc:
+        if exc.code is ErrorCode.SOURCE_NOT_FOUND:
+            return
+        raise
+    raise ResearchBaseError(
+        ErrorCode.DUPLICATE_CONTENT,
+        "这篇文献的 DOI 已登记过，未重复导入",
+        details={
+            "reason": (
+                f"这个 DOI 已登记为「{existing.get('title')}」；"
+                "同一 DOI 在一个项目里只保留一条来源记录"
+            )
+        },
+    )
+
+
+def _valid_doi(doi: str | None) -> str | None:
+    """Return the DOI in the same normalized form the identifier commands store, or None.
+
+    Checked before anything is written, so an odd DOI from the PDF text is dropped
+    instead of failing the import after the document was already stored.
+    """
+
+    if doi is None:
+        return None
+    try:
+        return normalize_source_identifier(IdentifierType.DOI, doi).normalized_value
+    except ResearchBaseError:
+        return None
 
 
 # Low-level reasons that need plainer Chinese guidance.
@@ -567,7 +614,9 @@ def paper_add(
         doi = None
         if suffix == _PDF_SUFFIX:
             text, properties = _pdf_text(path)
-            doi = _doi_in(text)
+            doi = _valid_doi(_doi_in(text))
+            if doi:
+                _refuse_known_doi(project, doi)
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             extracted = local_root(runtime) / "extracted"
             extracted.mkdir(parents=True, exist_ok=True)
@@ -586,7 +635,7 @@ def paper_add(
             "--rights-basis",
             "个人本地文献，仅用于个人研究记录",
         )
-        source = _lo(
+        source_args = [
             "literature",
             "source",
             "create",
@@ -596,7 +645,10 @@ def paper_add(
             "PAPER",
             "--title",
             label,
-        )
+        ]
+        if doi:
+            source_args += ["--initial-identifier-type", "DOI", "--initial-identifier-value", doi]
+        source = _lo(*source_args)
         source_id = source["source_id"]
         material = {
             "version_kind": "PUBLISHED",
