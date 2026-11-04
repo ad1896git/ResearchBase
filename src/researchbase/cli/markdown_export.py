@@ -79,8 +79,20 @@ def _entry(indent: str, label: str, row: dict, bold: bool = False) -> str:
     return f"{indent}- {label}{text}（{_status(row.get('status'))}）"
 
 
+_CORRECTION_TARGET = {"claim_version": "结论", "measurement": "结果"}
+
+
+def _correction_line(indent: str, row: dict) -> str:
+    reason = _oneline(row.get("reason")) if row.get("reason") else "（未写原因）"
+    return f"{indent}- 更正 {_short(row)}：{_oneline(row.get('title'))}（原因：{reason}）"
+
+
 def render(project_id: str, rows: dict[str, list[dict]], links: list[dict], when: datetime) -> str:
     by_id = {kind: {str(r["id"]): r for r in items} for kind, items in rows.items()}
+    # Corrections are appended records; each is shown under the row it corrects.
+    corrections_by_target: dict[str, list[dict]] = defaultdict(list)
+    for row in rows.get("correction", []):
+        corrections_by_target[str(row.get("parent_id"))].append(row)
     # Children are keyed by (kind, parent id), e.g. ("experiment", hypothesis id).
     children: dict[tuple[str, str], list[dict]] = defaultdict(list)
 
@@ -155,6 +167,10 @@ def render(project_id: str, rows: dict[str, list[dict]], links: list[dict], when
                         lines.append(
                             f"        - 结果 {_short(result)} {_oneline(result.get('title'))}"
                         )
+                        for correction in corrections_by_target.get(
+                            f"measurement:{result['id']}", []
+                        ):
+                            lines.append(_correction_line("          ", correction))
     lines.append("")
 
     lines += ["## 度量指标", ""]
@@ -203,6 +219,22 @@ def render(project_id: str, rows: dict[str, list[dict]], links: list[dict], when
                 else ""
             )
             lines.append(f"  - {relation}：{shown}{note}")
+        for correction in corrections_by_target.get(f"claim_version:{claim.get('version_id')}", []):
+            lines.append(_correction_line("  ", correction))
+    lines.append("")
+
+    lines += ["## 更正记录", ""]
+    corrections = sorted(rows.get("correction", []), key=lambda r: r["short_no"])
+    if not corrections:
+        lines += ["（没有更正）", ""]
+    for correction in corrections:
+        kind, _, _ = str(correction.get("parent_id")).partition(":")
+        target = _CORRECTION_TARGET.get(kind, kind)
+        reason = _oneline(correction.get("reason")) if correction.get("reason") else "（未写原因）"
+        lines.append(
+            f"- 更正 {_short(correction)}：{_oneline(correction.get('title'))}"
+            f"（更正对象：{target}；原因：{reason}）"
+        )
     lines.append("")
 
     lines += ["## 参考文献", ""]
