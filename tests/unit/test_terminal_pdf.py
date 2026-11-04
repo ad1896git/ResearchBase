@@ -91,7 +91,7 @@ def test_known_doi_is_refused_before_any_write(monkeypatch):
     with pytest.raises(ResearchBaseError) as caught:
         quick._refuse_known_doi(uuid4(), "10.1234/nap.2026.7")
     assert caught.value.code is ErrorCode.DUPLICATE_CONTENT
-    assert "已有文献" in caught.value.details["reason"]
+    assert "已有文献" in str((caught.value.details or {}).get("reason", ""))
 
 
 def test_unknown_doi_is_allowed_to_import(monkeypatch):
